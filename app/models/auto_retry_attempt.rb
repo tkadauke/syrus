@@ -1,4 +1,6 @@
 class AutoRetryAttempt < ApplicationRecord
+  include ValidatesAgentProvider
+
   RETRY_KINDS = %w[ failed_step resume_failed_step retry_workflow ].freeze
 
   WORKER_DIED_CLASSIFICATION = "worker_died"
@@ -62,7 +64,7 @@ class AutoRetryAttempt < ApplicationRecord
 
   before_validation :assign_retry_workflow_uniqueness_key
 
-  validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
+  validates_agent_provider
   validates :failure_classification, presence: true
   validates :retry_kind, presence: true, inclusion: { in: RETRY_KINDS }
   validates :attempt_number, presence: true, numericality: { only_integer: true, greater_than: 0 }

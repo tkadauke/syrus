@@ -1,6 +1,7 @@
 class User < ApplicationRecord
   include AutoApproveModes
   include PluginDataCleanup
+  include ValidatesAgentProvider
 
   has_secure_password
   has_many :sessions, dependent: :destroy
@@ -225,7 +226,7 @@ class User < ApplicationRecord
   validates :agent_max_turns,
             presence: true,
             numericality: { only_integer: true, in: AGENT_MAX_TURNS_RANGE }
-  validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
+  validates_agent_provider
   validates :chat_provider, inclusion: { in: -> { User.chat_providers } }, allow_nil: true
   validates :theme, presence: true, inclusion: { in: THEMES }
   validates :locale, presence: true, inclusion: { in: LOCALES }

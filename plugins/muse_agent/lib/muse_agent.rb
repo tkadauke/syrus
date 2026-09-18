@@ -1,3 +1,5 @@
+require "syrus/installer"
+
 module SyrusMuseAgent
   extend Syrus::PluginApi
 
@@ -15,8 +17,6 @@ module SyrusMuseAgent
              chat_provider: "ChatProviders::Muse"
 
     while_enabled do |scope|
-      scope.effect("credential probe") { CredentialProbe.register_probe("muse_api_key", MuseCredentialProbe) }
-      scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(MuseCredentialProbe::SECRET_EXTRACTOR) }
       scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("muse", ChatSessionRehydrator::Muse) }
       scope.effect("admin user chips") do
         Filters.register_chips(
@@ -26,4 +26,9 @@ module SyrusMuseAgent
       end
     end
   end
+end
+
+Syrus::Installer.define("muse_agent:credential probe") do |scope|
+  scope.effect("credential probe") { CredentialProbe.register_probe("muse_api_key", MuseCredentialProbe) }
+  scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(MuseCredentialProbe::SECRET_EXTRACTOR) }
 end

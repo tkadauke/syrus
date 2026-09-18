@@ -2763,7 +2763,9 @@ no teardown, which is exactly why it is not an effect.
 
 Bundled plugins:
 
-- `agy_agent` — default-enabled Antigravity workflow and chat provider. It writes
+- `agy_agent` — **default-disabled** Antigravity workflow and chat provider; an
+  operator enables it from Admin -> Plugins once the worker/backend image
+  includes the agy CLI and a Gemini API key is available. It writes
   the Syrus sidecar into Antigravity's isolated
   `~/.gemini/config/mcp_config.json` and reads `SYRUS_AGY_MODEL` /
   `SYRUS_AGY_EFFORT` as provider configuration. Workflow and chat invocations
@@ -2778,7 +2780,49 @@ Bundled plugins:
   essential and deferred tool tiers. Antigravity conversation ids are accepted
   only when they are path-safe; invalid ids start a fresh session and log a
   diagnostic instead of being used in a path or command argument.
-- `claude_agent` / `codex_agent` — default-enabled workflow and chat providers.
+- `claude_agent` / `codex_agent` — **default-disabled** workflow and chat
+  providers, same as `agy_agent` and `muse_agent`: a new install ships with no
+  agent provider enabled, and an operator turns one on from Admin -> Plugins
+  once its credentials are configured. Existing installs that already had one
+  of these plugins enabled before this default flipped keep it enabled —
+  `Syrus::PluginRegistry.upsert_plugin_record!` only applies a manifest's
+  `default_enabled` value to a brand-new `PluginRecord`, never to one that
+  already exists.
+
+  With every agent-provider plugin off by default, `User.agent_providers`
+  (the list every `agent_provider`/`provider` column's `inclusion` validation
+  checks against — `User`, `Job`, `Workflow`, `Run`, `AutoRetryAttempt`,
+  `ProviderSession`, and the optional overrides on `Repository` /
+  `RepositoryMembership`, all via the shared `ValidatesAgentProvider` concern)
+  can legitimately be empty on a fresh install, before the first admin has
+  enabled anything. That validation tolerates an empty list instead of
+  rejecting the column's placeholder value outright, so signup and normal
+  record creation stay unblocked during that bootstrap window; actually
+  *running* an agent with no plugin enabled still fails clearly, at
+  `AgentProviders.for`, once something tries to.
+
+  Onboarding's Configure Agent modal (`app/frontend/components/ConfigureAgentModal.tsx`,
+  only ever rendered from `Onboarding.tsx`) is the one place a disabled
+  agent-provider plugin must still be reachable and connectable: it enumerates
+  its provider tabs from `pluginAgentProviderConnectPanelProviders()` (every
+  plugin with a registered `agentProviderConnectPanels/*.tsx` component),
+  ordered popular-to-less-popular (claude, codex, agy, muse, then any future
+  provider alphabetically), and renders each tab's `AgentProviderConnectPanel`
+  regardless of that plugin's current `enabled` state. Gemini isn't an agent
+  provider — it only powers walkthrough-video analysis — so it has no tab
+  here; it stays configurable from Settings' credential cards. When a tab's
+  connect panel reports success, the
+  modal posts to `POST /api/v1/app/credentials/connect_onboarding_provider`
+  (`Api::V1::App::CredentialsController#connect_onboarding_provider`), which
+  resolves the one `PluginRecord` whose manifest declares `provides
+  agent_provider:` for that provider key (`App::OnboardingAgentProviderPlugin`)
+  and flips it to `enabled: true` — never an admin-supplied or client-supplied
+  plugin name outside that mapping. The endpoint 403s once the current user
+  has finished first-run setup (`User#first_epic_landed?`, the same signal
+  `AppApi::SetupStatus` uses), so it can't be used as a general-purpose plugin
+  toggle outside onboarding; Settings' credential cards never call it, and an
+  operator who wants to enable a provider after onboarding still uses Admin ->
+  Plugins.
 - `github_source` — required GitHub issue/PR polling source and source-control
   provider. It is installed as a plugin for source ownership, but is not
   disableable yet because some GitHub behavior still lives in core.

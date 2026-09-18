@@ -1,3 +1,5 @@
+require "syrus/installer"
+
 module SyrusCodexAgent
   extend Syrus::PluginApi
 
@@ -9,15 +11,12 @@ module SyrusCodexAgent
     icon_url "/plugin-icons/codex_agent.svg"
     author "Thomas Kadauke"
     category "agent_provider"
-    default_enabled true
+    default_enabled false
     disableable true
     provides agent_provider: "AgentProviders::Codex",
              chat_provider: "ChatProviders::Codex"
 
     while_enabled do |scope|
-      scope.effect("api key probe") { CredentialProbe.register_probe("codex_api_key", CodexCredentialProbe) }
-      scope.effect("auth json probe") { CredentialProbe.register_probe("codex_auth_json", CodexCredentialProbe) }
-      scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(CodexCredentialProbe::SECRET_EXTRACTOR) }
       scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("codex", ChatSessionRehydrator::Codex) }
       scope.effect("admin user chips") do
         Filters.register_chips(
@@ -27,4 +26,10 @@ module SyrusCodexAgent
       end
     end
   end
+end
+
+Syrus::Installer.define("codex_agent:credential probes") do |scope|
+  scope.effect("api key probe") { CredentialProbe.register_probe("codex_api_key", CodexCredentialProbe) }
+  scope.effect("auth json probe") { CredentialProbe.register_probe("codex_auth_json", CodexCredentialProbe) }
+  scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(CodexCredentialProbe::SECRET_EXTRACTOR) }
 end

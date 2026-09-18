@@ -85,6 +85,7 @@ Rails.application.routes.draw do
           post :rotate_api_token
           post :recheck_provider_availability
           post :override_provider_availability
+          post :connect_onboarding_provider
           delete :revoke_api_token
           resources :documents, only: %i[ index create destroy ], controller: "credentials/documents" do
             member { get :file }

@@ -200,6 +200,27 @@ module Api
           render json: credentials_payload(Current.user.reload).merge(message: "API token revoked.")
         end
 
+        # Onboarding-only: auto-enables the exact plugin backing the agent
+        # provider the Configure Agent modal just connected. Never available
+        # once the operator has finished first-run setup, and never able to
+        # enable anything other than the plugin OnboardingAgentProviderPlugin
+        # resolves for the given provider key.
+        def connect_onboarding_provider
+          unless onboarding_in_progress?
+            render_error("forbidden", "This action is only available during onboarding.", status: :forbidden)
+            return
+          end
+
+          plugin = ::App::OnboardingAgentProviderPlugin.enable!(params[:provider].to_s)
+          unless plugin
+            render_error("unknown_provider", "No agent-provider plugin found for #{params[:provider].to_s.inspect}.",
+                         status: :unprocessable_content)
+            return
+          end
+
+          render json: credentials_payload(Current.user.reload).merge(message: "#{plugin.display_name || plugin.name} enabled.")
+        end
+
         def recheck_provider_availability
           provider = provider_param
           return unless provider
@@ -369,6 +390,10 @@ module Api
                                   { providers: [], causes: [] }
                                 ] },
                                 { provider_availability_pause_thresholds: User.agent_providers.map(&:to_sym) } ])
+        end
+
+        def onboarding_in_progress?
+          !Current.user.first_run_setup_complete?
         end
 
         def provider_param

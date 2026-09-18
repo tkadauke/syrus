@@ -39,6 +39,17 @@ export function pluginAgentProviderConnectPanelComponentFor(provider: string | n
   return registeredPanels.find((panel) => panel.provider === provider)?.component ?? null
 }
 
+// Popular-to-less-popular display order for onboarding; any provider not
+// listed here (a future plugin) sorts alphabetically after these.
+const PROVIDER_DISPLAY_ORDER = ["claude", "codex", "agy", "muse"]
+
 export function pluginAgentProviderConnectPanelProviders() {
-  return registeredPanels.map((panel) => panel.provider).sort()
+  return registeredPanels
+    .map((panel) => panel.provider)
+    .sort((a, b) => providerDisplayRank(a) - providerDisplayRank(b) || a.localeCompare(b))
+}
+
+function providerDisplayRank(provider: string) {
+  const index = PROVIDER_DISPLAY_ORDER.indexOf(provider)
+  return index === -1 ? PROVIDER_DISPLAY_ORDER.length : index
 }

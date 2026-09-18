@@ -70,15 +70,22 @@ has closed successfully.
 
 ### 2. Add credentials and choose a provider
 
-In **Agent Settings**, choose your default agent provider. Then open
-**Credentials** and add the matching credential:
+A fresh install ships with every agent-provider plugin (Claude, Codex,
+Antigravity, Muse) disabled — but you don't need to enable one from
+**Admin -> Plugins** before you can connect it. On the **First-run setup**
+checklist, the **Configure agent** step opens a guided modal with one tab per
+provider, all reachable from the start regardless of which plugin is
+currently enabled. Connecting a provider from its tab automatically enables
+that provider's plugin for you; that auto-enable only happens from this
+onboarding modal, so after setup you manage providers from **Admin ->
+Plugins** as usual. Once a provider is connected, choose it as your default
+in **Agent Settings**.
 
-- **Claude** uses a Claude OAuth token. On the **First-run setup**
-  checklist, the **Configure agent** step opens a guided modal: it first
-  checks whether `claude --print` already works on this machine (common on
-  bare-metal installs where you have already run `claude login`), and if not,
-  an **Authorize with Claude** button opens the subscription OAuth flow in a
-  new tab. Approve access, copy the short code Claude shows you, and paste it
+- **Claude** uses a Claude OAuth token. Its tab first checks whether
+  `claude --print` already works on this machine (common on bare-metal
+  installs where you have already run `claude login`), and if not, an
+  **Authorize with Claude** button opens the subscription OAuth flow in a new
+  tab. Approve access, copy the short code Claude shows you, and paste it
   back into the modal — Syrus exchanges it for a long-lived token and tests it
   on the spot. No terminal needed; requires a Claude Pro, Max, Team, or
   Enterprise plan. The same authorization flow is available later in
@@ -89,6 +96,12 @@ In **Agent Settings**, choose your default agent provider. Then open
   page in a new tab; paste the returned code and Syrus stores the resulting
   Codex auth JSON. You can still paste an existing local `auth.json`
   manually from **Credentials**.
+- **Antigravity** shares the Gemini API key used elsewhere in Syrus (e.g. for
+  walkthrough-video analysis). Paste a Gemini API key into its tab; Syrus
+  validates it and, once accepted, Antigravity is ready for agent and chat
+  runs.
+- **Muse** uses a Muse API key. Paste it into its tab; Syrus saves and tests
+  it in one step.
 
 Set **Max turns** to the cap you want for agent runs. The default is meant
 to prevent runaway loops while still allowing normal implementation work.

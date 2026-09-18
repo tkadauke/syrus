@@ -1,6 +1,7 @@
 class Repository < ApplicationRecord
   include AutoApproveModes
   include PluginDataCleanup
+  include ValidatesAgentProvider
 
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
   REVIEW_POLICIES = %w[ self two_person final_say ].freeze
@@ -117,7 +118,7 @@ class Repository < ApplicationRecord
   validates :upstream_name, format: { with: GITHUB_NAME }, allow_blank: true
   validates :default_branch, presence: true
   validates :trigger_label, presence: true
-  validates :agent_provider, inclusion: { in: -> { User.agent_providers } }, allow_nil: true
+  validates_agent_provider allow_nil: true
   validates :review_policy, presence: true, inclusion: { in: REVIEW_POLICIES }
   validates :feedback_policy, presence: true, inclusion: { in: FEEDBACK_POLICIES }
   validates :epic_dependency_policy, presence: true, inclusion: { in: EPIC_DEPENDENCY_POLICIES }

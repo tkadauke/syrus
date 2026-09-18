@@ -1,3 +1,5 @@
+require "syrus/installer"
+
 module SyrusClaudeAgent
   extend Syrus::PluginApi
 
@@ -9,14 +11,12 @@ module SyrusClaudeAgent
     icon_url "/plugin-icons/claude_agent.svg"
     author "Thomas Kadauke"
     category "agent_provider"
-    default_enabled true
+    default_enabled false
     disableable true
     provides agent_provider: "AgentProviders::Claude",
              chat_provider: "ChatProviders::Claude"
 
     while_enabled do |scope|
-      scope.effect("credential probe") { CredentialProbe.register_probe("claude_oauth_token", ClaudeCredentialProbe) }
-      scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(ClaudeCredentialProbe::SECRET_EXTRACTOR) }
       scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("claude", ChatSessionRehydrator::Claude) }
       scope.effect("admin user chips") do
         Filters.register_chips(
@@ -26,4 +26,9 @@ module SyrusClaudeAgent
       end
     end
   end
+end
+
+Syrus::Installer.define("claude_agent:credential probe") do |scope|
+  scope.effect("credential probe") { CredentialProbe.register_probe("claude_oauth_token", ClaudeCredentialProbe) }
+  scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(ClaudeCredentialProbe::SECRET_EXTRACTOR) }
 end

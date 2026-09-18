@@ -203,6 +203,21 @@ RSpec.describe Repository do
     expect(repo.errors[:agent_provider]).to be_present
   end
 
+  it "does not block a repository-level agent_provider override on a fresh install with no plugin enabled yet" do
+    %w[claude_agent codex_agent agy_agent muse_agent].each do |name|
+      PluginRecord.find_or_create_by!(name: name).update!(enabled: false)
+    end
+    expect(User.agent_providers).to be_empty
+
+    repo = Repository.new(user: owner, owner: "acme", name: "widgets", agent_provider: "claude")
+
+    expect(repo).to be_valid
+  ensure
+    %w[claude_agent codex_agent agy_agent].each do |name|
+      PluginRecord.find_or_create_by!(name: name).update!(enabled: true)
+    end
+  end
+
   it "rejects malformed owner/name strings" do
     invalid = Repository.new(user: owner, owner: "bad owner", name: "ok")
     expect(invalid).not_to be_valid

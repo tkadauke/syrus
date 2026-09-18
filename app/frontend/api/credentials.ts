@@ -172,6 +172,13 @@ export function overrideProviderAvailability(provider: string) {
   return postJson<CredentialsPayload>("/api/v1/app/credentials/override_provider_availability", { provider })
 }
 
+// Onboarding-only: enables the exact plugin backing this agent provider,
+// after the Configure Agent modal's connect panel reports success. 403s once
+// the operator has finished first-run setup.
+export function connectOnboardingProvider(provider: string) {
+  return postJson<CredentialsPayload>("/api/v1/app/credentials/connect_onboarding_provider", { provider })
+}
+
 // Saves only the GitHub token. The credentials controller updates just the
 // keys present in the payload, so this leaves every other profile/credential
 // field untouched — used by the onboarding "Configure GitHub" modal.
