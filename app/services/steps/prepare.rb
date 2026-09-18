@@ -81,6 +81,7 @@ module Steps
     end
 
     def call
+      clear_stale_failure_details!
       workspace.setup
       # Fork base handling is no longer per-Job: fork Jobs branch off the
       # upstream's default directly (Job#base_on_upstream_default?), and keeping
@@ -119,6 +120,20 @@ module Steps
     end
 
     private
+
+    # A retry reopens and reuses the same Step record, only adding a new Run
+    # (see RetryFailedStepEnqueuer#reopen_step!), so a failure recorded on
+    # step.details by an earlier attempt otherwise survives a later attempt
+    # that succeeds -- the UI kept showing "setup failed before the agent
+    # started" on top of the step panel long after a retry had fixed it. Clear
+    # both failure keys before this attempt runs so stale detail from a prior
+    # Run never outlives it; a fresh failure this attempt re-records them.
+    def clear_stale_failure_details!
+      stale_keys = %w[prepare_failure mise_install_failure]
+      return unless step.details.is_a?(Hash) && stale_keys.any? { |key| step.details.key?(key) }
+
+      step.update!(details: step.details.except(*stale_keys))
+    end
 
     def record_prepared_workspace!(plan)
       workflow.set_artifact!("prepared_workspace", {
