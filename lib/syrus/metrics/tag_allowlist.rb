@@ -17,7 +17,7 @@ module Syrus
       # Every entry here must have a small, bounded set of values that does not
       # grow with the amount of work Syrus does.
       #
-      # `hostname`, `worker_storage_key`, and `version` are deliberate exceptions to "bounded
+      # `hostname`, `storage_key`, `worker_storage_key`, and `version` are deliberate exceptions to "bounded
       # set of values" in the strict sense -- pod names and git SHAs do churn
       # across deploys over a long enough retention window and storage keys
       # persist per worker data root. They are allowed anyway because the
@@ -48,6 +48,7 @@ module Syrus
         tool
         plugin
         hostname
+        storage_key
         worker_storage_key
         version
         job
