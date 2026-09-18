@@ -43,7 +43,7 @@ normal provider-availability pause-and-backoff (`ProviderAvailabilityPause`,
 `StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON`) still applies against
 it.
 
-This selection runs at three points:
+This selection runs at two points:
 
 - **`Workflows::Base.instantiate`** — resolves the Workflow's initial
   `agent_provider`/`model`/`effort_level` when the caller didn't pass an
@@ -51,18 +51,34 @@ This selection runs at three points:
   retry provider, always wins outright and skips resolution).
 - **`StepDispatcher.refresh_default_workflow_agent_provider!`** — re-derives
   the workflow's `agent_provider` before its first Run, for a Job still on
-  the `default` provider setting. Only `agent_provider` is re-derived here;
-  `model`/`effort_level` are set once at instantiate time and left alone
-  afterward even if the resolver's pick has since changed.
-- **`StepDispatcher.apply_provider_failover!`** — when
-  `ProviderAvailabilityPause` is about to pause the workflow because its
-  current provider is unavailable, this re-walks the resolver's candidate
-  list for an alternate that's available now, instead of trusting the
-  legacy `ProviderFailoverSelector`-derived pick.
+  the `default` provider setting. This single method does double duty as
+  both the "sync to the current default" refresh and the
+  availability-triggered failover: it always picks the best *available*
+  candidate (not just the most preferred one), and it runs immediately
+  before `ProviderAvailabilityPause` decides whether to pause the workflow
+  -- by the time that check runs, the workflow is already on the best
+  candidate this method could find, so `ProviderAvailabilityPause` only
+  actually pauses when every resolver candidate was unavailable. Only
+  `agent_provider` is re-derived here; `model`/`effort_level` are set once
+  at instantiate time and left alone afterward even if the resolver's pick
+  has since changed. `ProviderAvailabilityPause` and `ProviderCircuitBreaker`
+  are otherwise unchanged -- they still independently decide whether to
+  pause and still compute their own legacy `ProviderFailoverSelector`
+  decision internally, but `StepDispatcher` no longer acts on that legacy
+  decision.
 
-Both `StepDispatcher` methods share the same "pinned once a Run starts"
-invariant as before: once any agentic Run exists on the workflow, its
-`agent_provider` is frozen for the rest of the workflow.
+An explicitly pinned Job (`job_provider_setting_default?` false) never goes
+through this refresh at all: `ProviderRouting::Resolver` gives a pinned Job
+a single-candidate list with no alternate to fail over to, since a Job-level
+pin is the deepest scope this Epic's routing rules support. This
+supersedes `User#agent_provider_failover_overrides_explicit_pins?` for any
+workflow going through this resolver path -- that opt-in legacy escape
+hatch has no equivalent here, by the same "Job-level override is the
+deepest scope" design decision.
+
+Both call sites share the same "pinned once a Run starts" invariant as
+before: once any agentic Run exists on the workflow, its `agent_provider`
+is frozen for the rest of the workflow.
 
 ## Step-level overrides
 

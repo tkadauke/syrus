@@ -147,7 +147,6 @@ class StepDispatcher
     refresh_default_workflow_agent_provider!(workflow)
 
     provider_pause = ProviderAvailabilityPause.call(workflow: workflow)
-    apply_provider_failover!(workflow, provider_pause) if provider_pause.failover?
     if provider_pause.pause?
       backoff = provider_pause.retry_at ? provider_pause.retry_at - Time.current : START_BLOCKED_BACKOFF
       record_pause!(
@@ -571,13 +570,23 @@ class StepDispatcher
     true
   end
 
-  # Re-derives the workflow's provider/model/effort_level from
-  # ProviderRouting::Resolver, walking the ordered candidate list and
-  # picking the first one that is currently available (see
-  # ProviderRouting::AvailableCandidate). Only runs for a job still on the
-  # "default" provider setting, before any agentic Run exists -- once a
-  # Run starts, the workflow's provider is pinned for the rest of the
-  # workflow (see workflow_has_agentic_run?).
+  # Re-derives the workflow's `agent_provider` from ProviderRouting::Resolver,
+  # walking the ordered candidate list and picking the first one that is
+  # currently available (see ProviderRouting::AvailableCandidate) -- this is
+  # both the "sync to the current default" refresh and the availability-
+  # triggered failover in one pass, rather than trusting
+  # ProviderFailoverSelector's legacy policy-based pick (that class is
+  # retired in a later Job of this Epic): the very next thing the caller
+  # does is ask ProviderAvailabilityPause whether to pause on whatever
+  # provider this method leaves the workflow on, so this must already have
+  # picked the best available candidate by the time that check runs. Only
+  # runs for a job still on the "default" provider setting, before any
+  # agentic Run exists -- once a Run starts, the workflow's provider is
+  # pinned for the rest of the workflow (see workflow_has_agentic_run?). An
+  # explicitly pinned Job (job_provider_setting_default? false) never
+  # reaches this method at all: ProviderRouting::Resolver gives a pinned
+  # Job a single-candidate list with no alternate to fail over to, since a
+  # Job-level pin is the deepest scope this Epic's routing rules support.
   def self.refresh_default_workflow_agent_provider!(workflow)
     return unless workflow.job.job_provider_setting_default?
     selection = workflow.artifact("agent_provider_selection")
@@ -586,20 +595,6 @@ class StepDispatcher
     return if workflow_has_agentic_run?(workflow)
 
     apply_routed_provider!(workflow, task_key: workflow.trigger_kind)
-  end
-
-  # Companion to refresh_default_workflow_agent_provider! for the case
-  # where the workflow's already-resolved provider has since become
-  # unavailable (ProviderAvailabilityPause is about to pause the
-  # workflow): re-walk the resolver's candidate list for an alternate
-  # that is available now, rather than trusting
-  # ProviderFailoverSelector's legacy policy-based pick (that class is
-  # retired in a later Job of this Epic). Still gated behind the same
-  # "no Run yet" invariant.
-  def self.apply_provider_failover!(workflow, provider_pause)
-    return unless provider_pause.failover?
-
-    apply_routed_provider!(workflow, task_key: workflow.trigger_kind, reason: "failover")
   end
 
   # Only re-derives `agent_provider` -- model/effort_level are resolved
@@ -645,7 +640,6 @@ class StepDispatcher
     return false if step.runs.any?
 
     provider_pause = ProviderAvailabilityPause.call(workflow: workflow)
-    apply_provider_failover!(workflow, provider_pause) if provider_pause.failover?
     unless provider_pause.pause?
       clear_start_blocked!(workflow, PROVIDER_AVAILABILITY_BLOCK_REASON)
       return false

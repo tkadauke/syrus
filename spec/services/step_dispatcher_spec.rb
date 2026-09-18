@@ -202,6 +202,38 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(default_workflow.artifact("pause_kind")).to eq("provider_availability")
     end
 
+    it "never fails over an explicitly pinned job, even when a repository rule offers an alternate" do
+      user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
+      repository = Factories.repository(user: user)
+      pinned_job = Factories.job_record(user: user, repository: repository, state: "queued",
+                                        agent_provider: "claude", job_provider_setting: "claude")
+      pinned_workflow = Workflow.create!(
+        job: pinned_job,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        artifacts: { "agent_provider_selection" => "explicit" }
+      )
+      first_step = Step.create!(workflow: pinned_workflow, kind: "implement", position: 0)
+      # A rule offering "codex" as an alternate exists, but a Job-level pin
+      # is the deepest scope this Epic's routing rules support -- the
+      # pinned Job never sees this rule at all (ProviderRouting::Resolver's
+      # job-override candidate list is always single-element for a pinned
+      # Job), so it stays paused on "claude" rather than failing over.
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id, task_key: "initial",
+        candidates: [ { "provider" => "codex" } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything)
+        .and_return({ "state" => "rate_limited", "open" => true })
+
+      expect {
+        described_class.start_workflow(pinned_workflow)
+      }.not_to change { first_step.runs.count }
+
+      expect(pinned_workflow.reload.agent_provider).to eq("claude")
+      expect(pinned_workflow.artifact("pause_reason")).to eq(StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON)
+    end
+
     it "prefers a step-level routing rule for adversarial_review over the workflow-kind default" do
       user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
       repository = Factories.repository(user: user)

@@ -109,8 +109,8 @@ module Workflows
       resolved_agent_provider = explicit_agent_provider || routed_candidate&.provider || job.workflow_agent_provider || job.agent_provider || job.user.agent_provider
       resolved_model = model.presence || routed_candidate&.model
       resolved_effort_level = effort_level.presence || routed_candidate&.effort_level
-      model_selection = model.present? ? "explicit" : "default"
-      effort_level_selection = effort_level.present? ? "explicit" : "default"
+      model_selection = model.present? ? "explicit" : (routed_candidate&.model.present? ? "resolved" : "default")
+      effort_level_selection = effort_level.present? ? "explicit" : (routed_candidate&.effort_level.present? ? "resolved" : "default")
       effective_artifacts = (effective_artifacts || {}).merge(
         "agent_provider_selection" => provider_selection,
         "model_selection" => model_selection,
