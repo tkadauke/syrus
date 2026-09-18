@@ -187,9 +187,9 @@ the sampler first runs, not from the beginning of time.
 
 | Metric | Meaning |
 |---|---|
-| `syrus_worker_cpu_percent{worker_storage_key}` | latest CPU utilization sample per worker storage identity |
-| `syrus_worker_memory_percent{worker_storage_key}` | latest memory utilization sample per worker storage identity |
-| `syrus_worker_disk_percent{worker_storage_key}` | latest data-root disk utilization sample per worker storage identity |
+| `syrus_worker_cpu_percent{hostname,storage_key}` | latest CPU utilization sample per worker storage identity, labelled with the current hostname for display |
+| `syrus_worker_memory_percent{hostname,storage_key}` | latest memory utilization sample per worker storage identity, labelled with the current hostname for display |
+| `syrus_worker_disk_percent{hostname,storage_key}` | latest data-root disk utilization sample per worker storage identity, labelled with the current hostname for display |
 | `syrus_active_agent_runs` | currently running agentic Runs, subject to the global concurrency cap |
 | `syrus_max_concurrent_agent_runs` | the configured ceiling, so the dashboard panel shows capacity alongside utilization |
 | `syrus_admission_decisions_total{decision}` | admission decisions, tagged by the action taken |
@@ -201,12 +201,11 @@ read the most recent `WorkerHostHealthSample` per durable
 `worker_storage_key` within a 2-minute window, falling back to `hostname` only
 for legacy rows written before that column existed. This is the same identity
 split used by workflow resume routing in `multi_worker.md`:
-`worker_storage_key` anchors the time series across Kubernetes pod restarts,
-while `hostname` remains diagnostics/display data on the underlying sample and
-admin worker-health payloads. The Metrics Dashboard plugin likewise groups
-these panels by `worker_storage_key` but resolves each visible series name from
-the latest health sample's `hostname`, so operators see recognizable pod names
-without making the changing pod name part of the Prometheus series identity.
+`storage_key` anchors the dashboard series across Kubernetes pod restarts,
+while `hostname` stays in the scrape labels as diagnostics/display data. The
+Metrics Dashboard plugin groups these panels by `storage_key` but resolves each
+visible series name from the latest scraped `hostname`, so operators see
+recognizable pod names without making the changing pod name the continuity key.
 The gauges are the panel that would have shown "one worker at 3277m and another
 idle at 51m" instead of someone finding it by hand. `active_agent_runs` and
 `max_concurrent_agent_runs` are plain gauges read from
