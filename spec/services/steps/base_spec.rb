@@ -13,7 +13,7 @@ RSpec.describe Steps::Base, :ci_only do
   let(:handler_class) do
     Class.new(described_class) do
       def call; nil; end
-      public :log, :parent_session_id, :buffered_log_sink, :agent_provider,
+      public :log, :parent_session_id, :buffered_log_sink, :agent_provider, :model, :effort_level,
              :agent_adapter, :perform_agentic_change_step, :commit_agent_changes,
              :workspace_contains_sha?, :restore_run_checkpoint_if_needed!, :head_sha
     end
@@ -174,6 +174,40 @@ RSpec.describe Steps::Base, :ci_only do
     end
   end
 
+  describe "#model" do
+    it "prefers the Run model" do
+      workflow.update!(model: "sonnet")
+      run.update!(model: "opus")
+      expect(handler.model).to eq("opus")
+    end
+
+    it "falls back to the Workflow model when the Run has none" do
+      workflow.update!(model: "sonnet")
+      expect(handler.model).to eq("sonnet")
+    end
+
+    it "is nil when neither Run nor Workflow has one set" do
+      expect(handler.model).to be_nil
+    end
+  end
+
+  describe "#effort_level" do
+    it "prefers the Run effort_level" do
+      workflow.update!(effort_level: "medium")
+      run.update!(effort_level: "high")
+      expect(handler.effort_level).to eq("high")
+    end
+
+    it "falls back to the Workflow effort_level when the Run has none" do
+      workflow.update!(effort_level: "medium")
+      expect(handler.effort_level).to eq("medium")
+    end
+
+    it "is nil when neither Run nor Workflow has one set" do
+      expect(handler.effort_level).to be_nil
+    end
+  end
+
   describe "#agent_adapter" do
     it "builds the adapter for the resolved provider" do
       run.update!(agent_provider: "codex")
@@ -211,6 +245,26 @@ RSpec.describe Steps::Base, :ci_only do
       expect(received_prompt).to include("Workflow: #{workflow.slug} trigger=initial")
       expect(received_prompt).to include("MCP/tools: run sidecar `syrus-mcp-sidecar`")
       expect(received_prompt).to include("repair the aqueduct")
+    end
+
+    it "passes nil model/effort_level through to the adapter when neither Run nor Workflow has one set" do
+      fake_adapter = instance_double(AgentProviders::Base)
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      expect(fake_adapter).to receive(:run).with(hash_including(model: nil, effort_level: nil)).and_return(fake_result)
+      allow(fake_adapter).to receive(:record_result!).and_return(fake_result)
+
+      handler.send(:run_agent, prompt: "summarize")
+    end
+
+    it "passes the resolved model/effort_level through to the adapter" do
+      workflow.update!(model: "sonnet", effort_level: "medium")
+      run.update!(model: "opus", effort_level: "high")
+      fake_adapter = instance_double(AgentProviders::Base)
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      expect(fake_adapter).to receive(:run).with(hash_including(model: "opus", effort_level: "high")).and_return(fake_result)
+      allow(fake_adapter).to receive(:record_result!).and_return(fake_result)
+
+      handler.send(:run_agent, prompt: "summarize")
     end
 
     it "logs MCP sidecar stderr when the agent reports sidecar startup failure" do

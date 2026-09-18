@@ -519,6 +519,8 @@ class StepDispatcher
         job: workflow.job,
         trigger_kind: workflow.trigger_kind,
         agent_provider: workflow.agent_provider,
+        model: workflow.model,
+        effort_level: workflow.effort_level,
         iteration: step.iteration,
         parent_session_id: parent_session_id,
         prompt: prompt
