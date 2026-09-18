@@ -96,7 +96,7 @@ export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => strin
   return tab === "chat" ? t("tab_chat") : workspaceTabLabel(tab, t, previewPanels, pluginTabs)
 }
 
-export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false, hasPins = false): WorkspaceTab[] {
+export function availableWorkspaceTabs(payload: ChatPayload, hasPins = false): WorkspaceTab[] {
   return [
     ...(mediaTabVisible(payload) ? (["media"] as WorkspaceTab[]) : []),
     ...(hasPins ? (["pinned"] as WorkspaceTab[]) : []),
@@ -124,8 +124,8 @@ const WHITEBOARD_TAB_COMPONENT = "whiteboard/WhiteboardTab"
 // registered) -- unlike the old hardcoded "context" tab, nothing here is
 // guaranteed to always be present, so callers must treat "no tab selected"
 // as a valid state rather than assuming a WorkspaceTab always exists.
-export function defaultWorkspaceTab(payload: ChatPayload, simpleMode = false): WorkspaceTab | null {
-  const tabs = availableWorkspaceTabs(payload, simpleMode)
+export function defaultWorkspaceTab(payload: ChatPayload): WorkspaceTab | null {
+  const tabs = availableWorkspaceTabs(payload)
   const whiteboardLoaded = payload.whiteboard.loaded ?? payload.whiteboard.elements.length > 0
   const whiteboardTab = payload.workspace_tabs.find((tab) => tab.component === WHITEBOARD_TAB_COMPONENT)
   if (whiteboardLoaded && payload.whiteboard.elements.length > 0 && whiteboardTab) {

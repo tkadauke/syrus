@@ -54,8 +54,7 @@ export function ChatWorkspacePanel({
   payload,
   queryKey,
   onNotice,
-  onBookmarkSelect,
-  simpleMode = false
+  onBookmarkSelect
 }: {
   activeTab: WorkspaceTab | null
   showTabs?: boolean
@@ -65,7 +64,6 @@ export function ChatWorkspacePanel({
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
   onBookmarkSelect: (messageId: number) => void
-  simpleMode?: boolean
 }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -76,7 +74,7 @@ export function ChatWorkspacePanel({
     ...payload,
     workspace_tabs: payload.workspace_tabs.filter((tab) => !closedPluginTabs.includes(tab.id))
   }), [closedPluginTabs, payload])
-  const tabs = useMemo(() => availableWorkspaceTabs(visiblePayload, simpleMode, hasPins), [visiblePayload, simpleMode, hasPins])
+  const tabs = useMemo(() => availableWorkspaceTabs(visiblePayload, hasPins), [visiblePayload, hasPins])
   const activePreviewPanel = isPreviewTab(activeTab)
     ? payload.preview_panels.find((panel) => previewTabId(panel.id) === activeTab) ?? null
     : null
@@ -88,8 +86,8 @@ export function ChatWorkspacePanel({
   })
 
   useEffect(() => {
-    if (activeTab === null || !tabs.includes(activeTab)) onSelectTab(defaultWorkspaceTab(payload, simpleMode))
-  }, [activeTab, onSelectTab, payload, simpleMode, tabs])
+    if (activeTab === null || !tabs.includes(activeTab)) onSelectTab(defaultWorkspaceTab(payload))
+  }, [activeTab, onSelectTab, payload, tabs])
 
   return (
     <aside aria-label={t("aria_chat_workspace")} className="flex h-full w-full min-h-0 min-w-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
