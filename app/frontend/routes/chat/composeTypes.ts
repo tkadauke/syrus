@@ -29,7 +29,6 @@ export type PendingSlashCommandConfirmation = {
 
 export type ChatSystemCommandHandlers = {
   openBookmarks: () => void
-  openAttachments: () => void
   openSettings: () => void
 }
 

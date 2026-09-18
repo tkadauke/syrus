@@ -84,7 +84,6 @@ describe("workspaceTabLabel", () => {
   const mockT = (key: string) => `T:${key}`
 
   it("maps each workspace tab to its translation key", () => {
-    expect(workspaceTabLabel("context", mockT)).toBe("T:tab_context")
     expect(workspaceTabLabel("media", mockT)).toBe("T:tab_media")
     expect(workspaceTabLabel("files", mockT)).toBe("T:tab_files")
     expect(workspaceTabLabel("diff", mockT)).toBe("T:tab_diff")
@@ -120,7 +119,6 @@ describe("mobileChatTabLabel", () => {
   })
 
   it("delegates to workspaceTabLabel for workspace tabs", () => {
-    expect(mobileChatTabLabel("context", mockT)).toBe("T:tab_context")
     expect(mobileChatTabLabel("jobs", mockT)).toBe("T:tab_jobs")
   })
 
@@ -201,7 +199,7 @@ describe("getStartingPhrase", () => {
 describe("ChatWorkspace panel collapse", () => {
   beforeEach(() => {
     window.localStorage.clear()
-    window.localStorage.setItem("syrus.chat.workspace.tab", "context")
+    window.localStorage.setItem("syrus.chat.workspace.tab", "files")
     mockDesktopViewport()
   })
 
@@ -553,33 +551,6 @@ describe("simple mode chat transcript", () => {
     expect(screen.queryByText(/repo\/app/)).not.toBeInTheDocument()
   })
 
-  it("omits the context tab from the workspace DOM", async () => {
-    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
-    window.localStorage.setItem("syrus.chat.workspace.tab", "context")
-    mockChatRouteFetch(chatPayload({
-      chat: { has_chat_images: true },
-      messages: [
-        {
-          type: "message",
-          id: 9,
-          role: "user",
-          tool_name: null,
-          content: { text: "Screenshot." },
-          text: "Screenshot.",
-          bookmarkable: true,
-          attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }]
-        }
-      ]
-    }))
-
-    renderRoute()
-
-    await screen.findByPlaceholderText("Ask about this repository...")
-    const workspace = screen.getByRole("complementary", { name: "Chat workspace" })
-    expect(within(workspace).queryByRole("button", { name: "Context" })).not.toBeInTheDocument()
-    expect(within(workspace).getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
-    expect(within(workspace).getByRole("button", { name: "Media" })).toBeInTheDocument()
-  })
 })
 
 describe("error system message retry", () => {
@@ -2647,7 +2618,7 @@ describe("attaching a media gallery image to the composer", () => {
 
   it("attaches a media library image (e.g. a Runtime Session screenshot) to the composer through the same funnel as a paste", async () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
-    window.localStorage.setItem("syrus.chat.workspace.tab", "context")
+    window.localStorage.setItem("syrus.chat.workspace.tab", "files")
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -2860,7 +2831,7 @@ describe("chat message image attachments", () => {
 
   it("shows all shared images in the media tab with downloads and lightbox preview", async () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
-    window.localStorage.setItem("syrus.chat.workspace.tab", "context")
+    window.localStorage.setItem("syrus.chat.workspace.tab", "files")
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -3133,52 +3104,6 @@ describe("chat pinned tab", () => {
     renderRoute()
 
     expect(await screen.findByRole("button", { name: "Pinned" })).toBeInTheDocument()
-  })
-})
-
-describe("chat attachment detach confirmation", () => {
-  beforeEach(() => {
-    window.localStorage.clear()
-    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
-    window.localStorage.setItem("syrus.chat.workspace.tab", "context")
-    mockDesktopViewport()
-  })
-
-  it("does not detach an attachment on the first click", async () => {
-    const fetchMock = mockChatAttachmentFetch()
-
-    renderRoute()
-
-    fireEvent.click(await screen.findByRole("button", { name: "Runbook.md" }))
-
-    expect(screen.getByRole("button", { name: "Detach Runbook.md?" })).toBeInTheDocument()
-    expect(detachRequests(fetchMock)).toHaveLength(0)
-  })
-
-  it("detaches an attachment on the second click of the same button", async () => {
-    const fetchMock = mockChatAttachmentFetch()
-
-    renderRoute()
-
-    fireEvent.click(await screen.findByRole("button", { name: "Runbook.md" }))
-    fireEvent.click(screen.getByRole("button", { name: "Detach Runbook.md?" }))
-
-    await waitFor(() => {
-      expect(detachRequests(fetchMock)).toHaveLength(1)
-    })
-  })
-
-  it("cancels a pending detach without calling the API", async () => {
-    const fetchMock = mockChatAttachmentFetch()
-
-    renderRoute()
-
-    fireEvent.click(await screen.findByRole("button", { name: "Runbook.md" }))
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
-
-    expect(screen.getByRole("button", { name: "Runbook.md" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Detach Runbook.md?" })).not.toBeInTheDocument()
-    expect(detachRequests(fetchMock)).toHaveLength(0)
   })
 })
 
@@ -5869,44 +5794,6 @@ function mockDesktopViewport() {
 
 function mockMobileViewport() {
   mockViewportWidth(375)
-}
-
-function mockChatAttachmentFetch() {
-  return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-    const path = String(input)
-    if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
-      return Promise.resolve(new Response(null, { status: 204 }))
-    }
-    if (path.startsWith("/api/v1/app/chats/8/context")) {
-      return Promise.resolve(jsonResponse({
-        ...emptyChatContextPayload(),
-        attachment_groups: {
-          repositories: [],
-          epics: [],
-          jobs: [],
-          documents: [
-            { id: 31, label: "Runbook.md", app_detach_path: "/api/v1/app/chats/8/attachments/31" }
-          ]
-        }
-      }))
-    }
-
-    return Promise.resolve(jsonResponse(chatPayload({
-      attachment_groups: {
-        documents: [
-          { id: 31, label: "Runbook.md", app_detach_path: "/api/v1/app/chats/8/attachments/31" }
-        ]
-      }
-    })))
-  })
-}
-
-function detachRequests(fetchMock: ReturnType<typeof vi.spyOn>) {
-  return fetchMock.mock.calls.filter((call: unknown[]) => {
-    const input = call[0]
-    const init = call[1] as RequestInit | undefined
-    return String(input) === "/api/v1/app/chats/8/attachments/31" && init?.method === "DELETE"
-  })
 }
 
 function messageWithProposal(id: number, chatProposal: Record<string, unknown>) {
