@@ -47,6 +47,8 @@ module MetricsDashboard
     CATEGORY_RESILIENCE_PRODUCT = "resilience_product".freeze
     CATEGORY_OTHER = "other".freeze
     CATEGORIES = [ CATEGORY_QUEUE_THROUGHPUT, CATEGORY_WORKERS_FLEET, CATEGORY_RESILIENCE_PRODUCT ].freeze
+    IDENTITY_DISPLAY_NAME = ->(name, _points) { name }.freeze
+    WORKER_HOSTNAME_DISPLAY_NAME = ->(name, _points) { worker_hostname_for(name) || name }.freeze
 
     # `aggregate` is the honest part for gauges: syrus_global_* series are one
     # cluster-wide fact rendered identically by every recorder, so summing them
@@ -85,11 +87,14 @@ module MetricsDashboard
 
       # Workers & Fleet -- is the fleet keeping up, and what is actually running.
       { key: "worker_cpu", metric: "syrus_worker_cpu_percent",
-        group_by: "hostname", mode: :value, aggregate: :max, unit: "percent", category: CATEGORY_WORKERS_FLEET },
+        group_by: "worker_storage_key", display_name: WORKER_HOSTNAME_DISPLAY_NAME,
+        mode: :value, aggregate: :max, unit: "percent", category: CATEGORY_WORKERS_FLEET },
       { key: "worker_memory", metric: "syrus_worker_memory_percent",
-        group_by: "hostname", mode: :value, aggregate: :max, unit: "percent", category: CATEGORY_WORKERS_FLEET },
+        group_by: "worker_storage_key", display_name: WORKER_HOSTNAME_DISPLAY_NAME,
+        mode: :value, aggregate: :max, unit: "percent", category: CATEGORY_WORKERS_FLEET },
       { key: "worker_disk", metric: "syrus_worker_disk_percent",
-        group_by: "hostname", mode: :value, aggregate: :max, unit: "percent", category: CATEGORY_WORKERS_FLEET },
+        group_by: "worker_storage_key", display_name: WORKER_HOSTNAME_DISPLAY_NAME,
+        mode: :value, aggregate: :max, unit: "percent", category: CATEGORY_WORKERS_FLEET },
       { key: "active_agent_runs", metric: "syrus_active_agent_runs",
         group_by: nil, mode: :value, aggregate: :max, unit: "runs", category: CATEGORY_WORKERS_FLEET },
       { key: "max_concurrent_agent_runs", metric: "syrus_max_concurrent_agent_runs",
@@ -240,7 +245,8 @@ module MetricsDashboard
 
     def series_for(name, points, panel)
       values = panel[:mode] == :rate ? rate_values(points) : gauge_values(points)
-      { name: name, values: values }
+      display_name = instance_exec(name, points, &panel.fetch(:display_name, IDENTITY_DISPLAY_NAME))
+      { name: display_name, key: name, values: values }
     end
 
     # Highest reading in each bucket. nil where nothing was recorded, so a gap
@@ -335,6 +341,22 @@ module MetricsDashboard
       return "total" if group_by.blank?
 
       labels.to_h[group_by].presence || "unlabelled"
+    end
+
+    def worker_hostname_for(worker_storage_key)
+      worker_hostnames_by_storage_key[worker_storage_key]
+    end
+
+    def worker_hostnames_by_storage_key
+      @worker_hostnames_by_storage_key ||= WorkerHostHealthSample
+        .worker_role
+        .where(observed_at: grid_start..)
+        .where.not(worker_storage_key: [ nil, "" ])
+        .order(observed_at: :desc)
+        .pluck(:worker_storage_key, :hostname)
+        .each_with_object({}) do |(worker_storage_key, hostname), hostnames|
+          hostnames[worker_storage_key] ||= hostname
+        end
     end
   end
 end

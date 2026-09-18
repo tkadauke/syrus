@@ -50,19 +50,22 @@ module Admin
       }.order(:hostname).map do |instance|
         latest = latest_sample_by_hostname[instance.hostname]
         payload = instance_payload(instance, latest)
-        payload[:trend] = summarize(samples_for(instance.hostname).select { |sample| sample.observed_at >= 1.hour.ago })
+        payload[:trend] = summarize(samples_for(sample_key(latest) || instance.hostname).select { |sample| sample.observed_at >= 1.hour.ago })
         payload
       end
     end
 
     def host_history
-      current_by_hostname = current_workers.index_by { |worker| worker.fetch(:hostname) }
-      hostnames = (samples.map(&:hostname) + current_by_hostname.keys).compact.uniq.sort
-      hostnames.map do |host|
-        host_samples = samples_for(host)
-        current = current_by_hostname[host]
+      current_by_key = current_workers.index_by { |worker| worker.fetch(:worker_storage_key).presence || worker.fetch(:hostname) }
+      host_keys = (samples.map { |sample| sample_key(sample) } + current_by_key.keys).compact.uniq.sort
+      host_keys.map do |host_key|
+        host_samples = samples_for(host_key)
+        current = current_by_key[host_key]
+        display_hostname = current&.fetch(:hostname) || host_samples.first&.hostname || host_key
         {
-          hostname: host,
+          key: host_key,
+          hostname: display_hostname,
+          worker_storage_key: host_key,
           status: current ? "current" : "historical",
           current: current,
           windows: TREND_WINDOWS.transform_values { |duration| summarize(host_samples.select { |sample| sample.observed_at >= until_time - duration }) },
@@ -77,6 +80,7 @@ module Admin
       {
         id: instance.id,
         hostname: instance.hostname,
+        worker_storage_key: latest&.worker_storage_key.presence || instance.hostname,
         role: instance.role,
         version: instance.version,
         started_at: instance.started_at&.iso8601,
@@ -92,6 +96,7 @@ module Admin
       payload = {
         id: sample.id,
         hostname: sample.hostname,
+        worker_storage_key: sample.worker_storage_key,
         role: sample.role,
         version: sample.version,
         observed_at: sample.observed_at&.iso8601,
@@ -187,12 +192,12 @@ module Admin
       Time.zone.at((value.to_f / 60).floor * 60)
     end
 
-    def samples_for(host)
-      samples_by_hostname.fetch(host, [])
+    def samples_for(host_key)
+      samples_by_key.fetch(host_key, [])
     end
 
-    def samples_by_hostname
-      @samples_by_hostname ||= samples.group_by(&:hostname)
+    def samples_by_key
+      @samples_by_key ||= samples.group_by { |sample| sample_key(sample) }
     end
 
     def samples
@@ -203,6 +208,10 @@ module Admin
         .then { |scope| include_raw_metrics? ? scope : scope.select(worker_health_scalar_columns) }
         .order(observed_at: :desc)
         .to_a
+    end
+
+    def sample_key(sample)
+      sample&.worker_storage_key.presence || sample&.hostname
     end
 
     def include_raw_metrics?

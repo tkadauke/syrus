@@ -50,28 +50,54 @@ RSpec.describe Metrics::WorkerSampler do
   def sample!(**opts) = described_class.sample!(**opts)
   def refresh!(**opts) = described_class.refresh_gauges!(**opts)
 
-  def worker_sample(hostname:, cpu:, memory:, disk: nil, observed_at: Time.current)
+  def worker_sample(hostname:, cpu:, memory:, disk: nil, observed_at: Time.current, worker_storage_key: nil)
     WorkerHostHealthSample.create!(
       hostname: hostname, role: "worker", version: "abc123", observed_at: observed_at,
+      worker_storage_key: worker_storage_key,
       cpu_used_percent: cpu, memory_used_percent: memory, data_root_used_percent: disk
     )
   end
 
   describe "#sample!" do
-    it "caches worker cpu/memory/disk percentages from the latest sample per hostname" do
-      worker_sample(hostname: "worker-a", cpu: 87.5, memory: 42.0, disk: 63.0)
-      worker_sample(hostname: "worker-a", cpu: 10.0, memory: 5.0, disk: 5.0, observed_at: 10.minutes.ago) # stale, excluded
-      worker_sample(hostname: "worker-b", cpu: 12.0, memory: 30.0, disk: 20.0)
+    it "caches worker cpu/memory/disk percentages from the latest sample per worker storage key" do
+      worker_sample(hostname: "worker-a", worker_storage_key: "storage-a", cpu: 87.5, memory: 42.0, disk: 63.0)
+      worker_sample(hostname: "worker-a", worker_storage_key: "storage-a", cpu: 10.0, memory: 5.0, disk: 5.0, observed_at: 10.minutes.ago) # stale, excluded
+      worker_sample(hostname: "worker-b", worker_storage_key: "storage-b", cpu: 12.0, memory: 30.0, disk: 20.0)
 
       sample!
       refresh!
 
       rendered = Syrus::Metrics.render
-      expect(rendered).to include('syrus_worker_cpu_percent{hostname="worker-a"} 87.5')
-      expect(rendered).to include('syrus_worker_memory_percent{hostname="worker-a"} 42')
-      expect(rendered).to include('syrus_worker_disk_percent{hostname="worker-a"} 63')
-      expect(rendered).to include('syrus_worker_cpu_percent{hostname="worker-b"} 12')
-      expect(rendered).to include('syrus_worker_disk_percent{hostname="worker-b"} 20')
+      expect(rendered).to include('syrus_worker_cpu_percent{worker_storage_key="storage-a"} 87.5')
+      expect(rendered).to include('syrus_worker_memory_percent{worker_storage_key="storage-a"} 42')
+      expect(rendered).to include('syrus_worker_disk_percent{worker_storage_key="storage-a"} 63')
+      expect(rendered).to include('syrus_worker_cpu_percent{worker_storage_key="storage-b"} 12')
+      expect(rendered).to include('syrus_worker_disk_percent{worker_storage_key="storage-b"} 20')
+      expect(rendered).not_to include("hostname=")
+    end
+
+    it "keeps the Prometheus series anchored across pod hostnames on separate ticks" do
+      t0 = Time.current
+      travel_to(t0) do
+        worker_sample(hostname: "syrus-worker-old", worker_storage_key: "storage-a", cpu: 20.0, memory: 42.0)
+        sample!
+        refresh!
+      end
+
+      first_render = Syrus::Metrics.render
+      expect(first_render).to include('syrus_worker_cpu_percent{worker_storage_key="storage-a"} 20')
+      expect(first_render).not_to include("syrus-worker-old")
+
+      travel_to(t0 + 3.minutes) do
+        worker_sample(hostname: "syrus-worker-new", worker_storage_key: "storage-a", cpu: 65.0, memory: 55.0)
+        sample!
+        refresh!
+      end
+
+      second_render = Syrus::Metrics.render
+      expect(second_render).to include('syrus_worker_cpu_percent{worker_storage_key="storage-a"} 65')
+      expect(second_render).not_to include("syrus-worker-new")
+      expect(second_render.scan(/syrus_worker_cpu_percent\{worker_storage_key="storage-a"\}/).size).to eq(1)
     end
 
     it "caches active_agent_runs from currently-running agentic Runs" do

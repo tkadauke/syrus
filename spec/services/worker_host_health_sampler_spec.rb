@@ -110,13 +110,14 @@ RSpec.describe WorkerHostHealthSampler do
       observed_at = Time.zone.parse("2026-07-31 12:00:00 UTC")
       first = InstanceVersion.create!(hostname: "worker-a", role: "worker", version: "abc", started_at: observed_at, last_heartbeat_at: observed_at)
       second = InstanceVersion.create!(hostname: "worker-b", role: "worker", version: "abc", started_at: observed_at, last_heartbeat_at: observed_at)
+      allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-a", "storage-b")
 
       described_class.record!(instance: first, observed_at: observed_at)
       described_class.record!(instance: second, observed_at: observed_at)
 
-      expect(WorkerHostHealthSample.order(:hostname).pluck(:hostname, :role, :observed_at)).to eq([
-        [ "worker-a", "worker", observed_at ],
-        [ "worker-b", "worker", observed_at ]
+      expect(WorkerHostHealthSample.order(:hostname).pluck(:hostname, :worker_storage_key, :role, :observed_at)).to eq([
+        [ "worker-a", "storage-a", "worker", observed_at ],
+        [ "worker-b", "storage-b", "worker", observed_at ]
       ])
       expect(WorkerHostHealthSample.first.cpu_used_percent).to eq(12.5)
     end
