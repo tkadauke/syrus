@@ -254,6 +254,7 @@ admin-only:
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb
+  - plugins/syrus_dev/app/controllers/api/v1/app/admin/tool_card_jobs_controller.rb
 ```
 
 ## Teams
@@ -472,5 +473,6 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `plugins/whiteboard/app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Whiteboard state is scoped to a chat session belonging to the current user. |
 | `plugins/whiteboard/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb` | per-user/private | Snapshot reads and writes are scoped to the current user's chat session. |
 | `plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb` | admin-only | Query execution is gated on `Current.user.admin?` in addition to per-connection agentic-access opt-in. |
+| `plugins/syrus_dev/app/controllers/api/v1/app/admin/tool_card_jobs_controller.rb` | admin-only | Inherits `Api::V1::App::Admin::BaseController`'s `require_admin`; creates a direct Job owned by the current admin from the Tool Card Catalog's "Create Job" shortcut. |
 | `plugins/agent_activity/app/controllers/api/v1/app/agent_activity_controller.rb` | per-user/private | Sessions are scoped to repositories the current user belongs to plus Jobs they effectively own (`AgentActivity::SessionsQuery`, scope: `:mine`). |
 | `plugins/agent_activity/app/controllers/api/v1/app/admin/agent_activity_controller.rb` | admin-only | Inherits `Api::V1::App::Admin::BaseController`'s `require_admin`; lists sessions and transcripts across every repository, not just ones the admin belongs to. |

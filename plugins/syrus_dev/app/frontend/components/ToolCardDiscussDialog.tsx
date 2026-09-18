@@ -6,6 +6,7 @@ import { Button } from "@app/components/Button"
 import { CloseIcon } from "@app/components/CloseIcon"
 import { ImageAnnotationModal, type Shape } from "@app/components/ImageAnnotationModal"
 import { Modal } from "@app/components/Modal"
+import { Notice } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { useT } from "@app/hooks/useT"
@@ -297,9 +298,9 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
               </p>
             ) : null}
             {createJob.isError ? (
-              <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300" role="alert">
+              <Notice role="alert" tone="danger">
                 {errorMessage(createJob.error, t("tool_cards.discuss.job_failed"))}
-              </p>
+              </Notice>
             ) : null}
 
             <div className="flex justify-end gap-2 border-t border-border pt-4">
