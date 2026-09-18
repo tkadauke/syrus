@@ -3472,6 +3472,108 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("marked #{workflow.slug} failed from failed #{step.slug}")
   end
 
+  it "continues a failed grader_collect loop iteration when retry budget remains" do
+    retry_workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      chain_template: [
+        {
+          "type" => "retry_until",
+          "max_iterations" => 2,
+          "repair" => %w[ implement ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => false
+        },
+        { "type" => "step", "kind" => "summarize" }
+      ]
+    )
+    grader_fanout = Step.create!(workflow: retry_workflow, kind: "grader_fanout", position: 0, iteration: 1, loop_id: "grade-loop")
+    grader_collect = Step.create!(workflow: retry_workflow, kind: "grader_collect", position: 1, iteration: 1, loop_id: "grade-loop")
+    summarize = Step.create!(workflow: retry_workflow, kind: "summarize", position: 2)
+    grader_fanout.update!(next_step_id: grader_collect.id)
+    grader_collect.update!(next_step_id: summarize.id)
+
+    job.update_columns(state: "running", started_at: 30.minutes.ago)
+    retry_workflow.update_columns(state: "running", started_at: 30.minutes.ago, finished_at: nil)
+    grader_fanout.update_columns(state: "succeeded", started_at: 25.minutes.ago, finished_at: 20.minutes.ago)
+    grader_collect.update_columns(state: "failed", started_at: 20.minutes.ago, finished_at: 15.minutes.ago)
+    grader_collect.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: retry_workflow.trigger_kind,
+      agent_provider: retry_workflow.agent_provider,
+      state: "failed",
+      started_at: 20.minutes.ago,
+      finished_at: 15.minutes.ago
+    )
+
+    result = reconcile_and_execute(workflow_id: retry_workflow.id)
+
+    expect(kind(result, :running_workflow_with_failed_step)).to be_present
+    expect(plan(result, :continue_loop_iteration_from_failed_step)).to have_attributes(
+      auto_executable: true,
+      target_type: "Step",
+      target_id: grader_collect.id
+    )
+    expect(plan(result, :fail_workflow_from_failed_step)).to be_nil
+    expect(retry_workflow.reload).to be_running
+
+    next_iteration = retry_workflow.steps.where(loop_id: "grade-loop", iteration: 2).order(:position).to_a
+    expect(next_iteration.map(&:kind)).to eq(%w[ implement grader_fanout grader_collect ])
+    expect(grader_collect.reload.next_step).to eq(next_iteration.first)
+    expect(next_iteration.last.next_step).to eq(summarize)
+    expect(next_iteration.first.runs.count).to eq(1)
+    expect(result.repair_executions.map(&:message)).to include("continued loop iteration from failed #{grader_collect.slug} on #{retry_workflow.slug}")
+  end
+
+  it "fails a workflow from failed grader_collect once retry budget is exhausted" do
+    retry_workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      chain_template: [
+        {
+          "type" => "retry_until",
+          "max_iterations" => 1,
+          "repair" => %w[ implement ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => false
+        },
+        { "type" => "step", "kind" => "summarize" }
+      ]
+    )
+    grader_fanout = Step.create!(workflow: retry_workflow, kind: "grader_fanout", position: 0, iteration: 1, loop_id: "grade-loop")
+    grader_collect = Step.create!(workflow: retry_workflow, kind: "grader_collect", position: 1, iteration: 1, loop_id: "grade-loop")
+    summarize = Step.create!(workflow: retry_workflow, kind: "summarize", position: 2)
+    grader_fanout.update!(next_step_id: grader_collect.id)
+    grader_collect.update!(next_step_id: summarize.id)
+
+    job.update_columns(state: "running", started_at: 30.minutes.ago)
+    retry_workflow.update_columns(state: "running", started_at: 30.minutes.ago, finished_at: nil)
+    grader_fanout.update_columns(state: "succeeded", started_at: 25.minutes.ago, finished_at: 20.minutes.ago)
+    grader_collect.update_columns(state: "failed", started_at: 20.minutes.ago, finished_at: 15.minutes.ago)
+    grader_collect.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: retry_workflow.trigger_kind,
+      agent_provider: retry_workflow.agent_provider,
+      state: "failed",
+      started_at: 20.minutes.ago,
+      finished_at: 15.minutes.ago
+    )
+
+    result = reconcile_and_execute(workflow_id: retry_workflow.id)
+
+    expect(kind(result, :running_workflow_with_failed_step)).to be_present
+    expect(plan(result, :continue_loop_iteration_from_failed_step)).to be_nil
+    expect(plan(result, :fail_workflow_from_failed_step)).to have_attributes(
+      auto_executable: true,
+      target_type: "Workflow",
+      target_id: retry_workflow.id
+    )
+    expect(retry_workflow.reload).to be_failed
+    expect(job.reload).to be_failed
+  end
+
   it "fails a queued workflow that already has a failed step and a queued tail" do
     pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 1)
     step.update!(kind: "prepare", next_step: pr_open)
