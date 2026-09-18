@@ -181,6 +181,46 @@ RSpec.describe Steps::Push do
     expect(workflow.reload.artifact("push_rebase_remote_ref")).to eq("refs/remotes/origin/syrus/issue-42")
   end
 
+  it "fails with a retryable provider_transient Problem instead of retrying a transient GitHub 5xx as a fast-forward conflict" do
+    job.update!(branch_name: "syrus/issue-42")
+    handler = described_class.new(run)
+    workspace = instance_double(
+      WorkflowWorkspace,
+      setup: nil,
+      branch_name: "syrus/issue-42",
+      path: Pathname.new("/tmp/workspace")
+    )
+    git = instance_double(GitRunner)
+    client = instance_double(GithubClient, access_token: "token")
+    push_url = "https://push.example/repo.git"
+    push_error = GitRunner::GitError.new(
+      [ "push", push_url, "HEAD:refs/heads/syrus/issue-42" ],
+      1,
+      " ! [remote rejected] syrus/issue-42 -> syrus/issue-42 (Internal Server Error)"
+    )
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: kind_of(Repository), user: user).and_return(client)
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+    allow(git).to receive(:run).with(
+      "push", push_url, "HEAD:refs/heads/syrus/issue-42",
+      chdir: "/tmp/workspace"
+    ).and_raise(push_error)
+
+    raised = nil
+    begin
+      handler.call
+    rescue Steps::Base::StepFailed => e
+      raised = e
+    end
+
+    expect(raised).to be_a(Steps::Base::StepFailed)
+    expect(raised.problem.code).to eq("provider_transient")
+    expect(raised.problem.retryable?).to be(true)
+    expect(run.job_logs.pluck(:chunk).join("\n")).not_to include("remote branch advanced")
+  end
+
   it "pushes successfully to a non-syrus/-prefixed branch name (e.g. a same-repo external_pr Job's dependabot branch)" do
     external_job = Job.create!(
       user: user, repository: repository, kind: "external_pr",

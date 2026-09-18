@@ -91,6 +91,7 @@ module Steps
       log("promotion_publish: pushed #{source_branch} -> #{target_branch} directly (#{workflow.slug})")
       close_job!("promotion_landed")
     rescue GitRunner::GitError => e
+      fail_if_transient_remote_push_error!(e)
       raise unless push_rejected?(e)
 
       raise StepFailed,

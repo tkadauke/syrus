@@ -134,6 +134,38 @@ module Steps
       error.output.to_s.match?(PUSH_REJECTED_PATTERN)
     end
 
+    # A "[remote rejected]" push refusal shaped like a transient GitHub
+    # outage rather than a real ref-update conflict. The parenthesized reason
+    # on a "[remote rejected]" line is whatever text the *remote* sent back —
+    # never one of git's own PUSH_REJECTED_PATTERN tokens — so a GitHub 5xx
+    # shows up here instead (RUN-145012: "! [remote rejected] ... (Internal
+    # Server Error)"; git never echoes the numeric HTTP status in that
+    # reason, only the phrase, so this matches phrases as well as a bare
+    # status code).
+    TRANSIENT_REMOTE_PUSH_PATTERN = /\[remote rejected\][^\n]*\((?:[^)]*\b(?:internal server error|bad gateway|service unavailable|gateway time-?out)\b[^)]*|[45]\d\d)\)/i
+
+    def transient_remote_push_error?(error)
+      error.output.to_s.match?(TRANSIENT_REMOTE_PUSH_PATTERN)
+    end
+
+    # Fails the step with a retryable `provider_transient` Problem when the
+    # caught push failure is transient-shaped (see
+    # transient_remote_push_error?), otherwise does nothing so the caller's
+    # existing push_rejected?/raise handling runs unchanged. Call this first,
+    # at the top of a `rescue GitRunner::GitError` block that also checks
+    # push_rejected? — without it, a transient 5xx re-raises as a bare
+    # GitRunner::GitError, which RunFailureClassifier's git_state_corrupt?
+    # matches by class alone (non-retryable, "operator review required"),
+    # discarding completed work under a false corruption diagnosis instead of
+    # retrying the outage.
+    def fail_if_transient_remote_push_error!(error)
+      return unless transient_remote_push_error?(error)
+
+      message = "#{step.kind}: GitHub returned a transient server error while pushing; retrying should succeed once GitHub recovers."
+      log(message)
+      fail_with!(:provider_transient, message, evidence: { git_output: error.output.to_s.truncate(2000) })
+    end
+
     # `failure_code` is the string a Workflows::Try branch matches on, and it
     # stays exactly what it was. `problem_code` is the same event in the shared
     # vocabulary (Problem::Kind), recorded beside it so the reconciler and the

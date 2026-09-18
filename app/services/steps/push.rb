@@ -38,6 +38,7 @@ module Steps
       git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}",
               chdir: workspace.path.to_s)
     rescue GitRunner::GitError => e
+      fail_if_transient_remote_push_error!(e)
       raise unless push_rejected?(e)
 
       log("push: remote branch advanced; rebasing #{workspace.branch_name} onto the current remote tip and retrying")

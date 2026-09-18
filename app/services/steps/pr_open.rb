@@ -234,6 +234,7 @@ module Steps
       end
       :pushed
     rescue GitRunner::GitError => e
+      fail_if_transient_remote_push_error!(e)
       raise unless published_review_branch? && push_rejected?(e)
 
       return supersede_stale_publication!("push rejected after a newer workflow updated the PR branch") if stale_publication_workflow?
@@ -247,6 +248,7 @@ module Steps
       git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}",
               chdir: workspace.path.to_s)
     rescue GitRunner::GitError => e
+      fail_if_transient_remote_push_error!(e)
       raise unless push_rejected?(e)
       raise if published_review_branch?
 

@@ -176,6 +176,43 @@ RSpec.describe Steps::ForcePush do
     expect(run.job_logs.pluck(:chunk).join("\n")).to include("remote branch moved")
   end
 
+  it "fails with a retryable provider_transient Problem instead of a lease-rejected diagnosis for a transient GitHub 5xx push failure" do
+    workflow.set_artifact!("auto_rebase_result", {
+      "reason" => "conflict",
+      "pre_sha" => "abc123"
+    })
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace,
+                                setup: nil,
+                                branch_name: "syrus/issue-42",
+                                path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "token"))
+    allow(job.repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
+    allow(git).to receive(:run).and_raise(
+      GitRunner::GitError.new(
+        [ "push", "--force-with-lease=refs/heads/syrus/issue-42:abc123" ],
+        1,
+        " ! [remote rejected] syrus/issue-42 -> syrus/issue-42 (Internal Server Error)"
+      )
+    )
+
+    raised = nil
+    begin
+      handler.call
+    rescue Steps::Base::StepFailed => e
+      raised = e
+    end
+
+    expect(raised).to be_a(Steps::Base::StepFailed)
+    expect(raised.problem.code).to eq("provider_transient")
+    expect(raised.problem.retryable?).to be(true)
+    expect(run.job_logs.pluck(:chunk).join("\n")).not_to include("lease rejected")
+  end
+
   describe "carry-forward of a green grade across a clean rebase (opt-in)" do
     def stub_git(handler, head: "newhead789")
       workspace = instance_double(WorkflowWorkspace, setup: nil, branch_name: "syrus/issue-42", path: Pathname.new("/tmp/workspace"))

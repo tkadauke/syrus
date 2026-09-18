@@ -61,6 +61,66 @@ RSpec.describe Steps::Base, :ci_only do
     end
   end
 
+  describe "#transient_remote_push_error?" do
+    def git_error(output)
+      GitRunner::GitError.new([ "push" ], 1, output)
+    end
+
+    it "classifies a GitHub 5xx '[remote rejected]' refusal as transient" do
+      output = <<~OUTPUT
+        remote: Internal Server Error
+        To https://github.com/acme/widgets.git
+         ! [remote rejected] syrus/direct-5004 -> syrus/direct-5004 (Internal Server Error)
+        error: failed to push some refs to 'https://github.com/acme/widgets.git'
+      OUTPUT
+
+      expect(handler.send(:transient_remote_push_error?, git_error(output))).to be(true)
+    end
+
+    [ "Bad Gateway", "Service Unavailable", "Gateway Timeout", "502" ].each do |reason|
+      it "classifies a '[remote rejected] ... (#{reason})' refusal as transient" do
+        output = " ! [remote rejected] main -> main (#{reason})"
+        expect(handler.send(:transient_remote_push_error?, git_error(output))).to be(true)
+      end
+    end
+
+    it "does not classify a genuine local non-fast-forward rejection as transient" do
+      expect(handler.send(:transient_remote_push_error?, git_error("! [rejected] HEAD -> syrus/direct-5004 (non-fast-forward)"))).to be(false)
+    end
+
+    it "does not classify an unrelated git error as transient" do
+      expect(handler.send(:transient_remote_push_error?, git_error("fatal: unable to access remote"))).to be(false)
+    end
+  end
+
+  describe "#fail_if_transient_remote_push_error!" do
+    it "fails the step with a retryable provider_transient Problem for a transient remote push refusal" do
+      error = GitRunner::GitError.new(
+        [ "push" ], 1,
+        " ! [remote rejected] main -> main (Internal Server Error)"
+      )
+
+      raised = nil
+      begin
+        handler.send(:fail_if_transient_remote_push_error!, error)
+      rescue Steps::Base::StepFailed => e
+        raised = e
+      end
+
+      expect(raised).to be_a(Steps::Base::StepFailed)
+      expect(raised.problem.code).to eq("provider_transient")
+      expect(raised.problem.retryable?).to be(true)
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include("transient server error")
+    end
+
+    it "does nothing for a genuine non-fast-forward rejection, leaving the caller's own handling in charge" do
+      error = GitRunner::GitError.new([ "push" ], 1, "! [rejected] HEAD -> main (non-fast-forward)")
+
+      expect { handler.send(:fail_if_transient_remote_push_error!, error) }.not_to raise_error
+      expect(run.job_logs.pluck(:chunk).join("\n")).to be_empty
+    end
+  end
+
   describe "#log" do
     it "appends a JobLog with auto-incremented sequence" do
       handler.log("hello")

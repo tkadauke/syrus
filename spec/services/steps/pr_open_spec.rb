@@ -925,6 +925,61 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(git).not_to have_received(:run).with("push", anything, anything, chdir: anything)
   end
 
+  it "fails with a retryable provider_transient Problem instead of a branch-divergence diagnosis when the push itself hits a transient GitHub 5xx" do
+    job.update!(state: "running", pr_number: 77)
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    branch = "syrus/issue-42-#{job.id}"
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    workspace = instance_double(WorkflowWorkspace, branch_name: branch, path: path, base_ref: "origin/main")
+    client = instance_double(GithubClient, access_token: "token")
+    git = instance_double(GitRunner)
+    push_url = repository.authenticated_push_url("token")
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    # Not diverged: the pre-push check (verify_existing_pr_branch_not_diverged!)
+    # sees the same SHA remote and local, so it returns without raising and
+    # push_branch proceeds to the actual `git push`.
+    allow(git).to receive(:run).with(
+      "fetch", push_url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: path.to_s
+    ).and_return("")
+    allow(git).to receive(:run).with(
+      "rev-parse", "refs/remotes/origin/#{branch}", chdir: path.to_s
+    ).and_return("samesha\n")
+    allow(git).to receive(:run).with(
+      "rev-parse", "HEAD", chdir: path.to_s
+    ).and_return("samesha\n")
+    allow(git).to receive(:run).with(
+      "push", push_url, "HEAD:refs/heads/#{branch}", chdir: path.to_s
+    ).and_raise(
+      GitRunner::GitError.new(
+        [ "push", push_url, "HEAD:refs/heads/#{branch}" ],
+        1,
+        " ! [remote rejected] #{branch} -> #{branch} (Internal Server Error)"
+      )
+    )
+
+    raised = nil
+    begin
+      handler.send(:push_branch)
+    rescue Steps::Base::StepFailed => e
+      raised = e
+    end
+
+    expect(raised).to be_a(Steps::Base::StepFailed)
+    expect(raised).not_to be_a(Steps::PrOpen::BranchDiverged)
+    expect(raised.problem.code).to eq("provider_transient")
+    expect(raised.problem.retryable?).to be(true)
+    expect(workflow.reload.artifact("branch_divergence")).to be_nil
+  end
+
   it "does not fail pr_open when stack footer refresh hits a transient GitHub server error" do
     parent = Factories.job(repository: repository, issue_number: 41)
     parent.update!(pr_number: 76)

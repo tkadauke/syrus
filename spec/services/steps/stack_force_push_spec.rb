@@ -55,8 +55,8 @@ RSpec.describe Steps::StackForcePush do
   # matched this and misreported it as "lease rejected ... remote branch moved
   # after Syrus fetched it", discarding the completed stack_agent_rebase
   # conflict-resolution work instead of letting the transient failure surface
-  # as itself.
-  it "does not misreport a transient GitHub 5xx '[remote rejected]' push failure as a lease rejection" do
+  # (and retry) as itself.
+  it "fails with a retryable provider_transient Problem instead of misreporting a transient GitHub 5xx push failure as a lease rejection" do
     allow(git).to receive(:run).and_raise(
       GitRunner::GitError.new(
         %w[push],
@@ -70,8 +70,34 @@ RSpec.describe Steps::StackForcePush do
       )
     )
 
-    expect { handler.call }.to raise_error(GitRunner::GitError, /Internal Server Error/)
-    expect(run.job_logs.pluck(:chunk).join("\n")).not_to include("lease rejected")
+    raised = nil
+    begin
+      handler.call
+    rescue Steps::Base::StepFailed => e
+      raised = e
+    end
+
+    expect(raised).to be_a(Steps::Base::StepFailed)
+    expect(raised.problem.code).to eq("provider_transient")
+    expect(raised.problem.retryable?).to be(true)
+
+    logs = run.job_logs.pluck(:chunk).join("\n")
+    expect(logs).not_to include("lease rejected")
+    expect(logs).to include("transient server error")
+
+    # The classification pipeline a real Run failure goes through
+    # (RunFailureClassifier reads the declared Problem off the persisted
+    # RunDiagnostic) must agree the failure is retryable -- otherwise the
+    # workflow terminally fails anyway despite the step declaring otherwise.
+    run.create_run_diagnostic!(
+      error_class: raised.class.name,
+      error_message: raised.message,
+      problem_code: raised.problem.code,
+      problem_evidence: raised.problem.evidence
+    )
+    result = RunFailureClassifier.classify(run)
+    expect(result.classification).to eq("provider_transient")
+    expect(result.retryable).to be(true)
   end
 
   it "still fails visibly with a lease-rejected StepFailed for a genuine non-fast-forward conflict" do

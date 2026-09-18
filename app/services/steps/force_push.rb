@@ -30,6 +30,7 @@ module Steps
       persist_rebase_diff_review_version!
       carry_forward_landing_validation!
     rescue GitRunner::GitError => e
+      fail_if_transient_remote_push_error!(e)
       raise unless push_rejected?(e)
 
       message = "force_push: lease rejected for #{workspace.branch_name}; remote branch moved after Syrus fetched it. " \

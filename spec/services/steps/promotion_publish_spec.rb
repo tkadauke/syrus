@@ -70,6 +70,24 @@ RSpec.describe Steps::PromotionPublish do
       expect(job.pr_links.find_by(role: JobPrLink::ROLE_PROMOTION)).to be_nil
       expect(job.reload).not_to be_closed
     end
+
+    it "fails with a retryable provider_transient Problem for a transient GitHub 5xx push failure" do
+      allow(git).to receive(:run).with("push", "https://push.example/repo.git", "HEAD:refs/heads/main", chdir: "/tmp/workspace")
+        .and_raise(GitRunner::GitError.new(%w[push], 1, " ! [remote rejected] main -> main (Internal Server Error)"))
+
+      raised = nil
+      begin
+        handler.call
+      rescue Steps::Base::StepFailed => e
+        raised = e
+      end
+
+      expect(raised).to be_a(Steps::Base::StepFailed)
+      expect(raised.problem.code).to eq("provider_transient")
+      expect(raised.problem.retryable?).to be(true)
+      expect(job.pr_links.find_by(role: JobPrLink::ROLE_PROMOTION)).to be_nil
+      expect(job.reload).not_to be_closed
+    end
   end
 
   describe "mode: auto_pr" do
