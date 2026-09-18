@@ -183,6 +183,11 @@ function InsightSuggestionsList({
   )
 }
 
+// Shared by the suggested-prompt and memory-suggestion blocks below: both render
+// unbounded agent-authored text that must wrap instead of stretching the page,
+// with horizontal scroll on the box itself as a fallback for unbreakable runs.
+const WRAPPING_PRE_CLASSES = "mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+
 function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; suggestion: InsightSuggestion }) {
   const { t } = useT("agent_insights")
   const queryClient = useQueryClient()
@@ -309,7 +314,7 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
             {suggestion.suggested_prompt && (
               <div>
                 <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("suggested_prompt_label")}</p>
-                <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                <pre className={WRAPPING_PRE_CLASSES}>
                   {suggestion.suggested_prompt}
                 </pre>
               </div>
@@ -317,7 +322,7 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
             {suggestion.memory_suggestion && (
               <div>
                 <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("memory_suggestion_label")}</p>
-                <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                <pre className={WRAPPING_PRE_CLASSES}>
                   {suggestion.memory_suggestion}
                 </pre>
               </div>
