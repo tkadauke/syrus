@@ -272,7 +272,12 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     sign_in_as(user)
     user.update!(agent_provider: "claude", claude_oauth_token: "oat-test",
                  codex_auth_mode: "api_key", codex_api_key: "sk-test")
+    # Job#agent_provider (set at creation by Job#default_agent_provider) still
+    # reads Repository#effective_agent_provider directly -- only the Workflow/
+    # Run provider now goes through ProviderRouting::Resolver, so both need to
+    # agree here for the job/workflow/run providers to all land on "codex".
     repository.update!(agent_provider: "codex")
+    ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "initial", candidates: [ { "provider" => "codex" } ])
 
     post "/api/v1/app/jobs", params: {
       repository_id: repository.id,

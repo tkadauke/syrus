@@ -168,10 +168,11 @@ RSpec.describe RetryWorkflowEnqueuer do
     expect(result.workflow.first_step.runs.last.agent_provider).to eq("codex")
   end
 
-  it "resolves default jobs from the current repository default for new workflows" do
+  it "resolves default jobs via the provider routing resolver for new workflows" do
     finish_current_run!
-    user.update!(agent_provider: "codex", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+    user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test")
     job.update!(agent_provider: "claude", job_provider_setting: "default")
+    ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "retry", candidates: [ { "provider" => "codex" } ])
 
     result = described_class.call(job: job)
 
@@ -454,6 +455,7 @@ RSpec.describe RetryWorkflowEnqueuer do
       job_count: 3,
       signature: "timeout"
     )
+    allow(ProviderCircuitBreaker).to receive(:call).and_call_original
     allow(ProviderCircuitBreaker).to receive(:call)
       .with(job.workflow_agent_provider, include_logs: false)
       .and_return(decision)

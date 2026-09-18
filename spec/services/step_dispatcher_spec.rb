@@ -73,7 +73,7 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(s1.runs.last.effort_level).to be_nil
     end
 
-    it "refreshes a default-backed workflow to the current repo provider before the first Run" do
+    it "refreshes a default-backed workflow to the provider routing resolver's pick before the first Run" do
       user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
       repository = Factories.repository(user: user)
       default_job = Factories.job_record(user: user, repository: repository, state: "queued",
@@ -85,7 +85,7 @@ RSpec.describe StepDispatcher, :ci_only do
         artifacts: { "agent_provider_selection" => "default" }
       )
       first_step = Step.create!(workflow: default_workflow, kind: "implement", position: 0)
-      user.update!(agent_provider: "codex")
+      ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "initial", candidates: [ { "provider" => "codex" } ])
 
       described_class.start_workflow(default_workflow)
 
@@ -141,6 +141,126 @@ RSpec.describe StepDispatcher, :ci_only do
 
       expect(default_workflow.reload.agent_provider).to eq("claude")
       expect(summarize.runs.last.agent_provider).to eq("claude")
+    end
+
+    it "switches to the first available routing candidate when the top one is unavailable" do
+      user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
+      repository = Factories.repository(user: user)
+      default_job = Factories.job_record(user: user, repository: repository, state: "queued",
+                                         agent_provider: "claude", job_provider_setting: "default")
+      default_workflow = Workflow.create!(
+        job: default_job,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        artifacts: { "agent_provider_selection" => "default" }
+      )
+      first_step = Step.create!(workflow: default_workflow, kind: "implement", position: 0)
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id, task_key: "initial",
+        candidates: [ { "provider" => "claude" }, { "provider" => "codex" } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything)
+        .and_return({ "state" => "rate_limited", "open" => true })
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(nil)
+
+      expect {
+        described_class.start_workflow(default_workflow)
+      }.to change { first_step.runs.count }.by(1)
+
+      expect(default_workflow.reload.agent_provider).to eq("codex")
+      expect(first_step.runs.last.agent_provider).to eq("codex")
+      expect(default_workflow.artifact("pause_reason")).to be_nil
+    end
+
+    it "pauses the same way as today when every routing candidate is unavailable" do
+      user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
+      repository = Factories.repository(user: user)
+      default_job = Factories.job_record(user: user, repository: repository, state: "queued",
+                                         agent_provider: "claude", job_provider_setting: "default")
+      default_workflow = Workflow.create!(
+        job: default_job,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        artifacts: { "agent_provider_selection" => "default" }
+      )
+      first_step = Step.create!(workflow: default_workflow, kind: "implement", position: 0)
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id, task_key: "initial",
+        candidates: [ { "provider" => "claude" }, { "provider" => "codex" } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything)
+        .and_return({ "state" => "rate_limited", "open" => true })
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything)
+        .and_return({ "state" => "exhausted", "usage_exhausted" => true })
+
+      expect {
+        described_class.start_workflow(default_workflow)
+      }.not_to change { first_step.runs.count }
+
+      expect(default_workflow.reload.agent_provider).to eq("claude")
+      expect(default_workflow.artifact("pause_reason")).to eq(StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON)
+      expect(default_workflow.artifact("pause_kind")).to eq("provider_availability")
+    end
+
+    it "prefers a step-level routing rule for adversarial_review over the workflow-kind default" do
+      user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
+      repository = Factories.repository(user: user)
+      default_job = Factories.job_record(user: user, repository: repository, state: "running",
+                                         agent_provider: "claude", job_provider_setting: "default")
+      default_workflow = Workflow.create!(
+        job: default_job,
+        trigger_kind: "initial",
+        state: "running",
+        agent_provider: "claude",
+        artifacts: { "agent_provider_selection" => "default" }
+      )
+      implement = Step.create!(workflow: default_workflow, kind: "implement", position: 0, state: "succeeded")
+      review = Step.create!(workflow: default_workflow, kind: "adversarial_review", position: 1)
+      implement.runs.create!(
+        job: default_job,
+        trigger_kind: default_workflow.trigger_kind,
+        agent_provider: "claude",
+        state: "succeeded",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id, task_key: "adversarial_review",
+        candidates: [ { "provider" => "codex" } ]
+      )
+
+      described_class.create_run_and_enqueue(review, default_workflow)
+
+      expect(default_workflow.reload.agent_provider).to eq("claude")
+      expect(review.runs.last.agent_provider).to eq("codex")
+    end
+
+    it "falls back to the workflow-kind default for adversarial_review when no step-level rule exists" do
+      user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
+      repository = Factories.repository(user: user)
+      default_job = Factories.job_record(user: user, repository: repository, state: "running",
+                                         agent_provider: "claude", job_provider_setting: "default")
+      default_workflow = Workflow.create!(
+        job: default_job,
+        trigger_kind: "initial",
+        state: "running",
+        agent_provider: "claude",
+        artifacts: { "agent_provider_selection" => "default" }
+      )
+      implement = Step.create!(workflow: default_workflow, kind: "implement", position: 0, state: "succeeded")
+      review = Step.create!(workflow: default_workflow, kind: "adversarial_review", position: 1)
+      implement.runs.create!(
+        job: default_job,
+        trigger_kind: default_workflow.trigger_kind,
+        agent_provider: "claude",
+        state: "succeeded",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+
+      described_class.create_run_and_enqueue(review, default_workflow)
+
+      expect(review.runs.last.agent_provider).to eq("claude")
     end
 
     it "is idempotent — won't double-create a Run" do

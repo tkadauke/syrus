@@ -148,39 +148,12 @@ class ProviderFailoverSelector
   end
 
   def available_enough?(provider, payload)
-    return false if user.provider_availability_overridden?(provider, evidence_observed_at: evidence_observed_at(payload))
-    return false if payload&.dig(:open) == true || payload&.dig("open") == true
-    return false if payload&.dig(:usage_exhausted) == true || payload&.dig("usage_exhausted") == true
-    return false if payload&.dig(:state).to_s.in?(%w[open rate_limited exhausted auth_error])
-    return false if payload&.dig("state").to_s.in?(%w[open rate_limited exhausted auth_error])
-
-    remaining = remaining_percent(payload)
-    remaining.nil? || !user.provider_availability_pause_enabled?(provider) || remaining >= user.provider_availability_pause_threshold_for(provider)
+    ProviderRouting::AvailabilityCheck.available_enough?(user: user, provider: provider, availability: payload)
   end
 
   def refresh_stale_usage(provider)
     AgentProviders.for(provider).refresh_stale_usage!(user: user, now: now)
   rescue AgentProviders::ConfigurationError
-    nil
-  end
-
-  def remaining_percent(payload)
-    value = payload&.dig(:usage, :remaining_percent) || payload&.dig("usage", "remaining_percent")
-    return if value.blank?
-
-    Float(value)
-  rescue ArgumentError, TypeError
-    nil
-  end
-
-  def evidence_observed_at(payload)
-    value =
-      payload&.dig(:evidence, :current, :observed_at) ||
-      payload&.dig("evidence", "current", "observed_at") ||
-      payload&.dig(:usage, :observed_at) ||
-      payload&.dig("usage", "observed_at")
-    Time.zone.parse(value.to_s)
-  rescue ArgumentError, TypeError
     nil
   end
 end

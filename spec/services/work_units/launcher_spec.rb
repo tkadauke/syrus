@@ -56,7 +56,7 @@ RSpec.describe WorkUnits::Launcher do
     user.update!(agent_provider: "claude", codex_api_key: "ck-test")
     job.update!(agent_provider: "claude", job_provider_setting: "default")
     workflow = described_class.instantiate(kind: "initial", job: job)
-    user.update!(agent_provider: "codex")
+    ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "initial", candidates: [ { "provider" => "codex" } ])
 
     allow(WorkUnits::Scheduler).to receive(:evaluate!) do |unit, **|
       expect(unit.workflow.agent_provider).to eq("codex")

@@ -515,17 +515,45 @@ class StepDispatcher
         return nil
       end
 
+      run_provider = step_agent_provider_selection(step, workflow)
+
       step.runs.create!(
         job: workflow.job,
         trigger_kind: workflow.trigger_kind,
-        agent_provider: workflow.agent_provider,
-        model: workflow.model,
-        effort_level: workflow.effort_level,
+        agent_provider: run_provider.provider,
+        model: run_provider.model,
+        effort_level: run_provider.effort_level,
         iteration: step.iteration,
         parent_session_id: parent_session_id,
         prompt: prompt
       )
     end
+  end
+
+  StepAgentProviderSelection = Data.define(:provider, :model, :effort_level)
+
+  # Most steps just inherit the workflow's own resolved provider/model/
+  # effort_level. A handful of step kinds (see ProviderRouting::StepTaskKey)
+  # can be routed independently -- e.g. always run adversarial_review
+  # through a specific provider regardless of what implement/respond use --
+  # but only when a ProviderRoutingRule actually targets that step's task_key,
+  # and only for that step's own first Run (a later retry of the same Step
+  # keeps whatever provider its earlier Run already used).
+  def self.step_agent_provider_selection(step, workflow)
+    workflow_selection = StepAgentProviderSelection.new(
+      provider: workflow.agent_provider,
+      model: workflow.model,
+      effort_level: workflow.effort_level
+    )
+    return workflow_selection if step.runs.any?
+
+    task_key = ProviderRouting::StepTaskKey.for(step, workflow.job)
+    return workflow_selection unless task_key
+
+    candidate = ProviderRouting::AvailableCandidate.call(job: workflow.job, task_key: task_key).candidate
+    return workflow_selection if candidate.nil? || candidate.provider.blank?
+
+    StepAgentProviderSelection.new(provider: candidate.provider, model: candidate.model, effort_level: candidate.effort_level)
   end
 
   def self.work_unit_runtime_deferred?(step, workflow)
@@ -543,6 +571,13 @@ class StepDispatcher
     true
   end
 
+  # Re-derives the workflow's provider/model/effort_level from
+  # ProviderRouting::Resolver, walking the ordered candidate list and
+  # picking the first one that is currently available (see
+  # ProviderRouting::AvailableCandidate). Only runs for a job still on the
+  # "default" provider setting, before any agentic Run exists -- once a
+  # Run starts, the workflow's provider is pinned for the rest of the
+  # workflow (see workflow_has_agentic_run?).
   def self.refresh_default_workflow_agent_provider!(workflow)
     return unless workflow.job.job_provider_setting_default?
     selection = workflow.artifact("agent_provider_selection")
@@ -550,16 +585,49 @@ class StepDispatcher
     return if selection.blank? && workflow.agent_provider != workflow.job.agent_provider
     return if workflow_has_agentic_run?(workflow)
 
-    desired_provider = workflow.job.reload.workflow_agent_provider.presence
-    return if desired_provider.blank? || desired_provider == workflow.agent_provider
+    apply_routed_provider!(workflow, task_key: workflow.trigger_kind)
+  end
 
-    artifacts = workflow.artifacts.to_h.merge(
-      "agent_provider_selection" => "default",
-      "agent_provider_refreshed_at" => Time.current.iso8601,
-      "agent_provider_previous" => workflow.agent_provider,
-      "agent_provider_resolved" => desired_provider
-    )
-    workflow.update!(agent_provider: desired_provider, artifacts: artifacts)
+  # Companion to refresh_default_workflow_agent_provider! for the case
+  # where the workflow's already-resolved provider has since become
+  # unavailable (ProviderAvailabilityPause is about to pause the
+  # workflow): re-walk the resolver's candidate list for an alternate
+  # that is available now, rather than trusting
+  # ProviderFailoverSelector's legacy policy-based pick (that class is
+  # retired in a later Job of this Epic). Still gated behind the same
+  # "no Run yet" invariant.
+  def self.apply_provider_failover!(workflow, provider_pause)
+    return unless provider_pause.failover?
+
+    apply_routed_provider!(workflow, task_key: workflow.trigger_kind, reason: "failover")
+  end
+
+  # Only re-derives `agent_provider` -- model/effort_level are resolved
+  # once, from the candidate picked when the workflow was instantiated,
+  # and are left alone here even when they don't match what the resolver
+  # would currently pick (e.g. an operator or a later step explicitly set
+  # them on the workflow after creation). This mirrors the pre-resolver
+  # behavior, where this refresh path only ever touched agent_provider.
+  def self.apply_routed_provider!(workflow, task_key:, reason: "default")
+    job = workflow.job.reload
+    selection = ProviderRouting::AvailableCandidate.call(job: job, task_key: task_key)
+    candidate = selection.candidate
+    return if candidate.nil? || candidate.provider.blank?
+    return if candidate.provider == workflow.agent_provider
+
+    workflow.with_lock do
+      workflow.reload
+      return if workflow.runs.exists?
+
+      artifacts = workflow.artifacts.to_h.merge(
+        "agent_provider_selection" => "default",
+        "agent_provider_refreshed_at" => Time.current.iso8601,
+        "agent_provider_previous" => workflow.agent_provider,
+        "agent_provider_resolved" => candidate.provider,
+        "agent_provider_resolution_reason" => reason
+      )
+      workflow.update!(agent_provider: candidate.provider, artifacts: artifacts)
+    end
   end
 
   def self.workflow_has_agentic_run?(workflow)
@@ -756,19 +824,6 @@ class StepDispatcher
       kind: "system",
       chunk: "provider availability paused before #{step.kind}: #{provider_pause.reason}"
     )
-  end
-
-  def self.apply_provider_failover!(workflow, provider_pause)
-    workflow.with_lock do
-      workflow.reload
-      return if workflow.runs.exists?
-      return if workflow.agent_provider == provider_pause.failover.selected_provider
-
-      workflow.update!(
-        agent_provider: provider_pause.failover.selected_provider,
-        artifacts: workflow.artifacts.to_h.merge("provider_failover_decision" => provider_pause.failover.artifact)
-      )
-    end
   end
 
   def self.resume_deferred_phase(workflow_id, step_id = nil, check_phase_admission: true)

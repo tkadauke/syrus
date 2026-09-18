@@ -263,9 +263,10 @@ RSpec.describe Workflows::Initial do
     expect(steps["grader_collect"].loop_id).not_to be_nil
   end
 
-  it "pins the provider from the job provider setting when created" do
-    user.update!(agent_provider: "codex", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+  it "pins the provider resolved by ProviderRouting::Resolver when created" do
+    user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test")
     job.update_columns(agent_provider: "claude", job_provider_setting: "default")
+    ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "default", candidates: [ { "provider" => "codex" } ])
 
     workflow = described_class.instantiate(job: job)
 

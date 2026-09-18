@@ -97,8 +97,18 @@ module Workflows
       )
       effective_artifacts = (effective_artifacts || {}).merge(resolution.provenance)
 
-      provider_selection = agent_provider.present? ? "explicit" : "default"
-      resolved_agent_provider = agent_provider.presence || job.workflow_agent_provider || job.agent_provider || job.user.agent_provider
+      explicit_agent_provider = agent_provider.presence
+      provider_selection = explicit_agent_provider.present? ? "explicit" : "default"
+      # Only consult the resolver when the caller didn't already pin a
+      # provider -- an explicit `agent_provider:` argument (e.g. an
+      # operator-chosen retry provider) always wins outright, and the
+      # resolver's model/effort_level picks are only meaningful alongside
+      # its own candidate's provider.
+      routed_candidate = ProviderRouting::AvailableCandidate.call(job: job, task_key: trigger_kind.to_s).candidate unless explicit_agent_provider
+
+      resolved_agent_provider = explicit_agent_provider || routed_candidate&.provider || job.workflow_agent_provider || job.agent_provider || job.user.agent_provider
+      resolved_model = model.presence || routed_candidate&.model
+      resolved_effort_level = effort_level.presence || routed_candidate&.effort_level
       model_selection = model.present? ? "explicit" : "default"
       effort_level_selection = effort_level.present? ? "explicit" : "default"
       effective_artifacts = (effective_artifacts || {}).merge(
@@ -112,8 +122,8 @@ module Workflows
           job: job,
           trigger_kind: trigger_kind,
           agent_provider: resolved_agent_provider,
-          model: model.presence,
-          effort_level: effort_level.presence,
+          model: resolved_model,
+          effort_level: resolved_effort_level,
           chain_template: resolution.graph,
           artifacts: effective_artifacts
         )
