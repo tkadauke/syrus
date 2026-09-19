@@ -1,4 +1,4 @@
-import { getJson, patchJson, postJson } from "./client"
+import { ApiError, getJson, patchJson, postJson } from "./client"
 import type { SetupStatusPayload } from "./setup"
 import type { JobRetryState, PreviewEnvironmentRecord } from "./jobs"
 import type { ProviderAvailability, ProviderFailover } from "./providerAvailability"
@@ -622,16 +622,27 @@ export function fetchEditRepositoryForm(id: string) {
 
 export function fetchRepositoryOwners() {
   return getJson<GitHubOwnersPayload>("/api/v1/app/repositories/owners")
+    .catch((error) => githubSelectorFallback<GitHubOwnersPayload>(error, ["no_token", "unauthorized"]))
 }
 
 export function fetchRepositoryOptions(owner: string, ownerType: string) {
   const params = new URLSearchParams({ owner, owner_type: ownerType })
   return getJson<GitHubRepositoriesPayload>(`/api/v1/app/repositories/repos?${params}`)
+    .catch((error) => githubSelectorFallback<GitHubRepositoriesPayload>(error, ["no_token", "not_found", "missing_params"]))
 }
 
 export function fetchRepositoryBranches(owner: string, name: string) {
   const params = new URLSearchParams({ owner, name })
   return getJson<GitHubBranchesPayload>(`/api/v1/app/repositories/branches?${params}`)
+    .catch((error) => githubSelectorFallback<GitHubBranchesPayload>(error, ["not_found", "missing_params"]))
+}
+
+function githubSelectorFallback<T extends { error?: string }>(error: unknown, handledCodes: string[]): T {
+  if (error instanceof ApiError && error.code && handledCodes.includes(error.code)) {
+    return { error: error.code } as T
+  }
+
+  throw error
 }
 
 export function createRepository(values: RepositoryInput) {
