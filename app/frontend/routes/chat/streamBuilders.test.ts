@@ -253,6 +253,37 @@ describe("renderChatMessages tool grouping", () => {
     expect(call.result_summary).toBe("Cancel requested · JOB-44 · pending #7")
   })
 
+  it("carries the tool_result message's live pending action onto the settled call", () => {
+    const live: ChatMessageItem["pending_action"] = {
+      id: 501,
+      action: "submit_chat_feedback",
+      state: "confirmed",
+      label: "Submit feedback",
+      detail: null,
+      app_confirm_path: "/api/v1/app/chats/122/pending_actions/501/confirm",
+      app_reject_path: "/api/v1/app/chats/122/pending_actions/501/reject"
+    }
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_feedback", toolName: "submit_chat_feedback", input: { job_id: 4048 } }),
+      toolResult(2, {
+        toolUseId: "tu_feedback",
+        content: JSON.stringify({ pending_action_id: 501, state: "pending", message: "Chat feedback requires operator confirmation." }),
+        pending_action: live
+      })
+    ])
+
+    expect(group(items[0]).calls[0].pending_action).toEqual(live)
+  })
+
+  it("sets the call's pending action to null when the tool_result message never got one", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_1", content: "class A" })
+    ])
+
+    expect(group(items[0]).calls[0].pending_action).toBeNull()
+  })
+
   it("groups consecutive read-only calls under a compact inspection summary", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),

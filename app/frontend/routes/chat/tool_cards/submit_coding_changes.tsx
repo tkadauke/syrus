@@ -20,10 +20,18 @@ function parseResult(context: ToolCardContext): SubmitCodingChangesResult | null
   if (!state) return null
 
   const input = isPlainObject(context.input) ? context.input : {}
+  const pendingActionId = displayValue(parsed.pending_action_id)
+
+  // The tool result's own state is frozen at call time ("pending") -- it
+  // never reflects a later operator confirm/reject. livePendingAction is
+  // re-read from the owning message on every payload fetch, so prefer it
+  // once it exists and still refers to this same pending action.
+  const live = context.livePendingAction
+  const liveState = live && pendingActionId && displayValue(live.id) === pendingActionId ? live.state : null
 
   return {
-    pendingActionId: displayValue(parsed.pending_action_id),
-    state,
+    pendingActionId,
+    state: liveState ?? state,
     message: displayValue(parsed.message),
     branch: displayValue(input.branch),
     title: displayValue(input.title)

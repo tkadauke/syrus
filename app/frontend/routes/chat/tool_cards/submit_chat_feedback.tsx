@@ -16,6 +16,10 @@ type SubmitChatFeedbackResult = {
   message: string | null
 }
 
+function isUnresolved(state: string) {
+  return state === "queued" || state === "pending" || state === "confirming"
+}
+
 function mediaRefs(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
@@ -31,12 +35,20 @@ function parseResult(context: ToolCardContext): SubmitChatFeedbackResult | null 
   if (!state) return null
 
   const input = isPlainObject(context.input) ? context.input : {}
+  const pendingActionId = displayValue(parsed.pending_action_id) ?? displayValue(parsed.pending_confirmation_id)
+
+  // The tool result's own state is frozen at call time ("pending"/"queued")
+  // -- it never reflects a later operator confirm/reject. livePendingAction
+  // is re-read from the owning message on every payload fetch, so prefer it
+  // once it exists and still refers to this same pending action.
+  const live = context.livePendingAction
+  const liveState = live && pendingActionId && displayValue(live.id) === pendingActionId ? live.state : null
 
   return {
     jobId: displayValue(input.job_id),
     media: mediaRefs(input.media),
-    pendingActionId: displayValue(parsed.pending_action_id) ?? displayValue(parsed.pending_confirmation_id),
-    state,
+    pendingActionId,
+    state: liveState ?? state,
     queued: displayValue(parsed.status) === "queued",
     message: displayValue(parsed.message)
   }
@@ -61,11 +73,13 @@ function renderExpanded(context: ToolCardContext) {
         {result.pendingActionId ? <Badge>#{result.pendingActionId}</Badge> : null}
       </div>
       {result.message ? <div className="text-gray-700 dark:text-gray-300">{result.message}</div> : null}
-      <div className="text-gray-500 dark:text-gray-400">
-        {result.queued
-          ? "Queued until the job becomes actionable; a chat_feedback workflow starts once it is confirmed."
-          : "Confirming this will start a new chat_feedback workflow."}
-      </div>
+      {isUnresolved(result.state) ? (
+        <div className="text-gray-500 dark:text-gray-400">
+          {result.queued
+            ? "Queued until the job becomes actionable; a chat_feedback workflow starts once it is confirmed."
+            : "Confirming this will start a new chat_feedback workflow."}
+        </div>
+      ) : null}
       {result.media.length > 0 ? (
         <div>
           <SectionLabel>Media</SectionLabel>
