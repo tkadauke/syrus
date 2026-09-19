@@ -26,6 +26,23 @@ RSpec.describe WorkUnits::WorkflowCancellation do
     )
   end
 
+  it "syncs the work intent after cancellation records a superseding preemption reason" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, idempotency_key: "cancel-intent-sync-spec")
+
+    described_class.cancel!(
+      workflow,
+      reason: "job_approved",
+      artifacts: { "cancelled_reason" => "job_approved" }
+    )
+
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.work_unit.reload).to have_attributes(
+      state: "cancelled",
+      preemption_reason: "job_approved"
+    )
+    expect(workflow.work_unit.work_intent.reload).to be_cancelled
+  end
+
   it "preserves legacy cancellation for workflows without work units" do
     workflow = Workflows::Initial.instantiate(job: job)
 
@@ -39,6 +56,30 @@ RSpec.describe WorkUnits::WorkflowCancellation do
 
     expect(workflow.reload).to be_cancelled
     expect(workflow.artifact("start_cancelled_reason")).to eq("job_closed")
+  end
+
+  it "does not preempt the work unit when a stale workflow instance has already completed" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, idempotency_key: "stale-cancel-spec")
+    stale_workflow = Workflow.find(workflow.id)
+
+    workflow.update!(state: "succeeded", finished_at: Time.current)
+    workflow.work_unit.mark_terminal!("succeeded")
+    finished_at = workflow.work_unit.reload.finished_at
+
+    described_class.cancel!(
+      stale_workflow,
+      reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+      artifacts: { "cancelled_reason" => Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON }
+    )
+
+    expect(workflow.reload).to be_succeeded
+    expect(workflow.artifact("cancelled_reason")).to be_nil
+    expect(workflow.work_unit.reload).to have_attributes(
+      state: "succeeded",
+      preemption_reason: nil,
+      preempted_by_work_unit_id: nil,
+      finished_at: finished_at
+    )
   end
 
   describe ".cancel_queued_retry_workflows_for_job!" do
