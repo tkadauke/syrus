@@ -14,7 +14,6 @@ RSpec.describe App::VisualReviewProjects do
   end
 
   it "preserves root preview behavior for a root-only repository" do
-    allow(Feature).to receive(:visual_review_enabled?).and_return(true)
     write(".syrus.yml", <<~YAML)
       preview:
         start: bin/dev
@@ -30,7 +29,6 @@ RSpec.describe App::VisualReviewProjects do
   end
 
   it "returns the one affected nested visual-review-enabled preview project" do
-    allow(Feature).to receive(:visual_review_enabled?).and_return(false)
     write("apps/web/.syrus.yml", <<~YAML)
       project:
         id: web
@@ -60,7 +58,6 @@ RSpec.describe App::VisualReviewProjects do
   end
 
   it "returns multiple affected preview projects and unions their visual review filters" do
-    allow(Feature).to receive(:visual_review_enabled?).and_return(true)
     write("apps/web/.syrus.yml", <<~YAML)
       project:
         id: web
@@ -106,7 +103,6 @@ RSpec.describe App::VisualReviewProjects do
   end
 
   it "reports when no affected project has a preview" do
-    allow(Feature).to receive(:visual_review_enabled?).and_return(true)
     write("apps/web/.syrus.yml", <<~YAML)
       project:
         id: web
@@ -121,7 +117,6 @@ RSpec.describe App::VisualReviewProjects do
   end
 
   it "reports when affected preview projects explicitly disable visual review" do
-    allow(Feature).to receive(:visual_review_enabled?).and_return(true)
     write("apps/web/.syrus.yml", <<~YAML)
       project:
         id: web
@@ -138,7 +133,6 @@ RSpec.describe App::VisualReviewProjects do
   end
 
   it "does not include the root visual review project for files owned by a nested preview project" do
-    allow(Feature).to receive(:visual_review_enabled?).and_return(true)
     write(".syrus.yml", <<~YAML)
       preview:
         start: bin/dev
@@ -163,7 +157,6 @@ RSpec.describe App::VisualReviewProjects do
   end
 
   it "includes root and nested visual review projects when both scopes changed" do
-    allow(Feature).to receive(:visual_review_enabled?).and_return(true)
     write(".syrus.yml", <<~YAML)
       preview:
         start: bin/dev
