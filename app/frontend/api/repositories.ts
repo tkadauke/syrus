@@ -25,6 +25,9 @@ export type RepositoryRow = {
   archived_at: string | null
   agent_provider: string | null
   agent_provider_label: string
+  main_health: string
+  open_jobs_count: number
+  last_job_activity_at: string | null
   epic_dependency_policy: RepositoryEpicDependencyPolicy
   last_poll_status: string | null
   last_poll_started_at: string | null

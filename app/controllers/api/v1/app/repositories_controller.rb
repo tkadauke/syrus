@@ -406,11 +406,12 @@ module Api
           PerformanceLogging.phase("repositories_index_payload") do
             repos = PerformanceLogging.phase("repositories_index.repositories_query") { policy_scope(Repository).includes(:user).order(:owner, :name).to_a }
             PerformanceLogging.phase("repositories_index.preload_job_state", repository_count: repos.size) { preload_repository_index_job_state(repos) }
+            filtered_repos = PerformanceLogging.phase("repositories_index.apply_filters", repository_count: repos.size) { filter_repository_index_repositories(repos) }
 
             {
-              active_repositories: PerformanceLogging.phase("repositories_index.active_repositories_json", repository_count: repos.size) { repos.select { |repository| !repository.archived? }.map { |repository| repository_json(repository) } },
-              archived_repositories: PerformanceLogging.phase("repositories_index.archived_repositories_json", repository_count: repos.size) { repos.select(&:archived?).map { |repository| repository_json(repository) } },
-              repositories: PerformanceLogging.phase("repositories_index.cli_repositories_json", repository_count: repos.size) { repos.map { |repository| repository_cli_json(repository) } },
+              active_repositories: PerformanceLogging.phase("repositories_index.active_repositories_json", repository_count: filtered_repos.size) { filtered_repos.select { |repository| !repository.archived? }.map { |repository| repository_json(repository) } },
+              archived_repositories: PerformanceLogging.phase("repositories_index.archived_repositories_json", repository_count: filtered_repos.size) { filtered_repos.select(&:archived?).map { |repository| repository_json(repository) } },
+              repositories: PerformanceLogging.phase("repositories_index.cli_repositories_json", repository_count: filtered_repos.size) { filtered_repos.map { |repository| repository_cli_json(repository) } },
               new_repository_path: new_repository_path,
               setup: PerformanceLogging.phase("repositories_index.setup") { ::App::SetupStatus.call(user: Current.user) },
               message: message
@@ -436,6 +437,9 @@ module Api
             archived_at: repository.archived_at&.iso8601,
             agent_provider: repository.agent_provider,
             agent_provider_label: repository.agent_provider.present? ? agent_provider_label(repository.agent_provider) : "default",
+            main_health: repository.main_health,
+            open_jobs_count: repository_index_open_jobs_count(repository),
+            last_job_activity_at: repository_index_last_job(repository)&.updated_at&.iso8601,
             last_poll_status: repository.last_poll_status,
             last_poll_started_at: repository.last_poll_started_at&.iso8601,
             last_poll_error: repository.last_poll_error,
@@ -445,21 +449,13 @@ module Api
         end
 
         def repository_cli_json(repository)
-          last_job = if defined?(@repository_index_last_jobs_by_repository_id)
-            @repository_index_last_jobs_by_repository_id[repository.id]
-          else
-            repository.jobs.order(updated_at: :desc).first
-          end
+          last_job = repository_index_last_job(repository)
 
           {
             id: repository.id,
             slug: repository.slug,
             archived: repository.archived?,
-            active_jobs_count: if defined?(@repository_index_open_job_counts)
-              @repository_index_open_job_counts.fetch(repository.id, 0)
-                               else
-              repository.jobs.open_threads.count
-                               end,
+            active_jobs_count: repository_index_open_jobs_count(repository),
             last_job: last_job && {
               id: last_job.id,
               title: last_job.issue_title.to_s,
@@ -1054,6 +1050,119 @@ module Api
           @repository_index_last_jobs_by_repository_id = PerformanceLogging.phase("repositories_index.preload.latest_jobs", repository_count: repository_ids.size) do
             latest_jobs_by_repository_id(repository_ids)
           end
+        end
+
+        def filter_repository_index_repositories(repositories)
+          repositories
+            .then { |rows| filter_repository_index_by_slug(rows) }
+            .then { |rows| filter_repository_index_by_github_owner(rows) }
+            .then { |rows| filter_repository_index_by_health(rows) }
+            .then { |rows| filter_repository_index_by_agent_provider(rows) }
+            .then { |rows| filter_repository_index_by_open_jobs(rows) }
+            .then { |rows| filter_repository_index_by_archived(rows) }
+            .then { |rows| filter_repository_index_by_activity_since(rows) }
+            .then { |rows| filter_repository_index_by_activity_before(rows) }
+        end
+
+        def filter_repository_index_by_slug(repositories)
+          term = params[:slug].presence || params[:q].presence || params[:search].presence
+          term = term.to_s.strip.downcase
+          return repositories if term.blank?
+
+          repositories.select { |repository| repository.slug.downcase.include?(term) }
+        end
+
+        def filter_repository_index_by_github_owner(repositories)
+          owners = repository_index_param_values(:github_owner).map(&:downcase)
+          return repositories if owners.empty?
+
+          repositories.select { |repository| owners.include?(repository.owner.downcase) }
+        end
+
+        def filter_repository_index_by_health(repositories)
+          health_values = repository_index_param_values(:health)
+          return repositories if health_values.empty?
+
+          repositories.select { |repository| health_values.include?(repository.main_health) }
+        end
+
+        def filter_repository_index_by_agent_provider(repositories)
+          providers = repository_index_param_values(:agent_provider)
+          return repositories if providers.empty?
+
+          repositories.select { |repository| providers.include?(repository.agent_provider.to_s) }
+        end
+
+        def filter_repository_index_by_open_jobs(repositories)
+          desired = repository_index_boolean_param(:has_open_jobs)
+          return repositories if desired.nil?
+
+          repositories.select { |repository| repository_index_open_jobs_count(repository).positive? == desired }
+        end
+
+        def filter_repository_index_by_archived(repositories)
+          desired = repository_index_boolean_param(:archived)
+          return repositories if desired.nil?
+
+          repositories.select { |repository| repository.archived? == desired }
+        end
+
+        def filter_repository_index_by_activity_since(repositories)
+          cutoff = repository_index_time_param(:activity_since)
+          return repositories unless cutoff
+
+          repositories.select do |repository|
+            activity_at = repository_index_last_job(repository)&.updated_at
+            activity_at && activity_at >= cutoff
+          end
+        end
+
+        def filter_repository_index_by_activity_before(repositories)
+          cutoff = repository_index_time_param(:activity_before) || repository_index_time_param(:before)
+          return repositories unless cutoff
+
+          repositories.select do |repository|
+            activity_at = repository_index_last_job(repository)&.updated_at
+            activity_at && activity_at <= cutoff
+          end
+        end
+
+        def repository_index_open_jobs_count(repository)
+          if defined?(@repository_index_open_job_counts)
+            @repository_index_open_job_counts.fetch(repository.id, 0)
+          else
+            repository.jobs.open_threads.count
+          end
+        end
+
+        def repository_index_last_job(repository)
+          if defined?(@repository_index_last_jobs_by_repository_id)
+            @repository_index_last_jobs_by_repository_id[repository.id]
+          else
+            repository.jobs.order(updated_at: :desc, id: :desc).first
+          end
+        end
+
+        def repository_index_param_values(key)
+          value = params[key]
+          values = value.is_a?(Array) ? value : value.to_s.split(",")
+          values.map { |item| item.to_s.strip }.reject(&:blank?)
+        end
+
+        def repository_index_boolean_param(key)
+          value = params[key]
+          return nil if value.nil? || value == ""
+
+          ActiveModel::Type::Boolean.new.cast(value)
+        end
+
+        def repository_index_time_param(key)
+          value = params[key].to_s.strip
+          return if value.blank?
+
+          Time.zone.parse(value)
+        rescue ArgumentError
+          nil
         end
 
         def preload_repository_detail_job_state(jobs)
