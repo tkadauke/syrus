@@ -28,8 +28,12 @@ module MuseAgent
         ) ]
       when "task.lifecycle.side_effect_intent"
         muse_side_effect_tool_event(payload, timestamp)
+      when "assistant_tool_calls_committed"
+        muse_tool_batch_effect_events(payload, timestamp)
       when /\Atool_batch\.effect\./
         muse_tool_batch_effect_events(payload, timestamp)
+      when "tool_result_batch_committed"
+        muse_tool_batch_result_events(payload, timestamp)
       when "tool.result", "tool_result", "tool.output", "mcp.tool_result", "mcp.tool.result", "msp.tool_result", "msp.tool.result"
         [ ClaudeTranscript::Event.new(
           kind: :tool_result,
@@ -114,20 +118,36 @@ module MuseAgent
 
     def muse_tool_batch_effect_events(payload, timestamp)
       events = muse_tool_batch_effects(payload).filter_map do |effect|
-        operation = effect["operation"].to_s
-        next unless operation.start_with?("tool:")
+        name = muse_tool_record_name(effect)
+        next if name.blank?
 
         ClaudeTranscript::Event.new(
           kind: :tool_use,
           timestamp: timestamp,
           data: {
-            name: operation.delete_prefix("tool:"),
-            input: effect["input"] || effect["arguments"] || payload["input"] || payload["arguments"] || {},
-            id: effect["idempotency_key"].to_s.delete_prefix("tool:").presence || effect["call_id"].presence || effect["id"].presence
+            name: name,
+            input: muse_tool_record_input(effect, payload) || {},
+            id: muse_tool_record_id(effect)
           }.compact
         )
       end
       events.presence || [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: { type: "tool_batch.effect" }) ]
+    end
+
+    def muse_tool_batch_result_events(payload, timestamp)
+      events = muse_tool_batch_effects(payload).map do |effect|
+        ClaudeTranscript::Event.new(
+          kind: :tool_result,
+          timestamp: timestamp,
+          data: {
+            tool_use_id: muse_tool_record_id(effect),
+            name: muse_tool_record_name(effect),
+            content: muse_tool_record_result(effect, payload),
+            error: effect["error"].present? || effect["is_error"] == true || effect["status"].to_s == "error"
+          }.compact
+        )
+      end
+      events.presence || [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: { type: "tool_result_batch_committed" }) ]
     end
 
     def muse_system_init_event(payload, timestamp)
@@ -192,14 +212,42 @@ module MuseAgent
 
     def muse_tool_batch_effects(payload)
       candidates = [
+        payload["record"],
+        payload["records"],
         payload["effect"],
         payload["event"],
         payload["effects"],
         payload["events"],
+        payload["tool_calls"],
+        payload["tool_results"],
         payload["tool_effects"],
         payload.dig("tool_batch", "effects")
       ].flatten.compact
       candidates.select { |candidate| candidate.is_a?(Hash) }
+    end
+
+    def muse_tool_record_name(record)
+      operation = record["operation"].to_s
+      return operation.delete_prefix("tool:") if operation.start_with?("tool:")
+
+      record["tool_name"].presence || record["name"].presence || record["tool"].presence
+    end
+
+    def muse_tool_record_id(record)
+      record["idempotency_key"].to_s.delete_prefix("tool:").presence ||
+        record["call_id"].presence ||
+        record["tool_use_id"].presence ||
+        record["id"].presence ||
+        record["invocation_id"].presence
+    end
+
+    def muse_tool_record_input(record, payload)
+      record["input"] || record["arguments"] || record["args"] || payload["input"] || payload["arguments"] || payload["args"]
+    end
+
+    def muse_tool_record_result(record, payload)
+      record["content"] || record["result"] || record["output"] || record["data"] || record["text"] ||
+        payload["content"] || payload["result"] || payload["output"] || payload["data"] || payload["text"]
     end
 
     def muse_tool_result_content(payload)

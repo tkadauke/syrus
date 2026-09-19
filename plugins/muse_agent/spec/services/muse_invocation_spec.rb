@@ -113,6 +113,7 @@ RSpec.describe MuseInvocation do
       "--provider", "meta",
       "--workspace", "/tmp/wkt",
       "--approval-mode", "never",
+      "--disable-approval",
       "--trust-workspace",
       "--user-input-auto-resolve",
       "--session-id", "11111111-2222-4333-8444-555555555555",
@@ -148,8 +149,8 @@ RSpec.describe MuseInvocation do
   end
 
   # --yolo would also trust the workspace, and would additionally disable the
-  # sandbox. Approvals are already handled by --approval-mode never; the sandbox
-  # is not ours to switch off as a side effect of wanting AGENTS.md loaded.
+  # sandbox. Workflow runs are headless, so approval prompts are disabled
+  # explicitly without switching off the sandbox as a side effect.
   it "does not reach for --yolo to get there" do
     captured = []
     stub_process_runners(lines: fixture_lines, captured: captured)
@@ -162,6 +163,20 @@ RSpec.describe MuseInvocation do
     ).run
 
     expect(captured.first[:command]).not_to include("--yolo")
+  end
+
+  it "disables interactive approval prompts for headless workflow runs" do
+    captured = []
+    stub_process_runners(lines: fixture_lines, captured: captured)
+
+    described_class.new(
+      "/tmp/wkt",
+      prompt: "do it",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl
+    ).run
+
+    expect(captured.first[:command]).to include("--approval-mode", "never", "--disable-approval")
   end
 
   it "omits --max-model-steps when max_model_steps is 0" do
@@ -705,6 +720,99 @@ RSpec.describe MuseInvocation do
         kind: "tool_call",
         tool_name: "mcp__syrus_mcp_sidecar__submit_summary",
         tool_input: { "pr_title" => "Add provider override", "pr_body" => "Body", "summary" => "Summary" },
+        tool_use_id: "call_01a0b76d6260768d8d8cdca8646e1d32"
+      }
+    ))
+  end
+
+  it "succeeds required MCP checks when Muse reports real tool batch records" do
+    lines = completed_lines_with(
+      {
+        record_type: "event",
+        payload_type: "tool_batch.effect.started",
+        payload: {
+          kind: "tool_batch_effect",
+          record: {
+            call_id: "call_01a0b76d6260768d8d8cdca8646e1d32",
+            tool_name: "mcp__syrus_mcp_sidecar__submit_summary",
+            kind: "started"
+          }
+        }
+      }.to_json
+    )
+    events = []
+    stub_process_runners(lines: lines)
+
+    result = described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl,
+      required_mcp_tools: %w[submit_summary],
+      log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+    ).run
+
+    expect(result).to be_success
+    expect(events).to include(a_collection_including(
+      a_string_including("submit_summary"),
+      {
+        kind: "tool_call",
+        tool_name: "mcp__syrus_mcp_sidecar__submit_summary",
+        tool_input: {},
+        tool_use_id: "call_01a0b76d6260768d8d8cdca8646e1d32"
+      }
+    ))
+  end
+
+  it "succeeds required MCP checks when Muse commits assistant tool calls" do
+    lines = completed_lines_with(
+      {
+        record_type: "event",
+        payload_type: "assistant_tool_calls_committed",
+        payload: {
+          records: [
+            {
+              call_id: "call_01a0b76d6260768d8d8cdca8646e1d32",
+              tool_name: "mcp__syrus_mcp_sidecar__submit_summary",
+              input: { pr_title: "Add provider override", pr_body: "Body", summary: "Summary" }
+            }
+          ]
+        }
+      }.to_json,
+      {
+        record_type: "event",
+        payload_type: "tool_result_batch_committed",
+        payload: {
+          records: [
+            {
+              call_id: "call_01a0b76d6260768d8d8cdca8646e1d32",
+              tool_name: "mcp__syrus_mcp_sidecar__submit_summary",
+              text: "Saved."
+            }
+          ]
+        }
+      }.to_json
+    )
+    events = []
+    stub_process_runners(lines: lines)
+
+    result = described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl,
+      required_mcp_tools: %w[submit_summary],
+      log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+    ).run
+
+    expect(result).to be_success
+    expect(events).to include(a_collection_including(
+      "  ⎿ Saved.",
+      {
+        kind: "tool_result",
+        tool_name: "mcp__syrus_mcp_sidecar__submit_summary",
+        tool_result_content: "Saved.",
+        tool_result_error: false,
         tool_use_id: "call_01a0b76d6260768d8d8cdca8646e1d32"
       }
     ))

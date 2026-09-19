@@ -242,6 +242,7 @@ class MuseInvocation
       "--provider", "meta",
       "--workspace", workspace_path,
       "--approval-mode", "never",
+      "--disable-approval",
       # Without this Muse treats the clone as untrusted and silently drops the
       # three things the run depends on most:
       #
@@ -256,9 +257,10 @@ class MuseInvocation
       # rather than an error, which is why it went unnoticed.
       #
       # This is the narrow flag: it loads the workspace's rules and skills and
-      # nothing else. `--yolo` would also disable approval and the sandbox, and
-      # is deliberately not used -- approvals are already handled above by
-      # --approval-mode, and the sandbox stays on.
+      # nothing else. Workflow runs are headless, so approval prompts are
+      # disabled explicitly while Syrus's per-run sidecar policy remains the
+      # authorization boundary. `--yolo` would also disable the sandbox, and is
+      # deliberately not used.
       "--trust-workspace",
       "--user-input-auto-resolve",
       "--session-id", session_id,
@@ -297,8 +299,12 @@ class MuseInvocation
       process_tool_call(payload, log_sink)
     when "task.lifecycle.side_effect_intent"
       process_side_effect_intent(payload, log_sink)
+    when "assistant_tool_calls_committed"
+      process_tool_batch_calls(payload, log_sink)
     when /\Atool_batch\.effect\./
       process_tool_batch_effects(payload, log_sink)
+    when "tool_result_batch_committed"
+      process_tool_batch_results(payload, log_sink)
     when "tool.result", "tool_result", "tool.output", "mcp.tool_result", "mcp.tool.result", "msp.tool_result", "msp.tool.result"
       process_tool_result(payload, log_sink)
     when "session.created", "run.session.created", "run.started"
@@ -389,14 +395,33 @@ class MuseInvocation
 
   def process_tool_batch_effects(payload, log_sink)
     tool_batch_effects(payload).each do |effect|
-      operation = effect["operation"].to_s
-      next unless operation.start_with?("tool:")
+      tool_name = tool_record_name(effect)
+      next if tool_name.blank?
 
       process_tool_call(
         payload.merge(
-          "tool_name" => operation.delete_prefix("tool:"),
-          "call_id" => effect["idempotency_key"].to_s.delete_prefix("tool:").presence || effect["call_id"].presence || effect["id"].presence,
-          "input" => effect["input"] || effect["arguments"] || payload["input"] || payload["arguments"]
+          "tool_name" => tool_name,
+          "call_id" => tool_record_id(effect),
+          "input" => tool_record_input(effect, payload)
+        ),
+        log_sink
+      )
+    end
+    nil
+  end
+
+  def process_tool_batch_calls(payload, log_sink)
+    process_tool_batch_effects(payload, log_sink)
+  end
+
+  def process_tool_batch_results(payload, log_sink)
+    tool_batch_effects(payload).each do |effect|
+      process_tool_result(
+        payload.merge(
+          "tool_name" => tool_record_name(effect),
+          "call_id" => tool_record_id(effect),
+          "content" => tool_record_result(effect, payload),
+          "is_error" => effect["is_error"] == true || effect["error"].present? || effect["status"].to_s == "error"
         ),
         log_sink
       )
@@ -553,14 +578,42 @@ class MuseInvocation
 
   def tool_batch_effects(payload)
     candidates = [
+      payload["record"],
+      payload["records"],
       payload["effect"],
       payload["event"],
       payload["effects"],
       payload["events"],
+      payload["tool_calls"],
+      payload["tool_results"],
       payload["tool_effects"],
       payload.dig("tool_batch", "effects")
     ].flatten.compact
     candidates.select { |candidate| candidate.is_a?(Hash) }
+  end
+
+  def tool_record_name(record)
+    operation = record["operation"].to_s
+    return operation.delete_prefix("tool:") if operation.start_with?("tool:")
+
+    record["tool_name"].presence || record["name"].presence || record["tool"].presence
+  end
+
+  def tool_record_id(record)
+    record["idempotency_key"].to_s.delete_prefix("tool:").presence ||
+      record["call_id"].presence ||
+      record["tool_use_id"].presence ||
+      record["id"].presence ||
+      record["invocation_id"].presence
+  end
+
+  def tool_record_input(record, payload)
+    record["input"] || record["arguments"] || record["args"] || payload["input"] || payload["arguments"] || payload["args"]
+  end
+
+  def tool_record_result(record, payload)
+    record["content"] || record["result"] || record["output"] || record["data"] || record["text"] ||
+      payload["content"] || payload["result"] || payload["output"] || payload["data"] || payload["text"]
   end
 
   def tool_result_content(payload)
