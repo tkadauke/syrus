@@ -60,7 +60,6 @@ Three exit paths from `:coding`:
 | `unapprove` | `approved → implemented` | after: clear_approval_metadata | JobsController, `ChatFeedbackSubmission`, `Job#lock_for_coding_mode!` |
 | `claim_for_coding` | `[queued, implemented] → coding` | none | `Job#lock_for_coding_mode!` |
 | `release_from_coding` | `coding → implemented` | none | `Job#release_coding_mode_takeover!`, `Job#complete_coding_handoff!` |
-| `revert_to_coding_mode` | `running → coding` | none | `Workflows::CodingHandoff#after_fail` (when graders fail; keeps linked_chat_id so agent can iterate and re-trigger) |
 | `land` | `approved → landing` | none | **None** (see Finding 4) |
 | `start_landing` | `approved → landing` | none | LandingQueueProcessor#land |
 | `mark_merged` | `landing → merged` | after: lambda (finished_at, closure_reason, scheduled task outcome, refresh_epic_auto_state) | **None** (see Finding 2) |
