@@ -105,6 +105,13 @@ export function DiffReviewVersionSelector({
   }
 
   function selectEndpoint(version: DiffReviewVersion, endpoint: "from" | "to") {
+    // Picking FROM/TO always sets explicit range state, even when the
+    // computed pair happens to coincide with a stored version's own
+    // base/head -- that coincidence is common (one endpoint is usually left
+    // at its current fallback) and collapsing to selectVersion in that case
+    // silently discards whichever endpoint the operator picked first. A
+    // matching version is still used for a nicer display label (see
+    // selectedRangeLabel), just never to override the range itself.
     const nextEndpoints = orderedEndpointRange({
       endpoint,
       fromVersion: fromEndpointVersion,
@@ -113,16 +120,8 @@ export function DiffReviewVersionSelector({
       fallbackBaseSha: rangeBaseSha,
       fallbackHeadSha: rangeHeadSha
     })
-    const nextBaseSha = nextEndpoints.baseSha
-    const nextHeadSha = nextEndpoints.headSha
-    const matchingVersion = findMatchingVersion(ordered, nextBaseSha, nextHeadSha)
-    if (matchingVersion) {
-      selectVersion(matchingVersion)
-      return
-    }
-
     setOpen(false)
-    onRangeChange?.({ baseSha: nextBaseSha, headSha: nextHeadSha, versionId: null })
+    onRangeChange?.({ baseSha: nextEndpoints.baseSha, headSha: nextEndpoints.headSha, versionId: null })
     buttonRef.current?.focus()
   }
 
