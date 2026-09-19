@@ -3,6 +3,13 @@
 _Captured 2026-07-18. Design discussion only; no implementation yet. Builds on
 the grader `when_files_changed` work (PR #1791, merged)._
 
+_Status check 2026-09-19: complete. The proposed `generated:`/`formatters:`
+taxonomy, diff-scoped self-gating, and `codegen_ignore` handling all shipped
+(`app/services/steps/generate.rb`, `app/services/steps/format.rb`,
+`app/services/syrus_yml.rb`) and are documented as current behavior in
+CLAUDE.md's Key steps section and `config/syrus_docs/syrus_yml.md`. Retained
+as design history._
+
 ## Context
 
 Syrus already has **graders**: commands declared in `.syrus.yml`, materialized

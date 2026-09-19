@@ -27,8 +27,8 @@ project is.
 
 ## Strategic framing
 
-Lead with the **moat from the competitive scan** (see
-`docs/competitive-landscape-2026-05-10.md`): small-team self-host
+Lead with the **moat from the competitive scan** (an internal analysis,
+removed from the repo ahead of the public release): small-team self-host
 with real multi-tenancy, BYOK, no vendor lock-in. The home-page lede
 needs to be unambiguous so the right audience self-selects.
 
@@ -265,9 +265,10 @@ Pre-launch criteria for Syrus itself (not the website):
 - License decided and committed
 - 2-3 production tenants beyond the maintainer have run it for a
   week without disaster
-- The competitive-scan doc (`docs/competitive-landscape-2026-05-10.md`)
-  is reviewed and sanitized — it's internal strategy that should
-  *not* be public-facing as-is
+- ~~The competitive-scan doc is reviewed and sanitized~~ — done
+  2026-09-19: removed from the repo entirely ahead of launch rather than
+  sanitized, since it was internal strategy not written for an external
+  audience
 - A bunch of moat-deepening features land first (per the maintainer
   2026-05-11)
 
