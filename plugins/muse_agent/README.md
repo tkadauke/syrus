@@ -61,8 +61,9 @@ printf '%s' "$MUSE_API_KEY" | muse exec --json --provider meta --api-key-stdin "
 
 ```sh
 muse exec --json --provider meta --workspace <path> \
-  --approval-mode never --trust-workspace --user-input-auto-resolve \
-  --session-id <uuid> --prompt-file <file> --api-key-stdin
+  --approval-mode never --disable-approval --trust-workspace \
+  --disable-sandbox --user-input-auto-resolve --session-id <uuid> \
+  --prompt-file <file> --api-key-stdin
 ```
 
 It appends `--model`, `--reasoning-effort`, and `--max-model-steps` only when
@@ -78,10 +79,13 @@ missing three things:
 - `.claude/skills` project skills are skipped
 - agent delegation is unavailable
 
-It is the narrow flag: it loads the workspace's rules and skills and nothing
-else. `--yolo` would also trust the workspace but additionally disables
-approval and the sandbox -- approvals are already handled by `--approval-mode
-never`, and the sandbox stays on deliberately.
+It loads the workspace's rules and skills. Syrus also passes
+`--disable-sandbox`: Muse's bubblewrap sandbox cannot run inside the worker
+container (`bwrap: Failed to make / slave: Permission denied`), and Syrus
+already isolates agents through per-run workspaces and worker containers. This
+is intentionally spelled out rather than using `--yolo`, even though the
+effective trust posture is the same, so approval, trust, and sandbox choices
+stay visible in code review.
 
 Both workflow runs and chat turns get this, because both build their command
 through `MuseInvocation` rather than assembling their own argv. A chat path

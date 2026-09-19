@@ -115,6 +115,7 @@ RSpec.describe MuseInvocation do
       "--approval-mode", "never",
       "--disable-approval",
       "--trust-workspace",
+      "--disable-sandbox",
       "--user-input-auto-resolve",
       "--session-id", "11111111-2222-4333-8444-555555555555",
       "--api-key-stdin",
@@ -148,10 +149,10 @@ RSpec.describe MuseInvocation do
     expect(captured.first[:command]).to include("--trust-workspace")
   end
 
-  # --yolo would also trust the workspace, and would additionally disable the
-  # sandbox. Workflow runs are headless, so approval prompts are disabled
-  # explicitly without switching off the sandbox as a side effect.
-  it "does not reach for --yolo to get there" do
+  # --yolo would bundle trust, approval, and sandbox behavior together. Keep
+  # the flags explicit so a future CLI change does not silently widen what a
+  # workflow run is allowed to do.
+  it "uses explicit trust, approval, and sandbox flags instead of --yolo" do
     captured = []
     stub_process_runners(lines: fixture_lines, captured: captured)
 
@@ -163,6 +164,9 @@ RSpec.describe MuseInvocation do
     ).run
 
     expect(captured.first[:command]).not_to include("--yolo")
+    expect(captured.first[:command]).to include("--trust-workspace")
+    expect(captured.first[:command]).to include("--approval-mode", "never", "--disable-approval")
+    expect(captured.first[:command]).to include("--disable-sandbox")
   end
 
   it "disables interactive approval prompts for headless workflow runs" do
@@ -177,6 +181,20 @@ RSpec.describe MuseInvocation do
     ).run
 
     expect(captured.first[:command]).to include("--approval-mode", "never", "--disable-approval")
+  end
+
+  it "disables Muse's nested shell sandbox inside worker containers" do
+    captured = []
+    stub_process_runners(lines: fixture_lines, captured: captured)
+
+    described_class.new(
+      "/tmp/wkt",
+      prompt: "do it",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl
+    ).run
+
+    expect(captured.first[:command]).to include("--disable-sandbox")
   end
 
   it "omits --max-model-steps when max_model_steps is 0" do
@@ -909,7 +927,7 @@ RSpec.describe MuseInvocation do
 
         _stdout, stderr, = Open3.capture3(
           env, "muse", "exec", "--json", "--provider", "echo", "--workspace", workspace,
-          "--approval-mode", "never", "--disable-approval", "--prompt-file", prompt_path
+          "--approval-mode", "never", "--disable-approval", "--disable-sandbox", "--prompt-file", prompt_path
         )
 
         expect(stderr).not_to include("malformed settings file")

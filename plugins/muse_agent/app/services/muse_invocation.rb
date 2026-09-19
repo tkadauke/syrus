@@ -258,12 +258,15 @@ class MuseInvocation
       # and unable to delegate -- degraded in a way that produces worse work
       # rather than an error, which is why it went unnoticed.
       #
-      # This is the narrow flag: it loads the workspace's rules and skills and
-      # nothing else. Workflow runs are headless, so approval prompts are
-      # disabled explicitly while Syrus's per-run sidecar policy remains the
-      # authorization boundary. `--yolo` would also disable the sandbox, and is
-      # deliberately not used.
+      # This loads the workspace's rules and skills. Workflow runs are
+      # headless, so approval prompts are disabled explicitly while Syrus's
+      # per-run sidecar policy remains the authorization boundary.
       "--trust-workspace",
+      # Muse's nested bubblewrap sandbox cannot run inside the worker
+      # container ("bwrap: Failed to make / slave: Permission denied"). Syrus
+      # already isolates agents with per-run workspaces and worker containers,
+      # matching the trust posture of Claude/Codex dangerous-mode invocations.
+      "--disable-sandbox",
       "--user-input-auto-resolve",
       "--session-id", session_id,
       "--prompt-file", prompt_path,
