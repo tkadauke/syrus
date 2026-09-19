@@ -96,6 +96,7 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
         open.call.result_json = parsedResult
         open.call.result_settled = true
         open.call.result_error = content?.is_error === true
+        open.call.pending_action = message.pending_action ?? null
         const resultPresentation = toolResultPresentation(
           open.call.tool_name,
           open.call.result_body,

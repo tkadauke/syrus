@@ -8,12 +8,12 @@ import { Badge, displayValue } from "../toolCardUi"
 // branch read back from the tool call's own input arguments -- the result
 // payload itself only carries the pending-action confirmation shape.
 function collapsedSummary(context: ToolCardContext) {
-  const result = parsePendingActionResult(context.parsedResult)
+  const result = parsePendingActionResult(context)
   return result ? pendingActionCollapsedSummary(result) : null
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const result = parsePendingActionResult(context.parsedResult)
+  const result = parsePendingActionResult(context)
   if (!result) return null
 
   const input = isPlainObject(context.input) ? context.input : {}

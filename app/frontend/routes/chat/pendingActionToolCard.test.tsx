@@ -1,6 +1,31 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
+import type { ChatPendingActionInline } from "../../api/chats"
+import type { ToolCardContext } from "../../pluginToolCards"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "./pendingActionToolCard"
+
+function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null): ToolCardContext {
+  return {
+    toolName: "some_pending_action_tool",
+    resultBody: "",
+    resultError: false,
+    parsedResult,
+    livePendingAction
+  }
+}
+
+function liveAction(overrides: Partial<ChatPendingActionInline> = {}): ChatPendingActionInline {
+  return {
+    id: 501,
+    action: "some_pending_action_tool",
+    state: "confirmed",
+    label: "Some pending action",
+    detail: null,
+    app_confirm_path: "/api/v1/app/chats/1/pending_actions/501/confirm",
+    app_reject_path: "/api/v1/app/chats/1/pending_actions/501/reject",
+    ...overrides
+  }
+}
 
 function standardPayload(overrides: Record<string, unknown> = {}) {
   return {
@@ -12,21 +37,21 @@ function standardPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function renderResult(payload: unknown) {
-  const result = parsePendingActionResult(payload)
+function renderResult(payload: unknown, livePendingAction: ChatPendingActionInline | null = null) {
+  const result = parsePendingActionResult(context(payload, livePendingAction))
   if (!result) throw new Error("expected payload to parse")
   render(<PendingActionResultCard result={result} />)
   return result
 }
 
-function summarize(payload: unknown) {
-  const result = parsePendingActionResult(payload)
+function summarize(payload: unknown, livePendingAction: ChatPendingActionInline | null = null) {
+  const result = parsePendingActionResult(context(payload, livePendingAction))
   return result ? pendingActionCollapsedSummary(result) : null
 }
 
 describe("pending action tool card: standard shape", () => {
   it("parses the single-target create_pending_action! payload", () => {
-    expect(parsePendingActionResult(standardPayload())).toEqual({
+    expect(parsePendingActionResult(context(standardPayload()))).toEqual({
       kind: "standard",
       pendingActionId: "501",
       state: "pending",
@@ -46,13 +71,14 @@ describe("pending action tool card: standard shape", () => {
   })
 
   it("falls back to pending_confirmation_id when pending_action_id is absent", () => {
-    const result = parsePendingActionResult({ pending_confirmation_id: 77, state: "pending" })
+    const result = parsePendingActionResult(context({ pending_confirmation_id: 77, state: "pending" }))
     expect(result).toMatchObject({ kind: "standard", pendingActionId: "77" })
   })
 
   // A transcript is re-rendered long after the tool call, by which time the
   // pending action may have moved anywhere in ChatPendingAction::STATES, so
-  // the card must trust whatever `state` the payload carries.
+  // the card must trust whatever `state` the payload carries when there is
+  // no live state to prefer instead.
   it.each([
     ["queued", "queued"],
     ["pending", "pending"],
@@ -85,6 +111,42 @@ describe("pending action tool card: standard shape", () => {
 
     expect(screen.queryByText("Reason")).not.toBeInTheDocument()
   })
+
+  // The bug this covers: the tool result is a snapshot frozen at call time
+  // ("pending"), but the chat card kept showing that snapshot forever even
+  // after the operator confirmed/rejected the action out of band. The live
+  // pending action (re-read from the owning message on every fetch) must
+  // win once it exists and matches the same id.
+  it("prefers the live pending action's state over the frozen tool-result state", () => {
+    const result = parsePendingActionResult(context(standardPayload({ state: "pending" }), liveAction({ id: 501, state: "confirmed" })))
+
+    expect(result).toMatchObject({ pendingActionId: "501", state: "confirmed" })
+  })
+
+  it("renders the live confirmed state instead of the stale pending pill", () => {
+    renderResult(standardPayload({ state: "pending" }), liveAction({ id: 501, state: "rejected" }))
+
+    expect(screen.getByText("rejected")).toBeInTheDocument()
+    expect(screen.queryByText("pending")).not.toBeInTheDocument()
+  })
+
+  it("prefers the live pending action's reason once it has one", () => {
+    renderResult(standardPayload({ state: "pending" }), liveAction({ id: 501, state: "failed", reason: "GitHub rejected the merge." }))
+
+    expect(screen.getByText("GitHub rejected the merge.")).toBeInTheDocument()
+  })
+
+  it("ignores a live pending action for a different id", () => {
+    const result = parsePendingActionResult(context(standardPayload({ state: "pending" }), liveAction({ id: 999, state: "confirmed" })))
+
+    expect(result).toMatchObject({ pendingActionId: "501", state: "pending" })
+  })
+
+  it("ignores a null live pending action", () => {
+    const result = parsePendingActionResult(context(standardPayload({ state: "pending" }), null))
+
+    expect(result).toMatchObject({ pendingActionId: "501", state: "pending" })
+  })
 })
 
 describe("pending action tool card: bulk shape", () => {
@@ -98,7 +160,7 @@ describe("pending action tool card: bulk shape", () => {
   }
 
   it("distinguishes the bulk shape by its group id and member count", () => {
-    expect(parsePendingActionResult(bulkPayload)).toEqual({
+    expect(parsePendingActionResult(context(bulkPayload))).toEqual({
       kind: "bulk",
       pendingActionId: "501",
       state: "pending",
@@ -146,7 +208,7 @@ describe("pending action tool card: dry-run evidence shape", () => {
   }
 
   it("parses the evidence preview instead of a pending action", () => {
-    const result = parsePendingActionResult(evidencePayload)
+    const result = parsePendingActionResult(context(evidencePayload))
 
     expect(result).toMatchObject({
       kind: "dry_run_evidence",
@@ -215,20 +277,20 @@ describe("pending action tool card: dry-run evidence shape", () => {
 
 describe("pending action tool card: fallbacks", () => {
   it("returns null for a payload with no recognizable shape", () => {
-    expect(parsePendingActionResult({ oops: true })).toBeNull()
+    expect(parsePendingActionResult(context({ oops: true }))).toBeNull()
   })
 
   it("returns null for a non-object payload", () => {
-    expect(parsePendingActionResult("not json")).toBeNull()
-    expect(parsePendingActionResult(null)).toBeNull()
-    expect(parsePendingActionResult([{ pending_action_id: 1, state: "pending" }])).toBeNull()
+    expect(parsePendingActionResult(context("not json"))).toBeNull()
+    expect(parsePendingActionResult(context(null))).toBeNull()
+    expect(parsePendingActionResult(context([{ pending_action_id: 1, state: "pending" }]))).toBeNull()
   })
 
   it("returns null when a pending action payload is missing its state", () => {
-    expect(parsePendingActionResult({ pending_action_id: 501 })).toBeNull()
+    expect(parsePendingActionResult(context({ pending_action_id: 501 }))).toBeNull()
   })
 
   it("returns null when an evidence payload is missing its action name", () => {
-    expect(parsePendingActionResult({ job_id: 4222, evidence: { remote_sha: "abc" } })).toBeNull()
+    expect(parsePendingActionResult(context({ job_id: 4222, evidence: { remote_sha: "abc" } }))).toBeNull()
   })
 })
