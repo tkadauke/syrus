@@ -29,12 +29,14 @@ export type ToolCardContext = {
   // Best-effort JSON.parse of resultBody; null when it isn't JSON.
   parsedResult: unknown
   // Current state of the ChatPendingAction this tool call created, read
-  // fresh off the owning tool_result message on every payload fetch --
-  // unlike parsedResult, this is NOT frozen at call time, so a card can use
-  // it to show a later confirm/reject/execute outcome instead of whatever
-  // state the tool happened to return synchronously. Undefined when the
-  // caller has no live message data (catalog fixtures, the admin transcript
-  // viewer); a card should fall back to parsedResult's own state then.
+  // fresh off the owning tool_use message on every payload fetch (that's
+  // where ChatPendingAction::anchor_to_tool_call! anchors it, not the
+  // paired tool_result) -- unlike parsedResult, this is NOT frozen at call
+  // time, so a card can use it to show a later confirm/reject/execute
+  // outcome instead of whatever state the tool happened to return
+  // synchronously. Undefined when the caller has no live message data
+  // (catalog fixtures, the admin transcript viewer); a card should fall
+  // back to parsedResult's own state then.
   livePendingAction?: ChatPendingActionInline | null
 }
 
