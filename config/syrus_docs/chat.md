@@ -214,6 +214,14 @@ updates `chat_provider` deliberately. Direct chat updates cannot change
 `chat_provider`; user-level chat/agent provider settings remain defaults for
 future chats only.
 
+A brand-new chat lands on an empty "landing" composer (no messages yet) before
+the first turn is sent. When the operator has more than one configured chat
+provider, that composer shows a compact provider dropdown in its toolbar,
+defaulting to the chat's already-seeded provider. Picking a different option
+goes through the same switch-provider endpoint described above — there is no
+separate creation-time pinning path; the dropdown disappears once the chat has
+a message (or when only zero or one provider is configured).
+
 When the current user's usage is exhausted for a provider, chats whose effective
 provider matches that provider include `provider_availability` in list/detail
 payloads and show a red triangle warning in the sidebar, header, and chat

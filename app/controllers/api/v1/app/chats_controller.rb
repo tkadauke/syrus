@@ -225,12 +225,7 @@ module Api
           repository = most_recent_chat_repository
           repository ||= Current.user.repositories.active.order(:owner, :name).first
 
-          render json: {
-            default_repository_id: repository&.id,
-            effective_chat_provider: Current.user.effective_chat_provider,
-            effective_chat_provider_label: chat_provider_label(Current.user.effective_chat_provider),
-            chat_provider_options: chat_provider_options(nil)
-          }
+          render json: { default_repository_id: repository&.id }
         end
 
         # Create the first-run onboarding chat: attached to the operator's

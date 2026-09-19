@@ -595,9 +595,6 @@ export type CreateChatInput = {
 
 export type NewChatPayload = {
   default_repository_id: number | null
-  effective_chat_provider?: string | null
-  effective_chat_provider_label?: string | null
-  chat_provider_options?: ChatProviderOption[]
 }
 
 export type ChatMessageAttachmentInput = {

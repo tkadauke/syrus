@@ -51,12 +51,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       get "/api/v1/app/chats/new"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to include(
-        "default_repository_id" => newer_repo.id,
-        "effective_chat_provider" => "claude",
-        "effective_chat_provider_label" => "Claude",
-        "chat_provider_options" => include(include("value" => "claude", "label" => "Claude", "configured" => true))
-      )
+      expect(parse_body).to eq("default_repository_id" => newer_repo.id)
     end
 
     it "falls back to alphabetical-first active repository when no chat session has a repository" do
@@ -68,7 +63,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       get "/api/v1/app/chats/new"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to include("default_repository_id" => repo_a.id)
+      expect(parse_body).to eq("default_repository_id" => repo_a.id)
     end
 
     it "returns nil when the user has no repositories" do
@@ -77,24 +72,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       get "/api/v1/app/chats/new"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to include("default_repository_id" => nil)
-    end
-
-    it "returns configured provider metadata for new chat creation" do
-      sign_in_as(user)
-      user.update!(chat_provider: "codex", codex_api_key: "sk-test")
-
-      get "/api/v1/app/chats/new"
-
-      expect(response).to have_http_status(:ok)
-      expect(parse_body).to include(
-        "effective_chat_provider" => "codex",
-        "effective_chat_provider_label" => "Codex"
-      )
-      expect(parse_body["chat_provider_options"]).to include(
-        include("value" => "claude", "label" => "Claude", "configured" => true),
-        include("value" => "codex", "label" => "Codex", "configured" => true)
-      )
+      expect(parse_body).to eq("default_repository_id" => nil)
     end
   end
 

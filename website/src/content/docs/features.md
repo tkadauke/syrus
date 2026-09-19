@@ -826,7 +826,10 @@ it is created, seeded from the operator's current chat provider setting and
 then the default agent provider, so later user-default changes do not silently
 move the conversation between providers. Operators can still explicitly choose
 among configured providers from chat settings; explicit provider switching uses
-the normal rehydration flow. Branched chats preserve the stored provider
+the normal rehydration flow. A brand-new chat's empty landing screen shows the
+same provider choice as a compact dropdown, defaulting to the chat's seeded
+provider, whenever more than one provider is configured — it disappears once
+the first message is sent. Branched chats preserve the stored provider
 choice, and stored agent sessions only resume when the next turn uses the same
 provider. Chat may
 read, search, list, and refresh checkouts for context, but code changes must
