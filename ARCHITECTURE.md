@@ -637,7 +637,6 @@ collaborators" list.
 | `VideoWalkthroughPruneJob` | daily 3:40am | Enforces walkthrough video blob retention and storage budget |
 | `CoverageHitMapTtlPruneJob` | daily 3:50am | Deletes expired coverage hit-map blobs |
 | `InsightSweepJob` | every 6 hours | Fires adaptive `agent_insight` Jobs for repositories with enough closed work since the last insight run |
-| `SyncAgentSkillsJob` | every hour | Synchronizes agent skill metadata |
 | `SyncInstallationsJob` | every 5 min | Refreshes GitHub App installation links |
 | `ReconcileJobStatesJob` | every 5 min | Repairs drift between Job state and terminal evidence |
 Plus one Solid Queue housekeeping entry, `clear_solid_queue_finished_jobs`,
