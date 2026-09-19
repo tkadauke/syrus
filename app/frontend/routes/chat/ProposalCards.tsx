@@ -1405,6 +1405,12 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
           <dd>{t("proposal_investigation_value")}</dd>
         </div>
       ) : null}
+      {proposal.provider_setting && proposal.provider_setting !== "default" ? (
+        <div>
+          <dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_provider")}</dt>
+          <dd>{proposal.provider_setting}</dd>
+        </div>
+      ) : null}
       <div>
         <dt className="font-medium text-gray-500 dark:text-gray-400">{t("dependencies")}</dt>
         <dd>{(proposal.dependency_slugs || []).length > 0 ? <PillList values={proposal.dependency_slugs || []} /> : t("none")}</dd>
@@ -1473,6 +1479,11 @@ function ProposalChildren({
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <span className="font-mono">{child.slug}</span>
               <span>{child.repository_slug || "No repository attached"}</span>
+              {child.provider_setting && child.provider_setting !== "default" ? (
+                <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                  {t("proposal_provider")}: {child.provider_setting}
+                </span>
+              ) : null}
             </div>
             <Markdown className="chat-prose mt-2 text-sm text-gray-800 dark:text-gray-100" text={child.body} />
             {child.goal_provenance ? (
