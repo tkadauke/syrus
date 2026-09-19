@@ -11,6 +11,7 @@ import { mergeChatPayloadUpdate, updateRecentChatCache } from "../../lib/chatCac
 import { chatPreviewPanelFileUrl, closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, switchChatProvider, type ChatMediaImage, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVersion, type ChatPreviewPanelVisibility, type ChatWhiteboardScene, type PreviewPanelPayload, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Select } from "../../components/Select"
+import { Modal } from "../../components/Modal"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { providerIconSrc } from "../../lib/pluginIcon"
 import { TypedArtifactPanel } from "../../components/artifacts/TypedArtifactPanel"
@@ -1198,86 +1199,90 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
   })
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" role="presentation">
-      <section aria-modal="true" aria-labelledby="chat-settings-title" className="w-full max-w-md rounded border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="dialog">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="chat-settings-title">{t("chat_settings")}</h2>
-            <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">{chatDisplayTitle(payload.chat)}</p>
-          </div>
-          <button aria-label={t("aria_close_settings")} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
-            <CloseIcon className="h-4 w-4" />
-          </button>
+    <Modal
+      backdropClassName="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4"
+      className="w-full max-w-md rounded border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+      labelledBy="chat-settings-title"
+      onClose={onClose}
+      open
+    >
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="chat-settings-title">{t("chat_settings")}</h2>
+          <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">{chatDisplayTitle(payload.chat)}</p>
         </div>
-        <div className="space-y-3 text-sm">
-          {showProviderSelector ? (
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("provider")}</span>
-              <div className="flex items-center gap-2">
-                {selectedProvider ? <img alt="" aria-hidden="true" className="h-4 w-4 shrink-0" src={providerIconSrc(selectedProvider)} /> : null}
-                <Select
-                  aria-label={t("aria_chat_provider")}
-                  disabled={provider.isPending}
-                  onChange={(event) => provider.mutate(event.target.value)}
-                  value={selectedProvider}
-                >
-                  {providerOptions.map((option) => (
-                    <option disabled={!option.configured} key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <span className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                <span>{t("chat_settings_effective_provider", { label: payload.chat.effective_chat_provider_label || t("chat_settings_effective_default") })}</span>
-                <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />
-              </span>
-            </label>
-          ) : (
-            <div>
-              <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("provider")}</span>
-              <span className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-200">
-                <span>{payload.chat.effective_chat_provider_label || payload.chat.effective_chat_provider}</span>
-                <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />
-              </span>
-            </div>
-          )}
-          {provider.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(provider.error, t("provider_update_error"))}</div> : null}
+        <button aria-label={t("aria_close_settings")} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="space-y-3 text-sm">
+        {showProviderSelector ? (
           <label className="block">
-            <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mode_label")}</span>
-            <div className="flex rounded border border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-950" role="group" aria-label={t("mode_label")}>
-              {modeOptions.map(({ value, label }) => (
-                <button
-                  className={[
-                    "flex-1 px-3 py-2 text-sm first:rounded-l last:rounded-r focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
-                    (payload.chat.mode || "planning") === value
-                      ? "bg-brand font-medium text-on-brand"
-                      : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800",
-                    mode.isPending ? "cursor-not-allowed opacity-50" : ""
-                  ].join(" ")}
-                  disabled={mode.isPending}
-                  key={value}
-                  onClick={() => mode.mutate(value)}
-                  type="button"
-                >
-                  {label}
-                </button>
-              ))}
+            <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("provider")}</span>
+            <div className="flex items-center gap-2">
+              {selectedProvider ? <img alt="" aria-hidden="true" className="h-4 w-4 shrink-0" src={providerIconSrc(selectedProvider)} /> : null}
+              <Select
+                aria-label={t("aria_chat_provider")}
+                disabled={provider.isPending}
+                onChange={(event) => provider.mutate(event.target.value)}
+                value={selectedProvider}
+              >
+                {providerOptions.map((option) => (
+                  <option disabled={!option.configured} key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
             </div>
-            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("mode_hint")}</span>
+            <span className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+              <span>{t("chat_settings_effective_provider", { label: payload.chat.effective_chat_provider_label || t("chat_settings_effective_default") })}</span>
+              <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />
+            </span>
           </label>
-          {mode.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(mode.error, t("mode_update_error"))}</div> : null}
-          {payload.chat.repository?.repository_path ? (
-            <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-200" onClick={onClose} to={withRoutePrefix(`${payload.chat.repository.repository_path}/edit`, prefix)}>
-              {t("chat_settings_repo")}
-            </Link>
-          ) : null}
-          <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-200" onClick={onClose} to={withRoutePrefix("/credentials", prefix)}>
-            {t("chat_settings_credentials")}
+        ) : (
+          <div>
+            <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("provider")}</span>
+            <span className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-200">
+              <span>{payload.chat.effective_chat_provider_label || payload.chat.effective_chat_provider}</span>
+              <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />
+            </span>
+          </div>
+        )}
+        {provider.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(provider.error, t("provider_update_error"))}</div> : null}
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mode_label")}</span>
+          <div className="flex rounded border border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-950" role="group" aria-label={t("mode_label")}>
+            {modeOptions.map(({ value, label }) => (
+              <button
+                className={[
+                  "flex-1 px-3 py-2 text-sm first:rounded-l last:rounded-r focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
+                  (payload.chat.mode || "planning") === value
+                    ? "bg-brand font-medium text-on-brand"
+                    : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800",
+                  mode.isPending ? "cursor-not-allowed opacity-50" : ""
+                ].join(" ")}
+                disabled={mode.isPending}
+                key={value}
+                onClick={() => mode.mutate(value)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("mode_hint")}</span>
+        </label>
+        {mode.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(mode.error, t("mode_update_error"))}</div> : null}
+        {payload.chat.repository?.repository_path ? (
+          <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-200" onClick={onClose} to={withRoutePrefix(`${payload.chat.repository.repository_path}/edit`, prefix)}>
+            {t("chat_settings_repo")}
           </Link>
-        </div>
-      </section>
-    </div>
+        ) : null}
+        <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-200" onClick={onClose} to={withRoutePrefix("/credentials", prefix)}>
+          {t("chat_settings_credentials")}
+        </Link>
+      </div>
+    </Modal>
   )
 }
 
