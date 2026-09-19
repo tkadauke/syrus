@@ -51,6 +51,7 @@ module Workflows
 
     def self.after_fail(workflow)
       job = workflow.job
+      cleanup_unrepaired_workspace(workflow)
       LandingWorkJobState.ensure_landing!(job: job, workflow: workflow, reason: "external_pr_merge_failed") if job && !job.landing?
       return unless job&.landing?
 
@@ -59,14 +60,21 @@ module Workflows
       LandingFailureHandler.call(job: job, reason: failure_reason_for(workflow), run: latest_failed_run(workflow))
     end
 
-    # See Workflows::AutoMerge#after_cancel -- same gap, same fix: without
-    # this hook a cancelled external_pr_merge workflow (e.g. "Stop
-    # Landing") would leave the Job stuck in :landing.
+    # See Workflows::AutoMerge#after_cancel -- without this hook a cancelled
+    # external_pr_merge workflow (e.g. "Stop Landing") would leave the Job
+    # stuck in :landing.
     def self.after_cancel(workflow)
       job = workflow.job
+      cleanup_unrepaired_workspace(workflow)
       return unless job&.landing?
 
       LandingFailureHandler.call(job: job, reason: "operator stopped landing", run: nil)
+    end
+
+    def self.cleanup_unrepaired_workspace(workflow)
+      return if workflow.steps.where(kind: "landing_fix", state: "succeeded").exists?
+
+      WorkflowWorkspace.cleanup_for(workflow)
     end
 
     def self.failure_reason_for(workflow)
