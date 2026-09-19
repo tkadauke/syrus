@@ -392,7 +392,7 @@ module App
     def visual_review_enabled?
       review = parsed_config&.visual_review
       enabled = review&.enabled
-      enabled.nil? ? Feature.visual_review_enabled? : enabled
+      enabled.nil? ? true : enabled
     end
 
     def preview_seed_configured?
