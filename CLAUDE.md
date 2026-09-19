@@ -871,6 +871,14 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   existing page over adding a parallel one; if the navigation contract
   changes, update `website/README.md` too. PRs that add product behavior
   while leaving the public docs stale are incomplete.
+- **Detail pages graduate to tabs when sections are peer workflows.** Keep a
+  detail page as one scrolling page when its content is a short, linear read
+  or when a "tab" would only duplicate a single overview. Use shared underline
+  tabs once the page has multiple peer workspaces operators revisit
+  independently -- for example summary, review, workflows, timeline,
+  attachments, artifacts, and source. Repository-like pseudo-tabs are only
+  warranted when they route to distinct subpages; otherwise prefer normal
+  sections on the detail page.
 - **`chat_turn_orientation` vs `chat_prompt_injector`.** An injector adds a
   section to the chat *session's* system prompt and is asked once per turn
   whatever arrived. `chat_turn_orientation` is asked about a *specific incoming

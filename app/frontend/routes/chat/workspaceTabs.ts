@@ -6,6 +6,7 @@
 // lifting the WorkspaceTab/MobileChatTab types here lets the workspace panel
 // components move out of the 6k-line Chat.tsx next.
 import type { ChatPayload, ChatPreviewPanel, ChatWorkspaceTab } from "../../api/chats"
+import { underlineTabClass } from "../../components/Tabs"
 import {
   CHAT_WORKSPACE_COLLAPSED_KEY,
   CHAT_WORKSPACE_DEFAULT_WIDTH,
@@ -67,7 +68,7 @@ export function pluginTabIdFromTab(tab: WorkspaceTab): string | null {
 }
 
 export function workspaceTabClass(active: boolean) {
-  return `max-w-[33vw] shrink-0 truncate border-b-2 px-3 py-2 ${active ? "border-brand text-brand dark:border-brand dark:text-brand-emphasis" : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-100"}`
+  return underlineTabClass(active, "max-w-[33vw] truncate px-3 py-2")
 }
 
 export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string, previewPanels: ChatPreviewPanel[] = [], pluginTabs: ChatWorkspaceTab[] = []) {

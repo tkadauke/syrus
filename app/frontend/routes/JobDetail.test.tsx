@@ -100,6 +100,10 @@ describe("JobDetailView", () => {
     expect(screen.getByText("Implemented operational surfaces with readable logs.")).toBeInTheDocument()
     expect(screen.getByText("Open the workflow tab and inspect long log output.")).toBeInTheDocument()
     expect(screen.getByLabelText("Priority")).toHaveClass("bg-surface", "text-text-primary")
+    const costLinks = screen.getAllByRole("link", { name: "$0.1234" })
+    expect(costLinks).toHaveLength(2)
+    expect(costLinks[0]).toHaveAttribute("href", "/app-shell/insights/spending")
+    expect(costLinks[1]).toHaveAttribute("href", "/app-shell/insights/spending")
     expect(container.querySelectorAll("section.bg-surface").length).toBeGreaterThanOrEqual(2)
   })
 

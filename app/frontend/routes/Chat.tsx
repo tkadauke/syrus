@@ -98,6 +98,7 @@ import {
 } from "../api/chats"
 import { fetchBootstrap, readInitialBootstrap } from "../api/bootstrap"
 import { CloseIcon } from "../components/CloseIcon"
+import { UnderlineTabs } from "../components/Tabs"
 import { GearIcon } from "../components/GearIcon"
 import { Input } from "../components/Input"
 import { PinIcon } from "../components/PinIcon"
@@ -124,7 +125,7 @@ import { PROPOSAL_UPDATED_EVENT, type ProposalUpdatedDetail } from "../lib/appEv
 import { buildMessageStreamItems, injectTemporalMarkers, pendingActionCardData, renderChatMessages } from "./chat/streamBuilders"
 import type { MobileChatTab, WorkspaceTab } from "./chat/workspaceTabs"
 import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage, retryTextByMessageId } from "./chat/messageDisplay"
-import { availableWorkspaceTabs, clampWorkspaceWidth, defaultWorkspaceTab, mobileChatTabLabel, storeWorkspacePreference, storedWorkspaceCollapsed, storedWorkspaceTab, storedWorkspaceWidth, workspaceTabClass } from "./chat/workspaceTabs"
+import { availableWorkspaceTabs, clampWorkspaceWidth, defaultWorkspaceTab, mobileChatTabLabel, storeWorkspacePreference, storedWorkspaceCollapsed, storedWorkspaceTab, storedWorkspaceWidth } from "./chat/workspaceTabs"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
 import { useChatControlsRefetchOnReconnect } from "../hooks/useChatControlsRefetchOnReconnect"
@@ -843,18 +844,17 @@ function ChatWorkspace({
   if (!isDesktop) {
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
-        <nav aria-label={t("aria_mobile_tabs")} className="flex min-h-[44px] shrink-0 overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-2 text-sm font-medium dark:border-gray-700">
-          {(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => (
-            <button
-              className={workspaceTabClass(activeMobileTab === tab)}
-              key={tab}
-              onClick={() => selectMobileTab(tab)}
-              type="button"
-            >
-              {mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs)}
-            </button>
-          ))}
-        </nav>
+        <UnderlineTabs
+          activeKey={activeMobileTab}
+          ariaLabel={t("aria_mobile_tabs")}
+          className="flex min-h-[44px] shrink-0 overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-2 text-sm font-medium dark:border-gray-700"
+          itemClassName="max-w-[33vw] truncate px-3 py-2"
+          items={(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => ({
+            key: tab,
+            label: mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs)
+          }))}
+          onSelect={selectMobileTab}
+        />
         <div className="flex min-h-0 w-full flex-1">
           {activeMobileTab === "chat" ? (
             <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} />
