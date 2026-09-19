@@ -446,7 +446,7 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(job.diff_review_versions).to be_empty
   end
 
-  it "repairs a legacy empty All changes version when the branch diff is available" do
+  it "creates a new All changes version instead of repairing a legacy empty version in place" do
     legacy = DiffReviewVersion.create!(
       job: job,
       version_index: 1,
@@ -471,9 +471,12 @@ RSpec.describe App::JobSourceDiffPayload do
 
     payload = described_class.build(job: job, user: user)
 
-    expect(payload.dig(:version, :id)).to eq(legacy.id)
+    expect(payload.dig(:version, :id)).not_to eq(legacy.id)
     expect(payload[:files].map { |file| file[:path] }).to eq([ "app/models/implemented.rb" ])
-    expect(legacy.reload).to have_attributes(
+    expect(legacy.reload).to have_attributes(base_sha: "main", head_sha: "main", files_snapshot: [])
+
+    new_version = job.diff_review_versions.find(payload.dig(:version, :id))
+    expect(new_version).to have_attributes(
       base_sha: "branch-base",
       head_sha: "branch-head",
       base_ref: "main",
@@ -481,11 +484,11 @@ RSpec.describe App::JobSourceDiffPayload do
       label: "All changes",
       reason: "source_diff"
     )
-    expect(legacy.files_snapshot.map { |file| file["path"] }).to eq([ "app/models/implemented.rb" ])
-    expect(DiffReviewVersion.default_for_review(job)).to eq(legacy)
+    expect(new_version.files_snapshot.map { |file| file["path"] }).to eq([ "app/models/implemented.rb" ])
+    expect(DiffReviewVersion.default_for_review(job)).to eq(new_version)
   end
 
-  it "promotes an existing full-range run version to All changes when a later repair checkpoint is narrower" do
+  it "reuses an existing run version unchanged when its range exactly matches the current diff" do
     workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
     step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
     full_range_run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded",
@@ -533,17 +536,15 @@ RSpec.describe App::JobSourceDiffPayload do
       ], truncated: false)
 
     payload = described_class.build(job: job, user: user)
-    promoted = full_range.reload
+    reused = full_range.reload
 
     expect(payload.dig(:version, :id)).to eq(full_range.id)
-    expect(promoted).to have_attributes(label: "All changes", reason: "source_diff")
-    expect(promoted.metadata).to include("range_kind" => "all_changes")
-    expect(promoted.files_snapshot.map { |file| file["path"] }).to contain_exactly("app/services/step_dispatcher.rb", "db/migrate/repair.rb")
-    expect(App::DiffReviewVersionsPayload.index(job: job)[:latest_version_id]).to eq(full_range.id)
+    expect(reused.reason).to eq("initial")
+    expect(reused.files_snapshot.map { |file| file["path"] }).to eq([ "app/services/step_dispatcher.rb" ])
     expect(payload[:versions].map { |version| version[:id] }).to include(repair_step.id, full_range.id)
   end
 
-  it "reuses the single All changes version across workflows with different head SHAs instead of duplicating it" do
+  it "creates a new All changes version instead of overwriting the existing one when the branch head changes" do
     claude_workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
     claude_step = Step.create!(workflow: claude_workflow, kind: "implement", position: 1, state: "succeeded")
     claude_run = Run.create!(job: job, step: claude_step, trigger_kind: "initial", state: "succeeded",
@@ -574,13 +575,26 @@ RSpec.describe App::JobSourceDiffPayload do
     first_payload = described_class.build(job: job, user: user)
     second_payload = described_class.build(job: job, user: user)
 
-    all_changes_versions = job.diff_review_versions.where(reason: "source_diff")
-    expect(all_changes_versions.count).to eq(1)
-    expect(second_payload.dig(:version, :id)).to eq(first_payload.dig(:version, :id))
-    expect(second_payload[:versions].size).to eq(1)
+    all_changes_versions = job.diff_review_versions.where(reason: "source_diff").order(:version_index)
+    expect(all_changes_versions.count).to eq(2)
+    expect(second_payload.dig(:version, :id)).not_to eq(first_payload.dig(:version, :id))
+    expect(second_payload[:versions].size).to eq(2)
 
-    version = all_changes_versions.sole
-    expect(version).to have_attributes(
+    first_version, second_version = all_changes_versions.to_a
+    expect(first_payload.dig(:version, :id)).to eq(first_version.id)
+    expect(second_payload.dig(:version, :id)).to eq(second_version.id)
+
+    # The Job's first "All changes" computation stays exactly as it was
+    # persisted -- it is never rewritten by a later, unrelated request.
+    expect(first_version.reload).to have_attributes(
+      base_sha: "base-sha",
+      head_sha: "claude-head",
+      workflow_id: claude_workflow.id,
+      run_id: claude_run.id,
+      trigger_kind: "initial",
+      label: "All changes"
+    )
+    expect(second_version).to have_attributes(
       base_sha: "base-sha",
       head_sha: "codex-head",
       workflow_id: codex_workflow.id,
@@ -589,6 +603,48 @@ RSpec.describe App::JobSourceDiffPayload do
       label: "All changes"
     )
     expect(second_payload[:version]).to include(base_sha: "base-sha", head_sha: "codex-head")
+  end
+
+  it "never mutates a persisted DiffReviewVersion row when recomputing the current diff across repeated reads" do
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(
+        { commits: [ { sha: "head-one", short_sha: "head-one", message: "First", date: Time.zone.parse("2026-05-01T12:00:00Z") } ], merge_base_sha: "base-sha" },
+        { commits: [ { sha: "head-one", short_sha: "head-one", message: "First", date: Time.zone.parse("2026-05-01T12:00:00Z") } ], merge_base_sha: "base-sha" },
+        { commits: [ { sha: "head-two", short_sha: "head-two", message: "Second", date: Time.zone.parse("2026-05-02T12:00:00Z") } ], merge_base_sha: "base-sha" }
+      )
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "base-sha", "head-one")
+      .and_return(files: [
+        { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1,2 @@\n+one" }
+      ], truncated: false)
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "base-sha", "head-two")
+      .and_return(files: [
+        { path: "app/models/widget.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+two" }
+      ], truncated: false)
+
+    first_payload = described_class.build(job: job, user: user)
+    second_payload = described_class.build(job: job, user: user)
+
+    # Same base/head across two consecutive calls (no underlying branch
+    # change) -- the same row is reused, untouched.
+    expect(second_payload.dig(:version, :id)).to eq(first_payload.dig(:version, :id))
+    first_version = job.diff_review_versions.find(first_payload.dig(:version, :id))
+    expect(first_version).to have_attributes(base_sha: "base-sha", head_sha: "head-one")
+    expect(first_version.files_snapshot.map { |file| file["path"] }).to eq([ "app/models/widget.rb" ])
+    original_updated_at = first_version.updated_at
+
+    # The branch advances to a new head -- a fresh row is created for the
+    # new current diff, and the earlier historical row is left untouched.
+    third_payload = described_class.build(job: job, user: user)
+
+    expect(third_payload.dig(:version, :id)).not_to eq(first_version.id)
+    expect(first_version.reload).to have_attributes(base_sha: "base-sha", head_sha: "head-one", updated_at: original_updated_at)
+    expect(first_version.files_snapshot.map { |file| file["path"] }).to eq([ "app/models/widget.rb" ])
+
+    new_version = job.diff_review_versions.find(third_payload.dig(:version, :id))
+    expect(new_version).to have_attributes(base_sha: "base-sha", head_sha: "head-two")
   end
 
   describe "preview diff fixture" do
