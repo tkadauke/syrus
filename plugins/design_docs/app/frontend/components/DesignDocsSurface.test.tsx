@@ -510,12 +510,19 @@ function mockFetch(detail = docDetail) {
   })
 }
 
+// Simulates a real mobile viewport by answering every `min-width` query
+// (desktop-and-up breakpoints) with no match and every `max-width` query
+// (mobile-and-down breakpoints, e.g. narrowView's own check) with a match --
+// rather than hardcoding `matches: false` for every query regardless of
+// direction, which happened to work for the min-width-only checks that
+// predate narrowView but silently never simulates "narrow" for a max-width
+// query.
 function mockMobileViewport() {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     writable: true,
     value: vi.fn((query: string) => ({
-      matches: false,
+      matches: query.includes("max-width"),
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -671,9 +678,49 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     renderSurface("/chats/237")
 
-    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: "Edit" })).toBeInTheDocument()
     const main = screen.getByRole("main", { name: "Design docs" })
     expect(main.className).not.toContain("max-w-")
+  })
+
+  it("locks a compact chat-tab design doc to read-only content with a Link-based Edit entry point to the full page", async () => {
+    mockFetch()
+    renderSurface("/chats/237")
+
+    expect(await screen.findByRole("region", { name: "Design doc content" })).toHaveTextContent("Alpha beta gamma")
+    expect(screen.queryByRole("toolbar", { name: "Formatting toolbar" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Rich Text editor" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Markdown editor" })).not.toBeInTheDocument()
+
+    const editLink = screen.getByRole("link", { name: "Edit" })
+    expect(editLink).toHaveAttribute("href", "/design_docs/1")
+  })
+
+  it("locks the design doc detail route to read-only content with an in-place Edit toggle on a narrow viewport", async () => {
+    mockMobileViewport()
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    expect(await screen.findByRole("region", { name: "Design doc content" })).toHaveTextContent("Alpha beta gamma")
+    expect(screen.queryByRole("toolbar", { name: "Formatting toolbar" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Rich Text editor" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+
+    expect(await screen.findByRole("toolbar", { name: "Formatting toolbar" })).toBeInTheDocument()
+    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
+    expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/1")
+  })
+
+  it("keeps the design doc detail route editable by default on a desktop-width viewport", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    expect(await screen.findByRole("toolbar", { name: "Formatting toolbar" })).toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "Design doc content" })).not.toBeInTheDocument()
+    expect(screen.queryByTestId("design-doc-read-only-body")).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument()
   })
 
   it("loads the focused detail route without fetching or rendering list-page controls", async () => {
@@ -756,7 +803,7 @@ describe("DesignDocsSurface", () => {
     const fetchSpy = mockFetch()
     renderSurface("/chats/237")
 
-    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
+    expect(await screen.findByRole("region", { name: "Design doc content" })).toHaveTextContent("Alpha beta gamma")
     expect(screen.queryByRole("heading", { name: "Design Docs" })).not.toBeInTheDocument()
     expect(screen.getAllByText("DOC-1").length).toBeGreaterThan(0)
     expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
@@ -1981,6 +2028,7 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     renderSurface("/design_docs/1")
 
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
     await screen.findByRole("textbox", { name: "Rich Text editor" })
     expect(screen.queryByRole("group", { name: "List formatting" })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "More formatting" }))

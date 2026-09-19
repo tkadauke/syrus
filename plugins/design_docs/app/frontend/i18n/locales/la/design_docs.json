@@ -30,6 +30,7 @@
   "aria_version_selection": "Electio versionis",
   "comment": "Commente",
   "current": "Praesens",
+  "document_content": "Contentum documenti consilii",
   "edit": "Edere",
   "editor_mode": {
     "markdown": "Markdown",

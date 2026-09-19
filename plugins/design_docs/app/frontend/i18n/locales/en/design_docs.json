@@ -30,6 +30,7 @@
   "aria_version_selection": "Version selection",
   "comment": "Comment",
   "current": "Current",
+  "document_content": "Design doc content",
   "edit": "Edit",
   "editor_mode": {
     "markdown": "Markdown",
