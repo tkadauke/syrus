@@ -342,14 +342,13 @@ function indexPayload(detail = docDetail) {
       { field: "updated_at", label: "Updated", bucket: "date", operators: ["before", "after", "between", "within_last", "more_than_ago"], values: [] }
     ],
     preferences: {
-      visible_columns: ["title", "doc_slug", "state", "repository", "owner", "collaborators", "comments", "latest_version", "updated_at", "actions"],
+      visible_columns: ["title", "state", "repository", "owner", "collaborators", "comments", "latest_version", "updated_at", "actions"],
       raw: {}
     },
     controls: {
       columns: {
         required: [{ key: "title", title: "Title" }],
         optional: [
-          { key: "doc_slug", title: "DOC" },
           { key: "state", title: "State" },
           { key: "repository", title: "Repository" },
           { key: "owner", title: "Owner" },
@@ -582,7 +581,6 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByRole("heading", { name: "Design Docs" })).toBeInTheDocument()
     expect(await screen.findByTestId("design-docs-table")).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Title" })).toBeInTheDocument()
-    expect(screen.getByRole("columnheader", { name: "DOC" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "State" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Repository" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Owner" })).toBeInTheDocument()
@@ -692,7 +690,7 @@ describe("DesignDocsSurface", () => {
     const request = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/preferences")
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({
       preferences: {
-        visible_columns: ["doc_slug", "state", "repository", "owner", "comments", "latest_version", "updated_at", "actions"]
+        visible_columns: ["state", "repository", "owner", "comments", "latest_version", "updated_at", "actions"]
       }
     })
   })

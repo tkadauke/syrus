@@ -448,28 +448,26 @@ function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (
   if (column === "title") {
     return (
       <div className="min-w-0">
-        <button
-          className="max-w-full truncate rounded-sm text-left text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-          onClick={(event) => {
-            event.stopPropagation()
-            onSelect(doc.id)
-          }}
-          title={doc.title}
-          type="button"
-        >
-          {doc.title}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <span className="shrink-0" onClick={(event) => event.stopPropagation()}>
+            <CopyableSlug className="text-xs" slug={doc.display_id} />
+          </span>
+          <button
+            className="max-w-full truncate rounded-sm text-left text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            onClick={(event) => {
+              event.stopPropagation()
+              onSelect(doc.id)
+            }}
+            title={doc.title}
+            type="button"
+          >
+            {doc.title}
+          </button>
+        </div>
         {doc.preview_text ? (
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{renderLightMarkdown(doc.preview_text)}</p>
         ) : null}
       </div>
-    )
-  }
-  if (column === "doc_slug") {
-    return (
-      <span onClick={(event) => event.stopPropagation()}>
-        <CopyableSlug slug={doc.display_id} />
-      </span>
     )
   }
   if (column === "state") return <StatusLabel value={doc.state} />
@@ -499,7 +497,6 @@ function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (
 
 function defaultDesignDocOptionalColumns(t: DesignDocT) {
   return [
-    { key: "doc_slug", title: "DOC" },
     { key: "state", title: t("columns.state") },
     { key: "repository", title: t("columns.repository") },
     { key: "owner", title: t("columns.owner") },
@@ -540,7 +537,6 @@ function designDocColumnClass(column: string, kind: "header" | "cell") {
   const base = kind === "header" ? "px-3 py-2" : "px-3 py-3"
   const width = {
     title: "w-[30%]",
-    doc_slug: "w-[7.5rem]",
     state: "w-[7rem]",
     repository: "w-[12rem]",
     owner: "w-[10rem]",
