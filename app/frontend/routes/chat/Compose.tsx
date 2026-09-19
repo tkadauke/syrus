@@ -51,7 +51,13 @@ type ComposerDraftSnapshot = {
   attachments: ChatComposeAttachment[]
 }
 
+type ComposerHistoryMode = {
+  draft: string
+  index: number
+}
 
+const CHAT_HISTORY_LIMIT = 50
+const CHAT_HISTORY_KEY_PREFIX = "syrus.chat.history."
 
 
 // Chat composer extracted from Chat.tsx: the Compose input component and its whole
@@ -79,6 +85,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return ""
     }
   })
+  const [composerHistory, setComposerHistory] = useState<string[]>(() => readComposerHistory(chatId))
+  const [historyMode, setHistoryMode] = useState<ComposerHistoryMode | null>(null)
   const [attachments, setAttachments] = useState<ChatComposeAttachment[]>(() => getDraftAttachments(chatId))
   const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
@@ -182,6 +190,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   })
 
   useEffect(() => {
+    if (historyMode) return
+
     if (text.length > 0) {
       storeWorkspacePreference(CHAT_DRAFT_KEY_PREFIX + chatId, text)
       return
@@ -192,7 +202,12 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     } catch (_error) {
       // Local storage can be unavailable in hardened browser modes.
     }
-  }, [chatId, text])
+  }, [chatId, historyMode, text])
+
+  useEffect(() => {
+    setComposerHistory(readComposerHistory(chatId))
+    setHistoryMode(null)
+  }, [chatId])
 
   // Mirrors the text-draft effect above, but through the in-memory
   // attachmentDraftStore rather than localStorage — see that module for why.
@@ -220,6 +235,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     setText("")
     setAttachments([])
     setAttachmentError(null)
+    setHistoryMode(null)
     try {
       window.localStorage.removeItem(CHAT_DRAFT_KEY_PREFIX + chatId)
     } catch (_error) {
@@ -244,15 +260,21 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       attachments
     }
     clearComposerDraft()
+    setHistoryMode(null)
     setPendingConfirmation(null)
     send.mutate(draft)
+  }
+
+  function rememberSubmittedPrompt(prompt: string | undefined | null) {
+    setComposerHistory(writeComposerHistory(chatId, prompt))
   }
 
   const send = useMutation({
     mutationFn: (draft: SubmittedChatDraft) => agentActive
       ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), draft.messageText, draft.attachments)
       : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments),
-    onSuccess: (updated) => {
+    onSuccess: (updated, draft) => {
+      rememberSubmittedPrompt(draft.messageText)
       queryClient.setQueryData(queryKey, updated)
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
       setPendingConfirmation(null)
@@ -265,10 +287,12 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
   })
   const runShellCommand = useMutation({
-    mutationFn: (command: string) => createChatShellCommand(chatId, command),
-    onSuccess: (record) => {
+    mutationFn: (input: { command: string; composerText: string }) => createChatShellCommand(chatId, input.command),
+    onSuccess: (record, input) => {
+      rememberSubmittedPrompt(input.composerText)
       setShellCommand(record)
       clearComposerDraft()
+      setHistoryMode(null)
       onNotice(null)
     },
     onError: (error) => {
@@ -400,8 +424,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       body: input.body,
       fireAt: input.fireAt.toISOString()
     }),
-    onSuccess: (result) => {
+    onSuccess: (result, input) => {
+      rememberSubmittedPrompt(input.body)
       setText("")
+      setHistoryMode(null)
       setPendingConfirmation(null)
       setScheduleModal(null)
       try {
@@ -519,7 +545,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     if (!command) return
 
     onNotice(null)
-    runShellCommand.mutate(command)
+    runShellCommand.mutate({ command, composerText: text })
   }
 
   function pickerKindForCommand(commandName: SlashCommand["name"]): "job" | "epic" | null {
@@ -1304,6 +1330,12 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return
     }
 
+    if ((event.key === "ArrowUp" || event.key === "ArrowDown") && shouldHandleComposerHistoryKey(event)) {
+      event.preventDefault()
+      navigateComposerHistory(event.key === "ArrowUp" ? -1 : 1)
+      return
+    }
+
     if (event.key === "Tab" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && canStashDraft && attachmentError == null) {
       event.preventDefault()
       stash.mutate(undefined)
@@ -1323,10 +1355,54 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   }
 
   function updateText(nextText: string) {
+    if (historyMode && nextText !== text) setHistoryMode(null)
     setText(nextText)
     if (pendingConfirmation && nextText.trim() !== pendingConfirmation.text) {
       setPendingConfirmation(null)
     }
+  }
+
+  function shouldHandleComposerHistoryKey(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.nativeEvent.isComposing) return false
+    if (composerHistory.length === 0) return false
+
+    const textarea = event.currentTarget
+    if (event.key === "ArrowUp") return text.length === 0 || caretIsOnFirstLine(textarea)
+    if (event.key === "ArrowDown") return historyMode != null && caretIsOnLastLine(textarea)
+    return false
+  }
+
+  function navigateComposerHistory(direction: -1 | 1) {
+    if (composerHistory.length === 0) return
+
+    if (direction < 0) {
+      const nextIndex = historyMode ? Math.max(0, historyMode.index - 1) : composerHistory.length - 1
+      const draft = historyMode?.draft ?? text
+      setHistoryMode({ draft, index: nextIndex })
+      setText(composerHistory[nextIndex] || "")
+      moveTextareaCaretToEnd(composerHistory[nextIndex] || "")
+      return
+    }
+
+    if (!historyMode) return
+    const nextIndex = historyMode.index + 1
+    if (nextIndex >= composerHistory.length) {
+      const draft = historyMode.draft
+      setHistoryMode(null)
+      setText(draft)
+      moveTextareaCaretToEnd(draft)
+      return
+    }
+
+    setHistoryMode({ ...historyMode, index: nextIndex })
+    setText(composerHistory[nextIndex] || "")
+    moveTextareaCaretToEnd(composerHistory[nextIndex] || "")
+  }
+
+  function moveTextareaCaretToEnd(nextText: string) {
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.setSelectionRange(nextText.length, nextText.length)
+    })
   }
 
   function insertDictationTranscript(spokenText: string) {
@@ -1801,6 +1877,13 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         {payload.chat.conversation_kind === "group" && (payload.chat.participants?.length ?? 0) > 1 ? (
           <p className="mb-1 text-xs text-gray-500 dark:text-gray-400" data-testid="group-mention-hint">{t("group_mention_hint")}</p>
         ) : null}
+        {historyMode ? (
+          <div className="mb-1 flex justify-end">
+            <span className="rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300" data-testid="chat-history-indicator">
+              {t("history_indicator", { index: historyMode.index + 1, total: composerHistory.length })}
+            </span>
+          </div>
+        ) : null}
         <div className="relative">
           <textarea
             aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
@@ -1831,6 +1914,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             </div>
           ) : null}
           <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
+          <span aria-live="polite" className="sr-only">{historyMode ? t("history_announcement", { index: historyMode.index + 1, total: composerHistory.length }) : ""}</span>
         </div>
         <div className="relative mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 sm:gap-x-2">
           <Button
@@ -2955,6 +3039,43 @@ function ShellCommandStopButton({ chatId, className, command, label, onError, on
       {label ? <span>{label}</span> : null}
     </button>
   )
+}
+
+function composerHistoryKey(chatId: string) {
+  return CHAT_HISTORY_KEY_PREFIX + chatId
+}
+
+function readComposerHistory(chatId: string) {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(composerHistoryKey(chatId)) || "[]")
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []
+  } catch (_error) {
+    return []
+  }
+}
+
+function writeComposerHistory(chatId: string, prompt: string | undefined | null) {
+  const trimmed = prompt?.trim()
+  const current = readComposerHistory(chatId)
+  if (!trimmed) return current
+
+  const next = [...current.filter((entry) => entry !== trimmed), trimmed].slice(-CHAT_HISTORY_LIMIT)
+  try {
+    window.localStorage.setItem(composerHistoryKey(chatId), JSON.stringify(next))
+  } catch (_error) {
+    // Local storage can be unavailable in hardened browser modes.
+  }
+  return next
+}
+
+function caretIsOnFirstLine(textarea: HTMLTextAreaElement) {
+  if (textarea.selectionStart !== textarea.selectionEnd) return false
+  return !textarea.value.slice(0, textarea.selectionStart).includes("\n")
+}
+
+function caretIsOnLastLine(textarea: HTMLTextAreaElement) {
+  if (textarea.selectionStart !== textarea.selectionEnd) return false
+  return !textarea.value.slice(textarea.selectionEnd).includes("\n")
 }
 
 function findProposalBySlug(payload: ChatPayload, slug: string): { app_reject_path: string } | null {
