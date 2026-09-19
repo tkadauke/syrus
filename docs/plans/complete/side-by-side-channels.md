@@ -1,5 +1,11 @@
 # Side-by-side channels: run a release and a test build simultaneously
 
+_Status check 2026-09-19: complete. `desktop/electron/channel.ts` implements
+the stable/test channel split and "Syrus Test" productName fork; `install.sh`
+has `--project NAME`/`COMPOSE_PROJECT_NAME` and `SYRUS_BOOT_POLLING_PAUSED`;
+the Go CLI resolves its profile from argv0 (`cli/internal/config/profile.go`).
+Retained as design history._
+
 ## Problem
 
 Syrus-develops-Syrus requires running a production (release) desktop app and a

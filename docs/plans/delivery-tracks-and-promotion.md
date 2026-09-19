@@ -1,5 +1,14 @@
 # Delivery Tracks, Promotion, and Branch Policy
 
+_Status check 2026-09-19: complete. The `promotion`/`hotfix_sync`/
+`upstream_export` trigger kinds and workflow chains described here shipped
+(see CLAUDE.md's Trigger kinds section), along with `DeliveryPolicy`,
+`RefMovementAction`, `JobPrLink`, and the proposed
+`list_ref_movement_actions`/`resolve_delivery_policy`/
+`dispatch_ref_movement_action`/`read_ref_movement_status` MCP tools. Current
+operator-facing behavior lives in `config/syrus_docs/delivery_tracks.md`; this
+file is retained as design history._
+
 Syrus currently treats most work as "job produces a PR, operator approves, landing
 queue merges it." That is a good strict model, but it is not the only useful
 development model. We want room for faster development branches, branch-level
