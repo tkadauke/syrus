@@ -15,30 +15,37 @@ module Admin
       end
 
       def pause_polling(source:)
+        require_admin!
         update_flag!(polling_paused: true, action: :pause_polling, source: source)
       end
 
       def unpause_polling(source:)
+        require_admin!
         update_flag!(polling_paused: false, action: :unpause_polling, source: source)
       end
 
       def pause_runs(source:)
+        require_admin!
         update_flag!(runs_paused: true, action: :pause_runs, source: source)
       end
 
       def unpause_runs(source:)
+        require_admin!
         update_flag!(runs_paused: false, action: :unpause_runs, source: source)
       end
 
       def enable_merge_train(source:)
+        require_admin!
         update_flag!(merge_train_enabled: true, action: :enable_merge_train, source: source)
       end
 
       def disable_merge_train(source:)
+        require_admin!
         update_flag!(merge_train_enabled: false, action: :disable_merge_train, source: source)
       end
 
       def clear_github_cache(user_id:, source:)
+        require_admin!
         pattern, summary = github_cache_scope(user_id)
         cleared = clear_cache_pattern(pattern)
         AdminAction.log!(user: actor, action: :clear_github_cache, params: { source: source, scope: pattern, cleared_count: cleared })
@@ -48,6 +55,10 @@ module Admin
       private
 
       attr_reader :actor
+
+      def require_admin!
+        raise ArgumentError, "Admin access required." unless actor&.admin?
+      end
 
       def update_flag!(attrs)
         action = attrs.delete(:action)

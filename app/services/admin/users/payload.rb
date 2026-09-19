@@ -28,6 +28,7 @@ module Admin
       end
 
       def pause_scheduling(id)
+        require_admin!
         user = User.find(id)
         user.update!(scheduling_paused: true)
         AdminAction.log!(user: actor, action: :pause_user_scheduling, params: { target_user_id: user.id })
@@ -35,6 +36,7 @@ module Admin
       end
 
       def unpause_scheduling(id)
+        require_admin!
         user = User.find(id)
         user.update!(scheduling_paused: false)
         AdminAction.log!(user: actor, action: :unpause_user_scheduling, params: { target_user_id: user.id })
@@ -42,6 +44,7 @@ module Admin
       end
 
       def update(id, attributes)
+        require_admin!
         user = User.find(id)
         user.update!(attributes.to_h.symbolize_keys.slice(:role))
         AdminAction.log!(user: actor, action: :update_user_role, params: { target_user_id: user.id, role: user.role })
@@ -51,6 +54,10 @@ module Admin
       private
 
       attr_reader :params, :actor
+
+      def require_admin!
+        raise ArgumentError, "Admin access required." unless actor&.admin?
+      end
 
       def active_smart_folder
         ::Admin::SmartFolderNavigation.active_folder(subject: :admin_user, user: actor, params: params)
