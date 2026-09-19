@@ -9,8 +9,6 @@ namespace :e2e do
 
     settings = AppSetting.current
     settings.update!(
-      mode: "advanced",
-      mode_configured_at: nil,
       github_app_id: nil,
       github_app_slug: nil,
       github_app_registered_at: nil

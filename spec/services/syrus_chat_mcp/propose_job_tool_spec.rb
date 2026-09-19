@@ -531,6 +531,8 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
   end
 
   describe "provider override" do
+    before { PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true) }
+
     it "defaults to the default provider setting when provider is omitted" do
       response = call_tool(
         repo: repository.slug,

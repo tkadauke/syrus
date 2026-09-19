@@ -157,16 +157,9 @@ RSpec.describe Feature, type: :model do
   end
 
   describe ".emergency_land_enabled?" do
-    it "returns the flag value in advanced mode" do
+    it "returns the flag value" do
       Feature.create!(slug: "emergency_land", category: "Labs", name: "Emergency land", enabled: true)
-      allow(AppSetting).to receive(:simple?).and_return(false)
       expect(Feature.emergency_land_enabled?).to be true
-    end
-
-    it "is forced off in simple mode regardless of the flag" do
-      Feature.create!(slug: "emergency_land", category: "Labs", name: "Emergency land", enabled: true)
-      allow(AppSetting).to receive(:simple?).and_return(true)
-      expect(Feature.emergency_land_enabled?).to be false
     end
 
     it "defaults off when unset" do

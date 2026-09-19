@@ -323,16 +323,12 @@ RSpec.describe JobDependency do
       expect(dep.errors[:base].first).to match(/Epic dependencies must form a single chain/)
     end
 
-    it "enforces linearity in both simple and advanced instance mode" do
+    it "enforces linearity unconditionally" do
       a = epic_job(1)
       b = epic_job(2)
       c = epic_job(3)
       described_class.create!(job: b, depends_on_job: a, source: "manual")
 
-      allow(AppSetting).to receive(:simple?).and_return(true)
-      expect(described_class.new(job: c, depends_on_job: a, source: "manual")).not_to be_valid
-
-      allow(AppSetting).to receive(:simple?).and_return(false)
       expect(described_class.new(job: c, depends_on_job: a, source: "manual")).not_to be_valid
     end
 

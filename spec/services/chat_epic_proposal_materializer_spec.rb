@@ -102,6 +102,8 @@ RSpec.describe ChatEpicProposalMaterializer do
   end
 
   it "applies per-child provider overrides onto the materialized Jobs" do
+    PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true)
+
     proposal = epic_proposal
     pinned = proposal.child_proposals.create!(
       chat_session: chat_session,

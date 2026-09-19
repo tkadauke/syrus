@@ -180,6 +180,8 @@ RSpec.describe ChatProposalFiler do
     end
 
     it "applies a provider override from the proposal onto the filed Job" do
+      PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true)
+
       job_proposal = proposal(slug: "pinned-job", title: "Pinned job", provider_setting: "muse")
 
       described_class.new(user: user, repository: repository).file!([ job_proposal ])

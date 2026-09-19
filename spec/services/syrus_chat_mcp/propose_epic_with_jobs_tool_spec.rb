@@ -845,6 +845,8 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
   end
 
   describe "provider override" do
+    before { PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true) }
+
     it "persists per-child provider overrides independently" do
       response = call_tool(
         epic: { slug: "provider-epic", title: "Provider Epic", description: "Pin children.", target_repo: repository.slug },
