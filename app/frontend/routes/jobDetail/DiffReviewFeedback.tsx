@@ -21,7 +21,7 @@ import {
 } from "../../api/jobs"
 import { DiffHunkSnippet, type DiffLineSelection, type DiffReviewThread } from "../../components/diff/ReviewableDiff"
 import { Pill, surfaceClasses } from "../../components/ui"
-import { collapsedLabel, metadataSummary } from "./DiffReviewVersionSelector"
+import { collapsedLabel, duplicateRunIds, metadataSummary } from "./DiffReviewVersionSelector"
 
 type DiffReviewFeedbackOptions = {
   baseRef?: string | null
@@ -437,6 +437,7 @@ function DiffReviewFeedbackPanel({
   workflowActive: boolean
 }) {
   const { t } = useT("jobs")
+  const ambiguousRunIds = useMemo(() => duplicateRunIds(versions || []), [versions])
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
@@ -452,7 +453,7 @@ function DiffReviewFeedbackPanel({
           const isCurrent = group.versionId === currentVersionId
           return (
             <div key={group.versionId}>
-              <VersionSectionHeader isCurrent={isCurrent} t={t} version={group.version} />
+              <VersionSectionHeader ambiguousRunIds={ambiguousRunIds} isCurrent={isCurrent} t={t} version={group.version} />
               <div className={isCurrent ? "mt-2 space-y-3" : surfaceClasses("warning", "sm", "mt-2 space-y-3")}>
                 {group.comments.map((comment) => (
                   <CommentCard
@@ -528,11 +529,11 @@ function DiffReviewFeedbackPanel({
   )
 }
 
-function VersionSectionHeader({ isCurrent, t, version }: { isCurrent: boolean; t: TFunction<"jobs">; version: DiffReviewVersion }) {
+function VersionSectionHeader({ ambiguousRunIds, isCurrent, t, version }: { ambiguousRunIds?: Set<number>; isCurrent: boolean; t: TFunction<"jobs">; version: DiffReviewVersion }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-1">
       <div className="min-w-0">
-        <span className="text-sm font-semibold text-text-primary">{collapsedLabel(t, version)}</span>
+        <span className="text-sm font-semibold text-text-primary">{collapsedLabel(t, version, ambiguousRunIds)}</span>
         <p className="mt-0.5 break-words text-xs text-text-muted">{metadataSummary(t, version)}</p>
       </div>
       {isCurrent ? <Pill tone="success">{t("review_version_section_current")}</Pill> : null}
