@@ -22,5 +22,11 @@ RSpec.describe Go::DependencyAuditCommand do
         expect(described_class.audit_command(workspace_path: dir)).to eq("govulncheck ./...")
       end
     end
+
+    it "returns nil for a completely empty directory" do
+      Dir.mktmpdir do |dir|
+        expect(described_class.audit_command(workspace_path: dir)).to be_nil
+      end
+    end
   end
 end
