@@ -1,5 +1,14 @@
 {
   "admin": {
-    "title": "<%= display_name %>"
+    "title": "<%= display_name %>",
+    "description": "Pagina propria plugin utensilia UI semantica Syrus adhibens.",
+    "panel_message": "Plugin hunc nuntium et imagines proprias regit.",
+    "settings_heading": "Exempla optionum",
+    "name_label": "Nomen",
+    "default_name": "<%= display_name %>",
+    "mode_label": "Modus",
+    "mode_observe": "Observare",
+    "mode_act": "Agere",
+    "save": "Servare"
   }
 }

@@ -32,20 +32,49 @@ RSpec.describe Syrus::Plugin::PluginGenerator do
     expect(manifest).to include('provides admin_page: "SamplePlugin::AdminPages"')
     expect(manifest).to include('"sample_plugin/AdminExample" => "app/frontend/routes/AdminExample.tsx"')
     expect(manifest).to include('i18n: [ "app/frontend/i18n/locales/*/sample_plugin.json" ]')
-    expect(read("plugins/sample_plugin/app/frontend/i18n/locales/en/sample_plugin.json")).to include('"title": "Sample plugin"')
-    expect(read("plugins/sample_plugin/app/frontend/i18n/locales/de/sample_plugin.json")).to include('"title": "Sample plugin"')
-    expect(read("plugins/sample_plugin/app/frontend/i18n/locales/la/sample_plugin.json")).to include('"title": "Sample plugin"')
+    en_locale = JSON.parse(read("plugins/sample_plugin/app/frontend/i18n/locales/en/sample_plugin.json"))
+    de_locale = JSON.parse(read("plugins/sample_plugin/app/frontend/i18n/locales/de/sample_plugin.json"))
+    la_locale = JSON.parse(read("plugins/sample_plugin/app/frontend/i18n/locales/la/sample_plugin.json"))
+
+    expect(en_locale.dig("admin", "title")).to eq("Sample plugin")
+    expect(de_locale.dig("admin", "title")).to eq("Sample plugin")
+    expect(la_locale.dig("admin", "title")).to eq("Sample plugin")
+    expect(en_locale.fetch("admin").keys).to include(
+      "description",
+      "panel_message",
+      "settings_heading",
+      "name_label",
+      "default_name",
+      "mode_label",
+      "mode_observe",
+      "mode_act",
+      "save"
+    )
+    expect(de_locale.fetch("admin").keys).to match_array(en_locale.fetch("admin").keys)
+    expect(la_locale.fetch("admin").keys).to match_array(en_locale.fetch("admin").keys)
     expect(component).to include('from "@app/components/ui"')
-    expect(component).to include("<PageHeading>Sample plugin</PageHeading>")
+    expect(component).to include('import { useT } from "@app/hooks/useT"')
+    expect(component).to include('const { t } = useT("sample_plugin")')
+    expect(component).to include('<Page.Root aria-label={t("admin.title")}>')
+    expect(component).to include('<PageHeading>{t("admin.title")}</PageHeading>')
     expect(component).to include("<Page.Root ")
     expect(component).to include("<Card>")
     expect(component).to include("<Form.Field>")
-    expect(component).to include('<Form.Label htmlFor="sample_plugin-name">')
+    expect(component).to include('<Form.Label htmlFor="sample_plugin-name">{t("admin.name_label")}</Form.Label>')
     expect(component).to include('id="sample_plugin-name"')
+    expect(component).to include('defaultValue={t("admin.default_name")}')
     expect(component).to include("<Form.Actions")
     expect(component).to include("<Input")
     expect(component).to include("<Select")
     expect(component).to include("<Button")
+    expect(component).not_to include("A plugin-owned page using Syrus semantic UI primitives.")
+    expect(component).not_to include("The plugin owns this message copy and any domain-specific visuals.")
+    expect(component).not_to include("Example settings")
+    expect(component).not_to include(">Name<")
+    expect(component).not_to include(">Mode<")
+    expect(component).not_to include(">Observe<")
+    expect(component).not_to include(">Act<")
+    expect(component).not_to include(">Save<")
     expect(component).not_to include("<main")
     expect(component).not_to include("<label")
     expect(component).not_to include("rounded border border-gray")
