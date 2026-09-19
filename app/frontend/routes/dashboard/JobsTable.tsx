@@ -897,9 +897,7 @@ function MobileJobRow({ job, navigationItems, selected, onToggleOne, prefix, top
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           {job.kind !== "issue" ? <span>{humanizeOption(job.kind)}</span> : null}
           <JobSlugMetadata job={job} prefix={prefix} />
-          {job.provider_mismatch ? <ProviderMismatchPill mismatch={job.provider_mismatch} /> : null}
           {job.issue_number ? <IssueMetadata job={job} /> : null}
-          {job.manual_paused ? <ManualPauseInline job={job} /> : null}
           {job.pr_number ? (
               <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
                 <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink>
@@ -910,12 +908,9 @@ function MobileJobRow({ job, navigationItems, selected, onToggleOne, prefix, top
           {job.claimed_by_user && !job.claimed_by_current_user ? <DashboardOwnerLabel job={job} prefix={prefix} quiet /> : null}
           {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
           <span><RelativeTimestamp value={job.latest_workflow_started_at || job.started_at || job.created_at} /></span>
-          {job.state === "queued" && job.start_blocked_reason ? (
-            <StartBlockedReasonPill count={job.start_blocked_count} details={job.start_blocked_details} nextCheckAt={job.start_blocked_next_check_at} reason={job.start_blocked_reason} startBlockedAt={job.start_blocked_at} />
-          ) : null}
           <MobileJobQueueStatus job={job} />
-          {job.blocked_reason ? <span><CopyableBlockedReason reason={translateBlockedReason(job.blocked_reason, t)} /></span> : null}
         </MetadataLine>
+        <JobAttentionLine includeBlockedReason job={job} />
         {job.tags.length > 0 ? (
           <div className="mt-1 flex flex-wrap gap-1">
             {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}
@@ -941,10 +936,7 @@ function JobCell({ job, column, navigationItems, selected, onToggleOne, prefix }
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
-          {job.provider_mismatch ? <ProviderMismatchPill mismatch={job.provider_mismatch} /> : null}
           {job.issue_number ? <IssueMetadata job={job} /> : null}
-          {isNotableDeliveryStatus(job.delivery_status) ? <DeliveryStatusBadge status={job.delivery_status} /> : null}
-          {job.manual_paused ? <ManualPauseInline job={job} /> : null}
           {job.pr_number ? (
               <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
                 <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink>
@@ -954,11 +946,8 @@ function JobCell({ job, column, navigationItems, selected, onToggleOne, prefix }
           {job.source_chat ? <JobSourceChatLink job={job} prefix={prefix} /> : null}
           {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
           {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}
-          {job.retry_state && job.retry_state.state_label !== "No failure" ? <RetryStateInline job={job} /> : null}
-          {job.state === "queued" && job.start_blocked_reason ? (
-            <StartBlockedReasonPill count={job.start_blocked_count} details={job.start_blocked_details} nextCheckAt={job.start_blocked_next_check_at} reason={job.start_blocked_reason} startBlockedAt={job.start_blocked_at} />
-          ) : null}
         </MetadataLine>
+        <JobAttentionLine job={job} />
       </DataTable.Cell>
     )
   }
@@ -999,6 +988,36 @@ function JobCell({ job, column, navigationItems, selected, onToggleOne, prefix }
   if (column === "commits_behind_base") return <DataTable.Cell><CommitsBehindBadge count={job.commits_behind_base} /></DataTable.Cell>
 
   return <TimestampCell value={jobDateValue(job, column)} />
+}
+
+// Second, exceptional line under a job's issue/title metadata: only the
+// pills/badges that flag something needs attention. Renders null when none
+// apply so a normal job's subtitle stays a single line. `includeBlockedReason`
+// is mobile-only -- desktop already exposes blocked_reason as its own
+// optional column, so repeating it here would duplicate that column.
+function JobAttentionLine({ job, includeBlockedReason = false }: { job: DashboardJobItem; includeBlockedReason?: boolean }) {
+  const { t } = useT("dashboard")
+  const hasAttention = Boolean(job.provider_mismatch)
+    || isNotableDeliveryStatus(job.delivery_status)
+    || Boolean(job.retry_state && job.retry_state.state_label !== "No failure")
+    || (job.state === "queued" && Boolean(job.start_blocked_reason))
+    || Boolean(job.manual_paused)
+    || (includeBlockedReason && Boolean(job.blocked_reason))
+
+  if (!hasAttention) return null
+
+  return (
+    <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-text-secondary">
+      {job.provider_mismatch ? <ProviderMismatchPill mismatch={job.provider_mismatch} /> : null}
+      {isNotableDeliveryStatus(job.delivery_status) ? <DeliveryStatusBadge status={job.delivery_status} /> : null}
+      {job.retry_state && job.retry_state.state_label !== "No failure" ? <RetryStateInline job={job} /> : null}
+      {job.state === "queued" && job.start_blocked_reason ? (
+        <StartBlockedReasonPill count={job.start_blocked_count} details={job.start_blocked_details} nextCheckAt={job.start_blocked_next_check_at} reason={job.start_blocked_reason} startBlockedAt={job.start_blocked_at} />
+      ) : null}
+      {job.manual_paused ? <ManualPauseInline job={job} /> : null}
+      {includeBlockedReason && job.blocked_reason ? <span><CopyableBlockedReason reason={translateBlockedReason(job.blocked_reason, t)} /></span> : null}
+    </MetadataLine>
+  )
 }
 
 function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {

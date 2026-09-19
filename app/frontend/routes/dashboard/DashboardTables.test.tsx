@@ -315,3 +315,93 @@ describe("dashboard DataTable migrations", () => {
     expect(screen.getByRole("link", { name: /WF-8 Fix widgets/ })).toHaveAttribute("href", "/admin/workflows/8")
   })
 })
+
+describe("job subtitle attention row", () => {
+  function attentionRows(title: string) {
+    const cell = screen.getByText(title).closest("td")
+    return cell!.querySelectorAll('div[class*="gap-x-1.5"]')
+  }
+
+  it("renders a single structural metadata line when nothing needs attention", () => {
+    setDesktop(true)
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["issue"]}
+        controls={controls}
+        items={[job()]}
+        landingQueueEntries={[]}
+        prefix=""
+        sortState={sortState()}
+        t={(key) => key}
+      />
+    )
+
+    expect(attentionRows("Fix widgets")).toHaveLength(1)
+  })
+
+  it("does not add a second line for a desktop row's own blocked_reason (it has its own column)", () => {
+    setDesktop(true)
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["issue"]}
+        controls={controls}
+        items={[job({ blocked_reason: { key: "landing_paused" } })]}
+        landingQueueEntries={[]}
+        prefix=""
+        sortState={sortState()}
+        t={(key) => key}
+      />
+    )
+
+    expect(attentionRows("Fix widgets")).toHaveLength(1)
+  })
+
+  it("renders a second attention line with the provider-mismatch pill", () => {
+    setDesktop(true)
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["issue"]}
+        controls={controls}
+        items={[job({
+          provider_mismatch: {
+            job_provider: "codex",
+            job_provider_label: "Codex",
+            repository_provider: "claude",
+            repository_provider_label: "Claude"
+          }
+        })]}
+        landingQueueEntries={[]}
+        prefix=""
+        sortState={sortState()}
+        t={(key) => key}
+      />
+    )
+
+    const rows = attentionRows("Fix widgets")
+    expect(rows).toHaveLength(2)
+    expect(rows[1]).toHaveTextContent("Codex")
+  })
+
+  it("renders a second attention line for a manually paused job", () => {
+    setDesktop(true)
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["issue"]}
+        controls={controls}
+        items={[job({ manual_paused: true })]}
+        landingQueueEntries={[]}
+        prefix=""
+        sortState={sortState()}
+        t={(key) => key}
+      />
+    )
+
+    const rows = attentionRows("Fix widgets")
+    expect(rows).toHaveLength(2)
+    expect(rows[1]).toHaveTextContent("Manually paused")
+  })
+})
