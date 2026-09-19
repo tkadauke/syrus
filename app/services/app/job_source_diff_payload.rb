@@ -206,29 +206,23 @@ module App
       value.respond_to?(:iso8601) ? value.iso8601 : value&.to_s
     end
 
+    # Deliberately never mutates a previously persisted DiffReviewVersion:
+    # only an exact base_sha/head_sha match is reused as-is, and any other
+    # base/head pair -- including a new "current" computation for the same
+    # Job -- gets its own immutable row via DiffReviewVersions::Creator.
+    # Overwriting whatever "All changes" row happened to exist most recently
+    # (the previous behavior) let a single live-recomputed request corrupt
+    # unrelated stored history and made repeated reads of "the same"
+    # selection flicker between different base/head/file-count realities.
     def resolve_diff_review_version(base_sha:, head_sha:, files:, truncated:)
+      existing_version = existing_version_for(base_sha: base_sha, head_sha: head_sha)
+      return existing_version if existing_version
+
       source_run = source_run_for(base_sha: base_sha, head_sha: head_sha)
       explicit_selection = explicit_selection?
       source_workflow = source_run&.workflow || (explicit_selection ? nil : @job.latest_workflow)
       trigger_kind = source_workflow&.trigger_kind || source_run&.trigger_kind
       range_kind = explicit_selection ? "explicit_selection" : "all_changes"
-      existing_version = existing_version_for(base_sha: base_sha, head_sha: head_sha)
-      existing_version ||= @job.diff_review_versions.all_changes.latest_first.first unless explicit_selection
-      if existing_version
-        unless explicit_selection
-          promote_all_changes_version!(
-            existing_version,
-            base_sha: base_sha,
-            head_sha: head_sha,
-            workflow: source_workflow,
-            run: source_run,
-            trigger_kind: trigger_kind,
-            files: files,
-            truncated: truncated
-          )
-        end
-        return existing_version
-      end
 
       DiffReviewVersions::Creator.call(
         job: @job,
@@ -255,43 +249,6 @@ module App
           .where(base_sha: base_sha, head_sha: head_sha)
           .latest_first
           .first
-    end
-
-    def promote_all_changes_version!(version, base_sha:, head_sha:, workflow:, run:, trigger_kind:, files:, truncated:)
-      metadata = version.metadata.to_h.merge("range_kind" => "all_changes")
-      version.update!(
-        base_sha: base_sha,
-        head_sha: head_sha,
-        base_ref: job_base_branch,
-        head_ref: @job.branch_name,
-        workflow: workflow,
-        run: run,
-        trigger_kind: trigger_kind.to_s.presence || workflow&.trigger_kind || run&.trigger_kind,
-        label: "All changes",
-        reason: "source_diff",
-        truncated: truncated,
-        files_snapshot: version_files_snapshot(files),
-        metadata: metadata
-      )
-    end
-
-    def version_files_snapshot(files)
-      Array(files).map do |file|
-        {
-          "path" => value_for(file, :path).to_s,
-          "status" => value_for(file, :status).to_s,
-          "additions" => value_for(file, :additions).to_i,
-          "deletions" => value_for(file, :deletions).to_i,
-          "patch" => value_for(file, :patch)
-        }
-      end
-    end
-
-    def value_for(file, key)
-      return file[key] if file.is_a?(Hash) && file.key?(key)
-      return file[key.to_s] if file.is_a?(Hash)
-
-      file.public_send(key) if file.respond_to?(key)
     end
 
     def fixture_diff_review_version(fixture)
