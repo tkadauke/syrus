@@ -1844,7 +1844,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_215809) do
     t.index ["job_id", "merge_train_id"], name: "idx_merge_train_members_job_train"
     t.index ["job_id"], name: "index_merge_train_members_on_job_id"
     t.index ["merge_train_id", "job_id"], name: "index_merge_train_members_on_merge_train_id_and_job_id", unique: true
-    t.index ["merge_train_id", "position"], name: "index_merge_train_members_on_merge_train_id_and_position"
+    t.index ["merge_train_id", "position"], name: "index_merge_train_members_on_merge_train_id_and_position", unique: true
     t.index ["merge_train_id"], name: "index_merge_train_members_on_merge_train_id"
   end
 
