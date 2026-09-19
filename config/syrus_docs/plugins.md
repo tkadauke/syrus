@@ -2547,15 +2547,17 @@ navigation groups in the Admin sidebar. Valid values:
 
 | `group_id` | Admin section |
 |---|---|
-| `operations` | Operations (Queue, Stuck, Reconciler Activity, Processes) |
+| `operations` | Operations (Queue, Stuck, Work Units, Workflow Events, Reconciler Events, Processes) |
 | `observability` | Observability (Console, Resource Admission) |
 | `users_access` | Users & Access (Users, Invitations, GitHub App, Installations) |
 | `system` | System (Settings, Features, Plugins) |
 | `product_data` | Product Data (Scoped Chat Events, Insights) |
 
-Plugin pages with an unrecognized or absent `group_id` appear ungrouped at the
-bottom of the sidebar below the named sections. Omit `group_id` (or set it to
-`nil`) for standalone pages that do not belong to any group.
+Omit `group_id` (or set it to `nil`) for standalone pages that should appear
+ungrouped at the bottom of the sidebar below the named sections. Unrecognized
+`group_id` values are also treated as ungrouped by the frontend, but installed
+plugins must not declare them: the plugin admin-page contract spec rejects
+admin pages whose non-blank `group_id` is not one of the valid values above.
 
 Sidebar-page plugins should declare:
 
