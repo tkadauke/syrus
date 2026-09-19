@@ -107,14 +107,6 @@ class Feature < ApplicationRecord
     repository.distributed_workflow_dag_enabled?
   end
 
-  # Instance-wide default for the visual_review Labs feature (headless-browser
-  # QA screenshots taken against the worker's own in-step preview). A
-  # repository's .syrus.yml `visual_review.enabled` setting overrides this
-  # default per repo.
-  def self.visual_review_enabled?
-    enabled?(:visual_review)
-  end
-
   def self.epicless_job_bundling_enabled?
     enabled?(:epicless_job_bundling)
   end

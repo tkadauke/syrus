@@ -90,6 +90,33 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
     expect(slugs).not_to include("coding_mode", "local_mode")
   end
 
+  it "always omits persistent_mcp_sidecar from the visible Labs feature list" do
+    sign_in_as(admin)
+    allow(Features::SyncFromYaml).to receive(:declarations).and_return(declarations + [
+      { slug: "persistent_mcp_sidecar", category: "Labs", name: "Persistent MCP sidecar", description: "Worker-local daemon skeleton.", default_enabled: false }
+    ])
+
+    get "/api/v1/app/admin/features"
+
+    expect(response).to have_http_status(:ok)
+    slugs = parse_body["categories"].flat_map { |category| category["features"].map { |feature| feature["slug"] } }
+    expect(slugs).to include("new_dashboard", "fast_queue")
+    expect(slugs).not_to include("persistent_mcp_sidecar")
+  end
+
+  it "refuses to update the hidden persistent_mcp_sidecar flag through this endpoint" do
+    sign_in_as(admin)
+    Feature.create!(slug: "persistent_mcp_sidecar", category: "Labs", name: "Persistent MCP sidecar", enabled: false)
+    allow(Features::SyncFromYaml).to receive(:declarations).and_return(declarations + [
+      { slug: "persistent_mcp_sidecar", category: "Labs", name: "Persistent MCP sidecar", description: "Worker-local daemon skeleton.", default_enabled: false }
+    ])
+
+    patch "/api/v1/app/admin/features/persistent_mcp_sidecar", params: { feature: { enabled: true } }
+
+    expect(response).to have_http_status(:not_found)
+    expect(Feature.find_by!(slug: "persistent_mcp_sidecar")).not_to be_enabled
+  end
+
   it "updates a declared feature" do
     sign_in_as(admin)
 

@@ -84,19 +84,6 @@ RSpec.describe Feature, type: :model do
     end
   end
 
-  describe ".visual_review_enabled?" do
-    it "is false when the row is absent and follows the row when present" do
-      Feature.where(slug: "visual_review").delete_all
-      expect(Feature.visual_review_enabled?).to eq(false)
-
-      feature = Feature.create!(slug: "visual_review", category: "Labs", name: "Visual review", enabled: true)
-      expect(Feature.visual_review_enabled?).to eq(true)
-
-      feature.update!(enabled: false)
-      expect(Feature.visual_review_enabled?).to eq(false)
-    end
-  end
-
   describe ".epicless_job_bundling_enabled?" do
     it "is false when the row is absent and follows the row when present" do
       Feature.where(slug: "epicless_job_bundling").delete_all
@@ -189,9 +176,9 @@ RSpec.describe Feature, type: :model do
   end
 
   describe "declarations" do
-    it "declares the visual_review labs flag default-on in config/features.yml" do
+    it "does not declare a visual_review flag in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "visual_review" }
-      expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
+      expect(declaration).to be_nil
     end
 
     it "declares the coding_mode labs flag default-on in config/features.yml" do
@@ -199,9 +186,14 @@ RSpec.describe Feature, type: :model do
       expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
     end
 
-    it "declares the local_mode labs flag default-on in config/features.yml" do
+    it "declares the local_mode labs flag default-off in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "local_mode" }
-      expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
+      expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
+    end
+
+    it "declares the persistent_mcp_sidecar labs flag default-off in config/features.yml" do
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "persistent_mcp_sidecar" }
+      expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
     end
 
 

@@ -333,8 +333,8 @@ class SyrusYml
     )
   end
 
-  # Visual review is off by default at the instance level (Feature.visual_review_enabled?);
-  # a repository opts in (or explicitly opts out) per repo via this block.
+  # Visual review is on by default at the instance level;
+  # a repository opts out (or overrides rounds/files/seed notes) per repo via this block.
   def parse_visual_review(raw)
     return nil if raw.nil?
     raise ParseError, "visual_review: must be a mapping" unless raw.is_a?(Hash)
@@ -348,7 +348,7 @@ class SyrusYml
     VisualReviewConfig.new(
       # No `|| false` here on purpose: nil (the `enabled` key omitted, or
       # explicitly set to `null`/blank) must stay nil so callers can
-      # distinguish "not specified — defer to Feature.visual_review_enabled?"
+      # distinguish "not specified — defer to the always-on instance default"
       # from an explicit `enabled: false` repo override. Any other present
       # value is cast to a real boolean by ActiveModel::Type::Boolean (only
       # its recognized false-spellings — "false", "0", "f", etc. — cast to

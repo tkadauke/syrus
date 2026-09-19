@@ -1435,18 +1435,17 @@ module App
 
     # Mirrors preview_provider_configured?'s read-the-local-bare-clone
     # approach (no GitHub API call on every job-detail render), but unlike
-    # preview, visual_review has an instance-wide default toggle
-    # (Feature.visual_review_enabled?) that applies whenever the repo
-    # hasn't overridden it — so a missing/unreadable .syrus.yml or an
-    # absent local clone falls back to that default instead of `false`.
-    # This mirrors RepoVisualReviewPlan's resolution order, which the
+    # preview, visual_review defaults to enabled whenever the repo hasn't
+    # overridden it — so a missing/unreadable .syrus.yml or an absent local
+    # clone falls back to `true` instead of `false`. This mirrors
+    # RepoVisualReviewPlan's resolution order, which the
     # Initial/Retry/PrFeedback/ChatFeedback workflow templates use to
     # decide whether the automatic visual_review loop runs at all.
     def visual_review_configured?
       return @visual_review_configured unless @visual_review_configured.nil?
 
       enabled = local_syrus_yml_config&.visual_review&.enabled
-      @visual_review_configured = enabled.nil? ? Feature.visual_review_enabled? : enabled
+      @visual_review_configured = enabled.nil? ? true : enabled
     end
 
     def visual_diff_available?

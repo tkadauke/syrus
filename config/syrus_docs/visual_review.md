@@ -8,21 +8,17 @@ judgment, exercises the running app, captures "after" screenshots as
 Workflow artifacts, and records a verdict that can send the change back
 for another implementation pass.
 
-## Feature flag
+## On by default
 
-Visual review is gated by the `visual_review` feature flag
-(`config/features.yml`), on by default. Disable it from Admin → Features,
-or via Rails console:
-
-```ruby
-Feature.find_by(slug: "visual_review").update(enabled: false)
-```
-
-`Feature.visual_review_enabled?` is the instance-wide default that applies
-whenever a repository hasn't set its own `.syrus.yml` `visual_review.enabled`
-override (see [`syrus_yml.md`](syrus_yml.md)). Enabling the flag turns
-visual review on for every repository that doesn't explicitly opt out;
-it does not by itself require any per-repo configuration.
+Visual review is on by default instance-wide — there is no `visual_review`
+Feature flag to toggle (the September 2026 Labs graduation removed the
+instance-wide gate outright, not just flipped its default: visual review was
+already independently gated per-repository via `.syrus.yml`'s
+`visual_review.enabled`, so the instance-wide flag was redundant once it
+became unconditionally available). A repository opts out (or overrides
+rounds/files/seed notes) per repo via `.syrus.yml`'s `visual_review` block
+(see [`syrus_yml.md`](syrus_yml.md)); omitting the block (or the `enabled`
+key within it) defers to the always-on default.
 
 ## How it works
 
@@ -118,9 +114,8 @@ visual_review:
 ```
 
 - **`enabled`** — explicitly turns visual review on (`true`) or off
-  (`false`) for this repository, overriding the instance-wide `visual_review`
-  Feature flag default. Omitting the key (or the whole block) defers to
-  `Feature.visual_review_enabled?`.
+  (`false`) for this repository, overriding the always-on default. Omitting
+  the key (or the whole block) defers to that default (enabled).
 - **`rounds`** — how many visual-review passes run. Range 0–10, default 1.
 - **`when_files_changed`** — optional glob patterns; when present, visual
   review only runs when at least one changed file matches. Same semantics as

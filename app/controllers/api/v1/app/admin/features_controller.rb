@@ -3,6 +3,13 @@ module Api
     module App
       module Admin
         class FeaturesController < BaseController
+          # Declared and functional (toggleable via Rails console) but
+          # deliberately excluded from both the visible Labs feature list and
+          # this controller's own `update` action: these are unfinished or
+          # otherwise not meant to be discoverable as a self-hoster-facing
+          # toggle yet.
+          ALWAYS_HIDDEN_SLUGS = %w[persistent_mcp_sidecar].freeze
+
           def index
             render json: features_payload
           end
@@ -36,6 +43,7 @@ module Api
 
           def declared_features
             declarations = Features::SyncFromYaml.declarations.uniq { |d| d.fetch(:slug) }
+            declarations = declarations.reject { |declaration| ALWAYS_HIDDEN_SLUGS.include?(declaration.fetch(:slug)) }
             declarations = declarations.reject { |declaration| %w[coding_mode local_mode].include?(declaration.fetch(:slug)) } if AppSetting.simple?
             records = Feature.where(slug: declarations.map { |declaration| declaration.fetch(:slug) }).index_by(&:slug)
 

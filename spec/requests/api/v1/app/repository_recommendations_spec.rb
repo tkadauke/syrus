@@ -7,7 +7,6 @@ RSpec.describe "API: repository recommendations", type: :request do
 
   before do
     allow(App::PreviewAvailability).to receive(:configured?).and_return(false)
-    allow(Feature).to receive(:visual_review_enabled?).and_return(false)
     allow(GithubClient).to receive(:for).and_return(client)
     allow(client).to receive(:file_content_at).and_return(nil)
     allow(client).to receive(:file_tree_at).and_return(items: [], truncated: false)

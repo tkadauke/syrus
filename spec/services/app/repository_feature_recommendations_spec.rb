@@ -7,7 +7,6 @@ RSpec.describe App::RepositoryFeatureRecommendations do
 
   before do
     allow(App::PreviewAvailability).to receive(:configured?).and_return(false)
-    allow(Feature).to receive(:visual_review_enabled?).and_return(false)
     allow(client).to receive(:file_content_at).and_return(nil)
     allow(client).to receive(:file_tree_at).and_return(items: [], truncated: false)
   end
@@ -35,9 +34,18 @@ RSpec.describe App::RepositoryFeatureRecommendations do
       .and_return(items: paths.map { |path| { path: path, size: 0 } }, truncated: false)
   end
 
-  it "recommends visual review for browser apps without explicit visual review" do
+  it "does not recommend visual review for browser apps without explicit visual review (on by default)" do
     stub_repo_files(%w[package.json src/App.tsx])
     stub_syrus_yml("preview:\n  start: npm run dev\n")
+
+    ids = recommendations.map { |entry| entry.fetch(:id) }
+
+    expect(ids).not_to include("visual_review")
+  end
+
+  it "recommends visual review for browser apps that explicitly disabled it" do
+    stub_repo_files(%w[package.json src/App.tsx])
+    stub_syrus_yml("preview:\n  start: npm run dev\nvisual_review:\n  enabled: false\n")
 
     expect(recommendations).to include(hash_including(
       id: "visual_review",
@@ -104,7 +112,7 @@ RSpec.describe App::RepositoryFeatureRecommendations do
     repository.update!(prepare_enabled: false, pr_cost_footer_enabled: false, ci_health: "not_configured")
     allow(App::PreviewAvailability).to receive(:configured?).and_return(true)
     stub_repo_files(%w[package.json])
-    stub_syrus_yml("preview:\n  start: npm run dev\n")
+    stub_syrus_yml("preview:\n  start: npm run dev\nvisual_review:\n  enabled: false\n")
 
     expect(recommendations.size).to eq(3)
     expect(recommendations.map { |entry| entry.fetch(:id) }).to eq(%w[visual_review preview_seed_data syrus_prepare])
