@@ -274,7 +274,6 @@ module Api
         def design_doc_column_label(column)
           {
             "title" => "Title",
-            "doc_slug" => "DOC",
             "state" => "State",
             "repository" => "Repository",
             "owner" => "Owner",
