@@ -208,6 +208,34 @@ RSpec.describe RunHostAdmission do
     create_profile(step_kind: "grader", grader_name: grader_name, duration: 2_700, cpu: 80.0)
   end
 
+  def process_attributed_grader_profile(grader_name:, io_bytes:, memory_bytes:)
+    WorkflowStepResourceProfile.create!(
+      repository: repository,
+      agent_provider: workflow.agent_provider,
+      trigger_kind: workflow.trigger_kind,
+      step_kind: "grader",
+      grader_name: grader_name,
+      job_kind: job.kind.to_s,
+      sample_count: 30,
+      attributed_sample_count: 0,
+      process_attributed_sample_count: 30,
+      host_pressure_sample_count: 30,
+      attribution_quality: "process_attributed",
+      p90_duration_seconds: 60,
+      p90_cpu_pressure: 1.0,
+      p90_io_pressure: 1.0,
+      p90_memory_used_percent: 10.0,
+      p90_process_attributed_duration_seconds: 60,
+      p90_process_attributed_cpu_percent: 1.0,
+      p90_process_attributed_memory_bytes: memory_bytes,
+      p90_process_attributed_io_bytes: io_bytes,
+      timeout_rate: 0.0,
+      failure_rate: 0.0,
+      last_observed_at: Time.current,
+      profile_version: WorkflowStepResourceProfile::PROFILE_VERSION
+    )
+  end
+
   def create_profile(step_kind:, grader_name:, duration:, cpu:)
     WorkflowStepResourceProfile.create!(
       repository: repository,
@@ -362,6 +390,25 @@ RSpec.describe RunHostAdmission do
         "resource_guard_kind" => "high_cost_grader",
         "active_high_cost_grader_run_count" => 1,
         "guarded_runs_per_host" => 1
+      )
+    end
+
+    it "defers a second process-attributed high-IO grader on a warning host" do
+      worker_sample(cpu_pressure_some: 25.0)
+      process_attributed_grader_profile(
+        grader_name: "rspec",
+        io_bytes: 2.gigabytes,
+        memory_bytes: 128.megabytes
+      )
+      running_grader_run(name: "rspec")
+
+      decision = described_class.call(run: grader_run(name: "rspec"))
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect(decision.details).to include(
+        "resource_guard_kind" => "high_cost_grader",
+        "active_high_cost_grader_run_count" => 1
       )
     end
 

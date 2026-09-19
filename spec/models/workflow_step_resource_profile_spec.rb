@@ -63,6 +63,28 @@ RSpec.describe WorkflowStepResourceProfile do
     )
   end
 
+  it "derives process-attributed IO and memory pressure from process-owned bytes" do
+    profile = profile(sample_count: 40)
+    profile.assign_attributes(
+      attributed_sample_count: 0,
+      process_attributed_sample_count: 10,
+      p90_process_attributed_duration_seconds: 120,
+      p90_process_attributed_cpu_percent: 20.0,
+      p90_process_attributed_io_bytes: 512.megabytes,
+      p90_process_attributed_memory_bytes: 256.megabytes
+    )
+
+    expect(profile.conservative_prediction).to include(
+      duration_seconds: 120,
+      cpu_pressure: 20.0,
+      io_pressure: 50.0,
+      memory_used_percent: 25.0,
+      prediction_source: "command_attributed",
+      prediction_basis: "process_attributed",
+      fallback_reason: nil
+    )
+  end
+
   it "falls back to host-correlated profile data when command attribution is not confident" do
     profile = profile(sample_count: 40)
     profile.assign_attributes(
