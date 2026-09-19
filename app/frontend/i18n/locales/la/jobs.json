@@ -219,6 +219,8 @@
   "detail_started": "Inceptum",
   "detail_closed": "Clausum",
   "detail_emergency_land": "Subitus landing",
+  "detail_emergency_land_time_not_recorded": "Tempus non notatum",
+  "detail_emergency_land_confirmed_by": "Confirmatum ab {{user}}",
   "detail_runaway_protection": "Tutela aberrantis",
   "detail_runaway_protection_hint": "iterationes automaticae prohibitae — preme Retemptare ad removendum",
   "approval_policy": "Regula",

@@ -230,6 +230,8 @@
   "detail_started": "Started",
   "detail_closed": "Closed",
   "detail_emergency_land": "Emergency land",
+  "detail_emergency_land_time_not_recorded": "Time not recorded",
+  "detail_emergency_land_confirmed_by": "Confirmed by {{user}}",
   "detail_runaway_protection": "Runaway protection",
   "detail_runaway_protection_hint": "automatic retries blocked — click Retry to clear",
   "approval_policy": "Policy",

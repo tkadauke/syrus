@@ -223,6 +223,8 @@
   "detail_started": "Gestartet",
   "detail_closed": "Geschlossen",
   "detail_emergency_land": "Emergency-Landung",
+  "detail_emergency_land_time_not_recorded": "Zeit nicht erfasst",
+  "detail_emergency_land_confirmed_by": "Bestätigt von {{user}}",
   "detail_runaway_protection": "Runaway-Schutz",
   "detail_runaway_protection_hint": "automatische Wiederholungen blockiert — Wiederholen klicken zum Aufheben",
   "approval_policy": "Regel",

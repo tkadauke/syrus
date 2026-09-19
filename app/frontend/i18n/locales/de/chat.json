@@ -336,7 +336,7 @@
   "aria_chat_workspace": "Chat-Arbeitsbereich",
   "confirm": "Bestätigen",
   "confirmed": "Bestätigt",
-  "pending_action_emergency_land_warning": "Dies umgeht die Joberstellung und landet sofort, ohne jede Qualitätskontrolle.",
+  "pending_action_emergency_land_warning": "Dies überspringt die Grader-, Adversarial-Review- und Visual-Review-Pipeline von Syrus und merged den PR anschließend direkt über GitHub.",
   "edit_proposal": "Vorschlag bearbeiten",
   "aria_close_proposal_editor": "Vorschlags-Editor schließen",
   "attached_scope": "Angehängter Geltungsbereich",
