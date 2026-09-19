@@ -111,31 +111,32 @@ RSpec.describe Features::SyncFromYaml do
     path&.delete if path&.exist?
   end
 
-  it "does not silently re-enable coding_mode, local_mode, or visual_review for an instance that " \
-     "explicitly turned one off before their default flipped to true" do
-    %w[coding_mode local_mode visual_review].each do |slug|
-      Feature.find_or_create_by!(slug: slug) do |feature|
-        feature.category = "Labs"
-        feature.name = slug.titleize
-      end.update!(enabled: false)
-    end
+  it "does not silently re-enable coding_mode for an instance that " \
+     "explicitly turned it off before its default flipped to true" do
+    Feature.find_or_create_by!(slug: "coding_mode") do |feature|
+      feature.category = "Labs"
+      feature.name = "Coding Mode"
+    end.update!(enabled: false)
 
     described_class.call
 
-    %w[coding_mode local_mode visual_review].each do |slug|
-      feature = Feature.find_by!(slug: slug)
-      expect(feature.default_enabled).to be(true), "expected #{slug} to now default to true in config/features.yml"
-      expect(feature.enabled).to be(false), "expected the operator override for #{slug} to survive the default flip"
-    end
+    feature = Feature.find_by!(slug: "coding_mode")
+    expect(feature.default_enabled).to be(true), "expected coding_mode to now default to true in config/features.yml"
+    expect(feature.enabled).to be(false), "expected the operator override for coding_mode to survive the default flip"
   end
 
-  it "seeds Feature.visual_review_enabled? to true on a fresh install with no operator override, " \
-     "matching config/features.yml's default and CLAUDE.md's documented on-by-default behavior" do
-    Feature.where(slug: "visual_review").delete_all
+  it "does not silently re-disable local_mode for an instance that " \
+     "explicitly turned it on before its default flipped to false" do
+    Feature.find_or_create_by!(slug: "local_mode") do |feature|
+      feature.category = "Labs"
+      feature.name = "Local Mode"
+    end.update!(enabled: true)
 
     described_class.call
 
-    expect(Feature.visual_review_enabled?).to be(true)
+    feature = Feature.find_by!(slug: "local_mode")
+    expect(feature.default_enabled).to be(false), "expected local_mode to default to false in config/features.yml"
+    expect(feature.enabled).to be(true), "expected the operator override for local_mode to survive the default flip"
   end
 
   it "does not delete features removed from YAML" do

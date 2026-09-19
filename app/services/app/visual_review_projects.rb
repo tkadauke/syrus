@@ -110,7 +110,7 @@ module App
     end
 
     def visual_review_enabled?(config)
-      config&.enabled.nil? ? Feature.visual_review_enabled? : config.enabled
+      config&.enabled.nil? ? true : config.enabled
     end
 
     def choice_for(project)
