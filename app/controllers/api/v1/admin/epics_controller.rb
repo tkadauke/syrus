@@ -5,6 +5,9 @@ module Api
       #   GET /api/v1/admin/epics       → compact list (filterable)
       #   GET /api/v1/admin/epics/:id   → full detail (child jobs + deps)
       class EpicsController < BaseController
+        DEFAULT_PER = 50
+        MAX_PER = 100
+
         # Compact list. Filter via:
         #   ?state=backlog|ready|in_progress|done|archived
         #   ?repo=owner/name
@@ -15,7 +18,10 @@ module Api
         #                                    successfully. "What's still
         #                                    blocking the Epic from
         #                                    completing?"
-        # No filters → most-recently updated 50.
+        # Pagination:
+        #   ?page (1-indexed), ?per (default 50, max 100)
+        #
+        # No filters → most-recently updated page.
         def index
           scope = Epic.includes(:owner, :repository, :owner_user).order(updated_at: :desc)
           scope = scope.where(state: params[:state]) if params[:state].present?
@@ -30,9 +36,17 @@ module Api
           if truthy?(params[:has_unfinished_children])
             scope = scope.where(id: unfinished_child_epic_ids)
           end
-          epics = scope.limit(50)
+
+          per = per_param
+          page = page_param
+          total = scope.count
+          epics = scope.offset((page - 1) * per).limit(per).to_a
+
           render json: {
             count: epics.size,
+            total: total,
+            page: page,
+            per: per,
             epics: epics.map { |e| serialize_compact(e) }
           }
         end
@@ -74,6 +88,14 @@ module Api
         end
 
         private
+
+        def per_param
+          (params[:per].presence || DEFAULT_PER).to_i.clamp(1, MAX_PER)
+        end
+
+        def page_param
+          [ params[:page].to_i, 1 ].max
+        end
 
         def epic_params
           source = params[:epic].present? ? params.require(:epic) : params
