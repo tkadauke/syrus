@@ -882,23 +882,42 @@ verify_worker_native_toolchain() {
     fi
 
     echo "→ ${label}/${workload}: native build toolchain smoke check"
-    KUBECONFIG="$kubeconfig" kubectl exec -n "$namespace" "$workload" -- bash -c \
-      'set -euo pipefail
-       test "$(id -u)" = "1000"
-       command -v gcc >/dev/null
-       command -v make >/dev/null
-       cd "$(mktemp -d)"
-       ruby -rmkmf -e '\''abort "native compiler smoke check failed" unless try_compile("int main(){return 0;}")'\''' ||
-      {
-        cat >&2 <<MSG
+    local attempt output status
+    output=""
+    status=1
+    for attempt in 1 2 3 4 5; do
+      set +e
+      output="$(KUBECONFIG="$kubeconfig" kubectl exec -n "$namespace" "$workload" -- bash -c \
+        'set -euo pipefail
+         test "$(id -u)" = "1000"
+         command -v gcc >/dev/null
+         command -v make >/dev/null
+         cd "$(mktemp -d)"
+         ruby -rmkmf -e '\''abort "native compiler smoke check failed" unless try_compile("int main(){return 0;}")'\''' 2>&1)"
+      status=$?
+      set -e
+      [ "$status" = 0 ] && break
+
+      if ! grep -Eq 'failed to find container|container .* not found|pod .* not found|unable to upgrade connection' <<<"$output"; then
+        break
+      fi
+      if [ "$attempt" != 5 ]; then
+        echo "→ ${label}/${workload}: worker smoke check target disappeared during rollout; retrying (${attempt}/5)" >&2
+        sleep 5
+      fi
+    done
+
+    if [ "$status" != 0 ]; then
+      [ -n "$output" ] && printf '%s\n' "$output" >&2
+      cat >&2 <<MSG
 ✗ ${label}/${workload}: worker pod cannot compile a tiny native extension as uid 1000.
 
 This usually means the workload is not running the worker-dev image, the
 toolchain layer was dropped from the image, or gcc/make are hidden from the
 RunJob user's PATH.
 MSG
-        exit 1
-      }
+      exit 1
+    fi
   done
 }
 
