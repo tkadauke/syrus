@@ -48,6 +48,31 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
     expect(workflow.work_unit.reload).to be_queued
   end
 
+  it "reactivates a terminal WorkUnit when its Workflow is still running" do
+    job = Factories.job_record(user: user, repository: repository, state: "running", agent_provider: "codex")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "codex")
+    first_step = workflow.first_step
+    first_run = first_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: "codex")
+    ordered_steps = workflow.steps.order(:position).to_a
+    next_step = ordered_steps.detect { |step| step.id != first_step.id }
+    tail_step = ordered_steps.detect { |step| step.position > next_step.position }
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+    first_step.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+    first_run.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+    next_step.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    tail_step.update_columns(state: "cancelled", started_at: nil, finished_at: 8.minutes.ago) if tail_step
+    workflow.work_unit.mark_terminal!("failed")
+    workflow.work_unit.work_intent.fail!
+
+    result = described_class.call(workflow.id, next_step.id)
+
+    expect(result).to be_started
+    expect(result.run.step).to eq(next_step)
+    expect(workflow.work_unit.reload).to be_running
+    expect(workflow.work_unit.work_intent.reload).to be_requested
+    expect(tail_step.reload).to be_queued if tail_step
+  end
+
   it "does not resume a step whose DAG dependencies are not ready" do
     feature = Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |record|
       record.name = "Distributed workflow DAG"

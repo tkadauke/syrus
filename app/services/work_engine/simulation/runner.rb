@@ -297,8 +297,8 @@ module WorkEngine
       def set_job_provider!(value)
         attrs = value.to_h
         job = Job.find(attrs.fetch("job"))
-        provider = attrs.fetch("provider")
-        job.switch_job_provider_setting!(provider.to_s)
+        provider = resolve_simulated_provider(attrs.fetch("provider"))
+        job.switch_job_provider_setting!(provider)
         events << "switched #{job.slug} provider to #{provider}"
       end
 
@@ -470,7 +470,18 @@ module WorkEngine
 
       def provider_for(value)
         attrs = value.is_a?(Hash) ? value : {}
-        attrs["provider"].presence || (value.is_a?(String) ? value : nil) || "codex"
+        provider = attrs["provider"].presence || (value.is_a?(String) ? value : nil) || "codex"
+        resolve_simulated_provider(provider)
+      end
+
+      def resolve_simulated_provider(provider)
+        case provider.to_s
+        when "alternate"
+          User.agent_providers.find { |candidate| candidate != "codex" } ||
+            raise(ArgumentError, "simulation requested alternate provider but only #{User.agent_providers.inspect} is available")
+        else
+          provider.to_s
+        end
       end
 
       def simulation_user

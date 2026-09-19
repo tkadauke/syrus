@@ -21,7 +21,7 @@ events:
         state: running
     do:
       exhaust_provider_usage: codex
-  - name: switch job to claude once the unit is provider-blocked
+  - name: switch job to alternate provider once the unit is provider-blocked
     once: true
     when:
       work_unit:
@@ -30,7 +30,7 @@ events:
     do:
       set_job_provider:
         job: first
-        provider: claude
+        provider: alternate
 outcomes:
   default: success
 expect:

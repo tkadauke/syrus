@@ -27,9 +27,9 @@ RSpec.describe AgentProviders::Muse do
       expect(described_class.provider_key).to eq(described_class.provider)
     end
 
-    it "uses dotted MCP tool names" do
+    it "uses Muse MCP tool names" do
       expect(described_class.mcp_tool_name("submit_summary", server_name: "syrus-mcp-sidecar"))
-        .to eq("syrus-mcp-sidecar.submit_summary")
+        .to eq("mcp__syrus_mcp_sidecar__submit_summary")
     end
   end
 

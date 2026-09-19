@@ -13,7 +13,8 @@ module AgentProviders
     end
 
     def self.mcp_tool_name(tool_name, server_name:)
-      "#{server_name}.#{tool_name}"
+      normalized_server = server_name.to_s.gsub(/[^A-Za-z0-9_]/, "_")
+      "mcp__#{normalized_server}__#{tool_name}"
     end
 
     def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)

@@ -54,8 +54,9 @@ class ClaudeTranscript
   # rather than materialize the full list unless small.
   def events
     return enum_for(:events) unless block_given?
-    @jsonl.each_line do |line|
-      parse_line(line).each { |ev| yield ev }
+
+    parsed_records.each do |record|
+      parse_record(record).each { |ev| yield ev }
     end
   end
 
@@ -65,10 +66,74 @@ class ClaudeTranscript
 
   private
 
-  def parse_line(line)
-    line = line.strip
-    return [] if line.empty?
-    parsed = JSON.parse(line)
+  def parsed_records
+    @parsed_records ||= begin
+      records = parse_exported_records
+      records.presence || parse_jsonl_records
+    end
+  end
+
+  def parse_exported_records
+    text = @jsonl.strip
+    return [] if text.blank?
+    return [] unless text.start_with?("{", "[")
+
+    extract_transcript_records(JSON.parse(text))
+  rescue JSON::ParserError, TypeError
+    []
+  end
+
+  def parse_jsonl_records
+    @jsonl.each_line.filter_map do |line|
+      line = line.strip
+      next if line.empty?
+
+      JSON.parse(line)
+    rescue JSON::ParserError, TypeError
+      nil
+    end
+  end
+
+  def extract_transcript_records(value)
+    case value
+    when Array
+      value.flat_map { |item| extract_transcript_records(item) }
+    when Hash
+      child_records = extract_child_record_json(value)
+      return child_records if child_records.present?
+
+      events = value["events"]
+      return extract_transcript_records(events) if events.is_a?(Array)
+
+      transcript_record?(value) ? [ value ] : []
+    else
+      []
+    end
+  end
+
+  def extract_child_record_json(value)
+    children = value.dig("envelope", "children")
+    return [] unless children.is_a?(Array)
+
+    children.filter_map do |child|
+      next unless child.is_a?(Hash)
+      raw = child["record_json"].to_s
+      next if raw.blank?
+
+      JSON.parse(raw)
+    rescue JSON::ParserError
+      nil
+    end
+  end
+
+  def transcript_record?(value)
+    value["record_type"].present? ||
+      value["payload_type"].present? ||
+      value["type"].present? ||
+      value["event"].present?
+  end
+
+  def parse_record(parsed)
     return [] unless parsed.is_a?(Hash)
 
     return agy_events(parsed) if parsed["event"].present? && respond_to?(:agy_events, true)
@@ -88,7 +153,7 @@ class ClaudeTranscript
     when "event"       then muse_event_events(parsed)
     else                    [ Event.new(kind: :other, timestamp: parsed["timestamp"], data: parsed) ]
     end
-  rescue JSON::ParserError, NoMethodError, TypeError
+  rescue NoMethodError, TypeError
     []
   end
 

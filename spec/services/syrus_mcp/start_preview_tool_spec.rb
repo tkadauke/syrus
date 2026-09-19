@@ -178,11 +178,11 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
     end
 
     it "runs the configured seed command" do
-      expect(launcher).to receive(:system).with(
+      expect(Open3).to receive(:capture3).with(
         hash_including("BUNDLE_PATH" => File.join(workspace_path, ".syrus/deps/bundle")),
         "bash", "-c", "bin/rails db:seed",
-        chdir: workspace_path, exception: false, unsetenv_others: true
-      ).and_return(true)
+        chdir: workspace_path, unsetenv_others: true
+      ).and_return([ "", "", instance_double(Process::Status, success?: true) ])
       call
     end
 
@@ -198,19 +198,21 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
       )
       allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: nil).and_return(double(resolve: preview_config))
 
-      expect(launcher).to receive(:system).with(
+      expect(Open3).to receive(:capture3).with(
         hash_including("DATABASE_URL" => nil, "RAILS_ENV" => "development"),
         "bash", "-c", "bin/rails db:seed",
-        chdir: workspace_path, exception: false, unsetenv_others: true
-      ).and_return(true)
+        chdir: workspace_path, unsetenv_others: true
+      ).and_return([ "", "", instance_double(Process::Status, success?: true) ])
       call
     end
 
     it "returns an error when the seed step fails" do
-      allow(launcher).to receive(:system).and_return(false)
+      allow(Open3).to receive(:capture3)
+        .and_return([ "", "Validation failed: Chat provider is not included in the list", instance_double(Process::Status, success?: false, exitstatus: 1) ])
       response = call
       expect(response).to be_error
       expect(response.content.first[:text]).to include("preview seed command exited non-zero")
+      expect(response.content.first[:text]).to include("Validation failed: Chat provider")
     end
   end
 
@@ -233,26 +235,26 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
     end
 
     it "runs setup before spawning the preview process" do
-      expect(launcher).to receive(:system).with(
+      expect(Open3).to receive(:capture3).with(
         hash_including("RAILS_ENV" => "development", "BUNDLE_PATH" => File.join(workspace_path, ".syrus/deps/bundle")),
         "bash",
         "-c",
         "bundle install",
         chdir: workspace_path,
-        exception: false,
         unsetenv_others: true
-      ).and_return(true)
+      ).and_return([ "", "", instance_double(Process::Status, success?: true) ])
 
       call
     end
 
     it "returns an error when setup fails" do
-      allow(launcher).to receive(:system).and_return(false)
+      allow(Open3).to receive(:capture3)
+        .and_return([ "bundle output", "bundle error", instance_double(Process::Status, success?: false, exitstatus: 42) ])
 
       response = call
 
       expect(response).to be_error
-      expect(response.content.first[:text]).to include("preview setup command exited non-zero")
+      expect(response.content.first[:text]).to include("preview setup command exited non-zero", "status 42", "bundle output", "bundle error")
       expect(Process).not_to have_received(:spawn)
     end
   end

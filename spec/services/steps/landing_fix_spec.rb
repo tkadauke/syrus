@@ -136,13 +136,11 @@ RSpec.describe Steps::LandingFix, :ci_only do
     expect(run.head_sha).to eq("def456")
   end
 
-  it "fails no-op repairs instead of re-running the full landing grader loop" do
+  it "treats no-op repairs as successful so the landing grader loop can recheck" do
     allow(handler).to receive(:diff_against_default).and_return("diff --git a/app.rb b/app.rb\n+existing")
     allow(handler).to receive(:diff_against_sha).and_return("")
 
-    expect {
-      handler.call
-    }.to raise_error(Steps::Base::NoChangesProduced, "agent produced no changes")
+    expect { handler.call }.not_to raise_error
 
     expect(run.reload.agent_diff).to be_nil
   end
