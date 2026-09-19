@@ -23,6 +23,15 @@ type HeaderAction = {
 type HeaderCommandInput = CommandInput
 type RetryPostInput = Extract<CommandInput, { method: "post" }>
 
+// A non-command overflow-menu entry, for actions like "Give feedback" that
+// toggle an inline panel rather than firing a CommandInput.
+type OverflowExtraItem = {
+  key: string
+  label: string
+  onSelect: () => void
+  tone: ButtonTone
+}
+
 const HEADER_ACTION_ORDER: Record<string, number> = {
   open_in_coding_mode: 100,
   open_in_local_mode: 110,
@@ -69,16 +78,24 @@ export function ChatBubbleIcon() {
   )
 }
 
-export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFeedbackPanel, requestChangesPanelOpen, onToggleRequestChangesPanel, onApprove }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; feedbackPanelOpen: boolean; onToggleFeedbackPanel: () => void; requestChangesPanelOpen?: boolean; onToggleRequestChangesPanel?: () => void; onApprove?: () => void }) {
+export function HeaderActions({ payload, command, onToggleFeedbackPanel, onToggleRequestChangesPanel, onApprove }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; onToggleFeedbackPanel: () => void; onToggleRequestChangesPanel?: () => void; onApprove?: () => void }) {
   const { t } = useT("jobs")
   const [retryFeedbackOpen, setRetryFeedbackOpen] = useState(false)
   const [retryFeedbackInput, setRetryFeedbackInput] = useState<RetryPostInput | null>(null)
   const actions = headerActions(payload, t)
-  const visibleKeys = primaryHeaderActionKeys(payload, actions)
-  const visibleActions = visibleKeys.map((key) => actions.find((action) => action.key === key)).filter((action): action is HeaderAction => Boolean(action))
-  const overflowActions = orderOverflowHeaderActions(actions.filter((action) => !visibleKeys.includes(action.key)))
+  const [primaryKey] = primaryHeaderActionKeys(payload, actions)
+  const primaryAction = actions.find((action) => action.key === primaryKey)
+  const overflowActions = orderOverflowHeaderActions(actions.filter((action) => action.key !== primaryKey))
   const canGiveFeedback = ["implemented", "failed", "no_change_needed"].includes(payload.job.state)
-  const canRequestChanges = (payload.actions.can_request_changes || payload.actions.can_open_in_coding_mode) && onToggleRequestChangesPanel
+  const canRequestChanges = Boolean((payload.actions.can_request_changes || payload.actions.can_open_in_coding_mode) && onToggleRequestChangesPanel)
+
+  // "Give feedback" / "Request changes" toggle an inline panel rather than
+  // firing a command, so they're folded into the "..." overflow menu as ad
+  // hoc items instead of HeaderAction command entries -- only the single
+  // most important action (primaryAction, above) stays on the header itself.
+  const overflowExtraItems: OverflowExtraItem[] = []
+  if (canGiveFeedback) overflowExtraItems.push({ key: "give_feedback", label: t("give_feedback"), onSelect: onToggleFeedbackPanel, tone: "secondary" })
+  if (canRequestChanges) overflowExtraItems.push({ key: "request_changes", label: t("request_changes"), onSelect: onToggleRequestChangesPanel!, tone: "secondary" })
 
   // Keyboard shortcuts mirror the availability check of the button each one
   // stands in for -- found via the same `actions` list, so a shortcut can
@@ -114,46 +131,42 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
     }
   }
 
+  function handleOverflowActionClick(action: HeaderAction) {
+    if (action.key.startsWith("retry_feedback")) {
+      setRetryFeedbackInput(action.input as RetryPostInput)
+      setRetryFeedbackOpen(true)
+      return
+    }
+    handleActionClick(action)
+  }
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-end gap-2" data-tour="job-approve">
-        {canGiveFeedback ? (
-          <Button
-            aria-expanded={feedbackPanelOpen}
-            data-tour="job-feedback"
-            onClick={onToggleFeedbackPanel}
-            variant="secondary"
-          >
-            {t("give_feedback")}
-          </Button>
-        ) : null}
-        {canRequestChanges ? (
-          <Button
-            aria-expanded={requestChangesPanelOpen}
-            data-tour="job-request-changes"
-            onClick={onToggleRequestChangesPanel}
-            variant="secondary"
-          >
-            {t("request_changes")}
-          </Button>
-        ) : null}
-        {visibleActions.map((action) => (
-          action.key === "approve" && onApprove
+        {primaryAction ? (
+          primaryAction.key === "approve" && onApprove
             ? (
               <button
-                className={buttonClass(action.tone)}
+                className={buttonClass(primaryAction.tone)}
                 data-tour="job-approve"
                 disabled={command.isPending}
-                key={action.key}
                 onClick={onApprove}
                 type="button"
               >
-                {action.label}
+                {primaryAction.label}
               </button>
             )
-            : <CommandButton command={command} input={action.input} key={action.key} tone={action.tone}>{action.label}</CommandButton>
-        ))}
-        {overflowActions.length > 0 ? <HeaderActionsMenu actions={overflowActions} command={command} onActionClick={handleActionClick} onRetryFeedback={(input) => { setRetryFeedbackInput(input); setRetryFeedbackOpen(true) }} /> : null}
+            : <CommandButton command={command} input={primaryAction.input} tone={primaryAction.tone}>{primaryAction.label}</CommandButton>
+        ) : null}
+        {overflowExtraItems.length > 0 || overflowActions.length > 0 ? (
+          <HeaderActionsMenu
+            actions={overflowActions}
+            command={command}
+            dataTourFeedback={canGiveFeedback}
+            extraItems={overflowExtraItems}
+            onActionClick={handleOverflowActionClick}
+          />
+        ) : null}
       </div>
       {approveAction ? <JobShortcut description={approveAction.label} group={shortcutGroup} keys="alt+a" onTrigger={triggerApproveShortcut} /> : null}
       {unapproveAction ? <JobShortcut description={unapproveAction.label} group={shortcutGroup} keys="alt+u" onTrigger={() => command.mutate(unapproveAction.input)} /> : null}
@@ -383,8 +396,13 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
   const jobState = payload.job.summary_state.toLowerCase()
   const keys: string[] = []
 
+  // Only one action stays on the header itself -- the single most important
+  // one for this Job's current state -- everything else moves into the
+  // "..." overflow menu. Each branch below is a priority-ordered candidate
+  // list; add() stops taking once a key lands, so it doubles as "pick the
+  // first available of these" fallback selection.
   function add(key: string) {
-    if (availableKeys.has(key) && keys.length < 2) keys.push(key)
+    if (availableKeys.has(key) && keys.length < 1) keys.push(key)
   }
 
   if (jobState === "landing") {
@@ -417,9 +435,9 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
   } else if (availableKeys.has("retry_implementation")) {
     add("retry_implementation")
   } else if (availableKeys.has("accept_triage")) {
-    // The only decision this Job is waiting on, so it gets both slots.
+    // The only decision this Job is waiting on. reject_triage falls back
+    // into the overflow menu alongside it.
     add("accept_triage")
-    add("reject_triage")
   } else {
     add("release_from_backlog")
     add("move_to_backlog")
@@ -435,7 +453,7 @@ const MENU_WIDTH_PX = 224
 
 type MenuPosition = { top: number; left?: number; right?: number }
 
-function HeaderActionsMenu({ actions, command, onActionClick, onRetryFeedback }: { actions: HeaderAction[]; command: ReturnType<typeof useJobCommand>; onActionClick: (action: HeaderAction) => void; onRetryFeedback: (input: RetryPostInput) => void }) {
+function HeaderActionsMenu({ actions, command, dataTourFeedback, extraItems, onActionClick }: { actions: HeaderAction[]; command: ReturnType<typeof useJobCommand>; dataTourFeedback?: boolean; extraItems: OverflowExtraItem[]; onActionClick: (action: HeaderAction) => void }) {
   const [open, setOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -471,6 +489,7 @@ function HeaderActionsMenu({ actions, command, onActionClick, onRetryFeedback }:
       <Button
         aria-expanded={open}
         aria-haspopup="menu"
+        data-tour={dataTourFeedback ? "job-feedback" : undefined}
         disabled={command.isPending}
         onClick={handleToggle}
         ref={buttonRef}
@@ -492,19 +511,23 @@ function HeaderActionsMenu({ actions, command, onActionClick, onRetryFeedback }:
           role="menu"
           style={menuPosition}
         >
+          {extraItems.map((item) => (
+            <button
+              className={menuButtonClass(item.tone)}
+              key={item.key}
+              onClick={() => { closeMenu(); item.onSelect() }}
+              role="menuitem"
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
           {actions.map((action) => (
             <button
               className={menuButtonClass(action.tone)}
               disabled={command.isPending}
               key={action.key}
-              onClick={() => {
-                closeMenu()
-                if (action.key.startsWith("retry_feedback")) {
-                  onRetryFeedback(action.input as RetryPostInput)
-                  return
-                }
-                onActionClick(action)
-              }}
+              onClick={() => { closeMenu(); onActionClick(action) }}
               role="menuitem"
               type="button"
             >

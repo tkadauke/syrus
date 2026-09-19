@@ -10238,6 +10238,7 @@ describe("App", () => {
       ["Cancel", "POST", "/api/v1/app/jobs/42/cancel"]
     ]
     const overflowLabels = [
+      "Request changes",
       "Open in Coding Mode",
       "Open in Local Mode",
       "Cancel Local Mode",
