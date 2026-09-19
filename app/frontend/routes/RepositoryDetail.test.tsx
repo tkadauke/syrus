@@ -326,6 +326,9 @@ describe("RepositoryDetailRoute recommendations", () => {
     expect(screen.getByRole("button", { name: "Poll now" })).toBeInTheDocument()
 
     const banner = screen.getByRole("region", { name: "Recommended actions" })
+    const recommendationBanner = banner.firstElementChild
+    expect(recommendationBanner).toHaveClass("border-info-border", "bg-info-surface", "text-info-text")
+    expect(recommendationBanner?.className).not.toMatch(/\b(?:border|bg|text)-blue-/)
     const tabs = view.container.querySelector("nav")
     expect(tabs).toBeTruthy()
     expect(Boolean(banner.compareDocumentPosition(tabs as Node) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)

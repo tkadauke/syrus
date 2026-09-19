@@ -237,7 +237,7 @@ export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { pa
 function recommendationToneClass(tone: RepositoryFeatureRecommendation["tone"]) {
   const classes = {
     amber: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100",
-    blue: "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100",
+    blue: "border-info-border bg-info-surface text-info-text",
     green: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100",
     gray: "border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   }
