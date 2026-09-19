@@ -224,6 +224,120 @@ RSpec.describe ChatQueuedMessagePromoter do
       expect(chat.reload).to be_turn_in_flight
     end
 
+    it "promotes contiguous ready system notices as one system turn" do
+      first = chat.chat_queued_messages.create!(
+        content: {
+          "_role" => "system",
+          "text" => %(Proposal confirmed. JOB-716 "Map auth" was created.),
+          "source" => "proposal_notification",
+          "outcome" => "confirmed",
+          "acknowledgment" => "Confirmed JOB-716."
+        }
+      )
+      second = chat.chat_queued_messages.create!(
+        content: {
+          "_role" => "system",
+          "text" => %(Proposal rejected. "Clean up" was discarded.),
+          "source" => "proposal_notification",
+          "outcome" => "rejected",
+          "acknowledgment" => "Rejected proposal cleanup."
+        }
+      )
+
+      expect {
+        expect(described_class.deliver_one_if_idle!(chat)).to be true
+      }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).once
+
+      message = ChatMessage.where(chat_session: chat).last
+      expect(message.role).to eq("system")
+      expect(message.content["source"]).to eq("queued_internal_notice_batch")
+      expect(message.content["text"]).to include("Proposal confirmed. JOB-716")
+      expect(message.content["text"]).to include("Proposal rejected.")
+      expect(message.content["internal_prompt"]).to include("Handle them together as one idle-boundary turn")
+      expect(message.content["notices"]).to contain_exactly(
+        a_hash_including(
+          "queued_message_id" => first.id,
+          "text" => %(Proposal confirmed. JOB-716 "Map auth" was created.),
+          "source" => "proposal_notification",
+          "outcome" => "confirmed",
+          "acknowledgment" => "Confirmed JOB-716.",
+          "content" => a_hash_including("source" => "proposal_notification")
+        ),
+        a_hash_including(
+          "queued_message_id" => second.id,
+          "text" => %(Proposal rejected. "Clean up" was discarded.),
+          "source" => "proposal_notification",
+          "outcome" => "rejected",
+          "acknowledgment" => "Rejected proposal cleanup.",
+          "content" => a_hash_including("source" => "proposal_notification")
+        )
+      )
+      expect(first.reload.delivered_at).to be_present
+      expect(second.reload.delivered_at).to be_present
+      expect(chat.reload).to be_turn_in_flight
+    end
+
+    it "does not batch system notices across an earlier user-authored queued message" do
+      user_message = enqueue_message("please handle this first")
+      system_notice = chat.chat_queued_messages.create!(
+        content: {
+          "_role" => "system",
+          "text" => "Proposal rejected.",
+          "source" => "proposal_notification",
+          "acknowledgment" => "Rejected."
+        }
+      )
+
+      expect {
+        expect(described_class.deliver_one_if_idle!(chat)).to be true
+      }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).once
+
+      message = ChatMessage.where(chat_session: chat).last
+      expect(message.role).to eq("user")
+      expect(message.content).to eq("text" => "please handle this first")
+      expect(user_message.reload.delivered_at).to be_present
+      expect(system_notice.reload.delivered_at).to be_nil
+    end
+
+    it "does not skip an unready goal continuation at the head to promote later system notices" do
+      repository = Factories.repository(user: user)
+      chat.update!(repository: repository, mode: "coding", coding_checkout_prepare_status: "queued")
+      ChatGoal.create!(
+        chat_session: chat,
+        user: user,
+        repository: repository,
+        prompt: "Keep implementing",
+        mode_snapshot: { "mode" => "coding", "repository_id" => repository.id }
+      )
+      continuation = chat.chat_queued_messages.create!(
+        content: {
+          "text" => "Goal continuation started.",
+          "internal_prompt" => "Continue with private goal context.",
+          "source" => "goal_continuation",
+          "goal_continuation" => true
+        }
+      )
+      notice = chat.chat_queued_messages.create!(
+        content: {
+          "_role" => "system",
+          "text" => "Proposal rejected.",
+          "source" => "proposal_notification",
+          "acknowledgment" => "Rejected."
+        }
+      )
+      allow(ChatWorkspace).to receive(:coding_checkout_snapshot)
+        .with(instance_of(ChatSession), repository)
+        .and_return(exists: true, prepare_status: "queued")
+
+      expect {
+        expect(described_class.deliver_one_if_idle!(chat)).to be false
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      expect(continuation.reload.delivered_at).to be_nil
+      expect(notice.reload.delivered_at).to be_nil
+      expect(ChatMessage.where(chat_session: chat)).to be_empty
+    end
+
     it "does not expose deferred system messages as editable queued drafts" do
       chat.chat_queued_messages.create!(
         content: {
