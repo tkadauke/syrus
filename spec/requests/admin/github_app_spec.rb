@@ -80,6 +80,21 @@ RSpec.describe "Admin GitHub App registration", type: :request do
     expect(flash[:notice]).to eq("GitHub App registriert")
   end
 
+  it "rejects callbacks when the state owner is no longer an admin" do
+    state = register_state
+    admin.update!(global_role: "user")
+    conversion_request = stub_conversion
+
+    reset!
+    expect {
+      get "/admin/github_app/callback", params: { code: "temp-code", state: state }
+    }.not_to change { AppSetting.current.reload.github_app_id }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.body).to include("Only a current Syrus administrator can complete GitHub App registration.")
+    expect(conversion_request).not_to have_been_requested
+  end
+
   it "renders a minimal close-me page (not the admin redirect) for the onboarding origin" do
     admin.update!(locale: "la")
     state = register_state(origin: "onboarding")

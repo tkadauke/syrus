@@ -54,6 +54,7 @@ de:
       title: "GitHub-App-Registrierung"
       body: "Kehre zu Syrus zurück und starte die Registrierung erneut."
     errors:
+      admin_required: "Nur ein aktueller Syrus-Administrator kann die GitHub-App-Registrierung abschließen."
       missing_code: "GitHub hat keinen Manifest-Code zurückgegeben."
       registration_failed: "GitHub-App-Registrierung fehlgeschlagen: %{error}"
       invalid_link: "Dieser GitHub-App-Registrierungslink ist ungültig oder abgelaufen."
