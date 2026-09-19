@@ -94,6 +94,10 @@ class ChatPendingAction < ApplicationRecord
     rerun_ci_repair
     mark_ci_repair_noop
   ].freeze
+  EPIC_RESOURCE_ACTIONS = %w[
+    restack_epic
+    archive_epic
+  ].freeze
   EMPTY_PAYLOAD_ACTIONS = %w[
     admin_reap_stale_runs
     admin_pause_polling
