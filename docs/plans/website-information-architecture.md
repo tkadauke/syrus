@@ -48,7 +48,7 @@ Use four top-level website areas:
 
 Do not add more top-level routes before launch. New durable product content
 should normally land under `/docs/*`; marketing or narrative content should
-be justified in `docs/plans/website.md` first.
+be justified in `docs/plans/complete/website.md` first.
 
 ## Docs IA
 
@@ -81,7 +81,7 @@ need them.
 
 Status: implemented as the Next.js home route at `website/src/app/page.tsx`.
 
-Use the home-page structure already defined in `docs/plans/website.md`:
+Use the home-page structure already defined in `docs/plans/complete/website.md`:
 hero, issue-to-PR visual, 30-second flow, moat cards, product screenshots,
 honest status, deployment CTAs, footer. Keep the lede focused on
 self-hosted, multi-tenant, BYOK, deterministic issue-to-PR plumbing.
@@ -89,8 +89,9 @@ self-hosted, multi-tenant, BYOK, deterministic issue-to-PR plumbing.
 Source content:
 
 - Preserve the Publilius epigraph and short pitch from `README.md`.
-- Pull competitive positioning from `docs/plans/website.md`, not directly
-  from `docs/competitive-landscape-2026-05-10.md`.
+- Pull competitive positioning from `docs/plans/complete/website.md`, not from
+  the internal competitive-landscape scan it distilled (removed from the repo
+  ahead of the public release).
 - Use real product screenshots when available; do not document UI features
   in prose as a substitute for proof.
 
@@ -109,7 +110,7 @@ Source content:
 
 - Merge command details from `website/src/content/docs/deployment/try-it-locally.md`.
 - Keep the "no Ruby, no database, no GitHub setup" framing from
-  `docs/plans/website.md`.
+  `docs/plans/complete/website.md`.
 
 ### `/about`
 
@@ -160,7 +161,7 @@ copy-pasteable from the current checkout, say so at the top of that page.
 
 Source content:
 
-- Preserve the three-path framing from `docs/plans/website.md`.
+- Preserve the three-path framing from `docs/plans/complete/website.md`.
 - Merge production env var details from `README.md` into
   `/docs/configuration`, then link from deployment pages instead of repeating
   the full list.
@@ -286,9 +287,11 @@ Target questions:
 Source content:
 
 - Use `README.md` for security posture.
-- Use `docs/plans/website.md` for competitive framing.
-- Treat `docs/competitive-landscape-2026-05-10.md` as internal strategy, not
-  copy-ready FAQ material.
+- Use `docs/plans/complete/website.md` for competitive framing.
+- The internal competitive-landscape scan this framing drew from was removed
+  from the repo ahead of the public release (see the table row above); treat
+  any surviving framing as already-distilled copy, not a pointer back to
+  source material.
 
 ## Existing content inventory
 
@@ -298,15 +301,15 @@ Source content:
 | `ARCHITECTURE.md` | `/docs/concepts`, `/docs/workflows`, `/docs/architecture` | Preserve and distill | Remains canonical maintainer reference; website gets skimmable public version |
 | `ROADMAP.md` | `/docs/workflows`, `/docs/faq` | Link and selectively summarize | Do not copy long future sections into product docs |
 | `CLAUDE.md` / `AGENTS.md` | `/docs/workflows`, `/docs/troubleshooting`, internal agent docs | Preserve internal | Public docs may borrow product facts, not agent instructions or secret-handling recipes |
-| `docs/plans/website.md` | Website plan and this IA doc | Preserve | Strategic plan remains; this doc is the concrete IA/inventory |
-| `docs/competitive-landscape-2026-05-10.md` | Home positioning and FAQ, indirectly | Keep internal | Sanitize before any public use |
+| `docs/plans/complete/website.md` | Website plan and this IA doc | Preserve (archived 2026-09-19) | Historical strategic plan, superseded by the shipped Next.js site; this doc is the concrete IA/inventory |
+| `docs/competitive-landscape-2026-05-10.md` | Home positioning and FAQ, indirectly | Removed (2026-09-19) | Was internal competitive analysis with production-derived specifics not written for an external audience; deleted ahead of the repo going public rather than sanitized, per operator instruction |
 | `docs/deployment/bot-authored-commits.md` | Future deployment/security docs | Preserve | Use when documenting bot identity or commit-signing expectations |
 | `docs/job-state-audit.md` | `/docs/concepts` or internal maintainer docs | Preserve internal-first | Public docs need the state summary, not the audit trail |
-| `docs/release_notes.md` | Future `/docs/release-notes` or changelog | Preserve for now | Do not add route until launch/update workflow exists |
+| `docs/release_notes.md` | Future `/docs/release-notes` or changelog | Removed (2026-09-19) | The launch/update workflow this row was waiting on now exists: `bin/release-notes` generates per-version notes from git history for each GitHub Release, and explicitly excludes this file as a source. It was never linked from any public surface and held only a stale, unversioned "Unreleased" section, so it was deleted rather than built into a route. Link real GitHub Releases from the website instead if a changelog page is wanted later. |
 | `docs/plans/complete/*` | None | Preserve internal/archive | Completed implementation plans should not appear in public IA |
 | `docs/plans/*magic-constants*` | `/docs/configuration`, if settings remain user-facing | Selectively merge | Only expose current configurable settings |
 | `docs/plans/gh-stack-integration.md` | Future workflows/recipes | Preserve internal | Not in launch IA unless feature ships |
-| `docs/plans/syrus-as-dev-environment.md` | `/evaluate`, `/docs/deployment/try-it-locally` | Selectively merge | Use only current local-dev behavior |
+| `docs/plans/complete/syrus-as-dev-environment.md` | `/evaluate`, `/docs/deployment/try-it-locally` | Selectively merge (archived 2026-09-19) | Use only current local-dev behavior |
 | `config/syrus_docs/workflow_steps.md` | `/docs/workflows`, `/docs/configuration`, `/docs/troubleshooting` | Selectively merge | Current source for prepare, grade-loop, formatter, generated-file, and workflow-step behavior |
 | `config/syrus_docs/video_walkthroughs.md` | Future walkthrough docs | Selectively merge | Current source for walkthrough-video behavior and retention; keep product copy honest about the feature flag and Gemini requirement |
 | `lib/agent_skills/*.md` | Future recipes or extension docs | Preserve | Not part of launch IA |

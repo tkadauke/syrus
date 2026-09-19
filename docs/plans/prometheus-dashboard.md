@@ -1,6 +1,13 @@
 # Prometheus + Grafana dashboards for Syrus
 
-Status: plan, not yet implemented.
+Status: plan, not yet implemented as of original capture.
+
+_Status check 2026-09-19: complete. This shipped as a `GET /metrics`
+Prometheus text endpoint (`app/controllers/metrics_controller.rb`,
+`lib/syrus/metrics.rb`), including the flagship
+`syrus_global_queue_oldest_age_seconds` metric
+(`app/services/metrics/queue_sampler.rb`), plus a full `plugins/metrics_dashboard`
+embedded dashboard. Retained as design history._
 
 ## Why
 
