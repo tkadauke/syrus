@@ -33,6 +33,12 @@ export function DiffReviewVersionSelector({
   const optionRefs = useRef<Array<HTMLDivElement | null>>([])
   const [open, setOpen] = useState(false)
   const ordered = useMemo(() => canonicalReviewVersions(versions).sort(compareVersions), [versions])
+  // A resumed/retried Run can persist a second DiffReviewVersion row that
+  // shares its run_id with an earlier row but has a different head_sha (see
+  // DiffReviewVersions::Creator) -- canonicalReviewVersions intentionally
+  // keeps both as genuinely distinct history, so the label must disambiguate
+  // them here instead of showing "RUN-<id>" twice.
+  const ambiguousRunIds = useMemo(() => duplicateRunIds(ordered), [ordered])
   const payloadSelected = versions.find((version) => version.id === selectedVersionId) || null
   const selected =
     ordered.find((version) => version.id === selectedVersionId) ||
@@ -59,7 +65,7 @@ export function DiffReviewVersionSelector({
   const resolvedSingleVersion = selected || (selectedRange ? findMatchingVersion(ordered, rangeBaseSha, rangeHeadSha) : null)
   const highlightedFromVersion = selectedRange ? (resolvedSingleVersion || fromEndpointVersion) : selected
   const highlightedToVersion = selectedRange ? (resolvedSingleVersion || toEndpointVersion) : selected
-  const displayLabel = selectedRange ? selectedRangeLabel(t, ordered, rangeBaseSha, rangeHeadSha) : selected ? collapsedLabel(t, selected) : t("review_version_label")
+  const displayLabel = selectedRange ? selectedRangeLabel(t, ordered, rangeBaseSha, rangeHeadSha, ambiguousRunIds) : selected ? collapsedLabel(t, selected, ambiguousRunIds) : t("review_version_label")
   const selectedIndex = Math.max(0, ordered.findIndex((version) => version.id === selected?.id || version.base_sha === rangeBaseSha || version.head_sha === rangeHeadSha))
   const [activeIndex, setActiveIndex] = useState(selectedIndex)
 
@@ -187,7 +193,7 @@ export function DiffReviewVersionSelector({
             const allChanges = isAllChangesVersion(version)
             return (
               <div
-                aria-label={optionAccessibleName(t, version)}
+                aria-label={optionAccessibleName(t, version, ambiguousRunIds)}
                 aria-selected={selectedOption}
                 className={`block w-full rounded px-2.5 py-2 text-left text-sm focus:outline-none focus:ring-2 focus:ring-brand/40 ${selectedOption ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900"} ${allChanges ? "border border-brand/30 bg-brand/5 font-medium" : ""}`}
                 id={`${listboxId}-option-${version.id}`}
@@ -202,6 +208,7 @@ export function DiffReviewVersionSelector({
                   <AllChangesRow selected={selectedOption} t={t} version={version} />
                 ) : (
                   <RangeRow
+                    ambiguousRunIds={ambiguousRunIds}
                     fromSelected={fromSelected}
                     onSelectEndpoint={(endpoint) => selectEndpoint(version, endpoint)}
                     onSelectVersion={() => selectVersion(version)}
@@ -312,6 +319,7 @@ function orderedEndpointRange({
 }
 
 function RangeRow({
+  ambiguousRunIds,
   fromSelected,
   onSelectEndpoint,
   onSelectVersion,
@@ -320,6 +328,7 @@ function RangeRow({
   toSelected,
   version
 }: {
+  ambiguousRunIds?: Set<number>
   fromSelected: boolean
   onSelectEndpoint: (endpoint: "from" | "to") => void
   onSelectVersion: () => void
@@ -332,7 +341,7 @@ function RangeRow({
     <span className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2">
       <span className="contents">
         <EndpointChip
-          ariaLabel={`${t("review_version_from_chip")} ${compactVersionSummary(t, version)}`}
+          ariaLabel={`${t("review_version_from_chip")} ${compactVersionSummary(t, version, ambiguousRunIds)}`}
           highlighted={fromSelected || selected}
           label=""
           onClick={() => onSelectEndpoint("from")}
@@ -340,7 +349,7 @@ function RangeRow({
           type={t("review_version_from_chip")}
         />
         <EndpointChip
-          ariaLabel={`${t("review_version_to_chip")} ${compactVersionSummary(t, version)}`}
+          ariaLabel={`${t("review_version_to_chip")} ${compactVersionSummary(t, version, ambiguousRunIds)}`}
           highlighted={toSelected || selected}
           label=""
           onClick={() => onSelectEndpoint("to")}
@@ -354,7 +363,7 @@ function RangeRow({
         title={metadataTitle(t, version)}
         type="button"
       >
-        {compactVersionSummary(t, version)}
+        {compactVersionSummary(t, version, ambiguousRunIds)}
       </button>
     </span>
   )
@@ -383,16 +392,34 @@ function EndpointChip({ ariaLabel, highlighted, label, onClick, title, type }: {
   )
 }
 
-export function collapsedLabel(t: TFunction<"jobs">, version: DiffReviewVersion) {
+// A run_id is only ambiguous when two rows in the same list share it (a
+// resumed/retried Run persisted more than one DiffReviewVersion) -- see
+// DiffReviewVersions::Creator. The common case (one row per Run) keeps the
+// plain "RUN-<id>" label.
+export function duplicateRunIds(versions: DiffReviewVersion[]) {
+  const counts = new Map<number, number>()
+  for (const version of versions) {
+    if (!version.run_id) continue
+    counts.set(version.run_id, (counts.get(version.run_id) || 0) + 1)
+  }
+  return new Set([...counts].filter(([, count]) => count > 1).map(([runId]) => runId))
+}
+
+function runLabel(runId: number, headSha: string, ambiguous: boolean) {
+  return ambiguous ? `RUN-${runId} (${shortSha(headSha)})` : `RUN-${runId}`
+}
+
+export function collapsedLabel(t: TFunction<"jobs">, version: DiffReviewVersion, ambiguousRunIds?: Set<number>) {
   if (isAllChangesVersion(version)) return t("review_version_all_changes")
+  if (version.run_id && ambiguousRunIds?.has(version.run_id)) return runLabel(version.run_id, version.head_sha, true)
   if (version.label) return version.label
-  if (version.run_id) return `RUN-${version.run_id}`
+  if (version.run_id) return runLabel(version.run_id, version.head_sha, false)
   return t("review_version_prefix", { version: version.version_index })
 }
 
-function selectedRangeLabel(t: TFunction<"jobs">, versions: DiffReviewVersion[], baseSha: string, headSha: string) {
+function selectedRangeLabel(t: TFunction<"jobs">, versions: DiffReviewVersion[], baseSha: string, headSha: string, ambiguousRunIds?: Set<number>) {
   const matching = findMatchingVersion(versions, baseSha, headSha)
-  if (matching) return collapsedLabel(t, matching)
+  if (matching) return collapsedLabel(t, matching, ambiguousRunIds)
 
   const fromVersion = versions.find((version) => version.base_sha === baseSha)
   const toVersion = versions.find((version) => version.head_sha === headSha)
@@ -401,12 +428,13 @@ function selectedRangeLabel(t: TFunction<"jobs">, versions: DiffReviewVersion[],
   return `${from} to ${to}`
 }
 
-function rangeName(version: DiffReviewVersion) {
-  return version.run_id ? `RUN-${version.run_id}` : (version.label || version.reason || version.trigger_kind || `v${version.version_index}`)
+function rangeName(version: DiffReviewVersion, ambiguousRunIds?: Set<number>) {
+  if (version.run_id) return runLabel(version.run_id, version.head_sha, !!ambiguousRunIds?.has(version.run_id))
+  return version.label || version.reason || version.trigger_kind || `v${version.version_index}`
 }
 
-function compactVersionSummary(t: TFunction<"jobs">, version: DiffReviewVersion) {
-  return [t("review_version_prefix", { version: version.version_index }), rangeName(version)].filter(Boolean).join(" ")
+function compactVersionSummary(t: TFunction<"jobs">, version: DiffReviewVersion, ambiguousRunIds?: Set<number>) {
+  return [t("review_version_prefix", { version: version.version_index }), rangeName(version, ambiguousRunIds)].filter(Boolean).join(" ")
 }
 
 export function metadataSummary(t: TFunction<"jobs">, version: DiffReviewVersion) {
@@ -454,9 +482,9 @@ function versionMetadata(t: TFunction<"jobs">, version: DiffReviewVersion, lates
   ].join(t("review_version_separator"))
 }
 
-function optionAccessibleName(t: TFunction<"jobs">, version: DiffReviewVersion) {
+function optionAccessibleName(t: TFunction<"jobs">, version: DiffReviewVersion, ambiguousRunIds?: Set<number>) {
   return [
-    collapsedLabel(t, version),
+    collapsedLabel(t, version, ambiguousRunIds),
     t("review_version_range", { base: endpointLabel(version.base_ref, version.base_sha), head: endpointLabel(version.head_ref, version.head_sha) }),
     metadataSummary(t, version)
   ].filter(Boolean).join(t("review_version_separator"))
