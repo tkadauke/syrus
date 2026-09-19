@@ -6,7 +6,7 @@
 // the shared value utils + chat API types, so they move out of the 6k-line
 // Chat.tsx; renderMessage imports structuredTool/systemMessage back.
 import type { ChatCrossChatBridge, ChatMcpHealth, ChatMessageItem, ChatStructuredTool, ChatSystemMessage } from "../../api/chats"
-import { contentRecord, formatCurrency, humanize, stringArray, stringValue } from "./utils"
+import { batchedNoticeContents, contentRecord, formatCurrency, humanize, stringArray, stringValue } from "./utils"
 import { toolPresentation, toolResultPresentation } from "./toolRendering"
 
 export function structuredTool(message: ChatMessageItem): ChatStructuredTool {
@@ -108,9 +108,19 @@ export function crossChatBridgeLinkLabel(bridge: ChatCrossChatBridge) {
 
 export function goalContinuationFromContent(content: unknown, text: string): ChatSystemMessage | null {
   const record = contentRecord(content)
-  if (record?.source !== "goal_continuation" && record?.goal_continuation !== true) return null
+  const goalNoticeContents = batchedNoticeContents(record).filter(goalContinuationContent)
+  if (!goalContinuationContent(record) && goalNoticeContents.length === 0) return null
 
-  return { tone: "neutral", label: "Goal", body: text || "Goal continuation started." }
+  const body = goalNoticeContents
+    .map((notice) => stringValue(notice.text))
+    .filter(Boolean)
+    .join("\n\n")
+
+  return { tone: "neutral", label: "Goal", body: body || text || "Goal continuation started." }
+}
+
+function goalContinuationContent(content: Record<string, unknown> | null) {
+  return content?.source === "goal_continuation" || content?.goal_continuation === true
 }
 
 export function providerErrorFromContent(content: unknown): ChatSystemMessage | null {

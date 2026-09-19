@@ -38,6 +38,39 @@ describe("isLowPrioritySystemMessage", () => {
 
     expect(isLowPrioritySystemMessage(item)).toBe(false)
   })
+
+  it("does not hide batched proposal and goal control messages by default", () => {
+    const item = renderMessage({
+      text: "Goal continuation started.\n\nProposal confirmed. JOB-716 was created.",
+      content: {
+        text: "Goal continuation started.\n\nProposal confirmed. JOB-716 was created.",
+        source: "queued_internal_notice_batch",
+        notices: [
+          {
+            text: "Goal continuation started.",
+            source: "goal_continuation",
+            content: {
+              text: "Goal continuation started.",
+              source: "goal_continuation",
+              goal_continuation: true
+            }
+          },
+          {
+            text: "Proposal confirmed. JOB-716 was created.",
+            source: "proposal_notification",
+            content: {
+              text: "Proposal confirmed. JOB-716 was created.",
+              source: "proposal_notification",
+              outcome: "confirmed"
+            }
+          }
+        ]
+      },
+      system: { tone: "neutral", label: "Goal", body: "Goal continuation started." }
+    })
+
+    expect(isLowPrioritySystemMessage(item)).toBe(false)
+  })
 })
 
 describe("retryTextByMessageId", () => {
@@ -47,7 +80,7 @@ describe("retryTextByMessageId", () => {
       message({ id: 2, role: "system", text: "Claude authentication failed." })
     ]
 
-    expect(retryTextByMessageId(messages)).toEqual(new Map([ [ 2, "does syrus update itself?" ] ]))
+    expect(retryTextByMessageId(messages)).toEqual(new Map([[2, "does syrus update itself?"]]))
   })
 
   it("maps every system message following a user message to that same user text", () => {
@@ -57,10 +90,12 @@ describe("retryTextByMessageId", () => {
       message({ id: 3, role: "system", text: "Agent run failed" })
     ]
 
-    expect(retryTextByMessageId(messages)).toEqual(new Map([
-      [ 2, "hello" ],
-      [ 3, "hello" ]
-    ]))
+    expect(retryTextByMessageId(messages)).toEqual(
+      new Map([
+        [2, "hello"],
+        [3, "hello"]
+      ])
+    )
   })
 
   it("re-anchors to the newer user message once one is sent", () => {
@@ -77,10 +112,7 @@ describe("retryTextByMessageId", () => {
   })
 
   it("does not map a system message that precedes any user message", () => {
-    const messages = [
-      message({ id: 1, role: "system", text: "MCP connected" }),
-      message({ id: 2, role: "user", text: "hi" })
-    ]
+    const messages = [message({ id: 1, role: "system", text: "MCP connected" }), message({ id: 2, role: "user", text: "hi" })]
 
     expect(retryTextByMessageId(messages).has(1)).toBe(false)
   })
