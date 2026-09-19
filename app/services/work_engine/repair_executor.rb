@@ -905,6 +905,8 @@ module WorkEngine
         private
 
         def orphaned_workflow_outcome(workflow)
+          return :failed if workflow.uncleared_retry_until_barrier?
+
           terminal_positions = workflow.steps.pluck(:state, :position)
           last_succeeded = terminal_positions.filter_map { |state, position| position if state == "succeeded" }.max
           last_failed = terminal_positions.filter_map { |state, position| position if state == "failed" }.max

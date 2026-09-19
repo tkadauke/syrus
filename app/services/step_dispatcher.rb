@@ -1603,7 +1603,7 @@ class StepDispatcher
   MERGEABILITY_RECHECK_DELAY = 30.seconds
 
   def finish_workflow!
-    return if @workflow.live_descendants?
+    return if @workflow.active_descendants?
 
     if @workflow.uncleared_retry_until_barrier?
       return hard_fail_workflow!("uncleared_retry_until_barrier_after_success")

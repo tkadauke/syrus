@@ -94,6 +94,46 @@ RSpec.describe RunCompletionReconciler do
       expect(StepDispatcher).to have_received(:advance_from).with(fanout)
     end
 
+    it "revives grader steps cancelled by terminal cleanup when fanout recovers after a terminal race" do
+      workflow.steps.destroy_all
+      loop_id = SecureRandom.uuid
+      fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 1, loop_id: loop_id)
+      grader = Step.create!(workflow: workflow, kind: "grader", position: 2, loop_id: loop_id)
+      collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 3, loop_id: loop_id)
+      fanout.update!(next_step: grader)
+      grader.update!(next_step: collect)
+      run = fanout.runs.create!(job: job, trigger_kind: "initial", agent_provider: job.agent_provider)
+
+      workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+      fanout.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+      run.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+      [ grader, collect ].each do |downstream|
+        downstream.update_columns(
+          state: "cancelled",
+          cancellation_reason: "cancel_terminal_workflow_active_descendants",
+          details: {
+            "cancelled_by" => "terminal_workflow_cleanup",
+            "cancelled_reason" => "cancel_terminal_workflow_active_descendants"
+          },
+          started_at: nil,
+          finished_at: 30.seconds.ago
+        )
+      end
+      allow(StepDispatcher).to receive(:advance_from)
+
+      result = described_class.call(run, allow_terminal_recovery: true)
+
+      expect(result).to be_reconciled
+      expect(run.reload).to be_succeeded
+      expect(fanout.reload).to be_succeeded
+      expect(workflow.reload).to be_running
+      expect(grader.reload).to have_attributes(state: "queued", cancellation_reason: nil, started_at: nil, finished_at: nil)
+      expect(collect.reload).to have_attributes(state: "queued", cancellation_reason: nil, started_at: nil, finished_at: nil)
+      expect(grader.details).not_to include("cancelled_by")
+      expect(collect.details).not_to include("cancelled_by")
+      expect(StepDispatcher).to have_received(:advance_from).with(fanout)
+    end
+
     context "with a running pr_open step" do
       it "returns unreconciled when no matching log entries exist" do
         run = make_pr_open_run

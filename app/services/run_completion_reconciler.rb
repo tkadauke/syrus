@@ -71,6 +71,7 @@ class RunCompletionReconciler
 
     reason = "#{step.kind}: handler returned successfully after terminal race"
     reopen_failed_workflow_for_terminal_race!(reason) if workflow.failed?
+    revive_terminal_cleanup_descendants!(reason)
     force_step_success_after_terminal_race!(reason)
 
     Result.new(reconciled: true, reason: reason)
@@ -233,7 +234,7 @@ class RunCompletionReconciler
   def finish_workflow_if_terminal!
     workflow.reload
     return unless workflow.running?
-    return if workflow.live_descendants?
+    return if workflow.active_descendants?
     if workflow.uncleared_retry_until_barrier?
       workflow.failure_reason = "uncleared_retry_until_barrier_after_success"
       workflow.artifacts = workflow.artifacts.to_h.merge("failure_reason" => workflow.failure_reason)
@@ -262,6 +263,56 @@ class RunCompletionReconciler
 
     StepDispatcher.advance_from(step.reload) if workflow.reload.running?
     finish_workflow_if_terminal!
+  end
+
+  def revive_terminal_cleanup_descendants!(reason)
+    cursor = step.next_step
+    while cursor
+      if terminal_cleanup_cancelled_without_run?(cursor)
+        revive_terminal_cleanup_step!(cursor, reason)
+      end
+      cursor = cursor.next_step
+    end
+  end
+
+  def terminal_cleanup_cancelled_without_run?(candidate)
+    candidate.cancelled? &&
+      candidate.runs.none? &&
+      candidate.cancellation_reason == "cancel_terminal_workflow_active_descendants"
+  end
+
+  def revive_terminal_cleanup_step!(candidate, reason)
+    details = candidate.details.to_h.except(
+      "cancelled_by",
+      "cancelled_reason",
+      "cancelled_workflow_id",
+      "cancelled_workflow_state",
+      "cancelled_source_step_id",
+      "cancelled_source_step_kind"
+    )
+    now = Time.current
+
+    StateTransition.with_source("reconciler", reason: "revive_terminal_cleanup_descendant", metadata: { reason: reason }) do
+      from = candidate.state
+      candidate.update_columns(
+        state: "queued",
+        cancellation_reason: nil,
+        details: details,
+        started_at: nil,
+        finished_at: nil,
+        updated_at: now
+      )
+      StateTransition.create!(
+        subject: candidate,
+        from_state: from,
+        to_state: "queued",
+        event_name: "reconcile_reopen",
+        source: StateTransition.current_source,
+        user_id: StateTransition.current_user&.id,
+        run_id: StateTransition.current_run_id,
+        metadata: StateTransition.current_reason_metadata.merge("reason_key" => StateTransition.current_reason_key).compact
+      )
+    end
   end
 
   def reopen_failed_workflow_for_terminal_race!(reason)
