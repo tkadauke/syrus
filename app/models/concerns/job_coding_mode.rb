@@ -19,13 +19,22 @@ module JobCodingMode
     return false if Job.where(linked_chat_id: chat_session.id, state: "coding").where.not(id: id).exists?
     return false if chat_session.coding_checkout_branch.present? && chat_session.coding_checkout_branch != branch_name
 
-    Job::ApprovalUnapprover.call(job: self, user: chat_session.user) if may_unapprove?
-    return false unless may_claim_for_coding?
+    locked = false
+    self.class.transaction(requires_new: true) do
+      Job::ApprovalUnapprover.call(job: self, user: chat_session.user) if may_unapprove?
 
-    self.linked_chat_id = chat_session.id
-    claim_for_coding!
-    save!
-    true
+      unless may_claim_for_coding?
+        raise ActiveRecord::Rollback
+      end
+
+      self.linked_chat_id = chat_session.id
+      claim_for_coding!
+      save!
+      locked = true
+    end
+
+    reload unless locked
+    locked
   end
 
   # Cancel a Job that was freshly created for Coding Mode (no existing PR).
