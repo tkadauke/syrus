@@ -391,10 +391,10 @@ export function resolveWorkspaceFileLink(href: string, payload: ChatPayload): Wo
   const pathname = workspacePathname(href)
   if (!pathname) return null
 
-  const prefix = `/syrus-home/.syrus/chat-workspaces/${payload.chat.id}/repositories/${owner}/${repo}/`
-  if (!pathname.startsWith(prefix)) return null
+  const match = pathname.match(new RegExp(`^/(?:[^/]+/)*\\.syrus/chat-workspaces/${payload.chat.id}/repositories/${escapeRegExp(owner)}/${escapeRegExp(repo)}/(.+)$`))
+  if (!match) return null
 
-  const decoded = safeDecode(pathname.slice(prefix.length))
+  const decoded = safeDecode(match[1])
   if (!decoded || decoded.includes("\0")) return null
 
   const parsed = splitLineSuffix(decoded)
@@ -403,7 +403,7 @@ export function resolveWorkspaceFileLink(href: string, payload: ChatPayload): Wo
 }
 
 function workspaceHrefLooksLocal(href: string) {
-  return workspacePathname(href)?.startsWith("/syrus-home/.syrus/chat-workspaces/") ?? false
+  return /^\/(?:[^/]+\/)*\.syrus\/chat-workspaces\//.test(workspacePathname(href) ?? "")
 }
 
 function workspacePathname(href: string) {
@@ -423,6 +423,10 @@ function safeDecode(value: string) {
   } catch (_error) {
     return null
   }
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 function splitLineSuffix(value: string): WorkspaceFileLink {

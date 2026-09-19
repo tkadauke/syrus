@@ -411,7 +411,7 @@ describe("chat workspace source links", () => {
       path: "app/services/system_alerts.rb",
       line: 62
     })
-    expect(resolveWorkspaceFileLink("/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/README.md", payload)).toEqual({
+    expect(resolveWorkspaceFileLink("/home/rails/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/README.md", payload)).toEqual({
       path: "README.md",
       line: null
     })

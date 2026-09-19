@@ -2676,13 +2676,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     end
   end
 
-  describe "GET /syrus-home/.syrus/chat-workspaces/:id/repositories/:owner/:repo/*path" do
-    it "redirects leaked absolute workspace file links through the authenticated raw source proxy" do
+  describe "GET /*workspace_root/.syrus/chat-workspaces/:id/repositories/:owner/:repo/*path" do
+    it "redirects leaked absolute workspace file links from the default Docker home through the authenticated raw source proxy" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository,
+        chat_provider: "claude",
         coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
 
-      get "/syrus-home/.syrus/chat-workspaces/#{chat.id}/repositories/#{repository.owner}/#{repository.name}/spec/services/main_health_changed_service_spec.rb:982"
+      get "/home/rails/.syrus/chat-workspaces/#{chat.id}/repositories/#{repository.owner}/#{repository.name}/spec/services/main_health_changed_service_spec.rb:982"
 
       expect(response).to redirect_to(
         "/api/v1/app/chats/#{chat.id}/source_file/raw?path=spec%2Fservices%2Fmain_health_changed_service_spec.rb"
@@ -2693,6 +2694,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       other_user = Factories.user
       sign_in_as(other_user)
       chat = ChatSession.create!(user: user, repository: repository,
+        chat_provider: "claude",
         coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
 
       get "/syrus-home/.syrus/chat-workspaces/#{chat.id}/repositories/#{repository.owner}/#{repository.name}/README.md"
@@ -2703,6 +2705,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     it "rejects leaked workspace file links when the repository slug does not match the chat" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository,
+        chat_provider: "claude",
         coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
 
       get "/syrus-home/.syrus/chat-workspaces/#{chat.id}/repositories/other/repo/README.md"
