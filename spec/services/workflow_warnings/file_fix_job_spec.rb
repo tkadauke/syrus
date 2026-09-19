@@ -26,6 +26,45 @@ RSpec.describe WorkflowWarnings::FileFixJob do
       expect(result.message).to include(result.job.slug)
     end
 
+    it "returns the existing created Job without creating another one" do
+      first = described_class.call(warning: warning, actor: job.user, prompt: "Fix the grader please")
+
+      expect {
+        second = described_class.call(warning: warning.reload, actor: job.user, prompt: "Fix the grader another way")
+
+        expect(second).to be_ok
+        expect(second.job).to eq(first.job)
+        expect(second.warning.created_job).to eq(first.job)
+      }.not_to change(Job, :count)
+    end
+
+    it "creates only one Job when two callers file the same warning concurrently" do
+      warning.id
+      ready = Queue.new
+      start = Queue.new
+
+      invoke = lambda do
+        ActiveRecord::Base.connection_pool.with_connection do
+          ready << true
+          start.pop
+          described_class.call(warning: WorkflowWarning.find(warning.id), actor: job.user, prompt: "Fix the grader please")
+        end
+      end
+
+      threads = 2.times.map { Thread.new { invoke.call } }
+      2.times { ready.pop }
+
+      expect {
+        2.times { start << true }
+        results = threads.map(&:value)
+
+        expect(results).to all(be_ok)
+        expect(results.map { |result| result.job.id }.uniq).to contain_exactly(warning.reload.created_job_id)
+      }.to change(Job, :count).by(1)
+    ensure
+      threads&.each(&:kill)
+    end
+
     it "strips and requires a non-blank prompt" do
       result = described_class.call(warning: warning, actor: job.user, prompt: "   ")
 
