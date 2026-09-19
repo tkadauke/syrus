@@ -12,7 +12,7 @@ import { Notice, Page, PageHeading, Section, SectionHeading, Text } from "@app/c
 import { TonePill } from "@app/components/StatusPill"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
-import { useMediaQuery } from "@app/routes/dashboard/components"
+import { RepositorySlugLink, useMediaQuery } from "@app/routes/dashboard/components"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { fetchRepositories } from "@app/api/repositories"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -226,6 +226,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
             docs={docs}
             loading={docsLoading}
             onSelect={(docId) => navigate(docPath(docId))}
+            prefix={prefix}
             preferences={indexQuery.data?.preferences ?? null}
           />
         </div>
@@ -364,11 +365,12 @@ function DesignDocsColumnsMenu({ controls, preferences }: {
   )
 }
 
-function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }: {
+function DesignDocsIndexTable({ controls, docs, loading, onSelect, prefix, preferences }: {
   controls: RepositoryDesignDocsPayload["controls"] | null
   docs: DesignDocSummary[]
   loading: boolean
   onSelect: (id: number) => void
+  prefix: string
   preferences: RepositoryDesignDocsPayload["preferences"] | null
 }) {
   const { t } = useT("design_docs")
@@ -404,7 +406,7 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
                   role="link"
                   tabIndex={0}
                 >
-                  {columns.map((column) => <DesignDocTableCell column={column} doc={doc} key={column} onSelect={onSelect} t={t} />)}
+                  {columns.map((column) => <DesignDocTableCell column={column} doc={doc} key={column} onSelect={onSelect} prefix={prefix} t={t} />)}
                 </tr>
               ))}
             </tbody>
@@ -436,15 +438,15 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
   )
 }
 
-function DesignDocTableCell({ column, doc, onSelect, t }: { column: string; doc: DesignDocSummary; onSelect: (id: number) => void; t: DesignDocT }) {
+function DesignDocTableCell({ column, doc, onSelect, prefix, t }: { column: string; doc: DesignDocSummary; onSelect: (id: number) => void; prefix: string; t: DesignDocT }) {
   return (
     <td className={designDocColumnClass(column, "cell")}>
-      {designDocCellContent(column, doc, onSelect, t)}
+      {designDocCellContent(column, doc, onSelect, prefix, t)}
     </td>
   )
 }
 
-function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (id: number) => void, t: DesignDocT): ReactNode {
+function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (id: number) => void, prefix: string, t: DesignDocT): ReactNode {
   if (column === "title") {
     return (
       <div className="min-w-0">
@@ -473,7 +475,20 @@ function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (
     )
   }
   if (column === "state") return <StatusLabel value={doc.state} />
-  if (column === "repository") return <span className="block truncate text-gray-700 dark:text-gray-200">{repositoryLabel(doc, t)}</span>
+  if (column === "repository") {
+    if (doc.repositories.length === 0) return <span className="block truncate text-gray-700 dark:text-gray-200">{t("no_repositories")}</span>
+
+    return (
+      <span className="block truncate" onClick={(event) => event.stopPropagation()}>
+        {doc.repositories.map((repository, index) => (
+          <span key={repository.id}>
+            {index > 0 ? ", " : null}
+            <RepositorySlugLink prefix={prefix} repository={repository} />
+          </span>
+        ))}
+      </span>
+    )
+  }
   if (column === "owner") return <span className="block truncate text-gray-700 dark:text-gray-200">{doc.owner?.name ?? t("unknown_owner")}</span>
   if (column === "collaborators") return <span className="block truncate text-gray-600 dark:text-gray-300">{doc.collaborators?.map((user) => user.name).join(", ") || t("none")}</span>
   if (column === "comments") return <span className="tabular-nums text-gray-700 dark:text-gray-200">{doc.comments_count ?? 0}</span>
