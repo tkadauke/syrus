@@ -248,10 +248,10 @@ actionable events are skipped on retry so visible chat wakeups are not duplicate
 is the allowlist of notification kinds that publish a scoped chat event at all;
 everything else is still a regular `Notification` the user sees, it just never
 reaches this pipeline. It covers both attention kinds (`job_failed`,
-`epic_failed`, `main_broken`, `main_inconclusive`, `upstream_pr_closed`) and
+`main_broken`, `main_inconclusive`, `upstream_pr_closed`) and
 success-completion kinds (`job_implemented`, `pr_merged`, `epic_completed`,
-`epic_review_ready`, `main_recovered`). Routine progress kinds that are neither
-a failure nor a real completion (`epic_feedback_queued`, `pr_comment_addressed`,
+`main_recovered`). Routine progress kinds that are neither
+a failure nor a real completion (`pr_comment_addressed`,
 `external_pr_feedback`) are deliberately left out — they fire too often to be
 worth a judgment pass. There is no deterministic auto-skip by kind for the
 events that do publish: every one of them, including success kinds, reaches the

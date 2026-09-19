@@ -40,7 +40,7 @@ module Prompts
         - Include "handoff_prompt" only for respond or act.
 
         Success-kind events (e.g. job_implemented, pr_merged, epic_completed,
-        epic_review_ready, main_recovered) need extra scrutiny: they report that
+        main_recovered) need extra scrutiny: they report that
         something went *fine*, not that something needs attention. Only choose
         "respond"/"act" for a success-kind event when the chat transcript shows
         clear evidence the operator cares about hearing when this specific piece

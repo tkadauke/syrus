@@ -70,8 +70,8 @@ class NotificationService
   # event pipeline entirely -- they are still notifications, the user sees
   # them, they just do not wake a scoped chat.
   CHAT_WORK_EVENT_KINDS = %w[
-    job_failed epic_failed main_broken main_inconclusive upstream_pr_closed
-    job_implemented pr_merged epic_completed epic_review_ready main_recovered
+    job_failed main_broken main_inconclusive upstream_pr_closed
+    job_implemented pr_merged epic_completed main_recovered
   ].freeze
 
   def self.chat_work_event_kind?(kind) = CHAT_WORK_EVENT_KINDS.include?(kind.to_s)

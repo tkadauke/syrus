@@ -853,8 +853,8 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
             slug: "pinned-child",
             target_repo: repository.slug,
             title: "Pinned child",
-            description: "Pin the implementation to muse.",
-            provider: "muse"
+            description: "Pin the implementation to Codex.",
+            provider: "codex"
           },
           {
             slug: "default-child",
@@ -870,9 +870,9 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
       pinned = chat_session.proposals.find_by!(slug: "pinned-child")
       defaulted = chat_session.proposals.find_by!(slug: "default-child")
       expect(response[:result][:isError]).to be_falsey
-      expect(pinned.provider_setting).to eq("muse")
+      expect(pinned.provider_setting).to eq("codex")
       expect(defaulted.provider_setting).to eq("default")
-      expect(payload[:child_jobs]).to include(hash_including(slug: "pinned-child", provider_setting: "muse"))
+      expect(payload[:child_jobs]).to include(hash_including(slug: "pinned-child", provider_setting: "codex"))
       expect(payload[:child_jobs]).to include(hash_including(slug: "default-child", provider_setting: "default"))
     end
 

@@ -107,9 +107,9 @@ RSpec.describe ChatEpicProposalMaterializer do
       chat_session: chat_session,
       slug: "pinned",
       title: "Pinned",
-      body: "Pin the implementation to muse.",
+      body: "Pin the implementation to Codex.",
       repository: repository,
-      provider_setting: "muse"
+      provider_setting: "codex"
     )
     defaulted = proposal.child_proposals.create!(
       chat_session: chat_session,
@@ -123,7 +123,7 @@ RSpec.describe ChatEpicProposalMaterializer do
     result = described_class.new(user: user).file!(proposal)
 
     expect(result.jobs.size).to eq(2)
-    expect(pinned.reload.job).to have_attributes(job_provider_setting: "muse", agent_provider: "muse")
+    expect(pinned.reload.job).to have_attributes(job_provider_setting: "codex", agent_provider: "codex")
     expect(defaulted.reload.job).to have_attributes(
       job_provider_setting: "default",
       agent_provider: repository.effective_agent_provider

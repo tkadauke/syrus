@@ -180,13 +180,13 @@ RSpec.describe ChatProposalFiler do
     end
 
     it "applies a provider override from the proposal onto the filed Job" do
-      job_proposal = proposal(slug: "pinned-job", title: "Pinned job", provider_setting: "muse")
+      job_proposal = proposal(slug: "pinned-job", title: "Pinned job", provider_setting: "codex")
 
       described_class.new(user: user, repository: repository).file!([ job_proposal ])
 
       job = job_proposal.reload.job
-      expect(job.job_provider_setting).to eq("muse")
-      expect(job.agent_provider).to eq("muse")
+      expect(job.job_provider_setting).to eq("codex")
+      expect(job.agent_provider).to eq("codex")
     end
 
     it "keeps repository-default provider resolution for proposals without an override" do

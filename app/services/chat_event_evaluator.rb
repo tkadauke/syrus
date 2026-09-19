@@ -104,8 +104,8 @@ class ChatEventEvaluator
   private
 
   # Success-completion kinds (job_implemented, pr_merged, epic_completed,
-  # epic_review_ready, main_recovered) used to be blanket-skipped here with
-  # no LLM judgment at all -- a routine success and a success the operator is
+  # main_recovered) used to be blanket-skipped here with no LLM judgment at
+  # all -- a routine success and a success the operator is
   # actively waiting on looked identical, so the operator was never woken for
   # either. There is no longer a deterministic auto-skip by kind: every
   # published chat work event reaches the real judgment path below, which

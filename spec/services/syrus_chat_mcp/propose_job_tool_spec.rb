@@ -560,19 +560,19 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
       expect(payload[:provider_setting]).to eq("default")
     end
 
-    it "persists a muse provider override" do
+    it "persists a provider override" do
       response = call_tool(
         repo: repository.slug,
-        title: "Muse-pinned job",
-        description: "Pin the implementation to muse.",
-        provider: "muse"
+        title: "Codex-pinned job",
+        description: "Pin the implementation to Codex.",
+        provider: "codex"
       )
 
-      proposal = chat_session.proposals.find_by!(title: "Muse-pinned job")
+      proposal = chat_session.proposals.find_by!(title: "Codex-pinned job")
       payload = response_payload(response)
       expect(response[:result][:isError]).to be_falsey
-      expect(proposal.provider_setting).to eq("muse")
-      expect(payload[:provider_setting]).to eq("muse")
+      expect(proposal.provider_setting).to eq("codex")
+      expect(payload[:provider_setting]).to eq("codex")
     end
 
     it "rejects an unknown provider and creates no proposal" do
