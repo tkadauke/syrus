@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_19_133000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2085,6 +2085,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
   end
 
   create_table "preview_environments", force: :cascade do |t|
+    t.string "active_owner_key"
     t.datetime "created_at", null: false
     t.text "error_message"
     t.string "error_reason"
@@ -2098,6 +2099,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
     t.string "state", default: "starting", null: false
     t.datetime "updated_at", null: false
     t.string "workspace_path"
+    t.index ["active_owner_key"], name: "idx_preview_environments_active_owner_key_unique", unique: true
     t.index ["expires_at"], name: "index_preview_environments_on_expires_at"
     t.index ["job_id", "created_at", "id"], name: "idx_preview_environments_job_latest"
     t.index ["job_id", "project_id", "created_at", "id"], name: "idx_preview_environments_job_project_latest"
