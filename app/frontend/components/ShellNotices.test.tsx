@@ -61,6 +61,9 @@ describe("ShellNotices", () => {
 
     const relaunch = await screen.findByRole("button", { name: /Relaunch to update/ })
     expect(relaunch).toHaveTextContent("Version 0.1.3 ready")
+    // Same entrance animation as NoticeToast/Notifications so a notice
+    // doesn't visibly differ depending on which surface triggered it.
+    expect(relaunch).toHaveClass("motion-safe:animate-chat-message-in")
 
     fireEvent.click(relaunch)
     expect(bridge.relaunchToUpdate).toHaveBeenCalledTimes(1)

@@ -66,6 +66,8 @@ describe("ImageAnnotationModal", () => {
 
     expect(screen.getByRole("radio", { name: "Blue" })).toHaveAttribute("aria-checked", "true")
     expect(screen.getByRole("radio", { name: "Red" })).toHaveAttribute("aria-checked", "false")
+    expect(screen.getByRole("radio", { name: "Blue" })).toHaveClass("border-brand")
+    expect(screen.getByRole("radio", { name: "Blue" })).not.toHaveClass("border-blue-600")
   })
 
   it("composites the annotation into a non-empty PNG data URL", async () => {

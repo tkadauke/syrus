@@ -25,6 +25,13 @@ describe("NoticeToast", () => {
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
 
+  it("uses the shared entrance animation so it doesn't visibly differ from other notice surfaces", () => {
+    const onDismiss = vi.fn()
+    render(<NoticeToast message="Bug report queued." onDismiss={onDismiss} />)
+
+    expect(screen.getByRole("status").firstElementChild).toHaveClass("motion-safe:animate-chat-message-in")
+  })
+
   it("clears the mobile in-flow header while sitting near the top on desktop", () => {
     const onDismiss = vi.fn()
     render(<NoticeToast message="Bug report queued." onDismiss={onDismiss} />)

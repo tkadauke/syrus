@@ -329,6 +329,9 @@ describe("RepositoryDetailRoute recommendations", () => {
     const tabs = view.container.querySelector("nav")
     expect(tabs).toBeTruthy()
     expect(Boolean(banner.compareDocumentPosition(tabs as Node) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+
+    expect(banner.querySelector(".border-info-border")).toBeInTheDocument()
+    expect(banner.querySelector(".border-blue-200")).not.toBeInTheDocument()
   })
 
   it("shows one recommendation at a time and pages through multiple tips", async () => {

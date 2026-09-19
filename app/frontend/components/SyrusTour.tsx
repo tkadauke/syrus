@@ -11,7 +11,12 @@ type SyrusTourProps = {
 
 export function SyrusTour({ steps, run, onEvent }: SyrusTourProps) {
   const { t } = useT("tours")
-  const [primaryColor, backColor, skipColor] = useColorTokens(["--color-brand", "--color-neutral", "--color-text-secondary"])
+  const [primaryColor, backColor, skipColor, onBrandColor] = useColorTokens([
+    "--color-brand",
+    "--color-neutral",
+    "--color-text-secondary",
+    "--color-on-brand",
+  ])
 
   if (!run) return null
 
@@ -44,7 +49,7 @@ export function SyrusTour({ steps, run, onEvent }: SyrusTourProps) {
         buttonPrimary: {
           backgroundColor: primaryColor,
           borderRadius: "4px",
-          color: "#ffffff",
+          color: onBrandColor,
           fontWeight: "500",
         },
         buttonBack: {

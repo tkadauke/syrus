@@ -60,6 +60,9 @@ describe("Notifications", () => {
     expect(screen.getByText("Job failed")).toBeInTheDocument()
     expect(screen.getByText("PR merged")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Mark all read" })).toBeInTheDocument()
+    // Same entrance animation as NoticeToast/ShellNotices so a notice doesn't
+    // visibly differ depending on which surface triggered it.
+    expect(panel?.parentElement?.parentElement).toHaveClass("motion-safe:animate-chat-message-in")
 
     fireEvent.click(bell)
     await waitFor(() => {

@@ -199,7 +199,7 @@ function SkillOfferNotice({ bridge, state }: { bridge: SyrusShellBridge; state: 
 }
 
 function noticeBoxClass() {
-  return "rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-xs dark:border-gray-700 dark:bg-gray-900"
+  return "rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-xs dark:border-gray-700 dark:bg-gray-900 motion-safe:animate-chat-message-in"
 }
 
 function InfoIcon() {
