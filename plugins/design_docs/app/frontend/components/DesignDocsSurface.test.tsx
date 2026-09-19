@@ -17,7 +17,7 @@ const docDetail = {
   owner: { id: 1, name: "Owner", email_address: "owner@example.com" },
   collaborators: [{ id: 2, name: "Editor", email_address: "editor@example.com" }],
   repository_ids: [10],
-  repositories: [{ id: 10, slug: "acme/widgets" }],
+  repositories: [{ id: 10, slug: "acme/widgets", repository_path: "/repositories/10" }],
   comments_count: 2,
   current_version_number: 1,
   origin_chat_session_id: 5,
@@ -297,6 +297,7 @@ function renderSurface(path = "/design_docs") {
           <Route path="/design_docs" element={<DesignDocsTestRoute />} />
           <Route path="/design_docs/:id" element={<DesignDocsTestRoute />} />
           <Route path="/repositories/:repositoryId/design_docs" element={<RepositoryDesignDocsTestRoute />} />
+          <Route path="/repositories/:id" element={<LocationProbe />} />
           <Route path="/chats/:id" element={<DesignDocsSurface chatId={237} compact designDocIds={[1]} initialDesignDocId={1} initialDesignDocs={[docDetail as DesignDocSummary]} mode="chat" repositoryId={10} />} />
           <Route path="/chats/:id/empty" element={<DesignDocsSurface chatId={237} compact designDocIds={[]} initialDesignDocs={[]} mode="chat" repositoryId={10} />} />
         </Routes>
@@ -643,6 +644,20 @@ describe("DesignDocsSurface", () => {
     expect(slugButton.compareDocumentPosition(titleButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it("links the repository column to the repo page instead of opening the doc", async () => {
+    mockFetch()
+    renderSurface()
+
+    const table = await screen.findByTestId("design-docs-table")
+    const repositoryLink = within(table).getByRole("link", { name: "acme/widgets" })
+    expect(repositoryLink).toHaveAttribute("href", "/repositories/10")
+
+    fireEvent.click(repositoryLink)
+
+    expect(await screen.findByTestId("location")).toHaveTextContent("/repositories/10")
+    expect(screen.queryByRole("textbox", { name: "Rich Text editor" })).not.toBeInTheDocument()
+  })
+
   it("uses the standard repo-page-tab container width, not compact mode's bare spacing", async () => {
     mockFetch()
     renderSurface()
@@ -734,7 +749,7 @@ describe("DesignDocsSurface", () => {
     await screen.findByRole("link", { name: "Design Docs" })
     const tabs = screen.getByRole("navigation", { name: "Repository tabs" })
     expect(within(tabs).getByRole("link", { name: "Overview" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "acme/widgets" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "acme/widgets" })).toBeInTheDocument()
   })
 
   it("uses the explicit chat design doc instead of treating the chat route id as a doc id", async () => {

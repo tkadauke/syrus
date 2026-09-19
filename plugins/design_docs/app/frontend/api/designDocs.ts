@@ -12,6 +12,7 @@ export type DesignDocUser = {
 export type DesignDocRepository = {
   id: number
   slug: string
+  repository_path: string
 }
 
 export type DesignDocSummary = {
@@ -180,7 +181,7 @@ export type DesignDocsIndexPayload = {
 }
 
 export type RepositoryDesignDocsPayload = DesignDocsIndexPayload & {
-  repository: DesignDocRepository & { repository_path: string }
+  repository: DesignDocRepository
   tabs: RepositoryTab[]
 }
 
