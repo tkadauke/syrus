@@ -109,5 +109,4 @@ RSpec.describe "notification event generation" do
       [ other.id, "Epic \"Ship notifications\" completed" ]
     )
   end
-
 end

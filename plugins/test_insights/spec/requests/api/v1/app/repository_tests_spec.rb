@@ -139,7 +139,6 @@ RSpec.describe "App API repository tests", type: :request do
       expect(parse_body.fetch("tests")).to eq([])
       expect(test_case_selects).to be_empty
     end
-
   end
 
   describe "GET /api/v1/app/repositories/:repository_id/tests/:id" do
@@ -178,7 +177,6 @@ RSpec.describe "App API repository tests", type: :request do
       expect(body.fetch("history").map { |row| row.fetch("id") }).to eq(cases[20..24].map(&:id))
       expect(body.fetch("pagination")).to eq("page" => 3, "per_page" => 10, "total" => 25, "total_pages" => 3)
     end
-
   end
 
   describe "repository access" do
