@@ -72,7 +72,7 @@ geometry from its endpoints' current centers after a move.
 
 ## MCP tools (`Whiteboard::ChatToolSet`)
 
-Fourteen tools, all tier `:deferred` (available in every chat once the
+Fifteen tools, all tier `:deferred` (available in every chat once the
 deferred tool tier loads — no feature flag or role gate beyond that):
 
 - **`read_scene`** — returns the current scene (cheap; recommended whenever
