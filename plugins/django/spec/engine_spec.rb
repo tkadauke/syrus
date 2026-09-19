@@ -133,6 +133,66 @@ RSpec.describe Django::Engine do
           expect(provider.detect?(dir)).to be false
         end
       end
+
+      it "detects a settings module declared with single quotes" do
+        Dir.mktmpdir do |dir|
+          write(dir, "manage.py", <<~PY)
+            #!/usr/bin/env python
+            import os
+            os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')
+          PY
+          write(dir, "myproject/__init__.py")
+          write(dir, "myproject/settings.py")
+
+          expect(provider.detect?(dir)).to be true
+        end
+      end
+
+      it "tolerates mismatched quote styles around the key and the module name" do
+        Dir.mktmpdir do |dir|
+          write(dir, "manage.py", <<~PY)
+            os.environ.setdefault("DJANGO_SETTINGS_MODULE", 'myproject.settings')
+          PY
+          write(dir, "myproject/__init__.py")
+          write(dir, "myproject/settings.py")
+
+          expect(provider.detect?(dir)).to be true
+        end
+      end
+
+      it "detects a settings module even with extra whitespace around the comma" do
+        Dir.mktmpdir do |dir|
+          write(dir, "manage.py", <<~PY)
+            os.environ.setdefault("DJANGO_SETTINGS_MODULE"   ,     "myproject.settings")
+          PY
+          write(dir, "myproject/__init__.py")
+          write(dir, "myproject/settings.py")
+
+          expect(provider.detect?(dir)).to be true
+        end
+      end
+
+      it "returns false when DJANGO_SETTINGS_MODULE is referenced without a default value pair" do
+        Dir.mktmpdir do |dir|
+          write(dir, "manage.py", <<~PY)
+            import os
+            settings_module = os.environ["DJANGO_SETTINGS_MODULE"]
+          PY
+          write(dir, "myproject/__init__.py")
+          write(dir, "myproject/settings.py")
+
+          expect(provider.detect?(dir)).to be false
+        end
+      end
+
+      it "returns false when the resolved settings module only has an __init__.py under a different name" do
+        Dir.mktmpdir do |dir|
+          write(dir, "manage.py", manage_py("myproject.settings"))
+          write(dir, "otherproject/__init__.py")
+
+          expect(provider.detect?(dir)).to be false
+        end
+      end
     end
 
     describe "#start_command" do
