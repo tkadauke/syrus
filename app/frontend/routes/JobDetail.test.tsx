@@ -15,6 +15,13 @@ import { ArtifactsTab, FeedbackHistoryPanel, JobDetailRoute, JobDetailView, Test
 import { StepAdversarialReviewPanel, StepVisualReviewPanel } from "./jobDetail/WorkflowGraph"
 import { readJobNavigationContext, storeJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
 
+// Give feedback / Request changes / secondary triage actions now live in the
+// header's "..." overflow menu (only the single most important action stays
+// on the header itself), so exercising them means opening the menu first.
+function openOverflowMenu() {
+  fireEvent.click(screen.getByRole("button", { name: "⋯" }))
+}
+
 function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
   return {
     current_user: {
@@ -634,20 +641,24 @@ describe("JobDetailView", () => {
     expect(screen.getByText("92.4%")).toBeInTheDocument()
   })
 
-  it.each(["implemented", "failed"])("renders the Give feedback button for %s jobs", (state) => {
+  it.each(["implemented", "failed"])("renders the Give feedback action in the overflow menu for %s jobs", (state) => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state, summary_state: state }
     }))
 
-    expect(screen.getByRole("button", { name: "Give feedback" })).toBeInTheDocument()
+    openOverflowMenu()
+
+    expect(screen.getByRole("menuitem", { name: "Give feedback" })).toBeInTheDocument()
   })
 
-  it("hides the Give feedback button for other job states", () => {
+  it("hides the Give feedback action for other job states", () => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state: "running", summary_state: "running" }
     }))
 
-    expect(screen.queryByRole("button", { name: "Give feedback" })).not.toBeInTheDocument()
+    openOverflowMenu()
+
+    expect(screen.queryByRole("menuitem", { name: "Give feedback" })).not.toBeInTheDocument()
   })
 
   it("shows the waiting banner when a queued job is blocked by unhealthy main branch", () => {
@@ -950,7 +961,8 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
     }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
 
     expect(screen.getByPlaceholderText("What should be changed?")).toHaveAttribute("rows", "4")
     expect(screen.getByRole("button", { name: "Submit feedback" })).toBeDisabled()
@@ -962,7 +974,8 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
     }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Tighten the copy." } })
     fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
 
@@ -987,7 +1000,8 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
     }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
     const textarea = screen.getByPlaceholderText("What should be changed?")
     fireEvent.change(textarea, { target: { value: "Tighten the copy." } })
     fireEvent.keyDown(textarea, { key: "Enter", metaKey: true })
@@ -1006,7 +1020,8 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
     }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
     const textarea = screen.getByPlaceholderText("What should be changed?")
     fireEvent.change(textarea, { target: { value: "Tighten the copy." } })
     fireEvent.keyDown(textarea, { key: "Enter", ctrlKey: true })
@@ -1025,7 +1040,8 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
     }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
     const textarea = screen.getByPlaceholderText("What should be changed?")
     fireEvent.change(textarea, { target: { value: "Tighten the copy." } })
     fireEvent.keyDown(textarea, { key: "Enter" })
@@ -1039,7 +1055,8 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "failed", summary_state: "failed" }
     }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Try another approach." } })
     fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
 
@@ -1047,22 +1064,26 @@ describe("JobDetailView", () => {
     expect(screen.getByPlaceholderText("What should be changed?")).toBeInTheDocument()
   })
 
-  it("renders the Request changes button when the action is allowed", () => {
+  it("renders the Request changes action in the overflow menu when the action is allowed", () => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state: "approved", summary_state: "approved" },
       actions: { ...jobPayload().actions, can_request_changes: true }
     }))
 
-    expect(screen.getByRole("button", { name: "Request changes" })).toBeInTheDocument()
+    openOverflowMenu()
+
+    expect(screen.getByRole("menuitem", { name: "Request changes" })).toBeInTheDocument()
   })
 
-  it("renders the Request changes button when Coding Mode feedback is allowed", () => {
+  it("renders the Request changes action in the overflow menu when Coding Mode feedback is allowed", () => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state: "approved", summary_state: "approved" },
       actions: { ...jobPayload().actions, can_request_changes: false, can_open_in_coding_mode: true }
     }))
 
-    expect(screen.getByRole("button", { name: "Request changes" })).toBeInTheDocument()
+    openOverflowMenu()
+
+    expect(screen.getByRole("menuitem", { name: "Request changes" })).toBeInTheDocument()
   })
 
   it("opens an implemented Job directly in Coding Mode chat from the actions menu", async () => {
@@ -1086,13 +1107,15 @@ describe("JobDetailView", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chats/42"))
   })
 
-  it("hides the Request changes button when the action is not allowed", () => {
+  it("hides the Request changes action when the action is not allowed", () => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state: "running", summary_state: "running" },
       actions: { ...jobPayload().actions, can_request_changes: false }
     }))
 
-    expect(screen.queryByRole("button", { name: "Request changes" })).not.toBeInTheDocument()
+    openOverflowMenu()
+
+    expect(screen.queryByRole("menuitem", { name: "Request changes" })).not.toBeInTheDocument()
   })
 
   it("submits a request-changes Job, collapses the panel, and shows a success notice", async () => {
@@ -1102,7 +1125,8 @@ describe("JobDetailView", () => {
       actions: { ...jobPayload().actions, can_request_changes: true }
     }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Request changes" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Tighten the copy." } })
     fireEvent.click(screen.getByRole("button", { name: "Create Job" }))
 
@@ -1125,7 +1149,8 @@ describe("JobDetailView", () => {
       actions: { ...jobPayload().actions, can_request_changes: false, can_open_in_coding_mode: true }
     }), { showLocation: true })
 
-    fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Request changes" }))
     expect(screen.queryByRole("button", { name: "Create Job" })).not.toBeInTheDocument()
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "  Tighten the copy.  " } })
     fireEvent.click(screen.getByRole("button", { name: "Open in Coding Chat" }))
@@ -1150,7 +1175,8 @@ describe("JobDetailView", () => {
       }
     }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Request changes" }))
 
     expect(screen.getByRole("button", { name: "Open in Coding Chat" })).toBeDisabled()
     expect(screen.getByText("Coding Mode is not enabled on this instance.")).toBeInTheDocument()
@@ -1163,7 +1189,8 @@ describe("JobDetailView", () => {
       actions: { ...jobPayload().actions, can_request_changes: true }
     }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Request changes" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "x" } })
     fireEvent.click(screen.getByRole("button", { name: "Create Job" }))
 
@@ -1221,7 +1248,9 @@ describe("JobDetailView", () => {
     expect(screen.getByText("Needs your decision")).toBeInTheDocument()
     expect(screen.getByText("invalid JSON: expected an object")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Move to backlog" })).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument()
+
+    openOverflowMenu()
+    expect(screen.getByRole("menuitem", { name: "Reject" })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Accept" }))
 
