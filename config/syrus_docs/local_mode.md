@@ -3,12 +3,14 @@
 Local Mode lets a chat agent read and write files, run commands, and inspect
 git state directly on an operator's own machine over a reverse WebSocket
 tunnel — no server-side clone required. It is gated by the `local_mode`
-feature flag, enabled by default.
+feature flag, off by default for fresh installs — it opens an exec bridge
+onto the operator's own machine, which is reasonable for a trusted operator
+who opts in but too consequential to ship on by default.
 
-## Disabling
+## Enabling
 
 ```ruby
-Feature.find_by(slug: 'local_mode').update(enabled: false)
+Feature.find_by(slug: 'local_mode').update(enabled: true)
 ```
 
 While enabled, chats can be switched to Local mode from the chat mode

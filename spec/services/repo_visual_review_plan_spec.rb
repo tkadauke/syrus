@@ -45,17 +45,14 @@ RSpec.describe RepoVisualReviewPlan do
   end
 
   describe ".from_syrus_yml" do
-    it "falls back to the instance default when the shared loader has no config" do
-      allow(Feature).to receive(:visual_review_enabled?).and_return(true)
-
+    it "falls back to the always-on default when the shared loader has no config" do
       result = described_class.from_syrus_yml(loaded(note: "no GitHub credentials"))
 
       expect(result).to be_enabled
       expect(result.note).to eq("no GitHub credentials")
     end
 
-    it "enables from the parsed config, overriding the instance default" do
-      allow(Feature).to receive(:visual_review_enabled?).and_return(false)
+    it "enables from the parsed config" do
       config = parse(<<~YAML)
         visual_review:
           enabled: true
@@ -69,8 +66,7 @@ RSpec.describe RepoVisualReviewPlan do
       expect(result.source).to eq(".syrus.yml")
     end
 
-    it "defers to the instance default when the block is present but enabled is omitted" do
-      allow(Feature).to receive(:visual_review_enabled?).and_return(true)
+    it "defers to the always-on default when the block is present but enabled is omitted" do
       config = parse(<<~YAML)
         visual_review:
           rounds: 3
@@ -83,8 +79,7 @@ RSpec.describe RepoVisualReviewPlan do
       expect(result.source).to eq(".syrus.yml")
     end
 
-    it "disables via explicit repository opt-out, overriding an enabled instance default" do
-      allow(Feature).to receive(:visual_review_enabled?).and_return(true)
+    it "disables via explicit repository opt-out, overriding the always-on default" do
       config = parse(<<~YAML)
         visual_review:
           enabled: false
@@ -96,34 +91,31 @@ RSpec.describe RepoVisualReviewPlan do
       expect(result.source).to eq(".syrus.yml")
     end
 
-    it "falls back to the instance-wide default when visual_review is not configured" do
-      allow(Feature).to receive(:visual_review_enabled?).and_return(false)
+    it "falls back to the always-on default when visual_review is not configured" do
       config = parse("prepare: []\n")
 
       result = described_class.from_syrus_yml(loaded(config: config, source: ".syrus.yml"))
 
-      expect(result).not_to be_enabled
+      expect(result).to be_enabled
       expect(result.note).to eq("no visual_review configured")
     end
   end
 
   describe ".for_job" do
     it "resolves through RepoDefaultBranchSyrusYml.for_job" do
-      allow(Feature).to receive(:visual_review_enabled?).and_return(false)
       fallback_job = instance_double(Job)
       allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(fallback_job).and_return(loaded(note: "GitHub client unavailable"))
 
       result = described_class.for_job(fallback_job)
 
-      expect(result).not_to be_enabled
+      expect(result).to be_enabled
       expect(result.note).to eq("GitHub client unavailable")
     end
 
-    it "enables visual review when a nested preview project opts in and the root/global plan is disabled" do
-      allow(Feature).to receive(:visual_review_enabled?).and_return(false)
+    it "enables visual review when a nested preview project opts in even though the root explicitly opts out" do
       write_bare_clone(
         files: {
-          ".syrus.yml" => "prepare: []\n",
+          ".syrus.yml" => "visual_review:\n  enabled: false\n",
           "apps/web/.syrus.yml" => <<~YAML
             project:
               id: web
@@ -136,7 +128,7 @@ RSpec.describe RepoVisualReviewPlan do
         }
       )
       allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(
-        loaded(config: parse("prepare: []\n"), source: ".syrus.yml")
+        loaded(config: parse("visual_review:\n  enabled: false\n"), source: ".syrus.yml")
       )
 
       result = described_class.for_job(job)

@@ -8,7 +8,13 @@ under load.
 
 `persistent_mcp_sidecar` is a labs feature (default off) gating an
 experimental, worker-local daemon that boots Rails once and stays up,
-instead of once per run or chat turn. `WorkflowMcpTransportSelector` and
+instead of once per run or chat turn. It is deliberately excluded from the
+visible Labs feature list in Admin → Features (`ALWAYS_HIDDEN_SLUGS` in
+`Api::V1::App::Admin::FeaturesController`) since it's still an unfinished
+daemon skeleton not yet consumed by workflow agents — a self-hoster
+shouldn't be able to discover it as a toggle expecting it to do something.
+It remains fully functional and toggleable via Rails console (see
+"Enabling" below). `WorkflowMcpTransportSelector` and
 `ChatMcpTransportSelector` each decide, per workflow agent invocation or chat
 turn respectively, whether to route that invocation's MCP traffic to this
 daemon instead of spawning the usual stdio sidecar -- see "Workflow transport
