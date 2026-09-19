@@ -9,9 +9,13 @@ class ChatGoalIterationAuditor
   end
 
   def after_turn!
-    return unless goal_continuation_message?
+    goal_continuation_contents.each { |content| audit_goal_continuation!(content) }
+  end
 
-    goal = ChatGoal.find_by(id: @user_message.content["chat_goal_id"])
+  private
+
+  def audit_goal_continuation!(content)
+    goal = ChatGoal.find_by(id: content["chat_goal_id"])
     return unless goal&.active?
 
     signature = work_signature(goal)
@@ -38,10 +42,19 @@ class ChatGoalIterationAuditor
     )
   end
 
-  private
+  def goal_continuation_contents
+    content = @user_message&.content
+    return [] unless content.is_a?(Hash)
+    return [ content ] if goal_continuation_content?(content)
 
-  def goal_continuation_message?
-    @user_message&.content.is_a?(Hash) && @user_message.content["goal_continuation"] == true
+    Array(content["notices"]).filter_map do |notice|
+      notice_content = notice.is_a?(Hash) ? notice["content"] : nil
+      notice_content if goal_continuation_content?(notice_content)
+    end
+  end
+
+  def goal_continuation_content?(content)
+    content.is_a?(Hash) && content["goal_continuation"] == true
   end
 
   def new_goal_work_since_turn?(goal)

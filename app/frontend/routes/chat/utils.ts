@@ -20,6 +20,15 @@ export function contentRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
 
+export function batchedNoticeContents(value: unknown): Record<string, unknown>[] {
+  const notices = contentRecord(value)?.notices
+  if (!Array.isArray(notices)) return []
+
+  return notices
+    .map((notice) => contentRecord(contentRecord(notice)?.content))
+    .filter((content): content is Record<string, unknown> => content !== null)
+}
+
 export function contentInput(content: unknown) {
   return contentRecord(contentRecord(content)?.input) || {}
 }

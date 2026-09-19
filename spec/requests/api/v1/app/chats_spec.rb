@@ -5343,6 +5343,57 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.reload.queued_messages_payload).to eq([])
   end
 
+  it "batches deferred proposal outcome notices into one follow-up turn after the active turn completes" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    first = chat.proposals.create!(slug: "auth-map", title: "Map auth", body: "Map it.")
+    second = chat.proposals.create!(slug: "cleanup", title: "Clean up", body: "Sweep it.")
+    chat.messages.create!(role: "assistant", proposal: first, content: { "text" => "Proposal proposed." })
+    chat.messages.create!(role: "assistant", proposal: second, content: { "text" => "Another proposal." })
+    process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "claude --print",
+      workdir: chat.workspace_root.to_s,
+      hostname: "worker-1",
+      started_at: Time.current,
+      pid: 1234
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{first.id}/confirm"
+      expect(response).to have_http_status(:ok)
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{second.id}/confirm"
+      expect(response).to have_http_status(:ok)
+    }.to change(Job, :count).by(2)
+      .and change(ChatQueuedMessage, :count).by(2)
+
+    expect(ChatTurnJob).not_to have_been_enqueued
+    process.update!(finished_at: Time.current, outcome: "succeeded")
+
+    expect {
+      expect(ChatQueuedMessagePromoter.deliver_one_if_idle!(chat)).to be true
+    }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).once
+
+    batch_message = chat.messages.where(role: "system").order(:created_at, :id).last
+    expect(batch_message.content["source"]).to eq("queued_internal_notice_batch")
+    expect(batch_message.content["notices"].size).to eq(2)
+    expect(batch_message.content["notices"]).to contain_exactly(
+      a_hash_including(
+        "text" => %(Proposal confirmed. #{first.reload.job.slug} "Map auth" was created.),
+        "source" => "proposal_notification",
+        "outcome" => "confirmed",
+        "acknowledgment" => "Confirmed #{first.job.slug}."
+      ),
+      a_hash_including(
+        "text" => %(Proposal confirmed. #{second.reload.job.slug} "Clean up" was created.),
+        "source" => "proposal_notification",
+        "outcome" => "confirmed",
+        "acknowledgment" => "Confirmed #{second.job.slug}."
+      )
+    )
+    expect(chat.chat_queued_messages.pending).to be_empty
+  end
+
   it "enqueues a proposal outcome ChatTurnJob immediately when no agent turn is active" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
