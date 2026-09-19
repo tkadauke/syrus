@@ -711,6 +711,25 @@ describe("chat compose drafts", () => {
     expect(screen.queryByTestId("chat-history-indicator")).not.toBeInTheDocument()
   })
 
+  it("clears stale slash command confirmation when history recall replaces the composer text", async () => {
+    window.localStorage.setItem("syrus.chat.history.8", JSON.stringify(["Previous chat prompt"]))
+    mockChatRouteFetch()
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: "/approve 123" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+    expect(await screen.findByText("Confirm /approve")).toBeInTheDocument()
+
+    textarea.setSelectionRange(0, 0)
+    fireEvent.keyDown(textarea, { key: "ArrowUp" })
+
+    expect(textarea).toHaveValue("Previous chat prompt")
+    expect(screen.queryByText("Confirm /approve")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Send message" })).not.toBeDisabled()
+  })
+
   it("preserves normal multiline ArrowUp and ArrowDown navigation away from composer history boundaries", async () => {
     window.localStorage.setItem("syrus.chat.history.8", JSON.stringify(["Previous chat prompt"]))
     mockChatRouteFetch()
