@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_18_173346) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_19_211614) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -898,8 +898,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_173346) do
     t.integer "last_known_start_offset"
     t.string "marker_id", null: false
     t.text "prefix_context"
-    t.text "selected_markdown"
-    t.text "selected_text"
+    t.text "selected_markdown", limit: 16777215
+    t.text "selected_text", limit: 16777215
     t.bigint "stale_as_of_version_id"
     t.integer "start_offset", null: false
     t.string "status", default: "active", null: false
@@ -959,8 +959,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_173346) do
     t.integer "design_doc_anchor_id", null: false
     t.integer "design_doc_id", null: false
     t.integer "design_doc_thread_id"
-    t.text "original_markdown", null: false
-    t.text "proposed_markdown", null: false
+    t.text "original_markdown", limit: 16777215, null: false
+    t.text "proposed_markdown", limit: 16777215, null: false
     t.json "provenance"
     t.string "render_mode", default: "inline", null: false
     t.datetime "reviewed_at"
@@ -968,7 +968,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_173346) do
     t.string "state", default: "pending", null: false
     t.string "suggested_by_kind", null: false
     t.integer "suggested_by_user_id"
-    t.text "suggested_markdown", null: false
+    t.text "suggested_markdown", limit: 16777215, null: false
     t.datetime "updated_at", null: false
     t.index ["base_version_id"], name: "index_design_doc_suggestions_on_base_version_id"
     t.index ["design_doc_agent_run_id"], name: "index_design_doc_suggestions_on_design_doc_agent_run_id"
@@ -1003,7 +1003,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_173346) do
     t.text "change_summary"
     t.datetime "created_at", null: false
     t.integer "design_doc_id", null: false
-    t.text "markdown", null: false
+    t.text "markdown", limit: 16777215, null: false
     t.json "metadata"
     t.integer "provenance_id"
     t.string "provenance_type"
@@ -1018,7 +1018,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_173346) do
   create_table "design_docs", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "current_version_id"
-    t.text "markdown", null: false
+    t.text "markdown", limit: 16777215, null: false
     t.integer "origin_chat_session_id"
     t.integer "owner_user_id", null: false
     t.string "state", default: "draft", null: false
