@@ -1,5 +1,5 @@
 # Classifies an externally-ingested pull request by Syrus provenance, per
-# docs/plans/delivery-tracks-and-promotion.md Story 10. Structured Syrus
+# docs/plans/complete/delivery-tracks-and-promotion.md Story 10. Structured Syrus
 # metadata (a `PrProvenanceMarker` in the PR body, stamped by
 # `Steps::PromotionPublish`/`Steps::UpstreamExportPublish`) wins when
 # present; heuristics (branch naming, known-fork matching, release-branch

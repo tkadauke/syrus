@@ -1,5 +1,5 @@
 # Class-per-action dispatch hierarchy for Story 11's named ref-movement
-# actions (docs/plans/delivery-tracks-and-promotion.md), keyed by
+# actions (docs/plans/complete/delivery-tracks-and-promotion.md), keyed by
 # `.syrus.yml`'s `delivery.ref_movement_actions.<name>` block — a class
 # hierarchy instead of a `case action_name` chain, mirroring
 # `ExternalPrIngestions::Base.for(classification)` (see CLAUDE.md's

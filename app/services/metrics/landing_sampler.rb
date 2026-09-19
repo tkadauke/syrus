@@ -3,7 +3,7 @@ module Metrics
   # how fast. `docs/metrics-catalog.md` had only Solid Queue health and
   # product-usage metrics before this; the landing queue and overall run
   # throughput had no exported Prometheus metrics at all (see
-  # docs/plans/prometheus-dashboard.md, "Product throughput").
+  # docs/plans/complete/prometheus-dashboard.md, "Product throughput").
   #
   # /metrics is currently served by the **web** role only (see
   # config/syrus_docs/metrics.md); every event this class counts -- a Run
@@ -52,7 +52,7 @@ module Metrics
 
     # RSpec/Prometheus-client defaults top out near 10s, which buckets nearly
     # every real Run into the last, useless bin (see
-    # docs/plans/prometheus-dashboard.md's API sketch).
+    # docs/plans/complete/prometheus-dashboard.md's API sketch).
     RUN_DURATION_BUCKETS = [ 1, 5, 15, 60, 300, 900, 1800, 3600, 7200 ].freeze
     # A landed Job's lead time ranges from minutes to days once a blocked
     # approval is included, so this needs its own, wider exponential spread.
