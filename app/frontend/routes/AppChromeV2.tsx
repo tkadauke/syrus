@@ -10,7 +10,7 @@ import { type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent, ty
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload, type SystemAlertAction } from "../api/bootstrap"
-import { createEmptyChat, createGroupChat, fetchNewChat, type ChatsIndexPayload } from "../api/chats"
+import { createEmptyChat, createGroupChat, fetchNewChat, type ChatProviderOption, type ChatsIndexPayload, type NewChatPayload } from "../api/chats"
 import { getJson, postJson } from "../api/client"
 import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchAdminPluginPages } from "../api/adminPluginPages"
@@ -27,6 +27,7 @@ import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/b
 import { BuildBadge } from "../components/BuildBadge"
 import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
+import { Select } from "../components/Select"
 import { AgentProviderConnectPanel, agentProviderHasConnectPanel, type ConnectableAgentProvider } from "../components/AgentProviderConnectPanel"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
@@ -124,6 +125,8 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const [groupChatCreating, setGroupChatCreating] = useState(false)
   const [groupChatError, setGroupChatError] = useState<string | null>(null)
   const [startingChat, setStartingChat] = useState(false)
+  const [newChatPayload, setNewChatPayload] = useState<NewChatPayload | null>(null)
+  const [selectedChatProvider, setSelectedChatProvider] = useState("")
   const bugReportRef = useRef<BugReportButtonHandle | null>(null)
   const openBugReport = useCallback((options?: BugReportOpenOptions) => {
     bugReportRef.current?.open(options)
@@ -211,8 +214,33 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       }
 
       const newChat = await fetchNewChat()
-      const created = await createEmptyChat(newChat.default_repository_id)
+      const configuredProviders = configuredChatProviderOptions(newChat.chat_provider_options)
+      if (configuredProviders.length > 1) {
+        setSelectedChatProvider(defaultNewChatProvider(newChat, configuredProviders))
+        setNewChatPayload(newChat)
+        return
+      }
+
+      const defaultProvider = configuredProviders[0]?.value
+      const created = defaultProvider
+        ? await createEmptyChat(newChat.default_repository_id, defaultProvider)
+        : await createEmptyChat(newChat.default_repository_id)
       updateRecentChatCache(queryClient, created.chat, { prepend: true })
+      navigate(withRoutePrefix(created.redirect_to, prefix))
+    } catch (_error) {
+      setNotice(t("chat:unable_to_start"))
+    } finally {
+      setStartingChat(false)
+    }
+  }
+
+  async function confirmNewChatProvider() {
+    if (!newChatPayload) return
+    setStartingChat(true)
+    try {
+      const created = await createEmptyChat(newChatPayload.default_repository_id, selectedChatProvider)
+      updateRecentChatCache(queryClient, created.chat, { prepend: true })
+      setNewChatPayload(null)
       navigate(withRoutePrefix(created.redirect_to, prefix))
     } catch (_error) {
       setNotice(t("chat:unable_to_start"))
@@ -410,6 +438,19 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           onConfirm={confirmGroupChat}
           submitting={groupChatCreating}
           title={t("chat:group_picker_title_create")}
+        />
+      ) : null}
+      {newChatPayload ? (
+        <NewChatProviderModal
+          options={configuredChatProviderOptions(newChatPayload.chat_provider_options)}
+          selected={selectedChatProvider}
+          submitting={startingChat}
+          onCancel={() => {
+            setNewChatPayload(null)
+            setStartingChat(false)
+          }}
+          onConfirm={confirmNewChatProvider}
+          onSelectedChange={setSelectedChatProvider}
         />
       ) : null}
     </div>
@@ -653,6 +694,77 @@ function ProviderReauthorizationModal({
         </div>
         <AgentProviderConnectPanel autoFocus onCancel={onClose} onSaved={onSaved} provider={provider} />
       </div>
+    </Modal>
+  )
+}
+
+function configuredChatProviderOptions(options?: ChatProviderOption[]) {
+  return (options || []).filter((option) => option.configured)
+}
+
+function defaultNewChatProvider(payload: NewChatPayload, options: ChatProviderOption[]) {
+  const effectiveProvider = payload.effective_chat_provider
+  return options.find((option) => option.value === effectiveProvider)?.value || options[0]?.value || ""
+}
+
+function NewChatProviderModal({
+  onCancel,
+  onConfirm,
+  onSelectedChange,
+  options,
+  selected,
+  submitting
+}: {
+  onCancel: () => void
+  onConfirm: () => void
+  onSelectedChange: (value: string) => void
+  options: ChatProviderOption[]
+  selected: string
+  submitting: boolean
+}) {
+  const { t } = useT("chat")
+
+  return (
+    <Modal
+      className="w-full max-w-sm"
+      labelledBy="new-chat-provider-title"
+      onClose={onCancel}
+      open
+    >
+      <Surface className="shadow-xl" padding="sm" variant="raised">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            onConfirm()
+          }}
+        >
+          <div>
+            <h2 className="text-base font-semibold text-text-primary" id="new-chat-provider-title">
+              {t("new_chat_provider_title")}
+            </h2>
+            <p className="mt-1 text-sm text-text-secondary">{t("new_chat_provider_hint")}</p>
+          </div>
+          <label className="block text-sm font-medium text-text-primary">
+            <span>{t("aria_chat_provider")}</span>
+            <Select
+              aria-label={t("aria_chat_provider")}
+              className="mt-1"
+              disabled={submitting}
+              onChange={(event) => onSelectedChange(event.target.value)}
+              value={selected}
+            >
+              {options.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button disabled={submitting} onClick={onCancel} type="button" variant="secondary">{t("cancel")}</Button>
+            <Button disabled={submitting || !selected} type="submit">{t("new_chat_provider_start")}</Button>
+          </div>
+        </form>
+      </Surface>
     </Modal>
   )
 }
