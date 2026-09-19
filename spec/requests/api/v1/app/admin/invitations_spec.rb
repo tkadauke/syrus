@@ -8,6 +8,19 @@ RSpec.describe "API: /api/v1/app/admin/invitations", type: :request do
     JSON.parse(response.body)
   end
 
+  def capture_sql
+    queries = []
+    callback = ->(_name, _started, _finished, _id, payload) do
+      next if payload[:name] == "SCHEMA"
+      next if payload[:cached]
+
+      queries << payload[:sql].to_s
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/admin/invitations"
 
@@ -45,6 +58,23 @@ RSpec.describe "API: /api/v1/app/admin/invitations", type: :request do
       "share_url" => "http://www.example.com/users/new?token=#{pending.token}",
       "invited_by_email_address" => admin.email_address
     )
+  end
+
+  it "preloads inviters when listing pending invitations" do
+    sign_in_as(admin)
+    inviters = Array.new(4) { |index| Factories.user(email_address: "inviter-#{index}@example.com") }
+    inviters.each_with_index do |inviter, index|
+      Invitation.create!(invited_by: inviter, email_address: "guest-#{index}@example.com")
+    end
+
+    queries = capture_sql do
+      get "/api/v1/app/admin/invitations"
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["invitations"].size).to eq(4)
+    user_selects = queries.grep(/\ASELECT .* FROM "?users"?/i)
+    expect(user_selects.size).to be <= 2
   end
 
   it "creates invitations tied to the current admin" do

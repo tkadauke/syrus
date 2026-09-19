@@ -32,7 +32,7 @@ module Api
 
           def invitations_payload
             {
-              invitations: Invitation.pending.order(created_at: :desc).map { |invitation| invitation_json(invitation) }
+              invitations: Invitation.pending.includes(:invited_by).order(created_at: :desc).map { |invitation| invitation_json(invitation) }
             }
           end
 
