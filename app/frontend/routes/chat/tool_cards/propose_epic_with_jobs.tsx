@@ -98,7 +98,7 @@ function renderExpanded(context: ToolCardContext) {
                 <StatePill state={child.state} />
                 {child.targetRepo ? <span className="text-gray-500 dark:text-gray-400">{child.targetRepo}</span> : null}
                 {child.providerSetting && child.providerSetting !== "default" ? (
-                  <span className="text-gray-500 dark:text-gray-400">Provider: {child.providerSetting}</span>
+                  <span className="text-text-secondary">Provider: {child.providerSetting}</span>
                 ) : null}
               </li>
             ))}
