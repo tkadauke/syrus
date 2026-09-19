@@ -22,7 +22,7 @@ RSpec.describe "maintenance task definitions" do
     it "bulk attaches spawned processes to existing run and chat agents" do
       job = Factories.job_with_run(user: user, repository: repository)
       run = job.runs.first
-      chat = ChatSession.create!(user: user, repository: repository)
+      chat = ChatSession.create!(user: user, repository: repository, chat_provider: "codex")
       run_agent = Agent.find_or_create_for!(run)
       chat_agent = Agent.find_or_create_for!(chat)
       run_process = SpawnedProcess.create!(
@@ -78,6 +78,30 @@ RSpec.describe "maintenance task definitions" do
         pr_number: 101,
         landed_sha: "abc123"
       )
+
+      expect(definition.estimate_total_units).to eq(1)
+    end
+
+    it "does not treat a matching sha on a different landable as a completed merge-train backfill" do
+      epic = Factories.epic(user: user, repository: repository)
+      job = Factories.job_record(
+        user: user,
+        repository: repository,
+        state: "closed",
+        issue_number: 104,
+        pr_number: 105,
+        landed_sha: "abc123"
+      )
+      train = MergeTrain.create!(
+        repository: repository,
+        epic: epic,
+        base_branch: "main",
+        integration_branch: "syrus/merge-train-epic-#{epic.id}-1",
+        integration_sha: "abc123",
+        state: "succeeded"
+      )
+      MergeTrainMember.create!(merge_train: train, job: job, position: 0)
+      LandedCommit.create!(landable: job, sha: "abc123", kind: "implementation", position: 0)
 
       expect(definition.estimate_total_units).to eq(1)
     end

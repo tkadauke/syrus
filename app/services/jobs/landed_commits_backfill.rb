@@ -283,7 +283,7 @@ module Jobs
 
     def write_landed_commits!(landable, shas, kind:)
       shas.each_with_index.sum do |sha, position|
-        next 0 if sha.blank? || LandedCommit.exists?(sha: sha)
+        next 0 if sha.blank? || LandedCommit.exists?(landable: landable, sha: sha)
 
         LandedCommit.create!(landable: landable, sha: sha, kind: kind, position: position)
         1
