@@ -286,6 +286,14 @@ describe("CredentialsRoute (provider cards)", () => {
     })
   })
 
+  it("cross-links the chat provider panel to the separate agent settings page", async () => {
+    mockRoutes(makePayload({ chat_providers: ["agy", "claude", "codex"] }))
+    renderCredentials()
+
+    await screen.findByLabelText("Chat provider")
+    expect(screen.getByRole("link", { name: "Agent Settings" })).toHaveAttribute("href", "/settings/agent")
+  })
+
   it("keeps the card's specific notice — the payload's generic message must not overwrite it", async () => {
     const updated = { ...makePayload({ chat_providers: ["agy", "claude", "codex"] }), message: "Credentials updated." }
     mockRoutes(makePayload({ chat_providers: ["agy", "claude", "codex"] }), { patch: () => jsonResponse(updated) })
@@ -524,6 +532,14 @@ describe("CredentialsRoute (provider cards)", () => {
 
     // The old blended single-line stat must not appear at all.
     expect(within(claudePanel).queryByText(/^15% remaining\.$/)).not.toBeInTheDocument()
+  })
+
+  it("cross-links the default agent provider field to the separate chat provider page", async () => {
+    mockRoutes(makePayload())
+    renderAgentSettings()
+
+    await screen.findByLabelText("Agent provider")
+    expect(screen.getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/credentials")
   })
 
   it("uses plugin display names for Muse availability controls", async () => {
