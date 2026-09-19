@@ -104,7 +104,6 @@ RSpec.describe NotificationService do
       }.not_to change(Notification, :count)
       expect(ActionCable.server).not_to have_received(:broadcast)
     end
-
   end
 
   describe "chat work events" do
