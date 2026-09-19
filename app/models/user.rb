@@ -88,7 +88,7 @@ class User < ApplicationRecord
     },
     "design_docs" => {
       "visible_columns" => %w[
-        title doc_slug state repository owner collaborators comments latest_version updated_at actions
+        title state repository owner collaborators comments latest_version updated_at actions
       ]
     }
   }.freeze
@@ -116,7 +116,7 @@ class User < ApplicationRecord
       created_at updated_at started_at finished_at cleaned_up_at
     ],
     "design_docs" => %w[
-      doc_slug state repository owner collaborators comments latest_version updated_at actions
+      state repository owner collaborators comments latest_version updated_at actions
     ]
   }.freeze
   DASHBOARD_SORT_COLUMNS = {

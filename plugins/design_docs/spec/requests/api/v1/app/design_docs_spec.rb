@@ -126,10 +126,10 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     body = parse_body
     expect(body.dig("controls", "columns", "required").map { |column| column.fetch("key") }).to eq([ "title" ])
     expect(body.dig("controls", "columns", "optional").map { |column| column.fetch("key") }).to eq(%w[
-      doc_slug state repository owner collaborators comments latest_version updated_at actions
+      state repository owner collaborators comments latest_version updated_at actions
     ])
     expect(body.dig("preferences", "visible_columns")).to eq(%w[
-      title doc_slug state repository owner collaborators comments latest_version updated_at actions
+      title state repository owner collaborators comments latest_version updated_at actions
     ])
     row = body.fetch("design_docs").find { |candidate| candidate.fetch("id") == doc.id }
     expect(row).to include(
@@ -168,13 +168,13 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
 
     patch "/api/v1/app/design_docs/preferences", params: {
       preferences: {
-        visible_columns: %w[doc_slug state owner actions]
+        visible_columns: %w[state owner actions]
       }
     }, as: :json
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.dig("preferences", "visible_columns")).to eq(%w[title doc_slug state owner actions])
-    expect(owner.reload.dashboard_preferences.dig("design_docs", "visible_columns")).to eq(%w[title doc_slug state owner actions])
+    expect(parse_body.dig("preferences", "visible_columns")).to eq(%w[title state owner actions])
+    expect(owner.reload.dashboard_preferences.dig("design_docs", "visible_columns")).to eq(%w[title state owner actions])
   end
 
   it "keeps archived docs out of the default list but visible through explicit state filters" do
