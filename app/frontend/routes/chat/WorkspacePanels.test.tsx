@@ -351,6 +351,24 @@ describe("ChatWorkspacePanel coding files", () => {
     expect(divider).toHaveAttribute("aria-valuenow", "252")
   })
 
+  it("allows a later click after a drag ends away from the divider", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["README.md"] })
+
+    renderWorkspacePanel(makeCodingPayload())
+
+    expect(await screen.findByRole("button", { name: "README.md" })).toBeInTheDocument()
+    const divider = screen.getByRole("separator", { name: "Resize file tree" })
+
+    fireEvent.mouseDown(divider, { clientX: 192 })
+    fireEvent.mouseMove(window, { clientX: 252 })
+    fireEvent.mouseUp(window)
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+
+    fireEvent.click(divider)
+
+    expect(screen.queryByRole("button", { name: "README.md" })).not.toBeInTheDocument()
+  })
+
   it("snaps the file tree closed when dragged below the close threshold", async () => {
     vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["README.md"] })
 
@@ -364,6 +382,27 @@ describe("ChatWorkspacePanel coding files", () => {
 
     expect(screen.queryByRole("button", { name: "README.md" })).not.toBeInTheDocument()
     expect(divider).toHaveAttribute("aria-valuenow", "0")
+  })
+
+  it("keeps a snapped tree closed until the same drag crosses the reopen threshold", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["README.md"] })
+
+    renderWorkspacePanel(makeCodingPayload())
+
+    const divider = await screen.findByRole("separator", { name: "Resize file tree" })
+
+    fireEvent.mouseDown(divider, { clientX: 192 })
+    fireEvent.mouseMove(window, { clientX: 80 })
+    expect(screen.queryByRole("button", { name: "README.md" })).not.toBeInTheDocument()
+
+    fireEvent.mouseMove(window, { clientX: 110 })
+    expect(screen.queryByRole("button", { name: "README.md" })).not.toBeInTheDocument()
+
+    fireEvent.mouseMove(window, { clientX: 140 })
+    fireEvent.mouseUp(window)
+
+    expect(await screen.findByRole("button", { name: "README.md" })).toBeInTheDocument()
+    expect(divider).toHaveAttribute("aria-valuenow", "144")
   })
 
   it("reopens the file tree to a useful width when clicking the closed divider", async () => {
