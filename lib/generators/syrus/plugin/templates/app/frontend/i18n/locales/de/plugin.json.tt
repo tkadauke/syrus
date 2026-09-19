@@ -1,5 +1,14 @@
 {
   "admin": {
-    "title": "<%= display_name %>"
+    "title": "<%= display_name %>",
+    "description": "Eine plugin-eigene Seite mit semantischen Syrus-UI-Bausteinen.",
+    "panel_message": "Das Plugin besitzt diesen Hinweistext und alle fachlichen visuellen Elemente.",
+    "settings_heading": "Beispieleinstellungen",
+    "name_label": "Name",
+    "default_name": "<%= display_name %>",
+    "mode_label": "Modus",
+    "mode_observe": "Beobachten",
+    "mode_act": "Handeln",
+    "save": "Speichern"
   }
 }

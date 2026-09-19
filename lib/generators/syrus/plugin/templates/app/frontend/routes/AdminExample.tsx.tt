@@ -1,31 +1,34 @@
 import { Button, Card, Form, Input, Page, PageHeading, PanelMessage, SectionHeading, Select } from "@app/components/ui"
+import { useT } from "@app/hooks/useT"
 
 export default function AdminExample() {
+  const { t } = useT("<%= file_name %>")
+
   return (
-    <Page.Root aria-label="<%= display_name %>">
+    <Page.Root aria-label={t("admin.title")}>
       <Page.Header>
-        <PageHeading><%= display_name %></PageHeading>
-        <Page.Description>A plugin-owned page using Syrus semantic UI primitives.</Page.Description>
+        <PageHeading>{t("admin.title")}</PageHeading>
+        <Page.Description>{t("admin.description")}</Page.Description>
       </Page.Header>
 
-      <PanelMessage tone="success">The plugin owns this message copy and any domain-specific visuals.</PanelMessage>
+      <PanelMessage tone="success">{t("admin.panel_message")}</PanelMessage>
 
       <Card>
-        <SectionHeading>Example settings</SectionHeading>
+        <SectionHeading>{t("admin.settings_heading")}</SectionHeading>
         <form className="mt-4 grid gap-4 sm:grid-cols-2">
           <Form.Field>
-            <Form.Label htmlFor="<%= file_name %>-name">Name</Form.Label>
-            <Input id="<%= file_name %>-name" defaultValue="<%= display_name %>" />
+            <Form.Label htmlFor="<%= file_name %>-name">{t("admin.name_label")}</Form.Label>
+            <Input id="<%= file_name %>-name" defaultValue={t("admin.default_name")} />
           </Form.Field>
           <Form.Field>
-            <Form.Label htmlFor="<%= file_name %>-mode">Mode</Form.Label>
+            <Form.Label htmlFor="<%= file_name %>-mode">{t("admin.mode_label")}</Form.Label>
             <Select id="<%= file_name %>-mode" defaultValue="observe">
-              <option value="observe">Observe</option>
-              <option value="act">Act</option>
+              <option value="observe">{t("admin.mode_observe")}</option>
+              <option value="act">{t("admin.mode_act")}</option>
             </Select>
           </Form.Field>
           <Form.Actions className="sm:col-span-2">
-            <Button type="submit">Save</Button>
+            <Button type="submit">{t("admin.save")}</Button>
           </Form.Actions>
         </form>
       </Card>

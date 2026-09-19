@@ -1,5 +1,14 @@
 {
   "admin": {
-    "title": "<%= display_name %>"
+    "title": "<%= display_name %>",
+    "description": "A plugin-owned page using Syrus semantic UI primitives.",
+    "panel_message": "The plugin owns this message copy and any domain-specific visuals.",
+    "settings_heading": "Example settings",
+    "name_label": "Name",
+    "default_name": "<%= display_name %>",
+    "mode_label": "Mode",
+    "mode_observe": "Observe",
+    "mode_act": "Act",
+    "save": "Save"
   }
 }
