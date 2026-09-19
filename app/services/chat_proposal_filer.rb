@@ -121,11 +121,15 @@ class ChatProposalFiler
 
   def create_direct_job(proposal)
     target_repository = proposal.effective_repository || repository
+    provider_setting = proposal_provider_setting(proposal)
 
     # Don't advance here — the filer's main loop runs
     # advance_after_triage AFTER wiring dependencies so the
     # Job-level auto-start callback sees the correct dep graph.
-    job = user.jobs.create!(
+    # agent_provider is resolved through the proposal's provider override so
+    # a pinned provider wins over the repository default; a "default"
+    # proposal keeps the historical repository-default resolution.
+    job = user.jobs.new(
       repository: target_repository,
       epic: proposal.target_epic,
       kind: "direct",
@@ -135,13 +139,22 @@ class ChatProposalFiler
       issue_body: proposal.body,
       chat_goal: proposal.chat_goal,
       goal_prompt_snapshot: proposal.goal_prompt_snapshot,
-      agent_provider: target_repository.effective_agent_provider,
+      job_provider_setting: provider_setting,
       state: proposal.initial_job_state_for(user)
     )
+    job.agent_provider = Job::ProviderSetting::Base.for(provider_setting).resolve(job)
+    job.save!
 
     attach_media_to_job!(proposal, job)
 
     job
+  end
+
+  def proposal_provider_setting(proposal)
+    setting = proposal.try(:provider_setting).presence || Job::ProviderSetting::Base::DEFAULT_VALUE
+    return setting if Job::ProviderSetting::Base.values.include?(setting)
+
+    Job::ProviderSetting::Base::DEFAULT_VALUE
   end
 
   def create_epic(proposal)

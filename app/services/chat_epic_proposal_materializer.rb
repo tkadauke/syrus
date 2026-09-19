@@ -116,7 +116,13 @@ class ChatEpicProposalMaterializer
 
   def create_job_for(proposal, epic)
     repository = proposal.repository || epic.repository
-    user.jobs.create!(
+    provider_setting = proposal.try(:provider_setting).presence || Job::ProviderSetting::Base::DEFAULT_VALUE
+    provider_setting = Job::ProviderSetting::Base::DEFAULT_VALUE unless Job::ProviderSetting::Base.values.include?(provider_setting)
+
+    # agent_provider is resolved through the child proposal's provider
+    # override so a pinned provider wins over the repository default; a
+    # "default" child keeps the historical repository-default resolution.
+    job = user.jobs.new(
       repository: repository,
       epic: epic,
       kind: "direct",
@@ -126,8 +132,11 @@ class ChatEpicProposalMaterializer
       issue_body: proposal.body,
       chat_goal: proposal.chat_goal,
       goal_prompt_snapshot: proposal.goal_prompt_snapshot,
-      agent_provider: repository.effective_agent_provider
+      job_provider_setting: provider_setting
     )
+    job.agent_provider = Job::ProviderSetting::Base.for(provider_setting).resolve(job)
+    job.save!
+    job
   end
 
   def wire_sibling_dependencies(job_proposals, job_by_proposal_id)

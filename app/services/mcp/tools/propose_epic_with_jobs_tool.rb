@@ -2,6 +2,13 @@ require "mcp"
 
 module Mcp::Tools
   class ProposeEpicWithJobsTool < MCP::Tool
+    # Shares only normalize_provider_setting with the support module: every
+    # other helper here is a user-scoped or epic-scoped variant defined below,
+    # and methods defined directly on this class shadow the module's
+    # same-named helpers, so this adds no behavior change beyond the provider
+    # normalization.
+    extend ProposalToolSupport
+
     tool_name "propose_epic_with_jobs"
 
     description <<~DESC
@@ -48,6 +55,11 @@ module Mcp::Tools
       in service of the currently active goal. Leave it false for opportunistic
       or unrelated follow-up work so that child Job state changes do not wake
       the goal loop.
+      Set jobs[].provider to pin the implementing provider for that child Job
+      (e.g. "muse"). Omit it (or pass "default") to keep the current
+      behavior: the Job inherits the repository/user default provider at
+      confirmation time. Each child is pinned independently; unknown provider
+      values are rejected before the proposal card is created.
     DESC
 
     input_schema(
@@ -78,6 +90,7 @@ module Mcp::Tools
               depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job (not the whole epic) depends on. Use when only this specific job must wait for an upstream epic while sibling jobs in the same epic can start sooner. For whole-epic sequencing, prefer `epic.depends_on`." },
               depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this child Job depends on. This is the ONLY way to chain a new child Job onto an existing Epic's already-materialized Jobs when epic.epic_id targets a non-empty Epic — depends_on (below) only reaches slugs proposed in this same session, not real Job IDs. Required on at least one new child whenever the target Epic already has Jobs, naming that Epic's current tail Job, or the proposal is rejected as a disconnected parallel branch." },
               depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. REQUIRED to form a single linear chain across all child Jobs in this proposal: every job besides the first must depend on exactly one other child job (no two children may share a dependency or a dependent). A fan-in, fan-out, or otherwise unordered graph is rejected before the card is created. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when there is just one other child job in this proposal and the two are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." },
+              provider: { type: "string", description: "Optional implementing-provider override for this child Job (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
               media: {
                 type: "array",
                 items: { type: "string" },
@@ -190,6 +203,7 @@ module Mcp::Tools
       end
 
       def normalize_job(job, default_repo:)
+        provider_setting, provider_error = normalize_provider_setting(job["provider"])
         {
           slug: job["slug"].to_s.strip,
           title: job["title"].to_s.strip,
@@ -198,6 +212,8 @@ module Mcp::Tools
           depends_on_epic_ids: normalize_integer_list(job["depends_on_epic_ids"]),
           depends_on_job_ids: normalize_integer_list(job["depends_on_job_ids"]),
           depends_on: normalize_string_list(job["depends_on"]),
+          provider_setting: provider_setting,
+          provider_error: provider_error,
           media_ids: Array(job["media"])
         }
       end
@@ -232,6 +248,7 @@ module Mcp::Tools
           return "proposal item #{job[:slug]} description is required" if job[:description].empty?
           return "proposal item #{job[:slug]} target_repo is required" if job[:target_repo].empty?
           return "proposal item #{job[:slug]} cannot depend on itself" if job[:depends_on].include?(job[:slug])
+          return "proposal item #{job[:slug]} #{job[:provider_error]}" if job[:provider_error]
         end
 
         dependency_slugs = jobs.flat_map { |job| job[:depends_on] }.uniq
@@ -405,6 +422,7 @@ module Mcp::Tools
             labels: nil,
             depends_on_epic_ids: job[:depends_on_epic_ids],
             depends_on_job_ids: job[:depends_on_job_ids],
+            provider_setting: job[:provider_setting],
             media_ids: job[:media_ids],
             state: "proposed",
             edited_at: child.persisted? ? Time.current : nil,
@@ -457,6 +475,7 @@ module Mcp::Tools
               target_repo: child.repository&.slug,
               depends_on_epic_ids: child.depends_on_epic_ids,
               depends_on_job_ids: child.depends_on_job_ids,
+              provider_setting: child.provider_setting,
               goal_provenance: App::GoalProvenancePayload.for(child),
               depends_on: child.dependencies.order(:slug).pluck(:slug)
             }
