@@ -6,8 +6,39 @@ RSpec.describe AppSetting do
   end
 
   it ".current returns the existing row on subsequent calls" do
-    AppSetting.create!
+    AppSetting.create!(singleton_key: AppSetting::SINGLETON_KEY)
     expect { AppSetting.current }.not_to change(AppSetting, :count)
+  end
+
+  it ".current converges on the singleton when another caller wins the create race" do
+    allow(AppSetting).to receive(:find_or_create_by!).and_wrap_original do |method, *args, **kwargs, &block|
+      AppSetting.create!(singleton_key: AppSetting::SINGLETON_KEY, polling_paused: true)
+      allow(AppSetting).to receive(:find_or_create_by!).and_call_original
+      raise ActiveRecord::RecordNotUnique.new("index_app_settings_on_singleton_key")
+    end
+
+    race_loser = AppSetting.current
+    subsequent_caller = AppSetting.current
+
+    expect(AppSetting.count).to eq(1)
+    expect(race_loser).to eq(AppSetting.first)
+    expect(subsequent_caller).to eq(race_loser)
+    expect(race_loser.polling_paused).to be true
+  end
+
+  it "rejects non-sentinel singleton keys" do
+    setting = AppSetting.new(singleton_key: 2)
+
+    expect(setting).not_to be_valid
+    expect(setting.errors[:singleton_key]).to be_present
+  end
+
+  it "enforces one sentinel row at the database level" do
+    AppSetting.current
+
+    expect {
+      AppSetting.create!(singleton_key: AppSetting::SINGLETON_KEY)
+    }.to raise_error(ActiveRecord::RecordNotUnique)
   end
 
   describe "SYRUS_BOOT_POLLING_PAUSED seeding" do
