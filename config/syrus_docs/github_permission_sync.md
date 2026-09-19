@@ -11,7 +11,7 @@ source of truth for commit access.
 
 `GithubPermissionSyncer#sync` (sibling to `GithubAppInstallationSyncer`) is
 invoked by `SyncGithubPermissionsJob`, scheduled in `config/recurring.yml`
-every 30 minutes on the `polling` queue. It no-ops when no GitHub App is
+every 5 minutes on the `polling` queue. It no-ops when no GitHub App is
 registered (`AppSetting.github_app_registered?`).
 
 For every non-archived `Repository` with an active GitHub App
