@@ -276,6 +276,8 @@ RSpec.describe PreviewProxyMiddleware do
       expect(status).to eq(200)
       expect(headers["set-cookie"]).to include("_syrus_preview_environment_access=")
       expect(headers["set-cookie"].downcase).to include("httponly")
+      expect(headers["set-cookie"].downcase).to include("samesite=lax")
+      expect(headers["set-cookie"].downcase).not_to include("secure")
     end
 
     it "accepts the access cookie for follow-up asset requests without a query token" do

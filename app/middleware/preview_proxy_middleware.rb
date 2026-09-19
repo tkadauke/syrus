@@ -187,7 +187,7 @@ class PreviewProxyMiddleware
       path: "/",
       http_only: true,
       secure: request.ssl?,
-      same_site: :none,
+      same_site: :lax,
       expires: PreviewEnvironment::AccessToken::TTL.from_now
     })
   end
