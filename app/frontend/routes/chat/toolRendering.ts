@@ -159,6 +159,21 @@ function toolArgumentSummary(name: string, input: Record<string, unknown>) {
     case "ask_user_question":
       detail = questionArgumentSummary(input)
       break
+    // Muse Code's native tools use snake_case names and their own param
+    // vocabulary, distinct from the capitalised Claude tool names above.
+    case "bash":
+      detail = firstLine(stringValue(input.command))
+      break
+    case "read_file":
+      detail = stringValue(input.path) || stringValue(input.file_path)
+      break
+    case "search":
+    case "tool_search":
+      detail = stringValue(input.query) || stringValue(input.pattern)
+      break
+    case "attach_repository":
+      detail = stringValue(input.slug)
+      break
     default:
       detail = defaultToolArgumentSummary(input)
   }

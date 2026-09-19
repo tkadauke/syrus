@@ -79,6 +79,14 @@ describe("toolDetail", () => {
   it("keeps Runtime artifact capture collapsed details compact", () => {
     expect(toolDetail("runtime_capture_artifact", { session_id: 7, artifact_type: "screenshot" })).toBe("screenshot, session 7")
   })
+
+  it("summarizes Muse Code's snake_case native tool calls with their own param names", () => {
+    expect(toolDetail("bash", { command: "ls -la" })).toBe("ls -la")
+    expect(toolDetail("read_file", { path: "app/models/run.rb" })).toBe("app/models/run.rb")
+    expect(toolDetail("search", { query: "def perform" })).toBe("def perform")
+    expect(toolDetail("tool_search", { query: "read_job" })).toBe("read_job")
+    expect(toolDetail("attach_repository", { slug: "tkadauke/syrus" })).toBe("tkadauke/syrus")
+  })
 })
 
 describe("toolLabel", () => {

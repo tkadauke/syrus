@@ -393,7 +393,7 @@ class MuseInvocation
     tool_call_payload = payload.merge(
       "tool_name" => tool_name,
       "call_id" => event["idempotency_key"].to_s.delete_prefix("tool:").presence,
-      "input" => event["input"] || event["arguments"] || payload["input"] || payload["arguments"]
+      "input" => tool_call_arguments(event["input"], event["arguments"], event["args"], payload["input"], payload["arguments"], payload["args"])
     )
     process_tool_call(tool_call_payload, log_sink)
   end
@@ -568,7 +568,19 @@ class MuseInvocation
   end
 
   def tool_input(payload)
-    value = payload["input"] || payload["arguments"] || payload["args"]
+    tool_call_arguments(payload["input"], payload["arguments"], payload["args"])
+  end
+
+  # Muse's model-authored tool arguments travel under different keys
+  # depending on the event shape: "input"/"arguments" for most tool events,
+  # but side_effect_intent events and tool-batch effect records carry them
+  # as "args" instead (per Muse's own MSP wire schema, where a `toolCall`
+  # item's arguments live in an "args" field regardless of whether the call
+  # is a native tool like `bash`/`read_file` or routed through an MCP
+  # server). Every call site needs all three keys checked, or the argument
+  # summary renders "No arguments" even though the call clearly had them.
+  def tool_call_arguments(*candidates)
+    value = candidates.find(&:present?)
     return {} if value.blank?
     return JSON.parse(value) if value.is_a?(String) && value.strip.start_with?("{")
 
@@ -613,7 +625,7 @@ class MuseInvocation
   end
 
   def tool_record_input(record, payload)
-    record["input"] || record["arguments"] || record["args"] || payload["input"] || payload["arguments"] || payload["args"]
+    tool_call_arguments(record["input"], record["arguments"], record["args"], payload["input"], payload["arguments"], payload["args"])
   end
 
   def tool_record_result(record, payload)
