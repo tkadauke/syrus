@@ -1,4 +1,4 @@
-# Per-repository hotfix-sync detection (docs/plans/delivery-tracks-and-promotion.md
+# Per-repository hotfix-sync detection (docs/plans/complete/delivery-tracks-and-promotion.md
 # Story 5/5A). Detects when the release branch (DeliveryPolicy#hotfix_sync_source_branch,
 # normally the repository default branch) has commits the development track
 # (DeliveryPolicy#hotfix_sync_target_branch) doesn't have yet — e.g. a direct
