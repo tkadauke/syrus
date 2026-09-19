@@ -319,14 +319,7 @@ module App
       end
 
       def pending_proposal_json(proposal)
-        {
-          id: proposal.id,
-          title: App::ChatMessagePayload.proposal_title(proposal),
-          state: proposal.state,
-          chat_session_id: proposal.chat_session_id,
-          anchor_message_id: App::ChatMessagePayload.anchor_message_id(proposal),
-          created_at: proposal.created_at&.iso8601
-        }
+        App::ChatMessagePayload.dashboard_pending_proposal_json(proposal)
       end
 
       def main_branch_repair_json(status)

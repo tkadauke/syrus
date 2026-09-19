@@ -159,6 +159,7 @@
   "untagged_issues_repo_count_one": "across {{count}} repository",
   "untagged_issues_repo_count_other": "across {{count}} repositories",
   "untagged_issues_dismiss": "Dismiss",
+  "pending_proposals_title": "Proposed",
   "needs_attention_aria": "Needs attention",
   "delivery_status": {
     "waiting_for_local_approval": "Waiting for local approval",
