@@ -24,6 +24,16 @@ RSpec.describe "recurring job configuration" do
     )
   end
 
+  it "syncs GitHub permission mismatches every five minutes" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("sync_github_permissions")).to include(
+      "class" => "SyncGithubPermissionsJob",
+      "queue" => "polling",
+      "schedule" => "every 5 minutes"
+    )
+  end
+
   it "polls for hotfix syncs every five minutes" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
 
