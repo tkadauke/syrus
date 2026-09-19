@@ -384,10 +384,12 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
           ...current,
           turn_in_flight: replaceTail.turn_in_flight ?? current.turn_in_flight,
           agent_busy: replaceTail.agent_busy ?? current.agent_busy,
+          turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.turn_retry_state,
           queued_messages: replaceTail.queued_messages ?? current.queued_messages,
           messages: replaceMessageTail(current.messages, replaceTail.replace_from_id, replaceTail.messages),
           chat: {
             ...current.chat,
+            turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.chat.turn_retry_state,
             stop_requested_at: replaceTail.stop_requested_at ?? current.chat.stop_requested_at
           }
         }
@@ -405,9 +407,11 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
         ...current,
         turn_in_flight: invalidateMessages.turn_in_flight ?? current.turn_in_flight,
         agent_busy: invalidateMessages.agent_busy ?? current.agent_busy,
+        turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.turn_retry_state,
         queued_messages: invalidateMessages.queued_messages ?? current.queued_messages,
         chat: {
           ...current.chat,
+          turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.chat.turn_retry_state,
           stop_requested_at: invalidateMessages.stop_requested_at ?? current.chat.stop_requested_at
         }
       } : current
@@ -433,10 +437,12 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
           ...current,
           turn_in_flight: controls.turn_in_flight,
           agent_busy: controls.agent_busy ?? current.agent_busy,
+          turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.turn_retry_state,
           switching_provider: controls.switching_provider ?? current.switching_provider,
           queued_messages: controls.queued_messages ?? current.queued_messages,
           chat: {
             ...current.chat,
+            turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.chat.turn_retry_state,
             stop_requested_at: controls.stop_requested_at
           }
         }
@@ -604,6 +610,7 @@ type ChatReplaceTailPayload = {
   messages: ChatMessageItem[]
   turn_in_flight?: boolean
   agent_busy?: boolean
+  turn_retry_state?: ChatPayload["turn_retry_state"]
   stop_requested_at?: string | null
   queued_messages?: ChatQueuedMessage[]
 }
@@ -612,6 +619,7 @@ type ChatControlsPayload = {
   action: "update_controls"
   turn_in_flight: boolean
   agent_busy?: boolean
+  turn_retry_state?: ChatPayload["turn_retry_state"]
   stop_requested_at: string | null
   switching_provider?: boolean
   queued_messages?: ChatQueuedMessage[]
@@ -622,6 +630,7 @@ type ChatInvalidateMessagesPayload = {
   action: "invalidate_messages"
   turn_in_flight?: boolean
   agent_busy?: boolean
+  turn_retry_state?: ChatPayload["turn_retry_state"]
   stop_requested_at?: string | null
   queued_messages?: ChatQueuedMessage[]
 }
@@ -695,6 +704,7 @@ function chatReplaceTailPayload(payload: unknown): ChatReplaceTailPayload | null
     messages,
     turn_in_flight: typeof candidate.turn_in_flight === "boolean" ? candidate.turn_in_flight : undefined,
     agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
+    turn_retry_state: isChatTurnRetryState(candidate.turn_retry_state) ? candidate.turn_retry_state : candidate.turn_retry_state === null ? null : undefined,
     stop_requested_at: typeof candidate.stop_requested_at === "string" || candidate.stop_requested_at === null ? candidate.stop_requested_at : undefined,
     queued_messages: isChatQueuedMessages(candidate.queued_messages) ? candidate.queued_messages : undefined
   }
@@ -712,6 +722,7 @@ function chatControlsPayload(payload: unknown): ChatControlsPayload | null {
     action: "update_controls",
     turn_in_flight: candidate.turn_in_flight,
     agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
+    turn_retry_state: isChatTurnRetryState(candidate.turn_retry_state) ? candidate.turn_retry_state : candidate.turn_retry_state === null ? null : undefined,
     stop_requested_at: candidate.stop_requested_at,
     switching_provider: typeof candidate.switching_provider === "boolean" ? candidate.switching_provider : undefined,
     queued_messages: isChatQueuedMessages(candidate.queued_messages) ? candidate.queued_messages : undefined,
@@ -719,6 +730,24 @@ function chatControlsPayload(payload: unknown): ChatControlsPayload | null {
       ? ((candidate as { scratchpad_items: unknown[] }).scratchpad_items).length
       : undefined
   }
+}
+
+function isChatTurnRetryState(value: unknown): value is NonNullable<ChatPayload["turn_retry_state"]> {
+  if (!value || typeof value !== "object") return false
+
+  const candidate = value as NonNullable<ChatPayload["turn_retry_state"]>
+  return (typeof candidate.classification === "string" || candidate.classification === null) &&
+    typeof candidate.classification_label === "string" &&
+    typeof candidate.retryable === "boolean" &&
+    (typeof candidate.next_auto_retry_at === "string" || candidate.next_auto_retry_at === null) &&
+    typeof candidate.retry_attempt_count === "number" &&
+    typeof candidate.retry_budget_remaining === "number" &&
+    typeof candidate.retry_budget === "number" &&
+    typeof candidate.auto_retry_exhausted === "boolean" &&
+    typeof candidate.provider_circuit_open === "boolean" &&
+    (typeof candidate.retry_delayed_until === "string" || candidate.retry_delayed_until === null) &&
+    (typeof candidate.retry_delay_reason === "string" || candidate.retry_delay_reason === null) &&
+    typeof candidate.state_label === "string"
 }
 
 function chatInvalidateMessagesPayload(payload: unknown): ChatInvalidateMessagesPayload | null {
@@ -731,6 +760,7 @@ function chatInvalidateMessagesPayload(payload: unknown): ChatInvalidateMessages
     action: "invalidate_messages",
     turn_in_flight: typeof candidate.turn_in_flight === "boolean" ? candidate.turn_in_flight : undefined,
     agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
+    turn_retry_state: isChatTurnRetryState(candidate.turn_retry_state) ? candidate.turn_retry_state : candidate.turn_retry_state === null ? null : undefined,
     stop_requested_at: typeof candidate.stop_requested_at === "string" || candidate.stop_requested_at === null ? candidate.stop_requested_at : undefined,
     queued_messages: isChatQueuedMessages(candidate.queued_messages) ? candidate.queued_messages : undefined
   }

@@ -1559,9 +1559,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.dig("chat", "cumulative_input_tokens")).to eq(12_400)
     expect(body.dig("chat", "turn_in_flight")).to eq(false)
     expect(body.dig("chat", "agent_busy")).to eq(false)
+    expect(body.dig("chat", "turn_retry_state")).to be_nil
     expect(body["chat_available"]).to eq(true)
     expect(body["turn_in_flight"]).to eq(false)
     expect(body["agent_busy"]).to eq(false)
+    expect(body["turn_retry_state"]).to be_nil
     expect(body["chat_shell_command_in_flight"]).to be_nil
     expect(body["bookmarks"]).to eq([])
     expect(body["agent_questions"]).to contain_exactly(include(

@@ -30,6 +30,9 @@ module ChatSerialization
       agent_busy = PerformanceLogging.phase("chat_payload.agent_busy", chat_id: chat_session.id) do
         chat_session.agent_busy?
       end
+      turn_retry_state = PerformanceLogging.phase("chat_payload.turn_retry_state", chat_id: chat_session.id) do
+        ::App::ChatTurnRetryState.for(chat_session)
+      end
       chat_shell_command_in_flight = PerformanceLogging.phase("chat_payload.chat_shell_command_in_flight", chat_id: chat_session.id) do
         # Coding Mode and Local Mode only (the chat shell-command cancellation feature); skip the query for every other chat.
         chat_session.coding? || chat_session.local? ? chat_session.chat_shell_commands.running.order(id: :desc).first&.as_command_json : nil
@@ -38,11 +41,12 @@ module ChatSerialization
       {
         message: message,
         chat: PerformanceLogging.phase("chat_payload.chat", chat_id: chat_session.id) do
-          chat_json(chat_session, counts: counts, turn_in_flight: turn_in_flight, agent_busy: agent_busy)
+          chat_json(chat_session, counts: counts, turn_in_flight: turn_in_flight, agent_busy: agent_busy, turn_retry_state: turn_retry_state)
         end,
         chat_available: Current.user.chat_available?,
         turn_in_flight: turn_in_flight,
         agent_busy: agent_busy,
+        turn_retry_state: turn_retry_state,
         # The composer's `!` command mode rehydrates its running/cancellable
         # state from this field on mount so a remount (e.g. crossing the
         # desktop/mobile layout breakpoint) doesn't silently drop an

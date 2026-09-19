@@ -63,6 +63,7 @@ class ChatSession < ApplicationRecord
   has_many :wakeups, class_name: "ChatWakeup", dependent: :destroy
   has_many :scheduled_messages, class_name: "ScheduledChatMessage", dependent: :destroy
   has_many :agent_questions, class_name: "ChatAgentQuestion", dependent: :destroy
+  has_many :turn_auto_retry_attempts, class_name: "ChatTurnAutoRetryAttempt", dependent: :destroy
   has_many :chat_goals, dependent: :destroy
   has_one :agent, as: :resumable, dependent: :destroy
   has_one :active_goal,
@@ -504,6 +505,7 @@ class ChatSession < ApplicationRecord
         action: "update_controls",
         turn_in_flight: turn_in_flight?,
         agent_busy: agent_busy?,
+        turn_retry_state: App::ChatTurnRetryState.for(self),
         stop_requested_at: stop_requested_at&.iso8601,
         switching_provider: switching_provider,
         queued_messages: queued_messages_payload,

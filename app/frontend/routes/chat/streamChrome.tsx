@@ -1,6 +1,8 @@
 import { useId, useMemo } from "react"
 import "@excalidraw/excalidraw/index.css"
+import type { ChatTurnRetryState } from "../../api/chats"
 import { useT } from "../../hooks/useT"
+import { formatRelativeDate } from "../../lib/relativeTime"
 import { providerLabel } from "./utils"
 
 
@@ -105,6 +107,42 @@ export function AgentActivityIndicator({ running }: { running: boolean }) {
           ))}
         </span>
         <span title={phrase.english}>{phrase.latin}</span>
+      </div>
+    </div>
+  )
+}
+
+export function TurnRetryIndicator({ retry }: { retry: ChatTurnRetryState }) {
+  const nextRetry = retry.next_auto_retry_at ? formatRelativeDate(new Date(retry.next_auto_retry_at)) : null
+  const details = [
+    retry.classification_label,
+    retry.retryable ? "retryable" : "not retryable",
+    `${retry.retry_budget_remaining} left`,
+    nextRetry ? `next ${nextRetry}` : null,
+    retry.provider_circuit_open ? "provider circuit open" : null
+  ].filter(Boolean).join(" · ")
+  const label = nextRetry
+    ? `${retry.state_label} · attempt ${retry.retry_attempt_count}/${retry.retry_budget} · next ${nextRetry}`
+    : `${retry.state_label} · attempt ${retry.retry_attempt_count}/${retry.retry_budget}`
+  const tone = retry.auto_retry_exhausted
+    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
+    : retry.provider_circuit_open
+      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200"
+      : "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+
+  return (
+    <div aria-label={details} aria-live="polite" className="flex justify-start" role="status">
+      <div className={`inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium shadow-sm ${tone}`} title={details}>
+        <span>{retry.state_label}</span>
+        <span aria-hidden="true" className="text-current/45">·</span>
+        <span>attempt {retry.retry_attempt_count}/{retry.retry_budget}</span>
+        {nextRetry ? (
+          <>
+            <span aria-hidden="true" className="text-current/45">·</span>
+            <span>next {nextRetry}</span>
+          </>
+        ) : null}
+        <span className="sr-only">{label}</span>
       </div>
     </div>
   )
