@@ -1,7 +1,7 @@
 module Prompts
   # Prompt for follow-up Runs triggered from Syrus Chat operator feedback.
   class ChatFeedback
-    def initialize(issue:, feedback:, diff_comments: [], prior_summaries: [], recent_commits: [], epic: nil, job: nil, injected_context: [])
+    def initialize(issue:, feedback:, diff_comments: [], prior_summaries: [], recent_commits: [], epic: nil, job: nil, user: nil, repository_ids: [], injected_context: [])
       @issue = issue
       @feedback = feedback
       @diff_comments = Array(diff_comments)
@@ -9,6 +9,8 @@ module Prompts
       @recent_commits = recent_commits || []
       @epic = epic
       @job = job
+      @user = user
+      @repository_ids = repository_ids
       @injected_context = Array(injected_context).compact
     end
 
@@ -20,6 +22,7 @@ module Prompts
         feedback_section,
         diff_comments_section,
         commits_section,
+        memory_context,
         directives_section,
         injected_context_section
       ].compact
@@ -39,6 +42,10 @@ module Prompts
 
     def epic_context
       Prompts::EpicContext.new(epic: @epic, job: @job).to_s.presence
+    end
+
+    def memory_context
+      Prompts::MemoryContext.new(user: @user, repository_ids: @repository_ids).to_s.presence
     end
 
     def prior_context_section

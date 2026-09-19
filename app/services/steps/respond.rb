@@ -52,6 +52,8 @@ module Steps
         recent_commits: recent_branch_commits,
         epic: job.epic,
         job: job,
+        user: job.user,
+        repository_ids: [ job.repository_id ],
         injected_context: collect_injected_context
       ).to_s
     end
