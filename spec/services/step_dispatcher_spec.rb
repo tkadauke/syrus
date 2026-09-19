@@ -2089,7 +2089,30 @@ RSpec.describe StepDispatcher, :ci_only do
       new_steps = review_workflow.reload.steps.where(loop_id: review.loop_id, iteration: 2).order(:position).to_a
       expect(new_steps.map(&:kind)).to eq(%w[ implement adversarial_review ])
       expect(review.reload.next_step).to eq(new_steps.first)
+      expect(new_steps.first.depends_on_step_ids).to eq([ review.id ])
+      expect(new_steps.second.depends_on_step_ids).to eq([ new_steps.first.id ])
       expect(new_steps.first.runs.last.parent_session_id).to eq("implement-1")
+    end
+
+    it "retargets a later dependency when inserting an adversarial repair" do
+      review_workflow = workflow_with_adversarial_review_loop(max_iterations: 1)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      grader_fanout = review_workflow.steps.find_by!(kind: "grader_fanout")
+      grader_fanout.update!(depends_on_ids: [ review.id ])
+
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "critique" => "needs work", "verdict" => "needs_work" }
+      ])
+
+      described_class.advance_from(review)
+
+      repair = review_workflow.reload.steps.find_by!(
+        kind: "implement",
+        loop_id: review.loop_id,
+        iteration: 2
+      )
+      expect(repair.depends_on_step_ids).to eq([ review.id ])
+      expect(grader_fanout.reload.depends_on_step_ids).to eq([ repair.id ])
     end
 
     it "uses the implement session, not the reviewer session, for adversarial loop repair continuity" do
@@ -2151,12 +2174,31 @@ RSpec.describe StepDispatcher, :ci_only do
 
       final_repair = review_workflow.reload.steps.where(loop_id: review1.loop_id, iteration: 3).sole
       expect(final_repair.kind).to eq("implement")
+      final_repair.update_columns(state: "succeeded", finished_at: Time.current)
 
       expect {
         described_class.advance_from(final_repair)
       }.to change { grader_fanout.reload.runs.count }.by(1)
 
       expect(review_workflow.reload.steps.where(kind: "adversarial_review", iteration: 3)).to be_empty
+    end
+
+    it "retargets grader dependencies after a final visual-review repair-only iteration" do
+      review_workflow = workflow_with_visual_review_loop(max_iterations: 1)
+      review = review_workflow.steps.find_by!(kind: "visual_review", iteration: 1)
+      grader_fanout = review_workflow.steps.find_by!(kind: "grader_fanout")
+      grader_fanout.update!(depends_on_ids: [ review.id ])
+
+      review_workflow.set_artifact!("visual_review_iterations", [
+        { "iteration" => 1, "critique" => "The provider selector is missing.", "verdict" => "needs_work" }
+      ])
+
+      described_class.advance_from(review)
+
+      repair = review_workflow.reload.steps.where(loop_id: review.loop_id, iteration: 2).sole
+      expect(repair.kind).to eq("implement")
+      expect(repair.depends_on_step_ids).to eq([ review.id ])
+      expect(grader_fanout.reload.depends_on_step_ids).to eq([ repair.id ])
     end
 
     it "advances straight to the check-first grade loop when the reviewer approves, without a repair" do

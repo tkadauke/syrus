@@ -1236,6 +1236,7 @@ class StepDispatcher
           "try_branch_failure_code" => failure_code
         )
       )
+      wire_inserted_step_dependencies!(previous: @from_step, new_steps: new_steps, continuation: continuation)
       self.class.create_run_and_enqueue(new_steps.first, @workflow) unless paused_before_next_step?(new_steps.first)
     end
   end
@@ -1335,6 +1336,7 @@ class StepDispatcher
 
       ([ previous ] + new_steps).each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
       new_steps.last.update!(next_step_id: continuation&.id)
+      wire_inserted_step_dependencies!(previous: previous, new_steps: new_steps, continuation: continuation)
 
       unless paused_before_next_step?(new_steps.first)
         self.class.create_run_and_enqueue(new_steps.first, @workflow, parent_session_id: prior_iteration_session_id)
@@ -1414,6 +1416,23 @@ class StepDispatcher
     next_step = current_grade.next_step
     next_step&.loop_id == current_grade.loop_id &&
       next_step.iteration == current_grade.iteration + 1
+  end
+
+  def wire_inserted_step_dependencies!(previous:, new_steps:, continuation:)
+    return if new_steps.empty?
+
+    ([ previous ] + new_steps).each_cons(2) do |dependency, dependent|
+      dependent.update!(depends_on_ids: [ dependency.id ])
+    end
+
+    return unless continuation
+
+    ids = continuation.depends_on_step_ids
+    if ids.empty?
+      continuation.update!(depends_on_ids: [ new_steps.last.id ])
+    elsif ids.include?(previous.id)
+      continuation.update!(depends_on_ids: ids.map { |id| id == previous.id ? new_steps.last.id : id })
+    end
   end
 
   def exhaust_loop!
