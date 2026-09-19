@@ -1,6 +1,22 @@
 module JobDependencies
   extend ActiveSupport::Concern
 
+  EpicReleaseDependency = Data.define(:epic) do
+    def id = "epic-release:#{epic.id}"
+    def source = "epic_release"
+    def satisfaction_mode = "success"
+    def manual? = false
+    def pending? = false
+    def dependency_succeeded? = false
+    def execution_dependency_satisfied? = false
+    def unresolved_slug = nil
+    def pending_reference_kind = nil
+    def pending_reference_state = nil
+    def created_by_user_id = nil
+    def depends_on_job = nil
+    def depends_on_epic = epic
+  end
+
   def dependencies_satisfied?
     return false if epic.present? && !epic.releases_jobs_for_execution?
     return true if dependencies_overridden_at.present?
@@ -32,6 +48,7 @@ module JobDependencies
   end
 
   def unsatisfied_dependencies
+    return [ EpicReleaseDependency.new(epic:) ] if epic.present? && !epic.releases_jobs_for_execution?
     return [] if dependencies_overridden_at.present?
 
     preloaded_dependencies(:depends_on_epic, depends_on_job: :repository).reject do |dependency|

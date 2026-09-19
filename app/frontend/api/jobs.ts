@@ -389,7 +389,7 @@ export type JobDependencyEpicTarget = {
 }
 
 export type JobDependency = {
-  id: number
+  id: number | string
   source: string
   satisfaction_mode?: "success" | "closed"
   manual: boolean
