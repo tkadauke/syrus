@@ -101,6 +101,35 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(child.job.investigation?).to eq(true)
   end
 
+  it "applies per-child provider overrides onto the materialized Jobs" do
+    proposal = epic_proposal
+    pinned = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "pinned",
+      title: "Pinned",
+      body: "Pin the implementation to muse.",
+      repository: repository,
+      provider_setting: "muse"
+    )
+    defaulted = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "defaulted",
+      title: "Defaulted",
+      body: "No override.",
+      repository: repository
+    )
+    depend_on(defaulted, pinned)
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.jobs.size).to eq(2)
+    expect(pinned.reload.job).to have_attributes(job_provider_setting: "muse", agent_provider: "muse")
+    expect(defaulted.reload.job).to have_attributes(
+      job_provider_setting: "default",
+      agent_provider: repository.effective_agent_provider
+    )
+  end
+
   it "copies goal provenance to a bundled Epic and its child Jobs" do
     goal = ChatGoal.create!(
       chat_session: chat_session,
