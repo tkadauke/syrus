@@ -47,6 +47,7 @@ gem "my_plugin", path: "plugins/my_plugin"
 | `:mcp_tool_set`   | `Syrus::Plugin::McpToolSet`           | `.tool_definitions`, `.available_for?`, `#handle`; optionally `.available_for_context?` and `.tool_definitions(context:)` for role-aware workflow tools |
 | `:input_source`   | `Syrus::Plugin::InputSource`          | `#poll!`, `#validate_credentials!`, `#config_schema`, `#dedup_key` |
 | `:admin_page`     | `Syrus::Plugin::AdminPage`            | `.admin_pages` |
+| `:sidebar_page`   | `Syrus::Plugin::SidebarPage`          | `.sidebar_pages` |
 | `:chat_mcp_tool_set` | `Syrus::Plugin::ChatMcpToolSet`    | `.tool_definitions(tier:)`, `.available_for?(session, tier:)`, `#handle` |
 | `:source_control_provider` | `Syrus::Plugin::SourceControlProvider` | `.provider_key`, `.display_name`, `.available_for?(repository)`, `.client_for(repository:, user:)` |
 | `:grader_augmentor` | `Syrus::Plugin::GraderAugmentor`    | `.augment_grader_failure(name:, command:, workspace_path:)` → `Array<String>\|nil` |
@@ -57,6 +58,31 @@ source-control provider can own branch/PR/merge operations without being a poll
 source. The bundled `github_source` currently provides both and is marked
 non-disableable until the remaining core GitHub behavior moves behind plugin
 boundaries.
+
+`:admin_page` and `:sidebar_page` both register a full page with its own SPA
+route and nav entry, and their metadata shapes are nearly identical (see
+below) -- pick the wrong one and the page still renders, just in the wrong
+nav, so this distinction is easy to miss. The audience is what decides:
+
+- **`:admin_page`** puts the page in the Admin section nav
+  (`/admin/...`), which non-admin users never see. Use it for operator/admin
+  diagnostics, configuration, and instance-wide tooling -- the kind of page
+  that assumes the viewer is running the instance, not using the product.
+  `group_id` slots it into one of the fixed core admin nav groups (see
+  `config/syrus_docs/plugins.md`'s "Admin nav groups" section for the current
+  list); an unrecognized or absent `group_id` lands the page ungrouped at the
+  bottom of the admin nav instead of raising, so double-check the value
+  against that list rather than guessing a name.
+- **`:sidebar_page`** puts the page in the main app sidebar (`section:
+  "primary"`, the default), the Settings page's own side nav (`section:
+  "settings"`), or, for a page reached some other way (a search result, a
+  deep link) rather than through a nav click, off both navs entirely
+  (`section: "hidden"`). Use it for a first-class product surface any
+  authorized user should be able to navigate to directly.
+
+`:repo_page_tab` and `:workspace_tab` are the narrower siblings of these two:
+same page-registration shape, but scoped to one repository or one Job/chat
+workspace instead of being instance-wide.
 
 Admin page providers return page metadata:
 
@@ -74,6 +100,23 @@ Admin page providers return page metadata:
 
 `label` is the fallback. `label_key` should resolve from a plugin locale file,
 and `component` must match an installed frontend route module key.
+
+Sidebar page providers return the same shape, plus an `icon` and an optional
+`section`:
+
+```ruby
+{
+  id: "my_plugin.dashboard",
+  label: "My Plugin",
+  label_key: "my_plugin:nav_dashboard",
+  path: "/my_plugin",
+  paths: [ "/my_plugin" ],
+  component: "my_plugin/Dashboard",
+  icon: "chart",
+  section: "primary",
+  order: 40
+}
+```
 
 A plugin can register any combination of extension points in a single call:
 
@@ -98,6 +141,7 @@ module MyPlugin
              chat_provider:            "MyPlugin::ChatProvider",
              mcp_tool_set:             "MyPlugin::McpToolSet",
              admin_page:               "MyPlugin::AdminPages",
+             sidebar_page:             "MyPlugin::SidebarPages",
              source_control_provider:  "MyPlugin::SourceControl"
   end
 end

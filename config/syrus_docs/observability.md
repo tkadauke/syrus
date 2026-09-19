@@ -81,7 +81,8 @@ structured metadata. Landing queue snapshots are recorded only when the cached
 queue state materially changes; recurring queue ticks with the same blocker and
 position do not create another row.
 
-The admin UI exposes this stream at **Admin -> Activity** (`/admin/activity`).
+The admin UI exposes this stream at **Admin -> Workflow Activity**
+(`/admin/activity`).
 The app API endpoint is `GET /api/v1/app/admin/activity`; the token admin API
 endpoint is `GET /api/v1/admin/activity`. Both are paginated newest-first and
 accept `event_type`, `job_id`, `workflow_id`, `run_id`, `trigger_kind`, and
