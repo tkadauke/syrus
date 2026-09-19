@@ -7,6 +7,7 @@ module WorkEngine
       TERMINAL_JOB_STATES = %w[implemented approved landing closed failed no_change_needed].freeze
       SUCCESS_JOB_STATES = %w[implemented approved landing closed no_change_needed].freeze
       DEFAULT_IGNORED_RECONCILER_ISSUE_KINDS = %w[workspace_missing].freeze
+      SIMULATED_ALTERNATE_PROVIDER = "claude".freeze
 
       def self.call(...) = new(...).call
 
@@ -478,10 +479,25 @@ module WorkEngine
         case provider.to_s
         when "alternate"
           User.agent_providers.find { |candidate| candidate != "codex" } ||
-            raise(ArgumentError, "simulation requested alternate provider but only #{User.agent_providers.inspect} is available")
+            ensure_simulated_agent_provider!(SIMULATED_ALTERNATE_PROVIDER)
         else
-          provider.to_s
+          provider.to_s.tap { |resolved| ensure_simulated_agent_provider!(resolved) }
         end
+      end
+
+      def ensure_simulated_agent_provider!(provider)
+        provider = provider.to_s
+        return provider if User.agent_providers.include?(provider)
+
+        provider_class = Class.new(AgentProviders::Base) do
+          include Syrus::Plugin::AgentProvider
+
+          define_singleton_method(:provider_key) { provider }
+          define_singleton_method(:display_name) { provider.to_s.humanize }
+          define_singleton_method(:available?) { true }
+        end
+        Syrus::PluginRegistry.register(:agent_provider, provider_class)
+        provider
       end
 
       def simulation_user
