@@ -1,0 +1,87 @@
+# Playwright end-to-end suite: core (e2e/) plus every plugin's own
+# (plugins/*/e2e/), driven through bin/test-e2e against a real booted app.
+#
+# This is a separate, longer-running workflow rather than another ci.yml job
+# because it doesn't fit that job's budget: it boots the full Rails app (SPA
+# build + Tailwind + seed data) before a single spec runs, then drives a real
+# browser through 17+ spec files. Path-scoped, mirroring desktop-ci.yml, so a
+# docs-only or website-only PR doesn't pay for a browser boot it can't affect.
+name: E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "config/**"
+      - "db/**"
+      - "lib/**"
+      - "e2e/**"
+      - "plugins/**"
+      - "package.json"
+      - "package-lock.json"
+      - "Gemfile"
+      - "Gemfile.lock"
+      - "playwright.config.ts"
+      - "bin/test-e2e"
+      - "bin/syrus-preview-dev"
+      - ".github/workflows/e2e.yml"
+  pull_request:
+    paths:
+      - "app/**"
+      - "config/**"
+      - "db/**"
+      - "lib/**"
+      - "e2e/**"
+      - "plugins/**"
+      - "package.json"
+      - "package-lock.json"
+      - "Gemfile"
+      - "Gemfile.lock"
+      - "playwright.config.ts"
+      - "bin/test-e2e"
+      - "bin/syrus-preview-dev"
+      - ".github/workflows/e2e.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install native image libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y libvips42t64 ||
+            sudo apt-get install --no-install-recommends -y libvips42 ||
+            sudo apt-get install --no-install-recommends -y libvips
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      # bin/test-e2e installs the Playwright browser binaries themselves when
+      # /opt/ms-playwright (the worker image's pinned copy) isn't present, but
+      # it doesn't pull the OS-level shared libraries Chromium needs on a bare
+      # runner. --with-deps does that once, up front, via apt.
+      - name: Install Playwright OS dependencies
+        run: npx playwright install --with-deps chromium chromium-headless-shell
+
+      - name: Run Playwright E2E suite
+        run: bin/test-e2e
