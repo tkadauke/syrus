@@ -524,7 +524,7 @@ describe("RepositoryDetailRoute preview", () => {
   it("shows the Open Preview link when a repository preview is already running", async () => {
     const payload = {
       ...repositoryDetailPayload(),
-      preview: { id: 9, state: "running" as const, url: "http://preview-9.lvh.me", expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), error_message: null }
+      preview: { id: 9, state: "running" as const, url: "http://preview-9.lvh.me?token=signed-preview-token", expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), error_message: null }
     }
 
     vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -543,6 +543,6 @@ describe("RepositoryDetailRoute preview", () => {
     )
 
     const link = await screen.findByRole("link", { name: "Open Preview" })
-    expect(link).toHaveAttribute("href", "http://preview-9.lvh.me")
+    expect(link).toHaveAttribute("href", "http://preview-9.lvh.me?token=signed-preview-token")
   })
 })

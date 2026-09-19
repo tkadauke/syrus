@@ -14,7 +14,7 @@ function preview(overrides: Partial<PreviewEnvironmentRecord> = {}): PreviewEnvi
   return {
     id: 1,
     state: "running",
-    url: "http://preview-42.lvh.me",
+    url: "http://preview-42.lvh.me?token=signed-preview-token",
     expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     error_message: null,
     error_reason: null,
@@ -189,7 +189,7 @@ describe("PreviewPanel", () => {
   it("shows Open Preview link and Stop Preview button when running", () => {
     renderPanel({ initialPreview: preview({ state: "running" }) })
     expect(screen.getByRole("link", { name: "Open Preview" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Open Preview" })).toHaveAttribute("href", "http://preview-42.lvh.me")
+    expect(screen.getByRole("link", { name: "Open Preview" })).toHaveAttribute("href", "http://preview-42.lvh.me?token=signed-preview-token")
     expect(screen.getByRole("button", { name: "Stop Preview" })).toBeInTheDocument()
   })
 

@@ -42,7 +42,9 @@ RSpec.describe "App API repository preview", type: :request do
 
       get preview_path(repo), as: :json
 
-      expect(parse_body.dig("preview", "url")).to eq("http://preview-#{env.id}.lvh.me")
+      uri = URI.parse(parse_body.dig("preview", "url"))
+      expect("#{uri.scheme}://#{uri.host}").to eq("http://preview-#{env.id}.lvh.me")
+      expect(PreviewEnvironment::AccessToken.preview_environment_id_for(Rack::Utils.parse_query(uri.query).fetch("token"))).to eq(env.id)
     end
 
     it "omits the URL when not running" do

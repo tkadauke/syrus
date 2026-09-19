@@ -244,16 +244,22 @@ RSpec.describe PreviewEnvironment, :ci_only, type: :model do
   end
 
   describe "#preview_url" do
-    it "constructs a subdomain-based URL keyed on the preview environment id" do
+    it "constructs a subdomain-based URL keyed on the preview environment id with an access token" do
       env = create_env
       url = env.preview_url("syrus.example.com")
-      expect(url).to eq("http://preview-#{env.id}.syrus.example.com")
+      uri = URI.parse(url)
+
+      expect("#{uri.scheme}://#{uri.host}").to eq("http://preview-#{env.id}.syrus.example.com")
+      expect(PreviewEnvironment::AccessToken.preview_environment_id_for(Rack::Utils.parse_query(uri.query).fetch("token"))).to eq(env.id)
     end
 
     it "keys off the preview environment id for repository-scoped previews too" do
       env = described_class.create!(job: nil, repository: job.repository, workspace_path: "/tmp/workspace")
       url = env.preview_url("syrus.example.com")
-      expect(url).to eq("http://preview-#{env.id}.syrus.example.com")
+      uri = URI.parse(url)
+
+      expect("#{uri.scheme}://#{uri.host}").to eq("http://preview-#{env.id}.syrus.example.com")
+      expect(PreviewEnvironment::AccessToken.preview_environment_id_for(Rack::Utils.parse_query(uri.query).fetch("token"))).to eq(env.id)
     end
   end
 
