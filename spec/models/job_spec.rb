@@ -3654,6 +3654,22 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(job.reload.linked_chat_id).to be_nil
         expect(workflow.artifact("coding_handoff_chat_id")).to eq(chat_session.id)
       end
+
+      it "returns false without clearing linked_chat_id or launching a workflow when release is not allowed" do
+        enable_coding_mode!
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+        allow(job).to receive(:may_release_from_coding?).and_return(false)
+
+        result = nil
+        expect {
+          result = job.start_coding_handoff!
+        }.not_to change { job.workflows.where(trigger_kind: "coding_handoff").count }
+
+        expect(result).to be(false)
+        expect(job.reload).to be_coding
+        expect(job.linked_chat_id).to eq(chat_session.id)
+      end
     end
 
     describe "#revert_to_coding_mode!" do

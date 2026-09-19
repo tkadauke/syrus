@@ -65,13 +65,14 @@ module JobCodingMode
   def start_coding_handoff!(artifacts: nil)
     return false unless Feature.coding_mode_enabled?
     return false unless coding?
+    return false unless may_release_from_coding?
 
     chat_id = linked_chat_id
     handoff_artifacts = (artifacts || {}).dup
     handoff_artifacts["coding_handoff_chat_id"] ||= chat_id if chat_id.present?
 
     self.linked_chat_id = nil
-    release_from_coding!
+    release_from_coding! if may_release_from_coding?
     save!
 
     workflow = WorkUnits::Launcher.instantiate(
