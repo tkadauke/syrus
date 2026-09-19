@@ -57,7 +57,6 @@ module Mcp::Tools
         run = Mcp::Tools.run_from_context(server_context)
         context = McpToolContext.from_run(run)
         return Mcp::Tools.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_job_metadata)
-        return Mcp::Tools.not_authorized unless run.step&.kind == "refresh_job_metadata"
 
         changed = ActiveModel::Type::Boolean.new.cast(changed)
         normalized = normalize_payload(

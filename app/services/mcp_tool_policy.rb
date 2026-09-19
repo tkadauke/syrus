@@ -92,7 +92,6 @@ class McpToolPolicy
 
   def workflow_tools
     tools = McpToolRegistry.tools_for_context(@context, surface: :workflow)
-    tools -= [ Mcp::Tools::SubmitJobMetadataTool ] unless @context.run&.step&.kind == "refresh_job_metadata"
     tools += self.class.ref_movement_tools if @context.run&.step&.kind == "run_skill"
     tools
   end

@@ -210,9 +210,18 @@ RSpec.describe McpToolPolicy do
         expect(described_class.capability_permitted?(context, :submit_chat_feedback)).to be(false)
       end
 
-      it "permits submit_job_metadata for the summary/test-plan role" do
-        context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN, user: user)
+      it "permits submit_job_metadata for refresh_job_metadata runs" do
+        run.step.update_columns(kind: "refresh_job_metadata")
+        context = McpToolContext.from_run(run.reload)
+
         expect(described_class.capability_permitted?(context, :submit_job_metadata)).to be(true)
+      end
+
+      it "denies submit_job_metadata for other summary/test-plan role steps" do
+        run.step.update_columns(kind: "summarize")
+        context = McpToolContext.from_run(run.reload)
+
+        expect(described_class.capability_permitted?(context, :submit_job_metadata)).to be(false)
       end
 
       it "permits submit_artifact for the implement role" do
