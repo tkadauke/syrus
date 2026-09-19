@@ -227,4 +227,4 @@ retain 6 hours and can be indexed for full-text search when
 
 `work_engine_reconciler_activity_events` contain detailed reconciler issue,
 plan, and repair execution rows. They retain 7 days and are surfaced by
-Admin -> Reconciler Activity.
+Admin -> Reconciler Events.
