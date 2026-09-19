@@ -1,5 +1,5 @@
 module Workflows
-  # Story 8/9 (docs/plans/delivery-tracks-and-promotion.md) per-job
+  # Story 8/9 (docs/plans/complete/delivery-tracks-and-promotion.md) per-job
   # upstream-export workflow: open/update a PR from an already-approved Job's
   # own branch to the canonical repository's intake branch.
   #

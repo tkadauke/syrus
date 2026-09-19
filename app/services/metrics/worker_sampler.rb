@@ -1,5 +1,5 @@
 module Metrics
-  # The "Workers and admission" metric group from docs/plans/prometheus-dashboard.md:
+  # The "Workers and admission" metric group from docs/plans/complete/prometheus-dashboard.md:
   # is the fleet keeping up, and is any single worker overloaded while others
   # sit idle (the motivating incident: "one worker at 3277m and another idle
   # at 51m", invisible until someone went looking by hand).

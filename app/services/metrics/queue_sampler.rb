@@ -15,7 +15,7 @@ module Metrics
   #
   # Motivating incident: a 2,715-job polling backlog whose oldest job was 190
   # minutes old, invisible to every health check an operator would think to run
-  # (see docs/plans/prometheus-dashboard.md).
+  # (see docs/plans/complete/prometheus-dashboard.md).
   class QueueSampler
     CACHE_KEY = "syrus:metrics:queue_sample".freeze
     # Longer than the sampling period so one missed run does not blank the
