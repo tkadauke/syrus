@@ -64,6 +64,7 @@ de:
       admin_required: "Admin-API-Endpunkte erfordern das Token eines Administrator-Benutzers."
       sign_in_required: "Bitte melde dich an, um die App-API zu verwenden."
       admin_forbidden: "Administrator-Zugriff erforderlich."
+      rate_limited: "Zu viele ungültige API-Tokens. Bitte versuche es später erneut."
 
     auth:
       invalid_credentials: "Bitte versuche eine andere E-Mail-Adresse oder ein anderes Passwort."

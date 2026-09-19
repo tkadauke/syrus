@@ -64,6 +64,7 @@ la:
       admin_required: "Termini API administratoris signum usori administratoris requirunt."
       sign_in_required: "Intra ut API applicationis utaris."
       admin_forbidden: "Accessus administratoris necessarius est."
+      rate_limited: "Nimis multa signa API invalida. Postea iterum tenta."
 
     auth:
       invalid_credentials: "Aliam inscriptionem electronicam vel tesseram tempta."

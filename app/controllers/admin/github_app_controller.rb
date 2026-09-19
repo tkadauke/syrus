@@ -5,6 +5,12 @@ module Admin
     # by the register API is the credential for both.
     allow_unauthenticated_access only: %i[manifest callback]
     skip_before_action :require_admin, only: %i[manifest callback]
+    # These views are static, developer-authored bounce pages (not part of
+    # the SPA, no repo/agent/chat-derived content) that render inline
+    # <script>/<style> without a nonce and, for `manifest`, POST directly to
+    # github.com — none of that fits the app-wide CSP, so this controller
+    # opts out entirely rather than special-casing every directive.
+    content_security_policy false
 
     GITHUB_MANIFEST_URL = "https://github.com/settings/apps/new".freeze
 
