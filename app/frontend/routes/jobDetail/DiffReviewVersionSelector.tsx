@@ -41,8 +41,24 @@ export function DiffReviewVersionSelector({
     null
   const rangeBaseSha = selectedRange?.baseSha || selected?.base_sha || ordered[0]?.base_sha || ""
   const rangeHeadSha = selectedRange?.headSha || selected?.head_sha || ordered[ordered.length - 1]?.head_sha || ""
+  // These feed selectEndpoint's clamp math (orderedEndpointRange), which needs
+  // the real non-"All changes" version bordering rangeBaseSha/rangeHeadSha —
+  // not necessarily the currently selected version's own row (e.g. "All
+  // changes" is selected but its high version_index must not be treated as
+  // the current FROM/TO reference point). Keep using the plain cross-row
+  // lookup for this, independent of the highlighting reconciliation below.
   const fromEndpointVersion = findEndpointVersion(ordered, "from", rangeBaseSha)
   const toEndpointVersion = findEndpointVersion(ordered, "to", rangeHeadSha)
+  // Highlighting must never disagree with which single version (if any) is
+  // actually selected: a plain single-version selection (no explicit range)
+  // only highlights its own row — the cross-row sha lookup above is not
+  // meaningful here and must not be used, since another row could coincidentally
+  // share the same base_sha or head_sha. An explicit range whose shas exactly
+  // match one stored version highlights that version's row instead of
+  // whichever row the cross-row lookup happens to match first.
+  const resolvedSingleVersion = selected || (selectedRange ? findMatchingVersion(ordered, rangeBaseSha, rangeHeadSha) : null)
+  const highlightedFromVersion = selectedRange ? (resolvedSingleVersion || fromEndpointVersion) : selected
+  const highlightedToVersion = selectedRange ? (resolvedSingleVersion || toEndpointVersion) : selected
   const displayLabel = selectedRange ? selectedRangeLabel(t, ordered, rangeBaseSha, rangeHeadSha) : selected ? collapsedLabel(t, selected) : t("review_version_label")
   const selectedIndex = Math.max(0, ordered.findIndex((version) => version.id === selected?.id || version.base_sha === rangeBaseSha || version.head_sha === rangeHeadSha))
   const [activeIndex, setActiveIndex] = useState(selectedIndex)
@@ -166,8 +182,8 @@ export function DiffReviewVersionSelector({
         >
           {ordered.map((version, index) => {
             const selectedOption = version.id === selected?.id || (version.base_sha === rangeBaseSha && version.head_sha === rangeHeadSha)
-            const fromSelected = version.id === fromEndpointVersion?.id
-            const toSelected = version.id === toEndpointVersion?.id
+            const fromSelected = version.id === highlightedFromVersion?.id
+            const toSelected = version.id === highlightedToVersion?.id
             const allChanges = isAllChangesVersion(version)
             return (
               <div
@@ -367,7 +383,7 @@ function EndpointChip({ ariaLabel, highlighted, label, onClick, title, type }: {
   )
 }
 
-function collapsedLabel(t: TFunction<"jobs">, version: DiffReviewVersion) {
+export function collapsedLabel(t: TFunction<"jobs">, version: DiffReviewVersion) {
   if (isAllChangesVersion(version)) return t("review_version_all_changes")
   if (version.label) return version.label
   if (version.run_id) return `RUN-${version.run_id}`
@@ -393,7 +409,7 @@ function compactVersionSummary(t: TFunction<"jobs">, version: DiffReviewVersion)
   return [t("review_version_prefix", { version: version.version_index }), rangeName(version)].filter(Boolean).join(" ")
 }
 
-function metadataSummary(t: TFunction<"jobs">, version: DiffReviewVersion) {
+export function metadataSummary(t: TFunction<"jobs">, version: DiffReviewVersion) {
   return [
     t("review_version_prefix", { version: version.version_index }),
     version.workflow_id ? `WF-${version.workflow_id}` : null,

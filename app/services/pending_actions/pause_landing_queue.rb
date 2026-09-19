@@ -10,5 +10,9 @@ module PendingActions
     def execution_label
       "Pausing landing queue..."
     end
+
+    def presentation_label
+      "Pause landing queue"
+    end
   end
 end

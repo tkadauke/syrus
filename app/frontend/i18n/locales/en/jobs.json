@@ -482,7 +482,7 @@
   "review_version_comments_other": "{{count}} comments",
   "review_version_latest": "Latest",
   "review_version_historical": "Historical",
-  "review_version_historical_badge": "v{{version}} historical",
+  "review_version_section_current": "Currently viewing",
   "review_version_time_unknown": "time unknown",
   "review_version_unknown_trigger": "unknown trigger",
   "review_version_workflow": "Workflow {{id}}",

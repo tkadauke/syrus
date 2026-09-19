@@ -23,6 +23,10 @@ module PendingActions
       "job_id: #{payload["job_id"]}"
     end
 
+    def presentation_label
+      "Unapprove #{presentation_job_slug}"
+    end
+
     private
 
     def action_permitted_job

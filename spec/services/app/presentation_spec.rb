@@ -106,6 +106,51 @@ RSpec.describe App::Presentation do
 
       expect(described_class.pending_action_label(action)).to eq("Wake claude admission")
     end
+
+    it "labels and details a schedule_recurring action_type action instead of leaving the card blank" do
+      action = chat_session.pending_actions.create!(
+        action_type: "schedule_recurring",
+        reason: "Operator asked for a nightly reminder.",
+        payload: { "label" => "Nightly rebuild", "cron_expression" => "0 2 * * *", "prompt" => "Rebuild caches." }
+      )
+
+      expect(described_class.pending_action_label(action)).to eq("Nightly rebuild")
+      expect(described_class.pending_action_detail(action)).to eq("Nightly rebuild — 0 2 * * *\n\nRebuild caches.")
+    end
+  end
+
+  describe "pending-action presentation coverage" do
+    it "resolves a presentation_label/presentation_detail through the PendingActions hierarchy for every core action and action_type" do
+      # Core specs must not enumerate plugin-provided things (see
+      # spec/models/chat_pending_action_spec.rb's equivalent registry-coverage
+      # example): subtract action keys a plugin's own
+      # app/services/pending_actions/*.rb owns, since a plugin action defines
+      # its own presentation directly on its PendingActions class and proves
+      # it in the plugin's own specs (e.g. schedule_recurring, delete_design_doc).
+      plugin_owned = Dir[Rails.root.join("plugins/*/app/services/pending_actions/*.rb")]
+        .map { |path| File.basename(path, ".rb") }
+        .reject { |key| PendingActions::REGISTRY.key?(key) }
+
+      core_keys = (ChatPendingAction::ACTIONS + ChatPendingAction::ACTION_TYPES) - plugin_owned
+      expect(core_keys).to include("cancel_job")
+
+      core_keys.each do |key|
+        attrs = ChatPendingAction::ACTION_TYPES.include?(key) ? { action_type: key } : { action: key }
+        action = ChatPendingAction.new(**attrs, payload: {})
+
+        expect { described_class.pending_action_label(action) }.not_to raise_error, "expected #{key} to resolve a presentation_label"
+        expect { described_class.pending_action_detail(action) }.not_to raise_error, "expected #{key} to resolve a presentation_detail"
+      end
+    end
+
+    it "falls back to the payload label or humanized key for an action with no registered presenter" do
+      action = ChatPendingAction.new(action_type: "some_future_action", payload: { "label" => "Custom Label" })
+      expect(described_class.pending_action_label(action)).to eq("Custom Label")
+      expect(described_class.pending_action_detail(action)).to be_nil
+
+      unlabeled_action = ChatPendingAction.new(action_type: "some_future_action")
+      expect(described_class.pending_action_label(unlabeled_action)).to eq("Some future action")
+    end
   end
 
   describe ".agent_provider_label" do

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
+import type { TFunction } from "i18next"
 import { Button } from "../../components/Button"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
@@ -10,13 +11,17 @@ import {
   fetchDiffReviewComments,
   replyToDiffReviewComment,
   resolveDiffReviewComment,
+  startJobDiscussionChat,
   submitDiffReviewComments,
   updateDiffReviewComment,
   type DiffReviewComment,
   type DiffReviewCommentInput,
-  type DiffReviewCommentAnchorKind
+  type DiffReviewCommentAnchorKind,
+  type DiffReviewVersion
 } from "../../api/jobs"
 import { DiffHunkSnippet, type DiffLineSelection, type DiffReviewThread } from "../../components/diff/ReviewableDiff"
+import { Pill, surfaceClasses } from "../../components/ui"
+import { collapsedLabel, metadataSummary } from "./DiffReviewVersionSelector"
 
 type DiffReviewFeedbackOptions = {
   baseRef?: string | null
@@ -36,6 +41,12 @@ type DiffReviewFeedbackOptions = {
   runId?: number | null
   supportsGlobalComments?: boolean
   surface: string
+  // Full version records (job_id-scoped), used to render richer sidebar
+  // section headers (see collapsedLabel/metadataSummary) than the partial
+  // `diff_review_version` embedded on each comment. Callers with only a
+  // single version in play (e.g. a run's own diff) can omit this -- the
+  // grouping falls back to the comment's embedded version.
+  versions?: DiffReviewVersion[]
   workflowId?: number | null
 }
 
@@ -56,6 +67,7 @@ export function useDiffReviewFeedback({
   runId,
   supportsGlobalComments = false,
   surface,
+  versions,
   workflowId
 }: DiffReviewFeedbackOptions) {
   const { t } = useT("jobs")
@@ -139,6 +151,12 @@ export function useDiffReviewFeedback({
     },
     onError: (error) => setSubmitError(errorMessage(error, t("review_submit_error")))
   })
+  const discussComment = useMutation({
+    mutationFn: (message: string) => startJobDiscussionChat(jobId, message),
+    onSuccess: (payload) => {
+      window.location.assign(payload.redirect_to)
+    }
+  })
 
   function startComment(nextSelection: DiffLineSelection) {
     if (!enabled) return
@@ -178,6 +196,14 @@ export function useDiffReviewFeedback({
     setSelection(null)
     setEditing(null)
     setBody("")
+  }
+
+  function discussComposing() {
+    if (!selection) return
+    const trimmed = body.trim()
+    if (!trimmed) return
+    const message = discussionMessageForSelection({ body: trimmed, headRef, selection })
+    discussComment.mutate(message, { onSuccess: () => cancelComposer() })
   }
 
   function commentOnReview() {
@@ -297,6 +323,7 @@ export function useDiffReviewFeedback({
         supportsGlobalComments={supportsGlobalComments}
         updateError={updateComment.error}
         updatePending={updateComment.isPending}
+        versions={versions}
         workflowActive={workflowActive}
       />
       {confirmDialog}
@@ -311,6 +338,8 @@ export function useDiffReviewFeedback({
     composingPending: createComment.isPending,
     composingSelection: selection,
     diffThreads,
+    discussComposingError: discussComment.error,
+    discussComposingPending: discussComment.isPending,
     editingThreadBody,
     editingThreadId,
     onCancelComposing: cancelComposer,
@@ -318,6 +347,7 @@ export function useDiffReviewFeedback({
     onChangeComposingBody: setBody,
     onChangeEditingThreadBody: setEditingThreadBody,
     onCommentLine: enabled ? startComment : undefined,
+    onDiscussComposing: discussComposing,
     onSaveComposing: saveComment,
     onDeleteThread: enabled ? (thread: DiffReviewThread) => requestDeleteComment(thread.id, diffReviewVersionId) : undefined,
     onSaveEditThread: saveEditThread,
@@ -364,6 +394,7 @@ function DiffReviewFeedbackPanel({
   supportsGlobalComments,
   updateError,
   updatePending,
+  versions,
   workflowActive
 }: {
   actionableComments: DiffReviewComment[]
@@ -402,6 +433,7 @@ function DiffReviewFeedbackPanel({
   supportsGlobalComments: boolean
   updateError: Error | null
   updatePending: boolean
+  versions?: DiffReviewVersion[]
   workflowActive: boolean
 }) {
   const { t } = useT("jobs")
@@ -415,54 +447,41 @@ function DiffReviewFeedbackPanel({
           <ReviewStatePill label={workflowActive ? t("review_submitted_active") : t("review_handled_state", { count: handledComments.length })} tone={workflowActive ? "submitted" : "handled"} />
         </div>
       </div>
-      <div className="mt-3 space-y-3">
-        {comments.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : comments.map((comment) => {
-          const isGlobal = comment.anchor_kind === "review"
-          const selectedVersion = comment.diff_review_version_id === currentVersionId
+      <div className="mt-3 space-y-4">
+        {comments.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : groupCommentsByVersion(comments, versions).map((group) => {
+          const isCurrent = group.versionId === currentVersionId
           return (
-          <div className={`min-w-0 rounded border p-3 text-sm ${selectedVersion ? "border-gray-200 dark:border-gray-800" : "border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20"}`} data-diff-review-comment-id={comment.id} key={comment.id}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="break-words font-mono text-xs text-gray-500 dark:text-gray-400">
-                {isGlobal ? t("review_global_comment_label") : `${comment.path}:${comment.side === "left" ? comment.old_line : comment.new_line}`}
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {!selectedVersion ? <ReviewStatePill label={t("review_version_historical_badge", { version: comment.diff_review_version?.version_index ?? "?" })} tone="submitted" /> : null}
-                <ReviewStatePill label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state} tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"} />
+            <div key={group.versionId}>
+              <VersionSectionHeader isCurrent={isCurrent} t={t} version={group.version} />
+              <div className={isCurrent ? "mt-2 space-y-3" : surfaceClasses("warning", "sm", "mt-2 space-y-3")}>
+                {group.comments.map((comment) => (
+                  <CommentCard
+                    comment={comment}
+                    deletePending={deletePending}
+                    key={comment.id}
+                    onChangeReplyBody={onChangeReplyBody}
+                    onCancelReply={onCancelReply}
+                    onDelete={onDelete}
+                    onEdit={onEdit}
+                    onReply={onReply}
+                    onResolve={onResolve}
+                    onStartReply={onStartReply}
+                    onViewInDiff={onViewInDiff}
+                    replyBody={replyBody}
+                    replyError={replyError}
+                    replyPending={replyPending}
+                    replyingId={replyingId}
+                    resolvePending={resolvePending}
+                    supportsGlobalComments={supportsGlobalComments}
+                    t={t}
+                  />
+                ))}
               </div>
             </div>
-            {!isGlobal && comment.diff_hunk ? (
-              <div className="mt-2">
-                <DiffHunkSnippet highlightLine={diffContextHighlightLine(comment)} hunk={comment.diff_hunk} />
-              </div>
-            ) : null}
-            <p className="mt-2 whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{comment.body}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {comment.state === "draft" && isGlobal ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
-              {supportsGlobalComments && (comment.path || isGlobal) ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
-              {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
-              {replyingId !== comment.id ? <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">{t("review_reply_comment")}</Button> : null}
-              {comment.state === "draft" && isGlobal ? <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">{t("review_delete_comment")}</Button> : null}
-            </div>
-            {replyingId === comment.id ? (
-              <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
-                <textarea
-                  aria-label={t("review_reply_comment")}
-                  className="min-h-16 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                  onChange={(event) => onChangeReplyBody(event.target.value)}
-                  value={replyBody}
-                />
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <Button disabled={!replyBody.trim() || replyPending} onClick={onReply} size="sm">{t("review_send_reply")}</Button>
-                  <Button onClick={onCancelReply} size="sm" variant="secondary">{t("tags_cancel")}</Button>
-                </div>
-                {replyError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(replyError, t("review_reply_error"))}</p> : null}
-              </div>
-            ) : null}
-          </div>
           )
         })}
       </div>
-      {deleteError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(deleteError, t("review_delete_error"))}</p> : null}
+      {deleteError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(deleteError, t("review_delete_error"))}</p> : null}
 
       {isComposing ? (
         <div className="mt-4 min-w-0 rounded border border-brand/30 bg-brand/5 p-3">
@@ -477,8 +496,8 @@ function DiffReviewFeedbackPanel({
             <Button disabled={!body.trim() || createPending || updatePending} onClick={onSave} size="sm">{editing ? t("review_save_comment") : t("review_create_comment")}</Button>
             <Button onClick={onCancel} size="sm" variant="secondary">{t("tags_cancel")}</Button>
           </div>
-          {createError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(createError, t("review_create_error"))}</p> : null}
-          {updateError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(updateError, t("review_update_error"))}</p> : null}
+          {createError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(createError, t("review_create_error"))}</p> : null}
+          {updateError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(updateError, t("review_update_error"))}</p> : null}
         </div>
       ) : null}
 
@@ -502,10 +521,101 @@ function DiffReviewFeedbackPanel({
             {submitPending ? t("submitting") : t("review_submit_feedback")}
           </Button>
         </div>
-        {createError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(createError, t("review_create_error"))}</p> : null}
-        {submitError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{submitError}</p> : null}
+        {createError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(createError, t("review_create_error"))}</p> : null}
+        {submitError ? <p className="mt-2 text-xs text-danger-text">{submitError}</p> : null}
       </div>
     </section>
+  )
+}
+
+function VersionSectionHeader({ isCurrent, t, version }: { isCurrent: boolean; t: TFunction<"jobs">; version: DiffReviewVersion }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-1">
+      <div className="min-w-0">
+        <span className="text-sm font-semibold text-text-primary">{collapsedLabel(t, version)}</span>
+        <p className="mt-0.5 break-words text-xs text-text-muted">{metadataSummary(t, version)}</p>
+      </div>
+      {isCurrent ? <Pill tone="success">{t("review_version_section_current")}</Pill> : null}
+    </div>
+  )
+}
+
+function CommentCard({
+  comment,
+  deletePending,
+  onCancelReply,
+  onChangeReplyBody,
+  onDelete,
+  onEdit,
+  onReply,
+  onResolve,
+  onStartReply,
+  onViewInDiff,
+  replyBody,
+  replyError,
+  replyPending,
+  replyingId,
+  resolvePending,
+  supportsGlobalComments,
+  t
+}: {
+  comment: DiffReviewComment
+  deletePending: boolean
+  onCancelReply: () => void
+  onChangeReplyBody: (body: string) => void
+  onDelete: (comment: DiffReviewComment) => void
+  onEdit: (comment: DiffReviewComment) => void
+  onReply: () => void
+  onResolve: (comment: DiffReviewComment) => void
+  onStartReply: (commentId: number) => void
+  onViewInDiff: (comment: DiffReviewComment) => void
+  replyBody: string
+  replyError: Error | null
+  replyPending: boolean
+  replyingId: number | null
+  resolvePending: boolean
+  supportsGlobalComments: boolean
+  t: TFunction<"jobs">
+}) {
+  const isGlobal = comment.anchor_kind === "review"
+
+  return (
+    <div className="min-w-0 rounded border border-gray-200 p-3 text-sm dark:border-gray-800" data-diff-review-comment-id={comment.id}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="break-words font-mono text-xs text-gray-500 dark:text-gray-400">
+          {isGlobal ? t("review_global_comment_label") : `${comment.path}:${comment.side === "left" ? comment.old_line : comment.new_line}`}
+        </span>
+        <ReviewStatePill label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state} tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"} />
+      </div>
+      {!isGlobal && comment.diff_hunk ? (
+        <div className="mt-2">
+          <DiffHunkSnippet highlightLine={diffContextHighlightLine(comment)} hunk={comment.diff_hunk} />
+        </div>
+      ) : null}
+      <p className="mt-2 whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{comment.body}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {comment.state === "draft" && isGlobal ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
+        {supportsGlobalComments && (comment.path || isGlobal) ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
+        {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
+        {replyingId !== comment.id ? <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">{t("review_reply_comment")}</Button> : null}
+        {comment.state === "draft" && isGlobal ? <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">{t("review_delete_comment")}</Button> : null}
+      </div>
+      {replyingId === comment.id ? (
+        <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
+          <textarea
+            aria-label={t("review_reply_comment")}
+            className="min-h-16 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            onChange={(event) => onChangeReplyBody(event.target.value)}
+            value={replyBody}
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button disabled={!replyBody.trim() || replyPending} onClick={onReply} size="sm">{t("review_send_reply")}</Button>
+            <Button onClick={onCancelReply} size="sm" variant="secondary">{t("tags_cancel")}</Button>
+          </div>
+          {replyError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(replyError, t("review_reply_error"))}</p> : null}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -598,6 +708,20 @@ function diffContextHighlightLine(comment: DiffReviewComment): string | null {
   return ` ${lineText}`
 }
 
+function discussionMessageForSelection({ body, headRef, selection }: { body: string; headRef?: string | null; selection: DiffLineSelection }) {
+  const line = selection.side === "old" ? selection.line.oldLine : selection.line.newLine
+  const location = [selection.file.path, line].filter((part) => part != null && part !== "").join(":")
+
+  return [
+    "Discuss this code review comment.",
+    `Revision: ${headRef || "unknown"}`,
+    `Location: ${location}`,
+    "",
+    "Comment:",
+    body
+  ].join("\n")
+}
+
 function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {
   if (!patch) return null
   const rows = patch.split("\n")
@@ -635,6 +759,80 @@ function diffThreadsByPath(comments: DiffReviewComment[]) {
     paths[comment.path] = pathThreads
     return paths
   }, {})
+}
+
+type CommentVersionGroup = {
+  comments: DiffReviewComment[]
+  version: DiffReviewVersion
+  versionId: number
+}
+
+// Groups the sidebar's full (all-versions) comment list into per-version
+// sections, ordered by version_index -- the richer metadata comes from the
+// full `versions` array (job_id-scoped) when the caller has one; a comment's
+// own embedded `diff_review_version` is enough of a fallback for callers
+// (e.g. a single run's diff) that only ever have one version in play.
+function groupCommentsByVersion(comments: DiffReviewComment[], versions?: DiffReviewVersion[]): CommentVersionGroup[] {
+  const order: number[] = []
+  const groups = new Map<number, CommentVersionGroup>()
+  for (const comment of comments) {
+    const versionId = comment.diff_review_version_id
+    const existing = groups.get(versionId)
+    if (existing) {
+      existing.comments.push(comment)
+      continue
+    }
+    order.push(versionId)
+    groups.set(versionId, { comments: [comment], version: versionForGroup(versionId, comment.diff_review_version, versions), versionId })
+  }
+  return order
+    .map((versionId) => groups.get(versionId)!)
+    .sort((a, b) => a.version.version_index - b.version.version_index || a.versionId - b.versionId)
+}
+
+function versionForGroup(versionId: number, embedded: DiffReviewComment["diff_review_version"], versions?: DiffReviewVersion[]): DiffReviewVersion {
+  const full = versions?.find((candidate) => candidate.id === versionId)
+  if (full) return full
+  if (embedded) {
+    return {
+      id: embedded.id,
+      version_index: embedded.version_index,
+      base_sha: embedded.base_sha,
+      head_sha: embedded.head_sha,
+      base_ref: embedded.base_ref,
+      head_ref: embedded.head_ref,
+      workflow_id: null,
+      workflow: null,
+      run_id: null,
+      trigger_kind: embedded.trigger_kind,
+      label: embedded.label,
+      reason: embedded.reason,
+      truncated: false,
+      files_count: 0,
+      comments_count: 0,
+      metadata: {},
+      created_at: null
+    }
+  }
+  return {
+    id: versionId,
+    version_index: 0,
+    base_sha: "",
+    head_sha: "",
+    base_ref: null,
+    head_ref: null,
+    workflow_id: null,
+    workflow: null,
+    run_id: null,
+    trigger_kind: null,
+    label: null,
+    reason: null,
+    truncated: false,
+    files_count: 0,
+    comments_count: 0,
+    metadata: {},
+    created_at: null
+  }
 }
 
 function diffReviewCommentsSearch({ baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, surface, workflowId }: {

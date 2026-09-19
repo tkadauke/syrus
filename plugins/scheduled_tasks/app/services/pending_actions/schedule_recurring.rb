@@ -37,5 +37,16 @@ module PendingActions
     def action_detail
       [ "label: #{payload["label"]}", payload["schedule_explanation"].presence ].compact.join("\n")
     end
+
+    def presentation_label
+      payload["label"].presence || action.action_type.to_s.humanize
+    end
+
+    def presentation_detail
+      [
+        [ payload["label"], payload["schedule_explanation"] || payload["schedule_input"] || payload["cron_expression"] ].compact_blank.join(" — ").presence,
+        payload["prompt"].presence
+      ].compact.join("\n\n").presence
+    end
   end
 end

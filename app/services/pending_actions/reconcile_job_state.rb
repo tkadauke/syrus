@@ -35,6 +35,14 @@ module PendingActions
       "job_id: #{payload["job_id"]}, mode: #{payload["mode"]}"
     end
 
+    def presentation_label
+      "Reconcile state for #{presentation_job_slug} (#{payload["mode"]})"
+    end
+
+    def presentation_detail
+      "Mode: #{payload["mode"]}"
+    end
+
     repairs_job!
 
     private

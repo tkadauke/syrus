@@ -470,8 +470,9 @@ class Epic < ApplicationRecord
   # Operator-facing display names of unfinished dependencies, used by the
   # NotStartable message and the detail payload's start-blocked hint.
   def unfinished_dependency_names
-    dependencies.includes(:depends_on_epic, :depends_on_job).reject(&:dependency_succeeded?).filter_map do |dependency|
+    dependencies.includes(:depends_on_epic, :depends_on_job, :unresolved_chat_proposal).reject(&:dependency_succeeded?).filter_map do |dependency|
       next dependency.depends_on_job.slug if dependency.depends_on_job_id.present?
+      next dependency.unresolved_chat_proposal&.title if dependency.pending?
 
       dependency.depends_on_epic&.title
     end

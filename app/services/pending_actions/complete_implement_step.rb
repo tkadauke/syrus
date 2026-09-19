@@ -50,6 +50,14 @@ module PendingActions
       [ "job_id: #{payload["job_id"]}", branch.present? ? "branch_name: #{branch}" : nil ].compact.join(", ")
     end
 
+    def presentation_label
+      "Hand off #{presentation_job_slug}"
+    end
+
+    def presentation_detail
+      payload["branch_name"].presence&.then { |branch| "Branch: #{branch}" }
+    end
+
     private
 
     def workflow_kind

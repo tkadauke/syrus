@@ -88,6 +88,25 @@ describe("ReviewableDiff", () => {
     expect(screen.getByText("added")).toBeInTheDocument()
   })
 
+  it("copies a file's repository-relative path from the diff header", async () => {
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard")
+    const writeText = vi.fn(() => Promise.resolve())
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } })
+
+    try {
+      render(<ReviewableDiff files={files} mode="continuous" />)
+
+      const copyButton = screen.getByRole("button", { name: "Copy app/models/job.rb to clipboard" })
+      fireEvent.click(copyButton)
+
+      expect(writeText).toHaveBeenCalledWith("app/models/job.rb")
+      await waitFor(() => expect(copyButton).toHaveAttribute("title", "Copied"))
+    } finally {
+      if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard)
+      else Reflect.deleteProperty(navigator, "clipboard")
+    }
+  })
+
   it("keeps sticky file headers out of transformed virtual rows", () => {
     render(<ReviewableDiff files={files} mode="continuous" showFileHeaders />)
 

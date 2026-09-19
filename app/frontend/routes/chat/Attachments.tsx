@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import "@excalidraw/excalidraw/index.css"
 import { addChatAttachment, deleteChatAttachment, fetchChatContext, type ChatAttachmentResult, type ChatAttachmentRow, type ChatContextPayload, type ChatPayload } from "../../api/chats"
 import { Button } from "../../components/Button"
 import { Input } from "../../components/Input"
@@ -10,14 +9,10 @@ import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
 import { appendSearch, withRoutePrefix } from "./utils"
 
-
-
-
-// Attachment UI extracted from Chat.tsx: the workspace attachment list
-// (Attachments + AttachmentGroup) and the AddAttachment picker/popover.
-// Attachments is rendered by the workspace context tab and the composer;
-// AddAttachment by the composer. Depends only on leaf modules and shared UI
-// imports; unused header imports were pruned after the move.
+// AddAttachment: the composer's "+" popover picker for attaching a
+// Repository/Epic/Job/Document to the chat's context. Search results come
+// from GET .../context, scoped by type + query; picking one POSTs the
+// attachment and refreshes the chat payload.
 
 const DEFAULT_ATTACHMENT_TYPES = ["Repository", "Epic", "Job", "Document"] as const
 const EMPTY_ATTACHMENT_GROUPS = { repositories: [], epics: [], jobs: [], documents: [] } satisfies NonNullable<ChatPayload["attachment_groups"]>

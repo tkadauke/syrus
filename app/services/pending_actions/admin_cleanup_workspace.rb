@@ -23,6 +23,10 @@ module PendingActions
       "workflow_id: #{payload["workflow_id"]}"
     end
 
+    def presentation_label
+      "Delete workspace for workflow ##{payload["workflow_id"]}"
+    end
+
     def repair_action?
       true
     end

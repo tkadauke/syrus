@@ -23,6 +23,14 @@ module PendingActions
       "job_id: #{payload["job_id"]}, event: #{payload["event"]}"
     end
 
+    def presentation_label
+      "Force #{payload["event"]} on #{presentation_job_slug}"
+    end
+
+    def presentation_detail
+      "Event: #{payload["event"]}"
+    end
+
     repairs_job!
 
     private

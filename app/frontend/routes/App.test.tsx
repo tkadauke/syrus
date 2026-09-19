@@ -11277,14 +11277,6 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fullscreen" }))
     fireEvent.keyDown(window, { key: "Escape" })
     expect(screen.getByRole("button", { name: "Fullscreen" })).toHaveAttribute("aria-pressed", "false")
-    expect(screen.queryByText("Launch notes")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Context" }))
-    expect(screen.getByText("Launch notes")).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Attachments" })).toHaveClass("dark:text-gray-100")
-    expect(screen.getByRole("button", { name: "acme/widgets" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "acme/widgets" })).toHaveClass("bg-surface", "text-text-primary")
-    expect(screen.queryByRole("heading", { name: "Add attachment" })).not.toBeInTheDocument()
-    expect(screen.queryByLabelText("Type")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Chats" })).not.toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Recent chats" })).not.toBeInTheDocument()
     expect(screen.getByText("12.4k in", { exact: false })).toBeInTheDocument()
@@ -11839,7 +11831,7 @@ describe("App", () => {
       expect(mobileTabs.parentElement?.lastElementChild).not.toHaveClass("p-3")
       expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("border-brand")
       expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
-      expect(within(mobileTabs).getByRole("button", { name: "Context" })).toBeInTheDocument()
+      expect(within(mobileTabs).getByRole("button", { name: "Files" })).toBeInTheDocument()
       expect(within(mobileTabs).queryByRole("button", { name: "Chats" })).not.toBeInTheDocument()
       expect(screen.queryByRole("navigation", { name: "Chat workspace tabs" })).not.toBeInTheDocument()
       expect(screen.getByRole("main", { name: "Chat" })).toHaveClass("h-full", "lg:[height:100%]")
@@ -11860,10 +11852,9 @@ describe("App", () => {
       expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
       expect(screen.queryByText(/^Version \d+$/)).not.toBeInTheDocument()
 
-      fireEvent.click(within(mobileTabs).getByRole("button", { name: "Context" }))
-      expect(within(mobileTabs).getByRole("button", { name: "Context" })).toHaveClass("border-brand")
+      fireEvent.click(within(mobileTabs).getByRole("button", { name: "Files" }))
+      expect(within(mobileTabs).getByRole("button", { name: "Files" })).toHaveClass("border-brand")
       expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
-      expect(screen.getByText("Launch notes")).toBeInTheDocument()
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chat" }))
       expect(screen.getByTestId("chat-message-stream")).toBeInTheDocument()
@@ -12591,7 +12582,7 @@ describe("App", () => {
       method: "POST",
       body: JSON.stringify({ attachable_type: "Repository", repository_slug: "acme/tools" })
     }))
-    expect(screen.getByRole("heading", { name: "Attachments" })).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: "Add attachment" })).toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
   })
 
@@ -13701,14 +13692,6 @@ describe("App", () => {
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
-      if (path === `/api/v1/app/chats/8/attachments/2${search}` && init?.method === "DELETE") {
-        return Promise.resolve(new Response(JSON.stringify({
-          ...initialPayload,
-          message: "acme/widgets detached.",
-          attachment_groups: { ...initialPayload.attachment_groups, repositories: [] }
-        }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
       if (path === `/api/v1/app/chats/8/proposals/5/confirm${search}` && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({
           message: "Proposal confirmed and filed as JOB-88.",
@@ -13798,17 +13781,6 @@ describe("App", () => {
           method: "POST",
           body: JSON.stringify({ attachable_type: "Repository", attachable_id: 4 })
         })
-      )
-    })
-
-    fireEvent.click(screen.getByRole("button", { name: "Context" }))
-    fireEvent.click(screen.getByTitle("Detach acme/widgets"))
-    expect(screen.getByRole("button", { name: "Detach acme/widgets?" })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Detach acme/widgets?" }))
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        `/api/v1/app/chats/8/attachments/2${search}`,
-        expect.objectContaining({ method: "DELETE" })
       )
     })
 

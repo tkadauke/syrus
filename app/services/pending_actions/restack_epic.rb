@@ -69,6 +69,10 @@ module PendingActions
       "epic_id: #{payload["epic_id"]}, strategy: #{payload["strategy"].presence || "dependency_topology"}"
     end
 
+    def presentation_label
+      "Restack Epic ##{payload["epic_id"]}"
+    end
+
     def repair_action? = true
     def repair_snapshot_targets = repair_action_epic_or_nil&.work_jobs&.to_a || []
 

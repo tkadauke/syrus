@@ -37,6 +37,17 @@ module PendingActions
       "job_id: #{payload["job_id"]}, workflow_ids: #{workflow_ids.inspect}, run_ids: #{run_ids.inspect}"
     end
 
+    def presentation_label
+      "Cancel stale work for #{presentation_job_slug}"
+    end
+
+    def presentation_detail
+      [
+        workflow_ids.presence&.then { |ids| "Workflows: #{ids.join(", ")}" },
+        run_ids.presence&.then { |ids| "Runs: #{ids.join(", ")}" }
+      ].compact.join("\n").presence
+    end
+
     repairs_job!
 
     private

@@ -32,5 +32,9 @@ module PendingActions
     def action_detail
       "title: #{payload["title"]}"
     end
+
+    def presentation_label
+      "Create document #{payload["title"].to_s.inspect}"
+    end
   end
 end

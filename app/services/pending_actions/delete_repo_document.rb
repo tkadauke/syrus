@@ -21,5 +21,9 @@ module PendingActions
     def action_detail
       "document_id: #{payload["document_id"]}"
     end
+
+    def presentation_label
+      "Delete document #{payload["title"].to_s.presence || "##{payload["document_id"]}"}"
+    end
   end
 end

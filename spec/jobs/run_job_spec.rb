@@ -1109,6 +1109,8 @@ RSpec.describe RunJob, :ci_only do
       expect(wf.reload.artifact("visual_review_iterations")).to eq([
         {
           "iteration" => 1,
+          "step_id" => step.id,
+          "run_id" => run.id,
           "critique" => "No changed files matched the configured visual_review.when_files_changed patterns.",
           "verdict" => "skipped"
         }

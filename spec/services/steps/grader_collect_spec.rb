@@ -984,6 +984,74 @@ RSpec.describe Steps::GraderCollect do
       "queue_wait_max_s" => 2.0
     )
     expect(GraderConclusion.where(workflow: workflow)).to be_empty
+    expect(step.reload.details["transient_only_required_grader_failure"]).to eq(true)
+  end
+
+  it "marks the step as a transient-only failure when the only failing required graders are worker_died on the exact landed commit" do
+    workflow.steps.where(kind: "grader").delete_all
+    grader_step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 100,
+      iteration: 1,
+      loop_id: loop_id,
+      state: "failed",
+      details: { "name" => "rspec", "required" => true }
+    )
+    grader_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+    grader_run.create_run_failure_classification!(
+      classification: "worker_died",
+      confidence: 0.95,
+      retryable: true,
+      reason: "The worker or agent process disappeared while the run was active.",
+      classified_at: Time.current
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed due to infrastructure: rspec")
+
+    expect(step.reload.details["transient_only_required_grader_failure"]).to eq(true)
+  end
+
+  it "does not mark the step transient-only when a real (non-infrastructure) required grader also failed" do
+    workflow.steps.where(kind: "grader").delete_all
+    worker_died_step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 100,
+      iteration: 1,
+      loop_id: loop_id,
+      state: "failed",
+      details: { "name" => "rspec", "required" => true }
+    )
+    worker_died_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+      .create_run_failure_classification!(
+        classification: "worker_died",
+        confidence: 0.95,
+        retryable: true,
+        reason: "The worker or agent process disappeared while the run was active.",
+        classified_at: Time.current
+      )
+    real_failure_step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 101,
+      iteration: 1,
+      loop_id: loop_id,
+      state: "failed",
+      details: { "name" => "lint", "required" => true }
+    )
+    real_failure_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+      .create_run_failure_classification!(
+        classification: "grader_failure",
+        confidence: 0.9,
+        retryable: false,
+        reason: "A configured grader command failed.",
+        classified_at: Time.current
+      )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: lint")
+
+    expect(step.reload.details["transient_only_required_grader_failure"]).to be_nil
   end
 
   it "ignores stale infrastructure classifications on grader steps that ultimately succeeded" do

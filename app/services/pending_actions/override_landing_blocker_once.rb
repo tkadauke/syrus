@@ -45,6 +45,10 @@ module PendingActions
       "job_id: #{payload["job_id"]}, blocker_key: #{payload["blocker_key"]}"
     end
 
+    def presentation_label
+      "Override #{payload["blocker_key"]} once for #{presentation_job_slug}"
+    end
+
     repairs_job!
 
     private

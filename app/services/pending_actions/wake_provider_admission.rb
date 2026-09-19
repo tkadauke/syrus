@@ -26,6 +26,10 @@ module PendingActions
       "provider: #{payload["provider"]}, user_id: #{payload["user_id"] || "all"}"
     end
 
+    def presentation_label
+      payload["user_id"].present? ? "Wake #{payload["provider"]} admission for user ##{payload["user_id"]}" : "Wake #{payload["provider"]} admission"
+    end
+
     def repair_action? = true
   end
 end

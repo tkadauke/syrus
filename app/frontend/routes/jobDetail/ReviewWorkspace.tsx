@@ -93,7 +93,8 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     onNavigateToFile: setSelectedPath,
     onViewCommentVersion: viewCommentVersion,
     supportsGlobalComments: true,
-    surface: SURFACE
+    surface: SURFACE,
+    versions
   })
   const reviewArtifacts = reviewArtifactSummaries(payload.workflows)
 
@@ -227,6 +228,8 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             changedFilesPopup
             comments={feedback.diffThreads}
             composingBody={feedback.composingBody}
+            composingDiscussError={feedback.discussComposingError}
+            composingDiscussPending={feedback.discussComposingPending}
             composingError={feedback.composingError}
             composingPending={feedback.composingPending}
             composingSelection={feedback.composingSelection}
@@ -242,6 +245,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
             onCommentLine={startComment}
             onDeleteThread={feedback.onDeleteThread}
+            onDiscussComposing={feedback.onDiscussComposing}
             onLoadFileContext={activeDiff.head_ref ? (file) => fetchJobSourceFileContent(jobId, activeDiff.head_ref!, file.path) : undefined}
             onSaveComposing={feedback.onSaveComposing}
             onSaveEditThread={feedback.onSaveEditThread}

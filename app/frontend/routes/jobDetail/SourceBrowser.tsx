@@ -380,6 +380,8 @@ function SourceDiffBrowser({
               annotations={diffAnnotations}
               comments={feedback.diffThreads}
               composingBody={feedback.composingBody}
+              composingDiscussError={feedback.discussComposingError}
+              composingDiscussPending={feedback.discussComposingPending}
               composingError={feedback.composingError}
               composingPending={feedback.composingPending}
               composingSelection={feedback.composingSelection}
@@ -393,6 +395,7 @@ function SourceDiffBrowser({
               onChangeComposingBody={feedback.onChangeComposingBody}
               onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
               onCommentLine={feedback.onCommentLine}
+              onDiscussComposing={feedback.onDiscussComposing}
               onLoadFileContext={payload.head_ref ? (file) => fetchJobSourceFileContent(payload.job_id, payload.head_ref!, file.path) : undefined}
               onSaveComposing={feedback.onSaveComposing}
               onSaveEditThread={feedback.onSaveEditThread}
