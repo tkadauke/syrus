@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import { Button } from "@app/components/Button"
+import { Button, buttonClasses } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { Checkbox } from "@app/components/Checkbox"
 import { CopyableSlug } from "@app/components/CopyableSlug"
@@ -14,6 +14,7 @@ import { NoticeToast } from "@app/components/NoticeToast"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { useMediaQuery } from "@app/routes/dashboard/components"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
+import { Markdown } from "@app/lib/Markdown"
 import { fetchRepositories } from "@app/api/repositories"
 import { errorMessage } from "@app/lib/errorMessage"
 import { routePrefix } from "@app/lib/routing"
@@ -128,6 +129,8 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   const activeSmartFolderId = smartFolderIdFromSearch(search) ?? indexQuery.data?.active_smart_folder_id ?? null
   const docPath = (docId: string | number) => `${prefix}/design_docs/${docId}${search}`
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const isNarrowViewport = useMediaQuery("(max-width: 767px)", false)
+  const narrowView = compact || isNarrowViewport
   const sidebarOwnsDesktopFolders = mode === "index" && isDesktop
   const showDesktopInlineFolders = showIndexControls && isDesktop && !sidebarOwnsDesktopFolders
   const filterBar = showIndexControls ? (
@@ -238,6 +241,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
               doc={selectedDoc}
               key={selectedDoc.id}
               mode={mode}
+              narrowView={narrowView}
               repositories={repositoryOptions.map((repository) => ({ id: repository.id, slug: repository.slug }))}
               onDocChange={(nextDoc, message) => {
                 queryClient.setQueryData(["design_docs", "detail", String(nextDoc.id)], { design_doc: nextDoc })
@@ -574,7 +578,7 @@ function emptySelection(): SelectionRange {
   return { start: 0, end: 0, text: "", selectedText: "", rect: null }
 }
 
-function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
+function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; narrowView: boolean; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
   const { t } = useT("design_docs")
   const [draft, setDraft] = useState(doc.rendered_markdown || doc.markdown)
   const [editorMode, setEditorMode] = useState<EditorMode>("rich_text")
@@ -593,6 +597,8 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [versionsOpen, setVersionsOpen] = useState(false)
   const [selectedVersionId, setSelectedVersionId] = useState("current")
   const [markdownScrollTop, setMarkdownScrollTop] = useState(0)
+  const [forceEditable, setForceEditable] = useState(false)
+  const editingLocked = narrowView && !forceEditable
   const isArchived = doc.state === "archived"
   const canWriteCanonical = !isArchived && doc.permissions.can_write_canonical
   const canSuggest = !isArchived && doc.permissions.can_suggest
@@ -815,7 +821,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     const nextHtml = markdownToWysiwygHtml(draft, activeHighlights, focusedThreadId, focusedSuggestionId)
     if (wysiwygRef.current.innerHTML !== nextHtml) wysiwygRef.current.innerHTML = nextHtml
     wysiwygRenderRef.current = { highlights: activeHighlights, focusedThreadId, focusedSuggestionId }
-  }, [draft, editorMode, focusedThreadId, focusedSuggestionId, activeHighlights])
+  }, [draft, editorMode, focusedThreadId, focusedSuggestionId, activeHighlights, editingLocked])
 
   // Declared after (and thus, within this component, always flushed after)
   // the Rich Text sync effect above: that effect is what actually inserts
@@ -908,6 +914,10 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   useEffect(() => {
     if (!canWriteCanonical) setChangeMode("suggest")
   }, [canWriteCanonical, doc.id])
+
+  useEffect(() => {
+    setForceEditable(false)
+  }, [doc.id])
 
   useEffect(() => {
     persistedDraftRef.current = persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown)
@@ -1058,83 +1068,96 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             {summaryVisible ? <Input aria-label={t("aria_change_summary")} className="min-w-[12rem] flex-1" placeholder={t("optional_change_summary")} value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
           </div>
           ) : null}
-          <DesignDocFormattingToolbar
-            canWriteCanonical={canWriteCanonical}
-            readOnly={isArchived || !canSuggest}
-            changeMode={effectiveChangeMode}
-            draft={draft}
-            editorMode={editorMode}
-            selection={selection}
-            setChangeMode={setChangeMode}
-            setEditorMode={setEditorMode}
-            onCommand={applyFormattingCommand}
-          />
-          <div className="relative" ref={editorShellRef}>
-          {editorMode === "markdown" ? (
-            <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
-              <span className="sr-only">{t("markdown_editor")}</span>
-              <MarkdownHighlightMirror draft={draft} focusedSuggestionId={focusedSuggestionId} focusedThreadId={focusedThreadId} highlights={activeHighlights} mirrorRef={markdownMirrorRef} scrollTop={markdownScrollTop} />
-              <textarea
-                aria-label={t("markdown_editor")}
-                className="relative z-10 min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 outline-none selection:bg-brand/20 dark:caret-gray-100"
-                onBlur={() => updateSelection()}
-                onClick={(event) => focusThreadAtOffset(event.currentTarget.selectionStart)}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyUp={() => updateSelection()}
-                onMouseUp={() => updateSelection()}
-                onScroll={(event) => setMarkdownScrollTop(event.currentTarget.scrollTop)}
-                readOnly={isArchived}
-                ref={textareaRef}
-                value={draft}
-              />
-            </label>
-          ) : (
-            <div
-              aria-label={t("rich_text_editor")}
-              className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
-              contentEditable={!isArchived}
-              onBlur={() => {
-                setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))
-                window.setTimeout(() => {
-                  if (document.activeElement === newThreadComposerRef.current) return
-                  updateWysiwygSelection()
-                }, 0)
-              }}
-              onClick={(event) => {
-                const target = event.target as HTMLElement
-                const suggestionMarker = target.closest("[data-suggestion-id]") as HTMLElement | null
-                if (suggestionMarker?.dataset.suggestionId) {
-                  focusSuggestion(Number(suggestionMarker.dataset.suggestionId))
-                  return
-                }
-                const marker = target.closest("[data-thread-id]") as HTMLElement | null
-                if (marker?.dataset.threadId) focusThread(Number(marker.dataset.threadId))
-              }}
-              onInput={() => {
-                if (!wysiwygRef.current) return
-                const markdown = wysiwygHtmlToMarkdown(wysiwygRef.current)
-                const rendered = wysiwygRenderRef.current
-                resyncWysiwygSourceOffsets(wysiwygRef.current, markdown, rendered.highlights, rendered.focusedThreadId, rendered.focusedSuggestionId)
-                setDraft(markdown)
-              }}
-              onKeyUp={updateWysiwygSelection}
-              onMouseUp={updateWysiwygSelection}
-              ref={wysiwygRef}
-              role="textbox"
-              suppressContentEditableWarning
-              tabIndex={0}
+          {editingLocked ? (
+            <DesignDocReadOnlyBody
+              draft={draft}
+              editEntry={mode === "chat" ? (
+                <Link className={buttonClasses("secondary", "sm")} to={`/design_docs/${doc.id}`}>{t("edit")}</Link>
+              ) : (
+                <Button onClick={() => setForceEditable(true)} size="sm">{t("edit")}</Button>
+              )}
             />
+          ) : (
+            <>
+              <DesignDocFormattingToolbar
+                canWriteCanonical={canWriteCanonical}
+                readOnly={isArchived || !canSuggest}
+                changeMode={effectiveChangeMode}
+                draft={draft}
+                editorMode={editorMode}
+                selection={selection}
+                setChangeMode={setChangeMode}
+                setEditorMode={setEditorMode}
+                onCommand={applyFormattingCommand}
+              />
+              <div className="relative" ref={editorShellRef}>
+              {editorMode === "markdown" ? (
+                <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
+                  <span className="sr-only">{t("markdown_editor")}</span>
+                  <MarkdownHighlightMirror draft={draft} focusedSuggestionId={focusedSuggestionId} focusedThreadId={focusedThreadId} highlights={activeHighlights} mirrorRef={markdownMirrorRef} scrollTop={markdownScrollTop} />
+                  <textarea
+                    aria-label={t("markdown_editor")}
+                    className="relative z-10 min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 outline-none selection:bg-brand/20 dark:caret-gray-100"
+                    onBlur={() => updateSelection()}
+                    onClick={(event) => focusThreadAtOffset(event.currentTarget.selectionStart)}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyUp={() => updateSelection()}
+                    onMouseUp={() => updateSelection()}
+                    onScroll={(event) => setMarkdownScrollTop(event.currentTarget.scrollTop)}
+                    readOnly={isArchived}
+                    ref={textareaRef}
+                    value={draft}
+                  />
+                </label>
+              ) : (
+                <div
+                  aria-label={t("rich_text_editor")}
+                  className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
+                  contentEditable={!isArchived}
+                  onBlur={() => {
+                    setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))
+                    window.setTimeout(() => {
+                      if (document.activeElement === newThreadComposerRef.current) return
+                      updateWysiwygSelection()
+                    }, 0)
+                  }}
+                  onClick={(event) => {
+                    const target = event.target as HTMLElement
+                    const suggestionMarker = target.closest("[data-suggestion-id]") as HTMLElement | null
+                    if (suggestionMarker?.dataset.suggestionId) {
+                      focusSuggestion(Number(suggestionMarker.dataset.suggestionId))
+                      return
+                    }
+                    const marker = target.closest("[data-thread-id]") as HTMLElement | null
+                    if (marker?.dataset.threadId) focusThread(Number(marker.dataset.threadId))
+                  }}
+                  onInput={() => {
+                    if (!wysiwygRef.current) return
+                    const markdown = wysiwygHtmlToMarkdown(wysiwygRef.current)
+                    const rendered = wysiwygRenderRef.current
+                    resyncWysiwygSourceOffsets(wysiwygRef.current, markdown, rendered.highlights, rendered.focusedThreadId, rendered.focusedSuggestionId)
+                    setDraft(markdown)
+                  }}
+                  onKeyUp={updateWysiwygSelection}
+                  onMouseUp={updateWysiwygSelection}
+                  ref={wysiwygRef}
+                  role="textbox"
+                  suppressContentEditableWarning
+                  tabIndex={0}
+                />
+              )}
+              <SelectionCommentAffordance
+                disabled={selection.end <= selection.start || !canSuggest}
+                selection={selection}
+                onOpenComposer={() => {
+                  setFocusedThreadId(null)
+                  setFocusedSuggestionId(null)
+                  window.setTimeout(() => newThreadComposerRef.current?.focus(), 0)
+                }}
+              />
+              </div>
+            </>
           )}
-          <SelectionCommentAffordance
-            disabled={selection.end <= selection.start || !canSuggest}
-            selection={selection}
-            onOpenComposer={() => {
-              setFocusedThreadId(null)
-              setFocusedSuggestionId(null)
-              window.setTimeout(() => newThreadComposerRef.current?.focus(), 0)
-            }}
-          />
-          </div>
         </Section.Root>
       </section>
       <aside className="space-y-4">
@@ -1554,6 +1577,25 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
           </div>
         ) : null}
       </div>
+    </div>
+  )
+}
+
+// Narrow-view (compact chat tabs, or a mobile-width repository/index route)
+// stand-in for the formatting toolbar + editable textarea/contentEditable
+// surfaces: plain rendered content plus an explicit Edit affordance, instead
+// of the always-live editing toolbar there isn't room for at this width.
+function DesignDocReadOnlyBody({ draft, editEntry }: { draft: string; editEntry: ReactNode }) {
+  const { t } = useT("design_docs")
+
+  return (
+    <div className="p-4" data-testid="design-doc-read-only-body">
+      <div className="mb-3 flex justify-end">
+        {editEntry}
+      </div>
+      <section aria-label={t("document_content")} className="min-h-[36rem] text-sm leading-6 text-text-primary">
+        <Markdown text={draft} />
+      </section>
     </div>
   )
 }
