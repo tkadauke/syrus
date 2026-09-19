@@ -222,10 +222,13 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
   end
 
-  it "adds the current user as a read-tier member when the same GitHub slug is already registered by another user" do
+  it "rejects self-enrollment when the same GitHub slug is already registered by another user" do
     other_user = Factories.user
+    other_user.update!(global_role: "user")
     existing_repo = Factories.repository(user: other_user, owner: "acme", name: "widgets")
+    user.update!(global_role: "user")
     sign_in_as(user)
+    repository_count = Repository.count
 
     expect {
       post "/api/v1/app/repositories", params: {
@@ -238,13 +241,12 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
           prepare_enabled: true
         }
       }
-    }.to change(RepositoryMembership, :count).by(1)
-      .and change(Repository, :count).by(0)
+    }.not_to change(RepositoryMembership, :count)
 
-    expect(response).to have_http_status(:created)
-    membership = existing_repo.repository_memberships.find_by(user: user)
-    expect(membership).not_to be_nil
-    expect(membership.role).to eq("read")
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+    expect(Repository.count).to eq(repository_count)
+    expect(existing_repo.repository_memberships.find_by(user: user)).to be_nil
   end
 
   it "creates an admin-tier membership when registering a new repository" do
@@ -292,6 +294,81 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "message")).to include("already in your workspace")
+  end
+
+  it "rejects repository mutation endpoints for read-tier repository members" do
+    owner = Factories.user
+    owner.update!(global_role: "user")
+    reader = Factories.user
+    reader.update!(global_role: "user")
+    repository = Factories.repository(
+      user: owner,
+      owner: "acme",
+      name: "widgets",
+      trigger_label: "syrus",
+      landing_paused: true,
+      last_health_checked_sha: "abc1234def5678",
+      ci_health: "healthy"
+    )
+    repository.repository_memberships.create!(user: reader, role: "read")
+    job = repository.jobs.create!(
+      user: owner,
+      kind: "direct",
+      issue_title: "Scope the importer",
+      issue_body: "Make this ready for implementation.",
+      state: "needs_triage"
+    )
+    sign_in_as(reader)
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["can_release_triage_jobs"]).to eq(false)
+    expect(parse_body["needs_triage_count"]).to eq(0)
+    expect(parse_body["needs_triage_jobs"]).to eq([])
+
+    mutating_requests = [
+      [ "update", -> { patch "/api/v1/app/repositories/#{repository.id}", params: { repository: { trigger_label: "takeover" } } } ],
+      [ "poll", -> { post "/api/v1/app/repositories/#{repository.id}/poll" } ],
+      [ "archive", -> { post "/api/v1/app/repositories/#{repository.id}/archive" } ],
+      [ "unarchive", -> { post "/api/v1/app/repositories/#{repository.id}/unarchive" } ],
+      [ "retry_failed_jobs", -> { post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs" } ],
+      [ "run_main_branch_graders", -> { post "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders" } ],
+      [ "repair_main_branch", -> { post "/api/v1/app/repositories/#{repository.id}/repair_main_branch" } ],
+      [ "sync_fork", -> { post "/api/v1/app/repositories/#{repository.id}/sync_fork" } ],
+      [ "check_ci_now", -> { post "/api/v1/app/repositories/#{repository.id}/check_ci_now" } ],
+      [ "release_needs_triage_job", -> { post "/api/v1/app/repositories/#{repository.id}/release_needs_triage_job", params: { job_id: job.id } } ],
+      [ "resume_landing", -> { post "/api/v1/app/repositories/#{repository.id}/resume_landing" } ]
+    ]
+
+    mutating_requests.each do |label, request|
+      clear_enqueued_jobs
+
+      request.call
+
+      expect(response).to have_http_status(:forbidden), "#{label} should reject read-tier members"
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
+      expect(enqueued_jobs).to be_empty
+    end
+    expect(repository.reload.trigger_label).to eq("syrus")
+    expect(repository).not_to be_archived
+    expect(repository.landing_paused).to be(true)
+    expect(job.reload).to be_needs_triage
+  end
+
+  it "allows admin-tier repository members to mutate repository settings" do
+    owner = Factories.user
+    owner.update!(global_role: "user")
+    admin_member = Factories.user
+    admin_member.update!(global_role: "user")
+    repository = Factories.repository(user: owner, owner: "acme", name: "widgets", trigger_label: "syrus")
+    repository.repository_memberships.create!(user: admin_member, role: "admin")
+    sign_in_as(admin_member)
+
+    patch "/api/v1/app/repositories/#{repository.id}", params: { repository: { trigger_label: "delegate" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(repository.reload.trigger_label).to eq("delegate")
   end
 
   it "returns the new repository form payload" do

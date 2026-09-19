@@ -81,6 +81,13 @@ module Api
           false
         end
 
+        def authorize_repository_admin!(repository)
+          return true if RepositoryPolicy.new(Current.user, repository).admin?
+
+          render_error("forbidden", "Only a repository admin can perform this action.", status: :forbidden)
+          false
+        end
+
         def plain_json(value)
           case value
           when ActionController::Parameters
