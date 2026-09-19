@@ -5,6 +5,10 @@ RSpec.describe "Mcp::Tools job dependency tools" do
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
+  before do
+    allow(User).to receive(:chat_providers).and_return(%w[claude codex])
+  end
+
   def server
     MCP::Server.new(
       name: "syrus-chat-sidecar",
@@ -199,6 +203,24 @@ RSpec.describe "Mcp::Tools job dependency tools" do
       expect(response.dig(:result, :isError)).to be_falsey
       expect(payload(response)).to include(job_id: job.id, depends_on_job_ids: [], depends_on_epic_ids: [])
       expect(job.reload.depends_on_jobs).to be_empty
+    end
+
+    context "when the chat user is an admin" do
+      let(:user) { Factories.user(admin: true) }
+
+      it "destroys a JobDependency for Jobs the admin does not own" do
+        other_user = Factories.user
+        other_repository = Factories.repository(user: other_user)
+        job = Factories.job_record(user: other_user, repository: other_repository)
+        prerequisite = Factories.job_record(user: other_user, repository: other_repository, issue_number: 43)
+        JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual", created_by_user: other_user)
+
+        response = call_tool("remove_job_dependency", job_id: job.id, depends_on_job_id: prerequisite.id)
+
+        expect(response.dig(:result, :isError)).to be_falsey
+        expect(payload(response)).to include(job_id: job.id, depends_on_job_ids: [], depends_on_epic_ids: [])
+        expect(job.reload.depends_on_jobs).to be_empty
+      end
     end
 
     it "is idempotent when the dependency row does not exist" do
