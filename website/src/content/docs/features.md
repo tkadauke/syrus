@@ -46,6 +46,12 @@ new chat scoped to the Job's repository, seeds an opening "I would like to
 chat about JOB-<id>." user turn so the agent responds immediately,
 permanently attaches the Job to it (visible in that chat's Jobs list), and
 the Job page then links to that chat going forward.
+The Jobs dashboard also shows a "Proposed" section above the readiness and
+health banners with up to 5 of the operator's most recent pending chat
+proposals; each card links straight to the message where the proposal was
+posted, and the section updates live as proposals are created, confirmed,
+rejected, or withdrawn, so a proposal that scrolled out of view in a long
+chat is never effectively lost.
 If an agent provider hits a current user's usage or quota limit, Jobs that use
 that provider show an additive red triangle warning in dashboards, lists, and
 the Job header until usage is restored or the Job is retried/switched with
