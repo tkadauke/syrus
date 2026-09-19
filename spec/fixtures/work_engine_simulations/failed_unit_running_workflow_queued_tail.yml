@@ -1,0 +1,68 @@
+name: failed unit running workflow queued tail
+repository:
+  owner: simulation
+  name: failed-unit-running-workflow-queued-tail
+jobs:
+  job:
+    title: Failed WorkUnit but running Workflow with queued tail
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: failed
+      intent:
+        state: failed
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: adversarial_review
+          state: succeeded
+          iteration: 1
+          loop_id: review-loop
+          run:
+            state: succeeded
+        - kind: implement
+          state: succeeded
+          iteration: 2
+          loop_id: review-loop
+          run:
+            state: succeeded
+        - kind: visual_review
+          state: queued
+          created_at: "2026-09-18T16:05:24Z"
+        - kind: format
+          state: queued
+        - kind: grader_fanout
+          state: queued
+        - kind: grader_collect
+          state: queued
+        - kind: coverage_analyze
+          state: queued
+        - kind: dependency_audit
+          state: queued
+        - kind: summarize
+          state: cancelled
+        - kind: test_plan
+          state: cancelled
+        - kind: pr_open
+          state: cancelled
+outcomes:
+  default: success
+success_states:
+  job:
+    - implemented
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+  events:
+    - queued_step_without_run

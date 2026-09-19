@@ -234,7 +234,8 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     "running_step_with_terminal_run" => "running_step_with_terminal_runs",
     "active_run_on_terminal_step" => "active_run_on_terminal_step",
     "terminal_workflow_active_descendants" => "cleanup_blocked_by_active_descendants",
-    "requested_intent_without_active_unit" => "requested_work_intent_without_active_unit"
+    "requested_intent_without_active_unit" => "requested_work_intent_without_active_unit",
+    "failed_unit_running_workflow_queued_tail" => "queued_step_without_run"
   }.each do |scenario, expected_event|
     it "recovers #{scenario}" do
       result = run_scenario(scenario)

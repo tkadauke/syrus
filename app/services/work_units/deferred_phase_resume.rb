@@ -19,11 +19,13 @@ module WorkUnits
 
     def call
       return result("terminal") unless workflow.queued? || workflow.running?
+      reactivate_terminal_unit_for_active_workflow!
       return result("unowned") unless work_unit&.active?
 
       step = target_step
       return result("no_step") unless step&.queued?
       return result("run_exists") if step.runs.any?
+      revive_cancelled_tail_after!(step)
 
       prior_block_reason = WorkUnits::StartBlock.for(workflow).reason
       gate_result = WorkUnits::Scheduler.evaluate!(work_unit, step: step)
@@ -46,6 +48,29 @@ module WorkUnits
 
     def work_unit
       @work_unit ||= workflow.work_unit
+    end
+
+    def reactivate_terminal_unit_for_active_workflow!
+      return unless workflow.running?
+      return unless work_unit&.terminal?
+
+      work_unit.mark_running!
+    end
+
+    def revive_cancelled_tail_after!(step)
+      cursor = step.next_step
+      while cursor
+        if cursor.cancelled? && cursor.runs.none?
+          cursor.update_columns(
+            state: "queued",
+            started_at: nil,
+            finished_at: nil,
+            cancellation_reason: nil,
+            updated_at: Time.current
+          )
+        end
+        cursor = cursor.next_step
+      end
     end
 
     def target_step
