@@ -163,6 +163,14 @@ RSpec.describe Prompts::CiFailure do
     expect(out.index("Target context:")).to be < out.index("Structured error context:")
   end
 
+  describe "#value" do
+    it "returns a legitimate false value instead of falling through to the string-key fallback" do
+      out = build.send(:value, { required: false }, :required)
+
+      expect(out).to eq(false)
+    end
+  end
+
   describe "injected_context" do
     it "is omitted when not provided" do
       out = build.to_s

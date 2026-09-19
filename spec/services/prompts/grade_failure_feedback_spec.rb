@@ -155,6 +155,14 @@ RSpec.describe Prompts::GradeFailureFeedback do
     expect(out).to include("BEFORE making any fix")
   end
 
+  describe "#value" do
+    it "returns a legitimate false value instead of falling through to the symbol-key fallback" do
+      out = described_class.new(iterations: []).send(:value, { "required" => false }, :required)
+
+      expect(out).to eq(false)
+    end
+  end
+
   it "does not advise record_isolated_repro for timeout-only latest grader failures" do
     iterations = [
       [
