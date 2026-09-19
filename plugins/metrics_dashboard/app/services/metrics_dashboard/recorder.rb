@@ -16,7 +16,7 @@ module MetricsDashboard
   #     pods are not scraped yet and processes share no memory.
   #
   # That gap is the unbuilt cross-process capture noted in
-  # docs/plans/prometheus-dashboard.md, not something this plugin works around.
+  # docs/plans/complete/prometheus-dashboard.md, not something this plugin works around.
   # When it lands, these panels gain the data with no change here.
   class Recorder
     class << self

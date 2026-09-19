@@ -1,5 +1,5 @@
 module Workflows
-  # Story 5/5A (docs/plans/delivery-tracks-and-promotion.md) `main -> develop`
+  # Story 5/5A (docs/plans/complete/delivery-tracks-and-promotion.md) `main -> develop`
   # ref-movement workflow: syncs the repository's release branch (the
   # branch direct hotfix commits land on) back into the delivery track's
   # development branch, grades the result, and publishes it per

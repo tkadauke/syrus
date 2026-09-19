@@ -1,4 +1,4 @@
-# Fan-out for hotfix-sync detection (docs/plans/delivery-tracks-and-promotion.md
+# Fan-out for hotfix-sync detection (docs/plans/complete/delivery-tracks-and-promotion.md
 # Story 5/5A). Mirrors PollAllDeploymentStagesJob: hotfix-sync opt-in lives in
 # `.syrus.yml`, not a Repository boolean column, so this reads DeliveryPolicy
 # per repository instead of filtering with a `where(...)` clause.
