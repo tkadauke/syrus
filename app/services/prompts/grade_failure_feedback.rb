@@ -198,7 +198,7 @@ module Prompts
     end
 
     def value(entry, key)
-      entry[key.to_s] || entry[key.to_sym]
+      entry.key?(key.to_s) ? entry[key.to_s] : entry[key.to_sym]
     end
 
     def indent(text, by:)
