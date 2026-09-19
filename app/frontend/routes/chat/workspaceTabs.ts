@@ -12,7 +12,12 @@ import {
   CHAT_WORKSPACE_MAX_WIDTH,
   CHAT_WORKSPACE_MIN_WIDTH,
   CHAT_WORKSPACE_TAB_KEY,
-  CHAT_WORKSPACE_WIDTH_KEY
+  CHAT_WORKSPACE_WIDTH_KEY,
+  CHAT_FILES_TREE_COLLAPSED_KEY,
+  CHAT_FILES_TREE_DEFAULT_WIDTH,
+  CHAT_FILES_TREE_MAX_WIDTH,
+  CHAT_FILES_TREE_MIN_WIDTH,
+  CHAT_FILES_TREE_WIDTH_KEY
 } from "./constants"
 import { codingFilesTabVisible, jobsTabVisible, localDiffTabVisible, readOnlyFilesTabVisible, runtimeTabVisible } from "./utils"
 
@@ -167,6 +172,22 @@ export function storedWorkspaceWidth() {
   }
 }
 
+export function storedFilesTreeCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(CHAT_FILES_TREE_COLLAPSED_KEY) === "true"
+  } catch (_error) {
+    return false
+  }
+}
+
+export function storedFilesTreeWidth() {
+  try {
+    return clampFilesTreeWidth(Number.parseInt(window.localStorage.getItem(CHAT_FILES_TREE_WIDTH_KEY) || "", 10) || CHAT_FILES_TREE_DEFAULT_WIDTH)
+  } catch (_error) {
+    return CHAT_FILES_TREE_DEFAULT_WIDTH
+  }
+}
+
 export function storeWorkspacePreference(key: string, value: string) {
   try {
     window.localStorage.setItem(key, value)
@@ -178,4 +199,8 @@ export function storeWorkspacePreference(key: string, value: string) {
 
 export function clampWorkspaceWidth(width: number) {
   return Math.min(Math.max(width, CHAT_WORKSPACE_MIN_WIDTH), CHAT_WORKSPACE_MAX_WIDTH)
+}
+
+export function clampFilesTreeWidth(width: number) {
+  return Math.min(Math.max(width, CHAT_FILES_TREE_MIN_WIDTH), CHAT_FILES_TREE_MAX_WIDTH)
 }

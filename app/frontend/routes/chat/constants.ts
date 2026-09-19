@@ -21,6 +21,10 @@ export const CHAT_WORKSPACE_TAB_KEY = "syrus.chat.workspace.tab"
 
 export const CHAT_WORKSPACE_COLLAPSED_KEY = "syrus.chat.workspace.collapsed"
 
+export const CHAT_FILES_TREE_WIDTH_KEY = "syrus.chat.files.tree.width"
+
+export const CHAT_FILES_TREE_COLLAPSED_KEY = "syrus.chat.files.tree.collapsed"
+
 export const CHAT_DRAFT_KEY_PREFIX = "syrus.chat.draft."
 
 // Tab only accepts the ghost suggestion after this grace period. A
@@ -33,6 +37,16 @@ export const CHAT_WORKSPACE_DEFAULT_WIDTH = 520
 export const CHAT_WORKSPACE_MIN_WIDTH = 360
 
 export const CHAT_WORKSPACE_MAX_WIDTH = 760
+
+export const CHAT_FILES_TREE_DEFAULT_WIDTH = 192
+
+export const CHAT_FILES_TREE_MIN_WIDTH = 144
+
+export const CHAT_FILES_TREE_MAX_WIDTH = 360
+
+export const CHAT_FILES_TREE_SNAP_CLOSED_WIDTH = 96
+
+export const CHAT_FILES_TREE_REOPEN_WIDTH = 128
 
 // Deliberately wider than AppChromeV2's own 1024px sidebar breakpoint. At
 // 1024px, the app's left sidebar (up to 420px) plus the workspace panel
