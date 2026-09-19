@@ -201,4 +201,34 @@ describe("mobile jobs list row", () => {
     const time = screen.getByRole("article", { name: "Job 3" }).querySelector("time")
     expect(time?.getAttribute("dateTime")).toBe("2026-07-31T11:00:00Z")
   })
+
+  it("renders a single structural metadata line when nothing needs attention", () => {
+    mockMobileViewport()
+    renderTable([ mobileJobItem() ])
+
+    const article = screen.getByRole("article", { name: "Job 3" })
+    expect(article.querySelectorAll('div[class*="gap-x-1.5"]')).toHaveLength(1)
+  })
+
+  it("splits blocked_reason onto a second attention line, below the structural line", () => {
+    mockMobileViewport()
+    renderTable([ mobileJobItem({ blocked_reason: { key: "landing_paused" } }) ])
+
+    const article = screen.getByRole("article", { name: "Job 3" })
+    const rows = article.querySelectorAll('div[class*="gap-x-1.5"]')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).not.toHaveTextContent("Landing paused")
+    expect(rows[1]).toHaveTextContent("Landing paused")
+  })
+
+  it("renders a manual-pause pill on the attention line, not the structural line", () => {
+    mockMobileViewport()
+    renderTable([ mobileJobItem({ manual_paused: true }) ])
+
+    const article = screen.getByRole("article", { name: "Job 3" })
+    const rows = article.querySelectorAll('div[class*="gap-x-1.5"]')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).not.toHaveTextContent("Manually paused")
+    expect(rows[1]).toHaveTextContent("Manually paused")
+  })
 })
