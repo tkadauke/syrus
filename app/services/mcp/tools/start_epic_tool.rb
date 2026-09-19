@@ -20,7 +20,7 @@ module Mcp::Tools
         chat_session = server_context.fetch(:chat_session)
         epic_id = normalize_epic_id(epic_id)
         return Mcp::Tools.invalid("epic_id is required") unless epic_id
-        actor = Current.user || chat_session.user
+        actor = chat_session.user
         if actor&.product_owner?
           return Mcp::Tools.invalid("Product owners cannot advance Epics beyond backlog.")
         end

@@ -2,6 +2,11 @@ require "rails_helper"
 
 RSpec.describe "Mcp::Tools epic kanban tools" do
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
+  let!(:_enabled_chat_providers) do
+    %w[claude_agent codex_agent agy_agent].each do |plugin_name|
+      PluginRecord.find_or_create_by!(name: plugin_name).update!(enabled: true)
+    end
+  end
 
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
@@ -118,6 +123,21 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
       expect(result).to include(epic_id: epic.id, previous_state: "ready", new_state: "in_progress")
       expect(epic.reload).to be_in_progress
       expect(epic.claimed_by?(user)).to be true
+    end
+
+    it "ignores Current.user and attributes the action to the chat user" do
+      current_user = Factories.user(role: "product_owner")
+      Current.api_user = current_user
+      epic = Factories.epic(user: user, repository: repository, state: "ready")
+
+      result = payload(call_tool("start_epic", epic_id: epic.id))
+
+      expect(result).to include(epic_id: epic.id, previous_state: "ready", new_state: "in_progress")
+      expect(epic.reload).to be_in_progress
+      expect(epic.claimed_by?(user)).to be true
+      expect(epic.claimed_by?(current_user)).to be false
+    ensure
+      Current.reset
     end
 
     it "rejects Epics outside the chat repository" do
