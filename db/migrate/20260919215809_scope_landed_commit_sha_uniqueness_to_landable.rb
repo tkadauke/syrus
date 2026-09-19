@@ -4,16 +4,10 @@ class ScopeLandedCommitShaUniquenessToLandable < ActiveRecord::Migration[8.1]
       remove_index :landed_commits, name: "index_landed_commits_on_sha"
     end
 
-    unless index_exists?(
-      :landed_commits,
-      [ :sha, :landable_type, :landable_id ],
-      unique: true,
-      name: "index_landed_commits_on_sha_and_landable"
-    )
-      add_index :landed_commits,
-        [ :sha, :landable_type, :landable_id ],
-        unique: true,
-        name: "index_landed_commits_on_sha_and_landable"
+    scoped_index_columns = [ :sha, :landable_type, :landable_id ]
+    scoped_index_name = "index_landed_commits_on_sha_and_landable"
+    unless index_exists?(:landed_commits, scoped_index_columns, unique: true, name: scoped_index_name)
+      add_index :landed_commits, scoped_index_columns, unique: true, name: scoped_index_name
     end
   end
 
