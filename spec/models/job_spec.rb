@@ -2480,6 +2480,24 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.failed_dependencies_for_execution.map(&:depends_on_job)).to contain_exactly(prerequisite)
     end
 
+    it "does not treat failed dependencies as failed for execution after an operator override" do
+      prerequisite = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 42,
+        state: "closed",
+        closure_reason: "cancelled"
+      )
+      job = Factories.job_record(user: user, repository: repository, issue_number: 43)
+      job.dependencies.create!(depends_on_job: prerequisite, source: "manual")
+
+      job.force_run_dependencies!(user: user)
+
+      expect(job.reload).to be_dependencies_satisfied_for_execution
+      expect(job).not_to be_dependencies_failed_for_execution
+      expect(job.failed_dependencies_for_execution).to be_empty
+    end
+
     it "treats pending dependencies on done Epic issues as satisfied" do
       Epic.create!(
         user: user,

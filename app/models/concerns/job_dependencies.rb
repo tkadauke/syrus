@@ -24,6 +24,8 @@ module JobDependencies
   end
 
   def failed_dependencies_for_execution
+    return [] if dependencies_overridden_at.present?
+
     preloaded_dependencies(:depends_on_job, :depends_on_epic).select do |dependency|
       dependency_terminal_unsuccessful?(dependency)
     end
