@@ -18,7 +18,7 @@ module App
     def index
       {
         job_id: @job.id,
-        versions: @job.diff_review_versions.includes(:workflow, :run).ordered.map { |version| version_json(version) },
+        versions: diff_review_versions_for_index.map { |version| version_json(version, files_count: version.files_snapshot_count.to_i) },
         latest_version_id: latest_version_id
       }
     end
@@ -34,7 +34,7 @@ module App
 
     private
 
-    def version_json(version)
+    def version_json(version, files_count: nil)
       {
         id: version.id,
         job_id: version.job_id,
@@ -50,11 +50,28 @@ module App
         label: version.label,
         reason: version.reason,
         truncated: version.truncated,
-        files_count: Array(version.files_snapshot).size,
+        files_count: files_count || Array(version.files_snapshot).size,
         comments_count: comments_count_for(version),
         metadata: version.metadata || {},
         created_at: version.created_at&.iso8601
       }
+    end
+
+    def diff_review_versions_for_index
+      @job.diff_review_versions
+          .select(
+            :id, :job_id, :workflow_id, :run_id, :version_index,
+            :base_sha, :head_sha, :base_ref, :head_ref, :trigger_kind,
+            :label, :reason, :truncated, :metadata, :created_at,
+            Arel.sql("#{files_snapshot_count_sql} AS files_snapshot_count")
+          )
+          .includes(:workflow, :run)
+          .ordered
+    end
+
+    def files_snapshot_count_sql
+      adapter = DiffReviewVersion.connection.adapter_name.to_s.downcase
+      adapter.include?("mysql") ? "JSON_LENGTH(files_snapshot)" : "json_array_length(files_snapshot)"
     end
 
     def workflow_json(workflow)

@@ -20,7 +20,7 @@ import {
 import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
 import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
-import { DiffReviewVersionSelector, type DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
+import { DiffReviewVersionSelector, canonicalReviewVersions, type DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
 import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import { Pill, Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
@@ -269,8 +269,9 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
 }
 
 function preferredReviewVersionId(payloadVersion: DiffReviewVersion | null, versions: DiffReviewVersion[]) {
-  const allChangesVersion = versions.find(isAllChangesVersion)
-  return allChangesVersion?.id ?? payloadVersion?.id ?? versions[versions.length - 1]?.id ?? null
+  const canonicalVersions = canonicalReviewVersions(versions)
+  const allChangesVersion = canonicalVersions.find(isAllChangesVersion)
+  return allChangesVersion?.id ?? payloadVersion?.id ?? canonicalVersions[0]?.id ?? versions[versions.length - 1]?.id ?? null
 }
 
 function isAllChangesVersion(version: DiffReviewVersion) {

@@ -778,6 +778,54 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByText("all-changes")).not.toBeInTheDocument()
   })
 
+  it("does not default to an empty legacy All changes version when real versions exist", async () => {
+    const emptyAllChanges = version({
+      id: 100,
+      version_index: 1,
+      base_sha: "main",
+      head_sha: "main",
+      label: "All changes",
+      reason: "source_diff",
+      metadata: { range_kind: "all_changes" },
+      files_count: 0
+    })
+    const implementationVersion = version({
+      id: 200,
+      version_index: 2,
+      base_sha: "impl-base",
+      head_sha: "impl-head",
+      label: "Initial implementation",
+      reason: "initial",
+      run_id: 34,
+      files_count: 43
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
+      version: null,
+      versions: [ emptyAllChanges, implementationVersion ],
+      files: []
+    }))
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...implementationVersion,
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: [{
+        additions: 0,
+        deletions: 19,
+        path: "CLAUDE.md",
+        status: "modified",
+        patch: "@@ -1,2 +1 @@\n-old\n-new"
+      }]
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 200))
+
+    renderWorkspace()
+
+    expect(await screen.findByTitle("CLAUDE.md")).toBeInTheDocument()
+    expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 200)
+    expect(screen.queryByText("No changed files found.")).not.toBeInTheDocument()
+  })
+
   it("selects independent From and To endpoints as an explicit review range", async () => {
     const initial = sourceDiffPayload({
       version: version({ id: 300, version_index: 3, base_sha: "branch-base", head_sha: "third-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } }),
