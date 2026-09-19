@@ -146,21 +146,33 @@ class WorkUnit < ApplicationRecord
   end
 
   def preempt!(reason:, by_work_unit: nil)
+    preempted = false
+
     transaction do
-      update!(
-        state: "cancelled",
-        finished_at: finished_at || Time.current,
-        blocked_reason: nil,
-        blocked_until: nil,
-        blocked_details: {},
-        blocked_by_user: nil,
-        preemption_reason: reason.to_s.truncate(PREEMPTION_REASON_MAX_LENGTH),
-        preempted_by_work_unit: by_work_unit
-      )
-      work_unit_locks.active.find_each(&:release!)
+      lock!
+      if cancelled?
+        update!(
+          preemption_reason: preemption_reason.presence || reason.to_s.truncate(PREEMPTION_REASON_MAX_LENGTH),
+          preempted_by_work_unit: preempted_by_work_unit || by_work_unit
+        )
+      elsif active?
+        update!(
+          state: "cancelled",
+          finished_at: finished_at || Time.current,
+          blocked_reason: nil,
+          blocked_until: nil,
+          blocked_details: {},
+          blocked_by_user: nil,
+          preemption_reason: reason.to_s.truncate(PREEMPTION_REASON_MAX_LENGTH),
+          preempted_by_work_unit: by_work_unit
+        )
+        work_unit_locks.active.find_each(&:release!)
+        preempted = true
+      end
     end
 
-    WorkIntents::TerminalUnitSync.call(self)
+    WorkIntents::TerminalUnitSync.call(self) if preempted
+    self
   end
 
   def request_pause!

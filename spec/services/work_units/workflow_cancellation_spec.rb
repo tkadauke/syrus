@@ -41,6 +41,30 @@ RSpec.describe WorkUnits::WorkflowCancellation do
     expect(workflow.artifact("start_cancelled_reason")).to eq("job_closed")
   end
 
+  it "does not preempt the work unit when a stale workflow instance has already completed" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, idempotency_key: "stale-cancel-spec")
+    stale_workflow = Workflow.find(workflow.id)
+
+    workflow.update!(state: "succeeded", finished_at: Time.current)
+    workflow.work_unit.mark_terminal!("succeeded")
+    finished_at = workflow.work_unit.reload.finished_at
+
+    described_class.cancel!(
+      stale_workflow,
+      reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+      artifacts: { "cancelled_reason" => Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON }
+    )
+
+    expect(workflow.reload).to be_succeeded
+    expect(workflow.artifact("cancelled_reason")).to be_nil
+    expect(workflow.work_unit.reload).to have_attributes(
+      state: "succeeded",
+      preemption_reason: nil,
+      preempted_by_work_unit_id: nil,
+      finished_at: finished_at
+    )
+  end
+
   describe ".cancel_queued_retry_workflows_for_job!" do
     # RetryWorkflowEnqueuer tries RunCheckpointResume first and only falls
     # back to a plain "retry" Workflow when no safe checkpoint resume is
