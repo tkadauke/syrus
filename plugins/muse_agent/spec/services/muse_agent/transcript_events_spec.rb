@@ -185,6 +185,37 @@ RSpec.describe MuseAgent::TranscriptEvents do
     expect(summary).to be_mcp_tool_called
   end
 
+  it "extracts real arguments from a native tool call's side effect intent args" do
+    # Real `muse exec --json` output carries tool call arguments under
+    # "args" (a JSON-encoded string) rather than "input"/"arguments" for
+    # side_effect_intent events -- the key this normalization previously
+    # never checked, so native tool calls (bash, read_file, ...) always
+    # rendered with an empty input.
+    jsonl = [
+      {
+        record_type: "event",
+        payload_type: "task.lifecycle.side_effect_intent",
+        payload: {
+          event: {
+            kind: "side_effect_intent",
+            operation: "tool:read_file",
+            idempotency_key: "tool:call_01a0b76d6260768d8d8cdca8646e1d34",
+            args: { path: "app/models/run.rb" }.to_json
+          }
+        }
+      }
+    ].map(&:to_json).join("\n")
+
+    events = ClaudeTranscript.new(jsonl).events.to_a
+
+    expect(events.map(&:kind)).to eq([ :tool_use ])
+    expect(events.first.data).to include(
+      name: "read_file",
+      input: { "path" => "app/models/run.rb" },
+      id: "call_01a0b76d6260768d8d8cdca8646e1d34"
+    )
+  end
+
   it "normalizes Muse committed tool batch effects as tool calls" do
     jsonl = [
       {
