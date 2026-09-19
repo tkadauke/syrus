@@ -362,6 +362,12 @@ RSpec.describe McpToolPolicy do
     end
 
     it "includes coding tools when feature is enabled and session is coding mode" do
+      # emergency_land is a coding tool gated by its own second opt-in flag
+      # (see config/syrus_docs/emergency_land.md) on top of coding_mode;
+      # enable it here so this test's blanket `include(*CHAT_CODING_TOOLS)`
+      # check reflects every coding tool.
+      Feature.find_or_create_by!(slug: "emergency_land") { |f| f.category = "Labs"; f.name = "Emergency land" }
+             .update!(enabled: true)
       coding_session = chat_session(mode: "coding")
       context = context_for(coding_session)
       tools = described_class.for(context)
