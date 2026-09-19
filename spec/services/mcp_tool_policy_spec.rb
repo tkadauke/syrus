@@ -362,6 +362,11 @@ RSpec.describe McpToolPolicy do
     end
 
     it "includes coding tools when feature is enabled and session is coding mode" do
+      # EmergencyLandTool is a CHAT_CODING_TOOLS member gated behind its own
+      # second opt-in flag on top of coding_mode -- enable it too so this
+      # "every coding tool shows up" assertion covers the full list.
+      Feature.find_or_create_by!(slug: "emergency_land") { |f| f.category = "Labs"; f.name = "Emergency land" }
+             .update!(enabled: true)
       coding_session = chat_session(mode: "coding")
       context = context_for(coding_session)
       tools = described_class.for(context)
