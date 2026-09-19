@@ -412,7 +412,7 @@ module ChatSerialization
   end
 
   # Mirrors App::ChatMessagePayload#pending_action_json's resource case: kept
-  # in sync deliberately (see ChatPendingAction::JOB_RESOURCE_ACTIONS) so the
+  # in sync deliberately (see ChatPendingAction::*_RESOURCE_ACTIONS) so the
   # live/unanchored pending-actions list shows the same target link as the
   # message-anchored card once a pending action gets anchored to a tool call.
   def pending_action_resource(action)
@@ -424,7 +424,7 @@ module ChatSerialization
       return nil unless job
 
       { resource_title: job.issue_title, resource_url: job_path(job) }
-    when "restack_epic"
+    when *ChatPendingAction::EPIC_RESOURCE_ACTIONS
       epic = pending_action_scoped_epic(action, payload["epic_id"])
       return nil unless epic
 

@@ -285,6 +285,26 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
+  it "includes archive_epic pending action details with an Epic resource" do
+    epic = Factories.epic(user: user, repository: repository, title: "Destroying the wrong thing would be bad")
+    action = chat.pending_actions.create!(
+      action: "archive_epic",
+      requested_by: "agent",
+      payload: { "epic_id" => epic.id }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Archive it?" })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload).to include(
+      id: action.id,
+      action: "archive_epic",
+      label: "Archive Epic ##{epic.id}",
+      resource_title: "Destroying the wrong thing would be bad",
+      resource_url: "/epics/#{epic.id}"
+    )
+  end
+
   it "omits pending action resource fields when the referenced job is gone" do
     action = chat.pending_actions.create!(
       action: "cancel_job",

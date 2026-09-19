@@ -225,7 +225,7 @@ module App
         else
           base
         end
-      when "restack_epic"
+      when *ChatPendingAction::EPIC_RESOURCE_ACTIONS
         if (epic = cached_action_epic(action, payload["epic_id"]))
           base.merge(resource_title: epic.title, resource_url: epic_path(epic))
         else

@@ -53,13 +53,16 @@ group's card stays in the payload at every state, since it is the only place
 that per-item breakdown is visible. Rejecting discards every still-pending
 member without applying any.
 
-Eight chat-sidecar tools wire into this infrastructure: `reopen_job`,
+Nine chat-sidecar tools wire into this infrastructure: `reopen_job`,
 `retry_job`, `cancel_job`, `close_job_successfully`, `force_landing_recheck`,
-`admin_kill_process`, `approve_job`, and `unapprove_job`. Each accepts either
-a singular id param (`job_id`/`process_id`) for the original single-target
-behavior, or a plural array param (`job_ids`/`process_ids`) that creates one
-`PendingActionGroup` instead of one pending action per id. Passing both or
-neither is rejected before anything is created. `close_job_successfully`
+`admin_kill_process`, `approve_job`, `unapprove_job`, and `archive_epic`.
+`archive_epic` always creates a single pending confirmation because confirming
+the archive cancels and closes every still-open child Job. The Job/process
+tools each accept either a singular id param (`job_id`/`process_id`) for the
+original single-target behavior, or a plural array param
+(`job_ids`/`process_ids`) that creates one `PendingActionGroup` instead of one
+pending action per id. Passing both or neither is rejected before anything is
+created. `close_job_successfully`
 takes one `closure_reason` for the whole call, applied identically to every
 member's payload -- targets that need different reasons require separate
 calls. `approve_job` and `unapprove_job` keep executing immediately and
