@@ -3858,5 +3858,4 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       end
     end
   end
-
 end
