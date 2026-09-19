@@ -44,4 +44,42 @@ RSpec.describe "API: bearer token rate limiting", type: :request do
       expect(response).to be_successful
     end
   end
+
+  it "does not count a missing Authorization header as a bad-token attempt" do
+    (Api::BaseController::BAD_API_TOKEN_LIMIT + 5).times do
+      get "/api/v1/admin/version"
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    # Confirm the limiter genuinely never tripped, not just that 401 also
+    # happens to be the response a tripped limiter would give for this path.
+    get "/api/v1/admin/version", headers: { "Authorization" => "Bearer nonsense" }
+    expect(response).to have_http_status(:unauthorized)
+  end
+
+  it "does not count a malformed Authorization header (not Token/Bearer shaped) as a bad-token attempt" do
+    (Api::BaseController::BAD_API_TOKEN_LIMIT + 5).times do
+      get "/api/v1/admin/version", headers: { "Authorization" => "Basic bm9uc2Vuc2U=" }
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    get "/api/v1/admin/version", headers: { "Authorization" => "Bearer nonsense" }
+    expect(response).to have_http_status(:unauthorized)
+  end
+
+  it "still authenticates a valid token even while the limiter is already tripped for that IP" do
+    admin = Factories.user(admin: true)
+    token = admin.generate_api_token!
+
+    Api::BaseController::BAD_API_TOKEN_LIMIT.times do
+      get "/api/v1/admin/version", headers: { "Authorization" => "Bearer nonsense" }
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    get "/api/v1/admin/version", headers: { "Authorization" => "Bearer nonsense" }
+    expect(response).to have_http_status(:too_many_requests)
+
+    get "/api/v1/admin/version", headers: { "Authorization" => "Bearer #{token}" }
+    expect(response).to be_successful
+  end
 end
