@@ -10,7 +10,7 @@ module Mcp::Tools
       properties: {
         query: { type: "string", description: "Search text. Minimum length 2." },
         state: { type: "string", description: "Optional exact Job state filter." },
-        limit: { type: "integer", description: "Maximum Jobs to return. Defaults to 20, capped at 50." }
+        limit: { type: "integer", description: "Maximum Jobs to return. Defaults to 20, capped at 100." }
       },
       required: %w[query]
     )
@@ -37,7 +37,7 @@ module Mcp::Tools
       private
 
       def normalize_limit(value)
-        value.to_i.clamp(1, 50)
+        value.to_i.clamp(1, 100)
       end
 
       def apply_search(scope, query)

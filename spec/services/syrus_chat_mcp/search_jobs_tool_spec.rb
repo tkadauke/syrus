@@ -5,7 +5,7 @@ RSpec.describe Mcp::Tools::SearchJobsTool do
 
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
-  let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+  let(:chat_session) { ChatSession.create!(user: user, repository: repository, chat_provider: "claude") }
 
   def server
     MCP::Server.new(
@@ -61,13 +61,13 @@ RSpec.describe Mcp::Tools::SearchJobsTool do
     expect(results.map { |job| job[:id] }).to eq([ matching.id ])
   end
 
-  it "caps limit at 50" do
-    55.times { |i| Factories.job_record(repository: repository, issue_title: "Need road #{i}", issue_number: 100 + i) }
+  it "caps limit at 100" do
+    105.times { |i| Factories.job_record(repository: repository, issue_title: "Need road #{i}", issue_number: 100 + i) }
 
-    response = call_tool(query: "road", limit: 100)
+    response = call_tool(query: "road", limit: 1_000)
 
-    expect(response_payload(response).fetch(:total)).to eq(55)
-    expect(response_payload(response).fetch(:results).size).to eq(50)
+    expect(response_payload(response).fetch(:total)).to eq(105)
+    expect(response_payload(response).fetch(:results).size).to eq(100)
   end
 
   it "returns a tool error for short queries" do
