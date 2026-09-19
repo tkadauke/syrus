@@ -6,6 +6,10 @@ RSpec.describe PreviewPanelVersion, type: :model do
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
   let(:panel) { PreviewPanel.create!(chat_session: chat_session, title: "Widget preview") }
 
+  before do
+    allow(User).to receive(:chat_providers).and_return(%w[claude])
+  end
+
   describe "#file_for" do
     it "attaches files by relative filename" do
       version = panel.create_version!("index.html" => "<h1>hi</h1>", "css/app.css" => "body { color: red; }")
