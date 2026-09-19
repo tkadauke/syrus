@@ -9,7 +9,7 @@ happened. That makes every new workflow type create new degenerate states.
 This plan proposes a smaller model centered on explicit Work Intents and Work
 Units. It should be implemented before delivery tracks and promotion, but it
 must preserve room for that plan
-(`docs/plans/delivery-tracks-and-promotion.md`).
+(`docs/plans/complete/delivery-tracks-and-promotion.md`).
 
 ## Current Status
 

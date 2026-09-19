@@ -4,7 +4,7 @@ Syrus exposes aggregate metrics in the Prometheus text exposition format at
 `GET /metrics`. This covers the queue-health, product-usage, landing-queue/
 run-throughput, worker/admission, fleet, resilience, maintenance/pruner, and
 escalation/attention metric groups from the plan in
-`docs/plans/prometheus-dashboard.md`; a genuine worker exporter (one that
+`docs/plans/complete/prometheus-dashboard.md`; a genuine worker exporter (one that
 scrapes every pod, not just web), the single-replica global exporter, Grafana
 dashboards, telemetry and the embedded dashboard plugin are later steps and
 are not built yet.

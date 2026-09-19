@@ -1,5 +1,5 @@
 module Mcp::Tools
-  # Shared lookups for the Story 11 (docs/plans/delivery-tracks-and-promotion.md)
+  # Shared lookups for the Story 11 (docs/plans/complete/delivery-tracks-and-promotion.md)
   # delivery-track/ref-movement MCP tools. Works from either surface
   # (`McpToolContext#chat?`/`#run?`) the same way `WriteMemoryTool` does,
   # since these tools are both chat- and skill-facing.

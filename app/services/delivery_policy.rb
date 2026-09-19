@@ -1,6 +1,6 @@
 # Answers delivery-model questions (target branch, grade phase, promotion/
 # hotfix-sync posture) for a repository/job, per
-# docs/plans/delivery-tracks-and-promotion.md. Workflow code should ask this
+# docs/plans/complete/delivery-tracks-and-promotion.md. Workflow code should ask this
 # object questions instead of reading `.syrus.yml`'s `delivery:` block or
 # repository columns directly (see "Policy Objects" in the plan).
 #
@@ -67,7 +67,7 @@ class DeliveryPolicy
   end
 
   # First-iteration source/target resolution for the promotion ref-movement
-  # workflow (docs/plans/delivery-tracks-and-promotion.md Story 2): the
+  # workflow (docs/plans/complete/delivery-tracks-and-promotion.md Story 2): the
   # `default` delivery track's branch promotes into the repository's actual
   # GitHub default branch. `delivery.promotion` has no explicit source/target
   # track fields yet (a later Story's `from`/`to` config) — until then this is
@@ -100,7 +100,7 @@ class DeliveryPolicy
   end
 
   # Source/target resolution for the hotfix-sync ref-movement workflow
-  # (docs/plans/delivery-tracks-and-promotion.md Story 5/5A): the mirror
+  # (docs/plans/complete/delivery-tracks-and-promotion.md Story 5/5A): the mirror
   # image of `promotion_source_branch`/`promotion_target_branch`. Hotfix
   # sync moves the repository's actual GitHub default branch (the release
   # branch, where direct hotfix commits land) back into the `default`
@@ -120,7 +120,7 @@ class DeliveryPolicy
     delivery.upstream_export.enabled
   end
 
-  # Story 8 (docs/plans/delivery-tracks-and-promotion.md): `per_job_pr`,
+  # Story 8 (docs/plans/complete/delivery-tracks-and-promotion.md): `per_job_pr`,
   # `branch_pr`, or `none`. `none` is not a value `SyrusYml` ever parses —
   # it only exists at this policy layer, standing in for "not configured/not
   # enabled" so callers can gate on the tri-state without a separate
@@ -201,7 +201,7 @@ class DeliveryPolicy
 
   # Whether `PrProvenanceClassifier` should classify ingested external PRs
   # at all (`external_prs.ingest.enabled`), per
-  # docs/plans/delivery-tracks-and-promotion.md Story 10. Absent
+  # docs/plans/complete/delivery-tracks-and-promotion.md Story 10. Absent
   # `external_prs:` config, or `enabled: false`, means every ingested PR
   # stays `external_unknown` — the exact behavior `Workflows::ExternalPrIngest`
   # had before this classification existed. Reuses this object's own cached

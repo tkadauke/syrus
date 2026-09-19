@@ -1,5 +1,5 @@
 # Ingestion behavior for one `PrProvenanceClassifier` classification, per
-# docs/plans/delivery-tracks-and-promotion.md Story 10. `PollExternalOpenPrsJob`
+# docs/plans/complete/delivery-tracks-and-promotion.md Story 10. `PollExternalOpenPrsJob`
 # classifies first, then dispatches to `.for(classification).ingest!` — a
 # class hierarchy instead of a `case classification` chain, so a new
 # classification only needs a new subclass, not a new branch scattered
