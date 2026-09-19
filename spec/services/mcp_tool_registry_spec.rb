@@ -122,6 +122,19 @@ RSpec.describe McpToolRegistry do
       expect(tool_names_for(context, tier: :essential)).to eq(sidecar_registry_tool_names(session, tier: :essential))
     end
 
+    it "exposes emergency_land to Coding Mode only when its feature flag is enabled" do
+      enable_feature(:coding_mode)
+      session = chat_session(mode: "coding")
+      context = McpToolContext.from_chat_session(session)
+
+      expect(tool_names_for(context, tier: :essential)).not_to include("emergency_land")
+
+      enable_feature(:emergency_land)
+
+      expect(tool_names_for(context, tier: :essential)).to include("emergency_land")
+      expect(tool_names_for(McpToolContext.from_chat_session(chat_session), tier: :essential)).not_to include("emergency_land")
+    end
+
     it "keeps the local mode chat tool set gated by role and feature flag" do
       enable_feature(:local_mode)
       session = chat_session(mode: "local")

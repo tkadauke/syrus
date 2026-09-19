@@ -69,6 +69,7 @@ class Job < ApplicationRecord
   belongs_to :claimed_by_user, class_name: "User", optional: true
   belongs_to :manual_paused_by_user, class_name: "User", optional: true
   belongs_to :landing_blocker_override_requested_by_user, class_name: "User", optional: true
+  belongs_to :emergency_landed_by_user, class_name: "User", optional: true
   belongs_to :target_repository, class_name: "Repository", optional: true
   belongs_to :pr_repository, class_name: "Repository", optional: true
   belongs_to :linked_chat, class_name: "ChatSession", optional: true
@@ -1249,6 +1250,7 @@ class Job < ApplicationRecord
     promotion_landed
     hotfix_sync_landed
     investigation_reported
+    emergency_landed
   ].freeze
   # --- needs_attention flag --------------------------------------------------
   # Called by RunJob after a non-rebase run fails. Increments the

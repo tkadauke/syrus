@@ -34,7 +34,7 @@ module Mcp::Tools
         chat_session = server_context.fetch(:chat_session)
         job, error = find_repository_job(chat_session, job_id)
         return error if error
-        normalized_branch = normalize_branch_name(branch_name)
+        normalized_branch = GitBranchName.normalize(branch_name)
 
         unless job.coding?
           return Mcp::Tools.invalid("#{job.slug} is not in coding state (current: #{job.state}).")
@@ -51,9 +51,15 @@ module Mcp::Tools
         if job.pr_number.blank? && normalized_branch.blank?
           return Mcp::Tools.invalid("branch_name is required for Jobs without an existing PR.")
         end
-        if normalized_branch.present? && !valid_branch_name?(normalized_branch)
+        if normalized_branch.present? && !GitBranchName.valid?(normalized_branch)
           return Mcp::Tools.invalid("branch_name is not a valid branch name.")
         end
+        existing_emergency_land = pending_landing_action_for(chat_session, job, action: "emergency_land")
+        if existing_emergency_land
+          return Mcp::Tools.invalid("An emergency_land confirmation is already pending for #{job.slug}; resolve it before requesting complete_implement_step.")
+        end
+        existing_handoff = pending_landing_action_for(chat_session, job, action: "complete_implement_step")
+        return pending_action_response(existing_handoff) if existing_handoff
 
         payload = { "job_id" => job.id }
         payload["branch_name"] = normalized_branch if normalized_branch.present?
@@ -75,17 +81,22 @@ module Mcp::Tools
         invalid_record(e)
       end
 
-      def normalize_branch_name(branch_name)
-        branch_name.to_s.strip.presence
+      private
+
+      def pending_landing_action_for(chat_session, job, action:)
+        chat_session.pending_actions
+          .where(action: action)
+          .where(state: %w[queued pending confirming failed])
+          .detect { |pending_action| pending_action.payload.to_h["job_id"].to_i == job.id }
       end
 
-      def valid_branch_name?(branch_name)
-        return false if branch_name.start_with?("/", "-") || branch_name.end_with?("/", ".")
-        return false if branch_name.include?("//") || branch_name.include?("..")
-        return false if branch_name.end_with?(".lock")
-        return false if branch_name.split("/").any? { |part| part.blank? || part.start_with?(".") }
-
-        !branch_name.match?(/[[:space:]~^:?*\[\\]/)
+      def pending_action_response(pending_action)
+        Mcp::Tools.success(
+          pending_confirmation_id: pending_action.id,
+          pending_action_id: pending_action.id,
+          state: pending_action.state,
+          message: "Implementation handoff requires operator confirmation."
+        )
       end
     end
   end

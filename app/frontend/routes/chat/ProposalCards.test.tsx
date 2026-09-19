@@ -138,6 +138,26 @@ describe("PendingActionGroupCard", () => {
   })
 })
 
+describe("PendingActionCard emergency land", () => {
+  it("renders emergency land as a distinct warning confirmation", () => {
+    renderCard(pendingAction({
+      label: "Emergency land JOB-5118",
+      state: "pending",
+      action: "emergency_land",
+      detail: null,
+      execution_error: null
+    }))
+
+    const card = screen.getByRole("heading", { name: "Emergency land JOB-5118" }).closest("article")
+    expect(card?.className).toContain("border-warning-border")
+    expect(card?.className).toContain("bg-warning-surface")
+    expect(screen.getAllByText("Emergency land")[0]).toHaveClass("bg-warning")
+    expect(screen.getByText("This skips Syrus graders, adversarial review, and visual review, then merges the PR directly through GitHub.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument()
+  })
+})
+
 function proposal(overrides: Partial<ChatProposal> = {}): ChatProposal {
   return {
     id: 17,

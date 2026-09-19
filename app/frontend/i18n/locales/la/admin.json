@@ -428,6 +428,10 @@
       "browser_error_auto_reports": {
         "name": "Relationes automaticae errorum navigatoris",
         "description": "Automatice unum opus relationis vitii pro quoque vestigio erroris navigatoris et revisione applicationis creat."
+      },
+      "emergency_land": {
+        "name": "Applicatio urgens",
+        "description": "Activat viam urgentem applicationis pro Modo Codendi, qua administrator repositorii vel administrator globalis ramum commissum colloquii in Modo Codendi statim applicare potest, praetermissis Syri gradibus probationis, recognitionis adversariae, et recognitionis visualis. Optio separata et explicita, super ipsum Modum Codendi posita, quia proprias custodias qualitatis Syri pro responsione ad casus urgentes praeterit."
       }
     }
   },

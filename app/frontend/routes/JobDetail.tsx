@@ -682,6 +682,11 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
               <KeyValue label={t("detail_cost")}>{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} {t("detail_billed")})</span></KeyValue>
               <KeyValue label={t("detail_started")}><RelativeTimestamp value={payload.job.started_at} /></KeyValue>
               {payload.job.finished_at ? <KeyValue label={t("detail_closed")}><RelativeTimestamp value={payload.job.finished_at} /> ({payload.job.closure_reason || "unspecified"})</KeyValue> : null}
+              {payload.job.closure_reason === "emergency_landed" ? (
+                <KeyValue label={t("detail_emergency_land")}>
+                  <EmergencyLandAudit job={payload.job} />
+                </KeyValue>
+              ) : null}
               {payload.job.runaway_protection ? <KeyValue label={t("detail_runaway_protection")}><span className="text-amber-700 dark:text-amber-400">{payload.job.runaway_protection}</span> — {t("detail_runaway_protection_hint")}</KeyValue> : null}
               {payload.job.landing_blocker_override_requested_at ? (
                 <KeyValue label={t("detail_landing_blocker_override")}>
@@ -702,6 +707,21 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
 }
 
 const JOB_PRIORITIES = ["urgent", "high", "medium", "low"] as const
+
+function EmergencyLandAudit({ job }: { job: JobDetailPayload["job"] }) {
+  const user = job.emergency_landed_by_user
+  const userLabel = user?.display_name || user?.email_address || "Unknown user"
+  const tier = job.emergency_landed_by_membership_tier
+
+  return (
+    <span className="inline-flex flex-col gap-1 text-sm">
+      <span>{job.emergency_landed_at ? <RelativeTimestamp value={job.emergency_landed_at} /> : "Time not recorded"}</span>
+      <span className="text-xs text-warning-text">
+        Confirmed by {userLabel}{tier ? ` (${tier})` : ""}
+      </span>
+    </span>
+  )
+}
 
 function PrioritySelector({ currentPriority, priorityPath, queryKey }: { currentPriority: string; priorityPath: string; queryKey: JobDetailQueryKey }) {
   const { t } = useT("jobs")
