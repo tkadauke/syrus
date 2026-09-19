@@ -16,6 +16,7 @@ import { useMediaQuery } from "@app/routes/dashboard/components"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { fetchRepositories } from "@app/api/repositories"
 import { errorMessage } from "@app/lib/errorMessage"
+import { renderLightMarkdown } from "@app/lib/Markdown"
 import { routePrefix } from "@app/lib/routing"
 import { useDismissiblePopup } from "@app/lib/useDismissiblePopup"
 import { useT } from "@app/hooks/useT"
@@ -458,7 +459,9 @@ function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (
         >
           {doc.title}
         </button>
-        {doc.preview_text ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{doc.preview_text}</p> : null}
+        {doc.preview_text ? (
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{renderLightMarkdown(doc.preview_text)}</p>
+        ) : null}
       </div>
     )
   }
