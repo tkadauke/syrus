@@ -8,10 +8,6 @@ import type { ToolPresentationEntry } from "@app/toolPresentationRegistry"
 
 export type RendererType = "custom_card" | "generic_fallback"
 
-// Viewport review presets. Widths are the same rough breakpoints Syrus's own
-// visual_review agent step targets, not exact device dimensions.
-export type ViewportPresetId = "phone" | "tablet" | "desktop" | "wide"
-
 export function rendererTypeFor(entry: ToolPresentationEntry): RendererType {
   return entry.renderer ? "custom_card" : "generic_fallback"
 }
