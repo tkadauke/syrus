@@ -123,6 +123,9 @@ class ChatSession < ApplicationRecord
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :cumulative_cost_usd,
             numericality: { greater_than_or_equal_to: 0 }
+  validates :daily_cost_usd,
+            numericality: { greater_than_or_equal_to: 0 },
+            if: -> { has_attribute?(:daily_cost_usd) }
   enum :mode, { planning: "planning", coding: "coding", local: "local" }, validate: { allow_nil: true }
   # scopes: false — an auto-generated `.group` scope would shadow
   # ActiveRecord's GROUP BY `group` method, which admin chat listing
@@ -329,11 +332,21 @@ class ChatSession < ApplicationRecord
     cumulative_cost_usd.to_d
   end
 
-  def record_turn_usage!(result)
+  def daily_cost
+    daily_cost_usd.to_d
+  end
+
+  def record_turn_usage!(result, at: Time.current)
     updates = {}
     updates[:cumulative_input_tokens] = cumulative_input_tokens + result.input_tokens.to_i if result.input_tokens
     updates[:cumulative_output_tokens] = cumulative_output_tokens + result.output_tokens.to_i if result.output_tokens
-    updates[:cumulative_cost_usd] = cumulative_cost + result.cost_usd.to_d if result.cost_usd
+    if result.cost_usd
+      cost = result.cost_usd.to_d
+      today = at.to_date
+      updates[:cumulative_cost_usd] = cumulative_cost + cost
+      updates[:daily_cost_date] = today
+      updates[:daily_cost_usd] = daily_cost_date == today ? daily_cost + cost : cost
+    end
     update!(updates) if updates.any?
   end
 
