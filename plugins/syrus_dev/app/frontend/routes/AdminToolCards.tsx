@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Link, useLocation } from "react-router-dom"
+import { useMemo, useRef, useState } from "react"
+import { useLocation } from "react-router-dom"
 import type { ChatToolGroupCall, ChatToolGroupItem } from "@app/api/chats"
-import { FilterBar, type FilterLinkBuilder, type FilterSchemaField, type FilterTree } from "@app/components/FilterBar"
+import { FilterBar, type FilterSchemaField } from "@app/components/FilterBar"
 import { Badge, Page, PanelMessage, Section, Text, type SemanticTone } from "@app/components/ui"
 import { useCopyToClipboard } from "@app/hooks/useCopyToClipboard"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -16,7 +16,11 @@ import {
   type ToolPresentationExample
 } from "@app/toolPresentationRegistry"
 import { ToolCardDiscussButton } from "../components/ToolCardDiscussDialog"
-import { rendererTypeFor, type ViewportPresetId } from "../toolCardCatalogTypes"
+import { CatalogExampleSelector } from "../catalog/CatalogExampleSelector"
+import { buildCatalogFilterLink, catalogFilterTreeFromSearch, catalogFiltersFromSearch } from "../catalog/catalogFilterLink"
+import { catalogAnchorId, useCatalogDeepLinkScroll } from "../catalog/catalogDeepLink"
+import { CatalogViewportFrame, CatalogViewportSwitcher, viewportPresetFromSearch, type ViewportPresetId } from "../catalog/catalogViewport"
+import { rendererTypeFor } from "../toolCardCatalogTypes"
 
 // The Tool Card Catalog: every registered tool presentation (core/plugin MCP
 // cards, provider built-ins, Local Mode tools, and chat-surface components --
@@ -39,6 +43,7 @@ type CoverageStatus = "has_examples" | "no_examples"
 
 const FILTER_FIELDS = ["tool_name", "owner_type", "owner_name", "source_type", "renderer_type", "coverage_status"] as const
 type CatalogFilterField = (typeof FILTER_FIELDS)[number]
+const TEXT_FILTER_FIELDS: readonly CatalogFilterField[] = ["tool_name"]
 
 const OWNER_TYPE_OPTIONS = [
   { value: "core", label: "Core" },
@@ -64,34 +69,6 @@ const COVERAGE_STATUS_OPTIONS = [
   { value: "no_examples", label: "No examples" }
 ]
 
-// Viewport review presets. Widths are the same rough breakpoints Syrus's own
-// visual_review agent step targets, not exact device dimensions. Each preset
-// sets an explicit `width` (not `max-width`) on the preview frame below, so a
-// preset wider than the ambient page content actually overflows into a
-// horizontal scrollbar instead of silently collapsing to the container's
-// natural width -- otherwise "desktop" and "wide desktop" could render
-// visually identical whenever the admin page happens to be narrower than
-// 1600px.
-const VIEWPORT_PRESETS: ReadonlyArray<{ id: ViewportPresetId; width: number; labelKey: string }> = [
-  { id: "phone", width: 390, labelKey: "tool_cards.viewport_phone" },
-  { id: "tablet", width: 768, labelKey: "tool_cards.viewport_tablet" },
-  { id: "desktop", width: 1280, labelKey: "tool_cards.viewport_desktop" },
-  { id: "wide", width: 1600, labelKey: "tool_cards.viewport_wide" }
-]
-
-const DEFAULT_VIEWPORT: ViewportPresetId = "desktop"
-
-function viewportPresetFromSearch(search: string): (typeof VIEWPORT_PRESETS)[number] {
-  const value = new URLSearchParams(search).get("viewport")
-  return VIEWPORT_PRESETS.find((preset) => preset.id === value) ?? VIEWPORT_PRESETS.find((preset) => preset.id === DEFAULT_VIEWPORT)!
-}
-
-function viewportLink(pathname: string, search: string, presetId: ViewportPresetId) {
-  const params = new URLSearchParams(search)
-  params.set("viewport", presetId)
-  return `${pathname}?${params.toString()}`
-}
-
 function coverageStatusFor(entry: ToolPresentationEntry): CoverageStatus {
   return entry.examples.length > 0 ? "has_examples" : "no_examples"
 }
@@ -103,7 +80,7 @@ function ownerTone(ownerType: ToolOwnerType): SemanticTone {
 }
 
 export function anchorId(toolName: string) {
-  return `tool-${toolName.replace(/[^a-zA-Z0-9_-]/g, "_")}`
+  return catalogAnchorId("tool", toolName)
 }
 
 function matchesFilters(entry: ToolPresentationEntry, filters: Partial<Record<CatalogFilterField, string>>) {
@@ -120,67 +97,7 @@ function matchesFilters(entry: ToolPresentationEntry, filters: Partial<Record<Ca
   return true
 }
 
-function filtersFromSearch(search: string): Partial<Record<CatalogFilterField, string>> {
-  const params = new URLSearchParams(search)
-  const filters: Partial<Record<CatalogFilterField, string>> = {}
-  for (const field of FILTER_FIELDS) {
-    const value = params.get(field)?.trim()
-    if (value) filters[field] = value
-  }
-  return filters
-}
-
-function filterTreeFromSearch(search: string): FilterTree {
-  const filters = filtersFromSearch(search)
-  const and = FILTER_FIELDS.flatMap((field) => {
-    const value = filters[field]
-    return value ? [{ field, op: field === "tool_name" ? "contains" : "is", value }] : []
-  })
-  return { and }
-}
-
-// FilterBar's chip UI only speaks its own base64 `q=<tree>` wire format; this
-// project's filter state is flat query params instead (so a shared link is
-// readable and the deep-link `tool`/`example` params stay independent of the
-// filter tree encoding). Decode `q` back into flat params here, the same
-// split ChatSearch.tsx uses for its own client-evaluated filter.
-const catalogFilterLink: FilterLinkBuilder = (path, search, updates) => {
-  const params = new URLSearchParams(search)
-  const encodedFilter = updates.q
-
-  for (const [key, value] of Object.entries(updates)) {
-    if (key === "q") continue
-    if (value == null || String(value).length === 0) params.delete(key)
-    else params.set(key, String(value))
-  }
-
-  if (typeof encodedFilter === "string" && encodedFilter.length > 0) {
-    for (const field of FILTER_FIELDS) params.delete(field)
-    for (const chip of decodeFilterChips(encodedFilter)) {
-      if ((FILTER_FIELDS as readonly string[]).includes(chip.field) && chip.value) params.set(chip.field, chip.value)
-    }
-  } else if (encodedFilter == null) {
-    for (const field of FILTER_FIELDS) params.delete(field)
-  }
-
-  const query = params.toString()
-  return query ? `${path}?${query}` : path
-}
-
-function decodeFilterChips(encoded: string): Array<{ field: string; value: string }> {
-  try {
-    const standard = encoded.replace(/-/g, "+").replace(/_/g, "/")
-    const parsed = JSON.parse(atob(standard)) as { and?: unknown[] }
-    return (parsed.and || []).flatMap((node) => {
-      if (!node || typeof node !== "object" || !("field" in node) || !("value" in node)) return []
-      const field = String((node as { field: unknown }).field)
-      const value = (node as { value: unknown }).value
-      return typeof value === "string" && value ? [{ field, value }] : []
-    })
-  } catch {
-    return []
-  }
-}
+const catalogFilterLink = buildCatalogFilterLink(FILTER_FIELDS)
 
 // Builds a real ChatToolGroupCall from a registered example fixture, using
 // the exact same helpers streamBuilders.ts uses to turn a live tool_use/
@@ -234,8 +151,8 @@ export function AdminToolCards() {
     { field: "coverage_status", label: t("tool_cards.filter_coverage_status"), bucket: "select", operators: ["is"], values: COVERAGE_STATUS_OPTIONS }
   ], [t, ownerNameOptions])
 
-  const filters = useMemo(() => filtersFromSearch(search), [search])
-  const filterTree = useMemo(() => filterTreeFromSearch(search), [search])
+  const filters = useMemo(() => catalogFiltersFromSearch(FILTER_FIELDS, search), [search])
+  const filterTree = useMemo(() => catalogFilterTreeFromSearch(FILTER_FIELDS, TEXT_FILTER_FIELDS, search), [search])
   const selectedViewport = useMemo(() => viewportPresetFromSearch(search), [search])
 
   const filteredEntries = useMemo(
@@ -246,16 +163,8 @@ export function AdminToolCards() {
   const params = new URLSearchParams(search)
   const deepLinkTool = params.get("tool")
   const deepLinkExample = params.get("example")
-  const scrolledToRef = useRef<string | null>(null)
 
-  useEffect(() => {
-    if (!deepLinkTool || scrolledToRef.current === deepLinkTool) return
-    const element = document.getElementById(anchorId(deepLinkTool))
-    if (!element) return
-
-    element.scrollIntoView({ block: "start" })
-    scrolledToRef.current = deepLinkTool
-  }, [deepLinkTool, filteredEntries])
+  useCatalogDeepLinkScroll(deepLinkTool ? anchorId(deepLinkTool) : null, filteredEntries)
 
   return (
     <Page.Root size="wide">
@@ -270,23 +179,13 @@ export function AdminToolCards() {
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Text muted variant="caption">{t("tool_cards.showing", { count: filteredEntries.length, total: allEntries.length })}</Text>
-        <div aria-label={t("tool_cards.viewport_switcher_aria")} className="flex flex-wrap gap-1.5" role="tablist">
-          {VIEWPORT_PRESETS.map((preset) => (
-            <Link
-              aria-selected={preset.id === selectedViewport.id}
-              className={
-                preset.id === selectedViewport.id
-                  ? "rounded-[var(--radius-control)] border border-brand bg-brand px-2 py-1 text-xs font-medium text-on-brand"
-                  : "rounded-[var(--radius-control)] border border-border bg-surface px-2 py-1 text-xs font-medium text-text-secondary hover:bg-surface-raised"
-              }
-              key={preset.id}
-              role="tab"
-              to={viewportLink(location.pathname, search, preset.id)}
-            >
-              {t(preset.labelKey, { width: preset.width })}
-            </Link>
-          ))}
-        </div>
+        <CatalogViewportSwitcher
+          ariaLabel={t("tool_cards.viewport_switcher_aria")}
+          labelFor={(preset) => t(`tool_cards.viewport_${preset.id}`, { width: preset.width })}
+          pathname={location.pathname}
+          search={search}
+          selected={selectedViewport.id}
+        />
       </div>
 
       {filteredEntries.length === 0 ? (
@@ -368,26 +267,12 @@ function ToolCatalogEntry({
           <PanelMessage>{t("tool_cards.no_examples")}</PanelMessage>
         ) : (
           <>
-            {entry.examples.length > 1 ? (
-              <div aria-label={t("tool_cards.example_selector_aria", { tool: entry.displayLabel })} className="flex flex-wrap gap-1.5" role="tablist">
-                {entry.examples.map((example) => (
-                  <button
-                    aria-selected={example.id === selectedExample?.id}
-                    className={
-                      example.id === selectedExample?.id
-                        ? "rounded-[var(--radius-control)] border border-brand bg-brand px-2 py-1 text-xs font-medium text-on-brand"
-                        : "rounded-[var(--radius-control)] border border-border bg-surface px-2 py-1 text-xs font-medium text-text-secondary hover:bg-surface-raised"
-                    }
-                    key={example.id}
-                    onClick={() => setSelectedId(example.id)}
-                    role="tab"
-                    type="button"
-                  >
-                    {example.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            <CatalogExampleSelector
+              ariaLabel={t("tool_cards.example_selector_aria", { tool: entry.displayLabel })}
+              examples={entry.examples}
+              onSelect={setSelectedId}
+              selectedId={selectedExample?.id ?? null}
+            />
 
             {selectedExample?.description ? <Text tone="muted" variant="caption">{selectedExample.description}</Text> : null}
 
@@ -411,22 +296,13 @@ function ToolCatalogEntry({
             </div>
 
             {group ? (
-              <div className="overflow-x-auto">
-                {/* Explicit `width`, not `max-width`: a block element with only
-                    `max-width` never grows past its parent's actual available
-                    width, so a preset wider than the ambient page content
-                    (e.g. "wide desktop" under the page's max-w-[96rem] cap)
-                    would silently collapse to the container's natural width
-                    instead of applying the chosen width and scrolling. */}
-                <div
-                  aria-label={t("tool_cards.viewport_frame_aria", { width: previewWidth })}
-                  className="mx-auto rounded-[var(--radius-control)] border border-dashed border-border bg-surface p-3"
-                  ref={previewFrameRef}
-                  style={{ width: `${previewWidth}px` }}
-                >
-                  <ToolGroup item={group} />
-                </div>
-              </div>
+              <CatalogViewportFrame
+                ariaLabel={t("tool_cards.viewport_frame_aria", { width: previewWidth })}
+                ref={previewFrameRef}
+                width={previewWidth}
+              >
+                <ToolGroup item={group} />
+              </CatalogViewportFrame>
             ) : null}
           </>
         )}

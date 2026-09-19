@@ -43,6 +43,16 @@ module SyrusDev
           component: "syrus_dev/AdminToolCards",
           group_id: "development",
           order: 91
+        },
+        {
+          id: "syrus_dev.artifact_renderers",
+          label: "Artifact Renderers",
+          label_key: "syrus_dev:nav_artifact_renderers",
+          path: "/admin/artifact_renderers",
+          paths: [ "/admin/artifact_renderers" ],
+          component: "syrus_dev/AdminArtifactRenderers",
+          group_id: "development",
+          order: 92
         }
       ]
 
