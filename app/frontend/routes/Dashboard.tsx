@@ -578,7 +578,7 @@ export function DashboardDependencyView({ payload, graphSearch }: { payload: Das
   )
 }
 
-function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload; prefix: string }) {
+export function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload; prefix: string }) {
   const { t } = useT("dashboard")
   return (
     <div className="flex flex-wrap gap-2" data-tour="dashboard-create-actions">
@@ -588,7 +588,7 @@ function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload
   )
 }
 
-function SubjectTabs({ pathname, payload, prefix, className = "inline-flex w-max overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface text-sm" }: { pathname: string; payload: DashboardPayload; prefix: string; className?: string }) {
+export function SubjectTabs({ pathname, payload, prefix, className = "inline-flex w-max overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface text-sm" }: { pathname: string; payload: DashboardPayload; prefix: string; className?: string }) {
   const { t } = useT("dashboard")
   const activeSubject = dashboardSubjectFromPath(pathname) ?? payload.subject
   const subjects: Array<{ key: DashboardSubject; label: string; path: string }> = [
@@ -601,7 +601,7 @@ function SubjectTabs({ pathname, payload, prefix, className = "inline-flex w-max
     <nav aria-label={t("subjects")} className={className}>
       {subjects.map((subject) => (
         <Link
-          className={`px-3 py-1.5 font-medium ${activeSubject === subject.key ? "bg-brand/10 text-brand ring-1 ring-inset ring-brand dark:text-brand-emphasis" : "text-text-primary hover:bg-surface-raised"}`}
+          className={`inline-flex h-[var(--control-height-md)] items-center px-3 font-medium ${activeSubject === subject.key ? "bg-brand/10 text-brand ring-1 ring-inset ring-brand dark:text-brand-emphasis" : "text-text-primary hover:bg-surface-raised"}`}
           key={subject.key}
           to={withRoutePrefix(subject.path, prefix)}
         >
@@ -658,9 +658,9 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
               aria-controls="dashboard-columns-menu"
               aria-expanded={columnsOpen}
               aria-haspopup="menu"
-              className="h-9 w-9"
+              className="h-[var(--control-height-md)] w-[var(--control-height-md)]"
               onClick={() => setColumnsOpen((open) => !open)}
-              size="sm"
+              size="icon"
               variant="secondary"
             >
               <ColumnsIcon />
@@ -691,9 +691,9 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
               aria-controls="dashboard-kanban-lanes-menu"
               aria-expanded={lanesOpen}
               aria-haspopup="menu"
-              className="h-9 w-9"
+              className="h-[var(--control-height-md)] w-[var(--control-height-md)]"
               onClick={() => setLanesOpen((open) => !open)}
-              size="sm"
+              size="icon"
               variant="secondary"
             >
               <ColumnsIcon />
@@ -720,7 +720,7 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
         <nav aria-label={t("view_label")} className="inline-flex overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface text-sm">
           {viewTabs.map((view) => (
             <Link
-              className={`px-3 py-1.5 capitalize ${payload.view === view ? "bg-brand text-on-brand" : "text-text-primary hover:bg-surface-raised"}`}
+              className={`inline-flex h-[var(--control-height-md)] items-center px-3 capitalize ${payload.view === view ? "bg-brand text-on-brand" : "text-text-primary hover:bg-surface-raised"}`}
               key={view}
               onClick={() =>
                 updatePreferences.mutate({
