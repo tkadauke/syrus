@@ -19,7 +19,7 @@ import { workflowSlug } from "../lib/slugs"
 import { Button } from "../components/Button"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
-import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobWorkflows, ignorePendingFeedback, openJobInCodingMode, replacePendingFeedback, retryPendingFeedback, stopPreview as stopPreviewRequest, submitJobFeedback, submitJobRequestChanges, updateJobPriority, updateJobProviderSetting, type JobApprovalEvidence, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobPrCheckAttribution, type JobTestPlan, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
+import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobWorkflows, ignorePendingFeedback, openJobInCodingMode, replacePendingFeedback, retryPendingFeedback, stopPreview as stopPreviewRequest, submitJobFeedback, updateJobPriority, updateJobProviderSetting, type JobApprovalEvidence, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobPrCheckAttribution, type JobTestPlan, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import type { TypedArtifact } from "../api/artifacts"
 import { CoverageCard } from "../components/CoverageCard"
 import { PluginUiSlot, type UiSlotPanel } from "../pluginUiSlots"
@@ -157,15 +157,6 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       setNotice(t("feedback_submitted"))
       scheduleJobDetailInvalidation(queryClient, queryKey)
       if (workflowsQueryKey) scheduleJobDetailInvalidation(queryClient, workflowsQueryKey)
-    }
-  })
-
-  const requestChanges = useMutation({
-    mutationFn: (body: string) => submitJobRequestChanges(payload.paths.app_request_changes_path, body),
-    onSuccess: () => {
-      setRequestChangesPanelOpen(false)
-      setNotice(t("request_changes_submitted"))
-      scheduleJobDetailInvalidation(queryClient, queryKey)
     }
   })
 
@@ -349,14 +340,11 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       {requestChangesPanelOpen ? (
         <RequestChangesPanel
           canOpenInCodingMode={payload.actions.can_open_in_coding_mode}
-          canSubmitRequestChanges={payload.actions.can_request_changes}
           codingModeBlockedReason={payload.actions.open_in_coding_mode_blocked_reason}
-          error={requestChanges.error || requestChangesInCodingMode.error}
+          error={requestChangesInCodingMode.error}
           isCodingModePending={requestChangesInCodingMode.isPending}
-          isPending={requestChanges.isPending}
           onCancel={() => setRequestChangesPanelOpen(false)}
           onSubmitToCodingMode={(body) => withPreviewStop(() => requestChangesInCodingMode.mutate(body))}
-          onSubmit={(body) => withPreviewStop(() => requestChanges.mutate(body))}
         />
       ) : null}
       {previewStopModal ? (

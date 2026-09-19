@@ -122,7 +122,6 @@ module App
       health_blocked_repositories = PerformanceLogging.phase("dashboard_chrome.health_blocked_repositories", subject: subject) { health_blocked_repositories_json }
 
       {
-        simple_mode: AppSetting.simple?,
         subject: subject,
         view: view,
         page: page,
@@ -148,7 +147,6 @@ module App
     def rows_payload
       result = PerformanceLogging.phase("dashboard_rows.current_result", subject: subject, view: view, ownership_scope: ownership_scope) { current_result }
       {
-        simple_mode: AppSetting.simple?,
         subject: subject,
         view: view,
         page: page,
@@ -208,12 +206,6 @@ module App
     end
 
     def subject
-      # Simple mode's primary dashboard is job-centric, but the legacy
-      # Epics nav entry links here with an explicit ?subject=epic to reach
-      # the unchanged epic-list rendering for pre-existing epics. Any other
-      # (or absent) subject still forces the job-centric default.
-      return normalize_subject(params[:subject]) == "epic" ? "epic" : "job" if AppSetting.simple?
-
       @subject ||= normalize_subject(params[:subject]) ||
                    normalize_subject(params[:dashboard_subject]) ||
                    normalize_subject(user.dashboard_preferences["last_subject"]) ||
@@ -221,8 +213,6 @@ module App
     end
 
     def view
-      return "list" if AppSetting.simple?
-
       @view ||= params[:view].to_s.presence_in(available_views) ||
                 folder_pref_view ||
                 user.dashboard_preferences.dig(subject.pluralize, "last_view").to_s.presence_in(available_views) ||
@@ -231,8 +221,6 @@ module App
     end
 
     def available_views
-      return %w[list] if AppSetting.simple?
-
       subject == "workflow" ? VIEWS : VIEWS + %w[dependencies]
     end
 
@@ -761,7 +749,7 @@ module App
 
     def paths_json
       {
-        dashboard_path: AppSetting.simple? ? dashboard_jobs_path : dashboard_path_for(subject),
+        dashboard_path: dashboard_path_for(subject),
         dashboard_jobs_path: dashboard_jobs_path,
         dashboard_epics_path: dashboard_epics_path,
         dashboard_workflows_path: dashboard_workflows_path,

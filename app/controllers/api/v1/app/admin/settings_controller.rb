@@ -10,7 +10,6 @@ module Api
           def update
             setting = AppSetting.current
             update_params = settings_params
-            update_params["mode_configured_at"] = Time.current if update_params.key?("mode") && setting.mode_configured_at.nil?
             admission_control_changed = update_params.key?("workflow_admission_control_enabled") &&
               ActiveModel::Type::Boolean.new.cast(update_params["workflow_admission_control_enabled"]) != setting.workflow_admission_control_enabled
             if admission_control_changed
@@ -62,7 +61,6 @@ module Api
                     display_name: user.display_name
                   }
                 },
-                mode: setting.mode,
                 metadata: AppSettingRegistry.metadata_for(AppSettingRegistry.admin_editable_keys),
                 clearable_secrets: AppSetting.clearable_secrets.map do |key, label|
                   {
@@ -77,7 +75,7 @@ module Api
 
           def settings_params
             permitted_settings = (AppSettingRegistry.admin_editable_keys +
-                                 [ :rebase_failure_cooldown_minutes, :workflow_admission_control_enabled, :workflow_admission_policy, :mode ]).uniq +
+                                 [ :rebase_failure_cooldown_minutes, :workflow_admission_control_enabled, :workflow_admission_policy ]).uniq +
                                  AppSetting.clearable_secrets.keys.map(&:to_sym)
 
             params

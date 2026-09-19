@@ -262,30 +262,6 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
-      key: :mode,
-      type: :string,
-      default: "advanced",
-      min: nil,
-      max: nil,
-      category: "Instance operations",
-      operational_meaning: "Instance UX mode: 'advanced' (full Syrus feature set) or 'simple' (non-technical operator experience with reduced surfaces).",
-      zero_means: nil,
-      admin_editable: false,
-      secret: false
-    ),
-    Definition.new(
-      key: :mode_configured_at,
-      type: :datetime,
-      default: nil,
-      min: nil,
-      max: nil,
-      category: "Instance operations",
-      operational_meaning: "Timestamp when the instance mode was last explicitly set; nil means the instance has never been configured.",
-      zero_means: nil,
-      admin_editable: false,
-      secret: false
-    ),
-    Definition.new(
       key: :workflow_admission_control_enabled,
       type: :boolean,
       default: true,

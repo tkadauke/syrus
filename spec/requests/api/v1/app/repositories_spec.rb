@@ -755,19 +755,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(grouped_latest_run_queries).to be_empty
   end
 
-  it "omits GitHub Issues, Tests, and scheduled task tabs in simple mode" do
-    sign_in_as(user)
-    AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
-    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
-
-    get "/api/v1/app/repositories/#{repository.id}"
-
-    expect(response).to have_http_status(:ok)
-    tab_keys = parse_body["tabs"].map { |tab| tab["key"] }
-    expect(tab_keys).to include("overview", "documents")
-    expect(tab_keys).not_to include("scheduled_tasks")
-  end
-
   describe "repo_page_tab plugin tabs" do
     after { Syrus::PluginRegistry.reset! }
 
