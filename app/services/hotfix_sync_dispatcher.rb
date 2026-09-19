@@ -1,4 +1,4 @@
-# Entry point for the Story 5/5A (docs/plans/delivery-tracks-and-promotion.md)
+# Entry point for the Story 5/5A (docs/plans/complete/delivery-tracks-and-promotion.md)
 # `main -> develop` hotfix-sync ref-movement workflow. Creates a synthetic
 # anchor Job (kind: "direct", no GitHub issue — same pattern
 # PromotionDispatcher/MainHealthChangedService/MaybeDeployJob use for

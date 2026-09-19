@@ -30,7 +30,7 @@ class McpToolPolicy
     end
   end
 
-  # Story 11 (docs/plans/delivery-tracks-and-promotion.md) delivery-track/
+  # Story 11 (docs/plans/complete/delivery-tracks-and-promotion.md) delivery-track/
   # ref-movement tools are chat- *and* skill-facing — a `run_skill` step
   # agent (e.g. a "promote release" skill) can inspect/dispatch ref
   # movement the same way a chat session can. Scoped to `run_skill`

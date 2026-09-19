@@ -1,4 +1,4 @@
-# Story 8/9 (docs/plans/delivery-tracks-and-promotion.md) per-job
+# Story 8/9 (docs/plans/complete/delivery-tracks-and-promotion.md) per-job
 # upstream-export entry point: after an existing dev Job is approved
 # locally, open/update a PR from that Job's own branch to
 # `Repository#upstream_repository`'s (canonical's) configured intake

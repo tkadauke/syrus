@@ -1,7 +1,7 @@
 # Derives a Job's apparent delivery status — a UI-facing summary computed
 # from concrete delivery facts (`job.delivery_track`, `DeliveryPolicy`
 # answers, and `JobPrLink` rows) instead of a new AASM state, per
-# docs/plans/delivery-tracks-and-promotion.md's "Job Lifecycle And Delivery
+# docs/plans/complete/delivery-tracks-and-promotion.md's "Job Lifecycle And Delivery
 # Status" section. `Job#state` stays the source of truth for what Syrus is
 # actually doing; this only summarizes where the work currently sits for the
 # delivery-status UI later in this Epic.
