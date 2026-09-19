@@ -29,5 +29,18 @@ RSpec.describe Python::DependencyAuditCommand do
         expect(described_class.audit_command(workspace_path: dir)).to eq("pip-audit")
       end
     end
+
+    it "returns pip-audit when poetry.lock is present" do
+      Dir.mktmpdir do |dir|
+        File.write(File.join(dir, "poetry.lock"), "")
+        expect(described_class.audit_command(workspace_path: dir)).to eq("pip-audit")
+      end
+    end
+
+    it "returns nil for a completely empty directory" do
+      Dir.mktmpdir do |dir|
+        expect(described_class.audit_command(workspace_path: dir)).to be_nil
+      end
+    end
   end
 end
