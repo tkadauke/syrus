@@ -333,6 +333,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_215809) do
     t.index ["workflow_id"], name: "index_backend_exception_events_on_workflow_id"
   end
 
+  create_table "bootstrap_locks", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_bootstrap_locks_on_name", unique: true
+  end
+
   create_table "browser_error_auto_reports", force: :cascade do |t|
     t.string "app_revision", null: false
     t.integer "browser_error_event_id", null: false
