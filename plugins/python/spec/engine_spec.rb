@@ -136,6 +136,22 @@ RSpec.describe Python::Engine do
     it "declares .python-version as its mise version file" do
       expect(described_class.mise_version_file).to eq(".python-version")
     end
+
+    describe ".span_labels" do
+      it "labels pytest, ruff, and mypy command spans for worker-health diagnostics" do
+        labels = described_class.span_labels
+
+        expect(labels.find { |(pattern, _)| pattern.match?("pytest --json-report") }.last).to eq("pytest")
+        expect(labels.find { |(pattern, _)| pattern.match?("ruff check .") }.last).to eq("ruff")
+        expect(labels.find { |(pattern, _)| pattern.match?("mypy .") }.last).to eq("mypy")
+      end
+
+      it "does not match unrelated commands" do
+        labels = described_class.span_labels
+
+        expect(labels.any? { |(pattern, _)| pattern.match?("black .") }).to be false
+      end
+    end
   end
 
   describe Python::PromptContext do
