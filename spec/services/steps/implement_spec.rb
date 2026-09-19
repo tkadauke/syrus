@@ -250,7 +250,7 @@ RSpec.describe Steps::Implement do
 
       prompt = run.reload.prompt
       expect(prompt).to include("The main-branch repair preflight failed")
-      expect(prompt).to include("Command: bin/rspec-ci")
+      expect(prompt).to include("Reproduce with: bin/rspec-ci")
       expect(prompt).to include("expected true, got false")
       expect(prompt).to include("commit the repair before optional full-suite")
     end
