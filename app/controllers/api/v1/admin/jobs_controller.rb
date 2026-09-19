@@ -8,6 +8,18 @@ module Api
       #
       # GET /api/v1/admin/jobs/:id → JSON
       class JobsController < BaseController
+        GITHUB_PR_SNAPSHOT_EXPECTED_ERRORS = [
+          Octokit::Error,
+          Faraday::Error,
+          Timeout::Error,
+          SocketError,
+          Errno::ECONNREFUSED,
+          Errno::ECONNRESET,
+          Errno::ETIMEDOUT,
+          Net::OpenTimeout,
+          Net::ReadTimeout
+        ].freeze
+
         # Compact list. Filter via:
         #   ?pr_number=N
         #   ?issue_number=N
@@ -339,10 +351,18 @@ module Api
             base_sha: pr.base&.sha,
             base_repo: pr.base&.repo&.full_name
           }
-        rescue => e
-          {
-            error: "#{e.class}: #{e.message.to_s.split(/ \/\/ /, 2).first}"
-          }
+        rescue *GITHUB_PR_SNAPSHOT_EXPECTED_ERRORS => e
+          github_pr_snapshot_error(e)
+        rescue StandardError => e
+          Rails.logger.error(
+            "[Admin::JobsController] unexpected GitHub PR snapshot error for #{job.slug} " \
+            "(#{job.repository.slug}##{pr_number}): #{e.class}: #{e.message}"
+          )
+          github_pr_snapshot_error(e)
+        end
+
+        def github_pr_snapshot_error(error)
+          { error: "#{error.class}: #{error.message.to_s.split(/ \/\/ /, 2).first}" }
         end
 
         def user_github_payload(user)
