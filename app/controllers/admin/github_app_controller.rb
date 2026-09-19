@@ -38,6 +38,7 @@ module Admin
       code = params[:code].to_s
       user = User.find_by(id: payload.user_id)
       return render_state_error unless user
+      return render_failure(I18n.t("github_app.errors.admin_required", locale: user.locale), user: user) unless user.admin?
       return render_failure(I18n.t("github_app.errors.missing_code", locale: user.locale), user: user) if code.blank?
 
       conversion = GithubAppClient.manifest_conversion(code)
