@@ -27,9 +27,11 @@ RSpec.describe Syrus::Plugin::PluginGenerator do
     described_class.start([ "sample_plugin", "--frontend" ], destination_root: destination_root)
 
     component = read("plugins/sample_plugin/app/frontend/routes/AdminExample.tsx")
+    admin_pages = read("plugins/sample_plugin/app/services/sample_plugin/admin_pages.rb")
     manifest = read("plugins/sample_plugin/lib/sample_plugin.rb")
 
     expect(manifest).to include('provides admin_page: "SamplePlugin::AdminPages"')
+    expect(admin_pages).to include("include Syrus::Plugin::AdminPage")
     expect(manifest).to include('"sample_plugin/AdminExample" => "app/frontend/routes/AdminExample.tsx"')
     expect(manifest).to include('i18n: [ "app/frontend/i18n/locales/*/sample_plugin.json" ]')
     expect(read("plugins/sample_plugin/app/frontend/i18n/locales/en/sample_plugin.json")).to include('"title": "Sample plugin"')
