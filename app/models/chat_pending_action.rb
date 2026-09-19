@@ -35,6 +35,7 @@ class ChatPendingAction < ApplicationRecord
     admin_pause_runs
     admin_unpause_runs
     admin_clear_github_cache
+    admin_maintenance_task
     admin_pause_user_scheduling
     admin_unpause_user_scheduling
     admin_retry_step
