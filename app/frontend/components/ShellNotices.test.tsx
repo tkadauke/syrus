@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { SyrusShellBridge, SyrusShellState } from "../lib/desktopShell"
 import { SKILL_INSTALLED_CONFIRMATION_MS, ShellNotices } from "./ShellNotices"
+import { NOTICE_AUTO_DISMISS_DELAY_MS } from "./noticeStyles"
 
 function shellState(overrides: Partial<SyrusShellState> = {}): SyrusShellState {
   return {
@@ -61,6 +62,7 @@ describe("ShellNotices", () => {
 
     const relaunch = await screen.findByRole("button", { name: /Relaunch to update/ })
     expect(relaunch).toHaveTextContent("Version 0.1.3 ready")
+    expect(relaunch).toHaveClass("motion-safe:animate-notice-in")
 
     fireEvent.click(relaunch)
     expect(bridge.relaunchToUpdate).toHaveBeenCalledTimes(1)
@@ -105,6 +107,8 @@ describe("ShellNotices", () => {
 
     expect(bridge.installSkill).toHaveBeenCalledTimes(1)
     expect(screen.getByText("Skill installed ✓")).toBeInTheDocument()
+
+    expect(SKILL_INSTALLED_CONFIRMATION_MS).toBe(NOTICE_AUTO_DISMISS_DELAY_MS)
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(SKILL_INSTALLED_CONFIRMATION_MS)
