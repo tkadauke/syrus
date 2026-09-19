@@ -7,7 +7,7 @@
 // timestamp. Read only the chat API types plus the shared contentRecord util
 // and renderMessage builder.
 import type { ChatMessageItem, ChatPayload, ChatRenderItem } from "../../api/chats"
-import { contentRecord } from "./utils"
+import { batchedNoticeContents, contentRecord } from "./utils"
 import { renderMessage } from "./streamBuilders"
 import { formatRelativeDate, intlLocale } from "../../lib/relativeTime"
 
@@ -18,12 +18,14 @@ export function attachmentDataUrl(attachment: ChatMessageImageAttachment) {
 }
 
 export function isLowPrioritySystemMessage(item: ChatRenderItem) {
-  return item.type === "message" &&
+  return (
+    item.type === "message" &&
     item.role === "system" &&
     !isProposalOutcomeSystemMessage(item) &&
     !isGoalContinuationSystemMessage(item) &&
     !isCrossChatBridgeSystemMessage(item) &&
     ["neutral", "success"].includes(item.system?.tone || "neutral")
+  )
 }
 
 // The sender-side outbound message and the hop-limit closure notice are
@@ -35,11 +37,16 @@ export function isCrossChatBridgeSystemMessage(item: Extract<ChatRenderItem, { t
 }
 
 export function isProposalOutcomeSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {
-  return contentRecord(item.content)?.source === "proposal_notification"
+  const content = contentRecord(item.content)
+  return content?.source === "proposal_notification" || batchedNoticeContents(content).some((notice) => notice.source === "proposal_notification")
 }
 
 export function isGoalContinuationSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {
   const content = contentRecord(item.content)
+  return goalContinuationContent(content) || batchedNoticeContents(content).some(goalContinuationContent)
+}
+
+function goalContinuationContent(content: Record<string, unknown> | null) {
   return content?.source === "goal_continuation" || content?.goal_continuation === true
 }
 

@@ -46,8 +46,12 @@ describe("skillInvocationFromContent", () => {
   })
 
   it("returns a warning-toned message for unknown_skill and invalid_args markers", () => {
-    expect(skillInvocationFromContent({ skill_invocation: { status: "unknown_skill" } }, "No skill named `/dead-code-sweep`.")).toMatchObject({ tone: "warning" })
-    expect(skillInvocationFromContent({ skill_invocation: { status: "invalid_args" } }, "`/investigate` needs valid arguments.")).toMatchObject({ tone: "warning" })
+    expect(skillInvocationFromContent({ skill_invocation: { status: "unknown_skill" } }, "No skill named `/dead-code-sweep`.")).toMatchObject({
+      tone: "warning"
+    })
+    expect(skillInvocationFromContent({ skill_invocation: { status: "invalid_args" } }, "`/investigate` needs valid arguments.")).toMatchObject({
+      tone: "warning"
+    })
   })
 })
 
@@ -78,6 +82,42 @@ describe("goalContinuationFromContent", () => {
         internal_prompt: "Continue the active goal after this goal-linked work boundary.",
         source: "goal_continuation",
         goal_continuation: true
+      }
+    })
+
+    expect(systemMessage(message)).toMatchObject({
+      label: "Goal",
+      body: "Goal continuation started."
+    })
+  })
+
+  it("renders batched goal continuation notices without leaking the nested prompt", () => {
+    const message = systemMessageItem({
+      text: "Goal continuation started.\n\nProposal confirmed. JOB-716 was created.",
+      content: {
+        text: "Goal continuation started.\n\nProposal confirmed. JOB-716 was created.",
+        source: "queued_internal_notice_batch",
+        notices: [
+          {
+            text: "Goal continuation started.",
+            source: "goal_continuation",
+            content: {
+              text: "Goal continuation started.",
+              internal_prompt: "Continue the active goal after this goal-linked work boundary.",
+              source: "goal_continuation",
+              goal_continuation: true
+            }
+          },
+          {
+            text: "Proposal confirmed. JOB-716 was created.",
+            source: "proposal_notification",
+            content: {
+              text: "Proposal confirmed. JOB-716 was created.",
+              source: "proposal_notification",
+              outcome: "confirmed"
+            }
+          }
+        ]
       }
     })
 
