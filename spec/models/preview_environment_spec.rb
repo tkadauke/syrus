@@ -73,6 +73,29 @@ RSpec.describe PreviewEnvironment, :ci_only, type: :model do
       expect(second.errors[:base]).to include("already has an active preview environment")
     end
 
+    it "persists an active owner key while active" do
+      env = create_env
+
+      expect(env.active_owner_key).to eq("job:#{job.id}")
+    end
+
+    it "clears the active owner key after the preview stops" do
+      env = create_env(state: "stopping")
+
+      env.mark_stopped!
+      env.save!
+
+      expect(env.reload.active_owner_key).to be_nil
+    end
+
+    it "the DB rejects a second active row for the same job even when Rails validations are bypassed" do
+      first = create_env
+      conflicting = build_env
+      conflicting.active_owner_key = first.active_owner_key
+
+      expect { conflicting.save!(validate: false) }.to raise_error(ActiveRecord::RecordNotUnique)
+    end
+
     it "allows a new preview when the existing one is stopped" do
       create_env(state: "stopped")
       expect { create_env }.not_to raise_error
@@ -115,6 +138,20 @@ RSpec.describe PreviewEnvironment, :ci_only, type: :model do
       second = build_repo_env
       expect(second).not_to be_valid
       expect(second.errors[:base]).to include("already has an active preview environment")
+    end
+
+    it "persists an active owner key while active" do
+      env = create_repo_env
+
+      expect(env.active_owner_key).to eq("repository:#{job.repository.id}")
+    end
+
+    it "the DB rejects a second active row for the same repository even when Rails validations are bypassed" do
+      first = create_repo_env
+      conflicting = build_repo_env
+      conflicting.active_owner_key = first.active_owner_key
+
+      expect { conflicting.save!(validate: false) }.to raise_error(ActiveRecord::RecordNotUnique)
     end
 
     it "allows a job-scoped preview and a repository-scoped preview for the same repository at once" do

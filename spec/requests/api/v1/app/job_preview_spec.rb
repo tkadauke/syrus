@@ -227,6 +227,25 @@ RSpec.describe "App API job preview", type: :request do
       expect(parse_body.dig("error", "code")).to eq("conflict")
     end
 
+    it "returns conflict when a concurrent preview insert wins the active-owner race" do
+      job.update_columns(state: "implemented")
+      allow(App::PreviewProjects).to receive(:for_job).with(job)
+        .and_return(App::PreviewProjects::Result.new(choices: [
+          App::PreviewProjects::Choice.new(id: "repo", label: "Repository", path: "", owner_config_path: ".syrus.yml")
+        ], unavailable_reason: nil))
+      allow_any_instance_of(ActiveRecord::Associations::CollectionProxy)
+        .to receive(:create!)
+        .and_raise(ActiveRecord::RecordNotUnique.new("Duplicate entry"))
+
+      expect {
+        post preview_path(job), as: :json
+      }.not_to change { job.preview_environments.count }
+
+      expect(response).to have_http_status(:conflict)
+      expect(parse_body.dig("error", "code")).to eq("conflict")
+      expect(parse_body.dig("error", "message")).to eq("A preview environment is already active for this job.")
+    end
+
     it "allows creation after the previous preview has stopped" do
       create_preview_env(job, state: "stopped")
       job.update_columns(state: "implemented")
