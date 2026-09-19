@@ -2525,7 +2525,8 @@ describe("App", () => {
       expect(within(adminNav).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/admin")
       expect(within(adminNav).getByRole("link", { name: "Resource Admission" })).toHaveAttribute("href", "/app-shell/admin/resource_admission")
       expect(within(adminNav).getByRole("link", { name: "Scoped Chat Events" })).toHaveAttribute("href", "/app-shell/admin/scoped_chat_events")
-      expect(within(adminNav).getByRole("link", { name: "Reconciler Activity" })).toHaveAttribute("href", "/app-shell/admin/reconciler_activity")
+      expect(within(adminNav).getByRole("link", { name: "Workflow Events" })).toHaveAttribute("href", "/app-shell/admin/activity")
+      expect(within(adminNav).getByRole("link", { name: "Reconciler Events" })).toHaveAttribute("href", "/app-shell/admin/reconciler_activity")
       expect(within(adminNav).getByRole("link", { name: "Stuck" })).toHaveAttribute("href", "/app-shell/admin/stuck")
       expect(within(adminNav).getByRole("link", { name: "Users" })).toHaveAttribute("href", "/app-shell/admin/users")
       expect(within(adminNav).getByRole("link", { name: "Queue" })).toHaveAttribute("href", "/app-shell/admin/queue")
@@ -2694,8 +2695,8 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "Reconciler activity" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Reconciler activity", level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Reconciler events" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Reconciler events", level: 1 })).toBeInTheDocument()
     expect(await screen.findByText("re-enqueued Run #42")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-7" })).toHaveAttribute("href", "/app-shell/jobs/7")
     expect(screen.getByRole("link", { name: "WF-12" })).toHaveAttribute("href", "/app-shell/jobs/7?tab=workflows#workflow-12")

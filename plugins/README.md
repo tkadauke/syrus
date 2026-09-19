@@ -47,6 +47,7 @@ gem "my_plugin", path: "plugins/my_plugin"
 | `:mcp_tool_set`   | `Syrus::Plugin::McpToolSet`           | `.tool_definitions`, `.available_for?`, `#handle`; optionally `.available_for_context?` and `.tool_definitions(context:)` for role-aware workflow tools |
 | `:input_source`   | `Syrus::Plugin::InputSource`          | `#poll!`, `#validate_credentials!`, `#config_schema`, `#dedup_key` |
 | `:admin_page`     | `Syrus::Plugin::AdminPage`            | `.admin_pages` |
+| `:sidebar_page`   | `Syrus::Plugin::SidebarPage`          | `.sidebar_pages` |
 | `:chat_mcp_tool_set` | `Syrus::Plugin::ChatMcpToolSet`    | `.tool_definitions(tier:)`, `.available_for?(session, tier:)`, `#handle` |
 | `:source_control_provider` | `Syrus::Plugin::SourceControlProvider` | `.provider_key`, `.display_name`, `.available_for?(repository)`, `.client_for(repository:, user:)` |
 | `:grader_augmentor` | `Syrus::Plugin::GraderAugmentor`    | `.augment_grader_failure(name:, command:, workspace_path:)` → `Array<String>\|nil` |
@@ -57,6 +58,16 @@ source-control provider can own branch/PR/merge operations without being a poll
 source. The bundled `github_source` currently provides both and is marked
 non-disableable until the remaining core GitHub behavior moves behind plugin
 boundaries.
+
+Admin page providers return page metadata for admin-only pages that should live
+under the Admin chrome and navigation. Use `:admin_page` for operational or
+configuration surfaces such as diagnostics, plugin settings, audit views, and
+administrator-only tools.
+
+Use `:sidebar_page` for non-admin product areas that should appear in the
+primary application sidebar. Sidebar pages may optionally declare a sidebar
+section such as `settings`, but they are not grouped into the Admin section and
+should not be used for admin-only functionality.
 
 Admin page providers return page metadata:
 

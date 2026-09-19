@@ -1,6 +1,14 @@
 require "rails_helper"
 
 RSpec.describe "plugin admin page contracts" do
+  KNOWN_ADMIN_GROUP_IDS = %w[
+    operations
+    observability
+    users_access
+    system
+    product_data
+  ].freeze
+
   it "declares installed admin pages with frontend, i18n, and SPA route metadata" do
     if Syrus::PluginRegistry.boot_snapshot
       Syrus::PluginRegistry.restore(Syrus::PluginRegistry.boot_snapshot)
@@ -28,6 +36,7 @@ RSpec.describe "plugin admin page contracts" do
           expect(page[:component]).to be_present
           expect(frontend_routes.keys).to include(page[:component])
           expect(spa_routes).to include(page.fetch(:path).to_s)
+          expect(KNOWN_ADMIN_GROUP_IDS).to include(page[:group_id]) if page[:group_id].present?
 
           namespace, key = page[:label_key].to_s.split(":", 2)
           expect(namespace).to be_present
