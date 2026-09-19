@@ -336,7 +336,7 @@
   "aria_chat_workspace": "Chat workspace",
   "confirm": "Confirm",
   "confirmed": "Confirmed",
-  "pending_action_emergency_land_warning": "This bypasses job creation and lands immediately, without any quality control.",
+  "pending_action_emergency_land_warning": "This skips Syrus graders, adversarial review, and visual review, then merges the PR directly through GitHub.",
   "edit_proposal": "Edit proposal",
   "aria_close_proposal_editor": "Close proposal editor",
   "attached_scope": "Attached scope",
