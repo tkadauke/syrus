@@ -41,7 +41,7 @@ module Workflows
       steps_array = Array(steps)
       raise ArgumentError, "retry_until #{label} steps required" if steps_array.empty?
 
-      if steps_array.any? { |step| step.is_a?(Workflows::Loop) || step.is_a?(Workflows::RetryUntil) }
+      if steps_array.any? { |step| step.respond_to?(:to_chain_template) }
         raise ArgumentError, "nested workflow control nodes are not supported"
       end
 

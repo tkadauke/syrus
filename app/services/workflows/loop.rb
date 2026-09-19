@@ -34,7 +34,7 @@ module Workflows
       raise ArgumentError, "loop steps required" if steps_array.empty?
       raise ArgumentError, "loop requires exactly 2 steps: [agent_step, review_step]" if steps_array.size != 2
 
-      @nested = steps_array.any? { |s| s.is_a?(Workflows::Loop) || s.is_a?(Workflows::RetryUntil) }
+      @nested = steps_array.any? { |step| step.respond_to?(:to_chain_template) }
       @steps = (@nested ? steps_array : steps_array.map(&:to_s)).freeze
       @max_iterations = max_iterations
     end
@@ -45,15 +45,25 @@ module Workflows
     # review step, since the agent step it reviews always ran before this
     # loop.
     def step_kinds
+      raise_if_nested!
+
       [ steps.last.to_s ]
     end
 
     def to_chain_template
+      raise_if_nested!
+
       {
         "type" => "loop",
         "max_iterations" => max_iterations,
         "steps" => steps.map(&:to_s)
       }
+    end
+
+    private
+
+    def raise_if_nested!
+      raise ArgumentError, "nested workflow control nodes are not supported" if @nested
     end
   end
 end
