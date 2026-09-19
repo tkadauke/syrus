@@ -58,6 +58,7 @@ type ComposerHistoryMode = {
 
 const CHAT_HISTORY_LIMIT = 50
 const CHAT_HISTORY_KEY_PREFIX = "syrus.chat.history."
+const STOP_BUTTON_CLASS = "inline-flex h-11 items-center justify-center rounded border border-danger-border bg-surface px-3 text-sm font-medium text-danger-text hover:bg-danger-surface disabled:text-text-muted"
 
 
 // Chat composer extracted from Chat.tsx: the Compose input component and its whole
@@ -1379,8 +1380,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       const nextIndex = historyMode ? Math.max(0, historyMode.index - 1) : composerHistory.length - 1
       const draft = historyMode?.draft ?? text
       setHistoryMode({ draft, index: nextIndex })
-      setText(composerHistory[nextIndex] || "")
-      moveTextareaCaretToEnd(composerHistory[nextIndex] || "")
+      replaceTextFromHistory(composerHistory[nextIndex] || "")
       return
     }
 
@@ -1389,14 +1389,18 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     if (nextIndex >= composerHistory.length) {
       const draft = historyMode.draft
       setHistoryMode(null)
-      setText(draft)
-      moveTextareaCaretToEnd(draft)
+      replaceTextFromHistory(draft)
       return
     }
 
     setHistoryMode({ ...historyMode, index: nextIndex })
-    setText(composerHistory[nextIndex] || "")
-    moveTextareaCaretToEnd(composerHistory[nextIndex] || "")
+    replaceTextFromHistory(composerHistory[nextIndex] || "")
+  }
+
+  function replaceTextFromHistory(nextText: string) {
+    setText(nextText)
+    setPendingConfirmation(null)
+    moveTextareaCaretToEnd(nextText)
   }
 
   function moveTextareaCaretToEnd(nextText: string) {
@@ -2994,7 +2998,7 @@ function StopButton({ className, payload, queryKey }: { className?: string; payl
     onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
   })
   return (
-    <button aria-label={t("aria_stop_agent")} className={className ?? "inline-flex h-11 items-center justify-center rounded border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"} disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
+    <button aria-label={t("aria_stop_agent")} className={className ?? STOP_BUTTON_CLASS} disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
       <StopIcon className={`h-5 w-5 ${payload.chat.stop_requested_at || stop.isPending ? "opacity-50" : ""}`} />
     </button>
   )
@@ -3003,14 +3007,14 @@ function StopButton({ className, payload, queryKey }: { className?: string; payl
 function ShellCommandRunningBanner({ chatId, command, onError, onUpdate }: { chatId: string; command: ChatShellCommandRecord; onError: (error: unknown) => void; onUpdate: (record: ChatShellCommandRecord) => void }) {
   const { t } = useT("chat")
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="shell-command-running-banner">
+    <div className="flex min-w-0 items-center gap-2 rounded border border-warning-border bg-warning-surface px-3 py-1.5 text-xs text-warning-text shadow-sm" data-testid="shell-command-running-banner">
       <div className="min-w-0 flex-1">
         <div className="font-medium">{t("shell_command_running")}</div>
-        <div className="truncate font-mono text-amber-950 dark:text-amber-100" title={command.command}>{command.command}</div>
+        <div className="truncate font-mono text-text-primary" title={command.command}>{command.command}</div>
       </div>
       <ShellCommandStopButton
         chatId={chatId}
-        className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 font-medium text-red-700 hover:bg-red-100 disabled:text-amber-700 disabled:opacity-60 dark:text-red-300 dark:hover:bg-red-950/70 dark:disabled:text-amber-300"
+        className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 font-medium text-danger-text hover:bg-danger-surface disabled:text-warning-text disabled:opacity-60"
         command={command}
         label={t("shell_command_stop")}
         onError={onError}
