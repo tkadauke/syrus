@@ -865,7 +865,7 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   is, why someone would use it, how to get started, a workflow, a feature,
   configuration, credentials, operations, schedules, chats/direct Jobs,
   troubleshooting, or an API surface, update the matching page under
-  `website/src/site-pages/` or `website/src/content/docs/`. Prefer updating an
+  `website/src/app/` or `website/src/content/docs/`. Prefer updating an
   existing page over adding a parallel one; if the navigation contract
   changes, update `website/README.md` too. PRs that add product behavior
   while leaving the public docs stale are incomplete.
