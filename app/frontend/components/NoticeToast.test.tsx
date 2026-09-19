@@ -1,13 +1,14 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { NoticeToast } from "./NoticeToast"
+import { NOTICE_AUTO_DISMISS_DELAY_MS } from "./noticeStyles"
 
 describe("NoticeToast", () => {
   afterEach(() => {
     vi.useRealTimers()
   })
 
-  it("dismisses itself after three seconds", () => {
+  it("dismisses itself after the shared notice delay", () => {
     vi.useFakeTimers()
     const onDismiss = vi.fn()
     render(<NoticeToast message="Bug report queued." onDismiss={onDismiss} />)
@@ -15,7 +16,7 @@ describe("NoticeToast", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Bug report queued.")
 
     act(() => {
-      vi.advanceTimersByTime(2_999)
+      vi.advanceTimersByTime(NOTICE_AUTO_DISMISS_DELAY_MS - 1)
     })
     expect(onDismiss).not.toHaveBeenCalled()
 
@@ -32,6 +33,13 @@ describe("NoticeToast", () => {
     const classes = screen.getByRole("status").className
     expect(classes).toContain("top-[68px]")
     expect(classes).toContain("lg:top-4")
+  })
+
+  it("uses the shared notice surface animation", () => {
+    const onDismiss = vi.fn()
+    render(<NoticeToast message="Bug report queued." onDismiss={onDismiss} />)
+
+    expect(screen.getByRole("status").firstElementChild).toHaveClass("motion-safe:animate-notice-in")
   })
 
   it("still supports manual dismissal", () => {

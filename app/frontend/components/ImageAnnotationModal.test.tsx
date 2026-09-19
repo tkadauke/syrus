@@ -64,7 +64,10 @@ describe("ImageAnnotationModal", () => {
 
     fireEvent.click(screen.getByRole("radio", { name: "Blue" }))
 
-    expect(screen.getByRole("radio", { name: "Blue" })).toHaveAttribute("aria-checked", "true")
+    const blueSwatch = screen.getByRole("radio", { name: "Blue" })
+    expect(blueSwatch).toHaveAttribute("aria-checked", "true")
+    expect(blueSwatch).toHaveClass("border-info", "ring-info")
+    expect(blueSwatch.className).not.toMatch(/\b(?:border|ring)-blue-/)
     expect(screen.getByRole("radio", { name: "Red" })).toHaveAttribute("aria-checked", "false")
   })
 
@@ -183,6 +186,7 @@ describe("ImageAnnotationModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Text" }))
     fireEvent.click(screen.getByRole("radio", { name: "Large" }))
+    expect(screen.getByRole("radio", { name: "Large" })).toHaveClass("border-info", "bg-info-surface", "text-info-text")
     fireEvent.pointerDown(screen.getByLabelText("Annotation canvas"), { clientX: 30, clientY: 32, pointerId: 1 })
 
     const input = screen.getByPlaceholderText("Type, then press Enter")
