@@ -473,12 +473,12 @@ RSpec.describe MuseInvocation do
       settings = JSON.parse(File.read(File.join(muse_home, ".config", "muse", "settings.json")))
       expect(result).to be_success
       expect(settings["schema_version"]).to eq(1)
-      expect(settings.dig("mcp_servers", "syrus-mcp-sidecar")).to eq(
+      expect(settings).not_to have_key("mcp_servers")
+      expect(settings.dig("mcpServers", "syrus-mcp-sidecar")).to eq(
         "transport" => "stdio",
         "command" => "/app/bin/syrus-mcp-sidecar",
         "args" => [ "--run-id", "123" ],
         "env" => { "RAILS_ENV" => "test" },
-        "enabled" => true,
         "mode" => "required"
       )
       expect(captured.first[:env]).to include("HOME" => muse_home, "XDG_CONFIG_HOME" => File.join(muse_home, ".config"))
@@ -491,7 +491,7 @@ RSpec.describe MuseInvocation do
       FileUtils.mkdir_p(config_dir)
       settings_path = File.join(config_dir, "settings.json")
       File.write(settings_path, JSON.generate(
-        "mcp_servers" => { "syrus-mcp-sidecar" => { "command" => "/old/syrus-mcp-sidecar" } }
+        "mcp_servers" => { "old-sidecar" => { "command" => "/old/syrus-mcp-sidecar" } }
       ))
       stub_process_runners(lines: completed_lines_with)
 
@@ -507,7 +507,9 @@ RSpec.describe MuseInvocation do
       settings = JSON.parse(File.read(settings_path))
       expect(result).to be_success
       expect(settings["schema_version"]).to eq(1)
-      expect(settings.dig("mcp_servers", "syrus-mcp-sidecar", "command")).to eq("/app/bin/syrus-mcp-sidecar")
+      expect(settings).not_to have_key("mcp_servers")
+      expect(settings.dig("mcpServers", "old-sidecar", "command")).to eq("/old/syrus-mcp-sidecar")
+      expect(settings.dig("mcpServers", "syrus-mcp-sidecar", "command")).to eq("/app/bin/syrus-mcp-sidecar")
     end
   end
 
@@ -531,7 +533,7 @@ RSpec.describe MuseInvocation do
       settings = JSON.parse(File.read(settings_path))
       expect(result).to be_success
       expect(settings["schema_version"]).to eq(1)
-      expect(settings.dig("mcp_servers", "syrus-mcp-sidecar", "command")).to eq("/app/bin/syrus-mcp-sidecar")
+      expect(settings.dig("mcpServers", "syrus-mcp-sidecar", "command")).to eq("/app/bin/syrus-mcp-sidecar")
     end
   end
 
@@ -901,9 +903,13 @@ RSpec.describe MuseInvocation do
           "MUSE_NO_AUTO_UPDATE" => "1"
         }
 
+        settings = JSON.parse(File.read(File.join(muse_home, ".config", "muse", "settings.json")))
+        expect(settings).to include("mcpServers")
+        expect(settings).not_to include("mcp_servers")
+
         _stdout, stderr, = Open3.capture3(
           env, "muse", "exec", "--json", "--provider", "echo", "--workspace", workspace,
-          "--approval-mode", "never", "--prompt-file", prompt_path
+          "--approval-mode", "never", "--disable-approval", "--prompt-file", prompt_path
         )
 
         expect(stderr).not_to include("malformed settings file")
@@ -911,4 +917,5 @@ RSpec.describe MuseInvocation do
       end
     end
   end
+
 end

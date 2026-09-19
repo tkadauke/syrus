@@ -15,9 +15,11 @@ class MuseInvocation
   LAUNCHER_ENV = { "MUSE_NO_AUTO_UPDATE" => "1" }.freeze
   # Muse Code's settings.json requires a top-level schema_version and, per
   # server, the documented stdio shape (transport/command/args/env) plus
-  # enabled/mode -- confirmed against the installed `muse` binary's
+  # mode -- confirmed against the installed `muse` binary's
   # `SessionMcpServerConfig`/`SessionMcpServerMode` wire schema
-  # (`muse schema generate-json-schema`). "required" makes Muse hard-fail
+  # (`muse schema generate-json-schema`). The config key is camelCase
+  # `mcpServers`, matching the MSP `session/start` extension object.
+  # "required" makes Muse hard-fail
   # startup instead of silently dropping the sidecar when it can't connect.
   SETTINGS_SCHEMA_VERSION = 1
   REQUIRED_SERVER_MODE = "required"
@@ -196,7 +198,8 @@ class MuseInvocation
     settings_path = File.join(config_dir, "settings.json")
     settings = read_existing_muse_settings(settings_path)
     settings["schema_version"] = SETTINGS_SCHEMA_VERSION
-    settings["mcp_servers"] = settings.fetch("mcp_servers", {}).merge(normalized_mcp_servers(mcp_server))
+    legacy_servers = settings.delete("mcp_servers")
+    settings["mcpServers"] = (legacy_servers || {}).merge(settings.fetch("mcpServers", {}), normalized_mcp_servers(mcp_server))
     File.write(settings_path, JSON.pretty_generate(settings))
     log_sink.call(
       "[mcp_config] server=syrus-mcp-sidecar config=#{settings_path}",
@@ -225,7 +228,6 @@ class MuseInvocation
         "command" => server["command"],
         "args" => Array(server["args"]),
         "env" => server["env"] || {},
-        "enabled" => true,
         "mode" => REQUIRED_SERVER_MODE
       }
     end
