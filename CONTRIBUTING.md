@@ -128,12 +128,9 @@ mechanics, but maintainers are still responsible for deciding what lands.
 
 ## Code of conduct
 
-This project follows the spirit of the
-[Contributor Covenant](https://www.contributor-covenant.org/): be respectful,
-assume good intent, and keep discussion focused on the work. Harassment,
-personal attacks, and intentionally disruptive behavior are not welcome.
-
-Maintainers may remove comments, close issues, or block contributors whose
+This project is governed by our [Code of Conduct](CODE_OF_CONDUCT.md), adapted
+from the Contributor Covenant. By participating, you are expected to uphold
+it. Maintainers may remove comments, close issues, or block contributors whose
 behavior makes collaboration worse for others.
 
 ## Reporting bugs
