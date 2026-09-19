@@ -18,6 +18,30 @@ module Steps
 
     TIMEOUT_EXIT_CODE = 124
     OUTPUT_INLINE_BYTES = 16 * 1024
+    OUTPUT_CONTEXT_BEFORE_LINES = 8
+    OUTPUT_CONTEXT_AFTER_LINES = 24
+    OUTPUT_FAILURE_SNIPPET_LIMIT = 6
+    OUTPUT_FAILURE_FOCUSED_BYTES = 28 * 1024
+    FAILURE_OUTPUT_PATTERN = /
+      (
+        \bstuck:|
+        \bfailed\s*\(exit\b|
+        \bfail(?:ed|ure|ing)?\b|
+        \berror\b|
+        \bexception\b|
+        \btraceback\b|
+        \bunknown\b|
+        \busage:\s*bin\/simulator\b|
+        \bNoMethodError\b|
+        \bNameError\b|
+        \bArgumentError\b|
+        \bRuntimeError\b|
+        \bActiveRecord::\w+\b|
+        \bMysql2::Error\b|
+        \bSegmentation\ fault\b|
+        \bNo\ space\ left\ on\ device\b
+      )
+    /ix
     FORMATTER_LIKE_GRADER_PATTERN = /
       \b(
         usort|black|ruff|rubocop|prettier|eslint|gofmt|rustfmt|swiftformat|ktlint|
@@ -287,8 +311,48 @@ module Steps
     def grader_output_excerpt(path)
       return "" unless path.exist?
       output = path.binread
-      output = output.safe_byteslice(-OUTPUT_INLINE_BYTES, OUTPUT_INLINE_BYTES) if output.bytesize > OUTPUT_INLINE_BYTES
+      output = failure_focused_output_excerpt(output) if output.bytesize > OUTPUT_INLINE_BYTES
       output.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "?")
+    end
+
+    def failure_focused_output_excerpt(output)
+      lines = output.lines
+      matching_indexes = failure_context_indexes(lines)
+      return output.safe_byteslice(-OUTPUT_INLINE_BYTES, OUTPUT_INLINE_BYTES) if matching_indexes.empty?
+
+      sections = []
+      sections << "Output is #{output.bytesize} bytes; showing failure-focused excerpts. The full log may live in the grader checkout, so re-run the command if this is not enough.\n"
+      sections << excerpt_section("Log head", output.safe_byteslice(0, 2.kilobytes))
+      matching_indexes.first(OUTPUT_FAILURE_SNIPPET_LIMIT).each_with_index do |line_index, snippet_index|
+        first = [ line_index - OUTPUT_CONTEXT_BEFORE_LINES, 0 ].max
+        last = [ line_index + OUTPUT_CONTEXT_AFTER_LINES, lines.length - 1 ].min
+        sections << excerpt_section("Failure context #{snippet_index + 1} around line #{line_index + 1}", lines[first..last].join)
+      end
+      sections << excerpt_section("Log tail", output.safe_byteslice(-4.kilobytes, 4.kilobytes))
+
+      excerpt = sections.compact.join("\n")
+      excerpt.bytesize > OUTPUT_FAILURE_FOCUSED_BYTES ? excerpt.safe_byteslice(0, OUTPUT_FAILURE_FOCUSED_BYTES) : excerpt
+    end
+
+    def failure_context_indexes(lines)
+      indexes = []
+      lines.each_with_index do |line, index|
+        next unless line.match?(FAILURE_OUTPUT_PATTERN)
+        next if simulator_success_line?(line)
+
+        indexes << index
+      end
+      indexes
+    end
+
+    def simulator_success_line?(line)
+      line.include?(": success after") || line.include?("(expected success")
+    end
+
+    def excerpt_section(title, text)
+      return nil if text.blank?
+
+      "== #{title} ==\n#{text}"
     end
 
     # Announces that a grader produced test output. Core does not parse or

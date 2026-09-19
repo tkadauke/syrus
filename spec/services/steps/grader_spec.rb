@@ -121,6 +121,37 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(span.exit_status).to eq(Steps::Grader::TIMEOUT_EXIT_CODE)
   end
 
+  it "stores failure-focused excerpts for large logs instead of blind tail-only output" do
+    step.update!(details: step.details.merge("name" => "work-engine-simulations", "command" => "bin/simulator"))
+    large_output = [
+      ("scenario ok: success after 1 ticks\n" * 400),
+      "pathological merge train: stuck after 5 ticks\n",
+      "stuck:\n",
+      "  max ticks exhausted\n",
+      "  JOB-1=running latest=WF-1/running unit=WU-1/running\n",
+      ("later scenario ok: success after 1 ticks\n" * 400)
+    ].join
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 1, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      large_output.scan(/.{1,4096}/m).each { |chunk| kwargs[:on_output_chunk]&.call(chunk) }
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader work-engine-simulations failed/)
+
+    output = step.reload.details.fetch("output")
+    expect(output).to include("failure-focused excerpts")
+    expect(output).to include("Failure context")
+    expect(output).to include("pathological merge train: stuck after 5 ticks")
+    expect(output).to include("max ticks exhausted")
+    expect(output).to include("Log tail")
+  end
+
   it "offsets grader command spans after prepare dependency spans on the same Run" do
     CommandSpan.create!(
       job: job,

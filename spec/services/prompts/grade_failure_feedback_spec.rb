@@ -17,6 +17,7 @@ RSpec.describe Prompts::GradeFailureFeedback do
           "status" => "failed",
           "exit_code" => 1,
           "duration_s" => 23.4,
+          "command" => "bin/rspec spec/models/user_spec.rb",
           "output" => "expected true to equal false\n",
           "log_path" => ".syrus/grade-output/iteration-1/tests.log"
         },
@@ -29,6 +30,7 @@ RSpec.describe Prompts::GradeFailureFeedback do
     expect(out).to include("== Iteration 1 ==")
     expect(out).to include("  ✓ lint")
     expect(out).to include("  ✗ tests (exit 1, 23.4s)")
+    expect(out).to include("    Reproduce with: bin/rspec spec/models/user_spec.rb")
     expect(out).to include("    expected true to equal false")
     expect(out).to include("  - security (skipped - earlier required grader failed)")
   end
@@ -95,7 +97,7 @@ RSpec.describe Prompts::GradeFailureFeedback do
     expect(out).to include("    ... [truncated 25000 bytes] ...")
     expect(out).to include("    Tail:")
     expect(out).to include("      #{"t" * 80}")
-    expect(out).to include("    Full log: .syrus/grade-output/iteration-2/security.log")
+    expect(out).to include("    Full log: .syrus/grade-output/iteration-2/security.log (may be in the grader checkout; re-run the command above if unavailable here)")
     expect(out).not_to include("m" * 80)
   end
 

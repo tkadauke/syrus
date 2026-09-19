@@ -35,7 +35,9 @@ module Prompts
 
           Pick the smallest correct change that resolves the failing required
           graders without regressing the passing ones. Inspect the full log
-          file directly if the head+tail excerpt isn't sufficient.
+          file directly if the excerpt isn't sufficient. If the full log path
+          is not present in this workspace, re-run the exact command shown for
+          the failing grader and use that output as the source of truth.
 
           #{failure_guidance}
         GUIDANCE
@@ -101,7 +103,7 @@ module Prompts
       command = value(entry, :command).to_s.presence
       return nil unless command
 
-      indent("Command: #{command}", by: 4)
+      indent("Reproduce with: #{command}", by: 4)
     end
 
     def render_output(entry, iteration, output)
@@ -109,7 +111,7 @@ module Prompts
         path = log_path(entry, iteration)
         return nil unless path
 
-        return indent("Full log: #{path}", by: 4)
+        return indent("Full log: #{path} (may be in the grader checkout; re-run the command above if unavailable here)", by: 4)
       end
 
       if output.bytesize <= INLINE_LIMIT
@@ -122,7 +124,7 @@ module Prompts
             ... [truncated #{omitted} bytes] ...
             Tail:
         #{indent(output.safe_byteslice(-TAIL_BYTES, TAIL_BYTES), by: 6)}
-            Full log: #{log_path(entry, iteration)}
+            Full log: #{log_path(entry, iteration)} (may be in the grader checkout; re-run the command above if unavailable here)
         OUTPUT
       end
     end

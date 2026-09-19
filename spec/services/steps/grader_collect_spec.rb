@@ -180,10 +180,14 @@ RSpec.describe Steps::GraderCollect do
   it "fails collection when any required grader fails" do
     workflow.steps.find_by!(kind: "grader").update!(
       state: "failed",
-      details: { "name" => "rspec", "required" => true, "exit_code" => 1 }
+      details: { "name" => "rspec", "required" => true, "command" => "bundle exec rspec", "exit_code" => 1 }
     )
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+
+    expect(workflow.reload.artifact("iterations").first).to include(
+      include("name" => "rspec", "command" => "bundle exec rspec", "status" => "failed")
+    )
   end
 
   # Rung 0 records what it decided even when nothing acts on it, so the
