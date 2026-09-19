@@ -4,10 +4,11 @@ import { syrusShellBridge, type SyrusBackendUpdate, type SyrusShellBridge, type 
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { Button } from "./Button"
 import { DismissButton } from "./DismissButton"
+import { NOTICE_AUTO_DISMISS_DELAY_MS, compactNoticeSurfaceClass } from "./noticeStyles"
 
 // How long the "Skill installed ✓" confirmation lingers before the notice
 // removes itself.
-export const SKILL_INSTALLED_CONFIRMATION_MS = 2500
+export const SKILL_INSTALLED_CONFIRMATION_MS = NOTICE_AUTO_DISMISS_DELAY_MS
 
 // Quiet notice stack pinned at the bottom of the sidebar, directly above the
 // account row. Fed by the desktop shell's window.syrusShell preload bridge;
@@ -199,7 +200,7 @@ function SkillOfferNotice({ bridge, state }: { bridge: SyrusShellBridge; state: 
 }
 
 function noticeBoxClass() {
-  return "rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-xs dark:border-gray-700 dark:bg-gray-900"
+  return compactNoticeSurfaceClass()
 }
 
 function InfoIcon() {

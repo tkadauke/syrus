@@ -4,11 +4,20 @@ import { AnsiText, parseAnsiText } from "./AnsiText"
 
 describe("AnsiText", () => {
   it("renders SGR colors as styled spans without visible escape codes", () => {
-    render(<pre><AnsiText text={"RUN \u001b[32mpassed\u001b[39m and \u001b[33mwarned\u001b[39m"} /></pre>)
+    render(<pre><AnsiText text={"RUN \u001b[32mpassed\u001b[39m and \u001b[33mwarned\u001b[39m and \u001b[34minfo\u001b[39m"} /></pre>)
 
     expect(screen.getByText("passed")).toHaveClass("text-emerald-700")
     expect(screen.getByText("warned")).toHaveClass("text-amber-700")
+    expect(screen.getByText("info")).toHaveClass("text-info-text")
+    expect(screen.getByText("info").className).not.toMatch(/\btext-blue-/)
     expect(screen.getByText(/RUN/)).not.toHaveTextContent("\u001b[32m")
+  })
+
+  it("uses semantic tokens for ANSI blue background colors", () => {
+    render(<pre><AnsiText text={"\u001b[44mstandard\u001b[49m \u001b[104mbright\u001b[49m"} /></pre>)
+
+    expect(screen.getByText("standard")).toHaveClass("bg-info-surface")
+    expect(screen.getByText("bright")).toHaveClass("bg-info/20")
   })
 
   it("supports intensity and reset directives", () => {

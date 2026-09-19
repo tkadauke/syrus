@@ -14,6 +14,7 @@ import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { requestNativeNotificationPermission } from "../lib/nativeNotifications"
 import { useT } from "../hooks/useT"
 import { Button } from "./Button"
+import { noticeAnimationClass } from "./noticeStyles"
 
 const notificationsQueryKey = ["notifications"] as const
 
@@ -62,7 +63,7 @@ export function NotificationsBell({ initialUnreadCount, prefix, onNavigate }: { 
         {unreadCount > 0 ? <NotificationBadge>{badge}</NotificationBadge> : null}
       </button>
       {open ? (
-        <div className="absolute left-0 top-full z-30 mt-2 w-80 rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950">
+        <div className={`absolute left-0 top-full z-30 mt-2 w-80 rounded border border-border bg-surface shadow-lg ${noticeAnimationClass()}`}>
           <NotificationsPanel
             loading={notifications.isPending}
             notifications={notifications.data?.notifications ?? []}

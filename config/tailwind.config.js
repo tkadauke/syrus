@@ -32,6 +32,10 @@ module.exports = {
           from: { opacity: "0", transform: "translateY(6px)" },
           to: { opacity: "1", transform: "translateY(0)" }
         },
+        "notice-in": {
+          from: { opacity: "0", transform: "translateY(-4px)" },
+          to: { opacity: "1", transform: "translateY(0)" }
+        },
         // Indeterminate progress sweep (backend-update sidebar notice): a
         // one-third-width bar crossing its track. Guarded by motion-safe: at
         // the call site so reduced-motion users see a still bar.
@@ -65,6 +69,7 @@ module.exports = {
         // `position: fixed` descendant (e.g. the image lightbox modal),
         // trapping it inside the message bubble instead of the viewport.
         "chat-message-in": "chat-message-in 0.25s ease-out backwards",
+        "notice-in": "notice-in 0.25s ease-out backwards",
         "progress-indeterminate": "progress-indeterminate 1.4s ease-in-out infinite",
         "drag-blink": "drag-blink 1s ease-in-out 1 forwards",
         "drag-blink-dark": "drag-blink-dark 1s ease-in-out 1 forwards"
