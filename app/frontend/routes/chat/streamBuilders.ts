@@ -52,6 +52,14 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         result_error: false,
         result_kind: "unknown",
         result_summary: "",
+        // ChatPendingAction::anchor_to_tool_call! always anchors onto the
+        // tool_use message, never the paired tool_result -- so this is the
+        // only message carrying a live pending_action for the whole call.
+        // Seeded here (rather than left to the tool_result settle branch
+        // below) so it's available even before the result arrives, and so a
+        // tool_result message that never carries pending_action doesn't
+        // clobber it back to null.
+        pending_action: message.pending_action ?? null,
         nested: []
       }
 
@@ -96,7 +104,11 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         open.call.result_json = parsedResult
         open.call.result_settled = true
         open.call.result_error = content?.is_error === true
-        open.call.pending_action = message.pending_action ?? null
+        // The tool_result message itself essentially never carries its own
+        // pending_action (anchoring happens on the tool_use message above),
+        // but prefer it if some future call shape does -- otherwise keep
+        // whatever the tool_use message already seeded.
+        open.call.pending_action = message.pending_action ?? open.call.pending_action ?? null
         const resultPresentation = toolResultPresentation(
           open.call.tool_name,
           open.call.result_body,
