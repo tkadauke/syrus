@@ -9,6 +9,7 @@ class ChatPendingAction < ApplicationRecord
     rebase_job
     force_rebase
     restack_epic
+    archive_epic
     reopen_job
     approve_job
     unapprove_job

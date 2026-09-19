@@ -173,7 +173,15 @@ describe("Job and Epic maintenance tool cards", () => {
       <>
         {startEpicCard.renderExpanded(context("start_epic", { parsedResult: { epic_id: 60, previous_state: "ready", new_state: "in_progress" } }))}
         {moveEpicToBacklogCard.renderExpanded(context("move_epic_to_backlog", { parsedResult: { epic_id: 61, previous_state: "ready", new_state: "backlog" } }))}
-        {archiveEpicCard.renderExpanded(context("archive_epic", { parsedResult: { epic_id: 62, previous_state: "ready", new_state: "archived" } }))}
+        {archiveEpicCard.renderExpanded(context("archive_epic", {
+          input: { epic_id: 62 },
+          parsedResult: {
+            pending_action_id: 17,
+            pending_confirmation_id: 17,
+            state: "pending",
+            message: "Archive EPIC-62? Open child Jobs will be cancelled and closed when confirmed."
+          }
+        }))}
       </>
     )
 
@@ -182,7 +190,8 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("EPIC-61")).toBeInTheDocument()
     expect(screen.getAllByText("backlog").length).toBeGreaterThan(0)
     expect(screen.getByText("EPIC-62")).toBeInTheDocument()
-    expect(screen.getAllByText("archived").length).toBeGreaterThan(0)
+    expect(screen.getByText("pending #17")).toBeInTheDocument()
+    expect(screen.getByText("Archive EPIC-62? Open child Jobs will be cancelled and closed when confirmed.")).toBeInTheDocument()
   })
 
   it("renders update and remove-from-epic metadata", () => {

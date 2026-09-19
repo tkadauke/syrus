@@ -5,7 +5,7 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
 
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
-  let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+  let(:chat_session) { ChatSession.create!(user: user, repository: repository, chat_provider: "claude") }
 
   def server
     MCP::Server.new(
@@ -44,7 +44,7 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
       admin = Factories.user(admin: true)
       other_user = Factories.user
       other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user), title: "Other")
-      admin_session = ChatSession.create!(user: admin)
+      admin_session = ChatSession.create!(user: admin, chat_provider: "claude")
       admin_server = MCP::Server.new(
         name: "syrus-chat-sidecar",
         tools: [ Mcp::Tools::ListEpicsTool ],
@@ -133,7 +133,7 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
       admin = Factories.user(admin: true)
       other_user = Factories.user
       other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user), state: "ready")
-      admin_session = ChatSession.create!(user: admin)
+      admin_session = ChatSession.create!(user: admin, chat_provider: "claude")
       admin_server = MCP::Server.new(
         name: "syrus-chat-sidecar",
         tools: [ Mcp::Tools::StartEpicTool ],
@@ -192,7 +192,7 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
       admin = Factories.user(admin: true)
       other_user = Factories.user
       other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user), state: "ready")
-      admin_session = ChatSession.create!(user: admin)
+      admin_session = ChatSession.create!(user: admin, chat_provider: "claude")
       admin_server = MCP::Server.new(
         name: "syrus-chat-sidecar",
         tools: [ Mcp::Tools::MoveEpicToBacklogTool ],
@@ -218,13 +218,24 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
   end
 
   describe "archive_epic" do
-    it "archives an active Epic" do
+    it "creates a pending archive confirmation without cascading to child Jobs immediately" do
       epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      child_job = Factories.job_record(user: user, repository: repository, epic: epic, state: "running", issue_number: 101)
 
       result = payload(call_tool("archive_epic", epic_id: epic.id))
+      pending_action = chat_session.pending_actions.find(result[:pending_confirmation_id])
 
-      expect(result).to include(epic_id: epic.id, previous_state: "in_progress", new_state: "archived")
+      expect(result).to include(state: "pending", message: "Archive #{epic.slug}? Open child Jobs will be cancelled and closed when confirmed.")
+      expect(pending_action).to have_attributes(action: "archive_epic", requested_by: "agent")
+      expect(pending_action.payload).to eq("epic_id" => epic.id)
+      expect(epic.reload).to be_in_progress
+      expect(child_job.reload).to be_running
+
+      pending_action.confirm!(user: user)
+
       expect(epic.reload).to be_archived
+      expect(child_job.reload).to be_closed
+      expect(child_job.closure_reason).to eq("epic_archived")
     end
 
     it "rejects Epics outside the chat repository" do
@@ -236,11 +247,11 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
       expect(error_text(response)).to include("epic not found in this repository")
     end
 
-    it "allows an admin to archive another user's Epic regardless of chat repository" do
+    it "allows an admin to request archiving another user's Epic regardless of chat repository" do
       admin = Factories.user(admin: true)
       other_user = Factories.user
       other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user), state: "in_progress")
-      admin_session = ChatSession.create!(user: admin)
+      admin_session = ChatSession.create!(user: admin, chat_provider: "claude")
       admin_server = MCP::Server.new(
         name: "syrus-chat-sidecar",
         tools: [ Mcp::Tools::ArchiveEpicTool ],
@@ -251,7 +262,9 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
       response = JSON.parse(raw, symbolize_names: true)
 
       expect(response.dig(:result, :isError)).to be_falsey
-      expect(other_epic.reload).to be_archived
+      pending_action = admin_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+      expect(pending_action).to have_attributes(action: "archive_epic", requested_by: "agent")
+      expect(other_epic.reload).to be_in_progress
     end
 
     it "rejects Epics that are already archived" do
@@ -299,7 +312,7 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
       admin = Factories.user(admin: true)
       other_user = Factories.user
       other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user), title: "Old")
-      admin_session = ChatSession.create!(user: admin)
+      admin_session = ChatSession.create!(user: admin, chat_provider: "claude")
       admin_server = MCP::Server.new(
         name: "syrus-chat-sidecar",
         tools: [ Mcp::Tools::UpdateEpicTool ],
