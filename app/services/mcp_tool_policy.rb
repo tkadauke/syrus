@@ -113,7 +113,7 @@ class McpToolPolicy
       base + [ Mcp::Tools::SubmitVisualReviewTool, SyrusMcp::SubmitVisualArtifactTool, SyrusMcp::ListArtifactsTool, SyrusMcp::ReadArtifactTool ]
     else
       tools = base + [ Mcp::Tools::ReportMainConcernTool, Mcp::Tools::RecordIsolatedReproTool, Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool, Mcp::Tools::SubmitReportTool, Mcp::Tools::SubmitReviewPlanTool, SyrusMcp::SubmitArtifactTool, SyrusMcp::RunTargetPrepareTool, SyrusMcp::PatchWorkflowTool, SyrusMcp::SubmitVisualArtifactTool, SyrusMcp::ListArtifactsTool, SyrusMcp::ReadArtifactTool ]
-      tools << Mcp::Tools::SubmitJobMetadataTool if @context.run&.step&.kind == "refresh_job_metadata"
+      tools << Mcp::Tools::SubmitJobMetadataTool if McpToolRegistry.tool_permitted?(@context, Mcp::Tools::SubmitJobMetadataTool)
       tools += self.class.ref_movement_tools if @context.run&.step&.kind == "run_skill"
       tools
     end
