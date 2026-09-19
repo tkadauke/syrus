@@ -8,9 +8,9 @@ RSpec.describe FeatureRegistry do
     expect(declarations.map(&:slug)).to include(
       "coding_mode",
       "local_mode",
-      "landing_validation_prefetch",
-      "visual_review"
+      "landing_validation_prefetch"
     )
+    expect(declarations.map(&:slug)).not_to include("visual_review")
   end
 
   it "pins current feature flags as default-off" do
@@ -18,17 +18,17 @@ RSpec.describe FeatureRegistry do
 
     expect(defaults).to include(
       "performance_logging" => false,
-      "landing_validation_prefetch" => false
+      "landing_validation_prefetch" => false,
+      "local_mode" => false,
+      "persistent_mcp_sidecar" => false
     )
   end
 
-  it "pins coding_mode, local_mode, and visual_review as default-on" do
+  it "pins coding_mode as default-on" do
     defaults = described_class.declarations.index_by(&:slug).transform_values(&:default_enabled)
 
     expect(defaults).to include(
-      "coding_mode" => true,
-      "local_mode" => true,
-      "visual_review" => true
+      "coding_mode" => true
     )
   end
 

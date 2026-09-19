@@ -1,7 +1,7 @@
 # Resolves the optional visual_review loop configured in `.syrus.yml`,
-# falling back to the instance-wide `visual_review` Feature flag default
-# when the repository hasn't configured (or couldn't fetch) a visual_review
-# block, or configured one without an explicit `enabled` key.
+# falling back to enabled (visual_review's always-on default) when the
+# repository hasn't configured (or couldn't fetch) a visual_review block,
+# or configured one without an explicit `enabled` key.
 #
 # Thin adapter over RepoDefaultBranchSyrusYml, which owns the actual GitHub
 # fetch and SyrusYml parse (shared with RepoAdversarialReviewPlan,
@@ -31,12 +31,12 @@ class RepoVisualReviewPlan
     review = loaded.config.visual_review
     return instance_default(source: loaded.source, note: "no visual_review configured") unless review
 
-    enabled = review.enabled.nil? ? Feature.visual_review_enabled? : review.enabled
+    enabled = review.enabled.nil? ? true : review.enabled
     Result.new(enabled: enabled, rounds: review.rounds, source: loaded.source, note: nil)
   end
 
   def self.instance_default(source:, note:)
-    Result.new(enabled: Feature.visual_review_enabled?, rounds: SyrusYml::DEFAULT_VISUAL_REVIEW_ROUNDS, source: source, note: note)
+    Result.new(enabled: true, rounds: SyrusYml::DEFAULT_VISUAL_REVIEW_ROUNDS, source: source, note: note)
   end
 
   def self.merge(root_plan, project_plan)
@@ -78,7 +78,7 @@ class RepoVisualReviewPlan
 
   def self.rounds_for_enabled_project(project)
     config = project.visual_review
-    enabled = config&.enabled.nil? ? Feature.visual_review_enabled? : config.enabled
+    enabled = config&.enabled.nil? ? true : config.enabled
     return nil unless enabled
 
     config&.rounds || SyrusYml::DEFAULT_VISUAL_REVIEW_ROUNDS
