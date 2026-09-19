@@ -435,6 +435,19 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(doc.current_version).to have_attributes(actor_kind: "agent", actor_user: nil)
   end
 
+  it "returns a clean error when design doc storage overflows" do
+    server = chat_server
+    allow(DesignDocs::Create).to receive(:call).and_raise(
+      ActiveRecord::ValueTooLong,
+      "Mysql2::Error: Data too long for column 'markdown' at row 1"
+    )
+
+    response = call_tool(server, "propose_design_doc", title: "Oversized", markdown: "x")
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to eq("Could not propose design doc: markdown is too large to store.")
+  end
+
   it "covers the collaborative doc flow through owner review and read-only workflow agent access" do
     second_repository = Factories.repository(user: owner, owner: "acme", name: "mobile")
     chat_session.chat_attachments.create!(attachable: second_repository)
