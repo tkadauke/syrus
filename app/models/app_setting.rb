@@ -1,4 +1,5 @@
 class AppSetting < ApplicationRecord
+  SINGLETON_KEY = 1
   DEFAULT_REPORT_ISSUE_REPO_SLUG = "tkadauke/syrus".freeze
 
   CLEARABLE_SECRETS = {
@@ -21,6 +22,7 @@ class AppSetting < ApplicationRecord
   validates :workflow_admission_control_enabled, inclusion: { in: [ true, false ] }
   validates :workflow_admission_policy, inclusion: { in: WORKFLOW_ADMISSION_POLICIES }
   validates :main_branch_breakage_policy, inclusion: { in: MAIN_BRANCH_BREAKAGE_POLICIES }
+  validates :singleton_key, inclusion: { in: [ SINGLETON_KEY ] }
 
   belongs_to :workflow_admission_control_changed_by_user, class_name: "User", optional: true
 
@@ -39,7 +41,13 @@ class AppSetting < ApplicationRecord
       return Thread.current[:syrus_app_setting_current]
     end
 
-    current = first || create!(polling_paused: boot_polling_paused_default)
+    current = find_or_create_by!(singleton_key: SINGLETON_KEY) do |setting|
+      setting.polling_paused = boot_polling_paused_default
+    end
+    Thread.current[:syrus_app_setting_current] = current if Thread.current[:syrus_app_setting_current_cache_enabled]
+    current
+  rescue ActiveRecord::RecordNotUnique
+    current = find_by!(singleton_key: SINGLETON_KEY)
     Thread.current[:syrus_app_setting_current] = current if Thread.current[:syrus_app_setting_current_cache_enabled]
     current
   end
