@@ -612,6 +612,24 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByRole("toolbar", { name: "Formatting toolbar" })).toBeInTheDocument()
   })
 
+  it("renders the copyable doc slug inline before the clickable title, not as its own column", async () => {
+    mockFetch()
+    renderSurface()
+
+    const row = await screen.findByRole("link", { name: /DOC-1 Checkout design/ })
+    expect(screen.queryByRole("columnheader", { name: "DOC" })).not.toBeInTheDocument()
+
+    const titleButton = within(row).getByRole("button", { name: "Checkout design" })
+    const slugButton = within(row).getByRole("button", { name: "Copy DOC-1 to clipboard" })
+    const titleCell = titleButton.closest("td")
+    expect(titleCell).not.toBeNull()
+    expect(within(titleCell as HTMLElement).getByRole("button", { name: "Copy DOC-1 to clipboard" })).toBe(slugButton)
+
+    // The slug sits immediately before the title button within the shared
+    // title cell -- not merely present anywhere in the row.
+    expect(slugButton.compareDocumentPosition(titleButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it("uses the standard repo-page-tab container width, not compact mode's bare spacing", async () => {
     mockFetch()
     renderSurface()
