@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_18_173346) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -188,8 +188,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_173346) do
     t.boolean "merge_train_enabled", default: false, null: false
     t.integer "merge_train_max_size", default: 20, null: false
     t.integer "metrics_dashboard_sample_retention_days", default: 30, null: false
-    t.string "mode", default: "advanced"
-    t.datetime "mode_configured_at"
     t.integer "notification_retention_days", default: 30, null: false
     t.integer "operational_log_event_retention_hours", default: 6, null: false
     t.boolean "polling_paused", default: false, null: false
@@ -624,6 +622,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_173346) do
     t.string "labels"
     t.json "media_ids", null: false
     t.integer "parent_proposal_id"
+    t.string "provider_setting", default: "default", null: false
     t.datetime "rejected_at"
     t.integer "repository_id"
     t.boolean "route_to_backlog", default: false, null: false
@@ -1162,7 +1161,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_173346) do
     t.string "state", default: "backlog", null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
-    t.datetime "user_approved_at"
     t.integer "user_id", null: false
     t.index ["chat_goal_id", "created_at"], name: "index_epics_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_epics_on_chat_goal_id"

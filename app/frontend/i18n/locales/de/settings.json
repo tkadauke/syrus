@@ -222,9 +222,6 @@
     "pref_pr_comment_addressed": "Benachrichtige mich, wenn Syrus meine PR-Kommentare beantwortet",
     "pref_pr_merged": "Benachrichtige mich, wenn ein Job gemergt wird",
     "pref_epic_completed": "Benachrichtige mich, wenn ein Epic abgeschlossen ist",
-    "pref_epic_review_ready": "Benachrichtige mich, wenn ein Feature zur Überprüfung bereit ist",
-    "pref_epic_failed": "Benachrichtige mich, wenn ein Feature Aufmerksamkeit braucht",
-    "pref_epic_feedback_queued": "Benachrichtige mich, wenn Feature-Feedback startet",
     "pref_main_inconclusive": "Benachrichtige mich, wenn die Main-Branch-Gesundheit überprüft werden muss",
     "updated": "Benachrichtigungseinstellungen aktualisiert."
   },

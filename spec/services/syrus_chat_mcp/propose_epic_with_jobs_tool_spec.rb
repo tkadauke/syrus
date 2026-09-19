@@ -843,4 +843,76 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
       payload: { action: "update_proposal", proposal_id: proposal.id }
     )
   end
+
+  describe "provider override" do
+    it "persists per-child provider overrides independently" do
+      response = call_tool(
+        epic: { slug: "provider-epic", title: "Provider Epic", description: "Pin children.", target_repo: repository.slug },
+        jobs: [
+          {
+            slug: "pinned-child",
+            target_repo: repository.slug,
+            title: "Pinned child",
+            description: "Pin the implementation to Codex.",
+            provider: "codex"
+          },
+          {
+            slug: "default-child",
+            target_repo: repository.slug,
+            title: "Default child",
+            description: "No override.",
+            depends_on: [ "pinned-child" ]
+          }
+        ]
+      )
+
+      payload = response_payload(response)
+      pinned = chat_session.proposals.find_by!(slug: "pinned-child")
+      defaulted = chat_session.proposals.find_by!(slug: "default-child")
+      expect(response[:result][:isError]).to be_falsey
+      expect(pinned.provider_setting).to eq("codex")
+      expect(defaulted.provider_setting).to eq("default")
+      expect(payload[:child_jobs]).to include(hash_including(slug: "pinned-child", provider_setting: "codex"))
+      expect(payload[:child_jobs]).to include(hash_including(slug: "default-child", provider_setting: "default"))
+    end
+
+    it "treats an explicit default child provider like an omitted one" do
+      response = call_tool(
+        epic: { slug: "explicit-default-epic", title: "Explicit Default", description: "Same as omitted.", target_repo: repository.slug },
+        jobs: [
+          {
+            slug: "explicit-default-child",
+            target_repo: repository.slug,
+            title: "Explicit default child",
+            description: "Same as omitted.",
+            provider: "default"
+          }
+        ]
+      )
+
+      child = chat_session.proposals.find_by!(slug: "explicit-default-child")
+      expect(response[:result][:isError]).to be_falsey
+      expect(child.provider_setting).to eq("default")
+    end
+
+    it "rejects an unknown child provider and creates no proposals" do
+      response = call_tool(
+        epic: { slug: "bad-provider-epic", title: "Bad Provider", description: "This should not pass.", target_repo: repository.slug },
+        jobs: [
+          {
+            slug: "bad-provider-child",
+            target_repo: repository.slug,
+            title: "Bad provider child",
+            description: "This should not pass.",
+            provider: "nope"
+          }
+        ]
+      )
+
+      expect(response[:result][:isError]).to be(true)
+      expect(response[:result][:content].first[:text]).to include("bad-provider-child")
+      expect(response[:result][:content].first[:text]).to include("unknown provider")
+      expect(chat_session.proposals.count).to eq(0)
+    end
+  end
 end

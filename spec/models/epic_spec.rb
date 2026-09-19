@@ -133,41 +133,6 @@ RSpec.describe Epic, :ci_only do
     expect(epic.errors[:auto_approve_mode]).to be_present
   end
 
-  describe "#review_ready?" do
-    around do |example|
-      setting = AppSetting.current
-      original_mode = setting.mode
-      setting.update!(mode: "simple", mode_configured_at: Time.current)
-      example.run
-    ensure
-      setting&.update!(mode: original_mode || "advanced")
-    end
-
-    it "is true only in simple mode when every work Job is merged" do
-      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
-      child_job(epic: epic, number: 10, closure_reason: "pr_merged")
-      child_job(epic: epic, number: 11, closure_reason: "external_pr_merged")
-
-      expect(epic.reload).to be_review_ready
-
-      AppSetting.current.update!(mode: "advanced")
-      expect(epic.reload).not_to be_review_ready
-    end
-
-    it "is false when a child Job finished without merging or the user approved it" do
-      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
-      child_job(epic: epic, number: 10, closure_reason: "no_changes")
-
-      expect(epic.reload).not_to be_review_ready
-
-      epic.jobs.destroy_all
-      child_job(epic: epic, number: 11, closure_reason: "pr_merged")
-      epic.update!(user_approved_at: Time.current)
-
-      expect(epic.reload).not_to be_review_ready
-    end
-  end
-
   describe "#landing?" do
     it "is true while any child Job is landing, even though it is not a real Epic state" do
       epic = Factories.epic(user: user, repository: repository, state: "in_progress")
@@ -182,68 +147,6 @@ RSpec.describe Epic, :ci_only do
       child_job(epic: epic, number: 10, closure_reason: "pr_merged")
 
       expect(epic.reload).not_to be_landing
-    end
-  end
-
-  describe "#simple_status" do
-    around do |example|
-      setting = AppSetting.current
-      original_mode = setting.mode
-      setting.update!(mode: "simple", mode_configured_at: Time.current)
-      example.run
-    ensure
-      setting&.update!(mode: original_mode || "advanced")
-    end
-
-    it "returns the feature status shared by simple-mode API payloads" do
-      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
-      child_job(epic: epic, number: 10, closure_reason: "pr_merged")
-
-      expect(epic.reload.simple_status).to eq("ready_for_your_review")
-
-      epic.mark_user_approved!
-      expect(epic.reload.simple_status).to eq("done")
-    end
-
-    it "flags closed non-merged child Jobs as needing attention" do
-      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
-      child_job(epic: epic, number: 10, closure_reason: "cancelled")
-
-      expect(epic.reload.simple_status).to eq("something_went_wrong")
-    end
-  end
-
-  describe "#append_review_feedback_job!" do
-    around do |example|
-      setting = AppSetting.current
-      original_mode = setting.mode
-      setting.update!(mode: "simple", mode_configured_at: Time.current)
-      example.run
-    ensure
-      setting&.update!(mode: original_mode || "advanced")
-    end
-
-    it "creates a new direct Job at the tail of the linear chain and reopens the Epic" do
-      repository.update!(auto_merge_enabled: true)
-      epic = Factories.epic(user: user, repository: repository, title: "Checkout polish", state: "in_progress")
-      tail = child_job(epic: epic, number: 10, closure_reason: "pr_merged")
-      expect(epic.reload).to be_review_ready
-
-      expect {
-        @job = epic.append_review_feedback_job!(feedback: "The checkout button is hard to see.", actor: user)
-      }.to change(Job, :count).by(1)
-
-      job = @job
-      expect(epic.reload).to be_in_progress
-      expect(epic.done_at).to be_nil
-      expect(job).to have_attributes(
-        kind: "direct",
-        epic: epic,
-        issue_body: "The checkout button is hard to see.",
-        auto_merge_enabled: true
-      )
-      expect(job.dependencies.sole.depends_on_job).to eq(tail)
-      expect(epic.reload.auto_approve_mode).to eq("if_graders_pass")
     end
   end
 

@@ -108,7 +108,6 @@ module App
           can_approve: dashboard_job_can_approve?(job),
           can_release_from_backlog: dashboard_job_can_release_from_backlog?(job),
           can_move_to_backlog: dashboard_job_can_move_to_backlog?(job),
-          can_start_preview: PerformanceLogging.phase("dashboard_job.can_start_preview", job_id: job.id) { can_start_preview_for?(job) },
           paths: {
             job_path: job_path(job),
             source_path: source_job_path(job),
@@ -150,8 +149,7 @@ module App
 
       def dashboard_job_can_approve?(job)
         job.can_add_job_approval?(user) &&
-          !dashboard_job_approval_blocking_runtime_work?(job) &&
-          !simple_epic_child?(job)
+          !dashboard_job_approval_blocking_runtime_work?(job)
       end
 
       def dashboard_job_can_release_from_backlog?(job)
@@ -388,7 +386,6 @@ module App
           title: epic.title,
           description: epic.description.to_s,
           state: epic.state,
-          simple_status: simple_epic_status(epic, child_jobs, stats),
           landing: epic_landing?(child_jobs, stats),
           stuck: epic_stuck?(epic, child_jobs, stats),
           all_jobs_closed: all_epic_jobs_closed?(child_jobs, stats),
@@ -464,28 +461,6 @@ module App
         child_jobs.any?(&:landing?)
       end
 
-      def simple_epic_status(epic, child_jobs, stats = nil)
-        return "done" if epic.user_approved_at.present?
-        if stats
-          return "something_went_wrong" if stats.fetch(:bad_closed_jobs_count).positive?
-          return "working_on_it" if stats.fetch(:open_jobs_count).positive?
-          if stats.fetch(:jobs_count).positive? && stats.fetch(:landed_jobs_count) == stats.fetch(:jobs_count)
-            return "ready_for_your_review" if dashboard_simple_mode? && epic.user_approved_at.blank?
-
-            return "wrapping_up"
-          end
-
-          return "working_on_it"
-        end
-
-        return "something_went_wrong" if child_jobs.any? { |job| job.closed? && !Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
-        return "working_on_it" if child_jobs.any?(&:open?)
-        return "ready_for_your_review" if dashboard_simple_mode? && epic.user_approved_at.blank? && child_jobs.any? && child_jobs.all? { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
-        return "wrapping_up" if child_jobs.any? && child_jobs.all? { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
-
-        "working_on_it"
-      end
-
       def epic_stuck?(epic, child_jobs, stats = nil)
         if stats
           return epic.in_progress? &&
@@ -504,36 +479,6 @@ module App
         return stats.fetch(:jobs_count).positive? && stats.fetch(:open_jobs_count).zero? if stats
 
         child_jobs.any? && child_jobs.all?(&:closed?)
-      end
-
-      def dashboard_simple_mode?
-        @dashboard_simple_mode = AppSetting.simple? unless defined?(@dashboard_simple_mode)
-        @dashboard_simple_mode
-      end
-
-      # Backs the simple-mode dashboard row's "Preview & Approve" action
-      # (Job#previewable? is cheap, but preview_available_for_repository?
-      # shells out to read .syrus.yml off the repo's local bare clone — only
-      # worth paying that cost on the simple-mode job-centric dashboard,
-      # which is the only surface that renders this action).
-      def can_start_preview_for?(job)
-        dashboard_simple_mode? && job.previewable? && preview_available_for_repository?(job.repository)
-      end
-
-      # Memoized per repository so a page of many jobs from the same repo
-      # only shells out to `git show HEAD:.syrus.yml` once.
-      def preview_available_for_repository?(repository)
-        @preview_available_by_repository_id ||= {}
-        @preview_available_by_repository_id.fetch(repository.id) do
-          @preview_available_by_repository_id[repository.id] = App::PreviewAvailability.configured?(repository)
-        end
-      end
-
-      # Mirrors JobDetailPayload#simple_epic_child? — legacy simple-mode Epic
-      # child Jobs keep reviewing through the Epic's post-merge rollup flow,
-      # not this per-Job preview/approve action.
-      def simple_epic_child?(job)
-        dashboard_simple_mode? && job.epic_id.present?
       end
 
       def owner_json(owner)

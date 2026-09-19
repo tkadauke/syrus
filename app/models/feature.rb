@@ -73,14 +73,10 @@ class Feature < ApplicationRecord
   end
 
   def self.coding_mode_enabled?
-    return false if AppSetting.simple?
-
     enabled?(:coding_mode)
   end
 
   def self.local_mode_enabled?
-    return false if AppSetting.simple?
-
     enabled?(:local_mode)
   end
 
@@ -133,8 +129,6 @@ class Feature < ApplicationRecord
   # materially higher risk than a normal Coding Mode handoff, so it must
   # not be reachable just because Coding Mode is on.
   def self.emergency_land_enabled?
-    return false if AppSetting.simple?
-
     enabled?(:emergency_land)
   end
 

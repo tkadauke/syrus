@@ -26,7 +26,7 @@ type OpenCall = {
   container: ChatRenderItem[]
 }
 
-export function renderChatMessages(messages: ChatMessageItem[], options: { simpleMode?: boolean } = {}): ChatRenderItem[] {
+export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[] {
   const items: ChatRenderItem[] = []
   const containerByParentKey = new Map<string, ChatRenderItem[]>([ [ ROOT_KEY, items ] ])
   const lastGroupByParentKey = new Map<string, ChatToolGroupItem | null>([ [ ROOT_KEY, null ] ])
@@ -108,22 +108,14 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         open.call.result_summary = resultPresentation.summary
         open.call.summary_metadata = resultPresentation.metadata
         updateToolGroupState(open.group)
-        if (options.simpleMode && !open.call.result_error) {
-          open.group.calls = open.group.calls.filter((call) => call !== open.call)
-          updateToolGroupState(open.group)
-          if (open.group.calls.length === 0) {
-            const index = open.container.indexOf(open.group)
-            if (index !== -1) open.container.splice(index, 1)
-          }
-        }
       } else {
         resetLastGroup(message, lastGroupByParentKey)
-        const item = renderMessage(message, options)
+        const item = renderMessage(message)
         if (item) items.push(item)
       }
     } else {
       resetLastGroup(message, lastGroupByParentKey)
-      const item = renderMessage(message, options)
+      const item = renderMessage(message)
       if (item?.type === "message" && item.role === "assistant") collapseSettledToolGroups(items)
       if (item) items.push(item)
     }
@@ -322,7 +314,7 @@ export function pendingActionCardData(action: ChatPendingAction): ChatPendingAct
   }
 }
 
-export function renderMessage(message: ChatMessageItem, options: { simpleMode?: boolean } = {}): ChatRenderItem | null {
+export function renderMessage(message: ChatMessageItem): ChatRenderItem | null {
   if (message.role === "system") {
     const system = systemMessage(message)
     if (system === null) return null
@@ -331,8 +323,6 @@ export function renderMessage(message: ChatMessageItem, options: { simpleMode?: 
   }
 
   if (message.role === "tool_use" || message.role === "tool_result") {
-    if (options.simpleMode) return null
-
     return { ...message, tool: structuredTool(message) }
   }
 

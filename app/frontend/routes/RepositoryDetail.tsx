@@ -425,7 +425,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        {payload.simple_mode ? null : <Link className={buttonClass("green")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t('repository.new_job')}</Link>}
+        <Link className={buttonClass("green")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t('repository.new_job')}</Link>
         <button className={buttonClass("blue")} disabled={disabled} onClick={() => { onNotice(null); poll.mutate() }} type="button">{t('repository.poll_now')}</button>
         {retry.count > 0 ? (
           <button className={buttonClass("amber")} disabled={disabled || retry.provider_circuit.open} onClick={() => { onNotice(null); retryFailed.mutate() }} type="button">{t("repository.retry_failed_with", { count: retry.count, provider: retry.agent_provider_label })}</button>
@@ -599,8 +599,6 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
 function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetailPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
   const { t } = useT("settings")
   if (payload.jobs.length === 0) {
-    if (payload.simple_mode) return null
-
     return (
       <section>
         <SectionHeading className="mb-3">

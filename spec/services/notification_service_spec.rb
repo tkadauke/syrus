@@ -104,125 +104,6 @@ RSpec.describe NotificationService do
       }.not_to change(Notification, :count)
       expect(ActionCable.server).not_to have_received(:broadcast)
     end
-
-    it "suppresses technical notification kinds in simple mode" do
-      setting = AppSetting.current
-      original_mode = setting.mode
-      setting.update!(mode: "simple", mode_configured_at: Time.current)
-      user = Factories.user
-      job = Factories.job_record(user: user, pr_number: 12, branch_name: "syrus/job-12")
-      allow(ActionCable.server).to receive(:broadcast)
-
-      %w[
-        pr_comment_addressed pr_merged epic_completed upstream_pr_closed
-        main_broken main_inconclusive main_recovered
-      ].each do |kind|
-        expect(
-          described_class.create_for(
-            user: user,
-            kind: kind,
-            job: job,
-            pr_url: "https://github.com/acme/widgets/pull/12",
-            body: "Technical notification for #{job.slug} on #{job.branch_name}"
-          )
-        ).to be_nil
-      end
-
-      expect(Notification.count).to eq(0)
-      expect(ActionCable.server).not_to have_received(:broadcast)
-    ensure
-      setting&.update!(mode: original_mode || "advanced")
-    end
-
-    it "un-suppresses job_failed and job_implemented in simple mode for standalone Jobs" do
-      setting = AppSetting.current
-      original_mode = setting.mode
-      setting.update!(mode: "simple", mode_configured_at: Time.current)
-      user = Factories.user
-      job = Factories.job_record(user: user, pr_number: 12, branch_name: "syrus/job-12")
-      allow(ActionCable.server).to receive(:broadcast)
-
-      %w[job_failed job_implemented].each do |kind|
-        notification = described_class.create_for(
-          user: user,
-          kind: kind,
-          job: job,
-          pr_url: "https://github.com/acme/widgets/pull/12",
-          body: "Standalone job notification for #{job.slug}"
-        )
-
-        expect(notification).to have_attributes(
-          job_id: job.id,
-          pr_url: "https://github.com/acme/widgets/pull/12"
-        )
-      end
-
-      expect(Notification.count).to eq(2)
-    ensure
-      setting&.update!(mode: original_mode || "advanced")
-    end
-
-    it "keeps suppressing job_failed and job_implemented in simple mode for epic-child Jobs" do
-      setting = AppSetting.current
-      original_mode = setting.mode
-      setting.update!(mode: "simple", mode_configured_at: Time.current)
-      user = Factories.user
-      repository = Factories.repository(user: user)
-      epic = Factories.epic(user: user, repository: repository)
-      job = Factories.job_record(user: user, repository: repository, epic: epic, pr_number: 12, branch_name: "syrus/job-12")
-      allow(ActionCable.server).to receive(:broadcast)
-
-      %w[job_failed job_implemented].each do |kind|
-        expect(
-          described_class.create_for(
-            user: user,
-            kind: kind,
-            job: job,
-            pr_url: "https://github.com/acme/widgets/pull/12",
-            body: "Epic-child job notification for #{job.slug}"
-          )
-        ).to be_nil
-      end
-
-      expect(Notification.count).to eq(0)
-      expect(ActionCable.server).not_to have_received(:broadcast)
-    ensure
-      setting&.update!(mode: original_mode || "advanced")
-    end
-
-    it "strips job and PR metadata from allowed simple-mode notifications" do
-      setting = AppSetting.current
-      original_mode = setting.mode
-      setting.update!(mode: "simple", mode_configured_at: Time.current)
-      user = Factories.user
-      job = Factories.job_record(user: user, pr_number: 12)
-      allow(ActionCable.server).to receive(:broadcast)
-
-      notification = described_class.create_for(
-        user: user,
-        kind: "epic_review_ready",
-        job: job,
-        pr_url: "https://github.com/acme/widgets/pull/12",
-        body: "Your feature 'Checkout' is ready for your review"
-      )
-
-      expect(notification).to have_attributes(job_id: nil, pr_url: nil)
-      expect(ActionCable.server).to have_received(:broadcast).with(
-        AppUserChannel.broadcasting_for(user),
-        hash_including(
-          payload: hash_including(
-            notification: hash_including(
-              kind: "epic_review_ready",
-              body: "Your feature 'Checkout' is ready for your review",
-              job_id: nil,
-              pr_url: nil
-            )
-          )
-        )
-      )
-    ensure
-      setting&.update!(mode: original_mode || "advanced")
-    end
   end
 
   describe "chat work events" do
@@ -241,7 +122,7 @@ RSpec.describe NotificationService do
     # Success completions now publish too -- the evaluator (not this
     # allowlist) decides per-event whether the chat cares about the outcome.
     it "publishes an event for widened success-completion kinds" do
-      %w[job_implemented pr_merged epic_completed epic_review_ready main_recovered].each do |kind|
+      %w[job_implemented pr_merged epic_completed main_recovered].each do |kind|
         expect(ChatWorkEvents).to receive(:publish!).with(hash_including(kind: kind))
 
         described_class.create_for(user: user, kind: kind, job: job, body: "#{kind} happened")
@@ -251,14 +132,13 @@ RSpec.describe NotificationService do
     it "does not publish a chat work event for routine progress kinds" do
       expect(ChatWorkEvents).not_to receive(:publish!)
 
-      described_class.create_for(user: user, kind: "epic_feedback_queued", job: job, body: "queued")
       described_class.create_for(user: user, kind: "pr_comment_addressed", job: job, body: "addressed")
       described_class.create_for(user: user, kind: "external_pr_feedback", job: job, body: "feedback")
     end
 
     # The user still sees them; they just are not chat work events.
     it "still creates the notification for a kind it does not publish" do
-      expect { described_class.create_for(user: user, kind: "epic_feedback_queued", job: job, body: "queued") }
+      expect { described_class.create_for(user: user, kind: "pr_comment_addressed", job: job, body: "addressed") }
         .to change(Notification, :count).by(1)
     end
   end

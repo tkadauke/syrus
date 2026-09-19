@@ -101,6 +101,35 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(child.job.investigation?).to eq(true)
   end
 
+  it "applies per-child provider overrides onto the materialized Jobs" do
+    proposal = epic_proposal
+    pinned = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "pinned",
+      title: "Pinned",
+      body: "Pin the implementation to Codex.",
+      repository: repository,
+      provider_setting: "codex"
+    )
+    defaulted = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "defaulted",
+      title: "Defaulted",
+      body: "No override.",
+      repository: repository
+    )
+    depend_on(defaulted, pinned)
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.jobs.size).to eq(2)
+    expect(pinned.reload.job).to have_attributes(job_provider_setting: "codex", agent_provider: "codex")
+    expect(defaulted.reload.job).to have_attributes(
+      job_provider_setting: "default",
+      agent_provider: repository.effective_agent_provider
+    )
+  end
+
   it "copies goal provenance to a bundled Epic and its child Jobs" do
     goal = ChatGoal.create!(
       chat_session: chat_session,
@@ -143,28 +172,6 @@ RSpec.describe ChatEpicProposalMaterializer do
       chat_goal_id: goal.id,
       goal_prompt_snapshot: include("prompt" => "Create a traceable bundle")
     ))
-  end
-
-  it "enables auto-approval and per-Job auto-merge for simple-mode Epic children when the repository has opted in" do
-    setting = AppSetting.current
-    original_mode = setting.mode
-    setting.update!(mode: "simple", mode_configured_at: Time.current)
-    repository.update!(auto_merge_enabled: true)
-    proposal = epic_proposal
-    proposal.child_proposals.create!(
-      chat_session: chat_session,
-      slug: "child",
-      title: "Child",
-      body: "Build it.",
-      repository: repository
-    )
-
-    result = described_class.new(user: user).file!(proposal)
-
-    expect(result.epic.reload.auto_approve_mode).to eq("if_graders_pass")
-    expect(result.jobs.sole.reload.auto_merge_enabled).to be(true)
-  ensure
-    setting&.update!(mode: original_mode || "advanced")
   end
 
   it "blocks child Jobs when an EpicDependency wired during file! is invisible to a stale association cache" do

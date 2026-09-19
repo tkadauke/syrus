@@ -248,10 +248,10 @@ actionable events are skipped on retry so visible chat wakeups are not duplicate
 is the allowlist of notification kinds that publish a scoped chat event at all;
 everything else is still a regular `Notification` the user sees, it just never
 reaches this pipeline. It covers both attention kinds (`job_failed`,
-`epic_failed`, `main_broken`, `main_inconclusive`, `upstream_pr_closed`) and
+`main_broken`, `main_inconclusive`, `upstream_pr_closed`) and
 success-completion kinds (`job_implemented`, `pr_merged`, `epic_completed`,
-`epic_review_ready`, `main_recovered`). Routine progress kinds that are neither
-a failure nor a real completion (`epic_feedback_queued`, `pr_comment_addressed`,
+`main_recovered`). Routine progress kinds that are neither
+a failure nor a real completion (`pr_comment_addressed`,
 `external_pr_feedback`) are deliberately left out — they fire too often to be
 worth a judgment pass. There is no deterministic auto-skip by kind for the
 events that do publish: every one of them, including success kinds, reaches the
@@ -532,6 +532,21 @@ Unlike `route_to_backlog`, `investigation` is not restricted to the standalone
 direct Job proposal card — it can be combined with `epic_id` to target an
 existing Epic, and both `ChatProposalFiler` and `ChatEpicProposalMaterializer`
 propagate it onto the created Job either way.
+
+`propose_job` accepts an optional `provider` override, and
+`propose_epic_with_jobs` accepts an optional `provider` per child Job
+(`jobs[].provider`), to pin the implementing provider for the filed Job
+(e.g. `muse`). Omit it (or pass `"default"`) to keep the current behavior:
+the Job inherits the repository/user default provider at confirmation time.
+Values are validated against `Job::ProviderSetting::Base.values` and unknown
+providers are rejected before the proposal card is created. The override is
+persisted on `ChatProposal#provider_setting` (default `"default"`) and applied
+at filing time: `ChatProposalFiler` and `ChatEpicProposalMaterializer` set
+`Job#job_provider_setting` from the proposal and resolve `agent_provider`
+through `Job::ProviderSetting::Base`, preserving the existing
+advance-after-triage ordering. Proposal payloads and the chat proposal card
+surface the override for confirmation display; dependency and linear-chain
+validation are unchanged.
 
 Because `Document::MAX_ATTACHMENTS_PER_JOB` caps attachments per Job, repeated
 feedback rounds that each attach media can eventually hit the cap. Refs that

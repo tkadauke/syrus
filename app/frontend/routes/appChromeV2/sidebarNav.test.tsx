@@ -4,7 +4,7 @@ import { CORE_NAV_ITEMS, applySidebarNavOrder, buildSidebarNavItems, sidebarNavI
 
 const translate = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key
 
-const baseContext = { simpleMode: false, featureFlags: { terminal: true }, teamUserCount: 2 }
+const baseContext = { featureFlags: { terminal: true }, teamUserCount: 2 }
 
 describe("CORE_NAV_ITEMS", () => {
   it("covers the built-in nav entries, excluding the plugin-provided ones and setup", () => {
@@ -22,19 +22,11 @@ describe("buildSidebarNavItems", () => {
     expect(items.map((item) => item.id)).toEqual(["dashboard", "repositories"])
   })
 
-  it("routes dashboard to the jobs board in simple mode", () => {
-    const items = buildSidebarNavItems({ ...baseContext, simpleMode: true }, [], translate)
-
-    expect(items.find((item) => item.id === "dashboard")?.to).toBe("/dashboard/jobs")
-  })
-
-  it("routes dashboard to the jobs board outside simple mode", () => {
+  it("routes dashboard to the jobs board", () => {
     const items = buildSidebarNavItems(baseContext, [], translate)
 
     expect(items.find((item) => item.id === "dashboard")?.to).toBe("/dashboard/jobs")
   })
-
-
 
   it("appends enabled plugin-provided pages after the core items, preserving their given order", () => {
     const pluginPages: SidebarPluginPage[] = [

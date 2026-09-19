@@ -529,4 +529,63 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
       expect(depends_on_job_ids_desc).to include("non-empty Epic")
     end
   end
+
+  describe "provider override" do
+    it "defaults to the default provider setting when provider is omitted" do
+      response = call_tool(
+        repo: repository.slug,
+        title: "Default provider job",
+        description: "No override."
+      )
+
+      proposal = chat_session.proposals.find_by!(title: "Default provider job")
+      payload = response_payload(response)
+      expect(response[:result][:isError]).to be_falsey
+      expect(proposal.provider_setting).to eq("default")
+      expect(payload[:provider_setting]).to eq("default")
+    end
+
+    it "treats an explicit default provider like an omitted one" do
+      response = call_tool(
+        repo: repository.slug,
+        title: "Explicit default job",
+        description: "Same as omitted.",
+        provider: "default"
+      )
+
+      proposal = chat_session.proposals.find_by!(title: "Explicit default job")
+      payload = response_payload(response)
+      expect(response[:result][:isError]).to be_falsey
+      expect(proposal.provider_setting).to eq("default")
+      expect(payload[:provider_setting]).to eq("default")
+    end
+
+    it "persists a provider override" do
+      response = call_tool(
+        repo: repository.slug,
+        title: "Codex-pinned job",
+        description: "Pin the implementation to Codex.",
+        provider: "codex"
+      )
+
+      proposal = chat_session.proposals.find_by!(title: "Codex-pinned job")
+      payload = response_payload(response)
+      expect(response[:result][:isError]).to be_falsey
+      expect(proposal.provider_setting).to eq("codex")
+      expect(payload[:provider_setting]).to eq("codex")
+    end
+
+    it "rejects an unknown provider and creates no proposal" do
+      response = call_tool(
+        repo: repository.slug,
+        title: "Unknown provider job",
+        description: "This should not pass.",
+        provider: "nope"
+      )
+
+      expect(response[:result][:isError]).to be(true)
+      expect(response[:result][:content].first[:text]).to include("unknown provider")
+      expect(chat_session.proposals.find_by(title: "Unknown provider job")).to be_nil
+    end
+  end
 end

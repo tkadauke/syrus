@@ -96,7 +96,6 @@ import {
   type ShareChatPayload,
   type SharedChatPayload,
 } from "../api/chats"
-import { fetchBootstrap, readInitialBootstrap } from "../api/bootstrap"
 import { CloseIcon } from "../components/CloseIcon"
 import { GearIcon } from "../components/GearIcon"
 import { Input } from "../components/Input"
@@ -239,8 +238,7 @@ function SharedChatView({ payload }: { payload: SharedChatPayload }) {
 }
 
 function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
-  const simpleMode = useSimpleMode()
-  const items = useMemo(() => renderChatMessages(payload.messages, { simpleMode }), [payload.messages, simpleMode])
+  const items = useMemo(() => renderChatMessages(payload.messages), [payload.messages])
   const placeholderPayload = useMemo(() => sharedChatRenderPayload(payload), [payload])
   const pendingActionIds = useMemo(() => new Set<number>(), [])
   const { t } = useT("chat")
@@ -256,7 +254,7 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
   return (
     <div className="h-full min-h-0 space-y-4 overflow-y-auto p-3 sm:p-4" data-testid="chat-message-stream">
       {items.map((item) => item.type === "tool_group" ? (
-        <ToolGroup item={item} key={renderItemKey(item)} simpleMode={simpleMode} />
+        <ToolGroup item={item} key={renderItemKey(item)} />
       ) : (
         <ChatMessage item={item} key={renderItemKey(item)} payload={placeholderPayload} pendingActionIds={pendingActionIds} prefix="" queryKey={chatQueryKey(payload.chat.id, "")} readOnly onNotice={() => undefined} />
       ))}
@@ -400,7 +398,6 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
-  const simpleMode = useSimpleMode()
   const streamRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const streamChatIdRef = useRef(payload.chat.id)
@@ -415,7 +412,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
   const [hasMoreOlder, setHasMoreOlder] = useState(payload.has_more_older)
   const [activeBookmarkTarget, setActiveBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const displayedMessages = useMemo(() => mergeChatMessages(olderMessages, payload.messages), [olderMessages, payload.messages])
-  const displayedItems = useMemo(() => renderChatMessages(displayedMessages, { simpleMode }), [displayedMessages, simpleMode])
+  const displayedItems = useMemo(() => renderChatMessages(displayedMessages), [displayedMessages])
   const agentQuestions = payload.agent_questions || []
   const hiddenSystemMessageCount = useMemo(() => displayedItems.filter(isLowPrioritySystemMessage).length, [displayedItems])
   const visibleItems = useMemo(() => showSystemMessages ? displayedItems : displayedItems.filter((item) => !isLowPrioritySystemMessage(item)), [displayedItems, showSystemMessages])
@@ -632,7 +629,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
         ) : item.type === "pending_action_group" ? (
           <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
         ) : item.type === "tool_group" ? (
-          <ToolGroup item={item} key={renderItemKey(item)} simpleMode={simpleMode} />
+          <ToolGroup item={item} key={renderItemKey(item)} />
         ) : (
           <ChatMessage
             animateIn={shouldAnimateMessageEntrance(item.id, entranceBaselineMessageIdRef.current)}
@@ -707,20 +704,6 @@ function useMediaQuery(query: string, defaultMatches: boolean) {
   return matches
 }
 
-function useSimpleMode() {
-  const initialBootstrap = readInitialBootstrap()
-  const bootstrap = useQuery({
-    queryKey: ["bootstrap"],
-    queryFn: fetchBootstrap,
-    enabled: false,
-    initialData: initialBootstrap ?? undefined,
-    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
-  })
-
-  return bootstrap.data?.app?.mode === "simple"
-}
-
-
 function ChatWorkspace({
   chatId,
   payload,
@@ -749,14 +732,13 @@ function ChatWorkspace({
   // Wider than AppChromeV2's own sidebar breakpoint — see CHAT_WORKSPACE_SPLIT_MIN_WIDTH.
   const isDesktop = useMediaQuery(`(min-width: ${CHAT_WORKSPACE_SPLIT_MIN_WIDTH}px)`, true)
   const { t } = useT("chat")
-  const simpleMode = useSimpleMode()
   const hasPins = useHasPins(payload.chat.id, queryKey[2])
-  const availableTabs = availableWorkspaceTabs(payload, simpleMode, hasPins)
+  const availableTabs = availableWorkspaceTabs(payload, hasPins)
 
   useEffect(() => {
-    if (activeTab === null || !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload, simpleMode))
+    if (activeTab === null || !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload))
     if (activeMobileTab !== "chat" && !availableTabs.includes(activeMobileTab)) setActiveMobileTab("chat")
-  }, [activeMobileTab, activeTab, availableTabs, payload, simpleMode])
+  }, [activeMobileTab, activeTab, availableTabs, payload])
 
   // Confirming a job/epic proposal optimistically patches the chat query
   // cache so the "jobs" tab becomes available, but that cache update lands
@@ -868,7 +850,6 @@ function ChatWorkspace({
                 queryKey={queryKey}
                 onNotice={onNotice}
                 onBookmarkSelect={selectBookmark}
-                simpleMode={simpleMode}
               />
             </Suspense>
           )}
@@ -929,7 +910,6 @@ function ChatWorkspace({
             queryKey={queryKey}
             onNotice={onNotice}
             onBookmarkSelect={selectBookmark}
-            simpleMode={simpleMode}
           />
         </Suspense>
       ) : null}

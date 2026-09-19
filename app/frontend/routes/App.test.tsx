@@ -214,45 +214,6 @@ describe("App", () => {
     }
   })
 
-  it("keeps the simple-mode dashboard on /dashboard/jobs instead of redirecting away", async () => {
-    const script = document.createElement("script")
-    script.id = "syrus-bootstrap-data"
-    script.type = "application/json"
-    script.textContent = JSON.stringify(bootstrapPayload({
-      app: { revision: "dev", revision_url: null, mode: "simple", mode_configured: true }
-    }))
-    document.body.appendChild(script)
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input) => {
-      const path = String(input)
-      if (path.startsWith("/api/v1/app/dashboard")) {
-        return new Response(
-          JSON.stringify(dashboardPayload({ simple_mode: true, subject: "job", view: "list", items: [dashboardJobItem({ closure_reason: null })] })),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        )
-      }
-
-      return new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } })
-    })
-
-    try {
-      render(
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs"]}>
-            <App />
-            <LocationProbe />
-          </MemoryRouter>
-        </QueryClientProvider>
-      )
-
-      expect(await screen.findByRole("main", { name: "Dashboard" })).toBeInTheDocument()
-      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
-      expect(await screen.findByText("Repair aqueduct")).toBeInTheDocument()
-    } finally {
-      script.remove()
-      fetchSpy.mockRestore()
-    }
-  })
-
   it("renders system alert banners from bootstrap data", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
@@ -1975,8 +1936,8 @@ describe("App", () => {
       expect(await screen.findByRole("main", { name: "Onboarding" })).toBeInTheDocument()
       expect(screen.getByRole("heading", { name: "Set up Syrus" })).toBeInTheDocument()
       expect(screen.queryByText("Work through the shortest path to a successful first run.")).not.toBeInTheDocument()
-      expect(screen.queryByText(/of 7 complete/)).not.toBeInTheDocument()
-      expect(screen.getAllByRole("listitem")).toHaveLength(7)
+      expect(screen.queryByText(/of 6 complete/)).not.toBeInTheDocument()
+      expect(screen.getAllByRole("listitem")).toHaveLength(6)
       // "Configure GitHub" opens an in-page token modal rather than navigating away.
       expect(screen.getByRole("button", { name: "Configure GitHub" })).toBeInTheDocument()
       expect(screen.getByText("Connect a personal access token and the GitHub App — both are required.")).toBeInTheDocument()
@@ -2024,9 +1985,9 @@ describe("App", () => {
       )
 
       expect(await screen.findByRole("main", { name: "Onboarding" })).toBeInTheDocument()
-      // Seven steps remain for orientation, without the old header progress counter.
-      expect(screen.getAllByRole("listitem")).toHaveLength(7)
-      expect(screen.queryByText(/of 7 complete/)).not.toBeInTheDocument()
+      // Six steps remain for orientation, without the old header progress counter.
+      expect(screen.getAllByRole("listitem")).toHaveLength(6)
+      expect(screen.queryByText(/of 6 complete/)).not.toBeInTheDocument()
       expect(screen.getByText("Land your first Epic")).toBeInTheDocument()
       expect(screen.getByText("Your first Epic is in progress. Approve its Jobs so they can land.")).toBeInTheDocument()
       expect(screen.queryByText("You've started the Syrus chat. The other tabs are now unlocked.")).not.toBeInTheDocument()
@@ -14862,9 +14823,7 @@ function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: R
     team_user_count: 1,
     app: {
       revision: "dev",
-      revision_url: null,
-      mode: "advanced" as const,
-      mode_configured: true
+      revision_url: null
     },
     public: {
       first_signup: false,
@@ -15250,17 +15209,14 @@ function credentialsPayload(overrides: {
   }
 }
 
-function notificationPreferencesPayload(overrides: Partial<Record<"job_failed" | "job_implemented" | "pr_comment_addressed" | "pr_merged" | "epic_completed" | "epic_review_ready" | "epic_failed" | "epic_feedback_queued", boolean>> & { message?: string } = {}) {
+function notificationPreferencesPayload(overrides: Partial<Record<"job_failed" | "job_implemented" | "pr_comment_addressed" | "pr_merged" | "epic_completed", boolean>> & { message?: string } = {}) {
   return {
     notification_preferences: {
       job_failed: overrides.job_failed ?? true,
       job_implemented: overrides.job_implemented ?? true,
       pr_comment_addressed: overrides.pr_comment_addressed ?? true,
       pr_merged: overrides.pr_merged ?? true,
-      epic_completed: overrides.epic_completed ?? false,
-      epic_review_ready: overrides.epic_review_ready ?? true,
-      epic_failed: overrides.epic_failed ?? true,
-      epic_feedback_queued: overrides.epic_feedback_queued ?? true
+      epic_completed: overrides.epic_completed ?? false
     },
     message: overrides.message
   }

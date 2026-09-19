@@ -118,7 +118,7 @@ RSpec.describe ChatEventEvaluator do
     expect(ProviderSession.where(resumable: chat_session).count).to eq(1)
   end
 
-  %w[job_implemented pr_merged epic_completed epic_review_ready main_recovered].each do |kind|
+  %w[job_implemented pr_merged epic_completed main_recovered].each do |kind|
     it "invokes the evaluator agent for the success-kind event #{kind} instead of auto-skipping it" do
       event.update!(
         source_kind: kind,

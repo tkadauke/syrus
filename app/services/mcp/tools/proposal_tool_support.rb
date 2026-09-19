@@ -10,6 +10,18 @@ module Mcp::Tools
       Array(value).filter_map { |item| Integer(item, exception: false) }.uniq
     end
 
+    # Normalizes an optional implementing-provider override against the same
+    # value set Jobs accept. Omitted and explicit "default" both resolve to
+    # the "default" sentinel (current behavior: repository/user defaults win
+    # at filing time). Returns [setting, nil] on success or [nil, error] for
+    # an `invalid` tool rejection.
+    def normalize_provider_setting(value)
+      setting = value.to_s.strip.presence || Job::ProviderSetting::Base::DEFAULT_VALUE
+      return [ setting, nil ] if Job::ProviderSetting::Base.values.include?(setting)
+
+      [ nil, "unknown provider #{value.inspect}. Valid providers: #{Job::ProviderSetting::Base.values.join(', ')}" ]
+    end
+
     # Models occasionally write the literal two-character sequence
     # backslash-n into a tool-call string when they intend a line break,
     # instead of an actual embedded newline. Proposal descriptions render as

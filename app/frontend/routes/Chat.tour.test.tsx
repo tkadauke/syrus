@@ -40,9 +40,6 @@ function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
       built_at: null,
       bug_report_mode: null,
       report_issue_repo_slug: "owner/repo",
-      mode: "advanced" as const,
-      mode_configured: false,
-      legacy_epics_visible: false
     },
     setup_status: null,
     public: {

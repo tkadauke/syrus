@@ -179,6 +179,26 @@ RSpec.describe ChatProposalFiler do
       expect(job_proposal.reload.job.investigation?).to eq(false)
     end
 
+    it "applies a provider override from the proposal onto the filed Job" do
+      job_proposal = proposal(slug: "pinned-job", title: "Pinned job", provider_setting: "codex")
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+      job = job_proposal.reload.job
+      expect(job.job_provider_setting).to eq("codex")
+      expect(job.agent_provider).to eq("codex")
+    end
+
+    it "keeps repository-default provider resolution for proposals without an override" do
+      job_proposal = proposal(slug: "default-provider-job", title: "Default provider job")
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+      job = job_proposal.reload.job
+      expect(job.job_provider_setting).to eq("default")
+      expect(job.agent_provider).to eq(repository.effective_agent_provider)
+    end
+
     it "resolves pending proposal-backed dependencies after the referenced proposal files" do
       upstream = proposal(slug: "upstream-job", title: "Upstream job")
       dependent = Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil)

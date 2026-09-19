@@ -1,7 +1,6 @@
 {
   "title": "Epica",
   "legacy_epic_banner": "Hoc est opus antiquius, pluribus gradibus constans, ante hanc mutationem creatum. Nova rogata iam ut singula negotia in tabula principali apparent.",
-
   "detail_label": "Epica",
   "job_progress_label": "Progressus operum epicae",
   "deployment_stages_label": "Gradus deploymenti",
@@ -12,7 +11,6 @@
   "command_error": "Mandatum epicae defecit.",
   "dependency_error": "Nexus renovari non possunt.",
   "save_error": "Epica servari non potest.",
-
   "claim": "Vindica",
   "unclaim": "Dimitte",
   "edit": "Emenda",
@@ -20,7 +18,6 @@
   "add_button": "Adde",
   "add_job": "+ Opus adde",
   "more_actions": "Actiones plures",
-
   "description": "Descriptio",
   "summary": "Summarium",
   "summary_pending": "Syrus summarium huius rei adhuc parat.",
@@ -42,7 +39,6 @@
   "merge_train_reconcile_failed": "Reconciliation failed inside the merge train and needs operator attention.",
   "merge_train_failed": "The merge train failed and needs operator attention before retry.",
   "merge_train_failed_with_reason": "The merge train failed and needs operator attention: {{reason}}",
-
   "dependencies": "Nexus",
   "depends_on": "Pendet ex",
   "depended_on_by": "Pendent ex hoc",
@@ -52,7 +48,6 @@
   "no_matches": "Nulla concordant",
   "remove_dependency": "Nexum a {{title}} remove",
   "none": "Nihil",
-
   "no_external_dependencies": "Nulli nexus externi",
   "dependency_graph": "Nexuum schema",
   "dependency_graph_scroll_region": "Regio schemae nexuum volubilis",
@@ -60,7 +55,6 @@
   "epic_dep_other": "{{count}} nexus epicarum",
   "job_blocker_one": "{{count}} impedimentum",
   "job_blocker_other": "{{count}} impedimenta",
-
   "history": "Historia",
   "no_history": "Nullae mutationes tituli vel descriptionis adhuc.",
   "title_before": "Titulus ante",
@@ -68,13 +62,11 @@
   "description_before": "Descriptio ante",
   "description_after": "Descriptio post",
   "empty_value": "(vacuum)",
-
   "jobs_section": "Opera",
   "job_navigation_context_epic": "Opera epicae",
   "no_jobs": "Nulla opera in hac Epica.",
   "deployment_stage_pending": "Pendens",
   "deployment_stage_partial": "{{reached}}/{{total}} opera",
-
   "details": "Particularia",
   "owner": "Dominus",
   "owner_label": "Dominus {{email}}",
@@ -87,15 +79,12 @@
   "jobs_count_other": "{{count}} opera",
   "dep_one": "{{count}} nexus",
   "dep_other": "{{count}} nexus",
-
   "needs_attention": "Attentione opus",
   "needs_attention_title": "Omnia opera clausa – hanc epicam perfectam signa vel opus novum crea.",
-
   "state_chip": {
     "merged": "Adlata",
     "blocked_by_epic": "Impedita"
   },
-
   "new_epic": "Nova Epica",
   "edit_epic": "Epica emendanda",
   "back_to_epic": "Ad epicam redi",
@@ -118,19 +107,9 @@
   "submit_feedback": "Responsum mitte",
   "submitting": "Mittitur...",
   "review_command_error": "Recognitio renovari non potuit.",
-
   "preview_see_more": "Vide amplius",
-
   "view_in_chat": "In colloquio vide",
   "back_to_dashboard": "Ad tabulam redi",
-
   "furthest_behind_one": "maxime post: {{count}} comissio",
-  "furthest_behind_other": "maxime post: {{count}} comissiones",
-  "simple_status": {
-    "working_on_it": "In opere",
-    "wrapping_up": "Concluditur",
-    "ready_for_your_review": "Paratum recognitui tuo",
-    "done": "Factum",
-    "something_went_wrong": "Aliquid erravit"
-  }
+  "furthest_behind_other": "maxime post: {{count}} comissiones"
 }
