@@ -608,5 +608,4 @@ RSpec.describe "App API job run commands", type: :request do
 
     expect(response).to have_http_status(:not_found)
   end
-
 end
