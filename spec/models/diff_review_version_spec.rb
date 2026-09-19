@@ -89,6 +89,36 @@ RSpec.describe DiffReviewVersion do
     expect(described_class.default_for_review(job)).to eq(run_version)
   end
 
+  it "does not default to an empty legacy All changes version" do
+    run_version = described_class.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      version_index: 1,
+      base_sha: "branch-base",
+      head_sha: "implemented-head",
+      source_key: "workflow:#{workflow.id}:run:#{run.id}",
+      reason: "initial",
+      files_snapshot: [
+        { "path" => "app/models/user.rb", "status" => "modified", "additions" => 1, "deletions" => 0, "patch" => "@@ -1 +1 @@\n+change" }
+      ],
+      metadata: {}
+    )
+    described_class.create!(
+      job: job,
+      version_index: 2,
+      base_sha: "main",
+      head_sha: "main",
+      source_key: "source_diff",
+      label: "All changes",
+      reason: "source_diff",
+      files_snapshot: [],
+      metadata: { "range_kind" => "all_changes" }
+    )
+
+    expect(described_class.default_for_review(job)).to eq(run_version)
+  end
+
   describe ".best_match_for" do
     it "prefers an exact run_id match" do
       version = described_class.create!(

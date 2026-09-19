@@ -228,11 +228,14 @@ export function canonicalReviewVersions(versions: DiffReviewVersion[]) {
   const canonicalByRunRange = new Map<string, DiffReviewVersion>()
   const canonical = new Set<DiffReviewVersion>()
   let canonicalAllChanges: DiffReviewVersion | null = null
+  const hasNonEmptyVersion = versions.some((version) => version.files_count > 0)
   for (const version of versions) {
     // "All changes" is a singleton per Job on the backend, but a synthetic
     // version has no run_id (runRangeKey returns null), so a legacy
     // duplicate row must still be collapsed here defensively.
     if (isAllChangesVersion(version)) {
+      if (hasNonEmptyVersion && version.files_count === 0) continue
+
       if (!canonicalAllChanges || version.id > canonicalAllChanges.id) {
         if (canonicalAllChanges) canonical.delete(canonicalAllChanges)
         canonicalAllChanges = version

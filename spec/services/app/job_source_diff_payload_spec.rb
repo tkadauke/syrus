@@ -446,6 +446,45 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(job.diff_review_versions).to be_empty
   end
 
+  it "repairs a legacy empty All changes version when the branch diff is available" do
+    legacy = DiffReviewVersion.create!(
+      job: job,
+      version_index: 1,
+      base_sha: "main",
+      head_sha: "main",
+      source_key: "workflow:none:run:none",
+      label: "All changes",
+      reason: "source_diff",
+      files_snapshot: [],
+      metadata: { "range_kind" => "all_changes" }
+    )
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(commits: [
+        { sha: "branch-head", short_sha: "branch-h", message: "Current branch", date: Time.zone.parse("2026-05-02T12:00:00Z") }
+      ], merge_base_sha: "branch-base")
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "branch-base", "branch-head")
+      .and_return(files: [
+        { path: "app/models/implemented.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+implemented" }
+      ], truncated: false)
+
+    payload = described_class.build(job: job, user: user)
+
+    expect(payload.dig(:version, :id)).to eq(legacy.id)
+    expect(payload[:files].map { |file| file[:path] }).to eq([ "app/models/implemented.rb" ])
+    expect(legacy.reload).to have_attributes(
+      base_sha: "branch-base",
+      head_sha: "branch-head",
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
+      label: "All changes",
+      reason: "source_diff"
+    )
+    expect(legacy.files_snapshot.map { |file| file["path"] }).to eq([ "app/models/implemented.rb" ])
+    expect(DiffReviewVersion.default_for_review(job)).to eq(legacy)
+  end
+
   it "promotes an existing full-range run version to All changes when a later repair checkpoint is narrower" do
     workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
     step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")

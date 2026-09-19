@@ -315,16 +315,22 @@ module App
     end
 
     def source_run_for(base_sha:, head_sha:)
-      @job.runs
-          .includes(:step)
-          .where(base_sha: base_sha, head_sha: head_sha)
-          .reorder(created_at: :desc, id: :desc)
-          .first ||
-        @job.runs
-            .includes(:step)
-            .where(head_sha: head_sha)
-            .reorder(created_at: :desc, id: :desc)
-            .first
+      run_id = source_run_id_for(base_sha: base_sha, head_sha: head_sha)
+      run_id ? Run.includes(step: :workflow).find_by(id: run_id) : nil
+    end
+
+    # Keep this lookup narrow. `runs` has large text/blob columns such as
+    # prompt, agent_diff, and step_agent_diff; sorting full Run rows can exhaust
+    # MySQL's sort buffer on busy Jobs even when the result is one row.
+    def source_run_id_for(base_sha:, head_sha:)
+      source_run_scope(base_sha: base_sha, head_sha: head_sha).pick(:id) ||
+        source_run_scope(head_sha: head_sha).pick(:id)
+    end
+
+    def source_run_scope(base_sha: nil, head_sha:)
+      scope = Run.where(job_id: @job.id).select(:id).where(head_sha: head_sha)
+      scope = scope.where(base_sha: base_sha) if base_sha.present?
+      scope.reorder(created_at: :desc, id: :desc)
     end
 
     def version_json(version)

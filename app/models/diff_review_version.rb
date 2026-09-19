@@ -30,7 +30,9 @@ class DiffReviewVersion < ApplicationRecord
   end
 
   def self.default_for_review(job)
-    reusable_all_changes_for(job).latest_first.first || reviewable_for(job).latest_first.first
+    scope = reviewable_for(job).latest_first.to_a
+    scope.detect(&:reviewable_all_changes?) ||
+      scope.detect { |version| version.reason != "source_diff" }
   end
 
   def self.reusable_all_changes_for(job)
@@ -41,6 +43,10 @@ class DiffReviewVersion < ApplicationRecord
     scope = where(job: job)
     default_branch = job.repository&.default_branch.to_s.strip.presence
     default_branch ? scope.where.not(reason: "source_diff", head_sha: default_branch) : scope
+  end
+
+  def reviewable_all_changes?
+    reason == "source_diff" && files_snapshot.present? && base_sha.present? && head_sha.present? && base_sha != head_sha
   end
 
   # Best-effort provenance lookup for a Run/Workflow that wants to tag an

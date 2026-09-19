@@ -87,7 +87,9 @@ RSpec.describe App::DiffReviewCommentsPayload do
       source_key: "source_diff",
       label: "All changes",
       reason: "source_diff",
-      files_snapshot: [],
+      files_snapshot: [
+        { "path" => "app/models/widget.rb", "status" => "modified", "additions" => 1, "deletions" => 0, "patch" => "@@ -1 +1 @@\n+change" }
+      ],
       metadata: { "range_kind" => "all_changes" }
     )
 

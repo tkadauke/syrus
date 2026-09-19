@@ -43,6 +43,21 @@ describe("canonicalReviewVersions", () => {
     expect(canonicalReviewVersions([ version ])).toEqual([ version ])
   })
 
+  it("drops an empty legacy All changes version when real review versions exist", () => {
+    const emptyAllChanges = allChangesVersion({ id: 1, files_count: 0, base_sha: "main", head_sha: "main" })
+    const runVersion: DiffReviewVersion = {
+      ...allChangesVersion({ id: 2 }),
+      reason: "initial",
+      metadata: {},
+      run_id: 10,
+      base_sha: "a",
+      head_sha: "b",
+      files_count: 3
+    }
+
+    expect(canonicalReviewVersions([ emptyAllChanges, runVersion ])).toEqual([ runVersion ])
+  })
+
   it("does not affect non All-changes versions with distinct run ranges", () => {
     const rangeA: DiffReviewVersion = {
       ...allChangesVersion({ id: 1 }),
