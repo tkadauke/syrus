@@ -1161,6 +1161,24 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     )
   end
 
+  it "rejects creating an epic on a repository the user cannot access" do
+    sign_in_as(user)
+    private_repository = Factories.repository(user: Factories.user, owner: "other", name: "private")
+
+    expect {
+      post "/api/v1/app/epics", params: {
+        epic: {
+          title: "Borrow the forum",
+          repository_id: private_repository.id
+        }
+      }
+    }.not_to change(Epic, :count)
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+    expect(parse_body.dig("error", "message")).to eq("You do not have access to the target repository.")
+  end
+
   it "creates and immediately starts an epic when start is requested" do
     sign_in_as(user)
 
