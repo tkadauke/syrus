@@ -702,7 +702,8 @@ function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
     input: isPlainObject(call.raw_payload) ? redactToolCardValue(call.raw_payload) as Record<string, unknown> : {},
     resultBody: redactToolCardText(call.result_body),
     resultError: call.result_error,
-    parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult))
+    parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult)),
+    livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"]
   }
 }
 

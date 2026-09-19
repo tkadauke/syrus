@@ -176,7 +176,7 @@ export function renderRepoDocumentRead(context: ToolCardContext): ReactNode | nu
 }
 
 export function parseRepoDocumentAction(context: ToolCardContext, action: "create" | "delete"): DocumentAction | null {
-  const pending = parsePendingActionResult(context.parsedResult)
+  const pending = parsePendingActionResult(context)
   if (!pending) return null
 
   return {

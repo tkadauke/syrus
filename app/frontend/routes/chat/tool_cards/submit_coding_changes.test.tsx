@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import type { ChatPendingActionInline } from "../../../api/chats"
 import submitCodingChangesToolCard from "./submit_coding_changes"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -49,6 +50,47 @@ describe("submit_coding_changes tool card", () => {
 
     expect(screen.getByText("confirming")).toBeInTheDocument()
     expect(screen.getByText("Submit coding changes was auto-confirmed by the active goal policy.")).toBeInTheDocument()
+  })
+
+  it("prefers the live pending action's state over the frozen tool-result state", () => {
+    const live: ChatPendingActionInline = {
+      id: 88,
+      action: "submit_coding_changes",
+      state: "confirmed",
+      label: "Submit coding changes",
+      detail: null,
+      app_confirm_path: "/api/v1/app/chats/1/pending_actions/88/confirm",
+      app_reject_path: "/api/v1/app/chats/1/pending_actions/88/reject"
+    }
+    const context_ = context({
+      input: { branch: "syrus/coding-322", title: "Add dark mode toggle" },
+      parsedResult: { pending_action_id: 88, state: "pending", message: "Submit coding changes is pending operator confirmation." },
+      livePendingAction: live
+    })
+    render(<>{submitCodingChangesToolCard.renderExpanded(context_)}</>)
+
+    expect(screen.getByText("confirmed")).toBeInTheDocument()
+    expect(screen.queryByText("pending")).not.toBeInTheDocument()
+  })
+
+  it("ignores a live pending action for a different id", () => {
+    const live: ChatPendingActionInline = {
+      id: 99,
+      action: "submit_coding_changes",
+      state: "confirmed",
+      label: "Submit coding changes",
+      detail: null,
+      app_confirm_path: "/api/v1/app/chats/1/pending_actions/99/confirm",
+      app_reject_path: "/api/v1/app/chats/1/pending_actions/99/reject"
+    }
+    const context_ = context({
+      input: { branch: "syrus/coding-322", title: "Add dark mode toggle" },
+      parsedResult: { pending_action_id: 88, state: "pending", message: "Submit coding changes is pending operator confirmation." },
+      livePendingAction: live
+    })
+    render(<>{submitCodingChangesToolCard.renderExpanded(context_)}</>)
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
   })
 
   it("omits branch/title rows when the tool call carried no input", () => {

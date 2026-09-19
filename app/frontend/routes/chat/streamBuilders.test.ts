@@ -253,6 +253,57 @@ describe("renderChatMessages tool grouping", () => {
     expect(call.result_summary).toBe("Cancel requested · JOB-44 · pending #7")
   })
 
+  // ChatPendingAction::anchor_to_tool_call! always anchors onto the
+  // tool_use message (and actively strips pending_action_id off every
+  // other message, including the paired tool_result) -- so that's the
+  // only message a live pending_action can come from in production.
+  it("is already available on the call before the tool_result even arrives", () => {
+    const live: ChatMessageItem["pending_action"] = {
+      id: 501,
+      action: "submit_chat_feedback",
+      state: "pending",
+      label: "Submit feedback",
+      detail: null,
+      app_confirm_path: "/api/v1/app/chats/122/pending_actions/501/confirm",
+      app_reject_path: "/api/v1/app/chats/122/pending_actions/501/reject"
+    }
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_feedback", toolName: "submit_chat_feedback", input: { job_id: 4048 }, pending_action: live })
+    ])
+
+    expect(group(items[0]).calls[0].pending_action).toEqual(live)
+  })
+
+  it("does not let a tool_result with no pending_action of its own clobber what the tool_use message already seeded", () => {
+    const live: ChatMessageItem["pending_action"] = {
+      id: 501,
+      action: "submit_chat_feedback",
+      state: "confirmed",
+      label: "Submit feedback",
+      detail: null,
+      app_confirm_path: "/api/v1/app/chats/122/pending_actions/501/confirm",
+      app_reject_path: "/api/v1/app/chats/122/pending_actions/501/reject"
+    }
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_feedback", toolName: "submit_chat_feedback", input: { job_id: 4048 }, pending_action: live }),
+      toolResult(2, {
+        toolUseId: "tu_feedback",
+        content: JSON.stringify({ pending_action_id: 501, state: "pending", message: "Chat feedback requires operator confirmation." })
+      })
+    ])
+
+    expect(group(items[0]).calls[0].pending_action).toEqual(live)
+  })
+
+  it("sets the call's pending action to null when neither message ever got one", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_1", content: "class A" })
+    ])
+
+    expect(group(items[0]).calls[0].pending_action).toBeNull()
+  })
+
   it("groups consecutive read-only calls under a compact inspection summary", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
