@@ -335,6 +335,13 @@ class McpToolRegistry
         AgentRole::WORKFLOW_MANUAL
       ]
 
+      concern_reporting_roles = [
+        AgentRole::WORKFLOW_IMPLEMENT,
+        AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+        AgentRole::WORKFLOW_REBASE_CONFLICT,
+        AgentRole::WORKFLOW_MANUAL
+      ]
+
       metadata_roles = [
         AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
         AgentRole::WORKFLOW_MANUAL
@@ -347,8 +354,12 @@ class McpToolRegistry
         workflow(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::StopPreviewTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::ReadPreviewLogTool, required_roles: workflow_roles),
-        workflow(Mcp::Tools::ReportMainConcernTool, required_roles: workflow_roles, mutation: true),
-        workflow(Mcp::Tools::RecordIsolatedReproTool, required_roles: workflow_roles, mutation: true),
+        # Reviewers only see a diff (and, for visual review, a running preview)
+        # and cannot distinguish real main-branch regressions from transient
+        # infrastructure failures, so granting these would produce false quorum
+        # signals.
+        workflow(Mcp::Tools::ReportMainConcernTool, required_roles: concern_reporting_roles, mutation: true),
+        workflow(Mcp::Tools::RecordIsolatedReproTool, required_roles: concern_reporting_roles, mutation: true),
         workflow(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitReportTool, capability: :submit_report, required_roles: summary_roles, mutation: true),
