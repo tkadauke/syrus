@@ -5,7 +5,7 @@ RSpec.describe ChatGoalWakeup, type: :service do
 
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
-  let(:chat) { ChatSession.create!(user: user, repository: repository) }
+  let(:chat) { ChatSession.create!(user: user, repository: repository, chat_provider: "claude") }
   let(:goal) { chat.chat_goals.create!(prompt: "Ship the launch plan") }
 
   before { clear_enqueued_jobs }
@@ -102,16 +102,23 @@ RSpec.describe ChatGoalWakeup, type: :service do
     expect(ChatTurnJob).not_to have_been_enqueued
   end
 
-  it "publishes wakeups only when a goal-linked Job closes" do
+  it "publishes wakeups when a goal-linked Job reaches implementation, approval, and close milestones" do
     job = Factories.job_record(user: user, repository: repository, state: "queued", chat_goal: goal, issue_number: 12)
 
     expect {
       job.update!(state: "implemented")
       job.update!(state: "approved")
       job.update!(state: "closed", closure_reason: "pr_merged")
-    }.to change(ChatScopedEvent.where(chat_session: chat), :count).by(1)
+    }.to change(ChatScopedEvent.where(chat_session: chat), :count).by(3)
 
-    expect(chat.scoped_events.last.source_kind).to eq("goal_job_closed")
+    events = chat.scoped_events.order(:id).last(3)
+    expect(events.map(&:source_kind)).to eq(%w[goal_job_implemented goal_job_approved goal_job_closed])
+    expect(events.map { |event| event.payload.dig("work_state", "state") }).to eq(%w[implemented approved closed])
+    expect(events.map { |event| event.payload["summary"] }).to eq([
+      "#{job.slug} reached implemented.",
+      "#{job.slug} was approved.",
+      "#{job.slug} closed with pr_merged."
+    ])
   end
 
   it "publishes wakeups when a goal-linked Epic completes" do

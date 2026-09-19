@@ -826,6 +826,8 @@ class Job < ApplicationRecord
   after_update_commit :poll_pr_checks_after_approval, if: :saved_change_to_approved?
   after_update_commit :dispatch_upstream_export_after_approval, if: :saved_change_to_approved?
   after_update_commit :enqueue_landing_queue_processor, if: :saved_change_needs_landing_queue_processor?
+  after_update_commit :publish_goal_implemented_event, if: :saved_change_to_implemented?
+  after_update_commit :publish_goal_approved_event, if: :saved_change_to_approved?
   after_update_commit :publish_goal_closed_event, if: :saved_change_to_closed?
   after_update_commit :publish_job_upserted_event
   after_update_commit :broadcast_app_job_updated
