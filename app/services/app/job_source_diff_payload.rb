@@ -245,10 +245,19 @@ module App
     end
 
     def existing_version_for(base_sha:, head_sha:)
-      @job.diff_review_versions
-          .where(base_sha: base_sha, head_sha: head_sha)
-          .latest_first
-          .first
+      version_id = @job.diff_review_versions
+                       .where(base_sha: base_sha, head_sha: head_sha)
+                       .latest_first
+                       .pick(:id)
+      version_id ? @job.diff_review_versions.find_by(id: version_id) : nil
+    end
+
+    def latest_all_changes_version
+      version_id = @job.diff_review_versions
+                       .all_changes
+                       .latest_first
+                       .pick(:id)
+      version_id ? @job.diff_review_versions.find_by(id: version_id) : nil
     end
 
     def fixture_diff_review_version(fixture)
@@ -320,7 +329,7 @@ module App
     end
 
     def diff_versions_json
-      @job.diff_review_versions.includes(:workflow, :run).ordered.map do |version|
+      diff_review_versions_for_index.map do |version|
         {
           id: version.id,
           version_index: version.version_index,
@@ -339,12 +348,29 @@ module App
           label: version.label,
           reason: version.reason,
           truncated: version.truncated,
-          files_count: Array(version.files_snapshot).size,
+          files_count: version.files_snapshot_count.to_i,
           comments_count: comments_count_for(version),
           metadata: version.metadata || {},
           created_at: version.created_at&.iso8601
         }
       end
+    end
+
+    def diff_review_versions_for_index
+      @job.diff_review_versions
+          .select(
+            :id, :job_id, :workflow_id, :run_id, :version_index,
+            :base_sha, :head_sha, :base_ref, :head_ref, :trigger_kind,
+            :label, :reason, :truncated, :metadata, :created_at,
+            Arel.sql("#{files_snapshot_count_sql} AS files_snapshot_count")
+          )
+          .includes(:workflow, :run)
+          .ordered
+    end
+
+    def files_snapshot_count_sql
+      adapter = DiffReviewVersion.connection.adapter_name.to_s.downcase
+      adapter.include?("mysql") ? "JSON_LENGTH(files_snapshot)" : "json_array_length(files_snapshot)"
     end
 
     def comments_count_for(version)
