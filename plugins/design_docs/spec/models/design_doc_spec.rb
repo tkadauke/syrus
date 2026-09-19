@@ -15,6 +15,22 @@ RSpec.describe DesignDocs::DesignDoc, type: :model do
     expect(doc.display_name).to eq("DOC-#{doc.id} Checkout design")
   end
 
+  it "normalizes HTML entities in titles" do
+    doc = described_class.create!(owner_user: owner, title: " Codebase Bug &amp; Inconsistency Sweep ", markdown: "# Sweep")
+
+    expect(doc.reload[:title]).to eq("Codebase Bug & Inconsistency Sweep")
+    expect(doc.title).to eq("Codebase Bug & Inconsistency Sweep")
+    expect(doc.display_name).to eq("DOC-#{doc.id} Codebase Bug & Inconsistency Sweep")
+  end
+
+  it "decodes legacy titles that were stored with HTML entities" do
+    doc = described_class.create!(owner_user: owner, title: "Codebase Bug", markdown: "# Sweep")
+    doc.update_column(:title, "Codebase Bug &amp; Inconsistency Sweep")
+
+    expect(doc.reload[:title]).to eq("Codebase Bug &amp; Inconsistency Sweep")
+    expect(doc.title).to eq("Codebase Bug & Inconsistency Sweep")
+  end
+
   it "links to multiple repositories through a unique join model" do
     second_repo = Factories.repository(user: owner)
     doc = described_class.create!(owner_user: owner, title: "Architecture", markdown: "# Architecture")
