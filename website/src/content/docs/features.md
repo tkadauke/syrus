@@ -241,7 +241,9 @@ it is not queued to repair the grader failure.
 
 ## Local Mode
 
-Local Mode is on by default (`local_mode` feature flag). It lets a chat agent
+Local Mode is off by default for fresh installs (`local_mode` feature flag) —
+it opens an exec bridge onto the operator's own machine, so it's an explicit
+opt-in rather than a Labs-default-on toggle. It lets a chat agent
 read and write files, run commands, and inspect git state directly on an
 operator's own machine over a reverse WebSocket tunnel, instead of a
 server-side clone. Switch a chat to Local mode from the chat mode selector,
@@ -250,15 +252,14 @@ then run the paired `syrus local --chat <chat_session_id> --token
 repository checkout. Once paired, the daemon can read/write files, run
 commands, and inspect git status/diff against that checkout on the operator's
 own machine; a session that drops past its heartbeat timeout needs a fresh
-pairing command from the chat UI to reconnect. An admin can turn it off
+pairing command from the chat UI to reconnect. An admin can turn it on
 instance-wide from Admin → Features.
 
 ## Visual Review
 
-Visual Review is on by default (`visual_review` feature flag). When enabled,
-Syrus adds a headless-browser QA pass to the implementation loop. After the
-agent implements a change, an independent reviewer agent boots its own
-preview of the running app, decides
+Visual Review is on by default. Syrus adds a headless-browser QA pass to the
+implementation loop. After the agent implements a change, an independent
+reviewer agent boots its own preview of the running app, decides
 for itself whether the change is even visually testable (skipping invisible or
 backend-only diffs), and — if so — drives a real browser against it: clicking
 through the actual feature, not just loading the homepage. It captures
@@ -272,12 +273,10 @@ Operators can also trigger a visual review pass on demand from the Job detail
 page's "Run visual review" action — useful for a fresh look after
 implementation, or to cover a pass that was skipped or never configured.
 
-An admin can turn the flag off instance-wide from Admin → Features. A
-repository's `.syrus.yml` can override the instance-wide default per repo,
-bound how many review rounds run, restrict visual review to specific changed
-files, and record seed notes (demo login, a record to look for) so the
-reviewer can reach an authenticated or populated view of the app instead of a
-blank one.
+A repository's `.syrus.yml` can opt a repository out, bound how many review
+rounds run, restrict visual review to specific changed files, and record seed
+notes (demo login, a record to look for) so the reviewer can reach an
+authenticated or populated view of the app instead of a blank one.
 
 ## Review Plan
 

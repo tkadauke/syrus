@@ -2,7 +2,7 @@
 
 Syrus uses feature flags to gate experimental and operational behaviors. Flags are declared in `config/features.yml`, parsed through `FeatureRegistry`, and toggled in the admin UI under the Features tab (or via Rails console: `Feature.find_by(slug: 'slug').update(enabled: true)`).
 
-All flags are typed booleans. Most default to `false` (disabled); `epicless_job_bundling` defaults to `true` (enabled), and `coding_mode`, `local_mode`, and `visual_review` also default to `true` (enabled) since their September 2026 graduation out of Labs-preview status — they are code-complete, well-tested, and gated by product/security choice rather than incompleteness. An instance that explicitly turned one of these off keeps that choice: `Features::SyncFromYaml` only seeds `enabled` from `default` for a brand-new `Feature` row, never overwriting an existing operator override when the YAML default changes. Keep the YAML declaration, `FeatureRegistry` metadata, and this reference aligned when adding or changing a flag.
+All flags are typed booleans. Most default to `false` (disabled); `epicless_job_bundling` and `coding_mode` default to `true` (enabled) — both are code-complete, well-tested, and gated by product/security choice rather than incompleteness. `local_mode` defaults to `false`: it opens an exec bridge onto the operator's own machine, which is too consequential for a Labs-default-on toggle on a fresh install even though the feature itself is mature. `visual_review` no longer has an instance-wide Feature flag at all (see its own section below) — it is unconditionally on by default, controllable only per repository via `.syrus.yml`. An instance that explicitly turned a still-flagged feature on or off keeps that choice: `Features::SyncFromYaml` only seeds `enabled` from `default` for a brand-new `Feature` row, never overwriting an existing operator override when the YAML default changes. Keep the YAML declaration, `FeatureRegistry` metadata, and this reference aligned when adding or changing a flag.
 
 ## chat_speech_to_text
 
@@ -35,15 +35,13 @@ Reclamation is safe and transparent: before deleting, standalone default-branch 
 
 ## local_mode
 
-**Category:** Labs · **On by default**
+**Category:** Labs · **Off by default**
 
-Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally, without requiring a server-side clone. Pairing the CLI to a chat requires a `--chat`/`--token` command copied from the chat UI's Local Mode banner — see the Local Mode documentation for the full pairing flow.
+Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally, without requiring a server-side clone. Pairing the CLI to a chat requires a `--chat`/`--token` command copied from the chat UI's Local Mode banner — see the Local Mode documentation for the full pairing flow. Off by default for fresh installs: it opens an exec bridge onto the operator's own machine, which is reasonable for a trusted operator who opts in but too consequential to ship on by default.
 
-## visual_review
+## visual_review (removed as a feature flag)
 
-**Category:** Labs · **On by default**
-
-Instance-wide default for the visual_review feature: a headless-browser QA pass the worker agent runs against its own in-step preview to catch visible defects before opening a PR, capturing screenshot artifacts for operator review. `Feature.visual_review_enabled?` is the instance-wide default; when enabled instance-wide, a repository's `.syrus.yml` `visual_review.enabled` setting can still override the default per repo (and vice versa when disabled instance-wide). See the Visual Review documentation for the full config block, step behavior, seeding requirements, and the browser tool set's loopback restriction, and the `visual_review` section of the `.syrus.yml` reference for the per-repo `rounds`, `when_files_changed`, and `seed_notes` fields.
+Visual review — the headless-browser QA pass the worker agent runs against its own in-step preview to catch visible defects before opening a PR, capturing screenshot artifacts for operator review — is unconditionally on by default and is no longer gated by an instance-wide Feature flag; `config/features.yml` has no `visual_review` entry and `Feature.visual_review_enabled?` does not exist. It was already independently gated per repository via `.syrus.yml`'s `visual_review.enabled`, so the instance-wide flag became redundant once it was unconditionally available. A repository's `.syrus.yml` `visual_review.enabled` setting still overrides the always-on default per repo. See the Visual Review documentation for the full config block, step behavior, seeding requirements, and the browser tool set's loopback restriction, and the `visual_review` section of the `.syrus.yml` reference for the per-repo `rounds`, `when_files_changed`, and `seed_notes` fields.
 
 ## chat_context_compaction
 
@@ -212,7 +210,9 @@ On a successful claim, the report routes through `Observability::EventJobFiler` 
 
 ## persistent_mcp_sidecar
 
-**Category:** Labs
+**Category:** Labs · **Off by default · hidden from the Admin → Features Labs list**
+
+Still an unfinished daemon skeleton (see below), not yet consumed by workflow agents, so it is deliberately excluded from the visible Labs feature list a self-hoster browses in Admin → Features (`Api::V1::App::Admin::FeaturesController::ALWAYS_HIDDEN_SLUGS`) — there is nothing for an operator to meaningfully opt into yet. The flag is still fully functional and toggleable via Rails console (see "Enabling" below); it just isn't discoverable as a toggle.
 
 Enables a worker-local persistent MCP sidecar daemon (`PersistentMcpDaemon`, built on `Puma::Server`) that boots once per worker, holds an in-memory `MCP::Server`, and serves `/healthz` plus a stateless `/mcp` HTTP transport bound to loopback only (`SYRUS_PERSISTENT_MCP_HOST`, default `127.0.0.1`; `SYRUS_PERSISTENT_MCP_PORT`, default `4805`). The goal is to avoid re-spawning a fresh stdio MCP sidecar process for every chat turn or workflow Run.
 
