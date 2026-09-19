@@ -27,6 +27,8 @@ RSpec.describe ChatSession do
     expect(session.cumulative_input_tokens).to eq(0)
     expect(session.cumulative_output_tokens).to eq(0)
     expect(session.cumulative_cost).to eq(0)
+    expect(session.daily_cost).to eq(0)
+    expect(session.daily_cost_date).to be_nil
   end
 
   it "uses preloaded repository attachments when resolving the primary repository" do
@@ -147,13 +149,15 @@ RSpec.describe ChatSession do
       user: repo.user,
       cumulative_input_tokens: -1,
       cumulative_output_tokens: -1,
-      cumulative_cost_usd: -0.01
+      cumulative_cost_usd: -0.01,
+      daily_cost_usd: -0.01
     )
 
     expect(session).not_to be_valid
     expect(session.errors[:cumulative_input_tokens]).to be_present
     expect(session.errors[:cumulative_output_tokens]).to be_present
     expect(session.errors[:cumulative_cost_usd]).to be_present
+    expect(session.errors[:daily_cost_usd]).to be_present
   end
 
   it "reports the cumulative cost supplied by Claude CLI" do
@@ -193,6 +197,37 @@ RSpec.describe ChatSession do
     expect(session.reload.cumulative_input_tokens).to eq(12_500)
     expect(session.cumulative_output_tokens).to eq(3_225)
     expect(session.cumulative_cost).to eq(BigDecimal("0.014321"))
+    expect(session.daily_cost).to eq(BigDecimal("0.004321"))
+    expect(session.daily_cost_date).to eq(Date.current)
+  end
+
+  it "resets daily cost tracking when a charged turn lands on a new day" do
+    yesterday = Date.current - 1.day
+    session = described_class.create!(
+      repository: repo,
+      user: repo.user,
+      cumulative_cost_usd: 0.50,
+      daily_cost_usd: 0.25,
+      daily_cost_date: yesterday
+    )
+    result = AgentInvocation::Result.new(
+      turns: 1,
+      exit_status: 0,
+      timed_out: false,
+      is_error: false,
+      outcome: "success",
+      final_text: "Done",
+      session_id: "claude-session",
+      cost_usd: 0.004321
+    )
+
+    today_noon = Time.zone.local(Date.current.year, Date.current.month, Date.current.day, 12, 0, 0)
+
+    session.record_turn_usage!(result, at: today_noon)
+
+    expect(session.reload.cumulative_cost).to eq(BigDecimal("0.504321"))
+    expect(session.daily_cost).to eq(BigDecimal("0.004321"))
+    expect(session.daily_cost_date).to eq(Date.current)
   end
 
   it "records very large provider token counts" do

@@ -41,7 +41,13 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
       admin_job.update_columns(state: "closed", closure_reason: "pr_merged", epic_id: epic.id)
       set_run_cost(initial_run(admin_job), 1.25, created_at: Time.zone.parse("2026-06-03 12:00:00"))
       set_run_cost(initial_run(other_job), 2.50, created_at: Time.zone.parse("2026-06-04 12:00:00"))
-      ChatSession.create!(user: admin, cumulative_cost_usd: 0.75, created_at: Time.zone.parse("2026-06-04 12:00:00"))
+      ChatSession.create!(
+        user: admin,
+        cumulative_cost_usd: 0.75,
+        daily_cost_usd: 9.99,
+        daily_cost_date: Date.new(2026, 6, 4),
+        created_at: Time.zone.parse("2026-06-04 12:00:00")
+      )
 
       sign_in_as(admin)
       get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-05" }

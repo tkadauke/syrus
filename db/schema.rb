@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_19_123000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -717,6 +717,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
     t.string "daemon_branch"
     t.boolean "daemon_connected", default: false, null: false
     t.string "daemon_repo"
+    t.date "daily_cost_date"
+    t.decimal "daily_cost_usd", precision: 12, scale: 6, default: "0.0", null: false
     t.datetime "deleted_at"
     t.integer "deleted_by_user_id"
     t.datetime "hidden_at"
@@ -749,6 +751,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
     t.index ["share_token"], name: "index_chat_sessions_on_share_token", unique: true
     t.index ["turn_in_flight", "last_message_at"], name: "idx_chat_sessions_stale_turns"
     t.index ["user_id", "cumulative_cost_usd"], name: "idx_chat_sessions_spending_user_cost"
+    t.index ["user_id", "daily_cost_date", "daily_cost_usd"], name: "idx_chat_sessions_daily_spend"
     t.index ["user_id", "deleted_at", "hidden_at", "system_kind", "pinned", "last_message_at", "created_at", "id"], name: "idx_chat_sessions_active_index_order"
     t.index ["user_id", "hidden_at", "system_kind", "pinned", "last_message_at", "created_at", "id"], name: "idx_chat_sessions_index_order"
     t.index ["user_id", "hidden_at"], name: "index_chat_sessions_on_user_id_and_hidden_at"
