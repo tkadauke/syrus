@@ -935,5 +935,4 @@ RSpec.describe MuseInvocation do
       end
     end
   end
-
 end
