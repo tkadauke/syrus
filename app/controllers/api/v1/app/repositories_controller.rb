@@ -29,40 +29,44 @@ module Api
         def owners
           render json: GithubClient.for_user(Current.user).accessible_owners
         rescue ArgumentError
-          render json: { error: "no_token" }
+          render_error("no_token", "No GitHub token is configured.", status: :unprocessable_content)
         rescue Octokit::Unauthorized, Octokit::Forbidden
-          render json: { error: "unauthorized" }
-        rescue StandardError
-          render json: { error: "error" }
+          render_error("unauthorized", "GitHub rejected the credentials.", status: :bad_gateway)
+        rescue StandardError => e
+          render_unexpected_github_selector_error(e, action: "owners")
         end
 
         def repos
           owner = params[:owner].to_s.strip
-          return render json: { error: "missing_params" } if owner.blank?
+          return render_error("missing_params", "Owner is required.", status: :bad_request) if owner.blank?
 
           owner_type = params[:owner_type].to_s.strip
           render json: { repos: GithubClient.for_user(Current.user).owner_repos(owner, owner_type: owner_type) }
         rescue ArgumentError
-          render json: { error: "no_token" }
-        rescue Octokit::NotFound, Octokit::Unauthorized, Octokit::Forbidden
-          render json: { error: "not_found" }
-        rescue StandardError
-          render json: { error: "error" }
+          render_error("no_token", "No GitHub token is configured.", status: :unprocessable_content)
+        rescue Octokit::NotFound
+          render_error("not_found", "Repository owner was not found or is not accessible.", status: :not_found)
+        rescue Octokit::Unauthorized, Octokit::Forbidden
+          render_error("not_found", "Repository owner was not found or is not accessible.", status: :bad_gateway)
+        rescue StandardError => e
+          render_unexpected_github_selector_error(e, action: "repos")
         end
 
         def branches
           owner = params[:owner].to_s.strip
           name = params[:name].to_s.strip
           if owner.blank? || name.blank?
-            render json: { error: "missing_params" }
+            render_error("missing_params", "Owner and repository name are required.", status: :bad_request)
             return
           end
 
           render json: GithubClient.for_user(Current.user).repo_branches("#{owner}/#{name}")
-        rescue Octokit::NotFound, Octokit::Unauthorized, Octokit::Forbidden
-          render json: { error: "not_found" }
-        rescue StandardError
-          render json: { error: "error" }
+        rescue Octokit::NotFound
+          render_error("not_found", "Repository was not found or is not accessible.", status: :not_found)
+        rescue Octokit::Unauthorized, Octokit::Forbidden
+          render_error("not_found", "Repository was not found or is not accessible.", status: :bad_gateway)
+        rescue StandardError => e
+          render_unexpected_github_selector_error(e, action: "branches")
         end
 
         def create
@@ -1272,6 +1276,14 @@ module Api
 
         def repository_param_present?(attrs, key)
           attrs.key?(key) || attrs.key?(key.to_s)
+        end
+
+        def render_unexpected_github_selector_error(error, action:)
+          Rails.logger.error(
+            "[RepositoriesController] GitHub selector #{action} failed unexpectedly: #{error.class}: #{error.message}\n" \
+              "#{Array(error.backtrace).first(5).join("\n")}"
+          )
+          render_error("github_selector_error", "GitHub repository metadata could not be loaded.", status: :internal_server_error)
         end
       end
     end

@@ -1501,8 +1501,21 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     get "/api/v1/app/repositories/owners"
 
-    expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("error" => "no_token")
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("no_token")
+  end
+
+  it "500s and logs unexpected owner selector errors" do
+    sign_in_as(user)
+    allow(GithubClient).to receive(:for_user).and_raise(StandardError, "boom")
+    allow(Rails.logger).to receive(:error)
+
+    get "/api/v1/app/repositories/owners"
+
+    expect(response).to have_http_status(:internal_server_error)
+    expect(parse_body.dig("error", "code")).to eq("github_selector_error")
+    expect(Rails.logger).to have_received(:error)
+      .with(/GitHub selector owners failed unexpectedly: StandardError: boom/)
   end
 
   it "returns repositories for a selected owner" do
@@ -1547,6 +1560,21 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
   end
 
+  it "500s and logs unexpected repository selector errors" do
+    sign_in_as(user)
+    client = instance_double(GithubClient)
+    allow(client).to receive(:owner_repos).and_raise(StandardError, "boom")
+    allow(GithubClient).to receive(:for_user).and_return(client)
+    allow(Rails.logger).to receive(:error)
+
+    get "/api/v1/app/repositories/repos", params: { owner: "john", owner_type: "user" }
+
+    expect(response).to have_http_status(:internal_server_error)
+    expect(parse_body.dig("error", "code")).to eq("github_selector_error")
+    expect(Rails.logger).to have_received(:error)
+      .with(/GitHub selector repos failed unexpectedly: StandardError: boom/)
+  end
+
   it "returns branches for a selected repository" do
     sign_in_as(user)
     allow(GithubClient).to receive(:for_user).and_return(
@@ -1557,6 +1585,21 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body).to eq("branches" => [ "main", "trunk" ], "default_branch" => "main")
+  end
+
+  it "500s and logs unexpected branch selector errors" do
+    sign_in_as(user)
+    client = instance_double(GithubClient)
+    allow(client).to receive(:repo_branches).and_raise(StandardError, "boom")
+    allow(GithubClient).to receive(:for_user).and_return(client)
+    allow(Rails.logger).to receive(:error)
+
+    get "/api/v1/app/repositories/branches", params: { owner: "john", name: "alpha" }
+
+    expect(response).to have_http_status(:internal_server_error)
+    expect(parse_body.dig("error", "code")).to eq("github_selector_error")
+    expect(Rails.logger).to have_received(:error)
+      .with(/GitHub selector branches failed unexpectedly: StandardError: boom/)
   end
 
   it "includes feedback_policy in the edit form payload" do
