@@ -596,7 +596,6 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [summary, setSummary] = useState("")
   const [summaryVisible, setSummaryVisible] = useState(false)
   const [selection, setSelection] = useState<SelectionRange>(emptySelection)
-  const [commentBody, setCommentBody] = useState("")
   const [focusedThreadId, setFocusedThreadId] = useState<number | null>(null)
   const [focusedSuggestionId, setFocusedSuggestionId] = useState<number | null>(null)
   const [replyBodies, setReplyBodies] = useState<Record<number, string>>({})
@@ -692,9 +691,8 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     onSuccess: (payload) => onDocChange(payload.design_doc, t("notice_controls_updated"))
   })
   const commentMutation = useMutation({
-    mutationFn: () => createDesignDocComment(doc.id, { body: commentBody, ...anchorPayload(selection) }),
+    mutationFn: (body: string) => createDesignDocComment(doc.id, { body, ...anchorPayload(selection) }),
     onSuccess: (payload) => {
-      setCommentBody("")
       setSelection(emptySelection())
       onDocChange(payload.design_doc, t("notice_comment_added"))
     }
@@ -1153,7 +1151,6 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       </section>
       <aside className="space-y-4">
           <ThreadPanel
-          commentBody={commentBody}
           commentPending={commentMutation.isPending}
           composerRef={newThreadComposerRef}
           doc={doc}
@@ -1174,8 +1171,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           threadRefs={threadRefs}
           onFocus={focusThread}
           onFocusSuggestion={focusSuggestion}
-          onComment={() => commentMutation.mutate()}
-          onCommentChange={setCommentBody}
+          onComment={(body, onSuccess) => commentMutation.mutate(body, { onSuccess })}
           onReply={(threadId) => {
             const body = replyBodies[threadId]?.trim()
             if (body) replyMutation.mutate({ threadId, body })
@@ -1686,10 +1682,9 @@ function activeRailEntries({ doc, historicalVersion, historicalVersionLoading }:
   return { viewingHistory, entries }
 }
 
-function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, railEntries, railLayout, railContainerRef, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+function ThreadPanel({ canComment, canReviewSuggestions, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, railEntries, railLayout, railContainerRef, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
   canComment: boolean
   canReviewSuggestions: boolean
-  commentBody: string
   commentPending: boolean
   composerRef: React.MutableRefObject<HTMLInputElement | null>
   doc: DesignDocDetail
@@ -1706,8 +1701,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
   selection: SelectionRange
   suggestionRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
   threadRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
-  onComment: () => void
-  onCommentChange: (body: string) => void
+  onComment: (body: string, onSuccess: () => void) => void
   onFocus: (threadId: number) => void
   onFocusSuggestion: (suggestionId: number) => void
   onReply: (threadId: number) => void
@@ -1716,6 +1710,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
   const { t } = useT("design_docs")
+  const [commentBody, setCommentBody] = useState("")
   const viewingHistory = historicalVersionLoading || historicalVersion != null
   const interactionsReadOnly = readOnly || viewingHistory
   const hasSelection = selection.end > selection.start && !interactionsReadOnly && canComment
@@ -1726,7 +1721,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
     if (commentPending || commentBody.trim().length === 0) return
 
     event.preventDefault()
-    onComment()
+    onComment(commentBody, () => setCommentBody(""))
   }
 
   return (
@@ -1747,7 +1742,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
             <div className="mt-3 flex gap-2">
               <Input
                 aria-label={t("aria_new_thread_comment")}
-                onChange={(event) => onCommentChange(event.target.value)}
+                onChange={(event) => setCommentBody(event.target.value)}
                 onKeyDown={submitCommentOnShortcut}
                 placeholder={t("comment")}
                 ref={composerRef}
@@ -1755,7 +1750,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
               />
               <Button
                 disabled={commentPending || commentBody.trim().length === 0}
-                onClick={onComment}
+                onClick={() => onComment(commentBody, () => setCommentBody(""))}
                 size="sm"
                 variant="secondary"
               >

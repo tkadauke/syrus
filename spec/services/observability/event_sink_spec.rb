@@ -246,6 +246,7 @@ RSpec.describe Observability::EventSink do
     end
 
     it "writes as soon as the buffer reaches the size threshold, without waiting" do
+      stub_const("Observability::EventSink::PERFORMANCE_RATE_LIMIT_PER_MINUTE", Observability::EventSink::FLUSH_THRESHOLD)
       buffer_performance(Observability::EventSink::FLUSH_THRESHOLD)
 
       expect(described_class.flush_due?(:performance, now: Time.current)).to be true
@@ -282,7 +283,7 @@ RSpec.describe Observability::EventSink do
 
   describe "rate limiting" do
     it "counts events past the per-minute ceiling as dropped instead of buffering them" do
-      stub_const("Observability::EventSink::RATE_LIMIT_PER_MINUTE", 5)
+      stub_const("Observability::EventSink::PERFORMANCE_RATE_LIMIT_PER_MINUTE", 5)
 
       8.times do |i|
         described_class.append(kind: :performance, event: { "event" => "syrus.performance.slow_sql", "phase" => "p#{i}", "occurred_at" => Time.current.iso8601(6) })
@@ -293,7 +294,7 @@ RSpec.describe Observability::EventSink do
     end
 
     it "refills the allowance in the next window" do
-      stub_const("Observability::EventSink::RATE_LIMIT_PER_MINUTE", 2)
+      stub_const("Observability::EventSink::PERFORMANCE_RATE_LIMIT_PER_MINUTE", 2)
       3.times { |i| described_class.append(kind: :performance, event: { "event" => "e", "phase" => "a#{i}", "occurred_at" => Time.current.iso8601(6) }) }
 
       travel_to(61.seconds.from_now) do

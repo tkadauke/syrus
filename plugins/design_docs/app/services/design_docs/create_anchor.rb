@@ -14,10 +14,14 @@ module DesignDocs
     end
 
     def call
+      anchor_kind = attributes[:anchor_kind].presence || default_anchor_kind
+      # Fail stale client selections before taking the document write lock.
+      # The range is revalidated under the lock below before mutating.
+      resolve_range!(anchor_kind)
+
       design_doc.lock!
       base_version = design_doc.current_version
       marker_id = SecureRandom.uuid
-      anchor_kind = attributes[:anchor_kind].presence || default_anchor_kind
       resolved_range = resolve_range!(anchor_kind)
       inserted = AnchorMarkers.insert(
         markdown: design_doc.markdown,

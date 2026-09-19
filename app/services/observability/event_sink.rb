@@ -34,7 +34,8 @@ module Observability
     # the thing this cap exists to break. Past the ceiling events are counted in
     # `stats[:dropped]` rather than written, so the signal degrades to a sample
     # instead of amplifying the incident it is describing.
-    RATE_LIMIT_PER_MINUTE = Integer(ENV["SYRUS_OBSERVABILITY_RATE_LIMIT_PER_MINUTE"], exception: false) || 600
+    RATE_LIMIT_PER_MINUTE = Integer(ENV["SYRUS_OBSERVABILITY_RATE_LIMIT_PER_MINUTE"], exception: false) || 300
+    PERFORMANCE_RATE_LIMIT_PER_MINUTE = Integer(ENV["SYRUS_PERFORMANCE_OBSERVABILITY_RATE_LIMIT_PER_MINUTE"], exception: false) || 120
 
     @mutex = Mutex.new
     @flush_mutex = Mutex.new
@@ -194,7 +195,8 @@ module Observability
     # emits. A burst can cross into a new window early, which is a fine trade
     # for a sampler whose job is to bound the worst case, not to smooth it.
     def rate_limited?(kind)
-      return false if RATE_LIMIT_PER_MINUTE <= 0
+      limit = rate_limit_per_minute(kind)
+      return false if limit <= 0
 
       @mutex.synchronize do
         now = Time.current
@@ -204,7 +206,7 @@ module Observability
           @rate_window_count[kind] = 0
         end
 
-        if @rate_window_count[kind] >= RATE_LIMIT_PER_MINUTE
+        if @rate_window_count[kind] >= limit
           @dropped[kind] += 1
           true
         else
@@ -212,6 +214,10 @@ module Observability
           false
         end
       end
+    end
+
+    def rate_limit_per_minute(kind)
+      kind.to_sym == :performance ? PERFORMANCE_RATE_LIMIT_PER_MINUTE : RATE_LIMIT_PER_MINUTE
     end
 
     # `clear!` means "this sink is as it was at boot", so the pacing counters go
