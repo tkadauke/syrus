@@ -136,6 +136,11 @@ context and highlighted snippets. `read_chat_messages` returns `chat_title`,
 neutral "another page is available" signal because page direction is defined
 by the tool's ordering contract, not by the field name.
 
+Job-navigation MCP tools use the same compact-card posture. `search_jobs`
+searches across all repositories visible to the current chat user by Job title
+and stored body text, accepts an optional exact `state` filter, defaults to 20
+results, and caps `limit` at 100 to match sibling list tools.
+
 ## Group chats
 
 `chat_sessions.conversation_kind` is `direct` (default) or `group`, and is
