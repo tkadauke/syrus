@@ -7,7 +7,7 @@ import { Input } from "../../components/Input"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
-import { appendSearch, isSupervisorChat, withRoutePrefix } from "./utils"
+import { appendSearch, withRoutePrefix } from "./utils"
 
 // AddAttachment: the composer's "+" popover picker for attaching a
 // Repository/Epic/Job/Document to the chat's context. Search results come
@@ -16,7 +16,6 @@ import { appendSearch, isSupervisorChat, withRoutePrefix } from "./utils"
 
 const DEFAULT_ATTACHMENT_TYPES = ["Repository", "Epic", "Job", "Document"] as const
 const EMPTY_ATTACHMENT_GROUPS = { repositories: [], epics: [], jobs: [], documents: [] } satisfies NonNullable<ChatPayload["attachment_groups"]>
-const SUPERVISOR_ATTACHMENT_TYPES = ["Document"] as const
 
 export function Attachments({ payload, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
@@ -157,7 +156,7 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
   const location = useLocation()
   const navigate = useNavigate()
   const params = new URLSearchParams(location.search)
-  const attachmentTypes = isSupervisorChat(payload) ? SUPERVISOR_ATTACHMENT_TYPES : DEFAULT_ATTACHMENT_TYPES
+  const attachmentTypes = DEFAULT_ATTACHMENT_TYPES
   type AttachmentType = typeof attachmentTypes[number]
   const initialType = normalizeAttachmentType(params.get("attachment_type"), attachmentTypes)
   const [type, setType] = useState<AttachmentType>(initialType)
