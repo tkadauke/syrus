@@ -17,4 +17,10 @@ describe("ConfirmationCard", () => {
     expect(screen.getByText("Review this action before it runs.")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument()
   })
+
+  it("stretches the header wrapper to the full card width so trailing controls align to the right edge", () => {
+    render(<ConfirmationCard header={<h2>Confirm JOB-12</h2>} />)
+
+    expect(screen.getByRole("heading", { name: "Confirm JOB-12" }).parentElement).toHaveClass("w-full")
+  })
 })
