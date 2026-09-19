@@ -965,7 +965,7 @@ module Api
 
         def find_repository_for_admin_mutation
           repository = find_repository
-          return repository if authorize_repository_admin!(repository)
+          repository if authorize_repository_admin!(repository)
         end
 
         def repository_command_payload(repository, message:)
