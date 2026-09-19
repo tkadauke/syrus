@@ -42,7 +42,9 @@ Invariants (each mapped to its enforcement below):
 | E2 | NSIS `Syrus-Setup*.exe` one-click | Windows | installs to `%LocalAppData%\Programs\syrus-desktop`, launches, onboarding |
 | E3 | App auto-update (electron-updater) | both | new app version relaunches; backend pin + CLI freshness checks run |
 | E4 | Repo clone + `install.sh --docker` / `bin/setup` | dev/ops | CLI via `bin/setup` (optionally `--install-cli`); no app |
-| E5 | `install.sh --docker` via curl (website path) | macOS/Linux ops | backend only; CLI/app optional extras |
+
+E5 (a standalone `curl \| sh` one-liner, no local clone) does **not** exist
+today and nothing on the website links to one — see Known non-goals below.
 
 ## First-run onboarding (E1/E2), state by state
 
@@ -133,3 +135,14 @@ runs `syrus skill install`. Also available any time from Preferences.
   home; documented in the website uninstall section).
 - No CLI on PATH for `sudo`/system shells (per-user install by design).
 - Homebrew/winget distribution — the app is the channel.
+- **Standalone curl install (formerly listed as E5).** `install.sh` does
+  `cd "$(dirname "$0")"` and then reads `docker-compose.yml` and
+  `compose.env.example` from that same directory — it assumes those sibling
+  files are already on disk. That's true for a git clone (E4) and for the
+  desktop app's bundled Resources dir (which drives it with `--target-dir`),
+  but a bare `curl -fsSL .../install.sh | sh` has nothing to fetch it against
+  and doesn't work. Building that path for real would mean teaching
+  `install.sh` to fetch its own sibling files (e.g. from a release tag)
+  before doing anything else; until then, the website should only ever link
+  to the documented clone-first flow (E4 / the Docker Compose deployment
+  doc), never to a bare curl one-liner.

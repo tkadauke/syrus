@@ -293,7 +293,7 @@ Production is driven by environment variables:
 - `SYRUS_ALLOWED_HOSTS` — comma-separated host allowlist (defaults to `SYRUS_APP_HOST`).
 - `SYRUS_ASSUME_SSL` / `SYRUS_FORCE_SSL` — TLS behavior for proxied deployments (default `true`; `/up` is exempt).
 - `SYRUS_GITHUB_REPO` — optional: this installation's own `owner/repo`; enables build-revision links (degrades to no link when unset).
-- `SYRUS_BUG_REPORT_OWNER` — **required**: GitHub owner/org for in-app bug reports (expects an active `<owner>/syrus` repo).
+- `SYRUS_BUG_REPORT_OWNER` — optional: GitHub owner/org for in-app bug reports (expects an active `<owner>/syrus` repo); leave it blank and the bug-report button just won't error when clicked.
 - `SYRUS_MAILER_FROM` — sender address for application mail.
 - `SMTP_*` — SMTP settings; without `SMTP_ADDRESS`, Rails keeps its default delivery.
 
