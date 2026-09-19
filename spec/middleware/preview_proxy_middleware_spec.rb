@@ -17,6 +17,18 @@ RSpec.describe PreviewProxyMiddleware do
     rack_env
   end
 
+  def token_for(preview_env)
+    PreviewEnvironment::AccessToken.issue(preview_env)
+  end
+
+  def preview_query(preview_env, query = nil)
+    [ query, "token=#{Rack::Utils.escape(token_for(preview_env))}" ].compact.join("&")
+  end
+
+  def preview_env_for(preview_env, host: "preview-#{preview_env.id}.lvh.me", query: nil, **kwargs)
+    env_for(host: host, query: preview_query(preview_env, query), **kwargs)
+  end
+
   def create_running_env(job:, port: 25000, internal_host: "127.0.0.1")
     PreviewEnvironment.create!(
       job: job,
@@ -67,7 +79,7 @@ RSpec.describe PreviewProxyMiddleware do
     end
 
     it "proxies the request to the internal host and port" do
-      status, headers, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
+      status, headers, body = middleware.call(preview_env_for(preview_env))
       expect(status).to eq(200)
       expect(body).to eq(["hello from preview"])
       expect(headers["content-type"]).to eq("text/html")
@@ -84,7 +96,7 @@ RSpec.describe PreviewProxyMiddleware do
         })
         .to_return(status: 200, body: "host ok", headers: {})
 
-      status, _, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
+      status, _, body = middleware.call(preview_env_for(preview_env))
       expect(status).to eq(200)
       expect(body).to eq(["host ok"])
     end
@@ -97,7 +109,7 @@ RSpec.describe PreviewProxyMiddleware do
         })
         .to_return(status: 201, body: "created", headers: {})
 
-      env = env_for(host: "preview-#{preview_env.id}.lvh.me", path: "/api/signup", method: "POST")
+      env = preview_env_for(preview_env, path: "/api/signup", method: "POST")
       env["HTTP_ORIGIN"] = "http://preview-#{preview_env.id}.lvh.me"
       env["HTTP_REFERER"] = "http://preview-#{preview_env.id}.lvh.me/signup"
 
@@ -110,7 +122,7 @@ RSpec.describe PreviewProxyMiddleware do
     it "proxies with path and query string" do
       stub_request(:get, "http://127.0.0.1:25000/dashboard?tab=logs")
         .to_return(status: 200, body: "dashboard", headers: {})
-      status, _, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me", path: "/dashboard", query: "tab=logs"))
+      status, _, body = middleware.call(preview_env_for(preview_env, path: "/dashboard", query: "tab=logs"))
       expect(status).to eq(200)
       expect(body).to eq(["dashboard"])
     end
@@ -118,7 +130,7 @@ RSpec.describe PreviewProxyMiddleware do
     it "preserves non-200 status codes from the upstream" do
       stub_request(:get, "http://127.0.0.1:25000/missing")
         .to_return(status: 404, body: "not found", headers: {})
-      status, _, _ = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me", path: "/missing"))
+      status, _, _ = middleware.call(preview_env_for(preview_env, path: "/missing"))
       expect(status).to eq(404)
     end
 
@@ -129,7 +141,7 @@ RSpec.describe PreviewProxyMiddleware do
           "transfer-encoding" => "chunked",
           "content-type" => "text/html"
         })
-      _, headers, _ = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
+      _, headers, _ = middleware.call(preview_env_for(preview_env))
       expect(headers.keys).not_to include("connection", "transfer-encoding")
       expect(headers["content-type"]).to eq("text/html")
     end
@@ -143,7 +155,7 @@ RSpec.describe PreviewProxyMiddleware do
           "permissions-policy" => "fullscreen=()"
         })
 
-      _, headers, _ = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
+      _, headers, _ = middleware.call(preview_env_for(preview_env))
 
       expect(headers).not_to have_key("content-security-policy")
       expect(headers).not_to have_key("content-security-policy-report-only")
@@ -168,7 +180,7 @@ RSpec.describe PreviewProxyMiddleware do
           }
         )
 
-      status, headers, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
+      status, headers, body = middleware.call(preview_env_for(preview_env))
 
       expect(status).to eq(200)
       expect(body.join).to include('src="/builds/main.tsx"')
@@ -184,14 +196,14 @@ RSpec.describe PreviewProxyMiddleware do
           headers: { "content-type" => "application/json" }
         )
 
-      _, _, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me", path: "/api"))
+      _, _, body = middleware.call(preview_env_for(preview_env, path: "/api"))
 
       expect(body.join).to include("http://localhost:3036")
     end
 
     it "resets last_activity_at on each proxied request" do
       freeze_time do
-        middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
+        middleware.call(preview_env_for(preview_env))
         preview_env.reload
         expect(preview_env.last_activity_at).to be_within(1.second).of(Time.current)
       end
@@ -199,7 +211,7 @@ RSpec.describe PreviewProxyMiddleware do
 
     it "extends expires_at on each proxied request" do
       freeze_time do
-        middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
+        middleware.call(preview_env_for(preview_env))
         preview_env.reload
         expect(preview_env.expires_at).to be_within(1.second).of(
           PreviewEnvironment::DEFAULT_TTL_MINUTES.minutes.from_now
@@ -222,9 +234,63 @@ RSpec.describe PreviewProxyMiddleware do
       stub_request(:get, "http://127.0.0.1:25001/")
         .to_return(status: 200, body: "custom domain preview", headers: {})
 
-      status, _, body = custom_middleware.call(env_for(host: "preview-#{other_preview.id}.preview.example.com"))
+      status, _, body = custom_middleware.call(preview_env_for(other_preview, host: "preview-#{other_preview.id}.preview.example.com"))
       expect(status).to eq(200)
       expect(body).to eq(["custom domain preview"])
+    end
+  end
+
+  describe "preview host access control" do
+    let!(:preview_env) { create_running_env(job: job) }
+
+    it "rejects a running preview request without a token" do
+      status, _, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
+
+      expect(status).to eq(401)
+      expect(body.join).to include("private")
+    end
+
+    it "rejects a running preview request with the wrong token" do
+      other_preview = create_running_env(job: Factories.job, port: 25001)
+      status, _, _ = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me", query: "token=#{Rack::Utils.escape(token_for(other_preview))}"))
+
+      expect(status).to eq(401)
+    end
+
+    it "rejects a running preview request with an expired token" do
+      freeze_time { @token = token_for(preview_env) }
+
+      status, _, _ = travel(PreviewEnvironment::AccessToken::TTL + 1.minute) do
+        middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me", query: "token=#{Rack::Utils.escape(@token)}"))
+      end
+
+      expect(status).to eq(401)
+    end
+
+    it "sets an access cookie after a token-authorized request" do
+      stub_request(:get, "http://127.0.0.1:25000/")
+        .to_return(status: 200, body: "hello from preview", headers: { "content-type" => "text/html" })
+
+      status, headers, _ = middleware.call(preview_env_for(preview_env))
+
+      expect(status).to eq(200)
+      expect(headers["set-cookie"]).to include("_syrus_preview_environment_access=")
+      expect(headers["set-cookie"].downcase).to include("httponly")
+    end
+
+    it "accepts the access cookie for follow-up asset requests without a query token" do
+      token = token_for(preview_env)
+      stub_request(:get, "http://127.0.0.1:25000/app.css")
+        .to_return(status: 200, body: "body{}", headers: { "content-type" => "text/css" })
+
+      status, _, body = middleware.call(env_for(
+        host: "preview-#{preview_env.id}.lvh.me",
+        path: "/app.css",
+        cookie: "_syrus_preview_environment_access=#{Rack::Utils.escape(token)}"
+      ))
+
+      expect(status).to eq(200)
+      expect(body).to eq(["body{}"])
     end
   end
 
@@ -242,7 +308,7 @@ RSpec.describe PreviewProxyMiddleware do
       stub_request(:get, "http://127.0.0.1:25002/")
         .to_return(status: 200, body: "main branch preview", headers: { "content-type" => "text/html" })
 
-      status, _, body = middleware.call(env_for(host: "preview-#{repo_preview.id}.lvh.me"))
+      status, _, body = middleware.call(preview_env_for(repo_preview))
 
       expect(status).to eq(200)
       expect(body).to eq(["main branch preview"])
@@ -284,7 +350,7 @@ RSpec.describe PreviewProxyMiddleware do
 
     it "returns 502 when the upstream connection fails" do
       stub_request(:get, "http://127.0.0.1:25000/").to_raise(Errno::ECONNREFUSED)
-      status, _, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
+      status, _, body = middleware.call(preview_env_for(preview_env))
       expect(status).to eq(502)
       expect(body.join).to include("Proxy error")
     end
@@ -298,7 +364,7 @@ RSpec.describe PreviewProxyMiddleware do
         .with(body: "field=value")
         .to_return(status: 201, body: "created", headers: {})
 
-      env = env_for(host: "preview-#{preview_env.id}.lvh.me", path: "/submit", method: "POST", body: "field=value")
+      env = preview_env_for(preview_env, path: "/submit", method: "POST", body: "field=value")
       status, _, body = middleware.call(env)
       expect(status).to eq(201)
       expect(body).to eq(["created"])
@@ -311,7 +377,7 @@ RSpec.describe PreviewProxyMiddleware do
     it "matches hosts with an explicit port" do
       stub_request(:get, "http://127.0.0.1:25000/")
         .to_return(status: 200, body: "ok", headers: {})
-      status, _, _ = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me:3000"))
+      status, _, _ = middleware.call(preview_env_for(preview_env, host: "preview-#{preview_env.id}.lvh.me:3000"))
       expect(status).to eq(200)
     end
   end
@@ -320,6 +386,8 @@ RSpec.describe PreviewProxyMiddleware do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
     let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+
+    before { allow(User).to receive(:chat_providers).and_return(%w[claude]) }
 
     # Generic streaming/versioning/CSP behavior below isn't exercising the
     # access-control gate, so default these panels to public rather than
@@ -480,6 +548,8 @@ RSpec.describe PreviewProxyMiddleware do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
     let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+
+    before { allow(User).to receive(:chat_providers).and_return(%w[claude]) }
 
     def create_panel(**attrs)
       panel = PreviewPanel.create!({ chat_session: chat_session, title: "Widget preview" }.merge(attrs))
