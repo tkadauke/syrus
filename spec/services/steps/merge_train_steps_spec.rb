@@ -448,7 +448,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(run.job_logs.pluck(:chunk).join("\n")).to include("merge_train: reusing cached grading validation (exact_head)")
     end
 
-    it "skips prepare and graders when a rebuilt integration SHA has the same validated tree" do
+    it "defers same-tree cached-validation skips until after reconciliation" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
       prior = Workflow.create!(
@@ -480,9 +480,11 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
       handler.call
 
-      expect(workflow.steps.find_by!(kind: "grader_fanout")).to be_skipped
+      expect(workflow.steps.find_by!(kind: "prepare")).to be_queued
+      expect(workflow.steps.find_by!(kind: "grader_fanout")).to be_queued
+      expect(workflow.steps.find_by!(kind: "grader_collect")).to be_queued
       expect(workflow.steps.find_by!(kind: "merge_train_land")).to be_queued
-      expect(run.job_logs.pluck(:chunk).join("\n")).to include("merge_train: reusing cached grading validation (same_tree)")
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include("deferring skip decision until merge_train_reconcile")
     end
 
     it "runs graders when the built integration branch has a different base" do
@@ -650,12 +652,22 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
     it "skips downstream validation after a no-op reconciliation when the same head is already validated" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
+      prior = Workflow.create!(
+        job: a,
+        trigger_kind: "merge_train",
+        artifacts: {
+          LandingValidationCache::ARTIFACT_KEY => {
+            "required_graders_passed" => true,
+            "head_sha" => "intsha999"
+          }
+        }
+      )
+      Step.create!(workflow: prior, kind: "merge_train_land", position: 0)
       workflow = Workflows::MergeTrain.instantiate(job: a, artifacts: { "merge_train_id" => train.id })
       reconcile_step = workflow.steps.find_by!(kind: "merge_train_reconcile")
       run = Run.create!(job: a, step: reconcile_step, trigger_kind: "merge_train")
       handler = described_class.new(run)
       stub_reconcile_handler(handler, head_values: %w[intsha999 intsha999], step_diff: "")
-      allow(LandingValidationCache).to receive(:valid_head_for?).with(job: a, head_sha: "intsha999").and_return(true)
 
       handler.call
 
@@ -665,6 +677,49 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         [ "grader_collect", "skipped" ],
         [ "merge_train_land", "queued" ]
       )
+    end
+
+    it "skips downstream validation after a no-op reconciliation when the same tree is already validated" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      prior = Workflow.create!(
+        job: a,
+        trigger_kind: "merge_train",
+        artifacts: {
+          LandingValidationCache::ARTIFACT_KEY => {
+            "required_graders_passed" => true,
+            "head_sha" => "oldint111",
+            "tree_sha" => "treesha123",
+            "base_sha" => "basesha123",
+            "base_ref" => "master",
+            "grader_fingerprint" => "fp",
+            "changed_files_fingerprint" => LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ])
+          }
+        }
+      )
+      Step.create!(workflow: prior, kind: "merge_train_land", position: 0)
+      workflow = Workflows::MergeTrain.instantiate(
+        job: a,
+        artifacts: { "merge_train_id" => train.id, "merge_train_base_sha" => "basesha123" }
+      )
+      reconcile_step = workflow.steps.find_by!(kind: "merge_train_reconcile")
+      run = Run.create!(job: a, step: reconcile_step, trigger_kind: "merge_train")
+      handler = described_class.new(run)
+      git = stub_reconcile_handler(handler, head_values: %w[newint222 newint222], step_diff: "")
+      allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: "/tmp/ws").and_return("treesha123\n")
+      allow(git).to receive(:run).with("diff", "--name-only", "basesha123...HEAD", chdir: "/tmp/ws").and_return("app/models/job.rb\n")
+      allow(TargetGraph::Compiler).to receive(:compile).with(Pathname.new("/tmp/ws")).and_return(TargetGraph.new)
+      allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
+
+      handler.call
+
+      expect(workflow.steps.order(:position).pluck(:kind, :state)).to include(
+        [ "prepare", "skipped" ],
+        [ "grader_fanout", "skipped" ],
+        [ "grader_collect", "skipped" ],
+        [ "merge_train_land", "queued" ]
+      )
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include("merge_train_reconcile: reusing cached grading validation (same_tree)")
     end
 
     it "lets no-op reconciliation proceed to validation when the head is not already validated" do
@@ -687,6 +742,36 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       )
       expect(run.reload.step_agent_diff).to eq("")
       expect(train.reload.integration_sha).to eq("intsha999")
+    end
+
+    it "requeues cached-validation skips when reconciliation commits a real diff" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      train.update!(integration_sha: "assembled999")
+      workflow = Workflows::MergeTrain.instantiate(job: b, artifacts: { "merge_train_id" => train.id })
+      %w[prepare grader_fanout grader_collect].each do |kind|
+        workflow.steps.find_by!(kind: kind).skip_with_reason!("landing_validation_cached")
+      end
+      reconcile_step = workflow.steps.find_by!(kind: "merge_train_reconcile")
+      run = Run.create!(job: b, step: reconcile_step, trigger_kind: "merge_train")
+      handler = described_class.new(run)
+      diff = "diff --git a/app/shared.rb b/app/shared.rb\n+agent reconciliation"
+      stub_reconcile_handler(handler, head_values: %w[assembled999 reconciled123], step_diff: diff)
+      allow(handler).to receive(:commit_agent_changes)
+
+      handler.call
+
+      expect(workflow.steps.order(:position).pluck(:kind, :state)).to include(
+        [ "prepare", "queued" ],
+        [ "grader_fanout", "queued" ],
+        [ "grader_collect", "queued" ],
+        [ "merge_train_land", "queued" ]
+      )
+      %w[prepare grader_fanout grader_collect].each do |kind|
+        expect(workflow.steps.find_by!(kind: kind).details).not_to include("skip_reason" => "landing_validation_cached")
+      end
+      expect(train.reload.integration_sha).to eq("reconciled123")
     end
 
     it "keeps an agent reconciliation commit as the integration head that graders will validate" do
