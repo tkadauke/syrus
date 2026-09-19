@@ -9,8 +9,18 @@ Preview environments let operators and reviewers access a live, running copy of 
 Preview environments are accessed via subdomains, not paths, keyed on the `PreviewEnvironment` id (not the Job id — a Job can accumulate several preview environments over its lifetime, and a repository-scoped preview has no Job id to key off at all):
 
 ```
-http://preview-{preview_environment_id}.{SYRUS_PREVIEW_BASE_DOMAIN}
+http://preview-{preview_environment_id}.{SYRUS_PREVIEW_BASE_DOMAIN}?token={signed_access_token}
 ```
+
+The signed `token` query parameter is required for the first request to a
+running preview. It is minted only by authenticated app endpoints that already
+authorize the current user to see that Job or repository preview, and it is
+validated by `PreviewProxyMiddleware` before any traffic is proxied to the
+preview app. After a valid token request, the middleware sets a short-lived
+`_syrus_preview_environment_access` cookie scoped to the preview origin so
+same-origin follow-up requests for relative CSS, JavaScript, images, and
+navigation do not need to carry the query token. The middleware strips the
+`token` parameter before forwarding the request upstream.
 
 Path-based proxying is intentionally not used — it causes CSRF failures, broken absolute URL generation, and broken redirects in most web frameworks.
 
@@ -33,6 +43,13 @@ Port range the preview service allocates from when spawning preview apps. Defaul
 
 Fixed port the `preview` service binds its internal control endpoint on (see "Preview service process" below). Default: `4568`. Distinct from the `SYRUS_PREVIEW_PORT_MIN`/`MAX` range, which is for per-environment app ports, not this shared control port.
 
+### `SYRUS_PREVIEW_ENVIRONMENT_TOKEN_TTL_HOURS`
+
+Controls the signed preview environment access-token lifetime. Default: `24`
+hours. This token only authorizes access to the matching
+`PreviewEnvironment`; the preview environment's own inactivity TTL still stops
+running previews after 10 minutes without proxied traffic.
+
 ## Architecture
 
 ### Web process: `PreviewProxyMiddleware`
@@ -43,9 +60,16 @@ For each incoming request:
 
 1. The `Host` header is matched against `preview-(\d+).{base_domain}`.
 2. If matched, Syrus looks up a `PreviewEnvironment` with that id in `running` state, regardless of whether it's job-scoped or repository-scoped.
-3. If found: the request is reverse-proxied to the preview app at `internal_host:port`, and `last_activity_at` / `expires_at` are refreshed to extend the TTL.
-4. If not found (environment not running, never started, or expired): a 503 response is returned with a message directing the user to the Syrus UI.
-5. If the host doesn't match the preview pattern: the request falls through to the normal Rails application.
+3. If found, the middleware requires either a valid `token` query parameter or a valid `_syrus_preview_environment_access` cookie for that exact environment. Missing, expired, or wrong-environment tokens get a 401 response.
+4. If authorized: the request is reverse-proxied to the preview app at `internal_host:port`, and `last_activity_at` / `expires_at` are refreshed to extend the TTL. Token query parameters are removed before forwarding the request to the preview app.
+5. If not found (environment not running, never started, or expired): a 503 response is returned with a message directing the user to the Syrus UI.
+6. If the host doesn't match the preview pattern: the request falls through to the normal Rails application.
+
+Preview environment access cookies use `SameSite=Lax` rather than
+`SameSite=None` so the default local `http://preview-*.lvh.me` flow works in
+modern browsers without HTTPS. The initial tokenized URL should be opened from
+the Syrus UI/API payload; copying only the bare `preview-{id}` host is not
+enough to authorize a fresh browser session.
 
 The proxy sends `Host: localhost:<port>` and `X-Forwarded-Host: localhost:<port>` to the preview app so frameworks such as Rails running in development mode accept the request without app-specific preview host allowlists. Syrus preserves the browser-facing hostname separately in `X-Syrus-Preview-Host` / `X-Syrus-Preview-Proto` for apps that explicitly want to inspect the public preview URL.
 
