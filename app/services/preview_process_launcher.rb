@@ -1,4 +1,5 @@
 require "net/http"
+require "open3"
 
 # Spawns and health-checks a repo's dev server, tracking it in
 # Mcp::Tools::AgentPreviewRegistry by an arbitrary caller-supplied `key`.
@@ -14,6 +15,7 @@ class PreviewProcessLauncher
 
   HEALTH_CHECK_TIMEOUT_SECONDS = 60
   HEALTH_CHECK_INTERVAL_SECONDS = 2
+  COMMAND_OUTPUT_MAX_BYTES = 4.kilobytes
 
   Result = Struct.new(:pid, :port, :url, :reused, :project_id, keyword_init: true)
 
@@ -64,8 +66,20 @@ class PreviewProcessLauncher
   end
 
   def run_preview_command!(label, command, env, workdir)
-    result = system(env, "bash", "-c", command, chdir: workdir, exception: false, unsetenv_others: true)
-    raise LaunchError, "preview #{label} command exited non-zero: #{command}" unless result
+    stdout, stderr, status = Open3.capture3(env, "bash", "-c", command, chdir: workdir, unsetenv_others: true)
+    return if status.success?
+
+    raise LaunchError, preview_command_failure_message(label, command, stdout, stderr, status)
+  end
+
+  def preview_command_failure_message(label, command, stdout, stderr, status)
+    output = [ stdout, stderr ].compact_blank.join("\n").strip
+    message = "preview #{label} command exited non-zero"
+    message = "#{message} (status #{status.exitstatus})" if status.exitstatus
+    message = "#{message}: #{command}"
+    return message if output.blank?
+
+    "#{message}\n#{output.safe_byteslice(0, COMMAND_OUTPUT_MAX_BYTES)}"
   end
 
   def spawn_app(command, port, env, workdir)

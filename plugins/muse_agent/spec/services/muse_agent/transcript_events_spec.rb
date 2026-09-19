@@ -185,6 +185,84 @@ RSpec.describe MuseAgent::TranscriptEvents do
     expect(summary).to be_mcp_tool_called
   end
 
+  it "normalizes pretty Muse export documents with nested record_json children" do
+    export = {
+      diagnostics: {
+        duplicate_records: 0
+      },
+      events: [
+        {
+          envelope: {
+            retained_frame: "session_permission_transaction",
+            children: [
+              {
+                child_index: 0,
+                record_json: {
+                  record_type: "event",
+                  payload_type: "mcp.tools",
+                  payload: {
+                    session_id: "muse-session",
+                    model: "muse-spark-test",
+                    workspace: "/repo",
+                    tools: [
+                      "mcp__syrus_mcp_sidecar__start_preview",
+                      "mcp__syrus_mcp_sidecar__submit_visual_review"
+                    ]
+                  }
+                }.to_json
+              }
+            ]
+          }
+        },
+        {
+          envelope: {
+            retained_frame: "task_lifecycle",
+            children: [
+              {
+                child_index: 0,
+                record_json: {
+                  record_type: "event",
+                  payload_type: "task.lifecycle.side_effect_intent",
+                  payload: {
+                    event: {
+                      kind: "side_effect_intent",
+                      operation: "tool:mcp__syrus_mcp_sidecar__submit_visual_review",
+                      input: { verdict: "skipped" },
+                      idempotency_key: "tool:call_01a0b71f4d5677b1815603442e606595"
+                    }
+                  }
+                }.to_json
+              }
+            ]
+          }
+        },
+        {
+          envelope: {
+            retained_frame: "terminal",
+            children: [
+              {
+                child_index: 0,
+                record_json: {
+                  record_type: "event",
+                  payload_type: "run.terminal.completed",
+                  payload: { outcome: "success", turns: 1, session_id: "muse-session" }
+                }.to_json
+              }
+            ]
+          }
+        }
+      ]
+    }
+
+    summary = ClaudeTranscript.new(JSON.pretty_generate(export)).summary
+
+    expect(summary.session_id).to eq("muse-session")
+    expect(summary.available_tools_at_init).to include("mcp__syrus_mcp_sidecar__submit_visual_review")
+    expect(summary.tool_call_counts).to include("mcp__syrus_mcp_sidecar__submit_visual_review" => 1)
+    expect(summary).to be_mcp_tool_called
+    expect(summary.exit_reason).to eq("success")
+  end
+
   it "uses terminal Muse metadata when the transcript has no separate init event" do
     jsonl = [
       {
