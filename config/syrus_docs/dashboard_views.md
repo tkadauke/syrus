@@ -27,6 +27,31 @@ they didn't personally trigger it. Every other attention-preset smart folder
 (Pinned, In progress, Queued, Landing queue, etc.) still scopes strictly by
 `owner_user_id is me`.
 
+## Proposed section
+
+The Jobs dashboard renders a "Proposed" section above the readiness/health
+banners, showing up to 5 of the current user's most recent pending
+(`state: "proposed"`) chat proposals across their accessible chats
+(`App::DashboardPayload::ChromeSerializers#pending_proposals_json`, keyed
+`pending_proposals` in the dashboard chrome payload). Each card links to the
+originating chat, jumping straight to the message where the proposal was
+posted via a `#message-<id>` URL hash — the same anchor format `origin_chat`
+links on the Job/Epic detail pages already use, consumed by the existing
+bookmark-jump machinery in `MessageStream` (`app/frontend/routes/Chat.tsx`).
+The section is hidden entirely when there are no pending proposals; it never
+renders an empty state.
+
+The section updates live from the same `update_proposal` AppEvents broadcast
+the chat surface already emits on every proposal create/edit/confirm/reject/
+withdraw (`Mcp::Tools.broadcast_proposal_created`,
+`Api::V1::App::ChatsController#broadcast_proposal_updated`) — a
+`dashboard_proposal` payload key carries the card's rendering shape. The
+frontend (`app/frontend/lib/appEvents.ts`) patches the dashboard chrome query
+cache directly rather than relying on the throttled (5s-coalesced) dashboard
+row refresh: a proposal entering the `proposed` state adds a card immediately
+(capped at 5, dropping the oldest), and a proposal leaving that state
+(confirmed, rejected, or withdrawn) removes its card immediately.
+
 ## Backlogged Job actions
 
 Backlogged Jobs follow the same ownership model as backlogged Epics: the durable owner is `Job#owner_user_id` (or the effective owner derived by existing ownership scopes). The legacy `claimed_by_user_id` fields remain a short-lived work-claim overlay only. Operator UI and API payloads should label claim actions as work claims so they are not confused with owner assignment.

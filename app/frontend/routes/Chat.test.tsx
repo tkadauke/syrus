@@ -1611,6 +1611,68 @@ describe("chat bookmark picker command", () => {
   })
 })
 
+// Dashboard "Proposed" cards (and origin_chat links on Job/Epic detail pages)
+// deep-link into a chat via a #message-<id> URL hash carrying the anchor
+// message id -- the same format ProposalCards.tsx already uses for in-chat
+// jumps. MessageStream's bookmark-jump machinery (findChatMessageAnchor,
+// paging in older messages via loadOlder, then scrollIntoView) is reused
+// unchanged; this only covers the new entry point of arriving with the hash
+// already set on mount, including a target message that isn't in the first
+// page and needs an older-messages fetch first.
+describe("deep link to a chat message via URL hash", () => {
+  it("loads the older page containing the hash target and scrolls it into view on mount", async () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    })
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/messages?before=9") {
+        return Promise.resolve(jsonResponse({
+          has_more_older: false,
+          messages: [
+            {
+              type: "message",
+              id: 4,
+              role: "user",
+              tool_name: null,
+              content: { text: "What did the aqueduct plan say?" },
+              text: "What did the aqueduct plan say?",
+              bookmarkable: true
+            }
+          ]
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({}, { has_more_older: true })))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8#message-4"]}>
+          <Routes>
+            <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/messages?before=9", expect.anything())
+    })
+
+    const target = await screen.findByText("What did the aqueduct plan say?")
+    await waitFor(() => {
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "smooth" })
+    })
+    expect(target).toBeInTheDocument()
+  })
+})
+
 describe("pinned messages bar", () => {
   beforeEach(() => {
     window.localStorage.clear()

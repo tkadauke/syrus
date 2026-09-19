@@ -76,11 +76,22 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(entries.map { |entry| entry.fetch(:state) }).to all(eq("proposed"))
       expect(entries.map { |entry| entry.fetch(:id) }).not_to include(old_pending.id, other_proposal.id)
       expect(entries.map { |entry| entry.fetch(:title) }).to eq(newest_five.map(&:title))
-      expect(entries).to all(include(chat_session_id: chat.id, anchor_message_id: be_present))
+      expect(entries).to all(include(chat_session_id: chat.id, anchor_message_id: be_present, chat_title: "Roadmap chat"))
       expect(entries.first).to include(
         id: pending_proposals.last.id,
         anchor_message_id: latest_anchor.id
       )
+    end
+
+    it "falls back to the repository name when the chat session has no title" do
+      chat = ChatSession.create!(user: user, repository: repo, title: nil)
+      proposal = chat.proposals.create!(slug: "untitled-chat-proposal", title: "Untitled chat proposal", body: "Work.")
+      chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Untitled chat proposal." })
+
+      result = call(subject: "job", section: "chrome")
+
+      entries = result.fetch(:pending_proposals)
+      expect(entries.first).to include(chat_title: repo.name.presence || repo.slug)
     end
   end
 

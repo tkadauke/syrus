@@ -86,7 +86,7 @@ RSpec.describe Mcp::Tools::DeleteProposalTool do
       resource: "chat",
       id: chat_session.id,
       changed: [ "proposal" ],
-      payload: { action: "update_proposal", proposal_id: root.id }
+      payload: hash_including(action: "update_proposal", proposal_id: root.id, dashboard_proposal: hash_including(id: root.id, state: "withdrawn"))
     )
     expect(AppEvents).to have_received(:broadcast).with(
       user: user,
@@ -94,7 +94,7 @@ RSpec.describe Mcp::Tools::DeleteProposalTool do
       resource: "chat",
       id: chat_session.id,
       changed: [ "proposal" ],
-      payload: { action: "update_proposal", proposal_id: dependent.id }
+      payload: hash_including(action: "update_proposal", proposal_id: dependent.id, dashboard_proposal: hash_including(id: dependent.id, state: "withdrawn"))
     )
   end
 
