@@ -727,6 +727,19 @@ RSpec.describe Epic, :ci_only do
     expect(workflow.first_step.runs.first).to be_queued
   end
 
+  describe "#override_state!" do
+    it "claims an unclaimed Epic for the acting operator when force-started" do
+      actor = Factories.user(email_address: "operator@example.com")
+      epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
+
+      expect {
+        epic.override_state!("in_progress", actor: actor)
+      }.to change { epic.reload.owner_user }.from(nil).to(actor)
+
+      expect(epic.owner_user).not_to eq(user)
+    end
+  end
+
   describe "#start_implementing!" do
     it "starts a ready Epic through the AASM graph and dispatches held child Jobs" do
       epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
