@@ -1596,6 +1596,13 @@ describe("App", () => {
       expect(within(settingsNav).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/documents")
       expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveAttribute("href", "/app-shell/tags")
       expect(within(settingsNav).queryByRole("link", { name: "Design System" })).not.toBeInTheDocument()
+      // Grouped like the Admin nav: account-configuration, product-feature,
+      // workspace/library, and integration items each cluster under a header.
+      expect(within(settingsNav).getByText("Account")).toBeInTheDocument()
+      expect(within(settingsNav).getByText("Product")).toBeInTheDocument()
+      expect(within(settingsNav).getByText("Workspace")).toBeInTheDocument()
+      expect(within(settingsNav).getByText("Integrations")).toBeInTheDocument()
+      expect(within(settingsNav).getByRole("link", { name: "Connected Platforms" })).toHaveAttribute("href", "/app-shell/settings/connected_platforms")
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials", expect.objectContaining({ credentials: "same-origin" }))
       expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/settings/hidden_chats?page=1", expect.anything())
     } finally {
@@ -7965,10 +7972,13 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "Notification settings" })).toBeInTheDocument()
+    const notificationsMain = await screen.findByRole("main", { name: "Notification settings" })
     expect(await screen.findByRole("heading", { name: "Notifications" })).toBeInTheDocument()
     expect(screen.queryByRole("main", { name: "Credentials" })).not.toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/credentials", expect.anything())
+    // Two halves of one mental model — what you're notified about vs. where —
+    // cross-link to each other since there's no other link between them.
+    expect(within(notificationsMain).getByRole("link", { name: "Connected Platforms" })).toHaveAttribute("href", "/app-shell/settings/connected_platforms")
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveClass("bg-brand/10")

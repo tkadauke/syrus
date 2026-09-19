@@ -416,7 +416,17 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
                 <option key={provider.value} value={provider.value}>{provider.label}</option>
               ))}
             </Form.Select>
-            <Form.HelpText>{t('repository_form.agent_hint')}</Form.HelpText>
+            <Form.HelpText>
+              {t('repository_form.agent_hint')}{" "}
+              {t('repository_form.agent_see_also')}{" "}
+              <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/settings/agent", prefix)}>
+                {t('nav.agent_settings')}
+              </Link>
+              {" · "}
+              <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>
+                {t('nav.credentials')}
+              </Link>
+            </Form.HelpText>
           </Field>
 
           {mode === "edit" && payload.repository.id ? (
