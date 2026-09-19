@@ -193,6 +193,15 @@ describe("ChatSettingsDialog", () => {
     expect(screen.getByRole("link", { name: "Chat credentials" })).toBeInTheDocument()
   })
 
+  it("closes on Escape", () => {
+    const onClose = vi.fn()
+    renderDialog(makePayload(), onClose)
+
+    fireEvent.keyDown(document, { key: "Escape" })
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it("shows the fallback provider when no effective provider label is set and no switch is available", () => {
     const payload = makePayload({
       effective_chat_provider: "provider_a",
