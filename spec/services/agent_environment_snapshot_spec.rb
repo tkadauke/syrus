@@ -86,6 +86,19 @@ RSpec.describe AgentEnvironmentSnapshot do
 
       expect(snapshot).to include("`submit_summary` / `syrus-mcp-sidecar.submit_summary`")
     end
+
+    it "renders Muse-visible names for required workflow MCP tools" do
+      PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+      repo = repository(owner: "rome", name: "aqueduct", default_branch: "main")
+      job = Factories.job(repository: repo)
+      workflow = job.workflows.last
+      step = workflow.steps.find_by!(kind: "summarize")
+      run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: "muse", iteration: 1)
+
+      snapshot = described_class.for_run(run, workspace_path: @workspace_path)
+
+      expect(snapshot).to include("`submit_summary` / `mcp__syrus_mcp_sidecar__submit_summary`")
+    end
   end
 
   describe "coverage section" do

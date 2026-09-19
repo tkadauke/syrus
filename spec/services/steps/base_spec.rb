@@ -395,7 +395,7 @@ RSpec.describe Steps::Base, :ci_only do
       expect(chunks).to include(match(/\[mcp_required_health\] status=ok.*missing=.*called=submit_test_plan.*available_count=0.*mcp_tool_called=true/))
     end
 
-    it "logs required MCP tool health as ok for Muse dotted tool calls" do
+    it "logs required MCP tool health as ok for Muse MCP tool calls" do
       PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
       result = AgentInvocation::Result.new(
         turns: 1,

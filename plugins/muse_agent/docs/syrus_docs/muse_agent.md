@@ -82,9 +82,9 @@ with the saved key on stdin.
 
 Workflow jobs can use Muse wherever Syrus asks `AgentProviders.for("muse")` to
 run an agentic step. Muse writes a per-workflow home, configures
-`~/.config/muse/settings.json` with a stdio `syrus-mcp-sidecar`, and uses dotted
-tool names such as `syrus-mcp-sidecar.submit_summary` when checking required
-workflow tools. The generated settings file always carries the top-level
+`~/.config/muse/settings.json` with a stdio `syrus-mcp-sidecar`, and uses Muse's
+MCP tool namespace such as `mcp__syrus_mcp_sidecar__submit_summary` when checking
+required workflow tools. The generated settings file always carries the top-level
 `schema_version: 1` Muse Code requires, and each `mcp_servers` entry is
 normalized into Muse's documented stdio shape (`transport: "stdio"`,
 `command`, `args`, `env`, `enabled: true`, `mode: "required"`) regardless of
