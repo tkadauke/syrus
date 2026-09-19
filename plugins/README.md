@@ -59,7 +59,6 @@ source. The bundled `github_source` currently provides both and is
 `disableable: true`; disabling it is blocked at runtime by
 `Admin::PluginDisableGuard` while any configured input source or active
 repository still uses it (see `plugins/github_source/docs/syrus_docs/github_source.md`).
-
 Admin page providers return page metadata for admin-only pages that should live
 under the Admin chrome and navigation. Use `:admin_page` for operational or
 configuration surfaces such as diagnostics, plugin settings, audit views, and
