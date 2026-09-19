@@ -3445,7 +3445,11 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
   describe "Coding Mode lock" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
-    let(:chat_session) { ChatSession.create!(user: user) }
+    let(:chat_session) { ChatSession.create!(user: user, chat_provider: "claude") }
+
+    before do
+      allow(User).to receive(:chat_providers).and_return(%w[claude])
+    end
 
     def enable_coding_mode!(enabled: true)
       feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
@@ -3501,6 +3505,26 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(job.approved_at).to be_nil
       end
 
+      it "keeps approval unchanged when unapproval succeeds but the coding claim is rejected" do
+        enable_coding_mode!
+        approved_at = Time.current
+        job = Factories.job_record(user: user, repository: repository, state: "approved", approved_at: approved_at,
+                                   approved_via: "operator", approved_by_user: user,
+                                   approval_evidence: { "note" => "ship it" })
+        allow(job).to receive(:may_claim_for_coding?).and_return(false)
+        expect(Job::ApprovalPropagator).not_to receive(:dismiss)
+
+        result = job.lock_for_coding_mode!(chat_session)
+
+        expect(result).to be(false)
+        expect(job.reload).to be_approved
+        expect(job.linked_chat_id).to be_nil
+        expect(job.approved_at).to be_within(1.second).of(approved_at)
+        expect(job.approved_via).to eq("operator")
+        expect(job.approved_by_user).to eq(user)
+        expect(job.approval_evidence).to eq({ "note" => "ship it" })
+      end
+
       it "returns false and does not change state when feature flag is off" do
         job = Factories.job_record(user: user, repository: repository, state: "queued")
 
@@ -3513,7 +3537,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
 
       it "returns false when already locked by a chat session" do
         enable_coding_mode!
-        other_chat = ChatSession.create!(user: user)
+        other_chat = ChatSession.create!(user: user, chat_provider: "claude")
         job = Factories.job_record(user: user, repository: repository, state: "queued")
         job.update!(linked_chat_id: other_chat.id)
         job.update!(state: "coding")
