@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { canonicalReviewVersions, DiffReviewVersionSelector } from "./DiffReviewVersionSelector"
+import { canonicalReviewVersions, DiffReviewVersionSelector, duplicateRunIds } from "./DiffReviewVersionSelector"
 import type { DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
 import type { DiffReviewVersion } from "../../api/jobs"
 
@@ -132,6 +132,30 @@ describe("canonicalReviewVersions", () => {
 
     expect(canonicalReviewVersions([ rangeA, rangeB ])).toEqual([ rangeA, rangeB ])
   })
+
+  it("keeps a resumed Run's second, different commit range as its own distinct row instead of collapsing it", () => {
+    const first = rangeVersion({ id: 6, version_index: 6, workflow_id: 20, run_id: 149674, base_sha: "base-a", head_sha: "aaaaaaa1111111" })
+    const second = rangeVersion({ id: 7, version_index: 7, workflow_id: 20, run_id: 149674, base_sha: "base-b", head_sha: "bbbbbbb2222222" })
+
+    expect(canonicalReviewVersions([ first, second ])).toEqual([ first, second ])
+  })
+})
+
+describe("duplicateRunIds", () => {
+  it("flags a run_id only when it appears on more than one version", () => {
+    const first = rangeVersion({ id: 6, run_id: 149674, head_sha: "aaaaaaa1111111" })
+    const second = rangeVersion({ id: 7, run_id: 149674, head_sha: "bbbbbbb2222222" })
+    const other = rangeVersion({ id: 8, run_id: 200, head_sha: "ccccccc3333333" })
+
+    expect(duplicateRunIds([ first, second, other ])).toEqual(new Set([ 149674 ]))
+  })
+
+  it("returns an empty set when every version has its own run_id", () => {
+    const first = rangeVersion({ id: 1, run_id: 100 })
+    const second = rangeVersion({ id: 2, run_id: 101 })
+
+    expect(duplicateRunIds([ first, second ])).toEqual(new Set())
+  })
 })
 
 describe("DiffReviewVersionSelector", () => {
@@ -151,6 +175,45 @@ describe("DiffReviewVersionSelector", () => {
     )
 
     expect(screen.getAllByText("All changes")).toHaveLength(1)
+  })
+
+  it("gives a resumed Run's two versions distinguishable dropdown row labels instead of showing the same Run identifier twice", () => {
+    const first = rangeVersion({ id: 6, version_index: 6, workflow_id: 20, run_id: 149674, base_sha: "main-sha", head_sha: "aaaaaaa1111111" })
+    const second = rangeVersion({ id: 7, version_index: 7, workflow_id: 20, run_id: 149674, base_sha: "aaaaaaa1111111", head_sha: "bbbbbbb2222222" })
+
+    render(
+      <DiffReviewVersionSelector
+        latestVersionId={7}
+        onChange={() => {}}
+        selectedVersionId={7}
+        versions={[ first, second ]}
+      />
+    )
+
+    // The selected/collapsed label on the closed button must not read the
+    // bare "RUN-149674" for the currently selected (later) version -- that
+    // is indistinguishable from what the earlier version would also show.
+    expect(screen.getByText("RUN-149674 (bbbbbbb)")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /Version/ }))
+
+    const rows = screen.getAllByText(/^v[67] RUN-149674/)
+    expect(rows.map((row) => row.textContent)).toEqual([ "v6 RUN-149674 (aaaaaaa)", "v7 RUN-149674 (bbbbbbb)" ])
+  })
+
+  it("keeps the plain RUN-<id> label when a run_id is not shared by another version", () => {
+    const only = rangeVersion({ id: 1, version_index: 1, workflow_id: 10, run_id: 100, head_sha: "aaaaaaa1111111" })
+
+    render(
+      <DiffReviewVersionSelector
+        latestVersionId={1}
+        onChange={() => {}}
+        selectedVersionId={1}
+        versions={[ only ]}
+      />
+    )
+
+    expect(screen.getByText("RUN-100")).toBeInTheDocument()
   })
 
   it("highlights exactly one FROM chip and one TO chip when a single version is selected, even if an earlier version shares its base_sha", () => {
