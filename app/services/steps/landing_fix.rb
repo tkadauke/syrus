@@ -7,13 +7,20 @@ module Steps
     include MergeTrainStep
 
     def call
-      perform_agentic_change_step(
-        log_message: "invoking agent for landing_fix step (#{workflow.slug}, auto_merge)",
-        commit_message: "Syrus pre-merge fix",
-        require_step_diff: true
-      ) do
-        run.update!(prompt: compose_prompt) if run.prompt.blank?
+      begin
+        perform_agentic_change_step(
+          log_message: "invoking agent for landing_fix step (#{workflow.slug}, auto_merge)",
+          commit_message: "Syrus pre-merge fix",
+          require_step_diff: true
+        ) do
+          run.update!(prompt: compose_prompt) if run.prompt.blank?
+        end
+      rescue NoChangesProduced
+        log("landing_fix produced no repository changes; treating as a successful no-op so graders can recheck the current tree",
+            kind: "system")
+        return
       end
+
       preserve_merge_train_repair_head!
     end
 

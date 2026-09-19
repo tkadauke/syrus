@@ -141,14 +141,18 @@ class RunJob < ApplicationJob
   private
 
   # Re-enqueue this Run after a delay, preserving its Job's SolidQueue priority
-  # AND the current queue. Preserving the queue matters for the per-worker
-  # resume queue: a deferred resume run must stay pinned to the worker holding
-  # the workspace, not fall back to the class-default `:runs` queue on any pod.
+  # and storage affinity. A mutable workflow may start on the generic `runs` or
+  # `merges` queue and only later record the worker data root that owns its
+  # workspace. Once that storage key exists, deferred retries must move onto the
+  # corresponding resume queue; otherwise host admission can bounce a later
+  # agentic step to a different pod that has only stale local debris for the same
+  # workflow id.
   # Used by the runs-paused and agent-concurrency gates.
   def defer_run(run_id, delay)
     run = ::Run.find_by(id: run_id)
     sq_num = run&.solid_queue_priority || ::Job::PRIORITY_TO_SQ["medium"]
-    self.class.set(queue: queue_name, wait: delay, priority: sq_num).perform_later(run_id)
+    queue = run&.resume_worker_queue || queue_name
+    self.class.set(queue: queue, wait: delay, priority: sq_num).perform_later(run_id)
   end
 
   # Global, cluster-wide cap on concurrent agent Runs (the `:runs` queue),

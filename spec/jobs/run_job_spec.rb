@@ -1622,6 +1622,32 @@ RSpec.describe RunJob, :ci_only do
       expect(run_jobs.last[:priority]).to be < urgent_priority
     end
 
+    it "delays mutable workflow retries onto the recorded storage-affinity queue" do
+      workflow = Workflow.create!(
+        job: job,
+        user: user,
+        trigger_kind: "initial",
+        agent_provider: job.agent_provider,
+        state: "running",
+        worker_storage_key: "storage-main"
+      )
+      step = Step.create!(
+        workflow: workflow,
+        kind: "summarize",
+        position: 1,
+        placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+      )
+      run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+      allow(InstanceVersion).to receive(:worker_queue_live?).with("resume-storage-main").and_return(true)
+      run_job = RunJob.new
+      allow(run_job).to receive(:queue_name).and_return("runs")
+
+      clear_enqueued_jobs
+      expect {
+        run_job.send(:defer_run, run.id, 15.seconds)
+      }.to have_enqueued_job(RunJob).with(run.id).on_queue("resume-storage-main")
+    end
+
     it "classifies runs-queue trigger kinds, excluding landing and merge workflows" do
       kinds = Workflow.runs_queue_trigger_kinds
 
