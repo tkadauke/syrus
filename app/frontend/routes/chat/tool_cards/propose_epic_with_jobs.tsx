@@ -7,7 +7,7 @@ import { countFromInputArray, stringFromInput, ToolFailureSummaryCard, toolFailu
 // `materialized` result — it returns the epic proposal plus its bundled
 // child Job proposals (PendingActionsController::Base#payload_for in
 // propose_epic_with_jobs_tool.rb), so it gets its own parser.
-type ChildProposalRow = { slug: string; state: string; targetRepo: string | null }
+type ChildProposalRow = { slug: string; state: string; targetRepo: string | null; providerSetting: string | null }
 
 type EpicWithJobsOutcome = {
   slug: string
@@ -37,7 +37,7 @@ function childProposalRows(value: unknown): ChildProposalRow[] {
     const slug = displayValue(item.slug)
     const state = displayValue(item.state)
     if (!slug || !state) return []
-    return [{ slug, state, targetRepo: displayValue(item.target_repo) }]
+    return [{ slug, state, targetRepo: displayValue(item.target_repo), providerSetting: displayValue(item.provider_setting) }]
   })
 }
 
@@ -97,6 +97,9 @@ function renderExpanded(context: ToolCardContext) {
                 <span className="font-mono text-gray-700 dark:text-gray-300">{child.slug}</span>
                 <StatePill state={child.state} />
                 {child.targetRepo ? <span className="text-gray-500 dark:text-gray-400">{child.targetRepo}</span> : null}
+                {child.providerSetting && child.providerSetting !== "default" ? (
+                  <span className="text-gray-500 dark:text-gray-400">Provider: {child.providerSetting}</span>
+                ) : null}
               </li>
             ))}
           </ul>

@@ -533,6 +533,21 @@ direct Job proposal card — it can be combined with `epic_id` to target an
 existing Epic, and both `ChatProposalFiler` and `ChatEpicProposalMaterializer`
 propagate it onto the created Job either way.
 
+`propose_job` accepts an optional `provider` override, and
+`propose_epic_with_jobs` accepts an optional `provider` per child Job
+(`jobs[].provider`), to pin the implementing provider for the filed Job
+(e.g. `muse`). Omit it (or pass `"default"`) to keep the current behavior:
+the Job inherits the repository/user default provider at confirmation time.
+Values are validated against `Job::ProviderSetting::Base.values` and unknown
+providers are rejected before the proposal card is created. The override is
+persisted on `ChatProposal#provider_setting` (default `"default"`) and applied
+at filing time: `ChatProposalFiler` and `ChatEpicProposalMaterializer` set
+`Job#job_provider_setting` from the proposal and resolve `agent_provider`
+through `Job::ProviderSetting::Base`, preserving the existing
+advance-after-triage ordering. Proposal payloads and the chat proposal card
+surface the override for confirmation display; dependency and linear-chain
+validation are unchanged.
+
 Because `Document::MAX_ATTACHMENTS_PER_JOB` caps attachments per Job, repeated
 feedback rounds that each attach media can eventually hit the cap. Refs that
 would exceed it are skipped (existing attachments are never evicted) and the

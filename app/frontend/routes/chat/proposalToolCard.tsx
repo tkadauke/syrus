@@ -22,6 +22,7 @@ export type ProposalOutcome = {
   repository: string | null
   dependencyCount: number
   targetEpicLabel: string | null
+  providerSetting: string | null
   materialized: MaterializedOutcome
 }
 
@@ -63,6 +64,7 @@ export function parseProposalOutcome(value: unknown): ProposalOutcome | null {
     repository: displayValue(value.repository),
     dependencyCount: Array.isArray(value.dependencies) ? value.dependencies.length : 0,
     targetEpicLabel: isPlainObject(value.target_epic) ? displayValue(value.target_epic.label) : null,
+    providerSetting: displayValue(value.provider_setting),
     materialized: parseMaterialized(value.materialized)
   }
 }
@@ -113,11 +115,12 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
         <span className="font-mono text-gray-500 dark:text-gray-400">{proposal.slug}</span>
       </div>
       {proposal.title ? <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{proposal.title}</div> : null}
-      {proposal.repository || proposal.targetEpicLabel || proposal.dependencyCount > 0 ? (
+      {proposal.repository || proposal.targetEpicLabel || proposal.dependencyCount > 0 || (proposal.providerSetting && proposal.providerSetting !== "default") ? (
         <dl className="grid gap-1 sm:grid-cols-2">
           {proposal.repository ? <Row label="Repository" value={proposal.repository} /> : null}
           {proposal.targetEpicLabel ? <Row label="Target epic" value={proposal.targetEpicLabel} /> : null}
           {proposal.dependencyCount > 0 ? <Row label="Dependencies" value={String(proposal.dependencyCount)} /> : null}
+          {proposal.providerSetting && proposal.providerSetting !== "default" ? <Row label="Provider" value={proposal.providerSetting} /> : null}
         </dl>
       ) : null}
       <MaterializedOutcomeDetail materialized={proposal.materialized} />
