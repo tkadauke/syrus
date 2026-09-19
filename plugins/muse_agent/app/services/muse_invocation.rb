@@ -297,6 +297,8 @@ class MuseInvocation
       process_tool_call(payload, log_sink)
     when "task.lifecycle.side_effect_intent"
       process_side_effect_intent(payload, log_sink)
+    when /\Atool_batch\.effect\./
+      process_tool_batch_effects(payload, log_sink)
     when "tool.result", "tool_result", "tool.output", "mcp.tool_result", "mcp.tool.result", "msp.tool_result", "msp.tool.result"
       process_tool_result(payload, log_sink)
     when "session.created", "run.session.created", "run.started"
@@ -383,6 +385,23 @@ class MuseInvocation
       "input" => event["input"] || event["arguments"] || payload["input"] || payload["arguments"]
     )
     process_tool_call(tool_call_payload, log_sink)
+  end
+
+  def process_tool_batch_effects(payload, log_sink)
+    tool_batch_effects(payload).each do |effect|
+      operation = effect["operation"].to_s
+      next unless operation.start_with?("tool:")
+
+      process_tool_call(
+        payload.merge(
+          "tool_name" => operation.delete_prefix("tool:"),
+          "call_id" => effect["idempotency_key"].to_s.delete_prefix("tool:").presence || effect["call_id"].presence || effect["id"].presence,
+          "input" => effect["input"] || effect["arguments"] || payload["input"] || payload["arguments"]
+        ),
+        log_sink
+      )
+    end
+    nil
   end
 
   def process_tool_result(payload, log_sink)
@@ -530,6 +549,18 @@ class MuseInvocation
 
   def tool_id(payload)
     payload["id"] || payload["tool_use_id"] || payload["call_id"] || payload["invocation_id"]
+  end
+
+  def tool_batch_effects(payload)
+    candidates = [
+      payload["effect"],
+      payload["event"],
+      payload["effects"],
+      payload["events"],
+      payload["tool_effects"],
+      payload.dig("tool_batch", "effects")
+    ].flatten.compact
+    candidates.select { |candidate| candidate.is_a?(Hash) }
   end
 
   def tool_result_content(payload)

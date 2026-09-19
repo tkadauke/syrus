@@ -68,7 +68,8 @@ module Steps
       Prompts::SummarizeAmendFallback.new(
         issue: fallback_issue,
         summary: existing_pr_context,
-        diff: fallback_diff
+        diff: fallback_diff,
+        tool_name: required_mcp_tool_name("submit_summary")
       ).to_s
     end
 

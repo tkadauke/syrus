@@ -15,6 +15,19 @@ RSpec.describe Prompts::SummarizeAmendFallback do
     expect(out).to include("Do not edit files, run commands, or make commits")
   end
 
+  it "can name the exact provider-specific MCP tool" do
+    out = described_class.new(
+      issue: issue,
+      summary: summary,
+      diff: diff,
+      tool_name: "mcp__syrus_mcp_sidecar__submit_summary"
+    ).to_s
+
+    expect(out).to include("calling the `mcp__syrus_mcp_sidecar__submit_summary` MCP")
+    expect(out).to include("expected tool name\nis `mcp__syrus_mcp_sidecar__submit_summary`")
+    expect(out).to include("available `mcp__syrus_mcp_sidecar__submit_summary`")
+  end
+
   it "embeds bounded job, PR, and follow-up diff context" do
     out = described_class.new(issue: issue, summary: summary, diff: diff).to_s
 

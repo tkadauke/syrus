@@ -425,6 +425,10 @@ module Steps
         normalized.end_with?(".#{required_tool}")
     end
 
+    def required_mcp_tool_name(tool)
+      Prompts::WorkflowMcpToolInstructions.tool_name_for(agent_provider, tool).presence || tool.to_s
+    end
+
     # Session continuation. v1 contract: `--resume` only crosses Step
     # boundaries *within the same Workflow*. Cross-Workflow chains
     # (Initial → PrFeedback) start a fresh session — the

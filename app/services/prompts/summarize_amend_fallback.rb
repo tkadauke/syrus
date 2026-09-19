@@ -7,10 +7,11 @@ module Prompts
     MAX_SUMMARY_BYTES = 8 * 1024
     MAX_DIFF_BYTES = Prompts::PullRequestSummary::MAX_DIFF_BYTES
 
-    def initialize(issue:, summary:, diff:)
+    def initialize(issue:, summary:, diff:, tool_name: "submit_summary")
       @issue = issue
       @summary = summary.to_s
       @diff = diff.to_s
+      @tool_name = tool_name.to_s.presence || "submit_summary"
     end
 
     def to_s
@@ -20,10 +21,11 @@ module Prompts
         durable context instead.
 
         The PR for this Job already exists; this is a follow-up commit, not a
-        new PR. Produce the commit metadata by calling the `submit_summary` MCP
+        new PR. Produce the commit metadata by calling the `#{@tool_name}` MCP
         tool. If your tool list shows a prefixed MCP name, call the exact prefixed
         name shown there; do not call bare `submit_summary` unless
-        that exact bare name is available.
+        that exact bare name is available. For this run, the expected tool name
+        is `#{@tool_name}`.
 
         - `pr_title`: a one-line commit message describing what changed in this
           revision, not the whole PR. Use imperative mood.
@@ -32,7 +34,7 @@ module Prompts
         - `summary`: 1 sentence operator-facing.
 
         Do not edit files, run commands, or make commits. The previous step
-        already committed the work. Just call the available `submit_summary`
+        already committed the work. Just call the available `#{@tool_name}`
         tool name with valid JSON arguments and exit.
 
         # Original job

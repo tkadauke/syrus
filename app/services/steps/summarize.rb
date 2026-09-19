@@ -97,7 +97,8 @@ module Steps
     def fallback_prompt
       Prompts::SummarizeFallback.new(
         issue: fallback_issue,
-        diff: fallback_diff
+        diff: fallback_diff,
+        tool_name: required_mcp_tool_name("submit_summary")
       ).to_s
     end
 

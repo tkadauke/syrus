@@ -14,6 +14,17 @@ RSpec.describe Prompts::SummarizeFallback do
     expect(out).to match(/Do not continue\s+implementation/)
   end
 
+  it "can name the exact provider-specific MCP tool" do
+    out = described_class.new(
+      issue: issue,
+      diff: diff,
+      tool_name: "mcp__syrus_mcp_sidecar__submit_summary"
+    ).to_s
+
+    expect(out).to include("expected\ntool name is `mcp__syrus_mcp_sidecar__submit_summary`")
+    expect(out).to include("available `mcp__syrus_mcp_sidecar__submit_summary` tool name")
+  end
+
   it "embeds bounded job context and a changed-file manifest" do
     out = described_class.new(issue: issue, diff: diff).to_s
 

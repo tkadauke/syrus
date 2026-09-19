@@ -670,6 +670,46 @@ RSpec.describe MuseInvocation do
     ])
   end
 
+  it "succeeds required MCP checks when Muse reports MCP calls as committed tool batch effects" do
+    lines = completed_lines_with(
+      {
+        record_type: "event",
+        payload_type: "tool_batch.effect.committed",
+        payload: {
+          effects: [
+            {
+              operation: "tool:mcp__syrus_mcp_sidecar__submit_summary",
+              idempotency_key: "tool:call_01a0b76d6260768d8d8cdca8646e1d32",
+              input: { pr_title: "Add provider override", pr_body: "Body", summary: "Summary" }
+            }
+          ]
+        }
+      }.to_json
+    )
+    events = []
+    stub_process_runners(lines: lines)
+
+    result = described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl,
+      required_mcp_tools: %w[submit_summary],
+      log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+    ).run
+
+    expect(result).to be_success
+    expect(events).to include(a_collection_including(
+      a_string_including("submit_summary"),
+      {
+        kind: "tool_call",
+        tool_name: "mcp__syrus_mcp_sidecar__submit_summary",
+        tool_input: { "pr_title" => "Add provider override", "pr_body" => "Body", "summary" => "Summary" },
+        tool_use_id: "call_01a0b76d6260768d8d8cdca8646e1d32"
+      }
+    ))
+  end
+
   it "fails required MCP checks when Muse never exposes required tools" do
     events = []
     captured = []

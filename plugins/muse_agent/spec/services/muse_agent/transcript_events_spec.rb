@@ -185,6 +185,41 @@ RSpec.describe MuseAgent::TranscriptEvents do
     expect(summary).to be_mcp_tool_called
   end
 
+  it "normalizes Muse committed tool batch effects as tool calls" do
+    jsonl = [
+      {
+        record_type: "event",
+        payload_type: "tool_batch.effect.committed",
+        payload: {
+          effects: [
+            {
+              operation: "tool:mcp__syrus_mcp_sidecar__submit_summary",
+              idempotency_key: "tool:call_01a0b76d6260768d8d8cdca8646e1d32",
+              input: { pr_title: "Add provider override" }
+            }
+          ]
+        }
+      },
+      {
+        record_type: "event",
+        payload_type: "run.terminal.completed",
+        payload: { outcome: "success", turns: 1, final_text: "ok" }
+      }
+    ].map(&:to_json).join("\n")
+
+    events = ClaudeTranscript.new(jsonl).events.to_a
+    summary = ClaudeTranscript.new(jsonl).summary
+
+    expect(events.map(&:kind)).to eq([ :tool_use, :result ])
+    expect(events.first.data).to include(
+      name: "mcp__syrus_mcp_sidecar__submit_summary",
+      input: { "pr_title" => "Add provider override" },
+      id: "call_01a0b76d6260768d8d8cdca8646e1d32"
+    )
+    expect(summary.tool_call_counts).to include("mcp__syrus_mcp_sidecar__submit_summary" => 1)
+    expect(summary).to be_mcp_tool_called
+  end
+
   it "normalizes pretty Muse export documents with nested record_json children" do
     export = {
       diagnostics: {

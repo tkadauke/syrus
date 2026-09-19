@@ -28,6 +28,8 @@ module MuseAgent
         ) ]
       when "task.lifecycle.side_effect_intent"
         muse_side_effect_tool_event(payload, timestamp)
+      when /\Atool_batch\.effect\./
+        muse_tool_batch_effect_events(payload, timestamp)
       when "tool.result", "tool_result", "tool.output", "mcp.tool_result", "mcp.tool.result", "msp.tool_result", "msp.tool.result"
         [ ClaudeTranscript::Event.new(
           kind: :tool_result,
@@ -110,6 +112,24 @@ module MuseAgent
       ) ]
     end
 
+    def muse_tool_batch_effect_events(payload, timestamp)
+      events = muse_tool_batch_effects(payload).filter_map do |effect|
+        operation = effect["operation"].to_s
+        next unless operation.start_with?("tool:")
+
+        ClaudeTranscript::Event.new(
+          kind: :tool_use,
+          timestamp: timestamp,
+          data: {
+            name: operation.delete_prefix("tool:"),
+            input: effect["input"] || effect["arguments"] || payload["input"] || payload["arguments"] || {},
+            id: effect["idempotency_key"].to_s.delete_prefix("tool:").presence || effect["call_id"].presence || effect["id"].presence
+          }.compact
+        )
+      end
+      events.presence || [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: { type: "tool_batch.effect" }) ]
+    end
+
     def muse_system_init_event(payload, timestamp)
       ClaudeTranscript::Event.new(
         kind: :system_init,
@@ -168,6 +188,18 @@ module MuseAgent
 
     def muse_tool_id(payload)
       payload["id"] || payload["tool_use_id"] || payload["call_id"] || payload["invocation_id"]
+    end
+
+    def muse_tool_batch_effects(payload)
+      candidates = [
+        payload["effect"],
+        payload["event"],
+        payload["effects"],
+        payload["events"],
+        payload["tool_effects"],
+        payload.dig("tool_batch", "effects")
+      ].flatten.compact
+      candidates.select { |candidate| candidate.is_a?(Hash) }
     end
 
     def muse_tool_result_content(payload)

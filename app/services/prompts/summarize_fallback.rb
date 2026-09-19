@@ -7,9 +7,10 @@ module Prompts
     MAX_BODY_BYTES = 16 * 1024
     MAX_CHANGED_FILES = 200
 
-    def initialize(issue:, diff:)
+    def initialize(issue:, diff:, tool_name: "submit_summary")
       @issue = issue
       @diff = diff.to_s
+      @tool_name = tool_name.to_s.presence || "submit_summary"
     end
 
     def to_s
@@ -18,10 +19,11 @@ module Prompts
         step already committed the work. Use this bounded metadata-only context
         to produce PR copy.
 
-        Produce the PR copy by calling the `submit_summary` MCP tool with
+        Produce the PR copy by calling the `#{@tool_name}` MCP tool with
         three fields. If your tool list shows a prefixed MCP name, call the
         exact prefixed name shown there; do not call bare `submit_summary`
-        unless that exact bare name is available.
+        unless that exact bare name is available. For this run, the expected
+        tool name is `#{@tool_name}`.
 
         - `pr_title`: 50-72 chars, imperative mood ("Add greeting helper",
           not "Adds..." or "This PR adds..."). No leading prefix or repo slug.
@@ -30,7 +32,7 @@ module Prompts
         - `summary`: 1-2 sentences, operator-facing, shown on the Syrus job page.
 
         Do not edit files, run commands, or make commits. Do not continue
-        implementation. Just call the available `submit_summary` tool name and
+        implementation. Just call the available `#{@tool_name}` tool name and
         exit.
 
         # Original job
