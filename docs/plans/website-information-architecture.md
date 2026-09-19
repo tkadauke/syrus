@@ -309,7 +309,7 @@ Source content:
 | `docs/plans/complete/*` | None | Preserve internal/archive | Completed implementation plans should not appear in public IA |
 | `docs/plans/*magic-constants*` | `/docs/configuration`, if settings remain user-facing | Selectively merge | Only expose current configurable settings |
 | `docs/plans/gh-stack-integration.md` | Future workflows/recipes | Preserve internal | Not in launch IA unless feature ships |
-| `docs/plans/complete/syrus-as-dev-environment.md` | `/evaluate`, `/docs/deployment/try-it-locally` | Selectively merge (archived 2026-09-19) | Use only current local-dev behavior |
+| `docs/plans/syrus-as-dev-environment.md` | `/evaluate`, `/docs/deployment/try-it-locally` | Selectively merge | Use only current local-dev behavior; M5-M8 (scaffolding, hosted previews, continuous deploy, team support) remain unshipped, so this stays an open plan, not archived history |
 | `config/syrus_docs/workflow_steps.md` | `/docs/workflows`, `/docs/configuration`, `/docs/troubleshooting` | Selectively merge | Current source for prepare, grade-loop, formatter, generated-file, and workflow-step behavior |
 | `config/syrus_docs/video_walkthroughs.md` | Future walkthrough docs | Selectively merge | Current source for walkthrough-video behavior and retention; keep product copy honest about the feature flag and Gemini requirement |
 | `lib/agent_skills/*.md` | Future recipes or extension docs | Preserve | Not part of launch IA |
