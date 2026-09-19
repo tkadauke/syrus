@@ -10,10 +10,14 @@ module Api
     include PerformanceLoggingContext
     include JsonErrorRendering
 
-    # Only failed token lookups count against this limit, so a well-behaved
-    # client with a valid (even high-volume) token is never throttled — this
-    # exists purely to slow down repeated bad-bearer-token guessing, the way
-    # SessionsController already throttles repeated bad passwords.
+    # Only a *present* token that fails to resolve to a user counts against
+    # this limit — a request with no Authorization header, or one that isn't
+    # `Token`/`Bearer <value>` shaped, is never counted, and a request that
+    # does present a valid token is never blocked by it either, even mid
+    # lockout. So a well-behaved client with a valid (even high-volume) token
+    # is never throttled — this exists purely to slow down repeated
+    # bad-bearer-token guessing, the way SessionsController already throttles
+    # repeated bad passwords.
     BAD_API_TOKEN_LIMIT = 20
     BAD_API_TOKEN_WINDOW = 5.minutes
 
@@ -31,18 +35,36 @@ module Api
     private
 
     def authenticate_via_api_token
-      return render_bad_api_token_rate_limited if bad_api_token_rate_limited?
+      # Parsed by hand rather than via authenticate_or_request_with_http_token:
+      # that helper renders the 401 itself as soon as the block returns falsy,
+      # which would happen before we know whether *this* request is even a
+      # bad-token guess worth counting, and would double-render if we then
+      # tried to swap in a 429. token_and_options returns nil unless the
+      # header actually looks like `Token`/`Bearer <value>` — a missing or
+      # malformed Authorization header never reaches here as a "bad token".
+      token, = ActionController::HttpAuthentication::Token.token_and_options(request)
 
-      authenticated = authenticate_or_request_with_http_token do |token, _options|
+      if token.present?
         # Look up by deterministic-encrypted column — same plaintext
         # always encrypts to the same ciphertext, so a WHERE works.
         # ActiveSupport::SecurityUtils.secure_compare is wrapped by
         # AR's encryption layer; no separate timing-safe step needed.
         @current_api_user = User.find_by(api_token: token)
       end
-      record_bad_api_token_attempt if @current_api_user.nil?
-      refresh_performance_logging_user_context if @current_api_user
-      authenticated
+
+      if @current_api_user
+        refresh_performance_logging_user_context
+        return true
+      end
+
+      if token.present?
+        return render_bad_api_token_rate_limited if bad_api_token_rate_limited?
+
+        record_bad_api_token_attempt
+      end
+
+      request_http_token_authentication
+      false
     end
 
     def bad_api_token_rate_limited?

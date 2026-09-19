@@ -16,6 +16,12 @@ curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
 Non-admin tokens are rejected with `403 Forbidden`; missing or invalid
 tokens return a JSON `401` error.
 
+Repeated invalid bearer tokens from the same source IP are rate-limited (20
+per 5 minutes); once tripped, further bad-token attempts from that IP get a
+`429 Too Many Requests` with `error.code` `rate_limited` until the window
+expires. A request with no `Authorization` header, or a valid token, never
+counts against or is blocked by this limit.
+
 ## Command Line Client
 
 The repository includes a standalone Go CLI under `cli/`. It sends the
