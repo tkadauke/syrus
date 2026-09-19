@@ -252,14 +252,6 @@ module App
       version_id ? @job.diff_review_versions.find_by(id: version_id) : nil
     end
 
-    def latest_all_changes_version
-      version_id = @job.diff_review_versions
-                       .all_changes
-                       .latest_first
-                       .pick(:id)
-      version_id ? @job.diff_review_versions.find_by(id: version_id) : nil
-    end
-
     def fixture_diff_review_version(fixture)
       base_sha = fixture[:base_sha].presence || fixture[:merge_base_sha].presence || fixture[:base_ref]
       head_sha = fixture[:head_sha].presence || fixture[:head_ref]
