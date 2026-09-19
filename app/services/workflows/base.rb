@@ -74,8 +74,10 @@ module Workflows
     # from these at run time, so the polling job (or controller)
     # doesn't need to know prompt internals.
     def self.instantiate(job:, artifacts: nil, agent_provider: nil, model: nil, effort_level: nil)
-      chain_template = steps_for(job)
-      raise "no steps declared for #{name}" if chain_template.nil? || chain_template.empty?
+      raw_chain_template = steps_for(job)
+      raise "no steps declared for #{name}" if raw_chain_template.nil? || raw_chain_template.empty?
+
+      chain_template = normalize_chain_template(raw_chain_template)
 
       effective_artifacts = artifacts
       effective_chain_template = chain_template

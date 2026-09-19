@@ -480,6 +480,59 @@ RSpec.describe Workflows do
       end.to raise_error(ArgumentError, /nested workflow control nodes/)
     end
 
+    it "rejects nested workflow control declarations returned from steps_for" do
+      workflow_class = Class.new(Workflows::Base) do
+        def self.steps_for(_job)
+          [
+            Workflows::Loop.new(
+              max_iterations: 3,
+              steps: [
+                :implement,
+                Workflows::RetryUntil.new(
+                  repair: [ :implement ],
+                  check: [ :grade ]
+                )
+              ]
+            )
+          ]
+        end
+
+        def self.trigger_kind = "manual"
+      end
+
+      expect { workflow_class.instantiate(job: job) }
+        .to raise_error(ArgumentError, /nested workflow control nodes/)
+    end
+
+    it "rejects direct materialization of loop step kinds with a nested control node" do
+      loop = Workflows::Loop.new(
+        max_iterations: 3,
+        steps: [
+          :implement,
+          Workflows::RetryUntil.new(
+            repair: [ :implement ],
+            check: [ :grade ]
+          )
+        ]
+      )
+
+      expect { loop.step_kinds }
+        .to raise_error(ArgumentError, /nested workflow control nodes/)
+    end
+
+    it "rejects direct serialization of loop templates with a nested control node" do
+      loop = Workflows::Loop.new(
+        max_iterations: 3,
+        steps: [
+          :implement,
+          Workflows::Loop.new(max_iterations: 2, steps: [ :implement, :adversarial_review ])
+        ]
+      )
+
+      expect { loop.to_chain_template }
+        .to raise_error(ArgumentError, /nested workflow control nodes/)
+    end
+
     it "rejects a loop that isn't exactly an [agent_step, review_step] pair" do
       expect { Workflows::Loop.new(max_iterations: 3, steps: [ :implement ]) }
         .to raise_error(ArgumentError, "loop requires exactly 2 steps: [agent_step, review_step]")
