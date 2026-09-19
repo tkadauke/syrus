@@ -53,6 +53,11 @@ module Mcp::Tools
       thorough answer with no code changes is a fully successful outcome.
       Leave it false (the default) for any proposal that should produce a
       code change and a PR.
+      Set provider to pin the implementing provider for the filed Job (e.g.
+      "muse"). Omit it (or pass "default") to keep the current behavior:
+      the Job inherits the repository/user default provider at confirmation
+      time. Unknown provider values are rejected before the proposal card is
+      created.
     DESC
 
     input_schema(
@@ -71,13 +76,14 @@ module Mcp::Tools
         },
         route_to_backlog: { type: "boolean", description: "When true, confirming this direct Job proposal creates the Job in backlog and does not start its initial workflow. Defaults to false for the current start-normal behavior." },
         investigation: { type: "boolean", description: "When true, confirming this proposal creates a read-only investigation Job (no PR expected) instead of a normal implementation Job. Defaults to false." },
+        provider: { type: "string", description: "Optional implementing-provider override (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
         for_active_goal: { type: "boolean", description: "Set true only when this proposal directly advances the currently active Chat Goal. Defaults to false so unrelated proposals are not silently attributed to the active goal." }
       },
       required: %w[repo title description]
     )
 
     class << self
-      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], media: [], route_to_backlog: false, investigation: false, for_active_goal: false)
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], media: [], route_to_backlog: false, investigation: false, provider: nil, for_active_goal: false)
         chat_session = server_context.fetch(:chat_session)
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
@@ -89,6 +95,8 @@ module Mcp::Tools
         return Mcp::Tools.invalid("repository not found") unless repository
         return Mcp::Tools.invalid("title is required") if title.empty?
         return Mcp::Tools.invalid("description is required") if description.empty?
+        provider_setting, provider_error = normalize_provider_setting(provider)
+        return Mcp::Tools.invalid(provider_error) if provider_error
         goal_attrs = goal_provenance_attributes(chat_session, for_active_goal)
         return Mcp::Tools.invalid("for_active_goal requires an active Chat Goal") if goal_attrs == false
 
@@ -140,6 +148,7 @@ module Mcp::Tools
             media_ids: Array(media),
             route_to_backlog: ActiveModel::Type::Boolean.new.cast(route_to_backlog),
             investigation: ActiveModel::Type::Boolean.new.cast(investigation),
+            provider_setting: provider_setting,
             **goal_attrs
           )
           dependencies.each do |dependency|
