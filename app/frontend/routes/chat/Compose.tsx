@@ -10,11 +10,12 @@ import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationS
 import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
 import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { attachChatRepository, branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
+import { attachChatRepository, branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, switchChatProvider, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatProviderOption, type ChatQueuedMessage, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Input } from "../../components/Input"
+import { Surface } from "../../components/ui"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
 import { ImageAnnotationModal } from "../../components/ImageAnnotationModal"
 import { SendIcon } from "../../components/SendIcon"
@@ -68,6 +69,24 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     () => Object.fromEntries((payload.chat.chat_provider_options || []).map((option) => [option.value, option.label])),
     [payload.chat.chat_provider_options]
   )
+  // showAttachedRepositories doubles as "this is the landing composer for a
+  // still-empty chat" (see ChatColumn in Chat.tsx) -- the only place a
+  // creation-time provider choice belongs. A brand-new chat already has
+  // chat_provider seeded to the user's default (ChatSession#seed_chat_provider
+  // runs at creation), so this switches it the same way the chat-settings
+  // dialog does rather than trying to "pin" an unset value.
+  const configuredChatProviderOptions = useMemo(
+    () => (payload.chat.chat_provider_options || []).filter((option) => option.configured),
+    [payload.chat.chat_provider_options]
+  )
+  const showChatProviderSelector = showAttachedRepositories && configuredChatProviderOptions.length > 1
+  const currentChatProvider = payload.chat.chat_provider || payload.chat.effective_chat_provider || ""
+  const switchChatProviderMutation = useMutation({
+    mutationFn: (value: string) => switchChatProvider(payload.paths.app_switch_provider_path, value),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
+    }
+  })
   // The video_walkthroughs plugin is its own feature flag: it contributes the
   // upload path only while enabled, so its absence is what hides every video
   // intake path (drag-in, picker, recorder) without core knowing why.
@@ -1861,6 +1880,14 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
               onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
             />
           ) : null}
+          {showChatProviderSelector ? (
+            <ChatProviderSelector
+              disabled={switchChatProviderMutation.isPending}
+              onChange={(value) => switchChatProviderMutation.mutate(value)}
+              options={configuredChatProviderOptions}
+              value={currentChatProvider}
+            />
+          ) : null}
           <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
           <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
           <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
@@ -2380,6 +2407,80 @@ function blobToBase64(blob: Blob) {
     reader.onerror = () => reject(reader.error || new Error("Could not read audio."))
     reader.readAsDataURL(blob)
   })
+}
+
+// Toolbar counterpart to the "Provider" field in ChatSettingsDialog
+// (WorkspacePanels.tsx): same switch-provider endpoint, surfaced directly on
+// the new-chat landing composer instead of behind a settings dialog, since
+// picking the provider before the first message is the whole point of the
+// feature. A brand-new chat already has chat_provider seeded to the user's
+// default, so this is a genuine switch, not a pre-creation pin.
+function ChatProviderSelector({ disabled, onChange, options, value }: { disabled?: boolean; onChange: (value: string) => void; options: ChatProviderOption[]; value: string }) {
+  const { t } = useT("chat")
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!dropdownOpen) return
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node | null
+      if (!target) return
+      if (dropdownRef.current?.contains(target)) return
+      if (buttonRef.current?.contains(target)) return
+      setDropdownOpen(false)
+    }
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [dropdownOpen])
+
+  const currentLabel = options.find((option) => option.value === value)?.label ?? value
+
+  return (
+    <div className="relative">
+      <Button
+        aria-expanded={dropdownOpen}
+        aria-haspopup="listbox"
+        aria-label={t("aria_chat_provider")}
+        className="min-h-11 max-w-[6rem] !gap-1 !px-1.5 sm:min-h-0 sm:max-w-none sm:!px-2.5"
+        disabled={disabled}
+        onClick={() => setDropdownOpen((open) => !open)}
+        ref={buttonRef}
+        size="sm"
+        variant="secondary"
+      >
+        <span className="min-w-0 truncate">{currentLabel}</span>
+        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </Button>
+      {dropdownOpen ? (
+        <div className="absolute bottom-full left-0 z-20 mb-1 min-w-[7rem]" ref={dropdownRef}>
+          <Surface className="overflow-hidden" padding="none" role="listbox" variant="raised">
+            {options.map((option) => (
+              <button
+                aria-selected={value === option.value}
+                className={`flex w-full items-center px-3 py-2 text-left text-sm ${
+                  value === option.value
+                    ? "bg-brand/10 font-medium text-brand"
+                    : "text-text-secondary hover:bg-surface-subtle"
+                }`}
+                key={option.value}
+                onClick={() => {
+                  onChange(option.value)
+                  setDropdownOpen(false)
+                }}
+                role="option"
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </Surface>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; payload: ChatPayload; queryKey: ChatQueryKey }) {

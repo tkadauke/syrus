@@ -1,9 +1,6 @@
 {
   "title": "Chat",
   "unable_to_start": "Chat konnte nicht gestartet werden.",
-  "new_chat_provider_title": "Neuen Chat starten",
-  "new_chat_provider_hint": "Wähle aus, welcher Chat-Anbieter diesen Chat bearbeiten soll.",
-  "new_chat_provider_start": "Chat starten",
   "unable_to_update_pin": "Chat-Pinnstatus konnte nicht aktualisiert werden.",
   "loading_bookmarks": "Lesezeichen werden geladen...",
   "unpin": "Chat loslösen",

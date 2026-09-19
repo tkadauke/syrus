@@ -6912,6 +6912,84 @@ describe("chat effort selector in toolbar", () => {
   })
 })
 
+describe("chat provider selector on the new-chat landing form", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  const providerOptions = [
+    { value: "claude", label: "Claude", configured: true, effective_provider: "claude", effective_label: "Claude" },
+    { value: "codex", label: "Codex", configured: true, effective_provider: "codex", effective_label: "Codex" }
+  ]
+
+  function landingPayload(chatOverrides: Record<string, unknown> = {}, messages: Array<Record<string, unknown>> = []) {
+    const base = chatPayload({ chat: chatOverrides, messages })
+    return { ...base, paths: { ...base.paths, app_switch_provider_path: "/api/v1/app/chats/8/switch_provider" } }
+  }
+
+  it("renders on a still-empty chat with multiple configured providers, defaulting to the chat's seeded provider", async () => {
+    mockChatRouteFetch(landingPayload({ chat_provider: "codex", effective_chat_provider: "codex", chat_provider_options: providerOptions }))
+    renderRoute()
+
+    const button = await screen.findByRole("button", { name: "Chat provider" })
+    expect(button).toHaveTextContent("Codex")
+  })
+
+  it("does not render once the chat already has messages", async () => {
+    mockChatRouteFetch(landingPayload(
+      { chat_provider: "claude", effective_chat_provider: "claude", chat_provider_options: providerOptions },
+      [ { type: "message", id: 9, role: "assistant", tool_name: null, content: { text: "Discuss aqueducts." }, text: "Discuss aqueducts.", bookmarkable: true } ]
+    ))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("button", { name: "Chat provider" })).not.toBeInTheDocument()
+  })
+
+  it("does not render when only one chat provider is configured", async () => {
+    mockChatRouteFetch(landingPayload({
+      chat_provider: "claude",
+      effective_chat_provider: "claude",
+      chat_provider_options: [
+        { value: "claude", label: "Claude", configured: true, effective_provider: "claude", effective_label: "Claude" },
+        { value: "codex", label: "Codex", configured: false, effective_provider: "codex", effective_label: "Codex" }
+      ]
+    }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("button", { name: "Chat provider" })).not.toBeInTheDocument()
+  })
+
+  it("switches the provider through the existing switch-provider endpoint", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/switch_provider" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse({ message: "Switching to codex." }))
+      }
+      return Promise.resolve(jsonResponse(landingPayload({ chat_provider: "claude", effective_chat_provider: "claude", chat_provider_options: providerOptions })))
+    })
+
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Chat provider" }))
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Codex" }))
+
+    await waitFor(() => {
+      const switchCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+        String(call[0]) === "/api/v1/app/chats/8/switch_provider" && (call[1] as RequestInit)?.method === "POST"
+      )
+      expect(switchCalls).toHaveLength(1)
+      expect(JSON.parse((switchCalls[0][1] as RequestInit).body as string)).toEqual({ provider: "codex" })
+    })
+  })
+})
+
 describe("renderChatMessages tool_result content key", () => {
   it("anchors proposal and pending action cards after the tool events that produced them", () => {
     const proposal = {

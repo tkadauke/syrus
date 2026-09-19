@@ -1,9 +1,6 @@
 {
   "title": "Colloquium",
   "unable_to_start": "Colloquium incipere non potest.",
-  "new_chat_provider_title": "Novum colloquium incipe",
-  "new_chat_provider_hint": "Elige praebitorem qui hoc colloquium agat.",
-  "new_chat_provider_start": "Colloquium incipe",
   "unable_to_update_pin": "Tessera colloquii mutari non potest.",
   "loading_bookmarks": "Signacula onerantur...",
   "unpin": "Dimitte colloquium",

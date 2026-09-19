@@ -41,6 +41,7 @@ describe("chat API", () => {
       })
     )
   })
+
 })
 
 function createdChatPayload() {
