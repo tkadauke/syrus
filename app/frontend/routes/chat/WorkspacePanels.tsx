@@ -1453,22 +1453,25 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
     event.preventDefault()
     const startX = event.clientX
     const startWidth = treeCollapsed ? 0 : treeWidth
+    let snappedClosedDuringGesture = treeCollapsed
     treeDividerDraggedRef.current = false
 
     function resize(moveEvent: MouseEvent) {
       const width = startWidth + (moveEvent.clientX - startX)
       if (Math.abs(moveEvent.clientX - startX) > 2) treeDividerDraggedRef.current = true
 
-      if (treeCollapsed && width < CHAT_FILES_TREE_REOPEN_WIDTH) {
+      if (snappedClosedDuringGesture && width < CHAT_FILES_TREE_REOPEN_WIDTH) {
         setTreeCollapsed(true)
         return
       }
 
       if (width < CHAT_FILES_TREE_SNAP_CLOSED_WIDTH) {
+        snappedClosedDuringGesture = true
         setTreeCollapsed(true)
         return
       }
 
+      snappedClosedDuringGesture = false
       setTreeCollapsed(false)
       setTreeWidth(clampFilesTreeWidth(width))
     }
@@ -1476,6 +1479,9 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
     function stopResize() {
       window.removeEventListener("mousemove", resize)
       window.removeEventListener("mouseup", stopResize)
+      window.setTimeout(() => {
+        treeDividerDraggedRef.current = false
+      }, 0)
     }
 
     window.addEventListener("mousemove", resize)
