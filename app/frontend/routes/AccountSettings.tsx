@@ -1,5 +1,5 @@
 import { PageHeading, SectionHeading } from "../components/Heading"
-import { routePrefix } from "../lib/routing"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { Button } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
 import { Input } from "../components/Input"
@@ -8,7 +8,7 @@ import { Form } from "../components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
 import { useEffect, useState } from "react"
-import { useLocation } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import i18n from "../i18n"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -130,18 +130,18 @@ function CredentialsView({ payload, onNotice, section }: { payload: CredentialsP
         <GeminiCredentialCard onNotice={onNotice} payload={payload} />
         <AgyCredentialCard onNotice={onNotice} payload={payload} />
         <PasskeysPanel />
-        {payload.options.chat_providers.length > 0 ? <ChatProviderPanel onNotice={onNotice} payload={payload} /> : null}
+        {payload.options.chat_providers.length > 0 ? <ChatProviderPanel onNotice={onNotice} payload={payload} prefix={prefix} /> : null}
         {payload.user.admin ? <ApiTokenPanel onNotice={onNotice} payload={payload} /> : null}
       </>
     )
   }
 
-  return <CredentialsForm onNotice={onNotice} payload={payload} section={section} />
+  return <CredentialsForm onNotice={onNotice} payload={payload} prefix={prefix} section={section} />
 }
 
 // Chat provider pick, saved immediately per-change (partial PATCH) — the
 // credentials page no longer has a global Save.
-function ChatProviderPanel({ payload, onNotice }: { payload: CredentialsPayload; onNotice: (message: string | null) => void }) {
+function ChatProviderPanel({ payload, onNotice, prefix }: { payload: CredentialsPayload; onNotice: (message: string | null) => void; prefix: string }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const chatProvider = payload.user.chat_provider || ""
@@ -172,11 +172,17 @@ function ChatProviderPanel({ payload, onNotice }: { payload: CredentialsPayload;
         <option disabled value="">{t('account_settings.select_provider')}</option>
         {payload.options.chat_providers.map((provider) => <option key={provider} value={provider}>{providerLabel(payload, provider, "chat")}</option>)}
       </Select>
+      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        {t('credential_cards.chat_provider_see_also')}{" "}
+        <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/settings/agent", prefix)}>
+          {t('nav.agent_settings')}
+        </Link>
+      </p>
     </section>
   )
 }
 
-function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsPayload; onNotice: (message: string | null) => void; section: AccountSettingsSection }) {
+function CredentialsForm({ payload, onNotice, prefix, section }: { payload: CredentialsPayload; onNotice: (message: string | null) => void; prefix: string; section: AccountSettingsSection }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
@@ -289,6 +295,13 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
             <Form.Select onChange={(event) => setValues({ ...values, agent_provider: event.target.value })} value={values.agent_provider}>
               {payload.options.agent_providers.map((provider) => <option key={provider} value={provider}>{providerLabel(payload, provider)}</option>)}
             </Form.Select>
+            <Form.HelpText>
+              {t('account_settings.agent_provider_see_also')}{" "}
+              <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>
+                {t('nav.credentials')}
+              </Link>
+              {t('account_settings.agent_provider_see_also_suffix')}
+            </Form.HelpText>
           </Form.Field>
         ) : null}
 
