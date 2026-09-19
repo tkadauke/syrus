@@ -12,7 +12,10 @@ module Api
           end
 
           def update
-            render json: payload.update(params[:id], user_params)
+            attributes = user_params
+            return render_invalid_role if invalid_role?(attributes)
+
+            render json: payload.update(params[:id], attributes)
           end
 
           def pause_scheduling
@@ -31,6 +34,18 @@ module Api
 
           def user_params
             params.expect(user: [ :role ])
+          end
+
+          def invalid_role?(attributes)
+            attributes.key?(:role) && !User::ROLES.include?(attributes[:role])
+          end
+
+          def render_invalid_role
+            render_error(
+              "validation_failed",
+              "Role must be one of #{User::ROLES.join(', ')}.",
+              status: :unprocessable_content
+            )
           end
         end
       end
