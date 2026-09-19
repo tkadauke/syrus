@@ -54,9 +54,10 @@ gem "my_plugin", path: "plugins/my_plugin"
 `input_source` and `source_control_provider` are deliberately separate. A
 source plugin can poll for new work without owning PR operations, and a
 source-control provider can own branch/PR/merge operations without being a poll
-source. The bundled `github_source` currently provides both and is marked
-non-disableable until the remaining core GitHub behavior moves behind plugin
-boundaries.
+source. The bundled `github_source` currently provides both and is
+`disableable: true`; disabling it is blocked at runtime by
+`Admin::PluginDisableGuard` while any configured input source or active
+repository still uses it (see `plugins/github_source/docs/syrus_docs/github_source.md`).
 
 Admin page providers return page metadata:
 
