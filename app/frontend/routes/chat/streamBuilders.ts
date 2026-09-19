@@ -10,7 +10,7 @@ import type { ChatMessageItem, ChatPendingAction, ChatPendingActionGroup, ChatPe
 import type { ChatStreamItem } from "./streamTypes"
 import { contentInput, contentRecord, dayDividerLabel, sameLocalDay } from "./utils"
 import { structuredTool, systemMessage } from "./systemMessages"
-import { fullResultBody, fullResultBodyUnbounded, isPlainObject, parsedToolResult, shortenWorkspacePaths, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./toolRendering"
+import { NO_ARGUMENTS_SENTINEL, fullResultBody, fullResultBodyUnbounded, isPlainObject, parsedToolResult, shortenWorkspacePaths, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./toolRendering"
 import { isReadOnlyToolName } from "../../toolPresentationRegistry"
 
 // Groups are tracked per "parent" tool_use id rather than a single global
@@ -191,7 +191,7 @@ function inspectionSummary(calls: ChatToolGroupCall[]) {
 
 function sourceLabel(call: ChatToolGroupCall | undefined) {
   if (!call) return "source"
-  return call.detail && call.detail !== "No arguments" ? call.detail : "source"
+  return call.detail && call.detail !== NO_ARGUMENTS_SENTINEL ? call.detail : "source"
 }
 
 function resetLastGroup(message: ChatMessageItem, lastGroupByParentKey: Map<string, ChatToolGroupItem | null>) {

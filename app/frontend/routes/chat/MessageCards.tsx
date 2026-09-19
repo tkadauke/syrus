@@ -21,8 +21,8 @@ import { errorMessage } from "../../lib/errorMessage"
 import { redactToolCardText, redactToolCardValue, toolCardPayloadSizeLabel } from "../../toolCardSecurity"
 import { type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
-import { TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, normalizedToolCardParsedResult, normalizedToolName, parseJsonText, typedToolResult, type TypedToolResult } from "./toolRendering"
-import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody } from "../../pluginToolCards"
+import { NO_ARGUMENTS_SENTINEL, TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, normalizedToolCardParsedResult, normalizedToolName, parseJsonText, typedToolResult, type TypedToolResult } from "./toolRendering"
+import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody, pluginToolCardRendererFor } from "../../pluginToolCards"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
@@ -622,7 +622,7 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
     )
   }
 
-  const details = item.calls.map((call) => [redactToolCardText(call.detail), toolCardAwareResultSummary(call)].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
+  const details = item.calls.map((call) => [informativeDetail(call.detail), toolCardAwareResultSummary(call)].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
   const summary = item.summary_label || item.tool
   const outcome = item.outcome_label || (item.calls.some((call) => call.result_error) ? "Failed" : item.calls.some((call) => !toolCallSettled(call)) ? "Running" : "Done")
   const expanded = open
@@ -636,25 +636,49 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
         {item.calls.length > 1 ? <Pill className="ml-auto text-xs" tone="neutral">{item.calls.length}</Pill> : null}
       </summary>
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
-        {item.calls.map((call) => (
-          <div key={call.message_id}>
-            <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{call.detail ? `(${redactToolCardText(call.detail)})` : ""}</div>
-            {toolCardAwareResultSummary(call) ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{toolCardAwareResultSummary(call)}</div> : null}
-            {expanded && toolCallSettled(call) ? <ToolResultBody call={call} /> : null}
-            {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_json !== undefined ? call.result_json : call.result_body || null }} /> : null}
-            {expanded && call.nested && call.nested.length > 0 ? (
-              <div className="mt-2 space-y-1">
-                {call.nested.map((nestedGroup) => (
-                  <ToolGroup item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} />
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ))}
+        {item.calls.map((call) => {
+          const detail = informativeDetail(call.detail)
+          const resultSummary = toolCardAwareResultSummary(call)
+          return (
+            <div key={call.message_id}>
+              <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{detail ? `(${detail})` : ""}</div>
+              {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
+              {expanded && toolCallSettled(call) ? <ToolResultBody call={call} /> : null}
+              {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_json !== undefined ? call.result_json : call.result_body || null }} /> : null}
+              {expanded && call.nested && call.nested.length > 0 ? (
+                <div className="mt-2 space-y-1">
+                  {call.nested.map((nestedGroup) => (
+                    <ToolGroup item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )
+        })}
       </div>
     </details>
   )
 })
+
+// The zero-argument sentinel (see NO_ARGUMENTS_SENTINEL) carries no
+// information, so it never earns space in the collapsed subtitle or the
+// parenthesized expanded label — same precedent as sourceLabel in
+// streamBuilders.ts. Returns the redacted detail, or null when there is
+// nothing informative to show.
+function informativeDetail(detail: string) {
+  if (!detail || detail === NO_ARGUMENTS_SENTINEL) return null
+  return redactToolCardText(detail) || null
+}
+
+// Single ownership for the collapsed summary: it lives in the header. When a
+// registered card renders its own expanded body, that body owns the expanded
+// view — re-printing the one-line summary above it repeats the header
+// verbatim (and, for empty states like git_status's clean tree, the card
+// repeats it a third time). Cards are resolved polymorphically by tool name;
+// there are no per-tool branches here.
+function callHasExpandedCard(call: ChatToolGroupItem["calls"][number]) {
+  return pluginToolCardRendererFor(toolCardName(call)) != null
+}
 
 function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) {
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)

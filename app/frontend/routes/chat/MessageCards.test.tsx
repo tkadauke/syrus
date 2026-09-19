@@ -695,7 +695,9 @@ describe("tool result rendering", () => {
 
     expandToolGroup("List chat media")
 
-    expect(screen.getAllByText("2 media items")).toHaveLength(2)
+    // Single ownership: the collapsed summary lives in the header, so the
+    // registered card's expanded body does not repeat it as a separate line.
+    expect(screen.getAllByText("2 media items")).toHaveLength(1)
     expect(screen.getByText("7 whiteboard elements")).toBeInTheDocument()
 
     const imageTile = screen.getByRole("button", { name: "Open desktop.png" })
@@ -791,6 +793,80 @@ describe("tool result rendering", () => {
     expandToolGroup("List chat media")
 
     expect(screen.getByText("No media in this chat yet.")).toBeInTheDocument()
+  })
+
+  it("omits the zero-argument sentinel from the header subtitle and the expanded label", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Unknown tool",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "totally_unknown_tool",
+          raw_name: "totally_unknown_tool",
+          detail: "No arguments",
+          display_label: "Unknown tool",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: "plain text result",
+          result_error: false,
+          result_kind: "text",
+          result_summary: "custom summary"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("custom summary")).toBeInTheDocument()
+    expect(screen.queryByText("No arguments")).not.toBeInTheDocument()
+
+    expandToolGroup("Unknown tool")
+
+    expect(screen.queryByText("No arguments")).not.toBeInTheDocument()
+    // The expanded label renders bare, with no parenthesized sentinel.
+    expect(screen.getAllByText("Unknown tool")).toHaveLength(2)
+    // No registered card, so the generic body keeps its summary line.
+    expect(screen.getAllByText("custom summary")).toHaveLength(2)
+  })
+
+  it("shows a registered card's summary once in the header and its empty state once when expanded", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Git status",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "git_status",
+          raw_name: "git_status",
+          detail: "No arguments",
+          display_label: "Git status",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: JSON.stringify({ status: "" }),
+          result_json: { status: "" },
+          result_error: false,
+          result_kind: "record",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.queryByText("No arguments")).not.toBeInTheDocument()
+    expect(screen.getAllByText("Working tree clean")).toHaveLength(1)
+
+    expandToolGroup("Git status")
+
+    // No intermediate duplicate line: the header keeps the only bare
+    // "Working tree clean", and the card's EmptyState renders once.
+    expect(screen.getAllByText("Working tree clean")).toHaveLength(1)
+    expect(screen.getAllByText("Working tree clean.")).toHaveLength(1)
+    expect(screen.queryByText("No arguments")).not.toBeInTheDocument()
+    expect(screen.getByText("Raw details")).toBeInTheDocument()
   })
 
   it("renders plugin card bodies for settled Browser calls with empty result content", () => {

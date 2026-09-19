@@ -20,6 +20,12 @@ const TOOL_RESULT_PREVIEW_CHARS = 20_000
 const TOOL_RESULT_PREVIEW_LINES = 400
 export const TOOL_RESULT_PREVIEW_LINE_CHARS = 2_000
 
+// Sentinel produced for zero-argument calls (see toolArgumentSummary).
+// It carries no information — the call simply took no inputs — so renderers
+// treat it as non-informative and omit it from subtitles and labels,
+// following sourceLabel's precedent in streamBuilders.ts.
+export const NO_ARGUMENTS_SENTINEL = "No arguments"
+
 export type ToolPresentation = {
   raw_name: string
   name: string
@@ -109,7 +115,7 @@ export function toolDetail(name: string, input: Record<string, unknown>) {
 }
 
 function toolArgumentSummary(name: string, input: Record<string, unknown>) {
-  if (Object.keys(input).length === 0) return "No arguments"
+  if (Object.keys(input).length === 0) return NO_ARGUMENTS_SENTINEL
 
   const runtimeSummary = runtimeToolArgumentSummary(name, input)
   if (runtimeSummary) return shortenWorkspacePaths(runtimeSummary)
