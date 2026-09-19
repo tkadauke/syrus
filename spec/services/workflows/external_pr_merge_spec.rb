@@ -93,6 +93,8 @@ RSpec.describe Workflows::ExternalPrMerge do
     end
 
     it "calls LandingFailureHandler to revert the job to :implemented" do
+      allow(WorkflowWorkspace).to receive(:cleanup_for)
+
       expect(LandingFailureHandler).to receive(:call).with(
         job: job, reason: "operator stopped landing", run: nil
       )
@@ -100,11 +102,31 @@ RSpec.describe Workflows::ExternalPrMerge do
       described_class.after_cancel(workflow)
     end
 
-    it "is a no-op when the job is not landing" do
+    it "cleans up the workspace when no landing_fix repair succeeded" do
+      allow(LandingFailureHandler).to receive(:call)
+      allow(WorkflowWorkspace).to receive(:cleanup_for)
+
+      described_class.after_cancel(workflow)
+
+      expect(WorkflowWorkspace).to have_received(:cleanup_for).with(workflow)
+    end
+
+    it "keeps the workspace when a landing_fix repair succeeded" do
+      Step.create!(workflow: workflow, kind: "landing_fix", position: 99, state: "succeeded")
+      allow(LandingFailureHandler).to receive(:call)
+      allow(WorkflowWorkspace).to receive(:cleanup_for)
+
+      described_class.after_cancel(workflow)
+
+      expect(WorkflowWorkspace).not_to have_received(:cleanup_for)
+    end
+
+    it "does not call LandingFailureHandler when the job is not landing" do
       job.update_columns(state: "approved")
       non_landing_workflow = described_class.instantiate(job: job)
       non_landing_workflow.update!(state: "cancelled")
 
+      allow(WorkflowWorkspace).to receive(:cleanup_for)
       expect(LandingFailureHandler).not_to receive(:call)
 
       described_class.after_cancel(non_landing_workflow)
@@ -120,6 +142,8 @@ RSpec.describe Workflows::ExternalPrMerge do
     end
 
     it "calls LandingFailureHandler to revert the job to :implemented" do
+      allow(WorkflowWorkspace).to receive(:cleanup_for)
+
       expect(LandingFailureHandler).to receive(:call).with(
         job: job, reason: anything, run: nil
       )
@@ -127,11 +151,31 @@ RSpec.describe Workflows::ExternalPrMerge do
       described_class.after_fail(workflow)
     end
 
-    it "is a no-op when the job is not landing" do
+    it "cleans up the workspace when no landing_fix repair succeeded" do
+      allow(LandingFailureHandler).to receive(:call)
+      allow(WorkflowWorkspace).to receive(:cleanup_for)
+
+      described_class.after_fail(workflow)
+
+      expect(WorkflowWorkspace).to have_received(:cleanup_for).with(workflow)
+    end
+
+    it "keeps the workspace when a landing_fix repair succeeded" do
+      Step.create!(workflow: workflow, kind: "landing_fix", position: 99, state: "succeeded")
+      allow(LandingFailureHandler).to receive(:call)
+      allow(WorkflowWorkspace).to receive(:cleanup_for)
+
+      described_class.after_fail(workflow)
+
+      expect(WorkflowWorkspace).not_to have_received(:cleanup_for)
+    end
+
+    it "does not call LandingFailureHandler when the job is not landing" do
       job.update_columns(state: "approved")
       non_landing_workflow = described_class.instantiate(job: job)
       non_landing_workflow.update!(state: "failed")
 
+      allow(WorkflowWorkspace).to receive(:cleanup_for)
       expect(LandingFailureHandler).not_to receive(:call)
 
       described_class.after_fail(non_landing_workflow)
@@ -195,8 +239,8 @@ RSpec.describe Workflows::ExternalPrMerge do
       it "does not post a review" do
         described_class.after_fail(workflow)
 
-      expect(client).not_to have_received(:create_pr_review)
-    end
+        expect(client).not_to have_received(:create_pr_review)
+      end
     end
   end
 
