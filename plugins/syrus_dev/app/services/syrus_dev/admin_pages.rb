@@ -31,7 +31,7 @@ module SyrusDev
           path: "/admin/design_system",
           paths: [ "/admin/design_system" ],
           component: "syrus_dev/AdminDesignSystem",
-          group_id: "development",
+          group_id: "system",
           order: 90
         },
         {
@@ -41,7 +41,7 @@ module SyrusDev
           path: "/admin/tool_cards",
           paths: [ "/admin/tool_cards" ],
           component: "syrus_dev/AdminToolCards",
-          group_id: "development",
+          group_id: "system",
           order: 91
         },
         {
@@ -51,7 +51,7 @@ module SyrusDev
           path: "/admin/artifact_renderers",
           paths: [ "/admin/artifact_renderers" ],
           component: "syrus_dev/AdminArtifactRenderers",
-          group_id: "development",
+          group_id: "system",
           order: 92
         }
       ]
