@@ -8,6 +8,9 @@ module Api
       #
       # GET /api/v1/admin/jobs/:id → JSON
       class JobsController < BaseController
+        DEFAULT_PER = 50
+        MAX_PER = 100
+
         # Compact list. Filter via:
         #   ?pr_number=N
         #   ?issue_number=N
@@ -19,7 +22,10 @@ module Api
         #                              within the last 24h. "What just broke?"
         #   ?has_active_workflow=true — Jobs with a queued/running workflow.
         #                               "What's still in flight?"
-        # No filters → most-recently updated 50. Always includes the
+        # Pagination:
+        #   ?page (1-indexed), ?per (default 50, max 100)
+        #
+        # No filters → most-recently updated page. Always includes the
         # Job ID so callers can drill into `/api/v1/admin/jobs/:id`
         # for the full nested state.
         def index
@@ -43,9 +49,16 @@ module Api
           if truthy?(params[:failed_in_last_24h])
             scope = scope.where(id: failed_recently_job_ids(24.hours.ago))
           end
-          jobs = scope.limit(50)
+          per = per_param
+          page = page_param
+          total = scope.count
+          jobs = scope.offset((page - 1) * per).limit(per).to_a
+
           render json: {
             count: jobs.size,
+            total: total,
+            page: page,
+            per: per,
             jobs:  jobs.map { |j| serialize_compact(j) }
           }
         end
@@ -121,6 +134,14 @@ module Api
         end
 
         private
+
+        def per_param
+          (params[:per].presence || DEFAULT_PER).to_i.clamp(1, MAX_PER)
+        end
+
+        def page_param
+          [ params[:page].to_i, 1 ].max
+        end
 
         def job_params
           source = params[:job].present? ? params.require(:job) : params

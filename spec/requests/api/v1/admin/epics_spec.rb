@@ -127,6 +127,30 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
       expect(epic_payload["repository"]).to eq("acme/widgets")
     end
 
+    it "honors pagination params and reports the unpaginated total" do
+      pagination_repo = Factories.repository(user: admin, owner: "acme", name: "paginated-epics")
+      epics = 5.times.map do |index|
+        Factories.epic(
+          user: admin,
+          repository: pagination_repo,
+          title: "Paginated epic #{index}"
+        ).tap do |created|
+          created.update_columns(updated_at: (index + 1).minutes.ago)
+        end
+      end
+
+      get "/api/v1/admin/epics", params: { repo: "acme/paginated-epics", page: 2, per: 2 }, headers: auth(admin_token)
+
+      body = parse_body
+      expect(body).to include(
+        "count" => 2,
+        "total" => 5,
+        "page" => 2,
+        "per" => 2
+      )
+      expect(body["epics"].map { |row| row["id"] }).to eq([ epics[2].id, epics[3].id ])
+    end
+
     it "filters by ?state=" do
       get "/api/v1/admin/epics", params: { state: "done" }, headers: auth(admin_token)
       titles = parse_body["epics"].map { |e| e["title"] }

@@ -623,6 +623,31 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       expect(row).not_to have_key("workflows")
     end
 
+    it "honors pagination params and reports the unpaginated total" do
+      pagination_repo = Factories.repository(user: admin, owner: "acme", name: "paginated-jobs")
+      jobs = 5.times.map do |index|
+        Factories.job_record(
+          user: admin,
+          repository: pagination_repo,
+          issue_number: 10_000 + index,
+          issue_title: "Paginated job #{index}"
+        ).tap do |created|
+          created.update_columns(updated_at: (index + 1).minutes.ago)
+        end
+      end
+
+      get "/api/v1/admin/jobs", params: { repo: "acme/paginated-jobs", page: 2, per: 2 }, headers: auth(admin_token)
+
+      body = parse_body
+      expect(body).to include(
+        "count" => 2,
+        "total" => 5,
+        "page" => 2,
+        "per" => 2
+      )
+      expect(body["jobs"].map { |row| row["id"] }).to eq([ jobs[2].id, jobs[3].id ])
+    end
+
     it "401s without a token" do
       get "/api/v1/admin/jobs"
       expect(response).to have_http_status(:unauthorized)
