@@ -61,13 +61,32 @@ printf '%s' "$MUSE_API_KEY" | muse exec --json --provider meta --api-key-stdin "
 
 ```sh
 muse exec --json --provider meta --workspace <path> \
-  --approval-mode never --user-input-auto-resolve \
+  --approval-mode never --trust-workspace --user-input-auto-resolve \
   --session-id <uuid> --prompt-file <file> --api-key-stdin
 ```
 
 It appends `--model`, `--reasoning-effort`, and `--max-model-steps` only when
 configured. The prompt is written to a temporary file and the API key is sent
 over stdin so neither secret appears in argv.
+
+`--trust-workspace` is load-bearing. Without it Muse treats the clone as
+untrusted and **warns rather than fails**, so the run completes while silently
+missing three things:
+
+- `AGENTS.md` (a symlink to `CLAUDE.md`) is skipped, so the agent works on the
+  repo without the repo's guide
+- `.claude/skills` project skills are skipped
+- agent delegation is unavailable
+
+It is the narrow flag: it loads the workspace's rules and skills and nothing
+else. `--yolo` would also trust the workspace but additionally disables
+approval and the sandbox -- approvals are already handled by `--approval-mode
+never`, and the sandbox stays on deliberately.
+
+Both workflow runs and chat turns get this, because both build their command
+through `MuseInvocation` rather than assembling their own argv. A chat path
+that shelled out to `muse exec` directly would quietly lose these flags and
+still look healthy; `spec/services/chat_providers/muse_spec.rb` guards that.
 
 Workflow runs set `HOME` to a per-workflow Muse home. Chat turns set `HOME` to
 a per-chat Muse home. Both paths write `~/.config/muse/settings.json` with the

@@ -252,4 +252,18 @@ RSpec.describe ChatProviders::Muse do
       expect(adapter.credentials_missing_message).to include("Muse credentials are missing")
     end
   end
+  # Chat gets --trust-workspace (and every other exec flag) only because it
+  # builds its command through MuseInvocation rather than assembling its own.
+  # A chat path that shelled out to `muse exec` directly would quietly go back
+  # to running without the workspace's rules and skills, and would look fine.
+  it "builds its muse command through MuseInvocation, not its own argv" do
+    source = File.read(
+      Rails.root.join("plugins/muse_agent/app/services/chat_providers/muse.rb")
+    )
+
+    expect(source).to include("MuseInvocation.new")
+    expect(source).not_to match(/"muse",\s*"exec"/),
+      "chat must not assemble its own muse exec command -- it would miss shared flags"
+  end
+
 end

@@ -113,6 +113,7 @@ RSpec.describe MuseInvocation do
       "--provider", "meta",
       "--workspace", "/tmp/wkt",
       "--approval-mode", "never",
+      "--trust-workspace",
       "--user-input-auto-resolve",
       "--session-id", "11111111-2222-4333-8444-555555555555",
       "--api-key-stdin",
@@ -125,6 +126,42 @@ RSpec.describe MuseInvocation do
     expect(exec[:command].join(" ")).not_to include("muse-secret")
     expect(exec[:command].join(" ")).not_to include("secret prompt text")
     expect(result.session_id).to eq("11111111-2222-4333-8444-555555555555")
+  end
+
+  # Untrusted, Muse silently drops the workspace's AGENTS.md (a symlink to
+  # CLAUDE.md), its .claude/skills, and agent delegation -- it warns and carries
+  # on, so the run succeeds while working without the repo's guide. Production
+  # ran this way: "rules file ... exists, but the workspace is untrusted, so it
+  # is skipped for this session".
+  it "trusts the workspace so its rules and project skills load" do
+    captured = []
+    stub_process_runners(lines: fixture_lines, captured: captured)
+
+    described_class.new(
+      "/tmp/wkt",
+      prompt: "do it",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl
+    ).run
+
+    expect(captured.first[:command]).to include("--trust-workspace")
+  end
+
+  # --yolo would also trust the workspace, and would additionally disable the
+  # sandbox. Approvals are already handled by --approval-mode never; the sandbox
+  # is not ours to switch off as a side effect of wanting AGENTS.md loaded.
+  it "does not reach for --yolo to get there" do
+    captured = []
+    stub_process_runners(lines: fixture_lines, captured: captured)
+
+    described_class.new(
+      "/tmp/wkt",
+      prompt: "do it",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl
+    ).run
+
+    expect(captured.first[:command]).not_to include("--yolo")
   end
 
   it "omits --max-model-steps when max_model_steps is 0" do

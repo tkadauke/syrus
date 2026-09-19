@@ -242,6 +242,24 @@ class MuseInvocation
       "--provider", "meta",
       "--workspace", workspace_path,
       "--approval-mode", "never",
+      # Without this Muse treats the clone as untrusted and silently drops the
+      # three things the run depends on most:
+      #
+      #   rules file at <workspace>/AGENTS.md exists, but the workspace is
+      #   untrusted, so it is skipped for this session
+      #   .claude: project-skills-untrusted: project skills skipped
+      #   Agent delegation: auto unavailable: workspace is untrusted
+      #
+      # AGENTS.md is a symlink to CLAUDE.md, so an untrusted run is an agent
+      # working on the repo without the repo's guide, without its .claude/skills,
+      # and unable to delegate -- degraded in a way that produces worse work
+      # rather than an error, which is why it went unnoticed.
+      #
+      # This is the narrow flag: it loads the workspace's rules and skills and
+      # nothing else. `--yolo` would also disable approval and the sandbox, and
+      # is deliberately not used -- approvals are already handled above by
+      # --approval-mode, and the sandbox stays on.
+      "--trust-workspace",
       "--user-input-auto-resolve",
       "--session-id", session_id,
       "--prompt-file", prompt_path,
