@@ -2,10 +2,29 @@
 # frozen_string_literal: true
 
 ENV["RAILS_ENV"] ||= "test"
+if ENV["RAILS_ENV"] == "test" && ENV["TEST_ENV_NUMBER"].to_s.empty?
+  require "fileutils"
+  require "securerandom"
+
+  ENV["TEST_ENV_NUMBER"] = "_simulator_#{Process.pid}_#{SecureRandom.hex(4)}"
+  at_exit do
+    %w[test test_search].each do |database|
+      path = File.expand_path("../storage/#{database}#{ENV['TEST_ENV_NUMBER']}.sqlite3", __dir__)
+      FileUtils.rm_f([ path, "#{path}-shm", "#{path}-wal" ])
+    end
+  end
+end
 
 require_relative "../config/environment"
 
-ActiveRecord::Migration.maintain_test_schema! if Rails.env.test?
-WorkEngine::Simulation::SolidQueueBootstrap.clear! if Rails.env.test?
+if Rails.env.test?
+  ActiveRecord::Migration.maintain_test_schema!
+  %w[claude_agent codex_agent agy_agent].each do |plugin_name|
+    record = PluginRecord.find_or_create_by!(name: plugin_name)
+    record.update!(enabled: true) unless record.enabled?
+  end
+  Syrus::PluginRegistry.clear_plugin_record_cache!
+  WorkEngine::Simulation::SolidQueueBootstrap.clear!
+end
 
 exit WorkEngine::Simulation::Cli.call(argv: ARGV)
