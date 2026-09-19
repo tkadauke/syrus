@@ -565,7 +565,7 @@ describe("chat compose drafts", () => {
 
     renderRoute()
 
-    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
     expect(textarea).toHaveValue("Please inspect the channel routing.")
 
     fireEvent.change(textarea, { target: { value: "Follow the operator chat draft." } })
@@ -594,7 +594,7 @@ describe("chat compose drafts", () => {
 
     renderRoute()
 
-    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: "Please investigate the slow turn start." } })
     expect(textarea).toHaveValue("Please investigate the slow turn start.")
     await waitFor(() => {
@@ -632,6 +632,113 @@ describe("chat compose drafts", () => {
       await messageRequest
     })
   }, 30000)
+
+  it("adds submitted messages to composer history and recalls the latest prompt with ArrowUp", async () => {
+    const fetchMock = mockChatRouteFetch()
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: "Please summarize the latest incident." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) =>
+        String(call[0]) === "/api/v1/app/chats/8/message" &&
+        (call[1] as RequestInit)?.method === "POST"
+      )).toBe(true)
+    })
+    await waitFor(() => expect(textarea).toHaveValue(""))
+
+    fireEvent.keyDown(textarea, { key: "ArrowUp" })
+
+    expect(textarea).toHaveValue("Please summarize the latest incident.")
+    expect(screen.getByTestId("chat-history-indicator")).toHaveTextContent("History 1/1")
+  })
+
+  it("walks composer history with ArrowUp and ArrowDown, then restores the pre-history draft", async () => {
+    window.localStorage.setItem("syrus.chat.history.8", JSON.stringify(["Older prompt", "Newer prompt"]))
+    mockChatRouteFetch()
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: "Unsent draft" } })
+    textarea.setSelectionRange(0, 0)
+
+    fireEvent.keyDown(textarea, { key: "ArrowUp" })
+    expect(textarea).toHaveValue("Newer prompt")
+    expect(screen.getByTestId("chat-history-indicator")).toHaveTextContent("History 2/2")
+    expect(screen.getByText("History entry 2 of 2")).toBeInTheDocument()
+
+    fireEvent.keyDown(textarea, { key: "ArrowUp" })
+    expect(textarea).toHaveValue("Older prompt")
+    expect(screen.getByTestId("chat-history-indicator")).toHaveTextContent("History 1/2")
+
+    fireEvent.keyDown(textarea, { key: "ArrowDown" })
+    expect(textarea).toHaveValue("Newer prompt")
+    expect(screen.getByTestId("chat-history-indicator")).toHaveTextContent("History 2/2")
+
+    fireEvent.keyDown(textarea, { key: "ArrowDown" })
+    expect(textarea).toHaveValue("Unsent draft")
+    expect(screen.queryByTestId("chat-history-indicator")).not.toBeInTheDocument()
+  })
+
+  it("exits composer history mode when the operator edits a recalled prompt", async () => {
+    window.localStorage.setItem("syrus.chat.history.8", JSON.stringify(["Recall me"]))
+    mockChatRouteFetch()
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
+    fireEvent.keyDown(textarea, { key: "ArrowUp" })
+    expect(textarea).toHaveValue("Recall me")
+
+    fireEvent.change(textarea, { target: { value: "Recall me, but edited" } })
+
+    expect(textarea).toHaveValue("Recall me, but edited")
+    expect(screen.queryByTestId("chat-history-indicator")).not.toBeInTheDocument()
+  })
+
+  it("leaves slash command palette ArrowUp and ArrowDown for command navigation", async () => {
+    window.localStorage.setItem("syrus.chat.history.8", JSON.stringify(["Previous chat prompt"]))
+    mockChatRouteFetch()
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: "/" } })
+    fireEvent.keyDown(textarea, { key: "ArrowUp" })
+    fireEvent.keyDown(textarea, { key: "ArrowDown" })
+
+    expect(textarea).toHaveValue("/")
+    expect(screen.queryByTestId("chat-history-indicator")).not.toBeInTheDocument()
+  })
+
+  it("preserves normal multiline ArrowUp and ArrowDown navigation away from composer history boundaries", async () => {
+    window.localStorage.setItem("syrus.chat.history.8", JSON.stringify(["Previous chat prompt"]))
+    mockChatRouteFetch()
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: "First line\nSecond line" } })
+
+    textarea.setSelectionRange("First line\nSecond line".length, "First line\nSecond line".length)
+    fireEvent.keyDown(textarea, { key: "ArrowUp" })
+    expect(textarea).toHaveValue("First line\nSecond line")
+    expect(screen.queryByTestId("chat-history-indicator")).not.toBeInTheDocument()
+
+    textarea.setSelectionRange(0, 0)
+    fireEvent.keyDown(textarea, { key: "ArrowDown" })
+    expect(textarea).toHaveValue("First line\nSecond line")
+    expect(screen.queryByTestId("chat-history-indicator")).not.toBeInTheDocument()
+
+    textarea.setSelectionRange("First line\nSecond line".length, "First line\nSecond line".length)
+    fireEvent.keyDown(textarea, { key: "ArrowDown" })
+    expect(textarea).toHaveValue("First line\nSecond line")
+    expect(screen.queryByTestId("chat-history-indicator")).not.toBeInTheDocument()
+
+    textarea.setSelectionRange(0, 0)
+    fireEvent.keyDown(textarea, { key: "ArrowUp" })
+    expect(textarea).toHaveValue("Previous chat prompt")
+    expect(screen.getByTestId("chat-history-indicator")).toHaveTextContent("History 1/1")
+  })
 })
 
 describe("chat main container width", () => {

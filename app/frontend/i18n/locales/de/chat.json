@@ -168,6 +168,8 @@
   "delete_confirm": "Löschen",
   "unable_to_delete": "Chat konnte nicht gelöscht werden.",
   "chat_deleted": "Chat gelöscht.",
+  "history_indicator": "Verlauf {{index}}/{{total}}",
+  "history_announcement": "Verlaufseintrag {{index}} von {{total}}",
   "suggestion_tab_hint": "Tab",
   "suggestion_available": "Vorgeschlagene nächste Nachricht: {{suggestion}}. Mit Tab übernehmen.",
   "create_epic_and_start": "Epic erstellen & Umsetzung starten",

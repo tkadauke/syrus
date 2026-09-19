@@ -168,6 +168,8 @@
   "delete_confirm": "Delete",
   "unable_to_delete": "Unable to delete chat.",
   "chat_deleted": "Chat deleted.",
+  "history_indicator": "History {{index}}/{{total}}",
+  "history_announcement": "History entry {{index}} of {{total}}",
   "suggestion_tab_hint": "tab",
   "suggestion_available": "Suggested next message: {{suggestion}}. Press Tab to accept.",
   "create_epic_and_start": "Create Epic & Start Implementing",
