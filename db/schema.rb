@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_19_130000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -328,6 +328,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
     t.index ["run_id"], name: "index_backend_exception_events_on_run_id"
     t.index ["source", "occurred_at"], name: "index_backend_exception_events_on_source_time"
     t.index ["workflow_id"], name: "index_backend_exception_events_on_workflow_id"
+  end
+
+  create_table "bootstrap_locks", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_bootstrap_locks_on_name", unique: true
   end
 
   create_table "browser_error_auto_reports", force: :cascade do |t|
