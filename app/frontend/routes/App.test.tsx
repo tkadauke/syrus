@@ -3296,7 +3296,7 @@ describe("App", () => {
     expect(within(await screen.findByRole("button", { name: "Sort by Issue descending" })).getByText("↑")).toBeInTheDocument()
 
     const columnsButton = screen.getByRole("button", { name: "Columns" })
-    expect(columnsButton).toHaveClass("h-9", "w-9")
+    expect(columnsButton).toHaveClass("h-[var(--control-height-md)]", "w-[var(--control-height-md)]")
     expect(columnsButton).not.toHaveTextContent("Columns")
     fireEvent.click(columnsButton)
     expect(screen.getByRole("group", { name: "Visible columns" })).toBeInTheDocument()
@@ -5476,7 +5476,7 @@ describe("App", () => {
     )
 
     const lanesButton = screen.getByRole("button", { name: "Kanban lanes" })
-    expect(lanesButton).toHaveClass("h-9", "w-9")
+    expect(lanesButton).toHaveClass("h-[var(--control-height-md)]", "w-[var(--control-height-md)]")
     expect(lanesButton).not.toHaveTextContent("Kanban lanes")
     expect(screen.queryByRole("group", { name: "Kanban lanes" })).not.toBeInTheDocument()
     fireEvent.click(lanesButton)
