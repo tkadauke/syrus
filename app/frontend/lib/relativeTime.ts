@@ -24,6 +24,15 @@ const RELATIVE_UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
   ["second", 1]
 ]
 
+// Short, locale-formatted UTC offset for the viewer's timezone (e.g. "GMT-4").
+// Used to disambiguate dense local-time displays -- like TimeAxis's tick
+// labels -- where there's no single timestamp to sanity-check via hover,
+// unlike RelativeTimestamp's exact-time title.
+export function timezoneOffsetLabel(): string {
+  const parts = new Intl.DateTimeFormat(intlLocale(), { timeZoneName: "shortOffset" }).formatToParts(new Date())
+  return parts.find((part) => part.type === "timeZoneName")?.value ?? ""
+}
+
 export function formatRelativeDate(date: Date, now = Date.now()): string {
   const seconds = Math.round((date.getTime() - now) / 1000)
   const absSeconds = Math.abs(seconds)
