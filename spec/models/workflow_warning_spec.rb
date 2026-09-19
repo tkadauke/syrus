@@ -68,6 +68,16 @@ RSpec.describe WorkflowWarning do
       expect(warning.reload.created_job).to eq(created_job)
       expect(warning.state).to eq("pending")
     end
+
+    it "does not replace an already-created fix Job" do
+      warning = build_warning.tap(&:save!)
+      original_job = Factories.job(repository: job.repository)
+      replacement_job = Factories.job(repository: job.repository)
+      warning.update!(created_job: original_job)
+
+      expect(warning.file_fix_job!(replacement_job)).to eq(original_job)
+      expect(warning.reload.created_job).to eq(original_job)
+    end
   end
 
   describe "redaction" do

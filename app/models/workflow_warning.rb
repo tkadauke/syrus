@@ -31,7 +31,13 @@ class WorkflowWarning < ApplicationRecord
   # Filing is allowed regardless of pending/dismissed state and doesn't itself
   # change state — a warning can be dismissed after a fix Job was already filed.
   def file_fix_job!(created_job)
-    with_lock { update!(created_job: created_job) }
+    with_lock do
+      reload
+      return self.created_job if self.created_job.present?
+
+      update!(created_job: created_job)
+      created_job
+    end
   end
 
   def redacted_title = CommandRedactor.redact(title)
