@@ -9,6 +9,7 @@ import { ApiError } from "../../api/client"
 import type { WorkspaceTab } from "./workspaceTabs"
 import { attachMediaLibraryImage } from "./attachMediaLibraryImage"
 import { chatPinsQueryKey } from "./pins"
+import { CHAT_FILES_TREE_COLLAPSED_KEY, CHAT_FILES_TREE_WIDTH_KEY } from "./constants"
 
 vi.mock("./attachMediaLibraryImage", () => ({
   attachMediaLibraryImage: vi.fn()
@@ -275,6 +276,8 @@ describe("ChatSettingsDialog", () => {
 describe("ChatWorkspacePanel coding files", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.removeItem(CHAT_FILES_TREE_COLLAPSED_KEY)
+    window.localStorage.removeItem(CHAT_FILES_TREE_WIDTH_KEY)
     vi.mocked(fetchChatMessagePins).mockResolvedValue({ pins: [] })
     vi.mocked(fetchCodingCommits).mockResolvedValue({ commits: [] })
   })
@@ -313,6 +316,81 @@ describe("ChatWorkspacePanel coding files", () => {
     expect(keyword.tagName).toBe("SPAN")
     expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
     expect(container.querySelector("pre code")).not.toBeInTheDocument()
+  })
+
+  it("renders the file tree divider with an accessible label in coding and planning Files panels", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["README.md"] })
+
+    const { unmount } = renderWorkspacePanel(makeCodingPayload())
+
+    expect(await screen.findByRole("separator", { name: "Resize file tree" })).toBeInTheDocument()
+
+    unmount()
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: null, files: ["README.md"] })
+    renderWorkspacePanel(makePlanningFilesPayload())
+
+    expect(await screen.findByRole("separator", { name: "Resize file tree" })).toBeInTheDocument()
+  })
+
+  it("resizes the file tree when dragging the divider", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["README.md"] })
+
+    renderWorkspacePanel(makeCodingPayload())
+
+    const fileButton = await screen.findByRole("button", { name: "README.md" })
+    const treePane = fileButton.parentElement as HTMLElement
+    const divider = screen.getByRole("separator", { name: "Resize file tree" })
+
+    expect(treePane).toHaveStyle({ width: "192px" })
+
+    fireEvent.mouseDown(divider, { clientX: 192 })
+    fireEvent.mouseMove(window, { clientX: 252 })
+    fireEvent.mouseUp(window)
+
+    expect(treePane).toHaveStyle({ width: "252px" })
+    expect(divider).toHaveAttribute("aria-valuenow", "252")
+  })
+
+  it("snaps the file tree closed when dragged below the close threshold", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["README.md"] })
+
+    renderWorkspacePanel(makeCodingPayload())
+
+    const divider = await screen.findByRole("separator", { name: "Resize file tree" })
+
+    fireEvent.mouseDown(divider, { clientX: 192 })
+    fireEvent.mouseMove(window, { clientX: 80 })
+    fireEvent.mouseUp(window)
+
+    expect(screen.queryByRole("button", { name: "README.md" })).not.toBeInTheDocument()
+    expect(divider).toHaveAttribute("aria-valuenow", "0")
+  })
+
+  it("reopens the file tree to a useful width when clicking the closed divider", async () => {
+    window.localStorage.setItem(CHAT_FILES_TREE_COLLAPSED_KEY, "true")
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["README.md"] })
+
+    renderWorkspacePanel(makeCodingPayload())
+
+    const divider = await screen.findByRole("separator", { name: "Resize file tree" })
+    expect(screen.queryByRole("button", { name: "README.md" })).not.toBeInTheDocument()
+
+    fireEvent.click(divider)
+
+    expect(await screen.findByRole("button", { name: "README.md" })).toBeInTheDocument()
+    expect(divider).toHaveAttribute("aria-valuenow", "192")
+  })
+
+  it("closes the file tree when clicking the open divider", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["README.md"] })
+
+    renderWorkspacePanel(makeCodingPayload())
+
+    expect(await screen.findByRole("button", { name: "README.md" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("separator", { name: "Resize file tree" }))
+
+    expect(screen.queryByRole("button", { name: "README.md" })).not.toBeInTheDocument()
   })
 
   it("renders a read-only Files panel for planning-mode chats with an attached repository, without a Diff tab or commit selector", async () => {

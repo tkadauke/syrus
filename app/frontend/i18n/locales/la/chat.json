@@ -236,6 +236,7 @@
   "discard_coding_changes": "Mutationes scribendi abiice",
   "view_files": "Fasciculi",
   "view_diff": "Differentia",
+  "files_tree_resize": "Magnitudinem arboris fasciculorum mutare",
   "files_loading": "Fasciculi onerantur…",
   "files_error": "Arbor fasciculorum onerari non potuit.",
   "files_empty": "Nulli fasciculi in excubiis.",

@@ -2,7 +2,7 @@ import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { Button } from "../../components/Button"
 import { PanelMessage } from "../../components/PanelMessage"
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
-import type { MouseEvent as ReactMouseEvent } from "react"
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { ApiError } from "../../api/client"
@@ -21,7 +21,7 @@ import { RuntimePanel } from "../RuntimePanel"
 import { errorMessage } from "../../lib/errorMessage"
 import { SourceCodeTable } from "../../components/FilePreviewModal"
 import { cloneWhiteboardScene, normalizeWhiteboardScene, withFreshElementIds } from "./whiteboardScene"
-import { type ChatQueryKey, WHITEBOARD_MAX_ELEMENTS } from "./constants"
+import { CHAT_FILES_TREE_COLLAPSED_KEY, CHAT_FILES_TREE_DEFAULT_WIDTH, CHAT_FILES_TREE_MAX_WIDTH, CHAT_FILES_TREE_REOPEN_WIDTH, CHAT_FILES_TREE_SNAP_CLOSED_WIDTH, CHAT_FILES_TREE_WIDTH_KEY, type ChatQueryKey, WHITEBOARD_MAX_ELEMENTS } from "./constants"
 import { attachMediaLibraryImage } from "./attachMediaLibraryImage"
 import { chatDisplayTitle, codingFilesTabVisible, snapshotKindLabel, secondaryButton, errorAsError, formatCurrency, formatTokenCount, localDiffTabVisible, truncateSnapshotName, withRoutePrefix } from "./utils"
 import { ImageLightbox } from "./MessageCards"
@@ -30,7 +30,7 @@ import { newestPins, useChatPins, useHasPins } from "./pins"
 import type { WorkspaceTab } from "./workspaceTabs"
 import type { FileTreeNode } from "./fileTree"
 import { buildFileTree } from "./fileTree"
-import { availableWorkspaceTabs, defaultWorkspaceTab, isPluginTab, isPreviewTab, pluginTabIdFromTab, previewTabId, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
+import { availableWorkspaceTabs, clampFilesTreeWidth, defaultWorkspaceTab, isPluginTab, isPreviewTab, pluginTabIdFromTab, previewTabId, storedFilesTreeCollapsed, storedFilesTreeWidth, storeWorkspacePreference, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
 import { pluginWorkspaceTabComponentFor } from "../../pluginWorkspaceTabs"
 import { parseUnifiedDiff } from "../../components/diff/diffRendering"
 import { UnifiedDiffTable } from "../../components/diff/ReviewableDiff"
@@ -1351,6 +1351,12 @@ function FileTreeEntry({
   )
 }
 
+const FILE_TREE_DIVIDER_HANDLE_CLASS =
+  "absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gray-400 opacity-0 transition-opacity group-hover:opacity-70 group-focus-visible:opacity-80 dark:bg-gray-500"
+
+const CODING_DIFF_HEADER_CLASS =
+  "sticky top-0 flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 font-mono text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400"
+
 function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload; readOnly?: boolean }) {
   const { t } = useT("chat")
   const [view, setView] = useState<"files" | "diff">("files")
@@ -1359,6 +1365,9 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
   const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null)
   const [selectedRef, setSelectedRef] = useState<string>("")
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
+  const [treeWidth, setTreeWidth] = useState(storedFilesTreeWidth)
+  const [treeCollapsed, setTreeCollapsed] = useState(storedFilesTreeCollapsed)
+  const treeDividerDraggedRef = useRef(false)
 
   const filesPath = payload.paths.app_coding_files_path
   const commitsPath = payload.paths.app_coding_commits_path
@@ -1385,6 +1394,14 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
     const timeout = window.setTimeout(() => setRelayBackoffUntil(0), Math.max(0, relayBackoffUntil - Date.now()))
     return () => window.clearTimeout(timeout)
   }, [relayBackoffActive, relayBackoffUntil])
+
+  useEffect(() => {
+    storeWorkspacePreference(CHAT_FILES_TREE_WIDTH_KEY, String(treeWidth))
+  }, [treeWidth])
+
+  useEffect(() => {
+    storeWorkspacePreference(CHAT_FILES_TREE_COLLAPSED_KEY, String(treeCollapsed))
+  }, [treeCollapsed])
 
   const fileTree = useQuery({
     queryKey: ["coding_files", filesPath, selectedRef],
@@ -1424,6 +1441,74 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
       if (next.has(path)) next.delete(path)
       else next.add(path)
       return next
+    })
+  }
+
+  function beginTreeResize(event: ReactMouseEvent<HTMLDivElement>) {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = treeCollapsed ? 0 : treeWidth
+    treeDividerDraggedRef.current = false
+
+    function resize(moveEvent: MouseEvent) {
+      const width = startWidth + (moveEvent.clientX - startX)
+      if (Math.abs(moveEvent.clientX - startX) > 2) treeDividerDraggedRef.current = true
+
+      if (treeCollapsed && width < CHAT_FILES_TREE_REOPEN_WIDTH) {
+        setTreeCollapsed(true)
+        return
+      }
+
+      if (width < CHAT_FILES_TREE_SNAP_CLOSED_WIDTH) {
+        setTreeCollapsed(true)
+        return
+      }
+
+      setTreeCollapsed(false)
+      setTreeWidth(clampFilesTreeWidth(width))
+    }
+
+    function stopResize() {
+      window.removeEventListener("mousemove", resize)
+      window.removeEventListener("mouseup", stopResize)
+    }
+
+    window.addEventListener("mousemove", resize)
+    window.addEventListener("mouseup", stopResize)
+  }
+
+  function toggleTreeCollapsed() {
+    if (treeDividerDraggedRef.current) {
+      treeDividerDraggedRef.current = false
+      return
+    }
+
+    if (treeCollapsed) {
+      setTreeCollapsed(false)
+      setTreeWidth((width) => clampFilesTreeWidth(width || CHAT_FILES_TREE_DEFAULT_WIDTH))
+    } else {
+      setTreeCollapsed(true)
+    }
+  }
+
+  function resizeTreeWithKeyboard(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault()
+      toggleTreeCollapsed()
+      return
+    }
+
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+
+    event.preventDefault()
+    setTreeWidth((width) => {
+      const nextWidth = clampFilesTreeWidth(width + (event.key === "ArrowRight" ? 16 : -16))
+      if (event.key === "ArrowLeft" && nextWidth === width) {
+        setTreeCollapsed(true)
+      } else {
+        setTreeCollapsed(false)
+      }
+      return nextWidth
     })
   }
 
@@ -1507,26 +1592,44 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
 
       {readOnly || view === "files" ? (
         <div className="flex min-h-0 flex-1">
-          <div className="w-48 shrink-0 overflow-y-auto border-r border-gray-200 py-1 dark:border-gray-700">
-            {fileTree.isPending ? (
-              <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t("files_loading")}</p>
-            ) : fileTree.isError ? (
-              <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">{t("files_error")}</p>
-            ) : treeNodes.length === 0 ? (
-              <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t("files_empty")}</p>
-            ) : (
-              treeNodes.map((node) => (
-                <FileTreeEntry
-                  depth={0}
-                  key={node.path}
-                  node={node}
-                  openDirs={openDirs}
-                  selectedFile={selectedFile}
-                  onSelectFile={setSelectedFile}
-                  onToggleDir={toggleDir}
-                />
-              ))
-            )}
+          {treeCollapsed ? null : (
+            <div className="shrink-0 overflow-y-auto py-1" style={{ width: `${treeWidth}px` }}>
+              {fileTree.isPending ? (
+                <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t("files_loading")}</p>
+              ) : fileTree.isError ? (
+                <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">{t("files_error")}</p>
+              ) : treeNodes.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t("files_empty")}</p>
+              ) : (
+                treeNodes.map((node) => (
+                  <FileTreeEntry
+                    depth={0}
+                    key={node.path}
+                    node={node}
+                    openDirs={openDirs}
+                    selectedFile={selectedFile}
+                    onSelectFile={setSelectedFile}
+                    onToggleDir={toggleDir}
+                  />
+                ))
+              )}
+            </div>
+          )}
+          <div
+            aria-label={t("files_tree_resize")}
+            aria-orientation="vertical"
+            aria-valuemax={CHAT_FILES_TREE_MAX_WIDTH}
+            aria-valuemin={0}
+            aria-valuenow={treeCollapsed ? 0 : Math.round(treeWidth)}
+            className="group relative z-10 w-2 shrink-0 cursor-col-resize border-l border-r border-gray-200 outline-none transition-colors hover:bg-brand/10 focus-visible:bg-brand/10 dark:border-gray-700"
+            onClick={toggleTreeCollapsed}
+            onKeyDown={resizeTreeWithKeyboard}
+            onMouseDown={beginTreeResize}
+            role="separator"
+            tabIndex={0}
+            title={t("files_tree_resize")}
+          >
+            <span className={FILE_TREE_DIVIDER_HANDLE_CLASS} />
           </div>
           <div className="min-w-0 flex-1 overflow-y-auto">
             {!selectedFile ? (
@@ -1571,7 +1674,7 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
               <div className="min-w-0 overflow-auto">
                 {selectedDiff ? (
                   <>
-                    <div className="sticky top-0 flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 font-mono text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+                    <div className={CODING_DIFF_HEADER_CLASS}>
                       <span className="min-w-0 flex-1 truncate">{selectedDiff.path}</span>
                       <span>+{selectedDiff.additions}</span>
                       <span>-{selectedDiff.deletions}</span>
@@ -1579,7 +1682,7 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
                     <UnifiedDiffViewer diff={selectedDiff.patch} path={selectedDiff.path} testId="coding-diff-viewer" />
                   </>
                 ) : (
-                  <div className="flex h-full min-h-[16rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>
+                  <div className="flex h-full min-h-[16rem] items-center justify-center p-4 text-sm text-text-secondary">{t("source_select_diff_file")}</div>
                 )}
               </div>
             </div>
