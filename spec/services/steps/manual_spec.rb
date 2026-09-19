@@ -53,4 +53,18 @@ RSpec.describe Steps::Manual, :ci_only do
 
     expect(job.diff_review_versions).to be_empty
   end
+
+  it "logs and continues when best-effort diff capture fails" do
+    allow(handler).to receive(:diff_against_default).and_raise(StandardError, "git exploded")
+    allow(handler).to receive(:log).and_call_original
+
+    expect(handler).to receive(:log).with(
+      "manual: could not capture diff against default: StandardError: git exploded",
+      kind: "system"
+    )
+
+    expect { handler.call }.not_to raise_error
+    expect(job.diff_review_versions).to be_empty
+    expect(run.reload.agent_diff).to be_nil
+  end
 end
