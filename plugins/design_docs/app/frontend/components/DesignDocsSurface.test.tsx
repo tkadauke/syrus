@@ -614,6 +614,19 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByRole("toolbar", { name: "Formatting toolbar" })).toBeInTheDocument()
   })
 
+  it("renders the list preview text with light markdown instead of literal markup", async () => {
+    const markdownDetail = { ...docDetail, preview_text: "## Problem\nSee the **bold** part and the `raw` output." }
+    mockFetch(markdownDetail)
+    renderSurface()
+
+    const preview = await screen.findByText((_content, element) => element?.tagName === "P" && element.textContent === "Problem See the bold part and the raw output.")
+    expect(preview).toBeInTheDocument()
+    expect(preview.innerHTML).toContain("<strong>")
+    expect(preview.innerHTML).toContain("<code>")
+    expect(screen.queryByText(/##\s*Problem/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/\*\*bold\*\*/)).not.toBeInTheDocument()
+  })
+
   it("uses the standard repo-page-tab container width, not compact mode's bare spacing", async () => {
     mockFetch()
     renderSurface()
