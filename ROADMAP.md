@@ -180,12 +180,13 @@ than prose.
 
 ## Historical: competitive scan, May 2026
 
-[`docs/competitive-landscape-2026-05-10.md`](docs/competitive-landscape-2026-05-10.md)
-surveyed the field (Composio AO, Archon, OpenHands, Sweep AI, Anthropic
-`claude-code-action`, GitHub Copilot Coding Agent, Devin, Gru.ai,
-Etienne, Claude Squad) as of May 2026. Most of its "steal and ship" /
-"steal and adapt" recommendations have since shipped or been
-superseded and are intentionally not repeated as open items above:
+An internal competitive scan from May 2026 surveyed the field (Composio AO,
+Archon, OpenHands, Sweep AI, Anthropic `claude-code-action`, GitHub Copilot
+Coding Agent, Devin, Gru.ai, Etienne, Claude Squad). It has been removed from
+the repository ahead of the public release since it contained production-derived
+specifics and internal strategy not written for an external audience. Most of
+its "steal and ship" / "steal and adapt" recommendations have since shipped or
+been superseded and are intentionally not repeated as open items above:
 
 - **Issue triage** shipped as the `triaging` Job state
   (`Job#triaging_reason`, `IngestionClassifier`,
@@ -219,7 +220,7 @@ superseded and are intentionally not repeated as open items above:
   before re-proposing.
 
 Two threads from the original scan are still genuinely live and worth
-re-reading the source doc for before restarting either:
+scoping carefully before restarting either:
 
 - **Slack as a bidirectional surface.** Platform ingestion/delivery is a
   real extension point today (`PlatformDelivery::Registry`,
