@@ -346,6 +346,8 @@
   "proposal_route_start_normally": "Normal starten",
   "proposal_investigation_label": "Untersuchung",
   "proposal_investigation_value": "Nur lesend, kein PR erwartet",
+  "proposal_provider": "Provider",
+  "proposal_provider_default": "Standard",
   "aria_confirm_proposal_to_backlog": "Vorschlag für Backlog bestätigen",
   "aria_confirm_proposal_and_implement": "Vorschlag bestätigen und implementieren",
   "dependencies": "Abhängigkeiten",

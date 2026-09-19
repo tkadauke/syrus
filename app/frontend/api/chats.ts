@@ -143,6 +143,7 @@ export type ChatProposal = {
   route_to_backlog?: boolean
   route_label?: string
   investigation?: boolean
+  provider_setting?: string | null
   app_update_path: string
   app_confirm_path: string
   app_reject_path: string
@@ -187,6 +188,7 @@ export type ChatProposalChild = {
   dependencies: string[]
   depends_on_job_ids?: number[]
   depends_on_epic_ids?: number[]
+  provider_setting?: string | null
   goal_provenance?: GoalProvenance | null
   media_ids?: string[]
   dependency_details?: ChatProposalChildDependency[]

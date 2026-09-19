@@ -346,6 +346,8 @@
   "proposal_route_start_normally": "More solito incipere",
   "proposal_investigation_label": "Investigatio",
   "proposal_investigation_value": "Tantum lectio, nullum PR exspectatur",
+  "proposal_provider": "Provisor",
+  "proposal_provider_default": "Default",
   "aria_confirm_proposal_to_backlog": "Propositum ad backlog confirmare",
   "aria_confirm_proposal_and_implement": "Propositum confirmare et efficere",
   "dependencies": "Dependentiae",
