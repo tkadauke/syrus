@@ -4,6 +4,22 @@ RSpec.describe DesignDocs::DesignDoc, type: :model do
   let(:owner) { Factories.user }
   let(:repo) { Factories.repository(user: owner) }
 
+  describe "markdown storage" do
+    it "uses MEDIUMTEXT-sized storage for document and suggestion payloads" do
+      expect(described_class.columns_hash.fetch("markdown").limit).to eq(16.megabytes - 1)
+      expect(DesignDocs::DesignDocVersion.columns_hash.fetch("markdown").limit).to eq(16.megabytes - 1)
+      expect(DesignDocs::DesignDocAnchor.columns_hash.fetch("selected_markdown").limit).to eq(16.megabytes - 1)
+      expect(DesignDocs::DesignDocAnchor.columns_hash.fetch("selected_text").limit).to eq(16.megabytes - 1)
+      expect(DesignDocs::DesignDocSuggestion.columns_hash.fetch("original_markdown").limit).to eq(16.megabytes - 1)
+      expect(DesignDocs::DesignDocSuggestion.columns_hash.fetch("suggested_markdown").limit).to eq(16.megabytes - 1)
+      expect(DesignDocs::DesignDocSuggestion.columns_hash.fetch("proposed_markdown").limit).to eq(16.megabytes - 1)
+    end
+
+    it "keeps ordinary design doc comments at the default text limit" do
+      expect(DesignDocs::DesignDocComment.columns_hash.fetch("body").limit).to be_nil
+    end
+  end
+
   it "stores canonical markdown and exposes a DOC display id" do
     doc = described_class.create!(owner_user: owner, title: " Checkout design ", markdown: "# Checkout")
 

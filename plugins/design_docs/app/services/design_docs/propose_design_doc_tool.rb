@@ -52,9 +52,10 @@ module DesignDocs
         invalid(e.message)
       rescue ActiveRecord::RecordInvalid => e
         invalid(e.record.errors.full_messages.to_sentence)
+      rescue ActiveRecord::ValueTooLong, ActiveRecord::StatementInvalid => e
+        storage_overflow?(e) ? tool_error("Could not propose design doc: markdown is too large to store.") : logged_tool_error(e)
       rescue StandardError => e
-        Rails.logger.error("[DesignDocs::ProposeDesignDocTool] #{e.class}: #{e.message}")
-        tool_error("Could not propose design doc: #{e.message}")
+        logged_tool_error(e)
       end
 
       private
@@ -70,6 +71,15 @@ module DesignDocs
         raise ActiveRecord::RecordNotFound, "Repository not attached to this chat context" if attached_ids.any? && (ids - attached_ids).any?
 
         ids
+      end
+
+      def storage_overflow?(error)
+        error.is_a?(ActiveRecord::ValueTooLong) || error.message.match?(/data too long/i)
+      end
+
+      def logged_tool_error(error)
+        Rails.logger.error("[DesignDocs::ProposeDesignDocTool] #{error.class}: #{error.message}")
+        tool_error("Could not propose design doc: #{error.message}")
       end
     end
   end
