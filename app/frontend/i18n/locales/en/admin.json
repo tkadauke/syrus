@@ -5,10 +5,10 @@
   "page_title_stuck": "Stuck Jobs — Admin",
   "page_title_resource_admission": "Resource Admission — Admin",
   "page_title_scoped_chat_events": "Scoped Chat Events — Admin",
-  "page_title_activity": "Activity — Admin",
+  "page_title_activity": "Workflow Events — Admin",
   "page_title_work_units": "Work Units — Admin",
   "page_title_attention_items": "Attention Items — Admin",
-  "page_title_reconciler_activity": "Reconciler Activity — Admin",
+  "page_title_reconciler_activity": "Reconciler Events — Admin",
   "page_title_browser_errors": "Browser Errors — Admin",
   "page_title_backend_exceptions": "Backend Exceptions — Admin",
   "page_title_processes": "Processes — Admin",
@@ -22,7 +22,7 @@
   "nav_overview": "Overview",
   "nav_resource_admission": "Resource Admission",
   "nav_scoped_chat_events": "Scoped Chat Events",
-  "nav_activity": "Activity",
+  "nav_activity": "Workflow Events",
   "nav_work_units": "Work Units",
   "nav_maintenance_tasks": "Maintenance Tasks",
   "maintenance_tasks": {
@@ -85,7 +85,7 @@
     "eta_hours": "{{hours}}h left"
   },
   "nav_attention_items": "Attention Items",
-  "nav_reconciler_activity": "Reconciler Activity",
+  "nav_reconciler_activity": "Reconciler Events",
   "nav_queue": "Queue",
   "nav_stuck": "Stuck",
   "nav_processes": "Processes",
@@ -186,8 +186,8 @@
     "no_chat_events": "No scoped chat events recorded."
   },
   "reconciler_activity": {
-    "heading": "Reconciler activity",
-    "aria": "Reconciler activity",
+    "heading": "Reconciler events",
+    "aria": "Reconciler events",
     "loading": "Loading reconciler activity...",
     "error_load": "Unable to load reconciler activity.",
     "refresh": "Refresh",
@@ -213,8 +213,8 @@
     "next": "Next"
   },
   "activity": {
-    "heading": "Activity",
-    "aria": "Syrus activity",
+    "heading": "Workflow events",
+    "aria": "Workflow events",
     "loading": "Loading activity...",
     "error_load": "Unable to load activity.",
     "refresh": "Refresh",

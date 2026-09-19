@@ -90,7 +90,7 @@ RSpec.describe "API: /api/v1/app/admin/plugin_pages", type: :request do
         "path" => "/admin/design_system",
         "paths" => [ "/admin/design_system" ],
         "component" => "syrus_dev/AdminDesignSystem",
-        "group_id" => "development"
+        "group_id" => "system"
       )
     )
   end
