@@ -1723,7 +1723,7 @@ describe("JobDetailView", () => {
             }]
           },
           steps: [
-            step({ id: 14, kind: "visual_review", display_name: "Visual review", runs: [ run({ id: 34, job_log_count: 0 }) ] })
+            step({ id: 14, kind: "visual_review", display_name: "Visual review", iteration: 1, runs: [ run({ id: 34, job_log_count: 0 }) ] })
           ]
         })
       ],
