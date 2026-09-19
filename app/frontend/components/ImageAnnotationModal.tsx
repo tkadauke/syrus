@@ -1158,7 +1158,7 @@ function ImageAnnotationModalContent({
             <button
               aria-label={t(`image_annotation.color_${item.key}`)}
               aria-checked={color === item.value}
-              className={`h-7 w-7 rounded-full border ${color === item.value ? "border-brand ring-2 ring-brand ring-offset-1 dark:ring-offset-gray-900" : "border-gray-300 dark:border-gray-600"}`}
+              className={`h-7 w-7 rounded-full border ${color === item.value ? "border-white ring-2 ring-brand ring-offset-1 dark:border-gray-900 dark:ring-offset-gray-900" : "border-gray-300 dark:border-gray-600"}`}
               key={item.value}
               onClick={() => setColor(item.value)}
               role="radio"

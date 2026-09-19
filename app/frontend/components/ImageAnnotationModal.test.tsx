@@ -66,8 +66,23 @@ describe("ImageAnnotationModal", () => {
 
     expect(screen.getByRole("radio", { name: "Blue" })).toHaveAttribute("aria-checked", "true")
     expect(screen.getByRole("radio", { name: "Red" })).toHaveAttribute("aria-checked", "false")
-    expect(screen.getByRole("radio", { name: "Blue" })).toHaveClass("border-brand")
+    // The selection ring itself stays brand-colored, but the border touching
+    // the swatch fill is a neutral white/dark halo (not brand) so the
+    // indicator stays legible against low-contrast swatches like Red.
+    expect(screen.getByRole("radio", { name: "Blue" })).toHaveClass("ring-brand")
+    expect(screen.getByRole("radio", { name: "Blue" })).toHaveClass("border-white")
     expect(screen.getByRole("radio", { name: "Blue" })).not.toHaveClass("border-blue-600")
+  })
+
+  it("keeps the selection border neutral for low-contrast swatches like Red", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("radio", { name: "Red" }))
+
+    expect(screen.getByRole("radio", { name: "Red" })).toHaveAttribute("aria-checked", "true")
+    expect(screen.getByRole("radio", { name: "Red" })).toHaveClass("border-white")
+    expect(screen.getByRole("radio", { name: "Red" })).not.toHaveClass("border-brand")
   })
 
   it("composites the annotation into a non-empty PNG data URL", async () => {
