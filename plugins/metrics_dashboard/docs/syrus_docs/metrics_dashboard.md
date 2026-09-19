@@ -79,7 +79,7 @@ recorder runs on one worker, so it records only that process's share, which
 is frequently zero.
 
 That gap is the cross-process capture that is not built yet (see
-`docs/plans/prometheus-dashboard.md`): worker pods fork one process per queue
+`docs/plans/complete/prometheus-dashboard.md`): worker pods fork one process per queue
 definition sharing no memory, and are not scraped. The feature-usage and
 admission-decisions panels are therefore present but thin until that lands, at
 which point they fill in with no change to this plugin.

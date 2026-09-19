@@ -85,7 +85,7 @@ pause agree through the shared code.
   the "which constants become settings" framing with "what is the resolution
   rule, and what is the reviewable unit". The inventory in those documents is
   still the source list.
-- `docs/plans/delivery-tracks-and-promotion.md` — delivery is already on the
+- `docs/plans/complete/delivery-tracks-and-promotion.md` — delivery is already on the
   engine (`promotion`, `hotfix_sync`, `upstream_export`). This plan does not
   change it; primitive E tidies it.
 

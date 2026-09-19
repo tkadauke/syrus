@@ -88,7 +88,7 @@ class SyrusYml
   # duration string, matching `timeout_minutes`/`hitmap_ttl_days` elsewhere
   # in this file.
   DeployConfig = Data.define(:mode, :run, :allow_unapproved, :min_interval_minutes)
-  # Modeled on docs/plans/delivery-tracks-and-promotion.md. `delivery:` is
+  # Modeled on docs/plans/complete/delivery-tracks-and-promotion.md. `delivery:` is
   # optional the same way `deploy:`/`formatters:`/`generated:` are: absence
   # means "current behavior," never a parse error.
   #
@@ -115,7 +115,7 @@ class SyrusYml
   DeliveryRefEndpoint = Data.define(:kind, :name)
   DeliveryRefMovementAction = Data.define(:name, :enabled, :source, :target, :mode, :grade_phases)
   DeliveryConfig = Data.define(:tracks, :promotion, :hotfix_sync, :upstream_export, :ref_movement_actions)
-  # Modeled on docs/plans/delivery-tracks-and-promotion.md Story 7 (owner +
+  # Modeled on docs/plans/complete/delivery-tracks-and-promotion.md Story 7 (owner +
   # peer local approval, optional promotion maintainer approval). Unlike
   # `Config#delivery`, `Config#approval` is left nil when the `approval:` key
   # is absent -- there is no normalized always-present shape here, because
@@ -128,7 +128,7 @@ class SyrusYml
   ApprovalConfig = Data.define(:job, :promotion)
   ApprovalJobConfig = Data.define(:owner_required, :peer_count)
   ApprovalPromotionConfig = Data.define(:maintainer_count)
-  # Modeled on docs/plans/delivery-tracks-and-promotion.md Story 10 (PR
+  # Modeled on docs/plans/complete/delivery-tracks-and-promotion.md Story 10 (PR
   # ingestion classification). Like `Config#approval`, `Config#external_prs`
   # is left nil when the `external_prs:` key is absent — absence means
   # "classify nothing; every ingested PR stays `external_unknown`," the exact

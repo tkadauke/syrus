@@ -1,5 +1,5 @@
 module Workflows
-  # Story 2 (docs/plans/delivery-tracks-and-promotion.md) `develop -> main`
+  # Story 2 (docs/plans/complete/delivery-tracks-and-promotion.md) `develop -> main`
   # ref-movement workflow: assembles the delivery track's source branch into
   # the target branch, grades the result, and publishes it per
   # `DeliveryPolicy#promotion_mode`. Not tied to any GitHub issue — the
