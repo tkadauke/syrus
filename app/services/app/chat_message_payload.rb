@@ -10,6 +10,18 @@ module App
       new(repository: repository).send(:proposal_json, proposal, chat_session: chat_session)
     end
 
+    def self.proposal_title(proposal)
+      proposal.title
+    end
+
+    def self.anchor_message_id(proposal)
+      if proposal.message_anchors.loaded?
+        proposal.message_anchors.max_by(&:id)&.id
+      else
+        proposal.message_anchors.reorder(id: :desc).pick(:id)
+      end
+    end
+
     def initialize(repository:)
       @repository = repository
       @proposal_by_chat_and_slug = {}
@@ -536,11 +548,7 @@ module App
     end
 
     def anchor_message_id(proposal)
-      if proposal.message_anchors.loaded?
-        proposal.message_anchors.max_by(&:id)&.id
-      else
-        proposal.message_anchors.reorder(id: :desc).pick(:id)
-      end
+      self.class.anchor_message_id(proposal)
     end
 
     def proposal_for_slug(chat_session, slug)

@@ -18,6 +18,72 @@ RSpec.describe App::DashboardPayload, :ci_only do
     )
   end
 
+  describe "pending proposals chrome" do
+    it "exposes the newest visible pending proposals with chat anchors" do
+      chat = ChatSession.create!(user: user, repository: repo, title: "Roadmap chat")
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user)
+      other_chat = ChatSession.create!(user: other_user, repository: other_repo, title: "Other chat")
+
+      old_pending = chat.proposals.create!(
+        slug: "old-pending",
+        title: "Old pending",
+        body: "Older pending work.",
+        created_at: 8.minutes.ago
+      )
+      chat.messages.create!(role: "assistant", proposal: old_pending, content: { "text" => "Old pending proposal." })
+
+      pending_proposals = Array.new(6) do |index|
+        proposal = chat.proposals.create!(
+          slug: "pending-#{index}",
+          title: "Pending #{index}",
+          body: "Pending work #{index}.",
+          created_at: (7 - index).minutes.ago
+        )
+        chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Pending proposal #{index}." })
+        proposal
+      end
+      latest_anchor = chat.messages.create!(
+        role: "assistant",
+        proposal: pending_proposals.last,
+        content: { "text" => "Edited latest proposal." }
+      )
+
+      %w[confirmed rejected withdrawn].each do |state|
+        proposal = chat.proposals.create!(
+          slug: "#{state}-proposal",
+          title: "#{state.humanize} proposal",
+          body: "Resolved work.",
+          state: state,
+          created_at: Time.current
+        )
+        chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "#{state} proposal." })
+      end
+
+      other_proposal = other_chat.proposals.create!(
+        slug: "other-user",
+        title: "Other user",
+        body: "Should stay private.",
+        created_at: Time.current
+      )
+      other_chat.messages.create!(role: "assistant", proposal: other_proposal, content: { "text" => "Other user's proposal." })
+
+      result = call(subject: "job", section: "chrome")
+
+      entries = result.fetch(:pending_proposals)
+      newest_five = pending_proposals.last(5).reverse
+      expect(entries.map { |entry| entry.fetch(:id) }).to eq(newest_five.map(&:id))
+      expect(entries.map { |entry| entry.fetch(:state) }).to all(eq("proposed"))
+      expect(entries.map { |entry| entry.fetch(:id) }).not_to include(old_pending.id, other_proposal.id)
+      expect(entries.map { |entry| entry.fetch(:title) }).to eq(newest_five.map(&:title))
+      expect(entries).to all(include(chat_session_id: chat.id, anchor_message_id: be_present))
+      expect(entries.first).to include(
+        id: pending_proposals.last.id,
+        anchor_message_id: latest_anchor.id
+      )
+    end
+  end
+
   describe "provider availability" do
     it "exposes user-level provider availability with Codex usage windows" do
       user.update!(
