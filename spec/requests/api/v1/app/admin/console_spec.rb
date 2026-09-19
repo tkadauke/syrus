@@ -104,4 +104,25 @@ RSpec.describe "API: /api/v1/app/admin/console", type: :request do
     expect(parse_body["message"]).to eq("Cleared 2 GitHub cache entries for target@example.com.")
     expect(AdminAction.where(action: "clear_github_cache").count).to eq(1)
   end
+
+  it "reports and logs GitHub cache clear failures" do
+    sign_in_as(admin)
+    error = RuntimeError.new("cache backend unavailable")
+    expect(Rails.cache).to receive(:delete_matched).with("github_etag/*").and_raise(error)
+    expect(Rails.logger).to receive(:warn).with("[Admin::Console] cache clear failed: RuntimeError: cache backend unavailable")
+
+    post "/api/v1/app/admin/console/clear_github_cache"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["ok"]).to be false
+    expect(parse_body["message"]).to eq("Failed to clear GitHub cache entries for all users.")
+    action = AdminAction.find_by!(action: "clear_github_cache")
+    expect(action.params).to include(
+      "source" => "app",
+      "scope" => "github_etag/*",
+      "ok" => false,
+      "error_class" => "RuntimeError",
+      "error_message" => "cache backend unavailable"
+    )
+  end
 end
