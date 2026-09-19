@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import type { ToolCardContext } from "../../pluginToolCards"
 import { isPlainObject } from "../../toolCardParsing"
 import { Badge, CardShell, displayValue, numberValue, Row, SectionLabel, StatePill } from "./toolCardUi"
 
@@ -67,7 +68,8 @@ function parseEvidence(value: unknown): PendingActionEvidence {
   }
 }
 
-export function parsePendingActionResult(value: unknown): PendingActionResult | null {
+export function parsePendingActionResult(context: ToolCardContext): PendingActionResult | null {
+  const value = context.parsedResult
   if (!isPlainObject(value)) return null
 
   // Dry-run previews carry evidence instead of a pending action; the same
@@ -92,12 +94,21 @@ export function parsePendingActionResult(value: unknown): PendingActionResult | 
   const groupId = displayValue(value.pending_action_group_id)
   const memberCount = numberValue(value.member_count)
 
+  // The tool result's own state is a snapshot frozen at call time -- it
+  // still says "pending" forever once the operator later confirms/rejects
+  // it. context.livePendingAction is re-read from the owning message on
+  // every payload fetch, so prefer it once it exists and still refers to
+  // this same pending action (a resumed/retried tool call can carry an
+  // older payload's id while the message itself moved on).
+  const live = context.livePendingAction
+  const liveMatch = live && displayValue(live.id) === pendingActionId ? live : null
+
   return {
     kind: groupId || memberCount != null ? "bulk" : "standard",
     pendingActionId,
-    state,
+    state: liveMatch?.state ?? state,
     message: displayValue(value.message),
-    reason: displayValue(value.reason),
+    reason: liveMatch?.reason || displayValue(value.reason),
     memberCount,
     groupId
   }

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import type { ChatPendingActionInline } from "./api/chats"
 export { isPlainObject } from "./toolCardParsing"
 
 // Extension point for custom chat tool-call cards (the Tier 1 tool-card work).
@@ -27,6 +28,14 @@ export type ToolCardContext = {
   resultError: boolean
   // Best-effort JSON.parse of resultBody; null when it isn't JSON.
   parsedResult: unknown
+  // Current state of the ChatPendingAction this tool call created, read
+  // fresh off the owning tool_result message on every payload fetch --
+  // unlike parsedResult, this is NOT frozen at call time, so a card can use
+  // it to show a later confirm/reject/execute outcome instead of whatever
+  // state the tool happened to return synchronously. Undefined when the
+  // caller has no live message data (catalog fixtures, the admin transcript
+  // viewer); a card should fall back to parsedResult's own state then.
+  livePendingAction?: ChatPendingActionInline | null
 }
 
 export type ToolCardRenderer = {

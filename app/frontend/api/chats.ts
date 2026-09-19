@@ -410,6 +410,11 @@ export type ChatToolGroupCall = {
   result_kind: ChatToolResultKind
   result_summary: string
   summary_metadata?: ChatToolSummaryMetadata
+  // Live current state of the ChatPendingAction this call's tool_result
+  // message is anchored to (message.pending_action, re-serialized fresh on
+  // every fetch) -- undefined until the tool_result settles, null once
+  // settled if the call never created a pending action.
+  pending_action?: ChatPendingActionInline | null
   // Nested subagent tool-call groups spawned by this call (e.g. an Agent/Task
   // invocation whose own Read/Bash/Grep calls interleave with its result).
   nested?: ChatToolGroupItem[]

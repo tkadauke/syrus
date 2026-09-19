@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import type { ChatPendingActionInline } from "../../../api/chats"
 import submitChatFeedbackToolCard from "./submit_chat_feedback"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -9,6 +10,19 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
     resultBody: "",
     resultError: false,
     parsedResult: null,
+    ...overrides
+  }
+}
+
+function liveAction(overrides: Partial<ChatPendingActionInline> = {}): ChatPendingActionInline {
+  return {
+    id: 501,
+    action: "submit_chat_feedback",
+    state: "confirmed",
+    label: "Submit feedback",
+    detail: null,
+    app_confirm_path: "/api/v1/app/chats/1/pending_actions/501/confirm",
+    app_reject_path: "/api/v1/app/chats/1/pending_actions/501/reject",
     ...overrides
   }
 }
@@ -51,6 +65,30 @@ describe("submit_chat_feedback tool card", () => {
 
     expect(screen.getByText("queued")).toBeInTheDocument()
     expect(screen.getByText(/chat_feedback workflow starts once it is confirmed/)).toBeInTheDocument()
+  })
+
+  it("prefers the live pending action's state over the frozen tool-result state, and drops the forward-looking hint once resolved", () => {
+    const context_ = context({
+      input: { job_id: 4048, feedback: "Please fix the header." },
+      parsedResult: { pending_confirmation_id: 501, pending_action_id: 501, state: "pending", message: "Chat feedback requires operator confirmation." },
+      livePendingAction: liveAction({ state: "confirmed" })
+    })
+    render(<>{submitChatFeedbackToolCard.renderExpanded(context_)}</>)
+
+    expect(screen.getByText("confirmed")).toBeInTheDocument()
+    expect(screen.queryByText("pending")).not.toBeInTheDocument()
+    expect(screen.queryByText("Confirming this will start a new chat_feedback workflow.")).not.toBeInTheDocument()
+  })
+
+  it("ignores a live pending action for a different id", () => {
+    const context_ = context({
+      input: { job_id: 4048, feedback: "Please fix the header." },
+      parsedResult: { pending_confirmation_id: 501, pending_action_id: 501, state: "pending", message: "Chat feedback requires operator confirmation." },
+      livePendingAction: liveAction({ id: 999, state: "confirmed" })
+    })
+    render(<>{submitChatFeedbackToolCard.renderExpanded(context_)}</>)
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
   })
 
   it("omits the media section when no media was attached", () => {
