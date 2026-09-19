@@ -80,6 +80,50 @@ RSpec.describe App::DiffReviewVersionsPayload do
     )
   end
 
+  it "keeps a resumed Run's second, different commit range as its own distinguishable payload entry instead of a look-alike duplicate" do
+    workflow = job.workflows.first
+    run = job.runs.first
+
+    first = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "main-sha",
+      head_sha: "first-attempt-head",
+      files: [
+        { path: "app/models/user.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n-old\n+new" }
+      ]
+    )
+    # Same Run persists again with a different head SHA -- the resumed/retried
+    # Run scenario from DiffReviewVersions::Creator's docs: a Step re-running
+    # against the same Run row committed a second time before the first
+    # persisted diff was ever surfaced for review.
+    second = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "main-sha",
+      head_sha: "second-attempt-head",
+      files: [
+        { path: "app/models/user.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1 @@\n-old\n+new\n+newer" }
+      ]
+    )
+
+    expect(second.id).not_to eq(first.id)
+    expect(second.run_id).to eq(first.run_id)
+    expect(second.head_sha).not_to eq(first.head_sha)
+
+    index = described_class.index(job: job)
+    payload_versions = index[:versions].select { |version| version[:run_id] == run.id }
+
+    expect(payload_versions.map { |version| version[:id] }).to contain_exactly(first.id, second.id)
+    expect(payload_versions.map { |version| version[:head_sha] }).to contain_exactly("first-attempt-head", "second-attempt-head")
+    # The payload alone must carry enough to tell the two rows apart even
+    # though they share a run_id -- the frontend derives its disambiguated
+    # "RUN-<id> (<short sha>)" label from exactly these head_sha values.
+    expect(payload_versions.map { |version| version[:head_sha] }.uniq.size).to eq(2)
+  end
+
   it "marks the reusable All changes range as latest over narrower run checkpoints" do
     workflow = job.workflows.first
     run = job.runs.first
