@@ -97,6 +97,7 @@ en:
       admin_required: "Admin API endpoints require an admin user's token."
       sign_in_required: "Sign in to use the app API."
       admin_forbidden: "Admin access required."
+      rate_limited: "Too many invalid API tokens. Try again later."
 
     auth:
       invalid_credentials: "Try another email address or password."
