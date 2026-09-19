@@ -112,6 +112,30 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload_for(job).fetch(:unsatisfied_dependencies)).to be_empty
     end
 
+    it "serializes the Epic release gate as an unsatisfied dependency" do
+      epic = Factories.epic(user: user, repository: repo, title: "Launch train", state: "ready")
+      job = Factories.job_record(user: user, repository: repo, epic: epic, state: "queued")
+
+      dependency = payload_for(job).fetch(:unsatisfied_dependencies).sole
+
+      expect(dependency).to include(
+        id: "epic-release:#{epic.id}",
+        source: "epic_release",
+        manual: false,
+        pending: false,
+        succeeded: false,
+        depends_on_job: nil
+      )
+      expect(dependency.fetch(:depends_on_epic)).to include(
+        id: epic.id,
+        display_number: epic.slug,
+        title: "Launch train",
+        state: "ready",
+        repository_slug: repo.slug,
+        epic_path: "/epics/#{epic.id}"
+      )
+    end
+
     it "loads dependency rows once for dependencies and unsatisfied dependencies" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
       satisfied = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged")

@@ -2464,6 +2464,23 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.unsatisfied_dependencies).to be_empty
     end
 
+    it "reports an unsatisfied dependency when the Epic has not released jobs for execution" do
+      epic = Factories.epic(user: user, repository: repository, state: "ready")
+      job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43)
+
+      expect(job.dependencies).to be_empty
+      expect(job).not_to be_dependencies_satisfied
+      expect(job.unsatisfied_dependencies).to contain_exactly(
+        have_attributes(
+          id: "epic-release:#{epic.id}",
+          source: "epic_release",
+          pending?: false,
+          dependency_succeeded?: false,
+          depends_on_epic: epic
+        )
+      )
+    end
+
     it "treats cancelled dependencies as failed for execution" do
       prerequisite = Factories.job_record(
         user: user,

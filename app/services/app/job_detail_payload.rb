@@ -355,12 +355,8 @@ module App
     def unsatisfied_job_detail_dependencies
       return @unsatisfied_job_detail_dependencies if defined?(@unsatisfied_job_detail_dependencies)
 
-      @unsatisfied_job_detail_dependencies =
-        if @job.dependencies_overridden_at.present?
-          []
-        else
-          job_detail_dependencies.reject(&:dependency_succeeded?)
-        end
+      job_detail_dependencies
+      @unsatisfied_job_detail_dependencies = @job.unsatisfied_dependencies
     end
 
     def job_has_active_runtime_work?
