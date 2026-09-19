@@ -252,6 +252,15 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     expect(reviewPolicy).toHaveAttribute("aria-describedby", reviewHint.id)
   })
 
+  it("cross-links the per-repository default agent override to the account-level agent and chat settings", async () => {
+    mockFetch()
+    renderRoute()
+
+    await screen.findByLabelText("Default agent")
+    expect(screen.getByRole("link", { name: "Agent Settings" })).toHaveAttribute("href", "/settings/agent")
+    expect(screen.getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/credentials")
+  })
+
   it("keeps monitoring enabled when enabling main branch repair or broken-main pausing", async () => {
     mockFetch({
       main_branch_health_enabled: false,

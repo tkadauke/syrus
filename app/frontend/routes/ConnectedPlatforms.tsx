@@ -2,10 +2,12 @@ import { PageHeading } from "../components/Heading"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
+import { Link, useLocation } from "react-router-dom"
 import { Button } from "../components/Button"
 import { NoticeToast } from "../components/NoticeToast"
 import { useConfirm } from "../hooks/useConfirm"
 import { useT } from "../hooks/useT"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 import {
   createLinkingToken,
   deletePlatformIdentity,
@@ -23,12 +25,19 @@ const queryKey = ["platform_identities"] as const
 export function ConnectedPlatformsRoute() {
   const { t } = useT("settings")
   const [notice, setNotice] = useState<string | null>(null)
+  const prefix = routePrefix(useLocation().pathname)
 
   return (
     <main aria-label={t("connected_platforms.aria")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
         <PageHeading>{t("connected_platforms.heading")}</PageHeading>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("connected_platforms.description")}</p>
+        <p className="mt-1 text-sm text-text-secondary">
+          {t('connected_platforms.see_also')}{" "}
+          <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/notifications/settings", prefix)}>
+            {t('nav.notifications')}
+          </Link>.
+        </p>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />

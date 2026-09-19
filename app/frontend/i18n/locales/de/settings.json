@@ -13,6 +13,12 @@
     "tags": "Tags",
     "connected_platforms": "Verbundene Plattformen"
   },
+  "nav_groups": {
+    "account": "Konto",
+    "product": "Produkt",
+    "workspace": "Arbeitsbereich",
+    "integrations": "Integrationen"
+  },
   "themes": {
     "description": "Verwalten Sie Ihre eigenen Farbthemen.",
     "error_no_theme": "Es ist kein Theme zum Klonen verfügbar.",
@@ -223,7 +229,8 @@
     "pref_pr_merged": "Benachrichtige mich, wenn ein Job gemergt wird",
     "pref_epic_completed": "Benachrichtige mich, wenn ein Epic abgeschlossen ist",
     "pref_main_inconclusive": "Benachrichtige mich, wenn die Main-Branch-Gesundheit überprüft werden muss",
-    "updated": "Benachrichtigungseinstellungen aktualisiert."
+    "updated": "Benachrichtigungseinstellungen aktualisiert.",
+    "see_also": "Dies steuert, worüber du benachrichtigt wirst. Um zu wählen, wohin Benachrichtigungen zugestellt werden, siehe"
   },
   "design_system": {
     "heading": "Design-System",
@@ -731,6 +738,7 @@
     "automation_section": "Automatisierung",
     "agent_default": "Meinen Standard verwenden ({{provider}})",
     "agent_hint": "Neue Aufgaben für dieses Repository verwenden diesen Agenten, es sei denn, eine Aufgabe hat bereits ihren eigenen Agenten.",
+    "agent_see_also": "Siehe auch:",
     "danger_heading": "Gefahrenzone",
     "danger_description": "Archivieren stoppt das Polling und blendet dieses Repository aus der Hauptübersicht aus. Es bleibt im intelligenten Ordner „Archiviert“ erreichbar und kann jederzeit wiederhergestellt werden.",
     "danger_archived_description": "Dieses Repository ist archiviert. Stellen Sie es wieder her, um das Polling fortzusetzen und es wieder in der Hauptübersicht anzuzeigen.",
@@ -1003,6 +1011,8 @@
     "avatar_url": "Avatar-URL",
     "profile_bio": "Profilbiografie",
     "agent_provider": "Agenten-Anbieter",
+    "agent_provider_see_also": "Dies ist der Standard-Agentenanbieter für neue Jobs. Er ist getrennt von deinem Chat-Anbieter (siehe",
+    "agent_provider_see_also_suffix": "), und jedes Repository kann ihn einzeln überschreiben.",
     "max_turns": "Maximale Züge",
     "language": "Sprache",
     "auto_approval_fallback": "Auto-Genehmigungs-Fallback",
@@ -1109,6 +1119,7 @@
     "aria": "Connected Platforms",
     "heading": "Connected Platforms",
     "description": "Link your Syrus account to external messaging platforms.",
+    "see_also": "This controls where notifications are delivered. To choose what you're notified about, see",
     "loading": "Loading connected platforms...",
     "load_error": "Unable to load connected platforms.",
     "disconnected_notice": "Platform account disconnected.",
@@ -1198,6 +1209,7 @@
     "agy_missing_summary": "Fügen Sie einen Gemini API-Schlüssel hinzu, um Antigravity für Agent- und Chat-Läufe verfügbar zu machen.",
     "chat_provider_heading": "Chat-Anbieter",
     "chat_provider_desc": "Der Anbieter, auf dem Syrus-Chats laufen. Änderungen werden sofort gespeichert.",
+    "chat_provider_see_also": "Dies ist getrennt vom Standard-Agentenanbieter für Jobs.",
     "chat_provider_saved_notice": "Chat-Anbieter gespeichert.",
     "claude_set_up": "Claude verbinden",
     "codex_code_label": "ChatGPT-Autorisierungscode",

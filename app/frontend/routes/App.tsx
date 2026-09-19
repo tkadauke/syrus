@@ -546,18 +546,39 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
       key: page.id,
       label: page.label_key ? tNav(page.label_key, { defaultValue: page.label }) : page.label,
       path: page.path,
-      active: (path: string) => page.paths.some((candidate) => path === candidate)
+      active: (path: string) => page.paths.some((candidate) => path === candidate),
+      groupId: null
     }))
+
+  const { groups, ungrouped } = groupSettingsNavItems(settingsNavigationItems(t, pluginSettingsItems))
 
   return (
     <div className="flex min-h-full flex-col bg-gray-50 dark:bg-gray-900 lg:flex-row">
       <aside className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 lg:w-56 lg:border-b-0 lg:border-r">
-        <nav aria-label={tCommon("shell.settings_nav_aria")} className="scroll-fade-x flex gap-2 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:p-4 lg:[mask-image:none] lg:[-webkit-mask-image:none]">
-          {settingsNavigationItems(t, pluginSettingsItems).map((item) => (
-            <Link className={settingsSideNavLinkClass(item.active(normalizedPath))} key={item.key} to={withRoutePrefix(item.path, prefix)}>
-              {item.label}
-            </Link>
+        <nav aria-label={tCommon("shell.settings_nav_aria")} className="scroll-fade-x flex gap-4 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-4 lg:overflow-visible lg:p-4 lg:[mask-image:none] lg:[-webkit-mask-image:none]">
+          {groups.map(({ group, items }) => (
+            <div className="flex shrink-0 items-center gap-2 lg:block lg:shrink" key={group.id}>
+              <p className="hidden px-2.5 text-xs font-semibold uppercase tracking-wider text-text-muted lg:mb-1 lg:block">
+                {t(group.labelKey)}
+              </p>
+              <div className="flex gap-2 lg:flex-col lg:gap-0.5">
+                {items.map((item) => (
+                  <Link className={settingsSideNavLinkClass(item.active(normalizedPath))} key={item.key} to={withRoutePrefix(item.path, prefix)}>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
+          {ungrouped.length > 0 && (
+            <div className="flex shrink-0 gap-2 lg:flex-col lg:gap-0.5">
+              {ungrouped.map((item) => (
+                <Link className={settingsSideNavLinkClass(item.active(normalizedPath))} key={item.key} to={withRoutePrefix(item.path, prefix)}>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          )}
         </nav>
       </aside>
       <div className="min-w-0 flex-1">
@@ -567,26 +588,48 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
   )
 }
 
-type SettingsNavigationItem = { key: string; label: string; path: string; active: (path: string) => boolean }
+type SettingsNavigationItem = { key: string; label: string; path: string; active: (path: string) => boolean; groupId: string | null }
+type SettingsNavGroup = { id: string; labelKey: string }
+
+// Mirrors Admin nav's grouping pattern (app/frontend/routes/appChromeV2/adminNav.ts):
+// account-configuration items cluster separately from product-feature settings,
+// workspace/library content (Documents, Tags), and external-platform integrations.
+// Plugin-owned settings pages have no group signal yet, so they render as a
+// trailing ungrouped cluster, same as adminNav's ungroupedExtensions.
+const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
+  { id: "account", labelKey: "nav_groups.account" },
+  { id: "product", labelKey: "nav_groups.product" },
+  { id: "workspace", labelKey: "nav_groups.workspace" },
+  { id: "integrations", labelKey: "nav_groups.integrations" }
+]
 
 function settingsNavigationItems(
   t: (key: string) => string,
   pluginItems: SettingsNavigationItem[] = []
 ): SettingsNavigationItem[] {
   const items: SettingsNavigationItem[] = [
-    { key: "profile", label: t("nav.profile"), path: "/profile", active: (path) => path === "/settings" || path === "/profile" },
-    { key: "credentials", label: t("nav.credentials"), path: "/credentials", active: (path) => path === "/credentials" || path === "/credentials/edit" },
-    { key: "agent_settings", label: t("nav.agent_settings"), path: "/settings/agent", active: (path) => path === "/settings/agent" },
-    { key: "preferences", label: t("nav.preferences"), path: "/settings/preferences", active: (path) => path === "/settings/preferences" },
-    { key: "notifications", label: t("nav.notifications"), path: "/notifications/settings", active: (path) => path === "/notifications/settings" },
-    { key: "themes", label: t("nav.themes"), path: "/settings/themes", active: (path) => path === "/settings/themes" },
-    { key: "hidden_chats", label: t("nav.hidden_chats"), path: "/settings/hidden_chats", active: (path) => path === "/settings/hidden_chats" },
-    { key: "documents", label: t("nav.documents"), path: "/documents", active: (path) => path === "/documents" },
-    { key: "tags", label: t("nav.tags"), path: "/tags", active: (path) => path === "/tags" },
-    { key: "connected_platforms", label: t("nav.connected_platforms"), path: "/settings/connected_platforms", active: (path) => path === "/settings/connected_platforms" }
+    { key: "profile", label: t("nav.profile"), path: "/profile", active: (path) => path === "/settings" || path === "/profile", groupId: "account" },
+    { key: "credentials", label: t("nav.credentials"), path: "/credentials", active: (path) => path === "/credentials" || path === "/credentials/edit", groupId: "account" },
+    { key: "agent_settings", label: t("nav.agent_settings"), path: "/settings/agent", active: (path) => path === "/settings/agent", groupId: "account" },
+    { key: "preferences", label: t("nav.preferences"), path: "/settings/preferences", active: (path) => path === "/settings/preferences", groupId: "account" },
+    { key: "notifications", label: t("nav.notifications"), path: "/notifications/settings", active: (path) => path === "/notifications/settings", groupId: "product" },
+    { key: "themes", label: t("nav.themes"), path: "/settings/themes", active: (path) => path === "/settings/themes", groupId: "product" },
+    { key: "hidden_chats", label: t("nav.hidden_chats"), path: "/settings/hidden_chats", active: (path) => path === "/settings/hidden_chats", groupId: "product" },
+    { key: "documents", label: t("nav.documents"), path: "/documents", active: (path) => path === "/documents", groupId: "workspace" },
+    { key: "tags", label: t("nav.tags"), path: "/tags", active: (path) => path === "/tags", groupId: "workspace" },
+    { key: "connected_platforms", label: t("nav.connected_platforms"), path: "/settings/connected_platforms", active: (path) => path === "/settings/connected_platforms", groupId: "integrations" }
   ]
 
   return [ ...items, ...pluginItems ]
+}
+
+function groupSettingsNavItems(items: SettingsNavigationItem[]) {
+  const groups = SETTINGS_NAV_GROUPS
+    .map((group) => ({ group, items: items.filter((item) => item.groupId === group.id) }))
+    .filter(({ items }) => items.length > 0)
+  const ungrouped = items.filter((item) => item.groupId == null)
+
+  return { groups, ungrouped }
 }
 
 function normalizedAppPath(pathname: string) {

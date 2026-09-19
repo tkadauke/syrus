@@ -13,6 +13,12 @@
     "tags": "Tags",
     "connected_platforms": "Connected Platforms"
   },
+  "nav_groups": {
+    "account": "Account",
+    "product": "Product",
+    "workspace": "Workspace",
+    "integrations": "Integrations"
+  },
   "themes": {
     "description": "Manage your custom color themes.",
     "error_no_theme": "No theme is available to clone.",
@@ -223,7 +229,8 @@
     "pref_pr_merged": "Notify me when a job is merged",
     "pref_epic_completed": "Notify me when an epic completes",
     "pref_main_inconclusive": "Notify me when main branch health needs review",
-    "updated": "Notification preferences updated."
+    "updated": "Notification preferences updated.",
+    "see_also": "This controls what you're notified about. To choose where notifications are delivered, see"
   },
   "design_system": {
     "heading": "Design System",
@@ -731,6 +738,7 @@
     "automation_section": "Automation",
     "agent_default": "Use my default ({{provider}})",
     "agent_hint": "New jobs for this repository use this agent unless a job already has its own agent.",
+    "agent_see_also": "See also:",
     "danger_heading": "Danger zone",
     "danger_description": "Archiving stops polling and hides this repository from the main index. It stays reachable in the Archived smart folder, and you can unarchive it any time.",
     "danger_archived_description": "This repository is archived. Unarchive it to resume polling and show it in the main index again.",
@@ -1003,6 +1011,8 @@
     "avatar_url": "Avatar URL",
     "profile_bio": "Profile bio",
     "agent_provider": "Agent provider",
+    "agent_provider_see_also": "This is the default agent provider for new Jobs. It's separate from your chat provider (see",
+    "agent_provider_see_also_suffix": "), and any repository can override it individually.",
     "max_turns": "Max turns",
     "language": "Language",
     "auto_approval_fallback": "Auto-approval fallback",
@@ -1109,6 +1119,7 @@
     "aria": "Connected Platforms",
     "heading": "Connected Platforms",
     "description": "Link your Syrus account to external messaging platforms.",
+    "see_also": "This controls where notifications are delivered. To choose what you're notified about, see",
     "loading": "Loading connected platforms...",
     "load_error": "Unable to load connected platforms.",
     "disconnected_notice": "Platform account disconnected.",
@@ -1198,6 +1209,7 @@
     "agy_missing_summary": "Add a Gemini API key to make Antigravity available for agent and chat runs.",
     "chat_provider_heading": "Chat provider",
     "chat_provider_desc": "The provider Syrus chats run on. Changes save immediately.",
+    "chat_provider_see_also": "This is separate from the default agent provider used for Jobs.",
     "chat_provider_saved_notice": "Chat provider saved.",
     "claude_set_up": "Connect Claude",
     "codex_code_label": "ChatGPT authorization code",

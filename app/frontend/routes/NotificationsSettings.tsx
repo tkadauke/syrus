@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Checkbox } from "../components/Checkbox"
 import { PageHeading } from "../components/Heading"
 import { useState } from "react"
+import { Link, useLocation } from "react-router-dom"
 import {
   fetchNotificationPreferences,
   updateNotificationPreferences,
@@ -13,6 +14,7 @@ import { PanelMessage } from "../components/PanelMessage"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 
 const queryKey = ["notification_preferences"] as const
 
@@ -29,12 +31,19 @@ export function NotificationsSettingsRoute() {
   const { t } = useT("settings")
   usePageTitle(t("notifications.heading"))
   const [notice, setNotice] = useState<string | null>(null)
+  const prefix = routePrefix(useLocation().pathname)
 
   return (
     <main aria-label={t("aria_notification_settings")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
         <PageHeading>{t('notifications.heading')}</PageHeading>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('notifications.description')}</p>
+        <p className="mt-1 text-sm text-text-secondary">
+          {t('notifications.see_also')}{" "}
+          <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/settings/connected_platforms", prefix)}>
+            {t('nav.connected_platforms')}
+          </Link>.
+        </p>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
