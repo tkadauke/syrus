@@ -65,7 +65,12 @@ module Api
         end
 
         def create
-          epic = Current.user.epics.new(epic_params)
+          attrs = epic_params
+          if attrs[:repository_id].present?
+            return render_error("forbidden", I18n.t("api.epics.access_forbidden"), status: :forbidden) unless membership_on_repo?(attrs[:repository_id])
+          end
+
+          epic = Current.user.epics.new(attrs)
           start_requested = ActiveModel::Type::Boolean.new.cast(params[:start])
 
           if epic.save
