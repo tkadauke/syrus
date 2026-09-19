@@ -26,6 +26,8 @@ module MuseAgent
             id: muse_tool_id(payload)
           }.compact
         ) ]
+      when "task.lifecycle.side_effect_intent"
+        muse_side_effect_tool_event(payload, timestamp)
       when "tool.result", "tool_result", "tool.output", "mcp.tool_result", "mcp.tool.result", "msp.tool_result", "msp.tool.result"
         [ ClaudeTranscript::Event.new(
           kind: :tool_result,
@@ -84,11 +86,28 @@ module MuseAgent
 
     def muse_tool_name(payload)
       name = payload["name"].presence || payload["tool"].presence || payload["tool_name"].presence
+      name ||= payload.dig("correlation_facts", "tool_name") if payload["correlation_facts"].is_a?(Hash)
       server = payload["server"].presence || payload["server_name"].presence
       return nil if name.blank?
       return name if server.blank? || name.to_s.start_with?("mcp__") || name.to_s.include?(".")
 
       "#{server}.#{name}"
+    end
+
+    def muse_side_effect_tool_event(payload, timestamp)
+      event = payload["event"].is_a?(Hash) ? payload["event"] : {}
+      operation = event["operation"].to_s
+      return [ ClaudeTranscript::Event.new(kind: :other, timestamp: timestamp, data: { type: "task.lifecycle.side_effect_intent" }) ] unless operation.start_with?("tool:")
+
+      [ ClaudeTranscript::Event.new(
+        kind: :tool_use,
+        timestamp: timestamp,
+        data: {
+          name: operation.delete_prefix("tool:"),
+          input: event["input"] || event["arguments"] || {},
+          id: event["idempotency_key"].to_s.delete_prefix("tool:").presence
+        }.compact
+      ) ]
     end
 
     def muse_system_init_event(payload, timestamp)
@@ -152,7 +171,7 @@ module MuseAgent
     end
 
     def muse_tool_result_content(payload)
-      payload["content"] || payload["result"] || payload["output"] || payload["data"]
+      payload["content"] || payload["result"] || payload["output"] || payload["data"] || payload["text"]
     end
 
     def muse_error?(payload)

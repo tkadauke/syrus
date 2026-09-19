@@ -133,6 +133,58 @@ RSpec.describe MuseAgent::TranscriptEvents do
     expect(summary.tool_call_counts).to include("syrus-mcp-sidecar.submit_summary" => 1)
   end
 
+  it "normalizes Muse side effect tool intents and correlated tool results" do
+    jsonl = [
+      {
+        record_type: "event",
+        payload_type: "task.lifecycle.side_effect_intent",
+        payload: {
+          event: {
+            kind: "side_effect_intent",
+            operation: "tool:mcp__syrus_mcp_sidecar__submit_visual_review",
+            idempotency_key: "tool:call_01a0b71f4d5677b1815603442e606595"
+          }
+        }
+      },
+      {
+        record_type: "event",
+        payload_type: "tool.result",
+        payload: {
+          call_id: "call_01a0b71f4d5677b1815603442e606595",
+          correlation_facts: {
+            outcome: "success",
+            tool_name: "mcp__syrus_mcp_sidecar__submit_visual_review"
+          },
+          kind: "tool_result",
+          text: "Saved."
+        }
+      },
+      {
+        record_type: "event",
+        payload_type: "run.terminal.completed",
+        payload: { outcome: "success", turns: 1, final_text: "ok" }
+      }
+    ].map(&:to_json).join("\n")
+
+    events = ClaudeTranscript.new(jsonl).events.to_a
+    summary = ClaudeTranscript.new(jsonl).summary
+
+    expect(events.map(&:kind)).to eq([ :tool_use, :tool_result, :result ])
+    expect(events.first.data).to include(
+      name: "mcp__syrus_mcp_sidecar__submit_visual_review",
+      input: {},
+      id: "call_01a0b71f4d5677b1815603442e606595"
+    )
+    expect(events.second.data).to include(
+      name: "mcp__syrus_mcp_sidecar__submit_visual_review",
+      tool_use_id: "call_01a0b71f4d5677b1815603442e606595",
+      content: "Saved.",
+      error: false
+    )
+    expect(summary.tool_call_counts).to include("mcp__syrus_mcp_sidecar__submit_visual_review" => 1)
+    expect(summary).to be_mcp_tool_called
+  end
+
   it "uses terminal Muse metadata when the transcript has no separate init event" do
     jsonl = [
       {

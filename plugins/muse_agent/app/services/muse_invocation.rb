@@ -295,6 +295,8 @@ class MuseInvocation
       process_mcp_inventory(payload, log_sink)
     when "tool.call", "tool_call", "tool.use", "mcp.tool_call", "mcp.tool.call", "msp.tool_call", "msp.tool.call"
       process_tool_call(payload, log_sink)
+    when "task.lifecycle.side_effect_intent"
+      process_side_effect_intent(payload, log_sink)
     when "tool.result", "tool_result", "tool.output", "mcp.tool_result", "mcp.tool.result", "msp.tool_result", "msp.tool.result"
       process_tool_result(payload, log_sink)
     when "session.created", "run.session.created", "run.started"
@@ -369,8 +371,23 @@ class MuseInvocation
     required_mcp_tools_update(log_sink)
   end
 
+  def process_side_effect_intent(payload, log_sink)
+    event = payload["event"].is_a?(Hash) ? payload["event"] : {}
+    operation = event["operation"].to_s
+    return unless operation.start_with?("tool:")
+
+    tool_name = operation.delete_prefix("tool:")
+    tool_call_payload = payload.merge(
+      "tool_name" => tool_name,
+      "call_id" => event["idempotency_key"].to_s.delete_prefix("tool:").presence,
+      "input" => event["input"] || event["arguments"] || payload["input"] || payload["arguments"]
+    )
+    process_tool_call(tool_call_payload, log_sink)
+  end
+
   def process_tool_result(payload, log_sink)
     name = payload["name"].presence || payload["tool"].presence || payload["tool_name"].presence
+    name ||= payload.dig("correlation_facts", "tool_name") if payload["correlation_facts"].is_a?(Hash)
     name = qualified_tool_name(payload, name)
     log_sink.call(
       AgentEventAbbreviator.tool_result(tool_result_content(payload), error: payload_error?(payload)),
@@ -516,7 +533,7 @@ class MuseInvocation
   end
 
   def tool_result_content(payload)
-    payload["content"] || payload["result"] || payload["output"] || payload["data"]
+    payload["content"] || payload["result"] || payload["output"] || payload["data"] || payload["text"]
   end
 
   def payload_error?(payload)

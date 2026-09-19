@@ -609,6 +609,67 @@ RSpec.describe MuseInvocation do
     expect(result).to be_success
   end
 
+  it "succeeds required MCP checks when Muse reports MCP calls as side effect intents" do
+    lines = completed_lines_with(
+      {
+        record_type: "event",
+        payload_type: "task.lifecycle.side_effect_intent",
+        payload: {
+          event: {
+            kind: "side_effect_intent",
+            operation: "tool:mcp__syrus_mcp_sidecar__submit_visual_review",
+            idempotency_key: "tool:call_01a0b71f4d5677b1815603442e606595"
+          }
+        }
+      }.to_json,
+      {
+        record_type: "event",
+        payload_type: "tool.result",
+        payload: {
+          call_id: "call_01a0b71f4d5677b1815603442e606595",
+          correlation_facts: {
+            outcome: "success",
+            tool_name: "mcp__syrus_mcp_sidecar__submit_visual_review"
+          },
+          kind: "tool_result",
+          text: "Saved."
+        }
+      }.to_json
+    )
+    events = []
+    stub_process_runners(lines: lines)
+
+    result = described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl,
+      required_mcp_tools: %w[submit_visual_review],
+      log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+    ).run
+
+    expect(result).to be_success
+    expect(events).to include([
+      "● submit_visual_review",
+      {
+        kind: "tool_call",
+        tool_name: "mcp__syrus_mcp_sidecar__submit_visual_review",
+        tool_input: {},
+        tool_use_id: "call_01a0b71f4d5677b1815603442e606595"
+      }
+    ])
+    expect(events).to include([
+      "  ⎿ Saved.",
+      {
+        kind: "tool_result",
+        tool_name: "mcp__syrus_mcp_sidecar__submit_visual_review",
+        tool_result_content: "Saved.",
+        tool_result_error: false,
+        tool_use_id: "call_01a0b71f4d5677b1815603442e606595"
+      }
+    ])
+  end
+
   it "fails required MCP checks when Muse never exposes required tools" do
     events = []
     captured = []

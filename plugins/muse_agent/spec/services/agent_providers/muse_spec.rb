@@ -89,7 +89,8 @@ RSpec.describe AgentProviders::Muse do
     expect(received[:mcp_server]).to include(
       "syrus-mcp-sidecar" => include(
         command: a_string_ending_with("/bin/syrus-mcp-sidecar"),
-        args: [ "--run-id", run.id.to_s ]
+        args: [ "--run-id", run.id.to_s ],
+        env: include("SYRUS_DATA_ROOT" => ENV.fetch("SYRUS_DATA_ROOT"))
       )
     )
   end

@@ -218,6 +218,7 @@ module AgentProviders
 
     def sidecar_env
       env = ENV.slice(*SIDECAR_ENV_FORWARD).compact
+      env["SYRUS_DATA_ROOT"] ||= WorkflowWorkspace.data_root.to_s
       pin_rubygems_to_bundle_path(env)
       env
     end
