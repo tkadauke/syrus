@@ -59,8 +59,16 @@ export function stepArtifactVisualReview(raw: unknown, filter: VisualReviewArtif
 function visualReviewIterationMatches(obj: Record<string, unknown>, filter: VisualReviewArtifactFilter) {
   if (typeof filter.runId === "number" && typeof obj.run_id === "number") return obj.run_id === filter.runId
   if (typeof filter.stepId === "number" && typeof obj.step_id === "number") return obj.step_id === filter.stepId
-  if (typeof filter.iteration === "number" && typeof obj.run_id !== "number" && typeof obj.step_id !== "number") return obj.iteration === filter.iteration
-  return typeof filter.runId !== "number" && typeof filter.stepId !== "number" && typeof filter.iteration !== "number"
+  // Legacy entries recorded before run/step provenance was stamped onto
+  // iterations carry neither id -- fall back to loop-position matching when
+  // there is one, and otherwise treat the entry as unattributable rather
+  // than dropping it (a single-run, non-looped step has nothing else to
+  // disambiguate against, so hiding it here would just delete history).
+  if (typeof obj.run_id !== "number" && typeof obj.step_id !== "number") {
+    if (typeof filter.iteration === "number") return obj.iteration === filter.iteration
+    return true
+  }
+  return false
 }
 
 function parseVisualReviewArtifact(raw: unknown): JobVisualReviewArtifact[] {
