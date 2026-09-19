@@ -91,6 +91,28 @@ RSpec.describe Go::Engine do
     it "declares .go-version as its mise version file" do
       expect(described_class.mise_version_file).to eq(".go-version")
     end
+
+    it "detects go.mod regardless of its content, since presence alone is the signal" do
+      write("go.mod", "")
+
+      expect(described_class.detect?(@dir)).to be true
+    end
+
+    describe ".span_labels" do
+      it "labels go test, go vet, and go build command spans for worker-health diagnostics" do
+        labels = described_class.span_labels
+
+        expect(labels.find { |(pattern, _)| pattern.match?("go test ./...") }.last).to eq("go test")
+        expect(labels.find { |(pattern, _)| pattern.match?("go vet ./...") }.last).to eq("go vet")
+        expect(labels.find { |(pattern, _)| pattern.match?("go build -o bin/app .") }.last).to eq("go build")
+      end
+
+      it "does not match unrelated commands" do
+        labels = described_class.span_labels
+
+        expect(labels.any? { |(pattern, _)| pattern.match?("gofmt -w .") }).to be false
+      end
+    end
   end
 
   describe Go::ReviewCriteriaProvider do
@@ -134,28 +156,6 @@ RSpec.describe Go::Engine do
       write("go.mod", "module example.com/foo\n\ngo 1.22\n")
 
       expect(described_class.autofix_command(workspace_path: @dir)).to eq("gofmt -w .")
-    end
-  end
-
-  describe Go::ReviewCriteriaProvider do
-    around do |ex|
-      Dir.mktmpdir("syrus-go-review-criteria-provider") { |dir| @dir = dir; ex.run }
-    end
-
-    def write(rel, contents = "")
-      path = File.join(@dir, rel)
-      FileUtils.mkdir_p(File.dirname(path))
-      File.write(path, contents)
-    end
-
-    it "returns [] for a repo with no go.mod" do
-      expect(described_class.criteria(@dir)).to eq([])
-    end
-
-    it "contributes the swallowed-error criterion when go.mod is present" do
-      write("go.mod", "module example.com/foo\n\ngo 1.22\n")
-
-      expect(described_class.criteria(@dir)).to eq([ "Flag swallowed errors (`_ = err`)" ])
     end
   end
 end
