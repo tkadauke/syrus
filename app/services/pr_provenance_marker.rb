@@ -3,7 +3,7 @@
 # `Steps::UpstreamExportPublish`) and read back by `PrProvenanceClassifier`
 # when a maintainer's Syrus instance later ingests that PR
 # (`PollExternalOpenPrsJob`). Per
-# docs/plans/delivery-tracks-and-promotion.md Story 10: "structured Syrus
+# docs/plans/complete/delivery-tracks-and-promotion.md Story 10: "structured Syrus
 # metadata first, heuristic fallback second."
 #
 # An HTML comment, invisible in GitHub's rendered PR body — same idiom as

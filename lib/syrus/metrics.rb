@@ -18,7 +18,7 @@ module Syrus
   # rates are computed at read time by whoever asks (`rate()` in PromQL). That
   # is what removes the entire class of "did we reset before or after the scrape
   # read it?" bugs that the delta/push model has to solve. See
-  # docs/plans/prometheus-dashboard.md.
+  # docs/plans/complete/prometheus-dashboard.md.
   module Metrics
     class Error < StandardError; end
     class UnknownMetric < Error; end

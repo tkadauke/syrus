@@ -1,4 +1,4 @@
-# On-demand entry point for the Story 2 (docs/plans/delivery-tracks-and-promotion.md)
+# On-demand entry point for the Story 2 (docs/plans/complete/delivery-tracks-and-promotion.md)
 # `develop -> main` promotion ref-movement workflow. Creates a synthetic
 # anchor Job (kind: "direct", no GitHub issue — same pattern
 # MainHealthChangedService/MaybeDeployJob use for repository-level,
