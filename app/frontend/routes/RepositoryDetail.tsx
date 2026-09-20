@@ -398,53 +398,75 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
   })
   const disabled = poll.isPending || retryFailed.isPending
 
+  function pollNow() {
+    onNotice(null)
+    setMoreOpen(false)
+    poll.mutate()
+  }
+
+  function retryFailedJobs() {
+    onNotice(null)
+    setMoreOpen(false)
+    retryFailed.mutate()
+  }
+
+  function startInsight() {
+    onNotice(null)
+    setMoreOpen(false)
+    runInsight.mutate()
+  }
+
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
-        <Link className={buttonClass("green")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t('repository.new_job')}</Link>
-        <button className={buttonClass("blue")} disabled={disabled} onClick={() => { onNotice(null); poll.mutate() }} type="button">{t('repository.poll_now')}</button>
-        {retry.count > 0 ? (
-          <button className={buttonClass("amber")} disabled={disabled || retry.provider_circuit.open} onClick={() => { onNotice(null); retryFailed.mutate() }} type="button">{t("repository.retry_failed_with", { count: retry.count, provider: retry.agent_provider_label })}</button>
-        ) : null}
-        {payload.agent_insights_enabled && payload.paths.app_run_insight_analysis_repository_path ? (
-          payload.active_insight_job ? (
-            <Link className={buttonClass("gray")} to={withRoutePrefix(payload.active_insight_job.job_path, prefix)}>
-              {t("repository.insight_running")}
-            </Link>
-          ) : (
-            <button
-              className={buttonClass("gray")}
-              disabled={disabled || runInsight.isPending}
-              onClick={() => { onNotice(null); runInsight.mutate() }}
-              type="button"
-            >
-              {runInsight.isPending ? t("repository.insight_starting") : t("repository.run_insight")}
-            </button>
-          )
-        ) : null}
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {payload.agent_insights_enabled && payload.insight_schedule_config ? (
           <InsightScheduleBadge config={payload.insight_schedule_config} />
         ) : null}
-        {payload.agent_insights_enabled && payload.paths.repository_insights_path ? (
-          <Link className={buttonClass("gray")} to={withRoutePrefix(payload.paths.repository_insights_path, prefix)}>
-            {t("repository.view_insights")}
-          </Link>
+        {payload.can_edit ? (
+          <Link className={buttonClass("gray")} to={withRoutePrefix(payload.paths.edit_repository_path, prefix)}>{t("repository.edit")}</Link>
         ) : null}
         <div className="relative" ref={moreMenuRef}>
           <button
             aria-controls="repository-actions-menu"
             aria-expanded={moreOpen}
             aria-haspopup="menu"
+            aria-label={t('repository.more_actions')}
             className={buttonClass("gray")}
             onClick={() => setMoreOpen((open) => !open)}
             type="button"
           >
-            {t('repository.more')}
+            ⋯
           </button>
           {moreOpen ? (
-            <div className="absolute left-0 z-20 mt-2 min-w-40 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-1 text-sm shadow-lg" id="repository-actions-menu">
-              <Link className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMoreOpen(false)} to={withRoutePrefix(payload.paths.new_repository_skill_job_path, prefix)}>{t('repository.launch_skill')}</Link>
-              <Link className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMoreOpen(false)} to={withRoutePrefix(payload.paths.edit_repository_path, prefix)}>{t("repository.edit")}</Link>
+            <div className="absolute right-0 z-20 mt-2 min-w-48 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-1 text-sm shadow-lg" id="repository-actions-menu" role="menu">
+              <Link className={menuItemClass()} onClick={() => setMoreOpen(false)} role="menuitem" to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t('repository.new_job')}</Link>
+              <button className={menuItemClass()} disabled={disabled} onClick={pollNow} role="menuitem" type="button">{t('repository.poll_now')}</button>
+              {retry.count > 0 ? (
+                <button className={menuItemClass()} disabled={disabled || retry.provider_circuit.open} onClick={retryFailedJobs} role="menuitem" type="button">{t("repository.retry_failed_with", { count: retry.count, provider: retry.agent_provider_label })}</button>
+              ) : null}
+              <Link className={menuItemClass()} onClick={() => setMoreOpen(false)} role="menuitem" to={withRoutePrefix(payload.paths.new_repository_skill_job_path, prefix)}>{t('repository.launch_skill')}</Link>
+              {payload.agent_insights_enabled && payload.paths.app_run_insight_analysis_repository_path ? (
+                payload.active_insight_job ? (
+                  <Link className={menuItemClass()} onClick={() => setMoreOpen(false)} role="menuitem" to={withRoutePrefix(payload.active_insight_job.job_path, prefix)}>
+                    {t("repository.insight_running")}
+                  </Link>
+                ) : (
+                  <button
+                    className={menuItemClass()}
+                    disabled={disabled || runInsight.isPending}
+                    onClick={startInsight}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {runInsight.isPending ? t("repository.insight_starting") : t("repository.run_insight")}
+                  </button>
+                )
+              ) : null}
+              {payload.agent_insights_enabled && payload.paths.repository_insights_path ? (
+                <Link className={menuItemClass()} onClick={() => setMoreOpen(false)} role="menuitem" to={withRoutePrefix(payload.paths.repository_insights_path, prefix)}>
+                  {t("repository.view_insights")}
+                </Link>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -459,6 +481,14 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
       {runInsight.isError ? <PanelMessage tone="error">{errorMessage(runInsight.error, t("repository.insight_start_failed"))}</PanelMessage> : null}
     </>
   )
+}
+
+function menuItemClass(tone: "default" | "danger" = "default") {
+  const colors = {
+    danger: "text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/50",
+    default: "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+  }
+  return `block w-full rounded px-3 py-2 text-left disabled:text-gray-300 dark:disabled:text-gray-600 ${colors[tone]}`
 }
 
 function CredentialNotice({ payload }: { payload: RepositoryDetailPayload }) {
