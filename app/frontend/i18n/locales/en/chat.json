@@ -239,6 +239,7 @@
   "view_files": "Files",
   "view_diff": "Diff",
   "files_tree_resize": "Resize file tree",
+  "coding_checkout_preparing": "Checkout isn't ready yet — preparing workspace…",
   "files_loading": "Loading files…",
   "files_error": "Could not load file tree.",
   "files_empty": "No files in checkout.",

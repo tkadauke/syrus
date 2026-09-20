@@ -239,6 +239,7 @@
   "view_files": "Dateien",
   "view_diff": "Diff",
   "files_tree_resize": "Dateibaumgröße ändern",
+  "coding_checkout_preparing": "Checkout ist noch nicht bereit — Arbeitsbereich wird vorbereitet…",
   "files_loading": "Dateien werden geladen…",
   "files_error": "Dateibaum konnte nicht geladen werden.",
   "files_empty": "Keine Dateien im Checkout.",
