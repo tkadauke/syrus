@@ -70,6 +70,7 @@ class Step < ApplicationRecord
 
   ACTIVE_STATES = %w[ queued running ].freeze
   TERMINAL_STATES = %w[ succeeded failed cancelled skipped ].freeze
+  RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY = "retry_until_barrier_superseded".freeze
 
   # MySQL 8 rejects defaults on JSON columns, so seed `{}` on new
   # records via after_initialize instead of a column default. Existing
@@ -153,6 +154,10 @@ class Step < ApplicationRecord
 
   def terminal?
     TERMINAL_STATES.include?(state)
+  end
+
+  def retry_until_barrier_superseded?
+    details.to_h[RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY] == true
   end
 
   def state_projection(runs: nil)

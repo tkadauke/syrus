@@ -331,6 +331,7 @@ class Workflow < ApplicationRecord
       .reorder(position: :desc, id: :desc)
       .each_with_object({}) do |step, latest_by_loop|
         next unless retry_until_barrier_step?(step)
+        next if step.retry_until_barrier_superseded?
 
         latest_by_loop[step.loop_id] ||= step
       end

@@ -1619,7 +1619,7 @@ class StepDispatcher
              .where(loop_id: loop_id)
              .where("position < ?", step.position)
              .reorder(position: :desc, id: :desc)
-             .detect { |candidate| retry_until_barrier_step?(candidate) }
+             .detect { |candidate| retry_until_barrier_step?(candidate) && !candidate.retry_until_barrier_superseded? }
   end
 
   def barrier_dependencies_for(step)

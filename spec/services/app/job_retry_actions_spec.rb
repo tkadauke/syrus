@@ -90,6 +90,40 @@ RSpec.describe App::JobRetryActions do
     end
   end
 
+  describe "when a grade loop failed" do
+    it "labels the action as a grade-loop restart" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "retry",
+        agent_provider: job.agent_provider,
+        state: "failed",
+        chain_template: [
+          {
+            "type" => "retry_until",
+            "max_iterations" => 2,
+            "repair" => [ "implement" ],
+            "check" => [ "grader_fanout", "grader_collect" ],
+            "repair_first" => false
+          }
+        ],
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      fanout = workflow.steps.create!(kind: "grader_fanout", position: 1, state: "succeeded", loop_id: "grade-loop")
+      collect = workflow.steps.create!(kind: "grader_collect", position: 2, state: "failed", loop_id: "grade-loop")
+      fanout.update!(next_step: collect)
+
+      actions = actions_for(job)
+
+      expect(actions[:failed_step]).to include(
+        key: "retry_failed_step",
+        label: "Restart grade loop",
+        step_kind: "grader_fanout"
+      )
+    end
+  end
+
   describe "when an implementation-shaped step fails with a git_state_corrupt workspace" do
     it "still offers implementation retry and still hides retry-in-place" do
       job = Factories.job_record(user: user, repository: repo, state: "failed")

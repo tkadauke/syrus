@@ -85,6 +85,8 @@ module App
     end
 
     def failed_step_label
+      return "Restart grade loop" if failed_step&.kind == "grader_fanout" && failed_step.loop_id.present?
+
       Workflow::TriggerKind.retry_label_for(latest_workflow.trigger_kind, step_kind: failed_step&.kind)
     end
 

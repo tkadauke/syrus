@@ -11,9 +11,9 @@ class RetryFailedStepEnqueuer
 
   def self.call(...) = new(...).call
   def self.failed_step_for(workflow)
-    step = workflow.steps.where(state: "failed").reorder(position: :desc, id: :desc).first ||
+    step = workflow.steps.where(state: "failed").reorder(position: :desc, id: :desc).detect { |candidate| !candidate.retry_until_barrier_superseded? } ||
       cancelled_publication_step_for(workflow)
-    step = grade_loop_fanout_for(step) if grade_loop_failure?(step)
+    step = grade_loop_restart_step_for(step) if grade_loop_failure?(step)
     return unless step
     return if crosses_uncleared_retry_until_barrier?(step)
 
@@ -21,19 +21,19 @@ class RetryFailedStepEnqueuer
   end
 
   def self.grade_loop_failure?(step)
-    step&.kind.in?(%w[grader grader_collect]) && step.loop_id.present?
+    step&.loop_id.present? &&
+      step.workflow.steps.where(loop_id: step.loop_id, kind: "grader_collect").exists?
   end
 
-  def self.grade_loop_fanout_for(step)
+  def self.grade_loop_restart_step_for(step)
     return step if step.kind == "grader_fanout"
 
     step.workflow.steps
       .where(kind: "grader_fanout", loop_id: step.loop_id, iteration: step.iteration)
-      .where("position < ?", step.position)
-      .reorder(position: :desc, id: :desc)
+      .reorder(position: :asc, id: :asc)
       .first || step
   end
-  private_class_method :grade_loop_failure?, :grade_loop_fanout_for
+  private_class_method :grade_loop_failure?, :grade_loop_restart_step_for
 
   # A fanout batch can fail more than one required grader at once; retrying
   # only the single Step returned by failed_step_for left every sibling
@@ -74,6 +74,7 @@ class RetryFailedStepEnqueuer
           barriers[candidate.loop_id] ||= candidate
         end
         .values
+        .reject(&:retry_until_barrier_superseded?)
   end
 
   def self.cancelled_publication_step_for(workflow)
@@ -123,15 +124,15 @@ class RetryFailedStepEnqueuer
 
     workflow.reopen!
     workflow.save!
-    if grade_loop_fanout_retry?(failed_step)
-      reset_grade_loop!(failed_step)
+    if grade_loop_restart_retry?(failed_step)
+      restart_step = restart_grade_loop!(failed_step)
       if workflow.landing_workflow?
         job = workflow.job
         job.update_columns(landing_failure_reason: nil) if job.landing_failure_reason.present?
       end
 
-      run = create_run_for!(failed_step)
-      return Result.new(run: run, workflow: workflow, step: failed_step, error: nil)
+      run = create_run_for!(restart_step)
+      return Result.new(run: run, workflow: workflow, step: restart_step, error: nil)
     end
 
     sibling_graders = self.class.failed_grader_siblings(failed_step)
@@ -198,6 +199,7 @@ class RetryFailedStepEnqueuer
       job: workflow.job,
       trigger_kind: workflow.trigger_kind,
       agent_provider: agent_provider || workflow.agent_provider,
+      iteration: step.iteration,
       parent_session_id: retry_parent_session_id,
       prompt: prompt
     )
@@ -220,30 +222,118 @@ class RetryFailedStepEnqueuer
     end
   end
 
-  def grade_loop_fanout_retry?(step)
-    step.kind == "grader_fanout" && step.loop_id.present?
+  def grade_loop_restart_retry?(step)
+    self.class.send(:grade_loop_failure?, step)
   end
 
-  def reset_grade_loop!(fanout)
-    loop_steps_for(fanout).each { |step| reset_step_to_queued!(step) }
-    revive_cancelled_downstream_steps_after(collect_step_for(fanout) || fanout)
+  def restart_grade_loop!(fanout)
+    loop_node = retry_until_loop_node_for(fanout)
+    raise AASM::InvalidTransition, "Step #{fanout.id} is not in a retry-until grade loop" unless loop_node
+
+    anchor = loop_restart_anchor_for(fanout)
+    continuation = anchor.next_step
+    insertion_position = anchor.position + 1
+    new_loop_id = SecureRandom.uuid
+    new_steps = []
+
+    Step.transaction do
+      supersede_grade_loop!(fanout, restart_loop_id: new_loop_id)
+
+      step_kinds = initial_retry_until_step_kinds(loop_node)
+      workflow.steps.where("position >= ?", insertion_position).update_all(
+        [ "position = position + ?", step_kinds.size ]
+      )
+
+      new_steps = step_kinds.map.with_index do |kind, index|
+        Step.create!(
+          workflow: workflow,
+          kind: kind,
+          position: insertion_position + index,
+          iteration: 1,
+          loop_id: new_loop_id,
+          placement_policy: placement_policy_for(kind),
+          details: { "manual_grade_loop_restart" => true, "restarted_from_loop_id" => fanout.loop_id }
+        )
+      end
+
+      ([ anchor ] + new_steps).each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
+      new_steps.last.update!(next_step_id: continuation&.id)
+      wire_restart_dependencies!(anchor: anchor, new_steps: new_steps, continuation: continuation)
+      revive_cancelled_downstream_steps_after(new_steps.last)
+      record_grade_loop_restart!(fanout, new_steps.first)
+    end
+
+    new_steps.first
   end
 
-  def loop_steps_for(fanout)
+  def retry_until_loop_node_for(step)
+    dispatcher = StepDispatcher.new(workflow, advancing_from: step)
+    loop_node = dispatcher.send(:loop_node_for, step)
+    return unless loop_node&.fetch("type", nil) == "retry_until"
+    return unless Array(loop_node["check"]).map(&:to_s).include?("grader_collect")
+
+    loop_node
+  end
+
+  def initial_retry_until_step_kinds(loop_node)
+    if loop_node.fetch("repair_first", true)
+      Array(loop_node["repair"]).map(&:to_s) + Array(loop_node["check"]).map(&:to_s)
+    else
+      Array(loop_node["check"]).map(&:to_s)
+    end
+  end
+
+  def loop_restart_anchor_for(fanout)
     workflow.steps
       .where(loop_id: fanout.loop_id, iteration: fanout.iteration)
-      .where(kind: %w[grader_fanout grader grader_collect])
-      .order(:position, :id)
-      .to_a
+      .where("position >= ?", fanout.position)
+      .reorder(position: :desc, id: :desc)
+      .first || fanout
   end
 
-  def reset_step_to_queued!(step)
-    step.update_columns(
-      state: "queued",
-      started_at: nil,
-      finished_at: nil,
-      cancellation_reason: nil,
-      updated_at: Time.current
+  def supersede_grade_loop!(fanout, restart_loop_id:)
+    workflow.steps.where(loop_id: fanout.loop_id).find_each do |step|
+      details = step.details.to_h.merge(
+        "superseded_by_manual_grade_loop_restart" => true,
+        "manual_grade_loop_restart_loop_id" => restart_loop_id,
+        "manual_grade_loop_restart_at" => Time.current.iso8601
+      )
+      if self.class.retry_until_barrier_step?(step)
+        details[Step::RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY] = true
+      end
+      step.update_columns(details: details, updated_at: Time.current)
+    end
+  end
+
+  def placement_policy_for(kind)
+    Step::Kind.fetch(kind).placement_policy_for(workflow.job.repository)
+  end
+
+  def wire_restart_dependencies!(anchor:, new_steps:, continuation:)
+    ([ anchor ] + new_steps).each_cons(2) do |dependency, dependent|
+      dependent.update!(depends_on_ids: [ dependency.id ])
+    end
+
+    return unless continuation
+
+    ids = continuation.depends_on_step_ids
+    if ids.empty?
+      continuation.update!(depends_on_ids: [ new_steps.last.id ])
+    elsif ids.include?(anchor.id)
+      continuation.update!(depends_on_ids: ids.map { |id| id == anchor.id ? new_steps.last.id : id })
+    end
+  end
+
+  def record_grade_loop_restart!(old_fanout, new_fanout)
+    workflow.set_artifact!(
+      "manual_grade_loop_restarts",
+      Array(workflow.artifact("manual_grade_loop_restarts")) + [ {
+        "restarted_at" => Time.current.iso8601,
+        "from_loop_id" => old_fanout.loop_id,
+        "from_iteration" => old_fanout.iteration,
+        "new_loop_id" => new_fanout.loop_id,
+        "new_step_id" => new_fanout.id
+      } ]
     )
   end
 

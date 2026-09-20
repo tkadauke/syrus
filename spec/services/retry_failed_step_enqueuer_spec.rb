@@ -1,6 +1,18 @@
 require "rails_helper"
 
 RSpec.describe RetryFailedStepEnqueuer do
+  def grade_retry_chain_template(repair: [ "implement" ], repair_first: false)
+    [
+      {
+        "type" => "retry_until",
+        "max_iterations" => 2,
+        "repair" => repair,
+        "check" => [ "grader_fanout", "grader_collect" ],
+        "repair_first" => repair_first
+      }
+    ]
+  end
+
   it "retries the latest failed step instead of an obsolete earlier failure" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "initial")
@@ -51,7 +63,7 @@ RSpec.describe RetryFailedStepEnqueuer do
 
   it "retries the whole grade loop from fanout when collect fails" do
     job = Factories.job_record(state: "failed")
-    workflow = Workflow.create!(job: job, trigger_kind: "retry")
+    workflow = Workflow.create!(job: job, trigger_kind: "retry", chain_template: grade_retry_chain_template)
     workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
 
     fanout = Step.create!(
@@ -88,16 +100,25 @@ RSpec.describe RetryFailedStepEnqueuer do
     result = described_class.call(workflow: workflow)
 
     expect(result).to be_success
-    expect(result.step).to eq(fanout)
-    expect(fanout.reload).to be_queued
-    expect(failed_grader.reload).to be_queued
-    expect(collect.reload).to be_queued
-    expect(result.run.step).to eq(fanout)
+    new_fanout = result.step
+    new_collect = new_fanout.next_step
+
+    expect(new_fanout).to have_attributes(kind: "grader_fanout", iteration: 1)
+    expect(new_fanout.loop_id).not_to eq(fanout.loop_id)
+    expect(new_collect).to have_attributes(kind: "grader_collect", iteration: 1)
+    expect(fanout.reload).to be_succeeded
+    expect(failed_grader.reload).to be_failed
+    expect(collect.reload).to be_failed
+    expect(collect).to be_retry_until_barrier_superseded
+    expect(result.run.step).to eq(new_fanout)
+
+    new_collect.update!(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+    expect(workflow.reload).not_to be_uncleared_retry_until_barrier
   end
 
   it "resets every grader in the batch under distributed-projection wiring" do
     job = Factories.job_record(state: "failed")
-    workflow = Workflow.create!(job: job, trigger_kind: "retry")
+    workflow = Workflow.create!(job: job, trigger_kind: "retry", chain_template: grade_retry_chain_template)
     workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
 
     fanout = Step.create!(
@@ -154,18 +175,24 @@ RSpec.describe RetryFailedStepEnqueuer do
     result = described_class.call(workflow: workflow)
 
     expect(result).to be_success
-    expect(result.step).to eq(fanout)
-    expect(fanout.reload).to be_queued
-    expect(first_failed_grader.reload).to be_queued
-    expect(second_failed_grader.reload).to be_queued
-    expect(passing_grader.reload).to be_queued
-    expect(collect.reload).to be_queued
-    expect(result.run.step).to eq(fanout)
+    new_fanout = result.step
+    new_collect = new_fanout.next_step
+
+    expect(new_fanout).to have_attributes(kind: "grader_fanout", iteration: 1)
+    expect(new_fanout.loop_id).not_to eq(fanout.loop_id)
+    expect(new_collect).to have_attributes(kind: "grader_collect", iteration: 1)
+    expect(fanout.reload).to be_succeeded
+    expect(first_failed_grader.reload).to be_failed
+    expect(second_failed_grader.reload).to be_failed
+    expect(passing_grader.reload).to be_succeeded
+    expect(collect.reload).to be_failed
+    expect(collect).to be_retry_until_barrier_superseded
+    expect(result.run.step).to eq(new_fanout)
   end
 
   it "resets every grader under the default legacy serial-chain wiring" do
     job = Factories.job_record(state: "failed")
-    workflow = Workflow.create!(job: job, trigger_kind: "retry")
+    workflow = Workflow.create!(job: job, trigger_kind: "retry", chain_template: grade_retry_chain_template)
     workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
 
     # GraderFanout's default (non-distributed) wiring chains graders serially
@@ -228,23 +255,29 @@ RSpec.describe RetryFailedStepEnqueuer do
     result = described_class.call(workflow: workflow)
 
     expect(result).to be_success
-    expect(result.step).to eq(fanout)
-    expect(fanout.reload).to be_queued
-    expect(first_failed_grader.reload).to be_queued
-    expect(second_failed_grader.reload).to be_queued
-    expect(later_passing_grader.reload).to be_queued
-    expect(collect.reload).to be_queued
-    expect(result.run.step).to eq(fanout)
+    new_fanout = result.step
+    new_collect = new_fanout.next_step
+
+    expect(new_fanout).to have_attributes(kind: "grader_fanout", iteration: 1)
+    expect(new_fanout.loop_id).not_to eq(fanout.loop_id)
+    expect(new_collect).to have_attributes(kind: "grader_collect", iteration: 1)
+    expect(fanout.reload).to be_succeeded
+    expect(first_failed_grader.reload).to be_failed
+    expect(second_failed_grader.reload).to be_failed
+    expect(later_passing_grader.reload).to be_succeeded
+    expect(collect.reload).to be_failed
+    expect(collect).to be_retry_until_barrier_superseded
+    expect(result.run.step).to eq(new_fanout)
   end
 
-  it "enqueues fresh grader runs after a reset grade-loop fanout succeeds" do
+  it "leaves old grader runs alone when starting the replacement grade-loop fanout" do
     job = Factories.job_record(state: "failed")
     Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
       feature.category = "Operations"
       feature.name = "Distributed workflow DAG"
     end.update!(enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
-    workflow = Workflow.create!(job: job, trigger_kind: "retry")
+    workflow = Workflow.create!(job: job, trigger_kind: "retry", chain_template: grade_retry_chain_template)
     workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
 
     fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 4, state: "succeeded", iteration: 1, loop_id: "grade-loop")
@@ -261,19 +294,51 @@ RSpec.describe RetryFailedStepEnqueuer do
     end
 
     result = described_class.call(workflow: workflow)
-    result.run.update!(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
-    fanout.update!(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+    new_fanout = result.step
+    new_collect = new_fanout.next_step
 
-    expect {
-      StepDispatcher.advance_from(fanout)
-    }.to change { first_grader.reload.runs.count }.by(1)
-      .and change { second_grader.reload.runs.count }.by(1)
+    expect(new_fanout).to have_attributes(kind: "grader_fanout", state: "queued")
+    expect(new_collect).to have_attributes(kind: "grader_collect", state: "queued")
+    expect(new_collect.depends_on_step_ids).to eq([ new_fanout.id ])
+    expect(first_grader.reload).to be_failed
+    expect(second_grader.reload).to be_succeeded
+    expect(first_grader.runs.count).to eq(1)
+    expect(second_grader.runs.count).to eq(1)
+    expect(collect.reload).to be_failed
+    expect(collect).to be_retry_until_barrier_superseded
+  end
 
-    expect(first_grader.reload).to be_queued
-    expect(second_grader.reload).to be_queued
-    expect(first_grader.runs.order(:id).last).to be_queued
-    expect(second_grader.runs.order(:id).last).to be_queued
-    expect(collect.reload).to be_queued
+  it "restarts the grade loop from scratch when the repair step inside the loop fails" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "retry", chain_template: grade_retry_chain_template(repair_first: true))
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+
+    repair = Step.create!(workflow: workflow, kind: "implement", position: 4, state: "failed", iteration: 1, loop_id: "grade-loop")
+    fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 5, state: "cancelled", iteration: 1, loop_id: "grade-loop")
+    collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 6, state: "cancelled", iteration: 1, loop_id: "grade-loop")
+    summarize = Step.create!(workflow: workflow, kind: "summarize", position: 7, state: "cancelled")
+    repair.update!(next_step: fanout)
+    fanout.update!(next_step: collect)
+    collect.update!(next_step: summarize)
+    repair.runs.create!(job: job, trigger_kind: "retry", state: "failed")
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    new_repair = result.step
+    new_fanout = new_repair.next_step
+    new_collect = new_fanout.next_step
+
+    expect(new_repair).to have_attributes(kind: "implement", iteration: 1, state: "queued")
+    expect(new_fanout).to have_attributes(kind: "grader_fanout", iteration: 1, state: "queued")
+    expect(new_collect).to have_attributes(kind: "grader_collect", iteration: 1, state: "queued")
+    expect(new_repair.loop_id).not_to eq(repair.loop_id)
+    expect(repair.reload).to be_failed
+    expect(fanout.reload).to be_cancelled
+    expect(collect.reload).to be_cancelled
+    expect(collect).to be_retry_until_barrier_superseded
+    expect(summarize.reload).to be_queued
+    expect(result.run.step).to eq(new_repair)
   end
 
   it "retries a tail step when a later retry-until barrier cleared the earlier failure" do
