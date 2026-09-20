@@ -272,17 +272,17 @@ module JavaScript
     def focused_selector_ruby
       scope_literal = focused_scope.inspect
       project_path_literal = project_path.to_s.inspect
-      <<~RUBY
-        base = %w[origin/main origin/master main master].find { |ref| system("git", "rev-parse", "--verify", "\#{ref}^{commit}", out: File::NULL, err: File::NULL) }
-        exit 0 unless base
-        scope = #{scope_literal}
-        project_path = #{project_path_literal}
-        project_matches = ->(path) { project_path.empty? || path.start_with?("\#{project_path}/") }
-        relative = ->(path) { project_path.empty? ? path : path.delete_prefix("\#{project_path}/") }
-        matches_scope = ->(path) { scope.empty? || scope.any? { |pattern| File.fnmatch?(pattern, path, File::FNM_DOTMATCH) } }
-        changed = `git diff --name-only --diff-filter=ACMR \#{base}...HEAD -- "*.js" "*.jsx" "*.ts" "*.tsx"`.lines.map(&:strip)
-        puts changed.uniq.sort.select { |path| File.exist?(path) && project_matches.call(path) && matches_scope.call(relative.call(path)) }
-      RUBY
+      [
+        'base = %w[origin/main origin/master main master].find { |ref| system("git", "rev-parse", "--verify", "#{ref}^{commit}", out: File::NULL, err: File::NULL) }',
+        "exit 0 unless base",
+        "scope = #{scope_literal}",
+        "project_path = #{project_path_literal}",
+        'project_matches = ->(path) { project_path.empty? || path.start_with?("#{project_path}/") }',
+        'relative = ->(path) { project_path.empty? ? path : path.delete_prefix("#{project_path}/") }',
+        'matches_scope = ->(path) { scope.empty? || scope.any? { |pattern| File.fnmatch?(pattern, path, File::FNM_DOTMATCH) } }',
+        'changed = `git diff --name-only --diff-filter=ACMR #{base}...HEAD -- "*.js" "*.jsx" "*.ts" "*.tsx"`.lines.map(&:strip)',
+        "puts changed.uniq.sort.select { |path| File.exist?(path) && project_matches.call(path) && matches_scope.call(relative.call(path)) }"
+      ].join("; ")
     end
 
     def grade_step(name:, run:, phases:, mode:, junit_output:, when_files_changed: nil)
