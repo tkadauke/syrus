@@ -28,6 +28,20 @@ module Steps
       workflow.reload
       if review_iterations.size <= before_count
         capture_mcp_sidecar_stderr
+
+        # Deliberately does not mirror Steps::AdversarialReview's swallow-and-approve
+        # behavior after repeated missing-tool-call failures. That behavior is itself
+        # under separate reconsideration for being too broad (it rescues any
+        # StandardError, not just the missing-tool-call shape, once one prior Run on
+        # the step has failed for any reason). Even a correctly-narrowed version would
+        # still fake an "approved" verdict for visual QA, which is a worse failure mode
+        # here than for text review: a stuck/retried Job is visible and recoverable, a
+        # silently-approved-but-never-actually-reviewed UI regression is not. Raising
+        # unconditionally also isn't a loss of resilience — RunFailureClassifier already
+        # classifies this exact "agent didn't call submit_visual_review" shape as
+        # `missing_required_tool_call` (retryable), so WorkEngine::RepairExecutor's
+        # normal 5m/20m/1h auto-retry backoff already covers a transient reviewer miss
+        # without this step needing to swallow it.
         fail_with!(:missing_required_tool_call, "agent didn't call submit_visual_review",
                    evidence: { tool: "submit_visual_review" })
       end
