@@ -253,7 +253,6 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
               <JobStateBadge state={payload.job.summary_state} />
             </div>
             <div className="flex flex-wrap items-center justify-end gap-3">
-              <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
               <HeaderActions
                 command={command}
                 onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
@@ -261,6 +260,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
                 onToggleRequestChangesPanel={() => withPreviewStop(() => setRequestChangesPanelOpen((current) => !current))}
                 payload={payload}
               />
+              <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -466,7 +466,7 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
         <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">▾</span>
       </button>
       {jumpOpen ? (
-        <div className="absolute left-8 top-full z-30 mt-1 max-h-80 w-96 max-w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950" id="job-navigation-jump-list" role="listbox">
+        <div className="absolute right-0 top-full z-30 mt-1 max-h-80 w-96 max-w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950" id="job-navigation-jump-list" role="listbox">
           {context.items.map((item, index) => (
             <button
               aria-label={t("navigation_jump_option", { position: index + 1, slug: item.slug, title: item.title })}
