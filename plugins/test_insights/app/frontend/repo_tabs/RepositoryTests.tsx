@@ -2,7 +2,8 @@ import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { Button } from "@app/components/Button"
 import { Checkbox } from "@app/components/Checkbox"
-import { Input } from "@app/components/Input"
+import { ColumnsIcon } from "@app/components/ColumnsIcon"
+import { FilterBar, filterTreeFromPayload, topFilterChildren } from "@app/components/FilterBar"
 import { withRoutePrefix } from "@app/lib/routing"
 import { fetchRepositoryTestDetail, fetchRepositoryTests, type RepositoryTestDetailPayload, type RepositoryTestDurationPoint, type RepositoryTestHistoryItem, type RepositoryTestHistoryPagination, type RepositoryTestIdentity, type RepositoryTestsPayload } from "../api/tests"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -15,7 +16,6 @@ import { useT } from "@app/hooks/useT"
 import type { TFunction } from "i18next"
 import {
   DataTable,
-  Form,
   Notice,
   PageHeading,
   Section,
@@ -26,13 +26,13 @@ import { TonePill } from "@app/components/StatusPill"
 
 export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: { repositoryId: string; prefix: string; selectedTestId: string | null }) {
   const { t } = useT("test_insights")
-  const [query, setQuery] = useState("")
-  const debouncedQuery = useDebouncedValue(query, 250)
+  const location = useLocation()
+  const listSearch = useMemo(() => searchWithoutTestId(location.search), [location.search])
   const [historyPage, setHistoryPage] = useState(1)
   const navigate = useNavigate()
   const tests = useQuery({
-    queryKey: ["repositories", repositoryId, "tests", debouncedQuery],
-    queryFn: () => fetchRepositoryTests(repositoryId, debouncedQuery),
+    queryKey: ["repositories", repositoryId, "tests", listSearch],
+    queryFn: () => fetchRepositoryTests(repositoryId, listSearch),
     placeholderData: keepPreviousData
   })
 
@@ -64,36 +64,44 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
       {tests.isError && !tests.data ? <Notice tone="danger">{errorMessage(tests.error, t("repo_error_load_tests"))}</Notice> : null}
       {shell ? (
         <section className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <Form.Field className="min-w-[18rem] flex-1">
-              <Form.Label htmlFor="test-search">{t("repo_search_tests")}</Form.Label>
-              <Input
-                id="test-search"
-                className="mt-1"
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t("repo_search_placeholder")}
-                value={query}
-              />
-            </Form.Field>
-            {selectedTestId ? (
+          {selectedTestId ? (
+            <div className="flex flex-wrap items-end gap-3">
               <Button
                 onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}/plugin/tests`, prefix))}
                 variant="secondary"
               >
                 {t("repo_back_to_tests")}
               </Button>
-            ) : null}
-          </div>
+            </div>
+          ) : (
+            <FilterBar
+              filter={tests.data?.filter ?? null}
+              filterSchema={tests.data?.filter_schema ?? []}
+              pathname={location.pathname}
+              search={listSearch}
+            />
+          )}
 
           {selectedTestId ? (
             <TestDetailPanel detail={testDetail.data} error={testDetail.error} isError={testDetail.isError} isPending={testDetail.isPending} onPageChange={setHistoryPage} prefix={prefix} t={t} />
           ) : (
-            <TestList error={tests.error} isError={tests.isError} isFetching={tests.isFetching} payload={tests.data} prefix={prefix} query={debouncedQuery} t={t} />
+            <TestList error={tests.error} filterActive={hasActiveFilter(tests.data?.filter)} isError={tests.isError} isFetching={tests.isFetching} payload={tests.data} prefix={prefix} t={t} />
           )}
         </section>
       ) : null}
     </RepositoryPageShell>
   )
+}
+
+function searchWithoutTestId(search: string) {
+  const params = new URLSearchParams(search)
+  params.delete("test_id")
+  const query = params.toString()
+  return query ? `?${query}` : ""
+}
+
+function hasActiveFilter(filter: RepositoryTestsPayload["filter"]) {
+  return topFilterChildren(filterTreeFromPayload(filter)).length > 0
 }
 
 type ColumnKey = "test" | "suite" | "recent_failures" | "duration" | "last_seen"
@@ -109,7 +117,6 @@ type ColumnDef = {
 
 const REQUIRED_COLUMN: ColumnKey = "test"
 const CUSTOMIZABLE_COLUMNS: ColumnKey[] = ["suite", "recent_failures", "duration", "last_seen"]
-const REASON_FILTER_KEYS = ["failing", "flaky", "slow"]
 const COLUMNS_STORAGE_KEY = "syrus.test_insights.repository_tests_columns"
 
 const COLUMN_DEFS: Record<ColumnKey, ColumnDef> = {
@@ -206,20 +213,8 @@ function compareSortValues(a: string | number | null, b: string | number | null,
   return ((a as number) - (b as number)) * direction
 }
 
-function reasonFilterChipClass(reason: string, active: boolean) {
-  const tone = reason === "failing"
-    ? "border-red-200 text-red-700 dark:border-red-900 dark:text-red-300"
-    : reason === "flaky"
-      ? "border-yellow-300 text-yellow-800 dark:border-yellow-800 dark:text-yellow-300"
-      : "border-info/40 text-info"
-  const activeClasses = active ? "bg-surface-raised ring-1 ring-inset ring-current" : "bg-transparent hover:bg-surface-raised"
-
-  return `inline-flex items-center rounded border px-2 py-1 text-xs font-medium transition-colors ${tone} ${activeClasses}`
-}
-
-function TestList({ error, isError, isFetching, payload, prefix, query, t }: { error: unknown; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; prefix: string; query: string; t: TFunction<"test_insights"> }) {
+function TestList({ error, filterActive, isError, isFetching, payload, prefix, t }: { error: unknown; filterActive: boolean; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; prefix: string; t: TFunction<"test_insights"> }) {
   const [columns, setColumns] = useState<ColumnsState>(() => readColumnsState())
-  const [activeReasons, setActiveReasons] = useState<Set<string>>(() => new Set())
   const [sort, setSort] = useState<SortState>(null)
 
   useEffect(() => {
@@ -228,26 +223,14 @@ function TestList({ error, isError, isFetching, payload, prefix, query, t }: { e
 
   const tests = payload?.tests ?? []
   const visibleTests = useMemo(() => {
-    const filtered = activeReasons.size === 0
-      ? tests
-      : tests.filter((test) => test.interesting_reasons.some((reason) => activeReasons.has(reason)))
-    if (!sort) return filtered
+    if (!sort) return tests
 
     const direction = sort.direction === "ascending" ? 1 : -1
     const sortValue = COLUMN_DEFS[sort.column].sortValue
-    return [...filtered].sort((a, b) => compareSortValues(sortValue(a), sortValue(b), direction))
-  }, [activeReasons, sort, tests])
+    return [...tests].sort((a, b) => compareSortValues(sortValue(a), sortValue(b), direction))
+  }, [sort, tests])
 
   if (!payload) return null
-
-  function toggleReason(reason: string) {
-    setActiveReasons((current) => {
-      const next = new Set(current)
-      if (next.has(reason)) next.delete(reason)
-      else next.add(reason)
-      return next
-    })
-  }
 
   function toggleSort(column: ColumnKey) {
     setSort((current) => {
@@ -258,66 +241,46 @@ function TestList({ error, isError, isFetching, payload, prefix, query, t }: { e
   }
 
   if (payload.tests.length === 0) {
-    return <Notice>{query ? t("repo_no_search_results") : t("repo_no_history")}</Notice>
+    return <Notice>{filterActive ? t("repo_no_search_results") : t("repo_no_history")}</Notice>
   }
 
   const visibleColumns: ColumnKey[] = [REQUIRED_COLUMN, ...columns.order.filter((key) => !columns.hidden.includes(key))]
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">{query ? t("repo_search_results") : t("repo_interesting_tests")}</span>
-          {REASON_FILTER_KEYS.map((reason) => (
-            <button
-              aria-pressed={activeReasons.has(reason)}
-              className={reasonFilterChipClass(reason, activeReasons.has(reason))}
-              key={reason}
-              onClick={() => toggleReason(reason)}
-              type="button"
-            >
-              {t(`reason_${reason}`, { defaultValue: reason })}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {isFetching ? <span className="text-xs text-text-muted">{t("repo_updating_results")}</span> : null}
-          {isError ? <span className="text-xs text-danger">{errorMessage(error, t("repo_error_refresh_results"))}</span> : null}
-          <ColumnsMenu columns={columns} onChange={setColumns} t={t} />
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {isFetching ? <span className="text-xs text-text-muted">{t("repo_updating_results")}</span> : null}
+        {isError ? <span className="text-xs text-danger">{errorMessage(error, t("repo_error_refresh_results"))}</span> : null}
+        <ColumnsMenu columns={columns} onChange={setColumns} t={t} />
       </div>
 
-      {visibleTests.length === 0 ? (
-        <Notice>{t("repo_no_filtered_results")}</Notice>
-      ) : (
-        <DataTable.Root>
-          <DataTable.Header>
-            <DataTable.Row>
+      <DataTable.Root>
+        <DataTable.Header>
+          <DataTable.Row>
+            {visibleColumns.map((key) => (
+              <DataTable.HeadCell
+                className={COLUMN_DEFS[key].headClassName}
+                key={key}
+                onSort={() => toggleSort(key)}
+                sortDirection={sort?.column === key ? sort.direction : "none"}
+              >
+                {t(COLUMN_DEFS[key].labelKey)}
+              </DataTable.HeadCell>
+            ))}
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
+          {visibleTests.map((test) => (
+            <DataTable.Row key={test.id}>
               {visibleColumns.map((key) => (
-                <DataTable.HeadCell
-                  className={COLUMN_DEFS[key].headClassName}
-                  key={key}
-                  onSort={() => toggleSort(key)}
-                  sortDirection={sort?.column === key ? sort.direction : "none"}
-                >
-                  {t(COLUMN_DEFS[key].labelKey)}
-                </DataTable.HeadCell>
+                <DataTable.Cell className={COLUMN_DEFS[key].cellClassName} key={key} title={COLUMN_DEFS[key].cellTitle?.(test)}>
+                  {COLUMN_DEFS[key].renderCell(test, { payload, prefix, t })}
+                </DataTable.Cell>
               ))}
             </DataTable.Row>
-          </DataTable.Header>
-          <DataTable.Body>
-            {visibleTests.map((test) => (
-              <DataTable.Row key={test.id}>
-                {visibleColumns.map((key) => (
-                  <DataTable.Cell className={COLUMN_DEFS[key].cellClassName} key={key} title={COLUMN_DEFS[key].cellTitle?.(test)}>
-                    {COLUMN_DEFS[key].renderCell(test, { payload, prefix, t })}
-                  </DataTable.Cell>
-                ))}
-              </DataTable.Row>
-            ))}
-          </DataTable.Body>
-        </DataTable.Root>
-      )}
+          ))}
+        </DataTable.Body>
+      </DataTable.Root>
     </div>
   )
 }
@@ -372,8 +335,8 @@ function ColumnsMenu({ columns, onChange, t }: { columns: ColumnsState; onChange
 
   return (
     <div ref={referenceRef}>
-      <Button aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((value) => !value)} size="sm" variant="secondary">
-        {t("repo_columns_button")}
+      <Button aria-expanded={open} aria-haspopup="true" aria-label={t("repo_columns_button")} className="h-[var(--control-height-md)] w-[var(--control-height-md)]" onClick={() => setOpen((value) => !value)} size="icon" variant="secondary">
+        <ColumnsIcon />
       </Button>
       {open ? (
         <FloatingPortal>
@@ -695,17 +658,6 @@ function formatDuration(value: number | null | undefined) {
 function formatExactDuration(value: number | null | undefined) {
   if (value == null) return "—"
   return `${value.toLocaleString()}ms`
-}
-
-function useDebouncedValue<T>(value: T, delayMs: number) {
-  const [debouncedValue, setDebouncedValue] = useState(value)
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedValue(value), delayMs)
-    return () => window.clearTimeout(timeout)
-  }, [delayMs, value])
-
-  return debouncedValue
 }
 
 // Rendered by PluginRepoPageTabRoute, which passes no props: the repository
