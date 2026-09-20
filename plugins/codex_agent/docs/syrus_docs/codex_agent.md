@@ -1,7 +1,11 @@
 # Codex Agent
 
 The `codex_agent` plugin (`plugins/codex_agent/`) connects Syrus workflow
-Runs and chat turns to the Codex CLI. It is default-ON, customer-facing, and
+Runs and chat turns to the Codex CLI. It is customer-facing, but
+**default-disabled** (`default_enabled: false`, same as `claude_agent`,
+`agy_agent`, and `muse_agent`) — a new install ships with no agent provider
+enabled, and an operator turns one on from Admin -> Plugins (or the
+onboarding Configure Agent modal) once its credentials are configured. It
 provides both an `agent_provider` (`AgentProviders::Codex`) and a
 `chat_provider` (`ChatProviders::Codex`), category `agent_provider`,
 `disableable: true`. It runs independently of `claude_agent` — either or both
