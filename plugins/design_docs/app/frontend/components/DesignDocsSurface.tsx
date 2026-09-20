@@ -1012,11 +1012,21 @@ function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: {
     if (match?.suggestionId) focusSuggestion(match.suggestionId)
   }
 
+  const editEntry = narrowView && editingLocked ? (
+    mode === "chat" ? (
+      <Link className={buttonClasses("secondary", "sm")} to={`/design_docs/${doc.id}`}>{t("edit")}</Link>
+    ) : (
+      <Button onClick={() => setForceEditable(true)} size="sm">{t("edit")}</Button>
+    )
+  ) : null
+
   return (
     <div className="min-w-0 space-y-4">
       <DesignDocTitleBar
         collaborators={collaborators}
         doc={doc}
+        editEntry={editEntry}
+        narrowView={narrowView}
         repoIds={repoIds}
         repositories={repositories}
         repositoryPickerOpen={repositoryPickerOpen}
@@ -1069,14 +1079,7 @@ function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: {
           </div>
           ) : null}
           {editingLocked ? (
-            <DesignDocReadOnlyBody
-              draft={draft}
-              editEntry={mode === "chat" ? (
-                <Link className={buttonClasses("secondary", "sm")} to={`/design_docs/${doc.id}`}>{t("edit")}</Link>
-              ) : (
-                <Button onClick={() => setForceEditable(true)} size="sm">{t("edit")}</Button>
-              )}
-            />
+            <DesignDocReadOnlyBody draft={draft} />
           ) : (
             <>
               <DesignDocFormattingToolbar
@@ -1199,13 +1202,15 @@ function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: {
   )
 }
 
-function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, isArchived, onArchive, onMetadataSave, onSave, saveLabel, saveDisabled, onVersionChange, onVersionsOpen, onVisibilityChange }: {
+function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, editEntry, narrowView, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, isArchived, onArchive, onMetadataSave, onSave, saveLabel, saveDisabled, onVersionChange, onVersionsOpen, onVisibilityChange }: {
   archiveDisabled: boolean
   canArchive: boolean
   collaborators: string
   canManageMetadata: boolean
   doc: DesignDocDetail
+  editEntry: ReactNode
   isArchived: boolean
+  narrowView: boolean
   repoIds: string[]
   repositories: Array<{ id: number; slug: string }>
   repositoryPickerOpen: boolean
@@ -1234,6 +1239,8 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
   const titleBarRef = useRef<HTMLElement | null>(null)
   const shareButtonRef = useRef<HTMLButtonElement | null>(null)
   const [shareMenuStyle, setShareMenuStyle] = useState<React.CSSProperties>({})
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreMenuRef = useDismissiblePopup<HTMLDivElement>(moreOpen, () => setMoreOpen(false))
 
   function positionShareMenu() {
     const rect = shareButtonRef.current?.getBoundingClientRect()
@@ -1268,6 +1275,129 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
     setShareOpen(nextOpen)
   }
 
+  const repositoryPicker = (
+    <div className="relative min-w-0">
+      <div className="flex max-w-full flex-wrap items-center gap-1.5">
+        {selectedRepositories.length === 0 ? <Text as="span" variant="caption" tone="muted">{t("no_repositories")}</Text> : null}
+        {selectedRepositories.map((repository) => (
+          <span className="max-w-[11rem] truncate rounded border border-border px-2 py-1 text-xs text-text-secondary" key={repository.id}>
+            {repository.slug}
+          </span>
+        ))}
+        {canManageMetadata ? (
+        <Button aria-expanded={repositoryPickerOpen} aria-label={t("aria_add_repository")} className="h-7 w-7" onClick={() => setRepositoryPickerOpen(!repositoryPickerOpen)} size="icon" variant="secondary">
+          <span aria-hidden="true" className="text-base leading-none">+</span>
+        </Button>
+        ) : null}
+      </div>
+      {repositoryPickerOpen && canManageMetadata ? (
+        <div className="absolute left-0 z-20 mt-2 w-72 rounded border border-border bg-surface p-3 shadow-lg">
+          <label className="block text-xs font-medium uppercase text-text-muted">
+            {t("repositories")}
+            <Select
+              aria-label={t("aria_repository_associations")}
+              className="mt-1 min-h-24"
+              multiple
+              value={repoIds}
+              onChange={(event) => setRepoIds(Array.from(event.target.selectedOptions).map((option) => option.value))}
+            >
+              {repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.slug}</option>)}
+            </Select>
+          </label>
+          <div className="mt-3 flex justify-end">
+            <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_repositories")}</Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+
+  const shareControl = (
+    <div className="relative">
+      {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={toggleShareMenu} ref={shareButtonRef} size="sm" variant="secondary">{t("share")}</Button> : <StatusLabel value="review only" />}
+      {shareOpen && canManageMetadata ? (
+        <div
+          className="absolute z-40 mt-2 max-w-[calc(100vw-2rem)] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950"
+          data-testid="design-doc-share-menu"
+          style={shareMenuStyle}
+        >
+          <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            {t("visibility")}
+            <Select aria-label={t("aria_share_visibility")} className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
+              <option value="private">{t("visibility_private")}</option>
+              <option value="public">{t("visibility_public")}</option>
+            </Select>
+          </label>
+          <label className="mt-3 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            {t("explicit_collaborators")}
+            <Input aria-label={t("aria_collaborator_user_ids")} className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
+          </label>
+          <Text className="mt-3" variant="caption" tone="muted">{t("owner", { name: doc.owner?.name || doc.owner?.email_address || t("unknown_owner") })}</Text>
+          <div className="mt-3 flex justify-end">
+            <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_sharing")}</Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+
+  const versionSelector = (
+    <Select
+      aria-label={t("aria_version_selection")}
+      className={narrowView ? "w-full" : "ml-auto max-w-[12rem]"}
+      fullWidth={false}
+      onFocus={onVersionsOpen}
+      onMouseDown={onVersionsOpen}
+      value={selectedVersionId}
+      onChange={(event) => onVersionChange(event.target.value)}
+    >
+      <option value="current">{t("version_current", { number: doc.current_version_number ?? "?" })}</option>
+      {versionsOpen && versionsLoading ? <option value="loading">{t("loading")}</option> : null}
+      {versions.map((version) => (
+        <option key={version.id} value={version.id}>v{version.version_number}{version.change_summary ? ` - ${version.change_summary}` : ""}</option>
+      ))}
+    </Select>
+  )
+
+  if (narrowView) {
+    return (
+      <section aria-label={t("aria_title_bar")} className="rounded-[var(--radius-panel)] border border-[length:var(--border-width)] border-border bg-surface p-3 text-text-primary" ref={titleBarRef}>
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <Text className="truncate" variant="heading-sm">{title}</Text>
+            <Text className="mt-1 flex items-center gap-1" variant="caption" tone="muted">
+              <CopyableSlug className="text-xs font-medium" slug={doc.display_id} />
+              <span>{t("saved_prefix")} <RelativeTimestamp value={doc.updated_at} /></span>
+            </Text>
+          </div>
+          {editEntry}
+          <div className="relative shrink-0" ref={moreMenuRef}>
+            <Button aria-expanded={moreOpen} aria-label={t("aria_title_bar_more_actions")} className="h-8 w-8" onClick={() => setMoreOpen((open) => !open)} size="icon" variant="secondary">
+              <span aria-hidden="true" className="text-base leading-none">...</span>
+            </Button>
+            {moreOpen ? (
+              <div className="absolute right-0 z-40 mt-2 w-72 max-w-[calc(100vw-2rem)] space-y-3 rounded border border-border bg-surface p-3 shadow-lg" data-testid="design-doc-title-bar-menu" role="menu">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusLabel value={doc.visibility} />
+                  <StatusLabel value={doc.state} />
+                </div>
+                {repositoryPicker}
+                <div className="flex flex-wrap items-center gap-2">
+                  {shareControl}
+                  {canArchive ? (
+                    <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">{t("archive")}</Button>
+                  ) : null}
+                  {!isArchived ? <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button> : null}
+                </div>
+                {versionSelector}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section aria-label={t("aria_title_bar")} className="rounded-[var(--radius-panel)] border border-[length:var(--border-width)] border-border bg-surface p-3 text-text-primary" ref={titleBarRef}>
       <div className="flex flex-wrap items-center gap-3">
@@ -1280,85 +1410,13 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
         </div>
         <StatusLabel value={doc.visibility} />
         <StatusLabel value={doc.state} />
-        <div className="relative min-w-0">
-          <div className="flex max-w-full flex-wrap items-center gap-1.5">
-            {selectedRepositories.length === 0 ? <Text as="span" variant="caption" tone="muted">{t("no_repositories")}</Text> : null}
-            {selectedRepositories.map((repository) => (
-              <span className="max-w-[11rem] truncate rounded border border-border px-2 py-1 text-xs text-text-secondary" key={repository.id}>
-                {repository.slug}
-              </span>
-            ))}
-            {canManageMetadata ? (
-            <Button aria-expanded={repositoryPickerOpen} aria-label={t("aria_add_repository")} className="h-7 w-7" onClick={() => setRepositoryPickerOpen(!repositoryPickerOpen)} size="icon" variant="secondary">
-              <span aria-hidden="true" className="text-base leading-none">+</span>
-            </Button>
-            ) : null}
-          </div>
-          {repositoryPickerOpen && canManageMetadata ? (
-            <div className="absolute left-0 z-20 mt-2 w-72 rounded border border-border bg-surface p-3 shadow-lg">
-              <label className="block text-xs font-medium uppercase text-text-muted">
-                {t("repositories")}
-                <Select
-                  aria-label={t("aria_repository_associations")}
-                  className="mt-1 min-h-24"
-                  multiple
-                  value={repoIds}
-                  onChange={(event) => setRepoIds(Array.from(event.target.selectedOptions).map((option) => option.value))}
-                >
-                  {repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.slug}</option>)}
-                </Select>
-              </label>
-              <div className="mt-3 flex justify-end">
-                <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_repositories")}</Button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-        <div className="relative">
-          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={toggleShareMenu} ref={shareButtonRef} size="sm" variant="secondary">{t("share")}</Button> : <StatusLabel value="review only" />}
-          {shareOpen && canManageMetadata ? (
-            <div
-              className="absolute z-40 mt-2 max-w-[calc(100vw-2rem)] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950"
-              data-testid="design-doc-share-menu"
-              style={shareMenuStyle}
-            >
-              <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {t("visibility")}
-                <Select aria-label={t("aria_share_visibility")} className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
-                  <option value="private">{t("visibility_private")}</option>
-                  <option value="public">{t("visibility_public")}</option>
-                </Select>
-              </label>
-              <label className="mt-3 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {t("explicit_collaborators")}
-                <Input aria-label={t("aria_collaborator_user_ids")} className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
-              </label>
-              <Text className="mt-3" variant="caption" tone="muted">{t("owner", { name: doc.owner?.name || doc.owner?.email_address || t("unknown_owner") })}</Text>
-              <div className="mt-3 flex justify-end">
-                <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_sharing")}</Button>
-              </div>
-            </div>
-          ) : null}
-        </div>
+        {repositoryPicker}
+        {shareControl}
         {canArchive ? (
           <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">{t("archive")}</Button>
         ) : null}
         {!isArchived ? <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button> : null}
-        <Select
-          aria-label={t("aria_version_selection")}
-          className="ml-auto max-w-[12rem]"
-          fullWidth={false}
-          onFocus={onVersionsOpen}
-          onMouseDown={onVersionsOpen}
-          value={selectedVersionId}
-          onChange={(event) => onVersionChange(event.target.value)}
-        >
-          <option value="current">{t("version_current", { number: doc.current_version_number ?? "?" })}</option>
-          {versionsOpen && versionsLoading ? <option value="loading">{t("loading")}</option> : null}
-          {versions.map((version) => (
-            <option key={version.id} value={version.id}>v{version.version_number}{version.change_summary ? ` - ${version.change_summary}` : ""}</option>
-          ))}
-        </Select>
+        {versionSelector}
       </div>
     </section>
   )
@@ -1583,16 +1641,14 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
 
 // Narrow-view (compact chat tabs, or a mobile-width repository/index route)
 // stand-in for the formatting toolbar + editable textarea/contentEditable
-// surfaces: plain rendered content plus an explicit Edit affordance, instead
-// of the always-live editing toolbar there isn't room for at this width.
-function DesignDocReadOnlyBody({ draft, editEntry }: { draft: string; editEntry: ReactNode }) {
+// surfaces: plain rendered content, instead of the always-live editing
+// toolbar there isn't room for at this width. The Edit affordance back into
+// the full editor lives in the collapsed DesignDocTitleBar, not here.
+function DesignDocReadOnlyBody({ draft }: { draft: string }) {
   const { t } = useT("design_docs")
 
   return (
     <div className="p-4" data-testid="design-doc-read-only-body">
-      <div className="mb-3 flex justify-end">
-        {editEntry}
-      </div>
       <section aria-label={t("document_content")} className="min-h-[36rem] text-sm leading-6 text-text-primary">
         <Markdown text={draft} />
       </section>
