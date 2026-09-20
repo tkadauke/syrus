@@ -18,6 +18,7 @@ import { ColumnVisibilityMenu } from "../components/ColumnVisibilityMenu"
 import { DashboardSmartFolderNav, smartFolderIdFromSearch } from "../components/DashboardSmartFolderNav"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { CloseIcon } from "../components/CloseIcon"
+import { ColumnsIcon } from "../components/ColumnsIcon"
 import { PageHeading } from "../components/Heading"
 import { TonePill } from "../components/StatusPill"
 import { FilterBar } from "../components/FilterBar"
@@ -645,14 +646,6 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
       </div>
       {updatePreferences.isError ? <Text as="p" className="mt-1 text-right" role="alert" tone="danger">{errorMessage(updatePreferences.error, t("preferences_error"))}</Text> : null}
     </div>
-  )
-}
-
-function ColumnsIcon() {
-  return (
-    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
-      <path d="M7 4v16M17 4v16M5 5h14M5 12h14M5 19h14" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-    </svg>
   )
 }
 
