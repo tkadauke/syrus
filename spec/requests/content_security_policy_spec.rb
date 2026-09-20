@@ -9,11 +9,19 @@ RSpec.describe "Content-Security-Policy", type: :request do
     expect(header).to include("default-src 'self'")
     expect(header).to include("object-src 'none'")
     expect(header).to include("frame-ancestors 'self'")
-    expect(header).to match(/script-src 'self' 'nonce-[^']+'/)
+    expect(header).to match(/script-src 'self' 'wasm-unsafe-eval' 'nonce-[^']+'/)
 
-    nonce = header[/script-src 'self' 'nonce-([^']+)'/, 1]
+    nonce = header[/script-src 'self' 'wasm-unsafe-eval' 'nonce-([^']+)'/, 1]
     expect(nonce).to be_present
     expect(response.body).to include(%(nonce="#{nonce}"))
+  end
+
+  it "allows WebAssembly instantiation for the Shiki syntax highlighter without broadly permitting eval" do
+    get "/"
+
+    header = response.headers["Content-Security-Policy"]
+    expect(header).to include("'wasm-unsafe-eval'")
+    expect(header).not_to include("'unsafe-eval'")
   end
 
   it "allows embedding the preview panel base domain in frame-src" do

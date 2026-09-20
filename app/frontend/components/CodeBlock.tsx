@@ -16,6 +16,12 @@ export function useHighlightedLines(code: string, lang: HighlighterLanguageId | 
     let cancelled = false
     tokenizeLines(code, lang).then((result) => {
       if (!cancelled) setLines(result)
+    }).catch((error: unknown) => {
+      // A blocked/failed highlighter load must not surface as an
+      // unhandled promise rejection -- `lines` stays null, so the block
+      // just keeps rendering its plain-text fallback.
+      if (cancelled) return
+      console.warn("Code highlighting failed; falling back to plain text.", error)
     })
 
     return () => {

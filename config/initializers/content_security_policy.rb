@@ -9,7 +9,11 @@
 Rails.application.configure do
   config.content_security_policy do |policy|
     policy.default_src :self
-    policy.script_src  :self
+    # 'wasm-unsafe-eval' only permits instantiating WebAssembly modules (e.g.
+    # Shiki's oniguruma WASM regex engine for diff/code syntax highlighting);
+    # it does not grant JS `eval`/`new Function` the way 'unsafe-eval' does,
+    # so it doesn't weaken the stored-XSS protection this policy exists for.
+    policy.script_src  :self, :wasm_unsafe_eval
     # Tailwind-generated classes plus a modest number of React components set
     # inline `style={{...}}`; most of that goes through the CSSOM (exempt from
     # CSP either way), but 'unsafe-inline' keeps any literal style="" markup
