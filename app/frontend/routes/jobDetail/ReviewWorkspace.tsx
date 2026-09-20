@@ -23,7 +23,7 @@ import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { DiffReviewVersionSelector, canonicalReviewVersions, type DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
 import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
-import { Pill, Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
+import { Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
 
 const SURFACE = "job_review_workspace"
 
@@ -200,7 +200,6 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
                 selectedVersionId={activeVersionId}
                 versions={versions.length > 0 ? versions : selectedVersion ? [selectedVersion] : []}
               />
-              <ReviewStatePill label={t("review_pending_state", { count: Object.values(feedback.commentCounts).reduce((sum, count) => sum + count, 0) })} tone="pending" />
             </div>
           </div>
           {payload.summary ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} /> : <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}
@@ -442,15 +441,6 @@ function artifactIteration(artifact: TypedArtifact) {
 
 function shortSha(sha: string) {
   return sha.slice(0, 7)
-}
-
-function ReviewStatePill({ label, tone }: { label: string; tone: "pending" | "submitted" | "handled" }) {
-  const semanticTone = {
-    handled: "success",
-    pending: "warning",
-    submitted: "info"
-  }[tone] as "success" | "warning" | "info"
-  return <Pill tone={semanticTone}>{label}</Pill>
 }
 
 function reviewArtifactSummaries(workflows: JobWorkflow[]) {
