@@ -195,6 +195,17 @@ RSpec.describe Steps::AdversarialReview do
     expect(workflow.reload.artifact("adversarial_review_iterations")).to be_blank
   end
 
+  it "does not silently approve two repeated failures of a non-skippable kind (e.g. timeouts)" do
+    prior_run = Run.create!(job: job, step: review_step, trigger_kind: "initial", state: "failed")
+    RunDiagnostic.create!(run: prior_run, error_class: "Steps::Base::AgentTimedOut",
+                          error_message: "agent timed out", problem_code: "timeout")
+    allow(handler).to receive(:run_agent).and_raise(Steps::Base::AgentTimedOut, "agent timed out")
+
+    expect { handler.call }.to raise_error(Steps::Base::AgentTimedOut, "agent timed out")
+
+    expect(workflow.reload.artifact("adversarial_review_iterations")).to be_blank
+  end
+
   context "when affected project criteria are available" do
     before do
       allow(App::AdversarialReviewProjects).to receive(:call).with(
