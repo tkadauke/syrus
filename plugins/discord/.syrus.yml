@@ -1,0 +1,7 @@
+project:
+  id: discord
+  label: "discord plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

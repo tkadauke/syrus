@@ -1,0 +1,7 @@
+project:
+  id: build_cache
+  label: "build_cache plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

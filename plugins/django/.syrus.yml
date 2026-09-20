@@ -1,0 +1,9 @@
+project:
+  id: django
+  label: "django plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//plugins/python:grade/rspec"

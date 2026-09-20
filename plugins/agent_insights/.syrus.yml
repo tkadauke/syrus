@@ -1,0 +1,9 @@
+project:
+  id: agent_insights
+  label: "agent_insights plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//plugins/agent_memory:grade/rspec"

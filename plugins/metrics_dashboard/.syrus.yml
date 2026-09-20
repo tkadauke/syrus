@@ -1,0 +1,7 @@
+project:
+  id: metrics_dashboard
+  label: "metrics_dashboard plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

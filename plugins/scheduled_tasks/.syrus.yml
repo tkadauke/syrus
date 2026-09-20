@@ -1,0 +1,10 @@
+project:
+  id: scheduled_tasks
+  label: "scheduled_tasks plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//plugins/video_walkthroughs:grade/rspec"
+      - "//plugins/metrics_dashboard:grade/rspec"

@@ -1,0 +1,7 @@
+project:
+  id: agent_activity
+  label: "agent_activity plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

@@ -1,0 +1,9 @@
+project:
+  id: rails
+  label: "rails plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//plugins/ruby:grade/rspec"

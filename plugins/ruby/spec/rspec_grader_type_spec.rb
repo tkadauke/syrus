@@ -12,6 +12,7 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.first.run).to include("bundle exec rspec")
     expect(steps.first.run).to include("bin/rails db:test:prepare")
     expect(steps.first.run).to include("--tag \\~ci_only")
+    expect(steps.first.run).to include("spec")
     expect(steps.first.run).to include(".syrus/rspec-json/rspec.json")
     expect(steps.first.phases).to eq(%w[landing])
     expect(steps.first.failures).to eq("allow_inherited")
@@ -25,10 +26,11 @@ RSpec.describe Ruby::RspecGraderType do
 
     expect(steps.second.run).to include(".syrus/rspec-focused-files")
     expect(steps.second.phases).to eq(%w[review])
-    expect(steps.second.when_files_changed).to eq([ "**/*.rb" ])
+    expect(steps.second.when_files_changed).to include("**/*.rb", "*.gemspec", "Gemfile")
     expect(steps.second.metadata["grader_mode"]).to eq("focused")
 
     expect(steps.third.run).to include("RUN_CI_ONLY_SPECS=true")
+    expect(steps.third.run).to include("spec")
     expect(steps.third.run).not_to include("--tag ~ci_only")
     expect(steps.third.phases).to eq(%w[ci])
     expect(steps.third.metadata["grader_mode"]).to eq("ci")
@@ -44,6 +46,19 @@ RSpec.describe Ruby::RspecGraderType do
       [ "app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb" ],
       [ "app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb" ],
       [ "app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb" ]
+    ])
+  end
+
+  it "passes dependency labels through typed grader expansion" do
+    steps = described_class.grade_steps(
+      config: { "deps" => [ "//plugins/ruby:grade/rspec" ] },
+      default_failures: "strict"
+    )
+
+    expect(steps.map(&:deps)).to eq([
+      [ "//plugins/ruby:grade/rspec" ],
+      [ "//plugins/ruby:grade/rspec" ],
+      [ "//plugins/ruby:grade/rspec" ]
     ])
   end
 

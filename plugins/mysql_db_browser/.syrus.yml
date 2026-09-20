@@ -1,0 +1,7 @@
+project:
+  id: mysql_db_browser
+  label: "mysql_db_browser plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

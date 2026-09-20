@@ -1,0 +1,7 @@
+project:
+  id: whiteboard
+  label: "whiteboard plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

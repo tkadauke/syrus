@@ -1,0 +1,7 @@
+project:
+  id: linear_source
+  label: "linear_source plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

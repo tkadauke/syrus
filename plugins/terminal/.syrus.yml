@@ -1,0 +1,7 @@
+project:
+  id: terminal
+  label: "terminal plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

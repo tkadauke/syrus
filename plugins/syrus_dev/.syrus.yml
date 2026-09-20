@@ -1,0 +1,7 @@
+project:
+  id: syrus_dev
+  label: "syrus_dev plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

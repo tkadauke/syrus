@@ -1,0 +1,9 @@
+project:
+  id: video_walkthroughs
+  label: "video_walkthroughs plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//plugins/metrics_dashboard:grade/rspec"

@@ -1,0 +1,7 @@
+project:
+  id: tailscale
+  label: "tailscale plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

@@ -1,0 +1,7 @@
+project:
+  id: claude_agent
+  label: "claude_agent plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

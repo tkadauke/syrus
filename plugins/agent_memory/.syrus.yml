@@ -1,0 +1,7 @@
+project:
+  id: agent_memory
+  label: "agent_memory plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

@@ -256,10 +256,12 @@ plugin's `type: rspec` expands to landing, focused-review, and CI RSpec
 graders. The JavaScript plugin's `type: vitest` does the same for Vitest and
 can optionally run typecheck and coverage. A plugin-owned grader must not also
 set `run:`; use `type: custom` for repository-specific shell commands.
-Typed grader defaults are framework-generic and relative to the project root;
-use `when_files_changed` to declare the files owned by this particular
-project. Do not make a root grader cover unrelated plugin or subproject paths;
-give those projects their own `.syrus.yml` and graders.
+Typed grader defaults are framework-generic and relative to the project root.
+For example, `type: rspec` runs the project's `spec` directory and watches
+Ruby files plus common Ruby project metadata by default. Use
+`when_files_changed` only to narrow or widen that framework default for this
+particular project. Do not make a root grader cover unrelated plugin or
+subproject paths; give those projects their own `.syrus.yml` and graders.
 
 Custom `run:` commands are executed as-is. A `fast:` key is no longer accepted
 at all — declaring it in `.syrus.yml` has no effect and is not parsed into

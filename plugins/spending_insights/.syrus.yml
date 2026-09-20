@@ -1,0 +1,9 @@
+project:
+  id: spending_insights
+  label: "spending_insights plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//plugins/metrics_dashboard:grade/rspec"

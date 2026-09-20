@@ -1,0 +1,7 @@
+project:
+  id: global_search
+  label: "global_search plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

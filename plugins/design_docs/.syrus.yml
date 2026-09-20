@@ -1,0 +1,9 @@
+project:
+  id: design_docs
+  label: "design_docs plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//plugins/global_search:grade/rspec"

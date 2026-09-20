@@ -1,0 +1,7 @@
+project:
+  id: theming_tools
+  label: "theming_tools plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

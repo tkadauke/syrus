@@ -1,0 +1,7 @@
+project:
+  id: codex_agent
+  label: "codex_agent plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

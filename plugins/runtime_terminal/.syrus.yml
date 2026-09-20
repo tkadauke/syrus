@@ -1,0 +1,9 @@
+project:
+  id: runtime_terminal
+  label: "runtime_terminal plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//plugins/terminal:grade/rspec"

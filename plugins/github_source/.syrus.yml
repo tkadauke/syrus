@@ -1,0 +1,7 @@
+project:
+  id: github_source
+  label: "github_source plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

@@ -231,6 +231,45 @@ RSpec.describe "Syrus grader configuration" do
     ])
   end
 
+  it "declares every bundled plugin as an individual plugin project with a local grader" do
+    graph = TargetGraph::Compiler.compile(Rails.root)
+    plugin_dirs = Rails.root.join("plugins").children.select(&:directory?).map { |path| path.basename.to_s }.sort
+
+    plugin_projects = graph.projects.values.select { |project| project.kind == "plugin" }
+
+    expect(plugin_projects.map(&:id).sort).to eq(plugin_dirs)
+    plugin_projects.each do |project|
+      expect(project.path).to eq("plugins/#{project.id}")
+      expect(project.owner_config_path).to eq("plugins/#{project.id}/.syrus.yml")
+
+      grader = graph.target("//plugins/#{project.id}:grade/rspec")
+      expect(grader).not_to be_nil
+      expect(grader.project_id).to eq(project.id)
+      expect(grader.command).to include("bundle exec rspec")
+      expect(grader.source_scope).to include(
+        "plugins/#{project.id}/**/*.rb",
+        "plugins/#{project.id}/*.gemspec"
+      )
+    end
+  end
+
+  it "uses plugin dependency declarations as target graph dependency edges" do
+    graph = TargetGraph::Compiler.compile(Rails.root)
+
+    expect(graph.affected("//plugins/rails:grade/rspec", changed_files: [ "plugins/ruby/lib/ruby.rb" ])).to have_attributes(
+      affected: true,
+      reason: "dependency //plugins/ruby:grade/rspec source scope matched a changed file"
+    )
+    expect(graph.affected("//plugins/django:grade/rspec", changed_files: [ "plugins/python/lib/python.rb" ])).to have_attributes(
+      affected: true,
+      reason: "dependency //plugins/python:grade/rspec source scope matched a changed file"
+    )
+    expect(graph.affected("//plugins/runtime_terminal:grade/rspec", changed_files: [ "plugins/terminal/lib/terminal.rb" ])).to have_attributes(
+      affected: true,
+      reason: "dependency //plugins/terminal:grade/rspec source scope matched a changed file"
+    )
+  end
+
   it "scopes the website build grader to website and website deploy changes" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
     graph = TargetGraph::Compiler.compile(Rails.root)

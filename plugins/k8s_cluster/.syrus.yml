@@ -1,0 +1,7 @@
+project:
+  id: k8s_cluster
+  label: "k8s_cluster plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

@@ -1,0 +1,7 @@
+project:
+  id: browser
+  label: "browser plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

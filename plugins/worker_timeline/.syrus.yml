@@ -1,0 +1,7 @@
+project:
+  id: worker_timeline
+  label: "worker_timeline plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

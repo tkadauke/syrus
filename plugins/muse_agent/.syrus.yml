@@ -1,0 +1,7 @@
+project:
+  id: muse_agent
+  label: "muse_agent plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

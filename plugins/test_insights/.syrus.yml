@@ -1,0 +1,9 @@
+project:
+  id: test_insights
+  label: "test_insights plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//plugins/global_search:grade/rspec"

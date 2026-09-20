@@ -1,0 +1,7 @@
+project:
+  id: team_directory
+  label: "team_directory plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

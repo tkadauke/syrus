@@ -1,0 +1,9 @@
+project:
+  id: ruby
+  label: "ruby plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//plugins/test_insights:grade/rspec"

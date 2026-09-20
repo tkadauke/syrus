@@ -1,0 +1,7 @@
+project:
+  id: admin_mysql
+  label: "admin_mysql plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

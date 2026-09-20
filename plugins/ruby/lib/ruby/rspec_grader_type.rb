@@ -5,7 +5,16 @@ module Ruby
     include Syrus::Plugin::GraderType
 
     DEFAULT_TIMEOUT_MINUTES = 15
-    FOCUSED_CHANGED_FILES = [ "**/*.rb" ].freeze
+    DEFAULT_CHANGED_FILES = [
+      "*.rb",
+      "**/*.rb",
+      "*.gemspec",
+      "Gemfile",
+      "Gemfile.lock",
+      ".rspec",
+      ".rspec-local"
+    ].freeze
+    DEFAULT_RSPEC_PATHS = [ "spec" ].freeze
 
     def self.type_name
       "rspec"
@@ -96,11 +105,22 @@ module Ruby
 
     def configured_scope
       patterns = Array(config["when_files_changed"]).map(&:to_s).map(&:strip).reject(&:empty?)
-      patterns.presence
+      patterns.presence || DEFAULT_CHANGED_FILES
     end
 
     def focused_scope
-      configured_scope || FOCUSED_CHANGED_FILES
+      configured_scope
+    end
+
+    def configured_deps
+      raw = config["deps"] || config["dependencies"]
+      refs =
+        case raw
+        when nil then []
+        when String then [ raw ]
+        else Array(raw)
+        end
+      refs.map(&:to_s).map(&:strip).reject(&:empty?)
     end
 
     def description_for(mode)
@@ -131,7 +151,7 @@ module Ruby
         junit_output: junit_output(full_name),
         json_output: ".syrus/rspec-json/#{full_name}.json",
         coverage: coverage?,
-        args: [ "--tag", "~ci_only" ]
+        args: [ "--tag", "~ci_only", *rspec_paths ]
       )
     end
 
@@ -140,8 +160,14 @@ module Ruby
         junit_output: junit_output(ci_name),
         json_output: ".syrus/rspec-json/#{ci_name}.json",
         coverage: coverage?,
-        env: { "RUN_CI_ONLY_SPECS" => "true" }
+        env: { "RUN_CI_ONLY_SPECS" => "true" },
+        args: rspec_paths
       )
+    end
+
+    def rspec_paths
+      raw = config["paths"] || config["spec_paths"] || DEFAULT_RSPEC_PATHS
+      Array(raw).map(&:to_s).map(&:strip).reject(&:empty?)
     end
 
     def focused_command
@@ -232,7 +258,7 @@ module Ruby
         junit_output: junit_output,
         failures: failures,
         base_retry: base_retry,
-        deps: [],
+        deps: configured_deps,
         metadata: {
           "grader_type" => self.class.type_name,
           "grader_framework" => "rspec",

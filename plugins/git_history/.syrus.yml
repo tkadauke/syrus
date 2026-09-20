@@ -1,0 +1,7 @@
+project:
+  id: git_history
+  label: "git_history plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

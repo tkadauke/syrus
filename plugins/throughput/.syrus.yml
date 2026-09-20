@@ -1,0 +1,9 @@
+project:
+  id: throughput
+  label: "throughput plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//plugins/metrics_dashboard:grade/rspec"
