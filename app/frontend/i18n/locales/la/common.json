@@ -112,7 +112,8 @@
     "context_no_recent_errors": "Nulli",
     "include_transcript": "Conloquii textum addere",
     "transcript_preview": "Praevisa textus",
-    "annotate_screenshot": "Imaginem annota"
+    "annotate_screenshot": "Imaginem annota",
+    "discard_confirm": "Visne hanc nuntiationem vitii abicere?"
   },
   "image_annotation": {
     "annotate": "Annota {{name}}",
