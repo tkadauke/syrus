@@ -6,6 +6,8 @@ require "javascript/prettier_autofix"
 require "javascript/dependency_audit_command"
 require "javascript/review_criteria_provider"
 require "javascript/focused_test_command"
+require "javascript/vitest_grader_type"
+require "javascript/grade_detector"
 
 module JavaScript
   extend Syrus::PluginApi
@@ -29,6 +31,8 @@ module JavaScript
              review_criteria_provider: "JavaScript::ReviewCriteriaProvider",
              autofix_command: [ "JavaScript::EslintAutofix", "JavaScript::PrettierAutofix" ],
              dependency_audit_command: "JavaScript::DependencyAuditCommand",
-             focused_test_command: "JavaScript::FocusedTestCommand"
+             focused_test_command: "JavaScript::FocusedTestCommand",
+             grader_type: "JavaScript::VitestGraderType",
+             grade_detector: "JavaScript::GradeDetector"
   end
 end
