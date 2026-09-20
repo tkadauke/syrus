@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { Checkbox } from "@app/components/Checkbox"
+import { ColumnsIcon } from "@app/components/ColumnsIcon"
 import { CopyableSlug } from "@app/components/CopyableSlug"
 import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
@@ -570,14 +571,6 @@ function repositoryLabel(doc: DesignDocSummary, t: DesignDocT) {
 
 function uniqueValue(value: string, index: number, values: string[]) {
   return values.indexOf(value) === index
-}
-
-function ColumnsIcon() {
-  return (
-    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
-      <path d="M7 4v16M17 4v16M5 5h14M5 12h14M5 19h14" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-    </svg>
-  )
 }
 
 function persistedDraftFingerprint(docId: string | number, title: string, markdown: string) {
