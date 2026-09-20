@@ -1,4 +1,4 @@
-import { type RepositoryDetailQueryKey, appendSearch, buttonClass } from "./repositoryDetail/shared"
+import { type RepositoryDetailQueryKey, appendSearch, buttonClass, repositoryDetailPageSearch, repositoryDetailQueryKey } from "./repositoryDetail/shared"
 import { PanelMessage } from "../components/PanelMessage"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading, SectionHeading } from "../components/Heading"
@@ -7,7 +7,6 @@ import { ChevronIcon } from "../components/ChevronIcon"
 import { DismissButton } from "../components/DismissButton"
 import { PluginUiSlot } from "../pluginUiSlots"
 import { formatRelativeDate } from "../lib/relativeTime"
-import { MainBranchHealthSection } from "./repositoryDetail/MainBranchHealth"
 import { DeliveryTracksSection } from "./repositoryDetail/DeliveryTracks"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -31,7 +30,7 @@ export function RepositoryDetailRoute() {
   const location = useLocation()
   const id = params.id || ""
   const tab = "overview" as const
-  const search = pageSearch(location.search)
+  const search = repositoryDetailPageSearch(location.search)
   const prefix = routePrefix(location.pathname)
   const detailQueryKey = repositoryDetailQueryKey(id, search)
   const detail = useQuery({
@@ -42,10 +41,6 @@ export function RepositoryDetailRoute() {
   usePageTitle(detail.data?.repository.slug)
 
   return <RepositoryDetail activeTab={tab} detail={detail} prefix={prefix} queryKey={detailQueryKey} />
-}
-
-function repositoryDetailQueryKey(id: string | number, search: string): RepositoryDetailQueryKey {
-  return ["repositories", String(id), "detail", search] as const
 }
 
 function RepositoryDetail({ activeTab, detail, prefix, queryKey }: { activeTab: "overview"; detail: { data?: RepositoryDetailPayload; isPending: boolean; isError: boolean; error: unknown }; prefix: string; queryKey: RepositoryDetailQueryKey }) {
@@ -81,7 +76,6 @@ function RepositoryDetail({ activeTab, detail, prefix, queryKey }: { activeTab: 
               <RepositorySummary payload={payload} />
               <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
               <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-              {payload.health_history ? <MainBranchHealthSection history={payload.health_history} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : null}
               {payload.delivery ? <DeliveryTracksSection delivery={payload.delivery} prefix={prefix} /> : null}
               <PluginUiSlot panels={payload.ui_panels} props={{ repository: payload.repository }} />
               <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
@@ -754,10 +748,4 @@ function paginationLinkClass() {
 
 function disabledPaginationClass() {
   return "rounded border border-gray-200 dark:border-gray-700 px-3 py-1 text-gray-300 dark:text-gray-600"
-}
-
-function pageSearch(search: string) {
-  const params = new URLSearchParams(search)
-  const page = params.get("page")
-  return page ? `?${new URLSearchParams({ page }).toString()}` : ""
 }
