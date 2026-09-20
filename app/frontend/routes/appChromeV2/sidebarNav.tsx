@@ -14,6 +14,9 @@ export type CoreNavItem = {
   icon: ReactNode
   order: number
   visible?: (context: SidebarNavContext) => boolean
+  smartFolderApiPath?: string
+  smartFolderSubject?: string
+  smartFolderAllLink?: boolean
 }
 
 export type MergedNavItem = {
@@ -34,7 +37,20 @@ export type MergedNavItem = {
 // assembled separately).
 export const CORE_NAV_ITEMS: readonly CoreNavItem[] = [
   { id: "dashboard", labelKey: "nav:dashboard", to: () => "/dashboard/jobs", icon: <DashboardIcon />, order: 10 },
-  { id: "repositories", labelKey: "nav:repositories", to: () => "/repositories", icon: <RepositoryIcon />, order: 20 },
+  {
+    id: "repositories",
+    labelKey: "nav:repositories",
+    to: () => "/repositories",
+    icon: <RepositoryIcon />,
+    order: 20,
+    smartFolderApiPath: "/api/v1/app/repositories",
+    smartFolderSubject: "repository",
+    // The repositories index already registers its own unfiltered "All"
+    // smart folder (i18n_key "repositories_all"), so the sidebar's generic
+    // "All repositories" catch-all link would just duplicate it -- same
+    // reasoning as AgentActivity::SidebarPages.
+    smartFolderAllLink: false,
+  },
 ]
 
 // Known icon references a sidebar_page plugin may declare. Anything else
@@ -75,6 +91,9 @@ export function buildSidebarNavItems(
       to: item.to(context),
       icon: item.icon,
       order: item.order,
+      smartFolderApiPath: item.smartFolderApiPath,
+      smartFolderSubject: item.smartFolderSubject,
+      smartFolderAllLink: item.smartFolderAllLink,
     }))
 
   // Pages that declare section "settings" belong to the settings side nav,
