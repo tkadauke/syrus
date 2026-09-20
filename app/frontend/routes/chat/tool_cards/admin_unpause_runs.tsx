@@ -5,12 +5,12 @@ import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionR
 // presentation lives in ../pendingActionToolCard so the whole family stays
 // consistent; this file only binds it to one MCP tool name.
 function collapsedSummary(context: ToolCardContext) {
-  const result = parsePendingActionResult(context.parsedResult)
+  const result = parsePendingActionResult(context)
   return result ? pendingActionCollapsedSummary(result) : null
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const result = parsePendingActionResult(context.parsedResult)
+  const result = parsePendingActionResult(context)
   return result ? <PendingActionResultCard result={result} /> : null
 }
 

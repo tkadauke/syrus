@@ -5,6 +5,12 @@ module Admin
     # by the register API is the credential for both.
     allow_unauthenticated_access only: %i[manifest callback]
     skip_before_action :require_admin, only: %i[manifest callback]
+    # These views are static, developer-authored bounce pages (not part of
+    # the SPA, no repo/agent/chat-derived content) that render inline
+    # <script>/<style> without a nonce and, for `manifest`, POST directly to
+    # github.com — none of that fits the app-wide CSP, so this controller
+    # opts out entirely rather than special-casing every directive.
+    content_security_policy false
 
     GITHUB_MANIFEST_URL = "https://github.com/settings/apps/new".freeze
 
@@ -32,6 +38,7 @@ module Admin
       code = params[:code].to_s
       user = User.find_by(id: payload.user_id)
       return render_state_error unless user
+      return render_failure(I18n.t("github_app.errors.admin_required", locale: user.locale), user: user) unless user.admin?
       return render_failure(I18n.t("github_app.errors.missing_code", locale: user.locale), user: user) if code.blank?
 
       conversion = GithubAppClient.manifest_conversion(code)

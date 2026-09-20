@@ -3672,24 +3672,6 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       end
     end
 
-    describe "#revert_to_coding_mode!" do
-      it "transitions a running job back to coding state" do
-        job = Factories.job_record(user: user, repository: repository, state: "running",
-                                   linked_chat_id: chat_session.id)
-
-        expect(job.may_revert_to_coding_mode?).to be(true)
-        job.revert_to_coding_mode!
-        job.save!
-
-        expect(job.reload).to be_coding
-      end
-
-      it "is not available from states other than running" do
-        job = Factories.job_record(user: user, repository: repository, state: "implemented")
-        expect(job.may_revert_to_coding_mode?).to be(false)
-      end
-    end
-
     describe "#release_coding_mode_takeover!" do
       it "clears linked_chat_id and returns the job to implemented" do
         job = Factories.job_record(user: user, repository: repository, state: "coding",

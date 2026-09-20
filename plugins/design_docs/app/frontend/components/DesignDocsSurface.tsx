@@ -12,7 +12,7 @@ import { Notice, Page, PageHeading, Section, SectionHeading, Text } from "@app/c
 import { TonePill } from "@app/components/StatusPill"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
-import { useMediaQuery } from "@app/routes/dashboard/components"
+import { RepositorySlugLink, useMediaQuery } from "@app/routes/dashboard/components"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { fetchRepositories } from "@app/api/repositories"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -226,6 +226,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
             docs={docs}
             loading={docsLoading}
             onSelect={(docId) => navigate(docPath(docId))}
+            prefix={prefix}
             preferences={indexQuery.data?.preferences ?? null}
           />
         </div>
@@ -364,11 +365,12 @@ function DesignDocsColumnsMenu({ controls, preferences }: {
   )
 }
 
-function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }: {
+function DesignDocsIndexTable({ controls, docs, loading, onSelect, prefix, preferences }: {
   controls: RepositoryDesignDocsPayload["controls"] | null
   docs: DesignDocSummary[]
   loading: boolean
   onSelect: (id: number) => void
+  prefix: string
   preferences: RepositoryDesignDocsPayload["preferences"] | null
 }) {
   const { t } = useT("design_docs")
@@ -404,7 +406,7 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
                   role="link"
                   tabIndex={0}
                 >
-                  {columns.map((column) => <DesignDocTableCell column={column} doc={doc} key={column} onSelect={onSelect} t={t} />)}
+                  {columns.map((column) => <DesignDocTableCell column={column} doc={doc} key={column} onSelect={onSelect} prefix={prefix} t={t} />)}
                 </tr>
               ))}
             </tbody>
@@ -436,44 +438,55 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
   )
 }
 
-function DesignDocTableCell({ column, doc, onSelect, t }: { column: string; doc: DesignDocSummary; onSelect: (id: number) => void; t: DesignDocT }) {
+function DesignDocTableCell({ column, doc, onSelect, prefix, t }: { column: string; doc: DesignDocSummary; onSelect: (id: number) => void; prefix: string; t: DesignDocT }) {
   return (
     <td className={designDocColumnClass(column, "cell")}>
-      {designDocCellContent(column, doc, onSelect, t)}
+      {designDocCellContent(column, doc, onSelect, prefix, t)}
     </td>
   )
 }
 
-function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (id: number) => void, t: DesignDocT): ReactNode {
+function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (id: number) => void, prefix: string, t: DesignDocT): ReactNode {
   if (column === "title") {
     return (
       <div className="min-w-0">
-        <button
-          className="max-w-full truncate rounded-sm text-left text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-          onClick={(event) => {
-            event.stopPropagation()
-            onSelect(doc.id)
-          }}
-          title={doc.title}
-          type="button"
-        >
-          {doc.title}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <span className="shrink-0" onClick={(event) => event.stopPropagation()}>
+            <CopyableSlug className="text-xs" slug={doc.display_id} />
+          </span>
+          <button
+            className="max-w-full truncate rounded-sm text-left text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            onClick={(event) => {
+              event.stopPropagation()
+              onSelect(doc.id)
+            }}
+            title={doc.title}
+            type="button"
+          >
+            {doc.title}
+          </button>
+        </div>
         {doc.preview_text ? (
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{renderLightMarkdown(doc.preview_text)}</p>
         ) : null}
       </div>
     )
   }
-  if (column === "doc_slug") {
+  if (column === "state") return <StatusLabel value={doc.state} />
+  if (column === "repository") {
+    if (doc.repositories.length === 0) return <span className="block truncate text-gray-700 dark:text-gray-200">{t("no_repositories")}</span>
+
     return (
-      <span onClick={(event) => event.stopPropagation()}>
-        <CopyableSlug slug={doc.display_id} />
+      <span className="block truncate" onClick={(event) => event.stopPropagation()}>
+        {doc.repositories.map((repository, index) => (
+          <span key={repository.id}>
+            {index > 0 ? ", " : null}
+            <RepositorySlugLink prefix={prefix} repository={repository} />
+          </span>
+        ))}
       </span>
     )
   }
-  if (column === "state") return <StatusLabel value={doc.state} />
-  if (column === "repository") return <span className="block truncate text-gray-700 dark:text-gray-200">{repositoryLabel(doc, t)}</span>
   if (column === "owner") return <span className="block truncate text-gray-700 dark:text-gray-200">{doc.owner?.name ?? t("unknown_owner")}</span>
   if (column === "collaborators") return <span className="block truncate text-gray-600 dark:text-gray-300">{doc.collaborators?.map((user) => user.name).join(", ") || t("none")}</span>
   if (column === "comments") return <span className="tabular-nums text-gray-700 dark:text-gray-200">{doc.comments_count ?? 0}</span>
@@ -499,7 +512,6 @@ function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (
 
 function defaultDesignDocOptionalColumns(t: DesignDocT) {
   return [
-    { key: "doc_slug", title: "DOC" },
     { key: "state", title: t("columns.state") },
     { key: "repository", title: t("columns.repository") },
     { key: "owner", title: t("columns.owner") },
@@ -540,7 +552,6 @@ function designDocColumnClass(column: string, kind: "header" | "cell") {
   const base = kind === "header" ? "px-3 py-2" : "px-3 py-3"
   const width = {
     title: "w-[30%]",
-    doc_slug: "w-[7.5rem]",
     state: "w-[7rem]",
     repository: "w-[12rem]",
     owner: "w-[10rem]",

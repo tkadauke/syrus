@@ -53,7 +53,10 @@ class PreviewEnvironment < ApplicationRecord
   end
 
   def active? = ACTIVE_STATES.include?(state)
-  def preview_url(base_domain) = "http://preview-#{id}.#{base_domain}"
+  def preview_url(base_domain)
+    token = AccessToken.issue(self)
+    "http://preview-#{id}.#{base_domain}?token=#{Rack::Utils.escape(token)}"
+  end
 
   # Job-scoped previews resolve the repository through the Job; a
   # repository-scoped preview (no Job) carries repository_id directly.

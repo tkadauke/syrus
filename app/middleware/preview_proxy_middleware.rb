@@ -28,6 +28,7 @@ class PreviewProxyMiddleware
     "OPTIONS" => Net::HTTP::Options
   }.freeze
 
+  PREVIEW_ACCESS_COOKIE = "_syrus_preview_environment_access"
   PANEL_ACCESS_COOKIE = "_syrus_preview_panel_access"
 
   def initialize(app)
@@ -50,8 +51,14 @@ class PreviewProxyMiddleware
     preview_env = PreviewEnvironment.find_by(id: preview_environment_id, state: "running")
     return not_available_response unless preview_env
 
+    request = Rack::Request.new(env)
+    access_token = preview_access_token(request, preview_env)
+    return unauthorized_response unless access_token
+
     preview_env.touch_activity!
-    proxy(env, preview_env)
+    status, headers, body = proxy(env, preview_env)
+    set_preview_access_cookie!(headers, request, access_token)
+    [status, headers, body]
   rescue => e
     Rails.logger.error("PreviewProxyMiddleware: #{e.class}: #{e.message}")
     [502, { "Content-Type" => "text/html; charset=utf-8" }, ["<p>Proxy error.</p>"]]
@@ -64,7 +71,7 @@ class PreviewProxyMiddleware
     target_host = preview_env.internal_host.presence || "127.0.0.1"
     target_port = preview_env.port
     path = request.path.presence || "/"
-    query = request.query_string.presence
+    query = proxied_query(request)
 
     uri = URI::HTTP.build(host: target_host, port: target_port, path: path, query: query)
     http_klass = HTTP_METHODS.fetch(request.request_method, Net::HTTP::Get)
@@ -160,6 +167,31 @@ class PreviewProxyMiddleware
     false
   end
 
+  def proxied_query(request)
+    Rack::Utils.parse_nested_query(request.query_string).except("token").to_query.presence
+  end
+
+  def preview_access_token(request, preview_env)
+    [ request.cookies[PREVIEW_ACCESS_COOKIE], query_token(request) ].find do |candidate|
+      candidate.present? && PreviewEnvironment::AccessToken.preview_environment_id_for(candidate) == preview_env.id
+    end
+  end
+
+  def query_token(request)
+    Rack::Utils.parse_nested_query(request.query_string)["token"]
+  end
+
+  def set_preview_access_cookie!(headers, request, access_token)
+    Rack::Utils.set_cookie_header!(headers, PREVIEW_ACCESS_COOKIE, {
+      value: access_token,
+      path: "/",
+      http_only: true,
+      secure: request.ssl?,
+      same_site: :lax,
+      expires: PreviewEnvironment::AccessToken::TTL.from_now
+    })
+  end
+
   def not_available_response
     body = <<~HTML
       <!DOCTYPE html>
@@ -171,6 +203,19 @@ class PreviewProxyMiddleware
       </html>
     HTML
     [503, { "Content-Type" => "text/html; charset=utf-8" }, [body]]
+  end
+
+  def unauthorized_response
+    body = <<~HTML
+      <!DOCTYPE html>
+      <html>
+        <head><title>Preview Not Available</title></head>
+        <body>
+          <p>This preview is private. Open it from the Syrus UI to request access.</p>
+        </body>
+      </html>
+    HTML
+    [401, { "Content-Type" => "text/html; charset=utf-8" }, [body]]
   end
 
   # Streams an attached PreviewPanelVersion file directly instead of

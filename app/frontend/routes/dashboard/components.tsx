@@ -75,7 +75,7 @@ export function ExternalMetadataLink({ children, className = "text-gray-500 hove
   return <a className={className} href={href} rel="noopener noreferrer" target="_blank">{children}</a>
 }
 
-export function RepositorySlugLink({ className = "font-mono text-xs text-gray-500 hover:text-brand hover:underline dark:text-gray-400", prefix, repository }: { className?: string; prefix: string; repository: DashboardRepository }) {
+export function RepositorySlugLink({ className = "font-mono text-xs text-gray-500 hover:text-brand hover:underline dark:text-gray-400", prefix, repository }: { className?: string; prefix: string; repository: Pick<DashboardRepository, "repository_path" | "slug"> }) {
   return <Link className={className} to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
 }
 

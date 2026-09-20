@@ -86,6 +86,7 @@ en:
       title: "GitHub App registration"
       body: "Return to Syrus and start the registration again."
     errors:
+      admin_required: "Only a current Syrus administrator can complete GitHub App registration."
       missing_code: "GitHub did not return a manifest code."
       registration_failed: "GitHub App registration failed: %{error}"
       invalid_link: "This GitHub App registration link is invalid or has expired."
@@ -97,6 +98,7 @@ en:
       admin_required: "Admin API endpoints require an admin user's token."
       sign_in_required: "Sign in to use the app API."
       admin_forbidden: "Admin access required."
+      rate_limited: "Too many invalid API tokens. Try again later."
 
     auth:
       invalid_credentials: "Try another email address or password."

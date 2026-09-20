@@ -702,13 +702,6 @@ class Job < ApplicationRecord
       transitions from: :coding, to: :implemented
     end
 
-    # Legacy transition for returning a running handoff workflow's Job back
-    # to :coding. Worker-owned handoff repair paths now mark terminal grader
-    # failures as failed instead of routing ownership back to chat.
-    event :revert_to_coding_mode do
-      transitions from: :running, to: :coding
-    end
-
     event :start_landing do
       transitions from: :approved, to: :landing
     end

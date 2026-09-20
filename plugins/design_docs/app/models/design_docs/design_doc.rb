@@ -1,3 +1,5 @@
+require "cgi"
+
 module DesignDocs
   class DesignDoc < ApplicationRecord
     self.table_name = "design_docs"
@@ -46,6 +48,10 @@ module DesignDocs
       SUMMARY_ASSOCIATIONS
     end
 
+    def self.normalize_title_value(value)
+      CGI.unescapeHTML(value.to_s).strip
+    end
+
     def self.visible_to(user)
       user = User.find(user) unless user.is_a?(User)
       collaborator_doc_ids = DesignDocs::DesignDocCollaborator.where(user: user).select(:design_doc_id)
@@ -60,6 +66,10 @@ module DesignDocs
 
     def display_id
       "DOC-#{id}"
+    end
+
+    def title
+      self.class.normalize_title_value(self[:title])
     end
 
     def display_name
@@ -125,7 +135,7 @@ module DesignDocs
     end
 
     def normalize_title
-      self.title = title.to_s.strip
+      self.title = self.class.normalize_title_value(self[:title])
     end
 
     def normalize_markdown

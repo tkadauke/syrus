@@ -54,6 +54,7 @@ la:
       title: "Relatio GitHub App"
       body: "Redi ad Syrum et relationem iterum incipe."
     errors:
+      admin_required: "Solus administrator Syri praesens relationem GitHub App perficere potest."
       missing_code: "GitHub codicem manifesti non reddidit."
       registration_failed: "Relatio GitHub App defecit: %{error}"
       invalid_link: "Hic nexus relationis GitHub App invalidus est vel exspiravit."
@@ -64,6 +65,7 @@ la:
       admin_required: "Termini API administratoris signum usori administratoris requirunt."
       sign_in_required: "Intra ut API applicationis utaris."
       admin_forbidden: "Accessus administratoris necessarius est."
+      rate_limited: "Nimis multa signa API invalida. Postea iterum tenta."
 
     auth:
       invalid_credentials: "Aliam inscriptionem electronicam vel tesseram tempta."

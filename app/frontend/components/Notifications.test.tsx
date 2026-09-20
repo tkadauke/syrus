@@ -57,9 +57,11 @@ describe("Notifications", () => {
 
     fireEvent.click(bell)
     const panel = screen.getByRole("heading", { name: "Notifications" }).closest("div")
+    const popup = screen.getByText("Job failed").closest(".w-80")
     expect(screen.getByText("Job failed")).toBeInTheDocument()
     expect(screen.getByText("PR merged")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Mark all read" })).toBeInTheDocument()
+    expect(popup).toHaveClass("motion-safe:animate-notice-in")
 
     fireEvent.click(bell)
     await waitFor(() => {

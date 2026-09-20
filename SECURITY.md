@@ -26,7 +26,12 @@ GitHub tokens and LLM provider API keys or credentials, and it runs repository
 setup commands and agent-authored code in worker-managed workspaces.
 
 The worker workspace model protects the operator checkout from accidental path
-mistakes, but it is not a hardened sandbox for untrusted code. Operators should:
+mistakes, but it is not a hardened sandbox for untrusted code. Syrus is not
+designed to host mutually-untrusted tenants on one instance: there is no agent
+sandboxing yet (tracked in [#29](https://github.com/tkadauke/syrus/issues/29))
+and no tenant-wide concurrency or spend caps (see `ARCHITECTURE.md:2231-2233`),
+so every user of a given instance is implicitly trusted with the blast radius
+of every other user's agent runs. Operators should:
 
 - Run Syrus only on infrastructure they control.
 - Connect repositories whose code and setup commands they are willing to

@@ -17,7 +17,7 @@ const docDetail = {
   owner: { id: 1, name: "Owner", email_address: "owner@example.com" },
   collaborators: [{ id: 2, name: "Editor", email_address: "editor@example.com" }],
   repository_ids: [10],
-  repositories: [{ id: 10, slug: "acme/widgets" }],
+  repositories: [{ id: 10, slug: "acme/widgets", repository_path: "/repositories/10" }],
   comments_count: 2,
   current_version_number: 1,
   origin_chat_session_id: 5,
@@ -297,6 +297,7 @@ function renderSurface(path = "/design_docs") {
           <Route path="/design_docs" element={<DesignDocsTestRoute />} />
           <Route path="/design_docs/:id" element={<DesignDocsTestRoute />} />
           <Route path="/repositories/:repositoryId/design_docs" element={<RepositoryDesignDocsTestRoute />} />
+          <Route path="/repositories/:id" element={<LocationProbe />} />
           <Route path="/chats/:id" element={<DesignDocsSurface chatId={237} compact designDocIds={[1]} initialDesignDocId={1} initialDesignDocs={[docDetail as DesignDocSummary]} mode="chat" repositoryId={10} />} />
           <Route path="/chats/:id/empty" element={<DesignDocsSurface chatId={237} compact designDocIds={[]} initialDesignDocs={[]} mode="chat" repositoryId={10} />} />
         </Routes>
@@ -342,14 +343,13 @@ function indexPayload(detail = docDetail) {
       { field: "updated_at", label: "Updated", bucket: "date", operators: ["before", "after", "between", "within_last", "more_than_ago"], values: [] }
     ],
     preferences: {
-      visible_columns: ["title", "doc_slug", "state", "repository", "owner", "collaborators", "comments", "latest_version", "updated_at", "actions"],
+      visible_columns: ["title", "state", "repository", "owner", "collaborators", "comments", "latest_version", "updated_at", "actions"],
       raw: {}
     },
     controls: {
       columns: {
         required: [{ key: "title", title: "Title" }],
         optional: [
-          { key: "doc_slug", title: "DOC" },
           { key: "state", title: "State" },
           { key: "repository", title: "Repository" },
           { key: "owner", title: "Owner" },
@@ -582,7 +582,6 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByRole("heading", { name: "Design Docs" })).toBeInTheDocument()
     expect(await screen.findByTestId("design-docs-table")).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Title" })).toBeInTheDocument()
-    expect(screen.getByRole("columnheader", { name: "DOC" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "State" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Repository" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Owner" })).toBeInTheDocument()
@@ -625,6 +624,38 @@ describe("DesignDocsSurface", () => {
     expect(preview.innerHTML).toContain("<code>")
     expect(screen.queryByText(/##\s*Problem/)).not.toBeInTheDocument()
     expect(screen.queryByText(/\*\*bold\*\*/)).not.toBeInTheDocument()
+  })
+
+  it("renders the copyable doc slug inline before the clickable title, not as its own column", async () => {
+    mockFetch()
+    renderSurface()
+
+    const row = await screen.findByRole("link", { name: /DOC-1 Checkout design/ })
+    expect(screen.queryByRole("columnheader", { name: "DOC" })).not.toBeInTheDocument()
+
+    const titleButton = within(row).getByRole("button", { name: "Checkout design" })
+    const slugButton = within(row).getByRole("button", { name: "Copy DOC-1 to clipboard" })
+    const titleCell = titleButton.closest("td")
+    expect(titleCell).not.toBeNull()
+    expect(within(titleCell as HTMLElement).getByRole("button", { name: "Copy DOC-1 to clipboard" })).toBe(slugButton)
+
+    // The slug sits immediately before the title button within the shared
+    // title cell -- not merely present anywhere in the row.
+    expect(slugButton.compareDocumentPosition(titleButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("links the repository column to the repo page instead of opening the doc", async () => {
+    mockFetch()
+    renderSurface()
+
+    const table = await screen.findByTestId("design-docs-table")
+    const repositoryLink = within(table).getByRole("link", { name: "acme/widgets" })
+    expect(repositoryLink).toHaveAttribute("href", "/repositories/10")
+
+    fireEvent.click(repositoryLink)
+
+    expect(await screen.findByTestId("location")).toHaveTextContent("/repositories/10")
+    expect(screen.queryByRole("textbox", { name: "Rich Text editor" })).not.toBeInTheDocument()
   })
 
   it("uses the standard repo-page-tab container width, not compact mode's bare spacing", async () => {
@@ -692,7 +723,7 @@ describe("DesignDocsSurface", () => {
     const request = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/preferences")
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({
       preferences: {
-        visible_columns: ["doc_slug", "state", "repository", "owner", "comments", "latest_version", "updated_at", "actions"]
+        visible_columns: ["state", "repository", "owner", "comments", "latest_version", "updated_at", "actions"]
       }
     })
   })
@@ -718,7 +749,7 @@ describe("DesignDocsSurface", () => {
     await screen.findByRole("link", { name: "Design Docs" })
     const tabs = screen.getByRole("navigation", { name: "Repository tabs" })
     expect(within(tabs).getByRole("link", { name: "Overview" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "acme/widgets" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "acme/widgets" })).toBeInTheDocument()
   })
 
   it("uses the explicit chat design doc instead of treating the chat route id as a doc id", async () => {

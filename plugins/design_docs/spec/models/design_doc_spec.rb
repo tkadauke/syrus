@@ -4,6 +4,22 @@ RSpec.describe DesignDocs::DesignDoc, type: :model do
   let(:owner) { Factories.user }
   let(:repo) { Factories.repository(user: owner) }
 
+  describe "markdown storage" do
+    it "uses MEDIUMTEXT-sized storage for document and suggestion payloads" do
+      expect(described_class.columns_hash.fetch("markdown").limit).to eq(16.megabytes - 1)
+      expect(DesignDocs::DesignDocVersion.columns_hash.fetch("markdown").limit).to eq(16.megabytes - 1)
+      expect(DesignDocs::DesignDocAnchor.columns_hash.fetch("selected_markdown").limit).to eq(16.megabytes - 1)
+      expect(DesignDocs::DesignDocAnchor.columns_hash.fetch("selected_text").limit).to eq(16.megabytes - 1)
+      expect(DesignDocs::DesignDocSuggestion.columns_hash.fetch("original_markdown").limit).to eq(16.megabytes - 1)
+      expect(DesignDocs::DesignDocSuggestion.columns_hash.fetch("suggested_markdown").limit).to eq(16.megabytes - 1)
+      expect(DesignDocs::DesignDocSuggestion.columns_hash.fetch("proposed_markdown").limit).to eq(16.megabytes - 1)
+    end
+
+    it "keeps ordinary design doc comments at the default text limit" do
+      expect(DesignDocs::DesignDocComment.columns_hash.fetch("body").limit).to be_nil
+    end
+  end
+
   it "stores canonical markdown and exposes a DOC display id" do
     doc = described_class.create!(owner_user: owner, title: " Checkout design ", markdown: "# Checkout")
 
@@ -13,6 +29,22 @@ RSpec.describe DesignDocs::DesignDoc, type: :model do
     expect(doc.state).to eq("draft")
     expect(doc.display_id).to eq("DOC-#{doc.id}")
     expect(doc.display_name).to eq("DOC-#{doc.id} Checkout design")
+  end
+
+  it "normalizes HTML entities in titles" do
+    doc = described_class.create!(owner_user: owner, title: " Codebase Bug &amp; Inconsistency Sweep ", markdown: "# Sweep")
+
+    expect(doc.reload[:title]).to eq("Codebase Bug & Inconsistency Sweep")
+    expect(doc.title).to eq("Codebase Bug & Inconsistency Sweep")
+    expect(doc.display_name).to eq("DOC-#{doc.id} Codebase Bug & Inconsistency Sweep")
+  end
+
+  it "decodes legacy titles that were stored with HTML entities" do
+    doc = described_class.create!(owner_user: owner, title: "Codebase Bug", markdown: "# Sweep")
+    doc.update_column(:title, "Codebase Bug &amp; Inconsistency Sweep")
+
+    expect(doc.reload[:title]).to eq("Codebase Bug &amp; Inconsistency Sweep")
+    expect(doc.title).to eq("Codebase Bug & Inconsistency Sweep")
   end
 
   it "links to multiple repositories through a unique join model" do

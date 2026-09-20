@@ -705,6 +705,50 @@ RSpec.describe MuseInvocation do
     ])
   end
 
+  it "extracts real arguments when a native tool call arrives as a side effect intent with args" do
+    # Captured from a real `muse exec --json` run: tool call arguments travel
+    # under "args" (a JSON-encoded string, matching Muse's own MSP wire
+    # schema for `toolCall` items) rather than "input"/"arguments" -- the key
+    # the original side_effect_intent handling never checked, which is why
+    # every tool row (native tools like bash/read_file and MCP tools alike)
+    # rendered "No arguments" even though the call clearly had them.
+    lines = completed_lines_with(
+      {
+        record_type: "event",
+        payload_type: "task.lifecycle.side_effect_intent",
+        payload: {
+          event: {
+            kind: "side_effect_intent",
+            operation: "tool:bash",
+            idempotency_key: "tool:call_01a0b76d6260768d8d8cdca8646e1d33",
+            args: { command: "ls -la" }.to_json
+          }
+        }
+      }.to_json
+    )
+    events = []
+    stub_process_runners(lines: lines)
+
+    result = described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl,
+      log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+    ).run
+
+    expect(result).to be_success
+    expect(events).to include([
+      "● bash({\"command\":\"ls -la\"})",
+      {
+        kind: "tool_call",
+        tool_name: "bash",
+        tool_input: { "command" => "ls -la" },
+        tool_use_id: "call_01a0b76d6260768d8d8cdca8646e1d33"
+      }
+    ])
+  end
+
   it "succeeds required MCP checks when Muse reports MCP calls as committed tool batch effects" do
     lines = completed_lines_with(
       {

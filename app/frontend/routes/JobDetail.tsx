@@ -251,17 +251,17 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
           <div className="mt-1.5 flex items-start justify-between gap-3">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <JobStateBadge state={payload.job.summary_state} />
-              <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
             </div>
-            <HeaderActions
-              command={command}
-              feedbackPanelOpen={feedbackPanelOpen}
-              onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
-              onToggleFeedbackPanel={() => withPreviewStop(() => setFeedbackPanelOpen((current) => !current))}
-              onToggleRequestChangesPanel={() => withPreviewStop(() => setRequestChangesPanelOpen((current) => !current))}
-              payload={payload}
-              requestChangesPanelOpen={requestChangesPanelOpen}
-            />
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
+              <HeaderActions
+                command={command}
+                onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
+                onToggleFeedbackPanel={() => withPreviewStop(() => setFeedbackPanelOpen((current) => !current))}
+                onToggleRequestChangesPanel={() => withPreviewStop(() => setRequestChangesPanelOpen((current) => !current))}
+                payload={payload}
+              />
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">

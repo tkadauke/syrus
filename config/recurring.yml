@@ -42,6 +42,10 @@ default: &default
     class: PollAllDeploymentStagesJob
     queue: polling
     schedule: every 5 minutes
+  sync_github_permissions:
+    class: SyncGithubPermissionsJob
+    queue: polling
+    schedule: every 5 minutes
   process_landing_queue:
     class: LandingQueueProcessorJob
     queue: control_plane

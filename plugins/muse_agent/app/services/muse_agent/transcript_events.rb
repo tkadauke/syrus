@@ -110,7 +110,7 @@ module MuseAgent
         timestamp: timestamp,
         data: {
           name: operation.delete_prefix("tool:"),
-          input: event["input"] || event["arguments"] || {},
+          input: muse_tool_call_arguments(event["input"], event["arguments"], event["args"], payload["input"], payload["arguments"], payload["args"]),
           id: event["idempotency_key"].to_s.delete_prefix("tool:").presence
         }.compact
       ) ]
@@ -197,7 +197,15 @@ module MuseAgent
     end
 
     def muse_tool_input(payload)
-      value = payload["input"] || payload["arguments"] || payload["args"]
+      muse_tool_call_arguments(payload["input"], payload["arguments"], payload["args"])
+    end
+
+    # See MuseInvocation#tool_call_arguments -- this mirrors that extraction
+    # so the transcript-rendering path and the live chat-persistence path
+    # (MuseInvocation) never disagree about which key carries a tool call's
+    # model-authored arguments.
+    def muse_tool_call_arguments(*candidates)
+      value = candidates.find(&:present?)
       return {} if value.blank?
       return JSON.parse(value) if value.is_a?(String) && value.strip.start_with?("{")
 
@@ -242,7 +250,7 @@ module MuseAgent
     end
 
     def muse_tool_record_input(record, payload)
-      record["input"] || record["arguments"] || record["args"] || payload["input"] || payload["arguments"] || payload["args"]
+      muse_tool_call_arguments(record["input"], record["arguments"], record["args"], payload["input"], payload["arguments"], payload["args"])
     end
 
     def muse_tool_record_result(record, payload)

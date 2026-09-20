@@ -40,6 +40,20 @@ Traefik and public ingress are not involved — the relay is internal only.
 - Sessions die on worker restart or redeploy; there is no wall-clock idle timeout.
 - Security is enforced by a per-session auth token exchanged over the relay socket after the browser's authenticated Action Cable subscription is authorized.
 
+### Isolation model is network topology, not a firewalled protocol
+
+The relay's isolation comes entirely from where it binds and who can route to
+it — `127.0.0.1` for bare-metal/local dev, pod-internal CNI addressing for
+Kubernetes — not from any access control on the relay socket itself beyond the
+per-session auth token exchange above. A self-hoster who sets `hostNetwork:
+true` on worker pods, opens an overly permissive security group / firewall
+rule, or otherwise makes worker pod IPs reachable from outside the cluster
+network exposes a live, unauthenticated-until-token-exchange shell relay
+directly. There is no additional network-layer control (mTLS, IP allowlists,
+etc.) enforced by the plugin itself — the deployment's network topology is the
+security boundary, so misconfiguring it is equivalent to misconfiguring any
+other internal-only service exposed to the wrong network.
+
 ## What operators can do
 
 The terminal gives shell access to the workflow workspace (a shallow clone of the repository). Operators can inspect files, run commands, check git state, or debug a stuck agent. Changes made in the terminal are visible to the agent if it is still running.

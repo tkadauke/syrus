@@ -210,4 +210,22 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
     expect(parse_body["role"]).to eq("product_owner")
     expect(AdminAction.where(action: "update_user_role").count).to eq(1)
   end
+
+  it "returns a validation error for an invalid role" do
+    sign_in_as(admin)
+    target = Factories.user(email_address: "target@example.com")
+
+    expect {
+      patch "/api/v1/app/admin/users/#{target.id}", params: { user: { role: "typo" } }
+    }.not_to change { target.reload.role }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body).to eq(
+      "error" => {
+        "code" => "validation_failed",
+        "message" => "Role must be one of developer, product_owner."
+      }
+    )
+    expect(AdminAction.where(action: "update_user_role").count).to eq(0)
+  end
 end

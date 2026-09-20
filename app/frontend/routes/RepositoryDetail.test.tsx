@@ -326,6 +326,9 @@ describe("RepositoryDetailRoute recommendations", () => {
     expect(screen.getByRole("button", { name: "Poll now" })).toBeInTheDocument()
 
     const banner = screen.getByRole("region", { name: "Recommended actions" })
+    const recommendationBanner = banner.firstElementChild
+    expect(recommendationBanner).toHaveClass("border-info-border", "bg-info-surface", "text-info-text")
+    expect(recommendationBanner?.className).not.toMatch(/\b(?:border|bg|text)-blue-/)
     const tabs = view.container.querySelector("nav")
     expect(tabs).toBeTruthy()
     expect(Boolean(banner.compareDocumentPosition(tabs as Node) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
@@ -524,7 +527,7 @@ describe("RepositoryDetailRoute preview", () => {
   it("shows the Open Preview link when a repository preview is already running", async () => {
     const payload = {
       ...repositoryDetailPayload(),
-      preview: { id: 9, state: "running" as const, url: "http://preview-9.lvh.me", expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), error_message: null }
+      preview: { id: 9, state: "running" as const, url: "http://preview-9.lvh.me?token=signed-preview-token", expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), error_message: null }
     }
 
     vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -543,6 +546,6 @@ describe("RepositoryDetailRoute preview", () => {
     )
 
     const link = await screen.findByRole("link", { name: "Open Preview" })
-    expect(link).toHaveAttribute("href", "http://preview-9.lvh.me")
+    expect(link).toHaveAttribute("href", "http://preview-9.lvh.me?token=signed-preview-token")
   })
 })

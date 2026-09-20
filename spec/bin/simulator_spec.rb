@@ -24,6 +24,22 @@ RSpec.describe "bin/simulator", :ci_only do
     expect(stdout).to include("work-engine simulations passed (1 scenarios)")
   end
 
+  it "isolates standalone invocations from the default test database" do
+    default_db_paths = [
+      File.join(root, "storage/test.sqlite3"),
+      File.join(root, "storage/test_search.sqlite3")
+    ]
+    default_db_paths.each { |path| FileUtils.rm_f(path) }
+
+    stdout, stderr, status = run_simulator("spec/fixtures/work_engine_simulations/single_initial_success.yml")
+
+    expect(status).to be_success, stderr
+    expect(stdout).to include("single initial success: success")
+    expect(default_db_paths).to all(satisfy { |path| !File.exist?(path) })
+  ensure
+    default_db_paths&.each { |path| FileUtils.rm_f(path) }
+  end
+
   it "prepares the test database when invoked from a fresh checkout" do
     suffix = "_simulator_fresh_#{Process.pid}"
     db_paths = [

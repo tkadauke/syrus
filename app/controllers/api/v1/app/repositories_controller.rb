@@ -90,6 +90,8 @@ module Api
               render_error("validation_failed", I18n.t("api.repositories.already_in_workspace", slug: repository.slug), status: :unprocessable_content)
               return
             end
+            return unless authorize_repository_admin!(repository)
+
             repository.repository_memberships.create!(user: Current.user, role: "read")
           end
 
@@ -97,7 +99,7 @@ module Api
         end
 
         def update
-          repository = find_repository
+          return unless (repository = find_repository_for_admin_mutation)
 
           if repository.update(repository_params)
             render json: saved_payload(repository, message: I18n.t("api.repositories.updated", slug: repository.slug))
@@ -107,7 +109,7 @@ module Api
         end
 
         def poll
-          repository = find_repository
+          return unless (repository = find_repository_for_admin_mutation)
           if repository.archived?
             render_error("validation_failed", I18n.t("api.repositories.archived_first", slug: repository.slug), status: :unprocessable_content)
             return
@@ -123,19 +125,19 @@ module Api
         end
 
         def archive
-          repository = find_repository
+          return unless (repository = find_repository_for_admin_mutation)
           repository.archive!
           render json: repositories_payload(message: I18n.t("api.repositories.archived", slug: repository.slug))
         end
 
         def unarchive
-          repository = find_repository
+          return unless (repository = find_repository_for_admin_mutation)
           repository.unarchive!
           render json: repositories_payload(message: I18n.t("api.repositories.unarchived", slug: repository.slug))
         end
 
         def retry_failed_jobs
-          repository = find_repository
+          return unless (repository = find_repository_for_admin_mutation)
           eligible = retryable_failed_jobs(repository)
           if eligible.empty?
             render_error("validation_failed", I18n.t("api.repositories.no_failed_jobs"), status: :unprocessable_content)
@@ -170,7 +172,7 @@ module Api
         end
 
         def run_main_branch_graders
-          repository = find_repository
+          return unless (repository = find_repository_for_admin_mutation)
           if repository.archived?
             render_error("validation_failed", I18n.t("api.repositories.archived_first", slug: repository.slug), status: :unprocessable_content)
             return
@@ -188,7 +190,7 @@ module Api
         end
 
         def repair_main_branch
-          repository = find_repository
+          return unless (repository = find_repository_for_admin_mutation)
           if repository.archived?
             render_error("validation_failed", I18n.t("api.repositories.archived_first", slug: repository.slug), status: :unprocessable_content)
             return
@@ -217,7 +219,7 @@ module Api
         end
 
         def sync_fork
-          repository = find_repository
+          return unless (repository = find_repository_for_admin_mutation)
           unless repository.fork_syncable?
             render_error("validation_failed", I18n.t("api.repositories.not_fork_syncable", slug: repository.slug), status: :unprocessable_content)
             return
@@ -228,7 +230,7 @@ module Api
         end
 
         def check_ci_now
-          repository = find_repository
+          return unless (repository = find_repository_for_admin_mutation)
           if repository.archived?
             render_error("validation_failed", I18n.t("api.repositories.archived_first", slug: repository.slug), status: :unprocessable_content)
             return
@@ -245,8 +247,8 @@ module Api
         end
 
         def release_needs_triage_job
-          repository = find_repository
-          unless can_release_triage_jobs?
+          return unless (repository = find_repository_for_admin_mutation)
+          unless can_release_triage_jobs?(repository)
             render_error("forbidden", I18n.t("api.repositories.developer_required"), status: :forbidden)
             return
           end
@@ -271,7 +273,7 @@ module Api
         end
 
         def resume_landing
-          repository = find_repository
+          return unless (repository = find_repository_for_admin_mutation)
           repository.update!(landing_paused: false)
           LandingQueueProcessorJob.perform_later
 
@@ -364,7 +366,7 @@ module Api
               end,
               counts: PerformanceLogging.phase("repository_detail.counts", repository_id: repository.id) { repository_counts_json(repository) },
               retry_failed_jobs: PerformanceLogging.phase("repository_detail.retry_failed_jobs", repository_id: repository.id) { retry_failed_jobs_json(repository) },
-              can_release_triage_jobs: can_release_triage_jobs?,
+              can_release_triage_jobs: can_release_triage_jobs?(repository),
               needs_triage_count: PerformanceLogging.phase("repository_detail.needs_triage_count", repository_id: repository.id) { needs_triage_jobs_count(repository) },
               needs_triage_jobs: PerformanceLogging.phase("repository_detail.needs_triage_jobs", repository_id: repository.id) { needs_triage_jobs_json(repository) },
               credential_status: PerformanceLogging.phase("repository_detail.credential_status", repository_id: repository.id) { credential_status_json(repository) },
@@ -594,7 +596,7 @@ module Api
         end
 
         def needs_triage_jobs_json(repository)
-          return [] unless can_release_triage_jobs?
+          return [] unless can_release_triage_jobs?(repository)
 
           repository.jobs
             .needs_triage
@@ -605,7 +607,7 @@ module Api
         end
 
         def needs_triage_jobs_count(repository)
-          return 0 unless can_release_triage_jobs?
+          return 0 unless can_release_triage_jobs?(repository)
 
           repository.jobs.needs_triage.count
         end
@@ -625,8 +627,9 @@ module Api
           }
         end
 
-        def can_release_triage_jobs?
-          Current.user&.admin? || Current.user&.developer?
+        def can_release_triage_jobs?(repository)
+          (Current.user&.admin? || Current.user&.developer?) &&
+            RepositoryPolicy.new(Current.user, repository).admin?
         end
 
         def continue_released_job_triage(job)
@@ -958,6 +961,11 @@ module Api
 
         def find_repository
           Repository.accessible_to(Current.user).find(params[:id])
+        end
+
+        def find_repository_for_admin_mutation
+          repository = find_repository
+          repository if authorize_repository_admin!(repository)
         end
 
         def repository_command_payload(repository, message:)

@@ -3257,7 +3257,7 @@ describe("App", () => {
     expect(within(await screen.findByRole("button", { name: "Sort by Issue descending" })).getByText("↑")).toBeInTheDocument()
 
     const columnsButton = screen.getByRole("button", { name: "Columns" })
-    expect(columnsButton).toHaveClass("h-9", "w-9")
+    expect(columnsButton).toHaveClass("h-[var(--control-height-md)]", "w-[var(--control-height-md)]")
     expect(columnsButton).not.toHaveTextContent("Columns")
     fireEvent.click(columnsButton)
     expect(screen.getByRole("group", { name: "Visible columns" })).toBeInTheDocument()
@@ -3849,7 +3849,11 @@ describe("App", () => {
     expect(within(standaloneCell!).queryByText("·")).not.toBeInTheDocument()
 
     const pausedCell = screen.getByRole("link", { name: "Paused direct" }).closest("td")
-    expect(pausedCell).toHaveTextContent("JOB-604·Manually paused·Unpause")
+    const pausedMetadataRows = pausedCell!.querySelectorAll('div[class*="gap-x-1.5"]')
+    expect(pausedMetadataRows).toHaveLength(2)
+    expect(pausedMetadataRows[0]).toHaveTextContent("JOB-604")
+    expect(pausedMetadataRows[0]).not.toHaveTextContent("Manually paused")
+    expect(pausedMetadataRows[1]).toHaveTextContent("Manually paused·Unpause")
     expect(within(pausedCell!).getByRole("button", { name: "Unpause" })).toBeEnabled()
   })
 
@@ -5437,7 +5441,7 @@ describe("App", () => {
     )
 
     const lanesButton = screen.getByRole("button", { name: "Kanban lanes" })
-    expect(lanesButton).toHaveClass("h-9", "w-9")
+    expect(lanesButton).toHaveClass("h-[var(--control-height-md)]", "w-[var(--control-height-md)]")
     expect(lanesButton).not.toHaveTextContent("Kanban lanes")
     expect(screen.queryByRole("group", { name: "Kanban lanes" })).not.toBeInTheDocument()
     fireEvent.click(lanesButton)
@@ -10199,6 +10203,7 @@ describe("App", () => {
       ["Cancel", "POST", "/api/v1/app/jobs/42/cancel"]
     ]
     const overflowLabels = [
+      "Request changes",
       "Open in Coding Mode",
       "Open in Local Mode",
       "Cancel Local Mode",

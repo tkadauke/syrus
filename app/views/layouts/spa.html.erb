@@ -30,7 +30,7 @@
     <% if custom_color_theme %>
       <script id="syrus-custom-color-theme-data" type="application/json"><%= raw json_escape(custom_color_theme.tokens.to_json) %></script>
     <% end %>
-    <script>
+    <script nonce="<%= content_security_policy_nonce %>">
       (function () {
         try {
           var modePref = document.documentElement.dataset.modePref;
