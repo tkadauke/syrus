@@ -30,6 +30,8 @@
   "aria_title_input": "Titulus documenti consilii",
   "aria_version_selection": "Electio versionis",
   "comment": "Commente",
+  "comment_drawer_count_one": "{{count}} commentarium",
+  "comment_drawer_count_other": "{{count}} commentaria",
   "current": "Praesens",
   "document_content": "Contentum documenti consilii",
   "edit": "Edere",
