@@ -31,7 +31,7 @@ import type { JobDetailQueryKey, JobTab, JobWorkflowsQueryKey } from "./jobDetai
 import { CommandButton, useJobCommand, type JobCommand } from "./jobDetail/command"
 import { TagsPanel, NeedsAttentionBanner, TriageDecisionBanner, FeedbackSourceBadge, EpicSummaryLink, TimelinePanel, AttachmentPreview, AttachmentCard, MergeablePill, JobStateBadge, PendingJobTitle, JobSourceLink, DependencyLink, JobDependencyTargetReference, PanelMessage, SmallPill, jobSourceLabel } from "./jobDetail/components"
 import { DeliveryPanel, deliveryPanelRelevant } from "./jobDetail/Delivery"
-import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel, RequestChangesPanel } from "./jobDetail/JobHeader"
+import { canSubmitFeedbackDirectly, ChatBubbleIcon, HeaderActions, JobFeedbackPanel } from "./jobDetail/JobHeader"
 import { PreviewPanel, PreviewStopModal } from "../components/PreviewPanel"
 import { diffRefsFromLocation, jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
@@ -120,7 +120,6 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [feedbackPanelOpen, setFeedbackPanelOpen] = useState(false)
-  const [requestChangesPanelOpen, setRequestChangesPanelOpen] = useState(false)
   const [previewStopModal, setPreviewStopModal] = useState<{ onProceed: () => void } | null>(null)
   const command = useJobCommand(payload.job.id, queryKey, workflowsQueryKey, setNotice)
   const bugReportTrigger = useBugReportTrigger()
@@ -163,7 +162,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
   const requestChangesInCodingMode = useMutation({
     mutationFn: (body: string) => openJobInCodingMode(payload.paths.app_open_in_coding_mode_path, body),
     onSuccess: (result) => {
-      setRequestChangesPanelOpen(false)
+      setFeedbackPanelOpen(false)
       setNotice(result.message || t("open_in_coding_mode_feedback_submitted"))
       if (result.redirect_to) navigate(result.redirect_to)
       scheduleJobDetailInvalidation(queryClient, queryKey)
@@ -258,9 +257,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
               feedbackPanelOpen={feedbackPanelOpen}
               onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
               onToggleFeedbackPanel={() => withPreviewStop(() => setFeedbackPanelOpen((current) => !current))}
-              onToggleRequestChangesPanel={() => withPreviewStop(() => setRequestChangesPanelOpen((current) => !current))}
               payload={payload}
-              requestChangesPanelOpen={requestChangesPanelOpen}
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -331,19 +328,15 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       ) : null}
       {feedbackPanelOpen ? (
         <JobFeedbackPanel
-          error={feedback.error}
-          isPending={feedback.isPending}
-          onCancel={() => setFeedbackPanelOpen(false)}
-          onSubmit={(body) => withPreviewStop(() => feedback.mutate(body))}
-        />
-      ) : null}
-      {requestChangesPanelOpen ? (
-        <RequestChangesPanel
+          canGiveFeedback={canSubmitFeedbackDirectly(payload)}
           canOpenInCodingMode={payload.actions.can_open_in_coding_mode}
           codingModeBlockedReason={payload.actions.open_in_coding_mode_blocked_reason}
-          error={requestChangesInCodingMode.error}
+          codingModeError={requestChangesInCodingMode.error}
+          feedbackError={feedback.error}
           isCodingModePending={requestChangesInCodingMode.isPending}
-          onCancel={() => setRequestChangesPanelOpen(false)}
+          isFeedbackPending={feedback.isPending}
+          onCancel={() => setFeedbackPanelOpen(false)}
+          onSubmitFeedback={(body) => withPreviewStop(() => feedback.mutate(body))}
           onSubmitToCodingMode={(body) => withPreviewStop(() => requestChangesInCodingMode.mutate(body))}
         />
       ) : null}

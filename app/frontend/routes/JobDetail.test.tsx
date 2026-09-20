@@ -1044,13 +1044,13 @@ describe("JobDetailView", () => {
     expect(screen.getByPlaceholderText("What should be changed?")).toBeInTheDocument()
   })
 
-  it("renders the Request changes button when Coding Mode feedback is allowed", () => {
+  it("renders the Give feedback button when only Coding Mode feedback is allowed", () => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state: "approved", summary_state: "approved" },
       actions: { ...jobPayload().actions, can_open_in_coding_mode: true }
     }))
 
-    expect(screen.getByRole("button", { name: "Request changes" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Give feedback" })).toBeInTheDocument()
   })
 
   it("opens an implemented Job directly in Coding Mode chat from the actions menu", async () => {
@@ -1074,12 +1074,36 @@ describe("JobDetailView", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chats/42"))
   })
 
-  it("hides the Request changes button when the action is not allowed", () => {
+  it("hides the Give feedback button when no feedback action is allowed", () => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state: "running", summary_state: "running" }
     }))
 
-    expect(screen.queryByRole("button", { name: "Request changes" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Give feedback" })).not.toBeInTheDocument()
+  })
+
+  it("only offers the Open in Coding Chat action when direct feedback is not allowed", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "approved", summary_state: "approved" },
+      actions: { ...jobPayload().actions, can_open_in_coding_mode: true }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+
+    expect(screen.getByRole("button", { name: "Open in Coding Chat" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Submit feedback" })).not.toBeInTheDocument()
+  })
+
+  it("offers both actions in the feedback panel when both are allowed", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" },
+      actions: { ...jobPayload().actions, can_open_in_coding_mode: true }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+
+    expect(screen.getByRole("button", { name: "Submit feedback" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open in Coding Chat" })).toBeInTheDocument()
   })
 
   it("opens request-changes feedback in Coding Mode chat", async () => {
@@ -1089,7 +1113,7 @@ describe("JobDetailView", () => {
       actions: { ...jobPayload().actions, can_open_in_coding_mode: true }
     }), { showLocation: true })
 
-    fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "  Tighten the copy.  " } })
     fireEvent.click(screen.getByRole("button", { name: "Open in Coding Chat" }))
 
@@ -1109,7 +1133,7 @@ describe("JobDetailView", () => {
       actions: { ...jobPayload().actions, can_open_in_coding_mode: true }
     }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "x" } })
     fireEvent.click(screen.getByRole("button", { name: "Open in Coding Chat" }))
 
