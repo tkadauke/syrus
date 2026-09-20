@@ -198,8 +198,16 @@ the connected client so the caller can build the final SQL with the same
 escaper before running it). Guardrails, mirroring `AdminMysql::Inspector`:
 
 - **Read-only by default.** A statement is accepted unmodified only if it is
-  a read query or safe diagnostic/metadata statement: `SELECT`, `WITH`,
-  `SHOW`, `DESCRIBE`/`DESC`, or `EXPLAIN` for SELECT/CTE/table/DML plans.
+  a read query or safe diagnostic/metadata statement: `SELECT`, `SHOW`,
+  `DESCRIBE`/`DESC`, or `EXPLAIN` for SELECT/CTE/table/DML plans. A `WITH`
+  statement is not automatically read-only: `QueryExecutor` parses past the
+  CTE definition(s) - quote-aware, balanced-paren matching, handling an
+  optional column list and `RECURSIVE` - to find the terminal statement after
+  them, and only treats it as read-only when that terminal statement is
+  `SELECT`/`TABLE`; a MySQL 8 CTE like `WITH x AS (...) UPDATE ...`/
+  `DELETE ...`/`INSERT ...` requires write access despite the leading `WITH`.
+  A `WITH` statement Syrus can't parse is treated as **not** read-only,
+  erring toward requiring write access rather than assuming safety.
   `EXPLAIN ANALYZE` is allowed only for read statements because MySQL executes
   the statement while collecting runtime plan data. Anything else is rejected
   with `403 write_not_allowed` unless the connection's `allow_writes` is
@@ -209,6 +217,13 @@ escaper before running it). Guardrails, mirroring `AdminMysql::Inspector`:
   the same shared-concern gate `K8sCluster::AgenticAccess.cluster_with_write_access!`
   uses, applied to the connection `ExecuteQueryTool` already resolved via
   `.connection!` rather than re-resolving by id.
+- **`SELECT ... INTO OUTFILE`/`DUMPFILE` is always rejected**, even on a
+  connection with `allow_writes` enabled. It's classified read-only by the
+  grammar above (it doesn't touch table data), but it writes an arbitrary
+  file to the MySQL server's filesystem when the connected user has the
+  `FILE` privilege - outside this console's read-only-by-default safe
+  envelope. Rejected with `FilesystemWriteNotAllowed`, audited as a failed
+  attempt, before any write-access check runs.
 - **Statement-timeout hint** - literal `SELECT` statements get
   `SELECT /*+ MAX_EXECUTION_TIME(5000) */ ...` prepended (skipped for `WITH`
   CTEs, since the hint must immediately follow `SELECT`).

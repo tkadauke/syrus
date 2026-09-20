@@ -1,5 +1,5 @@
 import { FloatingPortal, autoPlacement, flip, offset, useFloating } from "@floating-ui/react"
-import { type ReactNode, useCallback, useRef, useState } from "react"
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { PrPreviewCard } from "./PrPreviewCard"
 
 interface PrHoverCardProps {
@@ -47,6 +47,13 @@ export function PrHoverCard({ jobId, prNumber, prUrl, children }: PrHoverCardPro
 
   const handleFloatingLeave = useCallback(() => {
     setIsOpen(false)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (openTimer.current) clearTimeout(openTimer.current)
+      if (closeTimer.current) clearTimeout(closeTimer.current)
+    }
   }, [])
 
   return (

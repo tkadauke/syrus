@@ -664,7 +664,9 @@ func executeLocalToolCall(ctx context.Context, repoRoot string, call localToolCa
 }
 
 // resolveLocalPath resolves a (possibly relative) path against repoRoot and
-// rejects any result that escapes the repository root.
+// rejects any result that escapes the repository root, including through
+// symlinks. This is defense-in-depth for file tools; Local Mode still exposes
+// run_command to the paired chat session.
 func resolveLocalPath(repoRoot, path string) (string, error) {
 	abs := path
 	if !filepath.IsAbs(path) {
@@ -672,11 +674,48 @@ func resolveLocalPath(repoRoot, path string) (string, error) {
 	}
 	abs = filepath.Clean(abs)
 
-	rel, err := filepath.Rel(repoRoot, abs)
-	if err != nil || strings.HasPrefix(rel, "..") {
+	root, err := filepath.EvalSymlinks(repoRoot)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := evalSymlinksForLocalPath(abs)
+	if err != nil {
+		return "", err
+	}
+
+	rel, err := filepath.Rel(root, resolved)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", fmt.Errorf("path %q is outside repository root", path)
 	}
-	return abs, nil
+	return resolved, nil
+}
+
+func evalSymlinksForLocalPath(path string) (string, error) {
+	existing := filepath.Clean(path)
+	var missing []string
+	for {
+		if _, err := os.Lstat(existing); err == nil {
+			break
+		} else if !os.IsNotExist(err) {
+			return "", err
+		}
+
+		parent := filepath.Dir(existing)
+		if parent == existing {
+			return "", os.ErrNotExist
+		}
+		missing = append([]string{filepath.Base(existing)}, missing...)
+		existing = parent
+	}
+
+	resolved, err := filepath.EvalSymlinks(existing)
+	if err != nil {
+		return "", err
+	}
+	for _, part := range missing {
+		resolved = filepath.Join(resolved, part)
+	}
+	return filepath.Clean(resolved), nil
 }
 
 type readFileParams struct {

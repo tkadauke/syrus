@@ -1,5 +1,5 @@
 import { FloatingPortal, autoPlacement, flip, offset, shift, useFloating } from "@floating-ui/react"
-import { type ReactNode, Suspense, useCallback, useRef, useState } from "react"
+import { type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { pluginSlugPreviewCardComponentForPrefix } from "../pluginSlugPreviewCards"
 import { ChatPreviewCard } from "./ChatPreviewCard"
 import { EpicPreviewCard } from "./EpicPreviewCard"
@@ -65,6 +65,13 @@ export function SlugHoverCard({ kind, id, prefix, children }: SlugHoverCardProps
 
   const handleFloatingLeave = useCallback(() => {
     setIsOpen(false)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (openTimer.current) clearTimeout(openTimer.current)
+      if (closeTimer.current) clearTimeout(closeTimer.current)
+    }
   }, [])
 
   return (

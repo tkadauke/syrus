@@ -90,7 +90,7 @@ One thing normalization can't do inside `SyrusYml`: resolve a track's blank `bra
 
 ## `DeliveryPolicy`
 
-`DeliveryPolicy` (`app/services/delivery_policy.rb`) answers delivery questions for a repository/job by reading the repository's local bare clone (`RepositoryBareClone.path_for`) the same way `App::DeployAvailability`/`App::PreviewAvailability` read `.syrus.yml` off `HEAD` without a live workspace — no bare clone yet, or an unparsable `.syrus.yml`, both fall back to the backward-compatible default instead of raising.
+`DeliveryPolicy` (`app/services/delivery_policy.rb`) answers delivery questions for a repository/job by reading the repository's local bare clone (`RepositoryBareClone.path_for`) without a live workspace — no bare clone yet, or an unparsable `.syrus.yml`, both fall back to the backward-compatible default instead of raising. Unlike `DeliveryPolicy`, `App::DeployAvailability`/`App::PreviewAvailability` fetch `.syrus.yml` from the default branch through GitHub (`RepoDefaultBranchSyrusYml`/`GithubClient`) rather than a bare clone, since those two run on the web tier and web pods don't mount the worker's on-disk clone (see "Deploy target" in the top-level agent guide).
 
 ```ruby
 policy = DeliveryPolicy.for(repository:, job: nil)

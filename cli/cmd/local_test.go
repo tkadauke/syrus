@@ -165,6 +165,23 @@ func TestResolveLocalPathRejectsAbsolutePathOutsideRoot(t *testing.T) {
 	}
 }
 
+func TestResolveLocalPathRejectsSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0644); err != nil {
+		t.Fatalf("write outside file: %v", err)
+	}
+	link := filepath.Join(root, "linked-outside")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	_, err := resolveLocalPath(root, filepath.Join("linked-outside", "secret.txt"))
+	if err == nil {
+		t.Fatal("expected error for symlink escaping repo root")
+	}
+}
+
 func TestResolveLocalPathAllowsAbsolutePathInsideRoot(t *testing.T) {
 	root := t.TempDir()
 	target := filepath.Join(root, "sub", "file.txt")

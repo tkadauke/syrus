@@ -66,6 +66,30 @@ RSpec.describe ProviderAvailabilityPause do
       )
     end
 
+    it "still pauses on a rate limit when the user has disabled proactive pause for this provider and no ProviderRoutingRule is configured" do
+      user.update!(provider_availability_pause_thresholds: { "claude" => 0 })
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+        { state: "rate_limited", open: true, retry_after: 15.minutes.from_now.iso8601 }
+      )
+
+      decision = described_class.call(workflow: workflow)
+
+      expect(decision).to be_pause
+      expect(decision.reason).to eq("provider_rate_limited")
+    end
+
+    it "still pauses on an exhausted/auth_error/open provider when pause opt-in is off and no ProviderRoutingRule is configured" do
+      user.update!(provider_availability_pause_thresholds: { "claude" => 0 })
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+        { state: "auth_error", open: true }
+      )
+
+      decision = described_class.call(workflow: workflow)
+
+      expect(decision).to be_pause
+      expect(decision.reason).to eq("provider_auth_error")
+    end
+
     it "selects the first configured failover provider that is available enough" do
       workflow.runs.delete_all
       user.update!(

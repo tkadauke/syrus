@@ -413,7 +413,7 @@ module App
     end
 
     def preview_configured?
-      @preview_configured ||= App::PreviewAvailability.configured?(repository)
+      @preview_configured ||= App::PreviewAvailability.configured?(repository, user: user)
     end
 
     def visual_review_enabled?

@@ -54,7 +54,7 @@ module ProviderRouting
           "state" => payload[:state] || payload["state"],
           "reason" => payload[:reason] || payload["reason"],
           "retry_after" => payload[:retry_after] || payload["retry_after"],
-          "reset_at" => reset_at(usage),
+          "reset_at" => reset_at(usage)&.iso8601,
           "observed_at" => evidence_observed_at(payload)&.iso8601,
           "evidence" => {
             "status" => evidence[:status] || evidence["status"],
@@ -65,13 +65,7 @@ module ProviderRouting
       end
 
       def reset_at(usage)
-        windows = usage[:windows] || usage["windows"] || {}
-        [
-          windows.dig(:five_hour, :reset_at),
-          windows.dig("five_hour", "reset_at"),
-          windows.dig(:weekly, :reset_at),
-          windows.dig("weekly", "reset_at")
-        ].compact.min
+        ProviderRouting::UsageWindows.earliest_reset_at(usage)
       end
     end
 
@@ -100,8 +94,6 @@ module ProviderRouting
     end
 
     def call
-      return decision(candidates.first, candidate_availability: nil, exhausted: false) unless availability_controls_enabled?
-
       candidates.each do |candidate|
         refresh_stale_usage(candidate.provider)
         candidate_availability = App::ProviderAvailability.for_user(user, candidate.provider, now: now)
@@ -136,21 +128,30 @@ module ProviderRouting
       )
     end
 
-    def availability_controls_enabled?
-      candidates.any? do |candidate|
-        user.provider_availability_pause_enabled?(candidate.provider)
-      end || ProviderRouting::Resolver.rule_configured?(job: job, task_key: task_key)
-    end
-
+    # Basic availability (actively erroring/rate-limited/exhausted/paused)
+    # always applies, regardless of whether the user has opted into
+    # proactive threshold-based pausing for any candidate provider or
+    # configured a ProviderRoutingRule — a candidate that is provably
+    # unavailable right now should never be selected. The opt-in
+    # `provider_availability_pause_enabled?` setting is reserved for the
+    # more aggressive proactive check below (pausing *before* a provider
+    # is actually broken, once its remaining usage drops under a
+    # configured threshold).
     def available_enough?(provider, payload)
-      return false if user.provider_availability_overridden?(provider, evidence_observed_at: evidence_observed_at(payload))
-      return false if payload&.dig(:open) == true || payload&.dig("open") == true
-      return false if payload&.dig(:usage_exhausted) == true || payload&.dig("usage_exhausted") == true
-      return false if payload&.dig(:state).to_s.in?(%w[open rate_limited exhausted auth_error])
-      return false if payload&.dig("state").to_s.in?(%w[open rate_limited exhausted auth_error])
+      return false if actively_unavailable?(provider, payload)
 
       remaining = remaining_percent(payload)
       remaining.nil? || !user.provider_availability_pause_enabled?(provider) || remaining >= user.provider_availability_pause_threshold_for(provider)
+    end
+
+    def actively_unavailable?(provider, payload)
+      return true if user.provider_availability_overridden?(provider, evidence_observed_at: evidence_observed_at(payload))
+      return true if payload&.dig(:open) == true || payload&.dig("open") == true
+      return true if payload&.dig(:usage_exhausted) == true || payload&.dig("usage_exhausted") == true
+      return true if payload&.dig(:state).to_s.in?(%w[open rate_limited exhausted auth_error])
+      return true if payload&.dig("state").to_s.in?(%w[open rate_limited exhausted auth_error])
+
+      false
     end
 
     def refresh_stale_usage(provider)

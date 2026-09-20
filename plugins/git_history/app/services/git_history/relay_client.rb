@@ -11,7 +11,10 @@ module GitHistory
   #
   # A relay that's unreachable degrades the same way an unsynced bare clone
   # does — "not available yet", not a hard error — since CommitLog already
-  # treats a missing clone that way.
+  # treats a missing clone that way. Sends a Bearer token (GitHistory::RelayToken)
+  # on every request — see RelayServer for why that's required rather than
+  # optional. An auth failure surfaces as a non-2xx response, which already
+  # degrades through the same Unavailable path.
   class RelayClient
     class Unavailable < StandardError; end
 
@@ -50,7 +53,9 @@ module GitHistory
       )
 
       response = Net::HTTP.start(uri.host, uri.port, open_timeout: OPEN_TIMEOUT_SECONDS, read_timeout: READ_TIMEOUT_SECONDS) do |http|
-        http.get(uri.request_uri)
+        request = Net::HTTP::Get.new(uri)
+        request["Authorization"] = "Bearer #{RelayToken.value}"
+        http.request(request)
       end
 
       raise Unavailable, "git history relay returned #{response.code}" unless response.is_a?(Net::HTTPSuccess)

@@ -1,5 +1,3 @@
-require "shellwords"
-
 module App
   class JobDetailPayload
     include Rails.application.routes.url_helpers
@@ -10,8 +8,8 @@ module App
     include LandingQueue
     include AgentProviderCatalogOptions
 
-    def self.build(job:, user:, params: {})
-      new(job: job, user: user, params: params).payload
+    def self.build(job:, user:, params: {}, client: nil)
+      new(job: job, user: user, params: params, client: client).payload
     end
 
     def self.workflows(job:, user:, params: {})
@@ -30,14 +28,15 @@ module App
     # (approve/unapprove/reopen/etc.) that need to hand the frontend a
     # freshly computed set of available buttons in the same response as the
     # state change, instead of waiting on the next full job-detail refetch.
-    def self.actions_payload(job:, user:)
-      new(job: job, user: user).actions_payload
+    def self.actions_payload(job:, user:, client: nil)
+      new(job: job, user: user, client: client).actions_payload
     end
 
-    def initialize(job:, user:, params: {})
+    def initialize(job:, user:, params: {}, client: nil)
       @job = job
       @user = user
       @params = params
+      @client = client
     end
 
     def payload
@@ -1447,22 +1446,18 @@ module App
       end
     end
 
+    # Reads `.syrus.yml` from the repository's default branch through GitHub
+    # (RepoDefaultBranchSyrusYml) rather than the local bare clone: job-detail
+    # payloads are built on the web tier, and web pods don't mount the
+    # worker's on-disk bare clone (see "Deploy target" in CLAUDE.md — "Web
+    # pods don't need this volume"). Reading local disk here always saw "no
+    # config," so every check below it always fell back to its
+    # never-configured default. Mirrors the fix RepositoryFeatureRecommendations
+    # already applied for its own local-bare-clone reads.
     def local_syrus_yml_config
       return @local_syrus_yml_config if defined?(@local_syrus_yml_config)
 
-      clone_path = File.join(
-        ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")),
-        "clones",
-        "#{@job.repository_id}.git"
-      )
-      return @local_syrus_yml_config = nil unless File.directory?(clone_path)
-
-      yml_content = `git --git-dir #{clone_path.shellescape} show HEAD:.syrus.yml 2>/dev/null`
-      return @local_syrus_yml_config = nil unless $?.success? && yml_content.present?
-
-      @local_syrus_yml_config = SyrusYml.new(yml_content).parse
-    rescue StandardError
-      @local_syrus_yml_config = nil
+      @local_syrus_yml_config = RepoDefaultBranchSyrusYml.new(repository: @job.repository, user: @user || @job.user, client: @client).resolve.config
     end
   end
 end

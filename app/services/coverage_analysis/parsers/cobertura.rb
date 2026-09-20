@@ -53,8 +53,10 @@ module CoverageAnalysis
             end
           end
 
-          hit_map[filename] = file_lines
-          file_stats[filename] = { lf: file_lf, lh: file_lh, brf: file_brf, brh: file_brh, fnf: 0, fnh: 0 }
+          merge_file_hit_data!(
+            hit_map, file_stats, filename, file_lines,
+            { lf: file_lf, lh: file_lh, brf: file_brf, brh: file_brh, fnf: 0, fnh: 0 }
+          )
 
           total_lf  += file_lf
           total_lh  += file_lh

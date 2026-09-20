@@ -55,7 +55,7 @@ The same action is available over the API: `POST /api/v1/app/jobs/:job_id/deploy
 
 ### Approval gate
 
-Deploying an unapproved Job is forbidden by default — `403 forbidden` unless the Job is `approved?` or the repository's `.syrus.yml` sets `deploy.allow_unapproved: true` (checked via `App::DeployAvailability.allow_unapproved?`, which reads the same bare-clone `.syrus.yml` copy `configured?` uses). This is separate authorization logic from Preview, which has no approval gate at all — previewing an implemented-but-unapproved Job is fine, since it doesn't touch anything outside Syrus's own preview infrastructure; deploying does, so it defaults to approved-only.
+Deploying an unapproved Job is forbidden by default — `403 forbidden` unless the Job is `approved?` or the repository's `.syrus.yml` sets `deploy.allow_unapproved: true` (checked via `App::DeployAvailability.allow_unapproved?`, which reads the same GitHub-fetched `.syrus.yml` copy `configured?` uses — `RepoDefaultBranchSyrusYml` fetches the default branch's `.syrus.yml` through `GithubClient` rather than a local bare clone, since this gate runs on the web tier and web pods don't mount the worker's on-disk clone). This is separate authorization logic from Preview, which has no approval gate at all — previewing an implemented-but-unapproved Job is fine, since it doesn't touch anything outside Syrus's own preview infrastructure; deploying does, so it defaults to approved-only.
 
 Only one deploy Workflow may be queued or running per Job at a time — a second `POST` while one is active returns `409 conflict` rather than piling deploys up behind Solid Queue's per-Job concurrency limit.
 
@@ -65,7 +65,7 @@ Setting `deploy.mode: continuous` auto-triggers a deploy of the repository's def
 
 ### Trigger point
 
-`Workflows::AutoMerge`, `Workflows::MergeTrain`, and `Workflows::ExternalPrMerge` each call `DeployContinuousTrigger.after_landing!(repository)` from their `after_success` hook — i.e. once a Job (or, for a merge train, an Epic's children) has actually landed on the default branch. `DeployContinuousTrigger` re-reads the repository's `.syrus.yml` (the same bare-clone read `App::DeployAvailability` uses for the manual-deploy gate) and, only when `deploy.mode == "continuous"`, enqueues `MaybeDeployJob.perform_later(repository_id)`. A repository without `deploy:` configured, or with `mode: manual` (the default), never enqueues anything here — landing a Job costs nothing extra unless continuous deploy is opted into.
+`Workflows::AutoMerge`, `Workflows::MergeTrain`, and `Workflows::ExternalPrMerge` each call `DeployContinuousTrigger.after_landing!(repository)` from their `after_success` hook — i.e. once a Job (or, for a merge train, an Epic's children) has actually landed on the default branch. `DeployContinuousTrigger` re-reads the repository's `.syrus.yml` (the same GitHub-fetched read `App::DeployAvailability` uses for the manual-deploy gate — see above) and, only when `deploy.mode == "continuous"`, enqueues `MaybeDeployJob.perform_later(repository_id)`. A repository without `deploy:` configured, or with `mode: manual` (the default), never enqueues anything here — landing a Job costs nothing extra unless continuous deploy is opted into.
 
 ### `MaybeDeployJob`
 

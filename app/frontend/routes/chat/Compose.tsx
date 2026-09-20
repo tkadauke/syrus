@@ -1,5 +1,5 @@
 import type { ChatComposeAttachment, ChatSystemAction, ChatSystemCommandAction, ChatSystemCommandHandlers, PendingSlashCommandConfirmation, WalkthroughDraft } from "./composeTypes"
-import { createConsumer, type Subscription } from "@rails/actioncable"
+import type { Subscription } from "@rails/actioncable"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ClipboardEvent as ReactClipboardEvent, DragEvent, FormEvent, KeyboardEvent } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -9,6 +9,7 @@ import { GeminiSetupSheet } from "../../components/GeminiSetupSheet"
 import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationShortcutLabel, formatClock, RECORDER_WARNING_SECONDS, shouldShowAnnotationSurfaceNote, useNativeRecorderHud, useWalkthroughRecorder, WalkthroughRecorderHUD } from "../../components/WalkthroughRecorder"
 import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
 import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
+import { getAppConsumer } from "../../lib/actionCable"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
 import { attachChatRepository, branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
@@ -2142,7 +2143,7 @@ function useChatDictation({
         mode: "streaming",
         onChunk: (chunk) => sendStreamingChunk(chunk)
       })
-      const subscription = createConsumer().subscriptions.create(
+      const subscription = getAppConsumer().subscriptions.create(
         { channel: streamConfig.stream.channel, chat_session_id: streamConfig.stream.chat_session_id || chatId },
         {
           connected() {

@@ -185,6 +185,88 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       expect(audit.success).to be(true)
     end
 
+    it "treats a WITH ... SELECT CTE as read-only without requiring write access" do
+      client = fake_client(rows: [ { "id" => 1 } ])
+      stub_client_factory(client)
+      allow(MysqlDbBrowser::AgenticAccess).to receive(:connection_with_write_access!).and_call_original
+
+      payload = described_class.new(connection).execute("WITH x AS (SELECT 1 AS id) SELECT * FROM x", user: user)
+
+      expect(payload[:read_only]).to be(true)
+      expect(MysqlDbBrowser::AgenticAccess).not_to have_received(:connection_with_write_access!)
+    end
+
+    it "rejects a WITH ... DELETE CTE on a read-only connection instead of misclassifying it as read-only" do
+      described_class.client_factory = ->(**) { raise "should not connect" }
+
+      expect {
+        described_class.new(connection).execute(
+          "WITH x AS (SELECT 1) DELETE FROM some_table WHERE id IN (SELECT id FROM x)",
+          user: user
+        )
+      }.to raise_error(described_class::WriteNotAllowed)
+
+      audit = MysqlQueryAudit.last
+      expect(audit.success).to be(false)
+      expect(audit.read_only).to be(false)
+    end
+
+    it "rejects a WITH ... UPDATE CTE on a read-only connection" do
+      described_class.client_factory = ->(**) { raise "should not connect" }
+
+      expect {
+        described_class.new(connection).execute(
+          "WITH x AS (SELECT 1) UPDATE some_table SET flag = 1 WHERE id IN (SELECT id FROM x)",
+          user: user
+        )
+      }.to raise_error(described_class::WriteNotAllowed)
+    end
+
+    it "rejects a WITH ... INSERT CTE on a read-only connection" do
+      described_class.client_factory = ->(**) { raise "should not connect" }
+
+      expect {
+        described_class.new(connection).execute(
+          "WITH x AS (SELECT 1 AS id) INSERT INTO some_table (id) SELECT id FROM x",
+          user: user
+        )
+      }.to raise_error(described_class::WriteNotAllowed)
+    end
+
+    it "runs a WITH ... DELETE CTE as a write once the connection opts in" do
+      connection.update!(allow_writes: true)
+      stub_client_factory(fake_client(affected_rows: 2))
+
+      payload = described_class.new(connection).execute(
+        "WITH x AS (SELECT 1) DELETE FROM some_table WHERE id IN (SELECT id FROM x)",
+        user: user
+      )
+
+      expect(payload[:available]).to be(true)
+      expect(payload[:read_only]).to be(false)
+      expect(payload[:affected_rows]).to eq(2)
+    end
+
+    it "resolves the terminal statement past multiple CTE definitions, including ones with parens/commas in string literals" do
+      client = fake_client(rows: [ { "id" => 1 } ])
+      stub_client_factory(client)
+
+      payload = described_class.new(connection).execute(
+        "WITH a AS (SELECT 'x, (y)' AS note), b (id) AS (SELECT id FROM t) SELECT * FROM a, b",
+        user: user
+      )
+
+      expect(payload[:read_only]).to be(true)
+    end
+
+    it "treats an unparseable WITH statement as non-read-only rather than assuming safety" do
+      described_class.client_factory = ->(**) { raise "should not connect" }
+
+      expect {
+        described_class.new(connection).execute("WITH 1 broken nonsense", user: user)
+      }.to raise_error(described_class::WriteNotAllowed)
+    end
+
     it "allows EXPLAIN ANALYZE for read statements but still rejects unrelated non-read statements" do
       client = fake_client(rows: [ { "EXPLAIN" => "-> Table scan on users" } ])
       stub_client_factory(client)
@@ -201,6 +283,32 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       expect {
         described_class.new(connection).execute("EXPLAIN ANALYZE UPDATE users SET name = 'x'", user: user)
       }.to raise_error(described_class::WriteNotAllowed)
+    end
+
+    it "rejects SELECT ... INTO OUTFILE without opening a connection, even though it's otherwise a SELECT" do
+      described_class.client_factory = ->(**) { raise "should not connect" }
+
+      expect {
+        described_class.new(connection).execute("SELECT * FROM users INTO OUTFILE '/tmp/users.csv'", user: user)
+      }.to raise_error(described_class::FilesystemWriteNotAllowed, /INTO OUTFILE/)
+
+      audit = MysqlQueryAudit.last
+      expect(audit.success).to be(false)
+      expect(audit.read_only).to be(false)
+      expect(audit.error_message).to include("INTO OUTFILE")
+    end
+
+    it "rejects SELECT ... INTO DUMPFILE even on a connection with write access enabled" do
+      connection.update!(allow_writes: true)
+      described_class.client_factory = ->(**) { raise "should not connect" }
+
+      expect {
+        described_class.new(connection).execute("SELECT * FROM users LIMIT 1 INTO DUMPFILE '/tmp/row.dat'", user: user)
+      }.to raise_error(described_class::FilesystemWriteNotAllowed)
+    end
+
+    it "classifies FilesystemWriteNotAllowed as a WriteNotAllowed so existing callers' rescues still catch it" do
+      expect(described_class::FilesystemWriteNotAllowed.ancestors).to include(described_class::WriteNotAllowed)
     end
   end
 

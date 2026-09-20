@@ -349,5 +349,8 @@
     "image_no_new_version": "Nulla versio nova (documentum ablatum)",
     "image_previous_unavailable": "Versio prior non praesto est",
     "image_new_unavailable": "Versio nova non praesto est"
+  },
+  "timeline_axis": {
+    "timezone_hint": "Tempora in hora tua locali monstrantur ({{offset}})"
   }
 }

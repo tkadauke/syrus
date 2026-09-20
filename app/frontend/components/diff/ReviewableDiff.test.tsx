@@ -3,7 +3,7 @@ import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import * as performanceMarkers from "../../lib/performanceMarkers"
-import { AgentDiff, DiffHunkSnippet, ReviewableDiff, filesFromUnifiedDiff } from "./ReviewableDiff"
+import { AgentDiff, DiffHunkSnippet, ReviewableDiff, annotationsForFile, filesFromUnifiedDiff, isLineAnnotations } from "./ReviewableDiff"
 
 stubVirtualizerMeasurements()
 
@@ -136,6 +136,28 @@ describe("ReviewableDiff", () => {
     const row = screen.getByText("new").closest("tr")
     expect(row).toHaveAttribute("data-coverage", "uncovered")
     expect(within(row as HTMLElement).getByText("✗")).toBeInTheDocument()
+  })
+
+  it("treats an empty annotations object as having no annotations, for either shape", () => {
+    // Object.values({}).every(...) is vacuously true, so an empty map must
+    // never be classified as the flat shape by incidental `.every` semantics.
+    expect(isLineAnnotations({})).toBe(false)
+    expect(annotationsForFile({}, "app/models/job.rb")).toBeUndefined()
+    expect(annotationsForFile(undefined, "app/models/job.rb")).toBeUndefined()
+  })
+
+  it("classifies flat and per-file annotation shapes once they have entries", () => {
+    expect(isLineAnnotations({ "1": "uncovered" })).toBe(true)
+    expect(isLineAnnotations({ "app/models/job.rb": { "1": "uncovered" } })).toBe(false)
+  })
+
+  it("does not misapply an empty per-file annotations map to a rendered file", () => {
+    render(
+      <ReviewableDiff annotations={{}} files={files} mode="single-file" selectedPath="app/models/job.rb" />
+    )
+
+    const row = screen.getByText("new").closest("tr")
+    expect(row).not.toHaveAttribute("data-coverage")
   })
 
   it("exposes typed line selections for optional comment callbacks", () => {

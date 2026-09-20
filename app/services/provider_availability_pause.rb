@@ -18,16 +18,14 @@ class ProviderAvailabilityPause
         "availability_state" => availability&.dig(:state) || availability&.dig("state"),
         "usage_status" => usage[:status] || usage["status"],
         "observed_at" => usage[:observed_at] || usage["observed_at"],
-        "reset_at" => reset_at,
+        "reset_at" => reset_at&.iso8601,
         "provider_failover_decision" => failover&.artifact
       }.compact
     end
 
     def reset_at
       usage = availability&.dig(:usage) || {}
-      windows = usage[:windows] || usage["windows"] || {}
-      [ windows.dig(:five_hour, :reset_at), windows.dig("five_hour", "reset_at"),
-        windows.dig(:weekly, :reset_at), windows.dig("weekly", "reset_at") ].compact.min
+      ProviderRouting::UsageWindows.earliest_reset_at(usage)
     end
   end
 
@@ -42,9 +40,16 @@ class ProviderAvailabilityPause
     @candidate = candidate
   end
 
+  # Basic availability (actively exhausted/rate-limited/erroring/open) always
+  # applies here, regardless of whether the user has opted into proactive
+  # threshold-based pausing for this provider or a ProviderRoutingRule is
+  # configured -- a provider that is provably broken right now must never
+  # admit a Run into it. `low_usage?` is the one check that stays behind the
+  # opt-in `provider_availability_pause_enabled?` setting (checked inside
+  # `low_usage?` itself), since it's the more aggressive proactive pause
+  # (pausing *before* a provider is actually broken).
   def call
     return admit unless provider.present?
-    return admit unless provider_availability_controls_enabled?
 
     refresh_stale_usage
     availability = App::ProviderAvailability.for_user(user, provider, now: now)
@@ -138,11 +143,6 @@ class ProviderAvailabilityPause
     nil
   end
 
-  def provider_availability_controls_enabled?
-    user.provider_availability_pause_enabled?(provider) ||
-      ProviderRouting::Resolver.rule_configured?(job: workflow.job, task_key: task_key)
-  end
-
   def usage_exhausted?(availability)
     availability&.dig(:usage_exhausted) == true || availability&.dig(:state).to_s == "exhausted"
   end
@@ -189,9 +189,7 @@ class ProviderAvailabilityPause
 
   def earliest_reset_at(availability)
     usage = availability&.dig(:usage) || availability&.dig("usage") || {}
-    windows = usage[:windows] || usage["windows"] || {}
-    [ windows.dig(:five_hour, :reset_at), windows.dig("five_hour", "reset_at"),
-      windows.dig(:weekly, :reset_at), windows.dig("weekly", "reset_at") ].compact.min
+    ProviderRouting::UsageWindows.earliest_reset_at(usage)
   end
 
   def overridden?(availability)
@@ -208,6 +206,8 @@ class ProviderAvailabilityPause
   end
 
   def parse_time(value)
+    return value if value.is_a?(Time)
+
     Time.zone.parse(value.to_s)
   rescue ArgumentError, TypeError
     nil

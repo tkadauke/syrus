@@ -2,9 +2,17 @@ require "fileutils"
 require "tmpdir"
 
 module App
-  # Resolves the project-scoped preview choices for a Job from the repository's
-  # default-branch TargetGraph plus the Job branch diff available in the local
-  # bare clone. Missing clones or refs degrade to legacy root behavior.
+  # Resolves the project-scoped preview choices for a Job from the
+  # repository's default-branch TargetGraph plus the Job branch diff,
+  # fetched through GitHub (GithubClient) rather than the local bare clone
+  # (`RepositoryBareClone`): this is read from web-tier request paths
+  # (JobPreviewController, TargetGraphsController), and web pods don't mount
+  # the worker's on-disk bare clone (see "Deploy target" in CLAUDE.md —
+  # "Web pods don't need this volume"). Reading local disk here always saw
+  # an absent clone and degraded to "no preview projects configured" for
+  # every repository. Mirrors the fix RepositoryFeatureRecommendations
+  # already applied for its own local-bare-clone reads. Missing credentials
+  # or an unpushed branch degrade to legacy root behavior, same as before.
   class PreviewProjects
     Choice = Data.define(:id, :label, :path, :owner_config_path) do
       def to_h
@@ -32,10 +40,11 @@ module App
       new(nil, repository: repository).for_repository
     end
 
-    def initialize(job, repository: nil, git: GitRunner.new)
+    def initialize(job, repository: nil, user: nil, client: nil)
       @job = job
       @repository = repository || job.repository
-      @git = git
+      @user = user || job&.user || @repository.user
+      @client = client
     end
 
     def for_job
@@ -55,22 +64,52 @@ module App
 
     private
 
-    attr_reader :job, :repository, :git
+    attr_reader :job, :repository, :user
 
     def project_choices
       graph_choices.presence || plugin_root_choice
     end
 
     def graph_choices
-      return [] unless bare_clone_path.directory?
+      return [] unless github_client
 
-      with_default_branch_checkout do |path|
-        graph = TargetGraph::Compiler.compile(path)
+      paths = config_paths
+      return [] if paths.empty?
+
+      Dir.mktmpdir("syrus-preview-projects") do |dir|
+        materialize_syrus_yml_files!(dir, paths)
+        graph = TargetGraph::Compiler.compile(dir)
         graph.projects.values.select(&:preview).map { |project| choice_for(project) }
       end
     rescue StandardError => e
       Rails.logger.warn("[App::PreviewProjects] unavailable for #{repository.slug}: #{e.class}: #{e.message}")
       []
+    end
+
+    # Only `.syrus.yml` files are fetched and written into the scratch
+    # directory (not the whole tree) -- TargetGraph::Compiler and
+    # TargetGraph::NestedConfigDiscovery only ever look for files named
+    # `.syrus.yml` on disk, so this is enough to compile the full graph
+    # without a full default-branch checkout. `file_tree_at` walks the git
+    # tree at the ref, so untracked/gitignored files are already excluded --
+    # no separate `git check-ignore` pass is needed the way the local
+    # filesystem-walk version of NestedConfigDiscovery needs one.
+    def materialize_syrus_yml_files!(dir, paths)
+      paths.each do |path|
+        file = github_client.file_content_at(repository.slug, path, repository.default_branch)
+        next unless file
+
+        full_path = File.join(dir, path)
+        FileUtils.mkdir_p(File.dirname(full_path))
+        File.write(full_path, file.fetch(:content))
+      end
+    end
+
+    def config_paths
+      tree = github_client.file_tree_at(repository.slug, repository.default_branch)
+      Array(tree[:items]).map { |item| item[:path] }.select do |path|
+        path == SyrusYml::CONFIG_FILE || path.end_with?("/#{SyrusYml::CONFIG_FILE}")
+      end
     end
 
     def plugin_root_choice
@@ -106,32 +145,24 @@ module App
 
     def changed_files
       return [] unless job&.branch_name.present?
-      return [] unless bare_clone_path.directory?
+      return [] unless github_client
 
-      git.run(
-        "--git-dir", bare_clone_path.to_s,
-        "diff", "--name-only",
-        "#{job.effective_base_branch}...#{job.branch_name}"
-      ).split("\n").map(&:strip).reject(&:empty?)
-    rescue GitRunner::GitError => e
-      Rails.logger.warn("[App::PreviewProjects] could not resolve changed files for #{job.slug}: #{e.message}")
+      result = github_client.compare_files(repository.slug, job.effective_base_branch, job.branch_name)
+      Array(result[:files]).map { |file| file[:path] }
+    rescue StandardError => e
+      Rails.logger.warn("[App::PreviewProjects] could not resolve changed files for #{job.slug}: #{e.class}: #{e.message}")
       []
     end
 
-    def bare_clone_path
-      @bare_clone_path ||= RepositoryBareClone.path_for(repository)
-    end
+    def github_client
+      return @client if @client
+      return @github_client if defined?(@github_client)
+      return @github_client = nil unless repository.installation&.active? || user&.github_token.present?
 
-    def with_default_branch_checkout
-      Dir.mktmpdir("syrus-preview-projects") do |dir|
-        git.run(
-          "--git-dir", bare_clone_path.to_s,
-          "--work-tree", dir,
-          "checkout", "-f", repository.default_branch, "--", ".",
-          chdir: dir
-        )
-        yield Pathname.new(dir)
-      end
+      @github_client = GithubClient.for(repository: repository, user: user)
+    rescue StandardError => e
+      Rails.logger.warn("[App::PreviewProjects] GitHub client unavailable for #{repository.slug}: #{e.class}: #{e.message}")
+      @github_client = nil
     end
   end
 end

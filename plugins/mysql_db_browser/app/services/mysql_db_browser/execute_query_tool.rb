@@ -6,8 +6,10 @@ module MysqlDbBrowser
 
     description "Run a SQL statement against an agentic-access-enabled MySQL DB Browser connection. " \
                 "Call mysql_db_browser_list_connections first to find an enabled mysql_connection_id. " \
-                "Read-only SELECT/WITH/SHOW/DESCRIBE/EXPLAIN diagnostics are allowed by default; " \
-                "writes are rejected unless the connection has explicitly opted into writes. " \
+                "Read-only SELECT/SHOW/DESCRIBE/EXPLAIN diagnostics are allowed by default, as is a " \
+                "WITH ... SELECT CTE; a WITH ... UPDATE/DELETE/INSERT CTE counts as a write. " \
+                "Writes are rejected unless the connection has explicitly opted into writes. " \
+                "SELECT ... INTO OUTFILE/DUMPFILE is always rejected, even with writes enabled. " \
                 "Every attempt, successful or not, is audit-logged."
 
     input_schema(

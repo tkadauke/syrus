@@ -1,34 +1,28 @@
-require "shellwords"
-
 module App
   # Shared "is a manual deploy even possible for this repository" check,
-  # used by JobDetailPayload's can_deploy action flag and
-  # JobDeployController's approval gate. Reads `.syrus.yml`'s `deploy:`
-  # block straight off the repository's local bare clone (no GitHub API
-  # call), mirroring PreviewAvailability's read-the-bare-clone approach.
+  # used by JobDetailPayload's can_deploy action flag, JobDeployController's
+  # approval gate, and DeployContinuousTrigger's continuous-deploy check.
+  # Reads `.syrus.yml`'s `deploy:` block from the repository's default
+  # branch through GitHub (RepoDefaultBranchSyrusYml) rather than shelling
+  # out against the local bare clone: several of these call sites run on the
+  # web tier, and web pods don't mount $SYRUS_DATA_ROOT (see "Deploy target"
+  # in CLAUDE.md — "Web pods don't need this volume"). A local bare clone
+  # never existing there made `File.directory?(clone_path)` always false, so
+  # `allow_unapproved?` always answered `false` regardless of what
+  # `.syrus.yml` actually configured. Mirrors the fix
+  # RepositoryFeatureRecommendations already applied for its own
+  # local-bare-clone reads.
   class DeployAvailability
-    def self.configured?(repository)
-      deploy_config(repository).present?
+    def self.configured?(repository, user: nil, client: nil)
+      deploy_config(repository, user: user, client: client).present?
     end
 
-    def self.allow_unapproved?(repository)
-      deploy_config(repository)&.allow_unapproved || false
+    def self.allow_unapproved?(repository, user: nil, client: nil)
+      deploy_config(repository, user: user, client: client)&.allow_unapproved || false
     end
 
-    def self.deploy_config(repository)
-      clone_path = File.join(
-        ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")),
-        "clones",
-        "#{repository.id}.git"
-      )
-      return nil unless File.directory?(clone_path)
-
-      yml_content = `git --git-dir #{clone_path.shellescape} show HEAD:.syrus.yml 2>/dev/null`
-      return nil unless $?.success? && yml_content.present?
-
-      SyrusYml.new(yml_content).parse.deploy
-    rescue StandardError
-      nil
+    def self.deploy_config(repository, user: nil, client: nil)
+      RepoDefaultBranchSyrusYml.new(repository: repository, user: user || repository.user, client: client).resolve.config&.deploy
     end
   end
 end
