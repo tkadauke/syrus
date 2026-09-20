@@ -30,6 +30,8 @@
   "aria_title_input": "Titel des Designdokuments",
   "aria_version_selection": "Versionsauswahl",
   "comment": "Kommentieren",
+  "comment_drawer_count_one": "{{count}} Kommentar",
+  "comment_drawer_count_other": "{{count}} Kommentare",
   "current": "Aktuell",
   "document_content": "Inhalt des Designdokuments",
   "edit": "Bearbeiten",

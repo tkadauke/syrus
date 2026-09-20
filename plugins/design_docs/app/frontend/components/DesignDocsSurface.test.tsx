@@ -669,6 +669,79 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/1")
   })
 
+  it("toggles the bottom-docked comment drawer between collapsed and expanded on a narrow viewport", async () => {
+    mockMobileViewport()
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("region", { name: "Design doc content" })
+    const toggle = screen.getByRole("button", { name: "2 comments" })
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("Needs evidence")).not.toBeInTheDocument()
+    expect(screen.queryByText("Use newer name")).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    expect(await screen.findByText("Needs evidence")).toBeInTheDocument()
+    expect(screen.getByText("Use newer name")).toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("Needs evidence")).not.toBeInTheDocument()
+  })
+
+  it("opens the comment drawer to a thread when its highlighted anchor is clicked in the read-only body", async () => {
+    mockMobileViewport()
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    const body = await screen.findByRole("region", { name: "Design doc content" })
+    const highlight = body.querySelector("mark[data-thread-id='7']")
+    expect(highlight).not.toBeNull()
+
+    fireEvent.click(highlight!)
+
+    const toggle = await screen.findByRole("button", { name: "2 comments" })
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    expect(await screen.findByText("Needs evidence")).toBeInTheDocument()
+    expect(screen.getByText("Needs evidence").closest("[data-anchor-offset]")).toHaveClass("border-amber-400")
+  })
+
+  it("creates a new comment from a text selection through the narrow-view drawer composer", async () => {
+    const fetchSpy = mockFetch()
+    mockMobileViewport()
+    renderSurface("/design_docs/1")
+
+    const body = await screen.findByRole("region", { name: "Design doc content" })
+    const textNode = body.querySelector("[data-source-start]")!.firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 0)
+    range.setEnd(textNode, 5)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+
+    fireEvent.mouseUp(body)
+    expect(screen.queryByRole("textbox", { name: "New thread comment" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+
+    const toggle = await screen.findByRole("button", { name: "2 comments" })
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    const composer = await screen.findByRole("textbox", { name: "New thread comment" })
+    await waitFor(() => expect(composer).toHaveFocus())
+
+    fireEvent.change(composer, { target: { value: "Drawer comment" } })
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
+    expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Drawer comment" }
+    })
+  })
+
   it("keeps the design doc detail route editable by default on a desktop-width viewport", async () => {
     mockFetch()
     renderSurface("/design_docs/1")
