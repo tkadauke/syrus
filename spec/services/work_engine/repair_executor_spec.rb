@@ -38,4 +38,31 @@ RSpec.describe WorkEngine::RepairExecutor do
     expect(result.first.message).to include("marked #{workflow.slug} failed")
     expect(workflow.reload).to be_failed
   end
+
+  it "cancels an obsolete requested WorkIntent instead of launching it after its Job closes" do
+    target = Factories.job_record(user: job.user, repository: job.repository, issue_number: 501)
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: target.repository,
+      scope_type: "job",
+      scope_id: target.id,
+      actor: target.user,
+      source_type: "spec"
+    )
+    target.update_columns(state: "closed", finished_at: Time.current, closure_reason: "pr_merged")
+
+    result = described_class.call(
+      result: RepairResult.new([
+        repair_plan(action: "launch_requested_work_intent", target: intent)
+      ])
+    )
+
+    expect(result.first).to have_attributes(
+      status: "applied",
+      message: "cancelled #{intent.slug} because #{target.slug} is closed"
+    )
+    expect(intent.reload).to be_cancelled
+    expect(target.workflows).to be_empty
+  end
 end
