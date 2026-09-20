@@ -596,10 +596,11 @@ member with insufficient GitHub access (recorded on the
 `RepositoryMembership` row as `github_permission_mismatch_reason` +
 `_checked_at`), and a GitHub collaborator with write-or-better GitHub
 access but no Syrus access at all (`GithubCollaboratorDiscrepancy`).
-Both show up as warnings on the repository's **Members tab**
-(`RepositoryMembers.tsx`, route `/repositories/:repositoryId/memberships`)
-alongside the add/promote/remove membership controls and the Team-grant
-section — an amber badge per mismatched row, and a separate "GitHub-only
+Both show up as warnings on the repository's edit page
+(`RepositoryMembersSection` in `RepositoryMembers.tsx`, embedded by
+`RepositoryForm.tsx` at `/repositories/:id/edit`) alongside the
+add/promote/remove membership controls and the Team-grant section — an
+amber badge per mismatched row, and a separate "GitHub-only
 collaborators" list.
 
 ## Recurring schedule

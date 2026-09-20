@@ -357,7 +357,7 @@
     "confirm_remove_member": "{{email}} aus diesem Team entfernen?",
     "added_at": "Hinzugefügt",
     "repository_grants": "Repository-Zugriff",
-    "repository_grants_description": "Repositories, auf die dieses Team Zugriff erhalten hat. Zugriffe werden über den Members-Tab eines Repositorys verwaltet.",
+    "repository_grants_description": "Repositories, auf die dieses Team Zugriff erhalten hat. Zugriffe werden über die Bearbeitungsseite eines Repositorys verwaltet.",
     "no_repository_grants": "Dieses Team hat noch keine Repository-Zugriffe.",
     "aria_index": "Admin-Teams",
     "aria_detail": "Admin-Teamdetail"

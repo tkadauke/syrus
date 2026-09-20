@@ -501,7 +501,7 @@
     "confirm_remove_member": "Remove {{email}} from this team?",
     "added_at": "Added",
     "repository_grants": "Repository access",
-    "repository_grants_description": "Repositories this team has been granted access to. Manage grants from a repository's Members tab.",
+    "repository_grants_description": "Repositories this team has been granted access to. Manage grants from a repository's edit page.",
     "no_repository_grants": "This team has no repository grants yet.",
     "aria_index": "Admin teams",
     "aria_detail": "Admin team detail"
