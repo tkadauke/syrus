@@ -11,7 +11,7 @@ module Syrus
   #       category     "observability"
   #       description  "Delivery throughput and landing waste."
   #
-  #       provides ui_slot: "Throughput::UiSlots"
+  #       provides repo_page_tab: "Throughput::RepoPageTabs"
   #       route :get, "/api/v1/app/repositories/:repository_id/throughput_metrics",
   #             to: "api/v1/app/repository_throughput#show"
   #

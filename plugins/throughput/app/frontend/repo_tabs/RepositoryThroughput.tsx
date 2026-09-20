@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
-import { DescriptionList, Notice, Section, SectionHeading, Text } from "@app/components/ui"
+import { useLocation, useParams } from "react-router-dom"
+import { DescriptionList, Notice, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
+import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { TonePill } from "@app/components/StatusPill"
 import { errorMessage } from "@app/lib/errorMessage"
+import { routePrefix } from "@app/lib/routing"
 import { useT } from "@app/hooks/useT"
 import { fetchRepositoryThroughputMetrics, type RepositoryThroughputConfidence, type RepositoryThroughputDuration, type RepositoryThroughputMetricsPayload, type RepositoryThroughputRate, type RepositoryThroughputWindow, type RepositoryThroughputWindowKey } from "../api/throughput"
 
@@ -14,35 +17,33 @@ const THROUGHPUT_WINDOWS: Array<{ key: RepositoryThroughputWindowKey; labelKey?:
   { key: "last_active", labelKey: "window_last_active" }
 ]
 
-function RepositoryThroughputPanel({ repositoryId }: { repositoryId: number }) {
+export function RepositoryThroughputRoute({ repositoryId, prefix }: { repositoryId: string; prefix: string }) {
   const { t } = useT("throughput")
   const [windowKey, setWindowKey] = useState<RepositoryThroughputWindowKey>("4h")
   const metrics = useQuery({
-    queryKey: ["repositories", String(repositoryId), "throughput_metrics"],
-    queryFn: () => fetchRepositoryThroughputMetrics(repositoryId)
+    queryKey: ["repositories", repositoryId, "throughput_metrics"],
+    queryFn: () => fetchRepositoryThroughputMetrics(repositoryId),
+    enabled: repositoryId.length > 0
   })
 
-  if (metrics.isPending) {
-    return (
-      <section>
-        <SectionHeading className="mb-3">{t("heading")}</SectionHeading>
-        <Notice>{t("loading")}</Notice>
-      </section>
-    )
-  }
-
-  if (metrics.isError) {
-    return (
-      <section>
-        <SectionHeading className="mb-3">{t("heading")}</SectionHeading>
-        <Notice tone="danger">{errorMessage(metrics.error, t("load_error"))}</Notice>
-      </section>
-    )
-  }
-
-  if (!metrics.data.windows || !metrics.data.windows["4h"]) return null
-
-  return <RepositoryThroughputDashboard metrics={metrics.data} windowKey={windowKey} onWindowChange={setWindowKey} />
+  return (
+    <RepositoryPageShell
+      activeTab="throughput.repository"
+      heading={metrics.data ? (
+        <PageHeading mono>
+          <a className="hover:underline" href={metrics.data.repository.github_url} rel="noopener" target="_blank">{metrics.data.repository.slug}</a>
+        </PageHeading>
+      ) : null}
+      prefix={prefix}
+      tabs={metrics.data?.tabs ?? []}
+    >
+      {metrics.isPending ? <Notice>{t("loading")}</Notice> : null}
+      {metrics.isError ? <Notice tone="danger">{errorMessage(metrics.error, t("load_error"))}</Notice> : null}
+      {metrics.data?.windows?.["4h"] ? (
+        <RepositoryThroughputDashboard metrics={metrics.data} windowKey={windowKey} onWindowChange={setWindowKey} />
+      ) : null}
+    </RepositoryPageShell>
+  )
 }
 
 function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: { metrics: RepositoryThroughputMetricsPayload; windowKey: RepositoryThroughputWindowKey; onWindowChange: (key: RepositoryThroughputWindowKey) => void }) {
@@ -212,10 +213,13 @@ function formatDurationSeconds(value: number | null) {
   if (value < 3600) return `${Math.round(value / 60)}m`
   return `${Math.round((value / 3600) * 10) / 10}h`
 }
-// Rendered into the repository.detail ui_slot. The host passes the resolved
-// repository payload; only the id is needed to fetch metrics.
-export default function ThroughputPanel({ repository }: { repository?: { id: number } }) {
-  if (!repository?.id) return null
 
-  return <RepositoryThroughputPanel repositoryId={repository.id} />
+// Rendered by PluginRepoPageTabRoute, which passes no props: the repository
+// comes from the URL.
+export default function RepositoryThroughputTab() {
+  const params = useParams<{ repositoryId: string }>()
+  const location = useLocation()
+  const prefix = routePrefix(location.pathname)
+
+  return <RepositoryThroughputRoute prefix={prefix} repositoryId={params.repositoryId || ""} />
 }

@@ -1,4 +1,5 @@
 {
+  "tab_throughput": "Throughput",
   "heading": "Throughput",
   "loading": "Loading throughput metrics...",
   "load_error": "Unable to load throughput metrics.",

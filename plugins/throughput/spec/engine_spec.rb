@@ -6,7 +6,7 @@ RSpec.describe Throughput::Engine do
 
     expect(manifest).to be_present
     expect(manifest.enabled?).to be(true)
-    expect(Syrus::PluginRegistry.providers_for(:ui_slot)).to include(Throughput::UiSlots)
+    expect(Syrus::PluginRegistry.providers_for(:repo_page_tab)).to include(Throughput::RepoPageTabs)
   end
 
   # MetricsSampler registers via the manifest's `metrics do ... sampler

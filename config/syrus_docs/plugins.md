@@ -1909,8 +1909,8 @@ that a rollback undoes.
 ## `ui_slot`
 
 Admin pages, sidebar pages, and repo-page tabs each give a plugin a whole page.
-`ui_slot` gives it a section of an existing core page — the throughput panel on
-the repository detail page, a build-cache card on the job detail page.
+`ui_slot` gives it a section of an existing core page — a build-cache card on
+the job detail page, a test-run panel on the job detail page.
 
 Without it, a feature that reads as part of a core page can only be extracted by
 promoting it to its own tab, which changes the product to fit the plugin
@@ -2710,12 +2710,12 @@ module Throughput
     category     "observability"
     description  "Delivery throughput and landing waste."
 
-    provides ui_slot: "Throughput::UiSlots"
+    provides repo_page_tab: "Throughput::RepoPageTabs"
 
     route :get, "/api/v1/app/repositories/:repository_id/throughput_metrics",
           to: "api/v1/app/repository_throughput#show"
 
-    frontend ui_slots: { "throughput/ThroughputPanel" => "app/frontend/ui_slots/ThroughputPanel.tsx" }
+    frontend routes: { "throughput/RepositoryThroughput" => "app/frontend/repo_tabs/RepositoryThroughput.tsx" }
   end
 end
 ```
@@ -2735,7 +2735,7 @@ was a bug someone had to find first:
   autoloaded, so `Syrus::PluginRegistry` is itself replaced on every code
   reload; a plugin that registered once per boot silently vanished on the
   developer's first file save. Registration is idempotent by name.
-- **Contribution classes are named as strings** (`"Throughput::UiSlots"`),
+- **Contribution classes are named as strings** (`"Throughput::RepoPageTabs"`),
   resolved at registration. A captured constant goes stale across a reload,
   and a string cannot be referenced before the plugin's autoload paths exist.
 - **The extension point's interface module is included for you.** Fourteen
