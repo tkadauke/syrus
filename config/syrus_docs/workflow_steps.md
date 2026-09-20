@@ -227,13 +227,18 @@ or broken branch history still fail as normal.
 **Provider usage-limit outcome:** If the provider reports exhausted usage, quota, credits, billing balance, or a daily/weekly/monthly/model limit, the run records `agent_outcome=provider_usage_limit` and failure classification `provider_usage_limit`. The provider circuit breaker opens immediately for the affected provider/model when known; if the model cannot be determined, Syrus fails closed at provider scope and shows that reason to the operator. When the provider reports a reset time, Syrus schedules the failed Run's auto-retry for five minutes after that reset; Codex structured usage reset windows are preferred over parsing log text, while provider text such as `resets 7am (America/New_York)` is parsed from the failure time. If no reset is known, Syrus uses the conservative provider-circuit backoff. The app projects current-user provider availability into chat and Job payloads: chats using the exhausted effective chat provider and Jobs using an unavailable agent provider show a warning with provider label, state, reason, retry/reset timing, evidence source, and observed time where available until the window expires/restores or the operator switches that chat/Job to another configured provider. Transient provider circuits use the non-red provider-unavailability treatment.
 
 **Provider availability pause:** Before the first Run and between Steps,
-`StepDispatcher` checks the Workflow's pinned `agent_provider` against the
-current user's per-agent pause threshold. Agent Settings stores these thresholds
-on the user; each provider defaults to 10%, and 0 disables automatic
-provider-availability pauses for that provider. When structured Codex or Claude
-usage is below the threshold, or any provider has an active usage-exhausted
-signal, Syrus records `pause_reason: provider_availability` and schedules a
-recheck instead of creating the next Run. Running steps finish first. Codex and
+`StepDispatcher` calls `ProviderAvailabilityPause`, which checks the Workflow's
+pinned `agent_provider` against the current user's per-agent pause threshold.
+Agent Settings stores these thresholds on the user; each provider defaults to
+10%, and 0 disables the *proactive* remaining-usage-percent pause for that
+provider. That threshold check is the only opt-in part: an actively broken
+provider -- usage-exhausted, rate-limited, in an auth-error state, or with an
+open circuit -- is always paused on, regardless of the threshold setting, so
+setting a provider's threshold to 0 only stops Syrus from pausing early on low
+remaining usage, not from pausing when the provider is already provably down.
+When any of those conditions hold, Syrus records `pause_reason:
+provider_availability` and schedules a recheck instead of creating the next
+Run. Running steps finish first. Codex and
 Claude rechecks refresh the usage snapshot when stale so Workflows resume
 automatically once usage is above threshold; providers without a usage probe,
 including Muse, still participate in credential/configuration checks and in
