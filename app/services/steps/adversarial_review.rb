@@ -5,10 +5,8 @@ module Steps
 
     # The only failure this step is allowed to silently paper over by
     # repetition: the reviewer agent ran and simply never called the
-    # required MCP tool. A prior Run failing for an unrelated reason
-    # (timeout, workspace error, provider outage) must not count toward
-    # this threshold just because it also happened to leave the Step in a
-    # "failed" state.
+    # required MCP tool. See #skippable_review_failure? and
+    # #prior_failed_missing_tool_call_runs.
     MISSING_TOOL_CALL_PROBLEM_CODE = "missing_required_tool_call".freeze
 
     def call
@@ -27,10 +25,9 @@ module Steps
       workflow.reload
       if review_iterations.size <= before_count
         capture_mcp_sidecar_stderr
-        if repeated_failures_of?(MISSING_TOOL_CALL_PROBLEM_CODE)
+        if repeated_missing_tool_call_failures?
           skip_review!("reviewer did not call submit_adversarial_review after " \
-                       "#{prior_failed_review_runs_with_problem_code(MISSING_TOOL_CALL_PROBLEM_CODE)} " \
-                       "prior failed attempt(s) of the same kind")
+                       "#{prior_failed_missing_tool_call_runs} prior failed attempt(s) of the same kind")
           return
         end
 
@@ -145,36 +142,40 @@ module Steps
       Array(workflow.artifact("adversarial_review_iterations"))
     end
 
+    # Repetition alone never earns a silent skip — only the specific
+    # missing-tool-call condition does. A repeated AgentTimedOut or
+    # AgentGaveUpWaiting (real, plausible reviewer failure modes from
+    # run_agent) must keep failing the step for real, not get papered
+    # over just because the same problem code showed up twice in a row.
     def skippable_review_failure?(exception)
-      prompt_too_long?(exception) || repeated_failures_of?(problem_code_for(exception))
+      prompt_too_long?(exception) ||
+        (problem_code_for(exception) == MISSING_TOOL_CALL_PROBLEM_CODE && repeated_missing_tool_call_failures?)
     end
 
     def prompt_too_long?(exception)
       "#{exception.class}: #{exception.message}".match?(/prompt is too long|context.*too long|maximum context|context length/i)
     end
 
-    # Only a matching problem code counts as "repeated" — two unrelated
-    # failures in a row (or one unrelated failure followed by a real one)
-    # must not be conflated into a false "approved" skip.
     def problem_code_for(exception)
       return nil unless exception.respond_to?(:problem)
 
       exception.problem&.code
     end
 
-    def repeated_failures_of?(problem_code)
-      return false if problem_code.blank?
-
-      prior_failed_review_runs_with_problem_code(problem_code) >= FAILURE_SKIP_THRESHOLD
+    def repeated_missing_tool_call_failures?
+      prior_failed_missing_tool_call_runs >= FAILURE_SKIP_THRESHOLD
     end
 
     # Prior failed Runs on this Step whose recorded failure classification
     # (captured synchronously by CaptureRunDiagnostic before the Run is
-    # marked failed) matches the given problem code.
-    def prior_failed_review_runs_with_problem_code(problem_code)
+    # marked failed) is the specific missing-tool-call condition. A prior
+    # Run that failed for an unrelated reason (timeout, workspace error,
+    # provider outage) must not count toward this threshold just because
+    # it also happened to leave the Step in a "failed" state.
+    def prior_failed_missing_tool_call_runs
       step.runs.where.not(id: run.id).where(state: "failed")
         .joins(:run_diagnostic)
-        .where(run_diagnostics: { problem_code: problem_code })
+        .where(run_diagnostics: { problem_code: MISSING_TOOL_CALL_PROBLEM_CODE })
         .count
     end
 
