@@ -177,7 +177,7 @@ RSpec.describe "Syrus grader configuration" do
     expect(root_backstop.affected).to be(true)
   end
 
-  it "selects desktop targets and keeps the root React focused backstop for desktop-only changes" do
+  it "selects desktop targets without treating the root React grader as a desktop backstop" do
     graph = TargetGraph::Compiler.compile(Rails.root)
 
     typecheck = graph.affected("//desktop:grade/typecheck", changed_files: [ "desktop/src/App.tsx" ])
@@ -192,7 +192,7 @@ RSpec.describe "Syrus grader configuration" do
     )
     expect(typecheck.affected).to be(true)
     expect(renderer_build.affected).to be(true)
-    expect(root_react_focused.affected).to be(true)
+    expect(root_react_focused.affected).to be(false)
   end
 
   it "selects the union of Rails app and desktop project primitives for mixed app and desktop changes" do
@@ -211,18 +211,24 @@ RSpec.describe "Syrus grader configuration" do
     expect(desktop_renderer_build.affected).to be(true)
   end
 
-  it "keeps root React focused checks as a desktop review backstop until nested graders materialize" do
+  it "scopes root framework graders to the root Syrus app project" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    rspec = config.grade.steps.find { |step| step.name == "rspec" }
+    rspec_focused = config.grade.steps.find { |step| step.name == "rspec-focused" }
     grader = config.grade.steps.find { |step| step.name == "react-tests-focused" }
 
-    expect(grader.when_files_changed).to include(
+    expect(rspec.when_files_changed).to eq(%w[app/**/*.rb lib/**/*.rb spec/**/*.rb])
+    expect(rspec_focused.when_files_changed).to eq(%w[app/**/*.rb lib/**/*.rb spec/**/*.rb])
+    expect(grader.when_files_changed).to eq([
+      "app/frontend/**/*.js",
+      "app/frontend/**/*.jsx",
       "app/frontend/**/*.ts",
       "app/frontend/**/*.tsx",
-      "plugins/**/app/frontend/**/*.ts",
-      "plugins/**/app/frontend/**/*.tsx",
-      "desktop/src/**/*.ts",
-      "desktop/src/**/*.tsx"
-    )
+      "package.json",
+      "package-lock.json",
+      "tsconfig.json",
+      "vite.config.ts"
+    ])
   end
 
   it "scopes the website build grader to website and website deploy changes" do

@@ -2,9 +2,9 @@ module Ruby
   # Augments grader failure logs with structured details from RSpec's JSON
   # formatter output. When a grader command that invokes RSpec fails, the
   # plain-text transcript may be truncated before the summary prints. This
-  # augmentor reads the per-worker JSON files that bin/rspec-fast (and
-  # bin/rspec-ci) write to .syrus/rspec-json/ and appends a compact failure
-  # list so the agent sees every failed example even after a long run.
+  # augmentor reads the per-grader JSON files that typed RSpec graders write to
+  # .syrus/rspec-json/ and appends a compact failure list so the agent sees
+  # every failed example even after a long run.
   #
   # Only activates when the grader command contains "rspec" to avoid
   # misidentifying JSON files left over from a prior successful rspec grader

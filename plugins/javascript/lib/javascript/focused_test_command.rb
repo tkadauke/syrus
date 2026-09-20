@@ -33,7 +33,7 @@ module JavaScript
 
     def javascript_grader?
       @grader_name.match?(/(?:react|vitest|frontend)/i) ||
-        @grader_command.match?(/(?:vitest|bin\/test-react)/i)
+        @grader_command.match?(/vitest/i)
     end
 
     def failed_test_files

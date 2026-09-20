@@ -25,13 +25,26 @@ RSpec.describe Ruby::RspecGraderType do
 
     expect(steps.second.run).to include(".syrus/rspec-focused-files")
     expect(steps.second.phases).to eq(%w[review])
-    expect(steps.second.when_files_changed).to include("app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb")
+    expect(steps.second.when_files_changed).to eq([ "**/*.rb" ])
     expect(steps.second.metadata["grader_mode"]).to eq("focused")
 
     expect(steps.third.run).to include("RUN_CI_ONLY_SPECS=true")
     expect(steps.third.run).not_to include("--tag ~ci_only")
     expect(steps.third.phases).to eq(%w[ci])
     expect(steps.third.metadata["grader_mode"]).to eq("ci")
+  end
+
+  it "uses configured project scope for every generated grader" do
+    steps = described_class.grade_steps(
+      config: { "when_files_changed" => [ "app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb" ] },
+      default_failures: "strict"
+    )
+
+    expect(steps.map(&:when_files_changed)).to eq([
+      [ "app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb" ],
+      [ "app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb" ],
+      [ "app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb" ]
+    ])
   end
 
   it "allows a custom name prefix and inherited-failure policy" do

@@ -29,7 +29,7 @@ RSpec.describe Ruby::FocusedTestCommand do
   it "declines non-rspec graders" do
     command = described_class.command_for(
       grader_name: "react-tests",
-      grader_command: "bin/test-react",
+      grader_command: "npx vitest run",
       failed_cases: [ { "file_path" => "app/frontend/App.test.tsx", "name" => "fails" } ],
       base_retry: { "strategy" => "plugin" }
     )

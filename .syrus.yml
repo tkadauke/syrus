@@ -357,6 +357,10 @@ grade:
       The Ruby plugin owns the RSpec commands, focused review selection,
       CI-only tag policy, JSON/JUnit output, and base-revision retry.
     failures: allow_inherited
+    when_files_changed:
+      - "app/**/*.rb"
+      - "lib/**/*.rb"
+      - "spec/**/*.rb"
     timeout_minutes: 60
     focused_timeout_minutes: 10
     ci_timeout_minutes: 60
@@ -372,6 +376,15 @@ grade:
     failures: allow_inherited
     coverage: true
     typecheck: true
+    when_files_changed:
+      - "app/frontend/**/*.js"
+      - "app/frontend/**/*.jsx"
+      - "app/frontend/**/*.ts"
+      - "app/frontend/**/*.tsx"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "vite.config.ts"
     timeout_minutes: 20
     focused_timeout_minutes: 20
     ci_timeout_minutes: 20

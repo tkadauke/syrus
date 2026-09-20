@@ -165,11 +165,20 @@ grade:
     - type: rspec
       failures: allow_inherited
       description: Run the Ruby test suite
+      when_files_changed:
+        - "app/**/*.rb"
+        - "lib/**/*.rb"
+        - "spec/**/*.rb"
       required: true
       timeout_minutes: 15
     - type: vitest
       coverage: true
       typecheck: true
+      when_files_changed:
+        - "src/**/*.ts"
+        - "src/**/*.tsx"
+        - "test/**/*.ts"
+        - "test/**/*.tsx"
       timeout_minutes: 10
     - name: website-build
       run: npm --prefix website run build
@@ -247,6 +256,10 @@ plugin's `type: rspec` expands to landing, focused-review, and CI RSpec
 graders. The JavaScript plugin's `type: vitest` does the same for Vitest and
 can optionally run typecheck and coverage. A plugin-owned grader must not also
 set `run:`; use `type: custom` for repository-specific shell commands.
+Typed grader defaults are framework-generic and relative to the project root;
+use `when_files_changed` to declare the files owned by this particular
+project. Do not make a root grader cover unrelated plugin or subproject paths;
+give those projects their own `.syrus.yml` and graders.
 
 Custom `run:` commands are executed as-is. A `fast:` key is no longer accepted
 at all — declaring it in `.syrus.yml` has no effect and is not parsed into

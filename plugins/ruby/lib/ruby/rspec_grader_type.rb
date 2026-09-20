@@ -5,7 +5,7 @@ module Ruby
     include Syrus::Plugin::GraderType
 
     DEFAULT_TIMEOUT_MINUTES = 15
-    FOCUSED_CHANGED_FILES = [ "app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb", "plugins/*/app/**/*.rb", "plugins/*/lib/**/*.rb", "plugins/*/spec/**/*.rb" ].freeze
+    FOCUSED_CHANGED_FILES = [ "**/*.rb" ].freeze
 
     def self.type_name
       "rspec"
@@ -22,9 +22,9 @@ module Ruby
 
     def grade_steps
       [
-        grade_step(name: full_name, run: full_command, phases: landing_phases, mode: "full", junit_output: junit_output(full_name)),
-        grade_step(name: focused_name, run: focused_command, phases: review_phases, mode: "focused", junit_output: junit_output(focused_name), when_files_changed: FOCUSED_CHANGED_FILES),
-        grade_step(name: ci_name, run: ci_command, phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name))
+        grade_step(name: full_name, run: full_command, phases: landing_phases, mode: "full", junit_output: junit_output(full_name), when_files_changed: configured_scope),
+        grade_step(name: focused_name, run: focused_command, phases: review_phases, mode: "focused", junit_output: junit_output(focused_name), when_files_changed: focused_scope),
+        grade_step(name: ci_name, run: ci_command, phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name), when_files_changed: configured_scope)
       ]
     end
 
@@ -92,6 +92,15 @@ module Ruby
 
     def failures
       config["failures"].to_s.strip.presence || "allow_inherited"
+    end
+
+    def configured_scope
+      patterns = Array(config["when_files_changed"]).map(&:to_s).map(&:strip).reject(&:empty?)
+      patterns.presence
+    end
+
+    def focused_scope
+      configured_scope || FOCUSED_CHANGED_FILES
     end
 
     def description_for(mode)
@@ -187,23 +196,23 @@ module Ruby
     end
 
     def focused_selector_ruby
-      <<~'RUBY'
+      <<~'RUBY'.sub("__SYRUS_SCOPE__", focused_scope.inspect)
         base = %w[origin/main origin/master main master].find { |ref| system("git", "rev-parse", "--verify", "#{ref}^{commit}", out: File::NULL, err: File::NULL) }
         exit 0 unless base
+        scope = __SYRUS_SCOPE__
+        matches_scope = ->(path) { scope.empty? || scope.any? { |pattern| File.fnmatch?(pattern, path, File::FNM_DOTMATCH) } }
         changed = `git diff --name-only --diff-filter=ACMR #{base}...HEAD -- "*.rb"`.lines.map(&:strip)
-        specs = changed.filter_map do |path|
+        specs = changed.select { |path| matches_scope.call(path) }.flat_map do |path|
           if path.start_with?("spec/") && path.end_with?("_spec.rb")
-            path
-          elsif path.start_with?("app/")
-            "spec/#{path.delete_prefix("app/").sub(/\.rb\z/, "_spec.rb")}"
-          elsif path.start_with?("lib/")
-            "spec/lib/#{path.delete_prefix("lib/").sub(/\.rb\z/, "_spec.rb")}"
-          elsif path.match?(%r{\Aplugins/([^/]+)/app/(.+)\.rb\z})
-            "plugins/#{$1}/spec/#{$2}_spec.rb"
-          elsif path.match?(%r{\Aplugins/([^/]+)/lib/(.+)\.rb\z})
-            "plugins/#{$1}/spec/lib/#{$2}_spec.rb"
-          elsif path.match?(%r{\Aplugins/([^/]+)/spec/.+_spec\.rb\z})
-            path
+            [ path ]
+          else
+            stem = path.sub(/\.rb\z/, "")
+            [
+              "#{stem}_spec.rb",
+              "spec/#{stem}_spec.rb",
+              path.start_with?("app/") ? "spec/#{path.delete_prefix("app/").sub(/\.rb\z/, "_spec.rb")}" : nil,
+              path.start_with?("lib/") ? "spec/lib/#{path.delete_prefix("lib/").sub(/\.rb\z/, "_spec.rb")}" : nil
+            ].compact
           end
         end
         puts specs.uniq.sort.select { |path| File.exist?(path) }

@@ -4,7 +4,7 @@ RSpec.describe JavaScript::FocusedTestCommand do
   it "focuses JavaScript graders to failed test files" do
     command = described_class.command_for(
       grader_name: "react-tests",
-      grader_command: "bin/test-react",
+      grader_command: "npx vitest run",
       failed_cases: [
         { "file_path" => "app/frontend/routes/App.test.tsx", "name" => "renders dashboard" },
         { "suite_name" => "plugins/demo/app/frontend/demo.spec.ts", "name" => "renders" }
@@ -21,7 +21,7 @@ RSpec.describe JavaScript::FocusedTestCommand do
   it "declines when the grader did not opt into plugin strategy" do
     command = described_class.command_for(
       grader_name: "react-tests",
-      grader_command: "bin/test-react",
+      grader_command: "npx vitest run",
       failed_cases: [ { "file_path" => "app/frontend/routes/App.test.tsx", "name" => "renders dashboard" } ],
       base_retry: { "strategy" => "files_as_args" }
     )
@@ -32,7 +32,7 @@ RSpec.describe JavaScript::FocusedTestCommand do
   it "declines non-JavaScript graders" do
     command = described_class.command_for(
       grader_name: "rspec",
-      grader_command: "bin/rspec-fast",
+      grader_command: "bundle exec rspec",
       failed_cases: [ { "file_path" => "spec/models/job_spec.rb", "name" => "works" } ],
       base_retry: { "strategy" => "plugin" }
     )

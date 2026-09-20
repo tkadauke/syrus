@@ -23,12 +23,26 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.second.run).to include(".syrus/vitest-focused-files")
     expect(steps.second.run).to include("run_vitest related --run --passWithNoTests")
     expect(steps.second.phases).to eq(%w[review])
-    expect(steps.second.when_files_changed).to include("app/frontend/**/*.ts", "app/frontend/**/*.tsx", "desktop/src/**/*.tsx")
+    expect(steps.second.when_files_changed).to include("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
+    expect(steps.second.when_files_changed).not_to include("app/frontend/**/*.ts", "desktop/src/**/*.tsx")
     expect(steps.second.metadata["grader_mode"]).to eq("focused")
 
     expect(steps.third.run).to include("run_vitest run")
     expect(steps.third.phases).to eq(%w[ci])
     expect(steps.third.metadata["grader_mode"]).to eq("ci")
+  end
+
+  it "uses configured project scope for every generated grader" do
+    steps = described_class.grade_steps(
+      config: { "when_files_changed" => [ "app/frontend/**/*.ts", "app/frontend/**/*.tsx" ] },
+      default_failures: "strict"
+    )
+
+    expect(steps.map(&:when_files_changed)).to eq([
+      [ "app/frontend/**/*.ts", "app/frontend/**/*.tsx" ],
+      [ "app/frontend/**/*.ts", "app/frontend/**/*.tsx" ],
+      [ "app/frontend/**/*.ts", "app/frontend/**/*.tsx" ]
+    ])
   end
 
   it "allows a custom name prefix, timeout, and required flag" do

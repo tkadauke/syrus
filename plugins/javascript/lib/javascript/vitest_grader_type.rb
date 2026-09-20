@@ -6,32 +6,10 @@ module JavaScript
 
     DEFAULT_TIMEOUT_MINUTES = 15
     FOCUSED_CHANGED_FILES = [
-      "app/frontend/**/*.js",
-      "app/frontend/**/*.jsx",
-      "app/frontend/**/*.ts",
-      "app/frontend/**/*.tsx",
-      "plugins/*/app/frontend/**/*.js",
-      "plugins/*/app/frontend/**/*.jsx",
-      "plugins/*/app/frontend/**/*.ts",
-      "plugins/*/app/frontend/**/*.tsx",
-      "plugins/**/app/frontend/**/*.ts",
-      "plugins/**/app/frontend/**/*.tsx",
-      "desktop/src/*.ts",
-      "desktop/src/*.tsx",
-      "desktop/src/**/*.ts",
-      "desktop/src/**/*.tsx",
-      "src/**/*.js",
-      "src/**/*.jsx",
-      "src/**/*.ts",
-      "src/**/*.tsx",
-      "test/**/*.js",
-      "test/**/*.jsx",
-      "test/**/*.ts",
-      "test/**/*.tsx",
-      "tests/**/*.js",
-      "tests/**/*.jsx",
-      "tests/**/*.ts",
-      "tests/**/*.tsx",
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.ts",
+      "**/*.tsx",
       "*.js",
       "*.jsx",
       "*.ts",
@@ -60,9 +38,9 @@ module JavaScript
 
     def grade_steps
       [
-        grade_step(name: full_name, run: full_command, phases: landing_phases, mode: "full", junit_output: junit_output(full_name)),
-        grade_step(name: focused_name, run: focused_command, phases: review_phases, mode: "focused", junit_output: junit_output(focused_name), when_files_changed: FOCUSED_CHANGED_FILES),
-        grade_step(name: ci_name, run: ci_command, phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name))
+        grade_step(name: full_name, run: full_command, phases: landing_phases, mode: "full", junit_output: junit_output(full_name), when_files_changed: configured_scope),
+        grade_step(name: focused_name, run: focused_command, phases: review_phases, mode: "focused", junit_output: junit_output(focused_name), when_files_changed: focused_scope),
+        grade_step(name: ci_name, run: ci_command, phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name), when_files_changed: configured_scope)
       ]
     end
 
@@ -130,6 +108,15 @@ module JavaScript
 
     def failures
       config["failures"].to_s.strip.presence || default_failures
+    end
+
+    def configured_scope
+      patterns = Array(config["when_files_changed"]).map(&:to_s).map(&:strip).reject(&:empty?)
+      patterns.presence
+    end
+
+    def focused_scope
+      configured_scope || FOCUSED_CHANGED_FILES
     end
 
     def description_for(mode)
@@ -243,11 +230,14 @@ module JavaScript
     end
 
     def focused_selector_ruby
-      <<~'RUBY'
-        base = %w[origin/main origin/master main master].find { |ref| system("git", "rev-parse", "--verify", "#{ref}^{commit}", out: File::NULL, err: File::NULL) }
+      scope_literal = focused_scope.inspect
+      <<~RUBY
+        base = %w[origin/main origin/master main master].find { |ref| system("git", "rev-parse", "--verify", "\#{ref}^{commit}", out: File::NULL, err: File::NULL) }
         exit 0 unless base
-        changed = `git diff --name-only --diff-filter=ACMR #{base}...HEAD -- "*.js" "*.jsx" "*.ts" "*.tsx"`.lines.map(&:strip)
-        puts changed.uniq.sort.select { |path| File.exist?(path) }
+        scope = #{scope_literal}
+        matches_scope = ->(path) { scope.empty? || scope.any? { |pattern| File.fnmatch?(pattern, path, File::FNM_DOTMATCH) } }
+        changed = `git diff --name-only --diff-filter=ACMR \#{base}...HEAD -- "*.js" "*.jsx" "*.ts" "*.tsx"`.lines.map(&:strip)
+        puts changed.uniq.sort.select { |path| File.exist?(path) && matches_scope.call(path) }
       RUBY
     end
 
