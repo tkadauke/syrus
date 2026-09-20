@@ -1,10 +1,9 @@
 module PendingActions
   class ForceFailJob < Base
     action_key "force_fail_job"
+    admin_only!
 
     def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
       job = Job.find(payload.fetch("job_id"))
       raise ArgumentError, "#{job.slug} is #{job.state} and cannot be force-failed." unless job.may_force_fail?
 

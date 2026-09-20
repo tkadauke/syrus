@@ -1,5 +1,13 @@
 module PendingActions
   class Base
+    def self.admin_only!
+      @admin_only = true
+    end
+
+    def self.admin_only?
+      @admin_only == true || action_key.start_with?("admin_")
+    end
+
     def self.action_key(key = nil)
       if key
         @action_key = key.to_s
@@ -27,6 +35,10 @@ module PendingActions
     def execute
       require_admin!
       perform
+    end
+
+    def authorize_execution!
+      require_admin! if self.class.admin_only?
     end
 
     def perform

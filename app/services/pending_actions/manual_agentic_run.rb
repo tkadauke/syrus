@@ -1,10 +1,9 @@
 module PendingActions
   class ManualAgenticRun < Base
     action_key "manual_agentic_run"
+    admin_only!
 
     def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
       progress!("Creating manual agentic workflow...")
       result = ::ManualAgenticRun::Enqueuer.call(
         job: repair_action_job,

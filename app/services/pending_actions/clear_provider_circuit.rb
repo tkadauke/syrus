@@ -1,6 +1,7 @@
 module PendingActions
   class ClearProviderCircuit < Base
     action_key "clear_provider_circuit"
+    admin_only!
 
     def execute
       progress!("Clearing provider circuit for #{payload.fetch("provider")}...")
