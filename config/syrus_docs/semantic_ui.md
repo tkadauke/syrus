@@ -177,7 +177,7 @@ gallery; no update needed there for this pass).
 
 ## Testing this layer
 
-- `npm run typecheck`, `npm run lint`, and `bin/test-react` (typecheck +
+- `npm run typecheck`, `npm run lint`, and `npm run test:react` (typecheck +
   Vitest) are the fast local/CI signal; `bin/style-debt-report` reports the
   not-yet-enforced migration categories without failing anything.
 - `e2e/operational-surfaces-visual.spec.ts` exercises representative

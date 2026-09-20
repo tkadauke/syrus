@@ -151,24 +151,25 @@ keep the legacy root preview behavior.
 
 ## grade
 
-Graders are shell commands Syrus runs to validate the agent's work. All graders must pass before the workflow succeeds.
+Graders validate the agent's work. Framework graders should use plugin-defined
+`type:` entries so Syrus can synthesize full, focused, CI, coverage, and
+base-revision retry behavior from one declaration. Repository-specific checks
+can still use explicit shell `run:` commands. All required graders must pass
+before the workflow succeeds.
 
 ```yaml
 grade:
   max_iterations: 5
   failures: strict
   steps:
-    - name: rspec
-      run: COVERAGE=false bin/rspec-fast
-      ci: COVERAGE=false bin/rspec-ci
-      junit_output: .syrus/grade-output/rspec-junit.xml
+    - type: rspec
       failures: allow_inherited
       description: Run the Ruby test suite
       required: true
       timeout_minutes: 15
-    - name: typecheck
-      run: npm run typecheck
-      required: false
+    - type: vitest
+      coverage: true
+      typecheck: true
       timeout_minutes: 10
     - name: website-build
       run: npm --prefix website run build
@@ -181,8 +182,7 @@ The short form (array) uses instance-wide `AppSetting.grade_max_iterations`:
 
 ```yaml
 grade:
-  - name: rspec
-    run: bin/rspec
+  - type: rspec
 ```
 
 A `grade:` block in a nested `.syrus.yml` declares grader targets for that
@@ -215,6 +215,7 @@ most once per workflow workspace.
 | `description` | no | — | Human-readable label |
 | `required` | no | `true` | Non-required failures warn but don't block |
 | `timeout_minutes` | no | 15 | Clamped to 90 max |
+| `<mode>_timeout_minutes` / `timeouts` | no | `timeout_minutes` | Plugin-defined graders can override generated `full`, `focused`, or `ci` grader timeouts |
 | `when_files_changed` | no | — | Array of glob patterns; grader is skipped at fanout time if none of the PR's changed files match |
 | `junit_output` | no | — | Path to JUnit XML produced by the command; enables per-test result ingestion |
 | `failures` | no | `grade.failures` or `strict` | `strict` or `allow_inherited` |
@@ -234,26 +235,22 @@ grade:
 # present, but allowed for clarity.
 grade:
   - type: custom
-    name: rspec
-    run: bin/rspec-fast
+    name: schema-check
+    run: bin/check-schema
     failures: allow_inherited
     base_retry:
-      strategy: files_as_args
+      strategy: full_command
 ```
 
 Plugin-defined graders may expand to more than one concrete grader. The Ruby
-plugin's `type: rspec` expands to a full RSpec grader for landing/CI plus a
-focused review grader, both with plugin-backed base-revision retry. A
-plugin-owned grader must not also set `run:`; use `type: custom` for bespoke
-wrapper scripts.
+plugin's `type: rspec` expands to landing, focused-review, and CI RSpec
+graders. The JavaScript plugin's `type: vitest` does the same for Vitest and
+can optionally run typecheck and coverage. A plugin-owned grader must not also
+set `run:`; use `type: custom` for repository-specific shell commands.
 
-`run` is the everyday command for every non-CI context, so it should already
-be the fast, parallel one. For Ruby projects, prefer putting formatter,
-coverage, parallelization, and CI-only filtering policy in a wrapper script
-such as `bin/rspec-fast`. Grader infrastructure runs the configured command
-as-is instead of appending RSpec-specific flags. A `fast:` key is no longer
-accepted at all — declaring it in `.syrus.yml` has no effect and is not
-parsed into anything.
+Custom `run:` commands are executed as-is. A `fast:` key is no longer accepted
+at all — declaring it in `.syrus.yml` has no effect and is not parsed into
+anything.
 
 ### phases
 
@@ -273,13 +270,12 @@ grade:
     run: bin/check-eager-load
     phases: [review, landing, ci]
 
-  - name: rspec
-    run: COVERAGE=false bin/rspec-fast
-    phases: [landing]
+  - type: rspec
+    failures: allow_inherited
 
-  - name: rspec-ci
-    run: COVERAGE=false bin/rspec-ci
-    phases: [ci]
+  - type: vitest
+    coverage: true
+    typecheck: true
 ```
 
 Use CI-only specs for checks that are too slow, too environmental, or too broad
@@ -290,10 +286,11 @@ main-branch health reflects the GitHub CI suite.
 
 ### ci (legacy)
 
-`ci` is still parsed for older configs. It expands into a separate
+`ci` is still parsed for older custom configs. It expands into a separate
 `<name>-ci` grader whose only phase is `ci`, and the original `run` grader is
-removed from the `ci` phase. New configs should declare an explicit `*-ci`
-grader with `phases: [ci]` instead.
+removed from the `ci` phase. New framework configs should prefer typed grader
+plugins; new custom configs should declare an explicit `*-ci` grader with
+`phases: [ci]`.
 
 ### failures
 
@@ -305,9 +302,7 @@ level as the default for all steps, and overridden per step:
 grade:
   failures: strict
   steps:
-    - name: rspec
-      run: bin/rspec-fast
-      junit_output: .syrus/grade-output/rspec-junit.xml
+    - type: rspec
       failures: allow_inherited
     - name: eager-load
       run: bin/check-eager-load
@@ -329,12 +324,8 @@ failure should never be ignored, such as eager-load or production boot checks.
 
 ```yaml
 grade:
-  - name: rspec
-    run: bin/rspec-fast
-    junit_output: .syrus/grade-output/rspec-junit.xml
+  - type: rspec
     failures: allow_inherited
-    base_retry:
-      strategy: files_as_args
 ```
 
 Supported forms:
@@ -353,30 +344,31 @@ Supported forms:
   or build-style graders such as `website-build` where individual failing tests
   do not exist. Syrus only falls back to this after cached base test/output
   evidence cannot decide the inherited-failure question.
-- `command: bin/rspec-individual {files}` uses an explicit command template.
+- `command: bin/test-individual {files}` uses an explicit command template.
   `{files}` expands to the shell-quoted unique failed test files and
   `{failed_count}` expands to the number of failed cases. A string
   `base_retry: ...` is accepted as legacy shorthand for this command form.
 
 ### Recommended test setup
 
-For repositories with meaningful test suites, prefer small wrapper scripts over long inline grader commands. Put test-runner-specific policy in the repository, not in Syrus:
-
-- formatter setup (for example, progress on stdout plus JSON or JUnit artifacts)
-- coverage toggles and artifact paths
-- parallelization and per-worker result files
-- exclusion of CI-only tests from the normal fast suite
-
-A good default shape is:
+For repositories with common framework test suites, prefer typed plugin graders
+over repository wrapper scripts. The plugin owns result artifacts, focused
+selection, coverage toggles, CI phase behavior, and base-revision retry:
 
 ```yaml
 grade:
-  - name: tests
-    run: bin/test-fast
-    ci: bin/test-ci
+  - type: rspec
+    failures: allow_inherited
+
+  - type: vitest
+    coverage: true
+    typecheck: true
 ```
 
-Use `run` for the normal validation command — it runs in every context except CI-failure repair and main-branch grading, so make it the fast, parallel one. If coverage reporting is configured, this is also the command that produces coverage artifacts. Use `ci` for CI-failure repair workflows and main-branch grading, where Syrus needs to run the slower checks that GitHub Actions ran.
+Use custom `run:` graders for checks that are genuinely repository-specific:
+schema validators, release artifact builds, generated-file consistency checks,
+or project-specific smoke tests. If a common language/framework plugin lacks a
+capability, add it to the plugin so other repositories inherit it.
 
 Keep the normal grader suite fast enough for repeated agent use. A useful target is under 30 seconds for the primary pass/fail suite. If tests are slow because they create real repositories, spawn shells, hit network services, exercise large filesystem trees, or boot full integrations, first try to replace that cost with fakes, dependency injection, fixtures, or narrower unit coverage. Mark tests CI-only only when the real integration behavior is important and cannot reasonably be made fast.
 
@@ -410,8 +402,7 @@ How many repair→check cycles Syrus attempts before failing the workflow. Range
 grade:
   rerun_only_failed: true
   steps:
-    - name: rspec
-      run: bin/rspec-fast
+    - type: rspec
     - name: typecheck
       run: npm run typecheck
 ```

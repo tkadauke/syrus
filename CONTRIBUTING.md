@@ -23,7 +23,7 @@ After setup, the common local commands are:
 bin/dev          # Rails web, worker, and Tailwind watcher
 bin/test         # Ruby, legacy JavaScript, React, and TypeScript checks
 bin/rspec        # RSpec suite
-bin/test-react   # React/Vitest suite and TypeScript typecheck
+npm run test:react # React/Vitest suite and TypeScript typecheck
 ```
 
 ## Tests
@@ -41,9 +41,8 @@ Every pull request should include tests for the behavior it changes:
   GitHub live.
 
 Run the narrowest useful test while developing, then run the relevant broader
-suite before opening the PR. For frontend-only work, `bin/test-react` is
-usually enough. For backend or cross-cutting work, run `bin/rspec` or
-`bin/test`.
+suite before opening the PR. For frontend-only work, `npm run test:react` is
+usually enough. For backend or cross-cutting work, run `bin/rspec` or `bin/test`.
 
 ## Pull request process
 

@@ -73,8 +73,8 @@ checkout:
 7. **Once every planned commit has cherry-picked cleanly:** before treating
    the backport as done, run this repository's own test and lint commands —
    whatever this repository's `.syrus.yml` `prepare` and `grade`/`graders`
-   sections run (`bin/rspec-fast`, `bin/test-react`, the migration/lint
-   checks, etc. — read `.syrus.yml` at the repo root rather than assuming).
+   sections run (typed framework graders, migration/lint checks, custom
+   commands, etc. — read `.syrus.yml` at the repo root rather than assuming).
    A skill run happens outside Syrus's normal deterministic grader chain, so
    nothing downstream will catch a broken `{{target_branch}}` if you skip
    this. Only proceed past this step if every command you run succeeds.

@@ -616,9 +616,13 @@ diff for comparison against other landing-validation-cache fingerprints.
 
 ### grader
 
-Non-agentic. Runs a single grader command (e.g., `bin/rspec`). Required graders must pass; non-required graders warn on failure.
+Non-agentic. Runs a single configured grader target. Required graders must pass; non-required graders warn on failure.
 
-Syrus does not mutate grader commands for specific test frameworks. If a command needs multiple formatters, coverage toggles, parallelization, or CI-only filtering, put that policy in `.syrus.yml` or a repository wrapper script such as `bin/rspec-fast`.
+Framework plugins can provide typed graders such as `type: rspec` and `type:
+vitest`; those plugins own the concrete commands, focused-test selection,
+coverage toggles, result artifacts, CI-only filtering, and base-revision retry
+behavior. Use explicit `run:` graders for repository-specific checks that do
+not map to a framework plugin.
 
 Graders declare a single command and optional `phases:`. Syrus chooses the
 phase from workflow context and runs only graders whose `phases` include it:

@@ -56,8 +56,8 @@ Your workspace is already checked out on a branch based on the current tip of
      linear history, and silently switching strategies defeats that.
 3. Before you consider the merge "successful", run this repo's own test and
    lint commands — whatever this repository's `.syrus.yml` `prepare` and
-   `grade`/`graders` sections run (`bin/rspec-fast`, `bin/test-react`, the
-   migration/lint checks, etc. — read `.syrus.yml` at the repo root rather
+   `grade`/`graders` sections run (typed framework graders, migration/lint
+   checks, custom commands, etc. — read `.syrus.yml` at the repo root rather
    than assuming). A skill run happens outside Syrus's normal deterministic
    grader chain, so nothing downstream will catch a broken `{{target_branch}}`
    if you skip this. Only proceed past this step if every command you run

@@ -6,12 +6,36 @@ module JavaScript
 
     DEFAULT_TIMEOUT_MINUTES = 15
     FOCUSED_CHANGED_FILES = [
-      "app/frontend/**/*.{js,jsx,ts,tsx}",
-      "plugins/*/app/frontend/**/*.{js,jsx,ts,tsx}",
-      "src/**/*.{js,jsx,ts,tsx}",
-      "test/**/*.{js,jsx,ts,tsx}",
-      "tests/**/*.{js,jsx,ts,tsx}",
-      "*.{js,jsx,ts,tsx}",
+      "app/frontend/**/*.js",
+      "app/frontend/**/*.jsx",
+      "app/frontend/**/*.ts",
+      "app/frontend/**/*.tsx",
+      "plugins/*/app/frontend/**/*.js",
+      "plugins/*/app/frontend/**/*.jsx",
+      "plugins/*/app/frontend/**/*.ts",
+      "plugins/*/app/frontend/**/*.tsx",
+      "plugins/**/app/frontend/**/*.ts",
+      "plugins/**/app/frontend/**/*.tsx",
+      "desktop/src/*.ts",
+      "desktop/src/*.tsx",
+      "desktop/src/**/*.ts",
+      "desktop/src/**/*.tsx",
+      "src/**/*.js",
+      "src/**/*.jsx",
+      "src/**/*.ts",
+      "src/**/*.tsx",
+      "test/**/*.js",
+      "test/**/*.jsx",
+      "test/**/*.ts",
+      "test/**/*.tsx",
+      "tests/**/*.js",
+      "tests/**/*.jsx",
+      "tests/**/*.ts",
+      "tests/**/*.tsx",
+      "*.js",
+      "*.jsx",
+      "*.ts",
+      "*.tsx",
       "package.json",
       "package-lock.json",
       "pnpm-lock.yaml",
@@ -87,8 +111,8 @@ module JavaScript
       ActiveModel::Type::Boolean.new.cast(config["required"])
     end
 
-    def timeout_minutes
-      raw = config["timeout_minutes"]
+    def timeout_minutes(mode)
+      raw = mode_timeout_minutes(mode)
       return DEFAULT_TIMEOUT_MINUTES if raw.blank?
 
       minutes = Integer(raw)
@@ -99,8 +123,24 @@ module JavaScript
       raise ArgumentError, "timeout_minutes must be a positive integer"
     end
 
+    def mode_timeout_minutes(mode)
+      nested = config["timeouts"].is_a?(Hash) ? config["timeouts"].stringify_keys[mode] : nil
+      config["#{mode}_timeout_minutes"].presence || nested.presence || config["timeout_minutes"]
+    end
+
     def failures
       config["failures"].to_s.strip.presence || default_failures
+    end
+
+    def description_for(mode)
+      configured = config["description"].to_s.strip.presence
+      return configured if configured
+
+      case mode
+      when "focused" then "Focused Vitest tests selected from changed JavaScript and TypeScript files."
+      when "ci" then "Vitest suite in CI mode."
+      else "Vitest suite."
+      end
     end
 
     def base_retry
@@ -217,9 +257,9 @@ module JavaScript
         run: run,
         ci: nil,
         phases: phases,
-        description: nil,
+        description: description_for(mode),
         required: required?,
-        timeout_minutes: timeout_minutes,
+        timeout_minutes: timeout_minutes(mode),
         when_files_changed: when_files_changed,
         junit_output: junit_output,
         failures: failures,

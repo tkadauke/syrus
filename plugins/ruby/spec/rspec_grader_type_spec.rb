@@ -10,6 +10,7 @@ RSpec.describe Ruby::RspecGraderType do
 
     expect(steps.map(&:name)).to eq(%w[rspec rspec-focused rspec-ci])
     expect(steps.first.run).to include("bundle exec rspec")
+    expect(steps.first.run).to include("bin/rails db:test:prepare")
     expect(steps.first.run).to include("--tag \\~ci_only")
     expect(steps.first.run).to include(".syrus/rspec-json/rspec.json")
     expect(steps.first.phases).to eq(%w[landing])
@@ -56,6 +57,28 @@ RSpec.describe Ruby::RspecGraderType do
       [ "rspec-focused", %w[review] ],
       [ "rspec-ci", [] ]
     ])
+  end
+
+  it "supports per-mode timeout overrides" do
+    steps = described_class.grade_steps(
+      config: { "timeout_minutes" => 60, "timeouts" => { "focused" => 10 } },
+      default_failures: "strict"
+    )
+
+    expect(steps.map { |step| [ step.name, step.timeout_minutes ] }).to eq([
+      [ "rspec", 60 ],
+      [ "rspec-focused", 10 ],
+      [ "rspec-ci", 60 ]
+    ])
+  end
+
+  it "can disable the auto Rails test database prepare hook" do
+    step = described_class.grade_steps(
+      config: { "database_prepare" => false },
+      default_failures: "strict"
+    ).first
+
+    expect(step.run).not_to include("bin/rails db:test:prepare")
   end
 
   it "marks coverage-capable commands when coverage is enabled" do

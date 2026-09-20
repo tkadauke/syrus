@@ -1411,10 +1411,10 @@ test environment (e.g. SolidQueue tables aren't loaded in test —
 test runs single-database), stub the boundary and say so in a
 comment. Don't skip the test.
 
-The suite has grown past 9,300 examples (serial `bin/rspec` now takes
-50-56+ minutes); there is still no excuse — run `bin/rspec-fast` (parallel,
-excludes `:ci_only`) for the normal local/grader loop instead of the serial
-runner.
+The suite is large. During implementation, run the narrowest useful local
+validation: the exact failing example, the smallest affected spec file, or the
+focused frontend test file. Syrus runs typed framework graders from
+`.syrus.yml` after agentic steps for broader feedback.
 
 ## Testing on the deployed instance
 
@@ -1577,24 +1577,19 @@ Local dev:
 ```
 bin/setup          # initial install + DB
 bin/dev            # foreman: web + worker + tailwind:watch
-bin/rspec          # serial Ruby suite
-bin/rspec-fast     # parallel Ruby suite, excludes :ci_only specs
-bin/rspec-ci       # rspec-fast plus :ci_only specs
-bin/rspec spec/jobs/run_job_spec.rb   # one file
-bin/test-react     # React/Vitest suite + TypeScript typecheck
+bin/rspec spec/jobs/run_job_spec.rb   # one Ruby spec file
+bundle exec rspec spec/jobs/run_job_spec.rb:42 # one Ruby example
+npm run test:react # React/Vitest suite + TypeScript typecheck
 bin/test           # Ruby and React suites; reports separately
 ```
 
-React tests run through Vitest and TypeScript. Use `bin/test-react` for
-frontend-only changes, or `bin/test` to chain Ruby and React.
+React tests run through Vitest and TypeScript. Use `npm run test:react` for
+frontend-only changes when a focused Vitest command is not enough, or
+`bin/test` to chain Ruby and React.
 
-Ruby specs are split into the normal fast suite and explicit CI-only specs.
-`bin/rspec-fast` is the default full-suite check for local work and Syrus
-graders: it runs RSpec in parallel, excludes examples tagged `:ci_only`, emits
-normal progress output to stdout, and writes per-worker JSON files to
-`.syrus/rspec-json/`. `bin/rspec-ci` first runs `bin/rspec-fast`, then runs
-the `:ci_only` examples and writes `rspec-ci-only.json` in the same JSON
-directory.
+Syrus repository grading is declared with typed RSpec and Vitest graders in
+`.syrus.yml`. The plugins synthesize full, focused, and CI-phase commands plus
+test-result output and base-revision retry behavior.
 
 Use CI-only specs sparingly. They are for checks that are too slow, too
 environmental, or too broad for normal agent grade loops but still important in

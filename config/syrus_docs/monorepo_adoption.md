@@ -61,12 +61,8 @@ preview:
   health_check: /up
 
 grade:
-  - name: rspec
-    run: bin/rspec-fast
-    phases: [review, landing]
-  - name: react
-    run: npm run test:react
-    phases: [review, landing]
+  - type: rspec
+  - type: vitest
 ```
 
 Internally, Syrus still compiles this into the TargetGraph under the implicit
@@ -97,8 +93,7 @@ preview:
 grade:
   - name: smoke
     run: bin/check-eager-load
-  - name: tests
-    run: bin/rspec-fast
+  - type: rspec
 ```
 
 Small CLI example:

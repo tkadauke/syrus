@@ -240,7 +240,7 @@ Claude, Codex, and Antigravity.
 ```bash
 bin/dev          # foreman: web (rails s) + worker (bin/jobs) + tailwind + JS watch
 bin/rspec        # Ruby test suite (local coverage off by default)
-bin/test-react   # React/Vitest suite + TypeScript typecheck
+npm run test:react # React/Vitest suite + TypeScript typecheck
 bin/test         # Ruby and React suites together
 bin/test-docker  # integration tests against the Docker image (isolated stack)
 ```

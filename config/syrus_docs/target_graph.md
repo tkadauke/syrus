@@ -1028,8 +1028,7 @@ under the implicit root project `//:repo`.
 prepare:
   - bundle install
 grade:
-  - name: rspec
-    run: bin/rspec-fast
+  - type: rspec
 ```
 
 ### One folder per project
@@ -1083,8 +1082,8 @@ grade:
     run: npm --prefix frontend test
     when_files_changed:
       - "frontend/**"
-  - name: backend-tests
-    run: bin/rspec-fast
+  - type: rspec
+    name: backend-tests
     when_files_changed:
       - "backend/**"
 ```
@@ -1216,7 +1215,7 @@ project:
   id: api
 grade:
   - name: contract-tests
-    run: bin/rspec-fast spec/api
+    run: bin/test-contracts spec/api
 ```
 
 This layout can express dependency edges with explicit target labels, for

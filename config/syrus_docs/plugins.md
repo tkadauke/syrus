@@ -497,12 +497,10 @@ SYRUS_REPO="$PWD" \
 `rails runner` in development lazily autoloads, so a core file referencing a
 removed plugin constant would not be touched.
 
-To run the suite in the copy instead, prepare its databases first
-(`rails db:test:prepare` then `rake parallel:prepare`) and then invoke
-`bin/rspec-fast` — it aborts with "pending migrations" if the parallel worker
-databases have not been created yet. Do not pipe the command's output through
-`tail`: the pipeline's exit status is `tail`'s, and the audit will report PASS
-over a failing suite.
+To run the suite in the copy instead, prepare its database first
+(`rails db:test:prepare`) and then invoke `bundle exec rspec`. Do not pipe the
+command's output through `tail`: the pipeline's exit status is `tail`'s, and the
+audit will report PASS over a failing suite.
 
 **The core suite is expected to stay green in the copy.** Core specs must not
 enumerate plugin-provided things — tool names, smart-folder counts, search

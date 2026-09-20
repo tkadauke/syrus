@@ -23,7 +23,7 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.second.run).to include(".syrus/vitest-focused-files")
     expect(steps.second.run).to include("run_vitest related --run --passWithNoTests")
     expect(steps.second.phases).to eq(%w[review])
-    expect(steps.second.when_files_changed).to include("app/frontend/**/*.{js,jsx,ts,tsx}")
+    expect(steps.second.when_files_changed).to include("app/frontend/**/*.ts", "app/frontend/**/*.tsx", "desktop/src/**/*.tsx")
     expect(steps.second.metadata["grader_mode"]).to eq("focused")
 
     expect(steps.third.run).to include("run_vitest run")
@@ -40,6 +40,19 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.map(&:name)).to eq(%w[frontend frontend-focused frontend-ci])
     expect(steps.map(&:required)).to eq([ false, false, false ])
     expect(steps.map(&:timeout_minutes)).to eq([ 20, 20, 20 ])
+  end
+
+  it "supports per-mode timeout overrides" do
+    steps = described_class.grade_steps(
+      config: { "timeout_minutes" => 20, "focused_timeout_minutes" => 5 },
+      default_failures: "strict"
+    )
+
+    expect(steps.map { |step| [ step.name, step.timeout_minutes ] }).to eq([
+      [ "vitest", 20 ],
+      [ "vitest-focused", 5 ],
+      [ "vitest-ci", 20 ]
+    ])
   end
 
   it "can disable typecheck and enable coverage" do

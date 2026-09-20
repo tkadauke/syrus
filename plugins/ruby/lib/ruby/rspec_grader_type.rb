@@ -73,8 +73,8 @@ module Ruby
       ActiveModel::Type::Boolean.new.cast(config["required"])
     end
 
-    def timeout_minutes
-      raw = config["timeout_minutes"]
+    def timeout_minutes(mode)
+      raw = mode_timeout_minutes(mode)
       return DEFAULT_TIMEOUT_MINUTES if raw.blank?
 
       minutes = Integer(raw)
@@ -85,8 +85,24 @@ module Ruby
       raise ArgumentError, "timeout_minutes must be a positive integer"
     end
 
+    def mode_timeout_minutes(mode)
+      nested = config["timeouts"].is_a?(Hash) ? config["timeouts"].stringify_keys[mode] : nil
+      config["#{mode}_timeout_minutes"].presence || nested.presence || config["timeout_minutes"]
+    end
+
     def failures
       config["failures"].to_s.strip.presence || "allow_inherited"
+    end
+
+    def description_for(mode)
+      configured = config["description"].to_s.strip.presence
+      return configured if configured
+
+      case mode
+      when "focused" then "Focused RSpec tests selected from changed Ruby files."
+      when "ci" then "RSpec suite in CI mode, including CI-only examples when the repository uses that tag policy."
+      else "RSpec suite."
+      end
     end
 
     def base_retry
@@ -143,6 +159,7 @@ module Ruby
       command = <<~BASH.squish
         mkdir -p #{junit_dir} #{json_dir} &&
         rm -f #{junit} #{json} &&
+        #{database_prepare_command}
         if bundle exec ruby -e 'gem "rspec_junit_formatter"' >/dev/null 2>&1; then
           #{env_prefix} bundle exec rspec --format progress --format json --out #{json} --format RspecJunitFormatter --out #{junit} #{static_args};
         else
@@ -150,6 +167,19 @@ module Ruby
         fi
       BASH
       skip_setup ? command : "#{setup_prefix} && #{command}"
+    end
+
+    def database_prepare_command
+      return "" unless database_prepare?
+
+      %(if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi &&)
+    end
+
+    def database_prepare?
+      value = config.fetch("database_prepare", "auto")
+      return true if value.to_s == "auto"
+
+      ActiveModel::Type::Boolean.new.cast(value)
     end
 
     def setup_prefix
@@ -186,9 +216,9 @@ module Ruby
         run: run,
         ci: nil,
         phases: phases,
-        description: nil,
+        description: description_for(mode),
         required: required?,
-        timeout_minutes: timeout_minutes,
+        timeout_minutes: timeout_minutes(mode),
         when_files_changed: when_files_changed,
         junit_output: junit_output,
         failures: failures,
