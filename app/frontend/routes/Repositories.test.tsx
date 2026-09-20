@@ -82,6 +82,32 @@ function renderRoute() {
   )
 }
 
+// Below the lg breakpoint the app sidebar's Repositories subnav collapses
+// into the drawer and isn't reachable, so the page renders its own in-page
+// "Folders and filters" fallback -- mirrors Dashboard/Agent Activity/Design
+// Docs, which use the same narrow-viewport matchMedia mock in their specs.
+function mockNarrowViewport() {
+  const original = Object.getOwnPropertyDescriptor(window, "matchMedia")
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query !== "(min-width: 1024px)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    }))
+  })
+
+  return () => {
+    if (original) {
+      Object.defineProperty(window, "matchMedia", original)
+    } else {
+      Reflect.deleteProperty(window, "matchMedia")
+    }
+  }
+}
+
 describe("RepositoriesIndex data table", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -169,6 +195,24 @@ describe("RepositoriesIndex smart folders", () => {
     expect(screen.queryByRole("link", { name: "Archived 0" })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Folder name")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Save as new folder" })).not.toBeInTheDocument()
+  })
+
+  it("falls back to an in-page Folders and filters panel below the lg breakpoint, since the app sidebar's subnav is unreachable there", async () => {
+    const restoreMatchMedia = mockNarrowViewport()
+    try {
+      renderRoute()
+
+      await screen.findByRole("link", { name: "acme/widgets" })
+
+      fireEvent.click(screen.getByText("Folders and filters"))
+
+      const folderNav = await screen.findByRole("navigation", { name: "Repositories smart folders" })
+      expect(within(folderNav).getByRole("link", { name: "All 1" })).toHaveAttribute("href", "/app-shell/repositories?smart_folder_id=1")
+      expect(within(folderNav).getByRole("link", { name: "Recent 0" })).toHaveAttribute("href", "/app-shell/repositories?smart_folder_id=2")
+      expect(within(folderNav).getByRole("link", { name: "Archived 0" })).toHaveAttribute("href", "/app-shell/repositories?smart_folder_id=3")
+    } finally {
+      restoreMatchMedia()
+    }
   })
 
   it("shows both active and archived repositories together when no folder narrows them", async () => {
