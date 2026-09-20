@@ -24,9 +24,7 @@ export function ProviderAvailabilityWarning({ availability, className = "" }: { 
 export function ProviderFailoverNotice({ failover, className = "" }: { failover?: ProviderFailover | null; className?: string }) {
   if (!failover) return null
 
-  const copy = failover.automatic
-    ? `${failover.original_provider_label} unavailable; running this workflow with ${failover.selected_provider_label}.`
-    : `Operator selected ${failover.selected_provider_label} for this workflow instead of ${failover.original_provider_label}.`
+  const copy = providerFailoverCopy(failover)
   const label = failoverLabel(failover, copy)
 
   return (
@@ -34,6 +32,21 @@ export function ProviderFailoverNotice({ failover, className = "" }: { failover?
       {copy}
     </span>
   )
+}
+
+// Tooltip text for a provider pill that stands in for a full ProviderFailoverNotice:
+// same detail (reason, retry/reset timing, evidence), collapsed into a single `title`
+// instead of a separate pill next to the provider's own pill.
+export function providerFailoverTooltip(failover?: ProviderFailover | null): string | undefined {
+  if (!failover) return undefined
+
+  return failoverLabel(failover, providerFailoverCopy(failover))
+}
+
+function providerFailoverCopy(failover: NonNullable<ProviderFailover>): string {
+  return failover.automatic
+    ? `${failover.original_provider_label} unavailable; running this workflow with ${failover.selected_provider_label}.`
+    : `Operator selected ${failover.selected_provider_label} for this workflow instead of ${failover.original_provider_label}.`
 }
 
 // Compact alternative to ProviderFailoverNotice for dense list rows (e.g. the
