@@ -2,8 +2,9 @@ import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { describe, expect, it, vi, afterEach } from "vitest"
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { RepositoryFormRoute } from "./RepositoryForm"
+import * as useConfirmModule from "../hooks/useConfirm"
 
 function editPayload(overrides: Record<string, unknown> = {}) {
   return {
@@ -41,10 +42,14 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       epic_dependency_policy: "linear",
       github_owner_id: null,
       github_repository_id: null,
-      repository_path: "/repositories/1"
+      repository_path: "/repositories/1",
+      archived: false,
+      archived_at: null
     },
     configured_agent_providers: [],
     user_agent_provider_label: "Claude",
+    app_archive_repository_path: "/api/v1/app/repositories/1/archive",
+    app_unarchive_repository_path: "/api/v1/app/repositories/1/unarchive",
     input_source_types: [
       {
         type: "InputSources::Linear",
@@ -88,6 +93,12 @@ function mockFetch(repositoryOverrides: Record<string, unknown> = {}, finalAppro
         repository: { id: 1 },
         credential_status: { mode: "app" }
       }))
+    }
+    if (url === "/api/v1/app/repositories/1/archive" && method === "POST") {
+      return Promise.resolve(jsonResponse({ message: "acme/widgets archived.", active_repositories: [], archived_repositories: [], new_repository_path: "/repositories/new" }))
+    }
+    if (url === "/api/v1/app/repositories/1/unarchive" && method === "POST") {
+      return Promise.resolve(jsonResponse({ message: "acme/widgets unarchived.", active_repositories: [], archived_repositories: [], new_repository_path: "/repositories/new" }))
     }
     if (url === "/api/v1/app/repositories/1/input_sources/linear" && method === "PATCH") {
       return Promise.resolve(jsonResponse({
@@ -495,5 +506,83 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     const apiKey = screen.getByLabelText("API key")
     expect(apiKey).toHaveAttribute("type", "password")
     expect(screen.getByText("API key")).toHaveAttribute("for", apiKey.id)
+  })
+})
+
+describe("RepositoryForm danger zone", () => {
+  let mockConfirm: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    mockConfirm = vi.fn().mockResolvedValue(true)
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
+  })
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it("exposes Archive in the edit form but not on the index -- index has no such control", async () => {
+    mockFetch()
+    renderRoute()
+
+    expect(await screen.findByRole("heading", { name: "Danger zone" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Archive" })).toBeInTheDocument()
+  })
+
+  it("opens the confirm dialog before archiving", async () => {
+    mockFetch()
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Archive" }))
+
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
+    })
+  })
+
+  it("calls the archive API when the user confirms, using the slug in the confirm message", async () => {
+    const fetchSpy = mockFetch()
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Archive" }))
+
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("acme/widgets") }))
+    })
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/1/archive",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("does not call the archive API when the user cancels", async () => {
+    mockConfirm.mockResolvedValue(false)
+    const fetchSpy = mockFetch()
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Archive" }))
+
+    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
+    expect(fetchSpy).not.toHaveBeenCalledWith(
+      "/api/v1/app/repositories/1/archive",
+      expect.objectContaining({ method: "POST" })
+    )
+  })
+
+  it("offers Unarchive instead of Archive once the repository is archived", async () => {
+    const fetchSpy = mockFetch({ archived: true, archived_at: "2026-01-01T00:00:00Z" })
+    renderRoute()
+
+    expect(await screen.findByRole("button", { name: "Unarchive" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Unarchive" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/1/unarchive",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
   })
 })

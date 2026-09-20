@@ -23,9 +23,8 @@ import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPil
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { PreviewPanel } from "../components/PreviewPanel"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { archiveRepositoryFromPath, fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, runRepositoryRecommendation, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload, type RepositoryFeatureRecommendation } from "../api/repositories"
+import { fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, runRepositoryRecommendation, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload, type RepositoryFeatureRecommendation } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
-import { useConfirm } from "../hooks/useConfirm"
 
 export function RepositoryDetailRoute() {
   const params = useParams()
@@ -375,9 +374,7 @@ function visualReviewModeLabel(mode: string, t: ReturnType<typeof useT>["t"]) {
 
 function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
-  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const search = queryKey[3]
   const [moreOpen, setMoreOpen] = useState(false)
   const moreMenuRef = useDismissiblePopup<HTMLDivElement>(moreOpen, () => setMoreOpen(false))
@@ -396,13 +393,6 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
       onNotice(updated.message || null)
     }
   })
-  const archive = useMutation({
-    mutationFn: () => archiveRepositoryFromPath(payload.paths.app_archive_repository_path),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(["repositories"], updated)
-      navigate(withRoutePrefix(payload.paths.repositories_path, prefix))
-    }
-  })
   const runInsight = useMutation({
     mutationFn: () => runInsightAnalysis(payload.paths.app_run_insight_analysis_repository_path!),
     onSuccess: (updated) => {
@@ -412,15 +402,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
       onNotice((updated as { message?: string | null }).message || t("repository.insight_started"))
     }
   })
-  const disabled = poll.isPending || retryFailed.isPending || archive.isPending
-
-  async function archiveRepository() {
-    onNotice(null)
-    setMoreOpen(false)
-    if (await confirm({ message: t("repositories.confirm_archive", { slug: payload.repository.slug }), destructive: true })) {
-      archive.mutate()
-    }
-  }
+  const disabled = poll.isPending || retryFailed.isPending
 
   return (
     <>
@@ -469,7 +451,6 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
             <div className="absolute left-0 z-20 mt-2 min-w-40 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-1 text-sm shadow-lg" id="repository-actions-menu">
               <Link className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMoreOpen(false)} to={withRoutePrefix(payload.paths.new_repository_skill_job_path, prefix)}>{t('repository.launch_skill')}</Link>
               <Link className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMoreOpen(false)} to={withRoutePrefix(payload.paths.edit_repository_path, prefix)}>{t("repository.edit")}</Link>
-              <button className="block w-full rounded px-3 py-2 text-left text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/50 disabled:text-gray-300 dark:disabled:text-gray-600" disabled={disabled} onClick={archiveRepository} type="button">{t('repository.archive')}</button>
             </div>
           ) : null}
         </div>
@@ -481,9 +462,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
       ) : null}
       {poll.isError ? <PanelMessage tone="error">{errorMessage(poll.error, t("repository.poll_failed"))}</PanelMessage> : null}
       {retryFailed.isError ? <PanelMessage tone="error">{errorMessage(retryFailed.error, t("repository.retry_failed_command_failed"))}</PanelMessage> : null}
-      {archive.isError ? <PanelMessage tone="error">{errorMessage(archive.error, t("repository.archive_failed"))}</PanelMessage> : null}
       {runInsight.isError ? <PanelMessage tone="error">{errorMessage(runInsight.error, t("repository.insight_start_failed"))}</PanelMessage> : null}
-      {dialog}
     </>
   )
 }

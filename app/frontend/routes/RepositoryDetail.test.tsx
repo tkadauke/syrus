@@ -1,10 +1,9 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
+import { describe, expect, it, vi, afterEach } from "vitest"
 import { RepositoryDetailRoute } from "./RepositoryDetail"
-import * as useConfirmModule from "../hooks/useConfirm"
 
 const ARCHIVE_PATH = "/api/v1/app/repositories/1/archive"
 
@@ -181,27 +180,8 @@ function renderIssuesRoute() {
   return fetchSpy
 }
 
-describe("RepositoryDetailRoute archive", () => {
-  let mockConfirm: ReturnType<typeof vi.fn>
-
-  beforeEach(() => {
-    mockConfirm = vi.fn().mockResolvedValue(true)
-    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
-  })
-
+describe("RepositoryDetailRoute more menu", () => {
   afterEach(() => vi.restoreAllMocks())
-
-  it("opens confirm dialog instead of window.confirm when archiving a repository", async () => {
-    renderRoute()
-    await openMoreMenu()
-
-    const archiveButton = screen.getByRole("button", { name: "Archive" })
-    fireEvent.click(archiveButton)
-
-    await waitFor(() => {
-      expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
-    })
-  })
 
   it("links to the skill launch picker from the more menu", async () => {
     renderRoute()
@@ -211,44 +191,11 @@ describe("RepositoryDetailRoute archive", () => {
     expect(link).toHaveAttribute("href", "/app-shell/repositories/1/skills/new")
   })
 
-  it("calls the archive API when the user confirms", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const url = String(input)
-      if (url === ARCHIVE_PATH && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({ active_repositories: [], archived_repositories: [], new_repository_path: "/repositories/new" }))
-      }
-      return Promise.resolve(jsonResponse(repositoryDetailPayload()))
-    })
-
+  it("does not offer Archive from the more menu -- that lives in the edit form's danger zone now", async () => {
     renderRoute()
     await openMoreMenu()
 
-    const archiveButton = screen.getByRole("button", { name: "Archive" })
-    fireEvent.click(archiveButton)
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        ARCHIVE_PATH,
-        expect.objectContaining({ method: "POST" })
-      )
-    })
-  })
-
-  it("does not call the archive API when the user cancels", async () => {
-    mockConfirm.mockResolvedValue(false)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoryDetailPayload()))
-
-    renderRoute()
-    await openMoreMenu()
-
-    const archiveButton = screen.getByRole("button", { name: "Archive" })
-    await act(async () => { fireEvent.click(archiveButton) })
-
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      ARCHIVE_PATH,
-      expect.objectContaining({ method: "POST" })
-    )
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
   })
 })
 

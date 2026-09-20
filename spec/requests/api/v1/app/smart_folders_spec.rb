@@ -55,6 +55,29 @@ RSpec.describe "API: /api/v1/app/smart_folders", type: :request do
     expect(parse_body["smart_folder"]).to include("id" => folder.id, "name" => "Runs queue")
   end
 
+  it "creates a repository smart folder from dashboard filter params" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/smart_folders", params: {
+        subject_type: "repository",
+        agent_provider: "codex",
+        smart_folder: { name: "Codex repos" }
+      }
+    }.to change { user.smart_folders.count }.by(1)
+
+    folder = user.smart_folders.find_by!(name: "Codex repos")
+    expect(response).to have_http_status(:created)
+    expect(folder).to have_attributes(subject_type: "repository", position: 0)
+    expect(folder.filter).to eq("and" => [ { "field" => "agent_provider", "op" => "is", "value" => "codex" } ])
+    expect(parse_body).to include(
+      "message" => "Smart folder saved.",
+      "redirect_to" => repositories_path(smart_folder_id: folder.id),
+      "subject_type" => "repository"
+    )
+    expect(parse_body["smart_folder"]).to include("id" => folder.id, "name" => "Codex repos")
+  end
+
   it "rejects smart folder creation without filters" do
     sign_in_as(user)
 

@@ -102,7 +102,8 @@ module Api
           "admin_queue"     => :admin_queue_root_path,
           "workflow"        => :dashboard_workflows_path,
           "epic"            => :dashboard_epics_path,
-          "spawned_process" => :admin_processes_path
+          "spawned_process" => :admin_processes_path,
+          "repository"      => :repositories_path
         }.freeze
 
         SUBJECT_LEGACY_FILTER = {
@@ -110,7 +111,8 @@ module Api
           "admin_queue"     => ->(params, _)    { Admin::Queue::Filter.from_params(params, tab: :active).to_h },
           "workflow"        => ->(params, _)    { Workflows::Filter.from_params(params).to_h },
           "epic"            => ->(params, _)    { Epics::Filter.from_params(params).to_h },
-          "spawned_process" => ->(params, _)    { Admin::SpawnedProcesses::Filter.from_params(params).to_h }
+          "spawned_process" => ->(params, _)    { Admin::SpawnedProcesses::Filter.from_params(params).to_h },
+          "repository"      => ->(params, _)    { Repositories::Filter.from_params(params).to_h }
         }.freeze
 
         DEFAULT_LEGACY_FILTER = ->(params, _) { Jobs::Filter.from_params(params).to_h }

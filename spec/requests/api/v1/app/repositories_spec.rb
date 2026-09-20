@@ -268,7 +268,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body["repositories"]).to contain_exactly(include("id" => match.id, "slug" => "acme/widgets"))
   end
 
-  it "filters repository index activity by job activity instead of polling activity" do
+  it "filters repository index activity by job activity instead of polling activity, via the Recent smart folder's fixed 30-day cutoff" do
     travel_to Time.zone.parse("2026-05-30 12:00:00") do
       sign_in_as(user)
       poll_only = Factories.repository(
@@ -282,15 +282,57 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       recent_job = Factories.job_record(user: user, repository: recent, state: "closed")
       old_job = Factories.job_record(user: user, repository: old, state: "closed")
       recent_job.update_columns(updated_at: 30.minutes.ago)
-      old_job.update_columns(updated_at: 3.days.ago)
+      old_job.update_columns(updated_at: 40.days.ago)
 
-      get "/api/v1/app/repositories", params: { activity_since: 1.day.ago.iso8601 }
+      SmartFolder.ensure_builtins_for_subject!("repository")
+      recent_folder = SmartFolder.for_subject("repository").builtin.find_by!(name: "Recent")
+
+      get "/api/v1/app/repositories", params: { smart_folder_id: recent_folder.id }
 
       expect(response).to have_http_status(:ok)
-      slugs = parse_body.fetch("active_repositories").map { |row| row.fetch("slug") }
+      body = parse_body
+      expect(body["active_smart_folder_id"]).to eq(recent_folder.id)
+      slugs = body.fetch("active_repositories").map { |row| row.fetch("slug") }
       expect(slugs).to contain_exactly("acme/recent")
-      expect(slugs).not_to include(poll_only.slug)
+      expect(slugs).not_to include(poll_only.slug, old.slug)
     end
+  end
+
+  it "lists repository smart folders with All/Recent/Archived built-ins and honors a saved user folder" do
+    sign_in_as(user)
+    match = Factories.repository(user: user, owner: "acme", name: "widgets", agent_provider: "codex")
+    Factories.repository(user: user, owner: "acme", name: "other", agent_provider: "claude")
+    archived = Factories.repository(user: user, owner: "acme", name: "archived")
+    archived.archive!
+    saved = SmartFolder.create!(
+      user: user,
+      kind: "user_defined",
+      subject_type: "repository",
+      name: "Codex repos",
+      filter: { "and" => [ { "field" => "agent_provider", "op" => "is", "value" => "codex" } ] },
+      position: 0
+    )
+
+    get "/api/v1/app/repositories"
+
+    expect(response).to have_http_status(:ok)
+    folders = parse_body.fetch("smart_folders")
+    expect(folders.map { |f| f["name"] }).to include("All", "Recent", "Archived", "Codex repos")
+    all_folder = folders.find { |f| f["name"] == "All" }
+    expect(all_folder["count"]).to eq(3)
+    archived_folder = folders.find { |f| f["name"] == "Archived" }
+    expect(archived_folder["count"]).to eq(1)
+    saved_folder = folders.find { |f| f["id"] == saved.id }
+    expect(saved_folder["count"]).to eq(1)
+    expect(saved_folder["kind"]).to eq("user_defined")
+
+    archived_folder_id = archived_folder.fetch("id")
+    get "/api/v1/app/repositories", params: { smart_folder_id: archived_folder_id }
+
+    body = parse_body
+    expect(body["active_repositories"]).to be_empty
+    expect(body["archived_repositories"]).to contain_exactly(include("slug" => "acme/archived"))
+    expect(match).to be_present
   end
 
   it "returns archived rows when the repository index archived filter is true" do

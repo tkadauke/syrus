@@ -17,6 +17,8 @@ import {
 import { errorMessage } from "../lib/errorMessage"
 import { linkFromSearch } from "../components/filterBar/helpers"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
+import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
+import type { AdminSmartFolder } from "../api/adminSmartFolders"
 import { Button, buttonClasses, Checkbox, DataTable, Input, PanelMessage, Select, Surface, Text, TonePill, type PillTone } from "../components/ui"
 
 type ColumnKey =
@@ -193,6 +195,7 @@ export function RepositoriesIndex() {
 
 function RepositoriesView({ payload, filterOptionsPayload, prefix, pathname, search }: { payload: RepositoriesPayload; filterOptionsPayload: RepositoriesPayload; prefix: string; pathname: string; search: string }) {
   const { t } = useT("settings")
+  const { t: tNav } = useT("nav")
   const queryClient = useQueryClient()
   const setupStatus = useSetupStatus()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
@@ -219,7 +222,12 @@ function RepositoriesView({ payload, filterOptionsPayload, prefix, pathname, sea
     setSortState((current) => toggleSort(current, column))
   }
 
-  const sortedActive = useMemo(() => sortedRepositories(payload.active_repositories, sortState), [payload.active_repositories, sortState])
+  const combinedRepositories = useMemo(
+    () => sortedRepositories([ ...payload.active_repositories, ...payload.archived_repositories ], sortState),
+    [payload.active_repositories, payload.archived_repositories, sortState]
+  )
+  const activeSmartFolderId = smartFolderIdFromSearch(search) ?? payload.active_smart_folder_id
+  const activeFolder = payload.smart_folders.find((folder) => folder.id === activeSmartFolderId)
   const filtersActive = search.length > 0
   const showOnboarding = !filtersActive && payload.active_repositories.length === 0 && payload.archived_repositories.length === 0
 
@@ -245,34 +253,61 @@ function RepositoriesView({ payload, filterOptionsPayload, prefix, pathname, sea
           setupStatus={setupStatus}
         />
       ) : (
-        <>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <RepositoryFilterBar optionsPayload={filterOptionsPayload} pathname={pathname} search={search} />
-            <RepositoryColumnPicker onToggle={toggleColumn} visibleColumns={visibleColumns} />
-          </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+          <AdminSmartFolderNav
+            activeFolderId={activeSmartFolderId}
+            allowSaveWithoutActiveFolder
+            ariaLabel={tNav("smart_folders_aria")}
+            currentFilter={payload.filter}
+            folders={payload.smart_folders}
+            heading={t("repositories.smart_folders_heading")}
+            onMutationSuccess={() => {
+              void queryClient.invalidateQueries({ queryKey: ["repositories"] })
+            }}
+            prefix={prefix}
+            queryKey={["repositories"]}
+            subjectType="repository"
+          />
+          <div className="min-w-0 space-y-4">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <RepositoryFilterBar optionsPayload={filterOptionsPayload} pathname={pathname} search={search} />
+              <RepositoryColumnPicker onToggle={toggleColumn} visibleColumns={visibleColumns} />
+            </div>
 
-          <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-            <RepositoryDataTable onSort={toggleSortColumn} prefix={prefix} repositories={sortedActive} sortState={sortState} visibleColumns={visibleColumns} />
-          </section>
-        </>
+            <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+              <RepositoryDataTable
+                emptyMessage={emptyStateMessage(t, activeFolder)}
+                onSort={toggleSortColumn}
+                onUnarchive={(repository) => unarchive.mutate(repository.id)}
+                prefix={prefix}
+                repositories={combinedRepositories}
+                sortState={sortState}
+                unarchivePending={unarchive.isPending}
+                visibleColumns={visibleColumns}
+              />
+            </section>
+          </div>
+        </div>
       )}
-
-      {payload.archived_repositories.length > 0 ? (
-        <section className="space-y-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            {t('repositories.archived_count', { count: payload.archived_repositories.length })}
-          </h2>
-          <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 opacity-75">
-            <ArchivedRepositories
-              disabled={unarchive.isPending}
-              onUnarchive={(repository) => unarchive.mutate(repository.id)}
-              repositories={payload.archived_repositories}
-            />
-          </div>
-        </section>
-      ) : null}
     </>
   )
+}
+
+function emptyStateMessage(t: (key: string, options?: Record<string, unknown>) => string, activeFolder: AdminSmartFolder | undefined): string {
+  if (!activeFolder || activeFolder.i18n_key === "repositories_all") return t("repositories.no_matches")
+  if (activeFolder.i18n_key === "repositories_recent") return t("repositories.no_matches_recent")
+  if (activeFolder.i18n_key === "repositories_archived") return t("repositories.no_matches_archived")
+  if (activeFolder.kind === "user_defined") return t("repositories.no_matches_folder", { name: activeFolder.name })
+
+  return t("repositories.no_matches")
+}
+
+function smartFolderIdFromSearch(search: string): number | null {
+  const value = new URLSearchParams(search).get("smart_folder_id")
+  if (!value) return null
+
+  const id = Number(value)
+  return Number.isInteger(id) ? id : null
 }
 
 function RepositoryFilterBar({ optionsPayload, pathname, search }: { optionsPayload: RepositoriesPayload; pathname: string; search: string }) {
@@ -408,12 +443,18 @@ function RepositoryDataTable({
   visibleColumns,
   sortState,
   onSort,
+  onUnarchive,
+  unarchivePending,
+  emptyMessage,
   prefix
 }: {
   repositories: RepositoryRow[]
   visibleColumns: ColumnKey[]
   sortState: SortState
   onSort: (column: SortColumn) => void
+  onUnarchive: (repository: RepositoryRow) => void
+  unarchivePending: boolean
+  emptyMessage: string
   prefix: string
 }) {
   const { t } = useT("settings")
@@ -438,18 +479,34 @@ function RepositoryDataTable({
               </DataTable.HeadCell>
             )
           })}
+          <DataTable.HeadCell><span className="sr-only">{t("repositories.col_actions")}</span></DataTable.HeadCell>
         </DataTable.Row>
       </DataTable.Header>
       <DataTable.Body>
         {repositories.length === 0 ? (
-          <DataTable.Empty colSpan={columns.length + 1}>{t("repositories.no_matches")}</DataTable.Empty>
+          <DataTable.Empty colSpan={columns.length + 2}>{emptyMessage}</DataTable.Empty>
         ) : (
           repositories.map((repository) => (
             <DataTable.Row key={repository.id}>
               <DataTable.Cell>
-                <Link className="font-mono text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
+                <div className="flex items-center gap-2">
+                  <Link className="font-mono text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
+                  {repository.archived ? <TonePill tone="gray">{t("repositories.archived_badge")}</TonePill> : null}
+                </div>
               </DataTable.Cell>
               {columns.map((column) => <RepositoryColumnCell column={column.key} key={column.key} repository={repository} />)}
+              <DataTable.Cell className="text-right">
+                {repository.archived ? (
+                  <button
+                    className="text-brand dark:text-brand-emphasis underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
+                    disabled={unarchivePending}
+                    onClick={() => onUnarchive(repository)}
+                    type="button"
+                  >
+                    {t('repositories.unarchive')}
+                  </button>
+                ) : null}
+              </DataTable.Cell>
             </DataTable.Row>
           ))
         )}
@@ -485,44 +542,6 @@ function RepositoryHealthPill({ health }: { health: string }) {
   const tone = HEALTH_TONE[health] ?? "gray"
 
   return <TonePill tone={tone}>{t(`repositories.health_${health}`, { defaultValue: health })}</TonePill>
-}
-
-function ArchivedRepositories({
-  repositories,
-  disabled,
-  onUnarchive
-}: {
-  repositories: RepositoryRow[]
-  disabled: boolean
-  onUnarchive: (repository: RepositoryRow) => void
-}) {
-  const { t } = useT("settings")
-  return (
-    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-      <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
-        {repositories.map((repository) => (
-          <tr key={repository.id}>
-            <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
-              <div className="font-mono">{repository.slug}</div>
-              <div className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                {t('repositories.archived')} <RelativeTimestamp value={repository.archived_at} />
-              </div>
-            </td>
-            <td className="px-4 py-3 text-right">
-              <button
-                className="text-brand dark:text-brand-emphasis underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
-                disabled={disabled}
-                onClick={() => onUnarchive(repository)}
-                type="button"
-              >
-                {t('repositories.unarchive')}
-              </button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
 }
 
 function PollingPill({ enabled }: { enabled: boolean }) {
