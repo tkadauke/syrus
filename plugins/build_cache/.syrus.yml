@@ -5,3 +5,4 @@ project:
 
 grade:
   - type: rspec
+  - type: vitest

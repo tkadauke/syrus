@@ -258,7 +258,12 @@ can optionally run typecheck and coverage. A plugin-owned grader must not also
 set `run:`; use `type: custom` for repository-specific shell commands.
 Typed grader defaults are framework-generic and relative to the project root.
 For example, `type: rspec` runs the project's `spec` directory and watches
-Ruby files plus common Ruby project metadata by default. Use
+Ruby files plus common Ruby project metadata by default. `type: vitest`
+watches JavaScript/TypeScript files plus common package/Vite/TypeScript
+metadata by default, and runs existing project-local unit-test roots such as
+`app/frontend`, `src`, `test`, `tests`, and `__tests__`. Use `paths:` on a
+Vitest grader when full/CI discovery must be narrower or broader than those
+defaults. Use
 `when_files_changed` only to narrow or widen that framework default for this
 particular project. Do not make a root grader cover unrelated plugin or
 subproject paths; give those projects their own `.syrus.yml` and graders.
@@ -291,6 +296,9 @@ grade:
   - type: vitest
     coverage: true
     typecheck: true
+    paths:
+      - "src"
+      - "app/frontend"
 ```
 
 Use CI-only specs for checks that are too slow, too environmental, or too broad

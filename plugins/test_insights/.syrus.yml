@@ -7,3 +7,4 @@ grade:
   - type: rspec
     deps:
       - "//plugins/global_search:grade/rspec"
+  - type: vitest

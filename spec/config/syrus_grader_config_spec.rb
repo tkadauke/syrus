@@ -224,6 +224,10 @@ RSpec.describe "Syrus grader configuration" do
       "app/frontend/**/*.jsx",
       "app/frontend/**/*.ts",
       "app/frontend/**/*.tsx",
+      "plugins/*/app/frontend/**/*.js",
+      "plugins/*/app/frontend/**/*.jsx",
+      "plugins/*/app/frontend/**/*.ts",
+      "plugins/*/app/frontend/**/*.tsx",
       "package.json",
       "package-lock.json",
       "tsconfig.json",
@@ -234,6 +238,9 @@ RSpec.describe "Syrus grader configuration" do
   it "declares every bundled plugin as an individual plugin project with a local grader" do
     graph = TargetGraph::Compiler.compile(Rails.root)
     plugin_dirs = Rails.root.join("plugins").children.select(&:directory?).map { |path| path.basename.to_s }.sort
+    frontend_test_plugins = plugin_dirs.select do |plugin|
+      Dir.glob(Rails.root.join("plugins/#{plugin}/app/frontend/**/*.{test,spec}.{ts,tsx}").to_s, File::FNM_EXTGLOB).any?
+    end
 
     plugin_projects = graph.projects.values.select { |project| project.kind == "plugin" }
 
@@ -250,6 +257,21 @@ RSpec.describe "Syrus grader configuration" do
         "plugins/#{project.id}/**/*.rb",
         "plugins/#{project.id}/*.gemspec"
       )
+
+      vitest = graph.target("//plugins/#{project.id}:grade/vitest")
+      if frontend_test_plugins.include?(project.id)
+        expect(vitest).not_to be_nil
+        expect(vitest.project_id).to eq(project.id)
+        expect(vitest.command).to include("run_vitest run app/frontend")
+        expect(vitest.source_scope).to include(
+          "plugins/#{project.id}/**/*.ts",
+          "plugins/#{project.id}/**/*.tsx",
+          "plugins/#{project.id}/package.json"
+        )
+        expect(vitest.dependencies).to eq([ TargetGraph.root_label ])
+      else
+        expect(vitest).to be_nil
+      end
     end
   end
 

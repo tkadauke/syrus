@@ -7,3 +7,4 @@ grade:
   - type: rspec
     deps:
       - "//plugins/agent_memory:grade/rspec"
+  - type: vitest

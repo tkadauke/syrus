@@ -9,7 +9,7 @@ RSpec.describe JavaScript::VitestGraderType do
     steps = described_class.grade_steps(config: {}, default_failures: "strict")
 
     expect(steps.map(&:name)).to eq(%w[vitest vitest-focused vitest-ci])
-    expect(steps.first.run).to include("run_vitest run")
+    expect(steps.first.run).to include("run_vitest run app/frontend src test tests __tests__")
     expect(steps.first.run).to include("run_package_script typecheck")
     expect(steps.first.phases).to eq(%w[landing])
     expect(steps.first.junit_output).to eq(".syrus/grade-output/vitest-junit.xml")
@@ -27,7 +27,7 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.second.when_files_changed).not_to include("app/frontend/**/*.ts", "desktop/src/**/*.tsx")
     expect(steps.second.metadata["grader_mode"]).to eq("focused")
 
-    expect(steps.third.run).to include("run_vitest run")
+    expect(steps.third.run).to include("run_vitest run app/frontend src test tests __tests__")
     expect(steps.third.phases).to eq(%w[ci])
     expect(steps.third.metadata["grader_mode"]).to eq("ci")
   end
@@ -42,6 +42,30 @@ RSpec.describe JavaScript::VitestGraderType do
       [ "app/frontend/**/*.ts", "app/frontend/**/*.tsx" ],
       [ "app/frontend/**/*.ts", "app/frontend/**/*.tsx" ],
       [ "app/frontend/**/*.ts", "app/frontend/**/*.tsx" ]
+    ])
+  end
+
+  it "uses configured test paths for full and ci modes" do
+    steps = described_class.grade_steps(
+      config: { "paths" => [ "app/frontend", "plugins/*/app/frontend" ] },
+      default_failures: "strict"
+    )
+
+    expect(steps.first.run).to include("run_vitest run app/frontend plugins/\\*/app/frontend")
+    expect(steps.second.run).to include("run_vitest related --run --passWithNoTests")
+    expect(steps.third.run).to include("run_vitest run app/frontend plugins/\\*/app/frontend")
+  end
+
+  it "passes configured target dependencies through to every generated grader" do
+    steps = described_class.grade_steps(
+      config: { "deps" => [ "//plugins/browser:grade/vitest" ] },
+      default_failures: "strict"
+    )
+
+    expect(steps.map(&:deps)).to eq([
+      [ "//plugins/browser:grade/vitest" ],
+      [ "//plugins/browser:grade/vitest" ],
+      [ "//plugins/browser:grade/vitest" ]
     ])
   end
 

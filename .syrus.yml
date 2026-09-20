@@ -376,11 +376,18 @@ grade:
     failures: allow_inherited
     coverage: true
     typecheck: true
+    paths:
+      - "app/frontend"
+      - "plugins/*/app/frontend"
     when_files_changed:
       - "app/frontend/**/*.js"
       - "app/frontend/**/*.jsx"
       - "app/frontend/**/*.ts"
       - "app/frontend/**/*.tsx"
+      - "plugins/*/app/frontend/**/*.js"
+      - "plugins/*/app/frontend/**/*.jsx"
+      - "plugins/*/app/frontend/**/*.ts"
+      - "plugins/*/app/frontend/**/*.tsx"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"

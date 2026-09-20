@@ -5,7 +5,7 @@ module JavaScript
     include Syrus::Plugin::GraderType
 
     DEFAULT_TIMEOUT_MINUTES = 15
-    FOCUSED_CHANGED_FILES = [
+    DEFAULT_CHANGED_FILES = [
       "**/*.js",
       "**/*.jsx",
       "**/*.ts",
@@ -21,6 +21,13 @@ module JavaScript
       "vitest.config.*",
       "vite.config.*",
       "tsconfig.json"
+    ].freeze
+    DEFAULT_TEST_PATHS = [
+      "app/frontend",
+      "src",
+      "test",
+      "tests",
+      "__tests__"
     ].freeze
 
     def self.type_name
@@ -112,11 +119,22 @@ module JavaScript
 
     def configured_scope
       patterns = Array(config["when_files_changed"]).map(&:to_s).map(&:strip).reject(&:empty?)
-      patterns.presence
+      patterns.presence || DEFAULT_CHANGED_FILES
     end
 
     def focused_scope
-      configured_scope || FOCUSED_CHANGED_FILES
+      configured_scope
+    end
+
+    def configured_deps
+      raw = config["deps"] || config["dependencies"]
+      refs =
+        case raw
+        when nil then []
+        when String then [ raw ]
+        else Array(raw)
+        end
+      refs.map(&:to_s).map(&:strip).reject(&:empty?)
     end
 
     def description_for(mode)
@@ -161,7 +179,7 @@ module JavaScript
         junit_output: junit_output(full_name),
         coverage: coverage?,
         include_typecheck: typecheck?,
-        args: [ "run" ]
+        args: [ "run", *test_paths ]
       )
     end
 
@@ -170,8 +188,13 @@ module JavaScript
         junit_output: junit_output(ci_name),
         coverage: coverage?,
         include_typecheck: typecheck?,
-        args: [ "run" ]
+        args: [ "run", *test_paths ]
       )
+    end
+
+    def test_paths
+      raw = config["paths"] || config["test_paths"] || DEFAULT_TEST_PATHS
+      Array(raw).map(&:to_s).map(&:strip).reject(&:empty?)
     end
 
     def focused_command
@@ -254,7 +277,7 @@ module JavaScript
         junit_output: junit_output,
         failures: failures,
         base_retry: base_retry,
-        deps: [],
+        deps: configured_deps,
         metadata: {
           "grader_type" => self.class.type_name,
           "grader_framework" => "vitest",
