@@ -249,6 +249,7 @@ export type RepositoryDetailPayload = {
       signature: string | null
     }
   }
+  can_edit: boolean
   can_release_triage_jobs: boolean
   needs_triage_count: number
   needs_triage_jobs: RepositoryNeedsTriageJob[]

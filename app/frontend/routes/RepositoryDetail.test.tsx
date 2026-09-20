@@ -50,6 +50,7 @@ function repositoryDetailPayload() {
       agent_provider_label: "Claude",
       provider_circuit: { provider: "claude", open: false, reason: null, retry_after: null, failure_count: 0, job_count: 0, signature: null }
     },
+    can_edit: true,
     can_release_triage_jobs: false,
     needs_triage_count: 0,
     needs_triage_jobs: [],
@@ -117,7 +118,7 @@ function renderRoute(payloadOverrides = {}) {
 }
 
 async function openMoreMenu() {
-  const moreButton = await screen.findByRole("button", { name: "More" })
+  const moreButton = await screen.findByRole("button", { name: "More actions" })
   fireEvent.click(moreButton)
 }
 
@@ -183,11 +184,31 @@ function renderIssuesRoute() {
 describe("RepositoryDetailRoute more menu", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("shows Edit by default when the user can edit the repository, with other actions collapsed under More actions", async () => {
+    renderRoute({ can_edit: true })
+
+    expect(await screen.findByRole("link", { name: "Edit" })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: "New job" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: "Poll now" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+
+    expect(screen.getByRole("menuitem", { name: "New job" })).toBeInTheDocument()
+    expect(screen.getByRole("menuitem", { name: "Poll now" })).toBeInTheDocument()
+  })
+
+  it("hides Edit when the user cannot edit the repository", async () => {
+    renderRoute({ can_edit: false })
+
+    await screen.findByRole("button", { name: "More actions" })
+    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument()
+  })
+
   it("links to the skill launch picker from the more menu", async () => {
     renderRoute()
     await openMoreMenu()
 
-    const link = await screen.findByRole("link", { name: "Launch skill" })
+    const link = await screen.findByRole("menuitem", { name: "Launch skill" })
     expect(link).toHaveAttribute("href", "/app-shell/repositories/1/skills/new")
   })
 
@@ -195,7 +216,7 @@ describe("RepositoryDetailRoute more menu", () => {
     renderRoute()
     await openMoreMenu()
 
-    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: "Archive" })).not.toBeInTheDocument()
   })
 })
 
@@ -270,7 +291,8 @@ describe("RepositoryDetailRoute recommendations", () => {
     expect(screen.getByText("Tip 1 of 1")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Previous tip" })).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Poll now" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    expect(screen.getByRole("menuitem", { name: "Poll now" })).toBeInTheDocument()
 
     const banner = screen.getByRole("region", { name: "Recommended actions" })
     const recommendationBanner = banner.firstElementChild
