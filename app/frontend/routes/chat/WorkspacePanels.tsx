@@ -15,7 +15,8 @@ import { Modal } from "../../components/Modal"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { providerIconSrc } from "../../lib/pluginIcon"
 import { TypedArtifactPanel } from "../../components/artifacts/TypedArtifactPanel"
-import { createConsumer, type Subscription } from "@rails/actioncable"
+import { getAppConsumer } from "../../lib/actionCable"
+import type { Subscription } from "@rails/actioncable"
 import { useT } from "../../hooks/useT"
 import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
 import { RuntimePanel } from "../RuntimePanel"
@@ -806,7 +807,7 @@ function LocalDiffPanel({ chatId }: { chatId: number }) {
   const subscriptionRef = useRef<Subscription | null>(null)
 
   useEffect(() => {
-    const sub = createConsumer().subscriptions.create(
+    const sub = getAppConsumer().subscriptions.create(
       { channel: "LocalDiffChannel", chat_id: chatId },
       {
         connected() {
