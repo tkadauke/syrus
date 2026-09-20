@@ -15,6 +15,10 @@ module MysqlDbBrowser
   # A WITH-prefixed statement is only read-only when its terminal statement
   # (after every CTE definition) is a SELECT/TABLE - `WITH x AS (...) UPDATE`/
   # `DELETE`/`INSERT` still require write access despite the leading WITH.
+  # SELECT ... INTO OUTFILE/DUMPFILE is always rejected, even with writes
+  # enabled - it can write an arbitrary file to the MySQL server's
+  # filesystem instead of modifying table data, which is outside this
+  # console's intended safe envelope.
   class QueryExecutor
     CONNECT_TIMEOUT_SECONDS = 5
     QUERY_TIMEOUT_MS = 5_000
@@ -24,6 +28,7 @@ module MysqlDbBrowser
 
     class Unavailable < StandardError; end
     class WriteNotAllowed < StandardError; end
+    class FilesystemWriteNotAllowed < WriteNotAllowed; end
     class BlankStatement < StandardError; end
 
     class_attribute :client_factory, default: ->(options) { Mysql2::Client.new(**options) }
@@ -38,6 +43,15 @@ module MysqlDbBrowser
     def execute(sql, user:, limit: DEFAULT_LIMIT)
       statement = sql.to_s.strip
       raise BlankStatement, "SQL statement is blank" if statement.blank?
+
+      if filesystem_write_statement?(statement)
+        message = "SELECT ... INTO OUTFILE/DUMPFILE writes a file to the MySQL server's filesystem rather than " \
+                  "modifying table data, so it is never permitted through this read-only-by-default console - " \
+                  "even on a connection with write access enabled. The mitigating control is that the " \
+                  "connection's configured MySQL user should also lack the FILE privilege."
+        audit!(statement: statement, read_only: false, user: user, success: false, error_message: "Rejected: #{message}")
+        raise FilesystemWriteNotAllowed, message
+      end
 
       read_only = read_only_statement?(statement)
       unless read_only
@@ -97,6 +111,15 @@ module MysqlDbBrowser
       return read_only_with_statement?(statement) if statement.match?(/\AWITH\b/i)
 
       false
+    end
+
+    # SELECT ... INTO OUTFILE/DUMPFILE doesn't touch table data - it's
+    # classified read-only by the grammar above - but it writes an
+    # arbitrary file to the MySQL server's filesystem when the connected
+    # user has the FILE privilege, which is outside this console's safe
+    # read-only envelope regardless of the connection's allow_writes flag.
+    def filesystem_write_statement?(statement)
+      statement.match?(/\bINTO\s+(OUTFILE|DUMPFILE)\b/i)
     end
 
     def explain_statement?(statement)
