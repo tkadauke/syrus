@@ -65,6 +65,18 @@ function repositoriesPayload(overrides: Record<string, unknown> = {}) {
     ],
     active_smart_folder_id: null,
     filter: { and: [] },
+    filter_schema: [
+      { field: "slug", label: "Repository", bucket: "string", operators: ["contains"], free_text_search: true },
+      { field: "github_owner", label: "GitHub owner", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [] },
+      { field: "health", label: "Health", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [
+        { value: "healthy", label: "Healthy" },
+        { value: "broken", label: "Broken" },
+        { value: "inconclusive", label: "Inconclusive" },
+        { value: "unknown", label: "Unknown" }
+      ] },
+      { field: "agent_provider", label: "Agent", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [] },
+      { field: "has_open_jobs", label: "Has open jobs", bucket: "boolean", operators: ["is_true", "is_false"] }
+    ],
     message: null,
     ...overrides
   }
@@ -319,7 +331,7 @@ describe("RepositoriesIndex smart folders", () => {
   })
 })
 
-describe("RepositoriesIndex filter dropdown options", () => {
+describe("RepositoriesIndex filter bar", () => {
   beforeEach(() => {
     window.localStorage.clear()
   })
@@ -328,20 +340,37 @@ describe("RepositoriesIndex filter dropdown options", () => {
     window.localStorage.clear()
   })
 
-  it("keeps every owner option available after filtering narrows the visible repositories", async () => {
+  function ownerFilterSchema() {
+    const base = repositoriesPayload().filter_schema as Array<Record<string, unknown>>
+    return base.map((field) => (
+      field.field === "github_owner"
+        ? { ...field, values: [{ value: "acme", label: "acme" }, { value: "bob", label: "bob" }] }
+        : field
+    ))
+  }
+
+  it("adds a filter chip through the shared FilterBar and narrows the visible repositories", async () => {
+    const filter_schema = ownerFilterSchema()
     const fullPayload = repositoriesPayload({
       active_repositories: [
         repositoryRow({ id: 1, slug: "acme/widgets", owner: "acme" }),
         repositoryRow({ id: 2, slug: "bob/gadgets", owner: "bob" })
-      ]
+      ],
+      filter_schema
     })
     const narrowedPayload = repositoriesPayload({
-      active_repositories: [repositoryRow({ id: 1, slug: "acme/widgets", owner: "acme" })]
+      active_repositories: [repositoryRow({ id: 1, slug: "acme/widgets", owner: "acme" })],
+      filter: { and: [{ field: "github_owner", op: "is", value: "acme" }] },
+      filter_schema
     })
 
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const url = String(input)
-      if (url.includes("github_owner=acme")) return Promise.resolve(jsonResponse(narrowedPayload))
+      // FilterBar encodes the chip tree into a `q=` param -- the presence
+      // of `q=` (rather than a bespoke `github_owner=` param) is itself
+      // evidence the shared chip-bar wire format is in use, not a bespoke
+      // dropdown.
+      if (url.includes("q=")) return Promise.resolve(jsonResponse(narrowedPayload))
       return Promise.resolve(jsonResponse(fullPayload))
     })
 
@@ -354,18 +383,15 @@ describe("RepositoriesIndex filter dropdown options", () => {
       </QueryClientProvider>
     )
 
-    const ownerSelect = await screen.findByRole("combobox", { name: "GitHub owner" })
-    expect(within(ownerSelect).getByRole("option", { name: "bob" })).toBeInTheDocument()
+    await screen.findByRole("link", { name: "acme/widgets" })
+    expect(screen.getByRole("link", { name: "bob/gadgets" })).toBeInTheDocument()
 
-    fireEvent.change(ownerSelect, { target: { value: "acme" } })
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "GitHub owner list" }))
 
     await waitFor(() => {
-      expect(screen.queryByText("bob/gadgets")).not.toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: "bob/gadgets" })).not.toBeInTheDocument()
     })
-
-    // The result set narrowed to acme's own repository, but the owner
-    // dropdown must still offer "bob" -- otherwise there is no way back to
-    // it short of clearing every filter.
-    expect(within(ownerSelect).getByRole("option", { name: "bob" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "GitHub owner is acme" })).toBeInTheDocument()
   })
 })

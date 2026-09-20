@@ -4,6 +4,7 @@ import type { JobRetryState, PreviewEnvironmentRecord } from "./jobs"
 import type { ProviderAvailability, ProviderFailover } from "./providerAvailability"
 import type { ProviderRoutingOptions, ProviderRoutingRule } from "./providerRoutingRules"
 import type { AdminSmartFolder } from "./adminSmartFolders"
+import type { FilterSchemaField } from "../components/filterBar/types"
 
 export type RepositoryEpicDependencyPolicy = "linear"
 
@@ -45,6 +46,7 @@ export type RepositoriesPayload = {
   smart_folders: AdminSmartFolder[]
   active_smart_folder_id: number | null
   filter: Record<string, unknown>
+  filter_schema: FilterSchemaField[]
   message?: string | null
 }
 
