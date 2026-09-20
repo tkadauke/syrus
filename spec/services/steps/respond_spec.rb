@@ -244,6 +244,34 @@ RSpec.describe Steps::Respond, :ci_only do
     expect(new_run.prompt).to include("Tightened the greeting docstring per reviewer ask.")
   end
 
+  it "includes prior chat_feedback workflow summaries in pr_comment prompts" do
+    prior_wf = Workflows::ChatFeedback.instantiate(
+      job: job,
+      artifacts: { "chat_feedback" => "Please simplify the UI copy." }
+    )
+    prior_wf.update!(state: "succeeded", started_at: 1.hour.ago, finished_at: 30.minutes.ago)
+    summarize = prior_wf.steps.find_by(kind: "summarize_amend")
+    Run.create!(job: job, step: summarize, trigger_kind: "chat_feedback",
+                state: "succeeded", agent_summary: "Simplified the UI copy from the chat feedback round.")
+    new_wf = Workflows::PrFeedback.instantiate(job: job, artifacts: artifacts)
+    new_step = new_wf.steps.find_by(kind: "respond")
+    new_run = new_step.runs.create!(job: job, step: new_step, trigger_kind: new_wf.trigger_kind)
+    new_handler = described_class.new(new_run)
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+    allow(new_handler).to receive(:workspace).and_return(fake_ws)
+    allow(new_handler).to receive(:run_agent)
+    allow(new_handler).to receive(:commit_agent_changes)
+    allow(new_handler).to receive(:assert_branch_history_intact!)
+    allow(new_handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+    allow(new_handler).to receive(:diff_against_sha).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+    allow(new_handler).to receive(:head_sha).and_return("abc456")
+
+    new_handler.call
+
+    expect(new_run.reload.prompt).to include("previous review rounds")
+    expect(new_run.prompt).to include("Simplified the UI copy from the chat feedback round.")
+  end
+
   it "best-effort skips recent commits when git log fails" do
     # GitRunner will fail because the tmp workspace isn't a real repo.
     expect { handler.call }.not_to raise_error
