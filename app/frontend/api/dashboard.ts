@@ -463,7 +463,7 @@ export type DashboardChromePayload = Omit<DashboardPayload, "total" | "total_pag
   kanban_limit?: number | null
 }
 
-export type DashboardRowsPayload = Pick<DashboardPayload, "subject" | "view" | "page" | "per_page" | "total" | "total_pages" | "total_estimated" | "landing_queue" | "items" | "lanes" | "kanban_limit"> & Partial<Pick<DashboardPayload, "active_smart_folder_id" | "filter" | "preferences">> & {
+export type DashboardRowsPayload = Pick<DashboardPayload, "subject" | "view" | "page" | "per_page" | "total" | "total_pages" | "total_estimated" | "landing_queue" | "items" | "lanes" | "kanban_limit"> & Partial<Pick<DashboardPayload, "active_smart_folder_id" | "filter" | "preferences" | "untagged_issues">> & {
   controls?: Partial<DashboardPayload["controls"]>
 }
 
@@ -622,7 +622,7 @@ export function mergeDashboardPayload(chrome: DashboardChromePayload, rows: Dash
     provider_availability: chrome.provider_availability,
     broken_repositories: chrome.broken_repositories,
     health_blocked_repositories: chrome.health_blocked_repositories,
-    untagged_issues: chrome.untagged_issues,
+    untagged_issues: rows.untagged_issues ?? chrome.untagged_issues,
     smart_folders: chrome.smart_folders.map((folder) => ({ ...folder, active: folder.id === activeSmartFolderId })),
     active_smart_folder_id: activeSmartFolderId,
     setup: chrome.setup,

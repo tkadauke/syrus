@@ -599,12 +599,12 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(entry).to be_nil
     end
 
-    it "includes an untagged_issues summary with a per-repository breakdown" do
+    it "includes an untagged_issues summary with a per-repository breakdown on the default Inbox smart folder" do
       repo.update_columns(untagged_open_issue_count: 3)
       other = Factories.repository(user: user, owner: "acme", name: "widgets2", untagged_open_issue_count: 2)
       Factories.repository(user: user, owner: "acme", name: "widgets3", untagged_open_issue_count: 0)
 
-      get "/api/v1/app/dashboard", params: { subject: "job" }
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list" }
 
       expect(response).to have_http_status(:ok)
       untagged_issues = parse_body["untagged_issues"]
@@ -613,6 +613,17 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         { "id" => repo.id, "slug" => repo.slug, "count" => 3, "issues_path" => "/repositories/#{repo.id}?tab=github_issues" },
         { "id" => other.id, "slug" => other.slug, "count" => 2, "issues_path" => "/repositories/#{other.id}?tab=github_issues" }
       )
+    end
+
+    it "omits the untagged_issues summary outside the Inbox smart folder" do
+      repo.update_columns(untagged_open_issue_count: 3)
+      SmartFolder.ensure_builtins_for_subject!("job")
+      landing_queue_folder = SmartFolder.find_builtin_by_attention("landing_queue")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: landing_queue_folder.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["untagged_issues"]).to eq("total" => 0, "repositories" => [])
     end
 
     it "adds landing queue positions when the landing smart folder is active" do
