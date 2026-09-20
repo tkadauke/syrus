@@ -568,7 +568,6 @@ Rails.application.routes.draw do
     # The repository chat home (no tab, no UI entry point) is gone;
     # the per-repo controller was pure duplication of the top-level chat flow.
     get "documents", to: "spa#show", as: :documents
-    get "memberships", to: "spa#show", as: :memberships
   end
   get "repositories/:repository_id/skills/new", to: "spa#show", as: :new_repository_skill_job
 

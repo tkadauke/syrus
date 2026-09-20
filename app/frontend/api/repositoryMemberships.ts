@@ -1,5 +1,4 @@
 import { deleteJson, getJson, patchJson, postJson } from "./client"
-import type { RepositoryTab } from "./repositories"
 import type { TeamRepositoryGrant } from "./repositoryTeamGrants"
 
 export const REPOSITORY_MEMBERSHIP_ROLES = ["read", "write", "admin"] as const
@@ -43,7 +42,6 @@ export type GithubCollaboratorDiscrepancy = {
 
 export type RepositoryMembershipsPayload = {
   repository: RepositoryMembershipsRepository
-  tabs: RepositoryTab[]
   memberships: RepositoryMembership[]
   team_grants: TeamRepositoryGrant[]
   github_collaborator_discrepancies: GithubCollaboratorDiscrepancy[]
