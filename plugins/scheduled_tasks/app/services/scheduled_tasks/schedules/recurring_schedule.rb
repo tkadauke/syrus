@@ -119,10 +119,10 @@ module ScheduledTasks
 
         minute, hour, day_of_month, month, day_of_week = fields
         parts = [ "FREQ=#{frequency_for(hour, day_of_month, month, day_of_week)}" ]
-        parts << "BYMONTH=#{month}" unless month == "*"
-        parts << "BYMONTHDAY=#{day_of_month}" unless day_of_month == "*"
+        parts << "BYMONTH=#{cron_field_value(month, cron.months)}" unless month == "*"
+        parts << "BYMONTHDAY=#{cron_field_value(day_of_month, cron.monthdays)}" unless day_of_month == "*"
         parts << "BYDAY=#{rrule_days(day_of_week)}" unless day_of_week == "*"
-        parts << "BYHOUR=#{hour}" unless hour == "*"
+        parts << "BYHOUR=#{cron_field_value(hour, cron.hours)}" unless hour == "*"
         parts << "BYMINUTE=#{minute}"
         parts << "BYSECOND=0"
         Schedule.new(self.class.parse_rrule(parts.join(";")), timezone: "UTC", input: value, cron_expression: value)
@@ -130,6 +130,25 @@ module ScheduledTasks
         raise
       rescue StandardError
         raise ArgumentError, "is not a valid five-field cron expression"
+      end
+
+      # A plain single-value field (no `,`/`-`/`/`) round-trips through
+      # as-is, matching the historical behavior downstream validation relies
+      # on: a literal out-of-domain value like day-of-month "0" is written
+      # through unexpanded so Schedule's 1..31/1..12 bounds check can report
+      # it, rather than deferring to Fugit's cron grammar, which reinterprets
+      # a lone out-of-range dom/mon token in surprising ways. A field that
+      # actually uses list/range/step syntax (e.g. "0,12", "9-17", "*/6")
+      # uses Fugit's already-expanded, sorted integer array for that field --
+      # it has already validated the whole cron string, so this is the
+      # correct expansion instead of the naive single-integer parse that used
+      # to silently drop the restriction entirely (nil that reads as
+      # "unrestricted").
+      def cron_field_value(raw, expanded)
+        return raw unless raw.match?(/[,\-\/]/)
+        raise ArgumentError, "is not a valid five-field cron expression" unless expanded
+
+        expanded.join(",")
       end
 
       def parse_natural(value)
@@ -258,10 +277,13 @@ module ScheduledTasks
           end
 
           date = from.to_date
+          candidate_hours = hours || (0..23).to_a
           1_830.times do |offset|
             candidate_date = date + offset
-            candidate = Time.utc(candidate_date.year, candidate_date.month, candidate_date.day, hour, minute)
-            return candidate if candidate > from && matches?(candidate)
+            candidate_hours.each do |h|
+              candidate = Time.utc(candidate_date.year, candidate_date.month, candidate_date.day, h, minute)
+              return candidate if candidate > from && matches?(candidate)
+            end
           end
           nil
         end
@@ -278,19 +300,42 @@ module ScheduledTasks
           errors = []
           errors << "timezone must be UTC" unless @timezone == "UTC"
           errors << "frequency must be HOURLY, DAILY, WEEKLY, MONTHLY, or YEARLY" unless %w[HOURLY DAILY WEEKLY MONTHLY YEARLY].include?(freq)
-          errors << "hour must be between 0 and 23" if hour && !hour.between?(0, 23)
+          errors << "hour must be a whole number or comma-separated list of whole numbers" if malformed_int_list?("BYHOUR")
+          errors << "month must be a whole number or comma-separated list of whole numbers" if malformed_int_list?("BYMONTH")
+          errors << "month day must be a whole number or comma-separated list of whole numbers" if malformed_int_list?("BYMONTHDAY")
+          errors << "hour must be between 0 and 23" if hours && hours.any? { |h| !h.between?(0, 23) }
           errors << "minute must be between 0 and 59" unless minute.between?(0, 59)
           errors << "day is required for weekly schedules" if freq == "WEEKLY" && days.empty?
-          errors << "month day is required for monthly schedules" if freq == "MONTHLY" && month_day.nil?
-          errors << "month and month day are required for yearly schedules" if freq == "YEARLY" && (month.nil? || month_day.nil?)
-          errors << "month must be between 1 and 12" if month && !month.between?(1, 12)
-          errors << "month day must be between 1 and 31" if month_day && !month_day.between?(1, 31)
+          errors << "month day is required for monthly schedules" if freq == "MONTHLY" && month_days.blank?
+          errors << "month and month day are required for yearly schedules" if freq == "YEARLY" && (months.blank? || month_days.blank?)
+          errors << "month must be between 1 and 12" if months && months.any? { |m| !m.between?(1, 12) }
+          errors << "month day must be between 1 and 31" if month_days && month_days.any? { |d| !d.between?(1, 31) }
           errors << "must fire at most once per hour" if multiple_ticks_per_hour?
           errors << "does not produce a future scheduled time" if errors.empty? && next_fire_at(from: Time.utc(2026, 1, 1)).nil?
           errors
         end
 
         private
+
+        # Guards against a hand-crafted or corrupted RRULE attribute (e.g. a
+        # directly-set schedule_expression) that isn't cron-routed through
+        # Fugit's own field validation -- without this, an unparseable list
+        # entry would otherwise be silently dropped by #parse_int_list and the
+        # field would be treated as unrestricted ("*"), the same silent-drop
+        # bug this class used to have for every list value.
+        def malformed_int_list?(key)
+          raw = @attrs[key]
+          return false if raw.blank?
+
+          raw.split(",").any? { |term| Integer(term, exception: false).nil? }
+        end
+
+        def parse_int_list(key)
+          raw = @attrs[key]
+          return nil if raw.blank?
+
+          raw.split(",").filter_map { |term| Integer(term, exception: false) }.presence
+        end
 
         def first_tick_in_window(window_start)
           60.times do |offset|
@@ -306,9 +351,9 @@ module ScheduledTasks
 
         def matches?(time)
           return false unless time.min == minute
-          return false if hour && time.hour != hour
-          return false if month && time.month != month
-          return false if month_day && time.day != month_day
+          return false if hours && !hours.include?(time.hour)
+          return false if months && !months.include?(time.month)
+          return false if month_days && !month_days.include?(time.day)
           return false if days.any? && !days.include?(%w[SU MO TU WE TH FR SA][time.wday])
 
           true
@@ -318,22 +363,22 @@ module ScheduledTasks
           return "Every hour" if freq == "HOURLY"
           return "Every day" if freq == "DAILY"
           return "Every #{days.map { |day| DAY_NAMES.fetch(day, day) }.to_sentence}" if freq == "WEEKLY"
-          return "Every month on day #{month_day}" if freq == "MONTHLY"
+          return "Every month on day #{(month_days || []).to_sentence}" if freq == "MONTHLY"
 
-          "Every #{Date::MONTHNAMES.fetch(month)} #{month_day}"
+          "Every #{(months || []).map { |m| Date::MONTHNAMES.fetch(m) }.to_sentence} #{(month_days || []).to_sentence}"
         end
 
         def time_label
           return "#{minute.to_s.rjust(2, '0')} minutes past the hour" if freq == "HOURLY"
 
-          Time.utc(2026, 1, 1, hour, minute).strftime("%-I:%M %p")
+          (hours || []).map { |h| Time.utc(2026, 1, 1, h, minute).strftime("%-I:%M %p") }.to_sentence
         end
 
         def freq = @attrs["FREQ"].to_s.upcase
-        def hour = @attrs.key?("BYHOUR") ? Integer(@attrs["BYHOUR"], exception: false) : nil
+        def hours = parse_int_list("BYHOUR")
         def minute = Integer(@attrs.fetch("BYMINUTE", -1), exception: false) || -1
-        def month = Integer(@attrs["BYMONTH"], exception: false)
-        def month_day = Integer(@attrs["BYMONTHDAY"], exception: false)
+        def months = parse_int_list("BYMONTH")
+        def month_days = parse_int_list("BYMONTHDAY")
         def days = @attrs.fetch("BYDAY", "").split(",").compact_blank
       end
     end
