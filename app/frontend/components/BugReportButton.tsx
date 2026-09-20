@@ -647,6 +647,7 @@ function WhatsIncluded({
                       <li key={i} className="font-mono text-xs">
                         <code className="text-gray-800 dark:text-gray-200">{e.message}</code>
                         <span className="text-gray-400 dark:text-gray-500"> ({e.source})</span>
+                        {e.count > 1 ? <span className="text-text-muted"> ×{e.count}</span> : null}
                       </li>
                     ))}
                   </ul>

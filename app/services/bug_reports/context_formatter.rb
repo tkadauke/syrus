@@ -31,16 +31,23 @@ module BugReports
       if recent_errors.any?
         lines << ""
         lines << "**Recent JS errors**"
-        recent_errors.each do |err|
-          message = err["message"].to_s.gsub("`", "'")
-          source  = err["source"].to_s
-          lines << "- `#{message}` (#{source})"
+        deduped_errors(recent_errors).each do |(message, source), count|
+          suffix = count > 1 ? " (×#{count})" : ""
+          lines << "- `#{message.gsub("`", "'")}` (#{source})#{suffix}"
         end
       end
 
       "\n\n" + lines.join("\n")
     rescue JSON::ParserError
       ""
+    end
+
+    def deduped_errors(recent_errors)
+      recent_errors.each_with_object({}) do |err, acc|
+        key = [ err["message"].to_s, err["source"].to_s ]
+        acc[key] ||= 0
+        acc[key] += err["count"].to_i.nonzero? || 1
+      end
     end
   end
 end
