@@ -70,6 +70,12 @@ const HEADER_ACTION_ORDER: Record<string, number> = {
 // feedback panel, and the chat-bubble icon. Entry points rendered by the
 // route. Depends only on leaf modules and shared UI imports.
 
+// Shared with JobDetail.tsx so the header button and the panel it opens
+// gate the "submit feedback directly" action on the exact same condition.
+export function canSubmitFeedbackDirectly(payload: JobDetailPayload) {
+  return ["implemented", "failed", "no_change_needed"].includes(payload.job.state)
+}
+
 export function ChatBubbleIcon() {
   return (
     <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
@@ -78,7 +84,7 @@ export function ChatBubbleIcon() {
   )
 }
 
-export function HeaderActions({ payload, command, onToggleFeedbackPanel, onToggleRequestChangesPanel, onApprove }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; onToggleFeedbackPanel: () => void; onToggleRequestChangesPanel?: () => void; onApprove?: () => void }) {
+export function HeaderActions({ payload, command, onToggleFeedbackPanel, onApprove }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; onToggleFeedbackPanel: () => void; onApprove?: () => void }) {
   const { t } = useT("jobs")
   const [retryFeedbackOpen, setRetryFeedbackOpen] = useState(false)
   const [retryFeedbackInput, setRetryFeedbackInput] = useState<RetryPostInput | null>(null)
@@ -86,16 +92,17 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onToggl
   const [primaryKey] = primaryHeaderActionKeys(payload, actions)
   const primaryAction = actions.find((action) => action.key === primaryKey)
   const overflowActions = orderOverflowHeaderActions(actions.filter((action) => action.key !== primaryKey))
-  const canGiveFeedback = ["implemented", "failed", "no_change_needed"].includes(payload.job.state)
-  const canRequestChanges = Boolean(payload.actions.can_open_in_coding_mode && onToggleRequestChangesPanel)
+  // "Give feedback" covers both giving feedback directly (canSubmitFeedbackDirectly)
+  // and opening the Job in Coding Mode with that feedback (can_open_in_coding_mode)
+  // -- the panel itself offers whichever of those two actions currently apply.
+  const canGiveFeedback = canSubmitFeedbackDirectly(payload) || payload.actions.can_open_in_coding_mode
 
-  // "Give feedback" / "Request changes" toggle an inline panel rather than
-  // firing a command, so they're folded into the "..." overflow menu as ad
-  // hoc items instead of HeaderAction command entries -- only the single
-  // most important action (primaryAction, above) stays on the header itself.
+  // "Give feedback" toggles an inline panel rather than firing a command, so
+  // it's folded into the "..." overflow menu as an ad hoc item instead of a
+  // HeaderAction command entry -- only the single most important action
+  // (primaryAction, above) stays on the header itself.
   const overflowExtraItems: OverflowExtraItem[] = []
   if (canGiveFeedback) overflowExtraItems.push({ key: "give_feedback", label: t("give_feedback"), onSelect: onToggleFeedbackPanel, tone: "secondary" })
-  if (canRequestChanges) overflowExtraItems.push({ key: "request_changes", label: t("request_changes"), onSelect: onToggleRequestChangesPanel!, tone: "secondary" })
 
   // Keyboard shortcuts mirror the availability check of the button each one
   // stands in for -- found via the same `actions` list, so a shortcut can
@@ -198,16 +205,42 @@ function JobShortcut({ description, group, keys, onTrigger }: { description: str
   return null
 }
 
-export function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { error: Error | null; isPending: boolean; onCancel: () => void; onSubmit: (body: string) => void }) {
+// Combined "Give feedback" panel: offers submitting feedback directly and/or
+// opening the Job in Coding Mode with that same feedback as the first prompt,
+// whichever of the two the current Job state actually allows -- plus Cancel.
+export function JobFeedbackPanel({
+  canGiveFeedback,
+  canOpenInCodingMode,
+  codingModeBlockedReason,
+  codingModeError,
+  feedbackError,
+  isCodingModePending,
+  isFeedbackPending,
+  onCancel,
+  onSubmitFeedback,
+  onSubmitToCodingMode
+}: {
+  canGiveFeedback: boolean
+  canOpenInCodingMode: boolean
+  codingModeBlockedReason?: string | null
+  codingModeError: Error | null
+  feedbackError: Error | null
+  isCodingModePending: boolean
+  isFeedbackPending: boolean
+  onCancel: () => void
+  onSubmitFeedback: (body: string) => void
+  onSubmitToCodingMode: (body: string) => void
+}) {
   const { t } = useT("jobs")
   const [body, setBody] = useState("")
   const trimmedBody = body.trim()
+  const isPending = isFeedbackPending || isCodingModePending
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!trimmedBody) return
+    if (!trimmedBody || isPending || !canGiveFeedback) return
 
-    onSubmit(trimmedBody)
+    onSubmitFeedback(trimmedBody)
   }
 
   function submitOnShortcut(event: KeyboardEvent<HTMLFormElement>) {
@@ -229,50 +262,26 @@ export function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { err
           rows={4}
           value={body}
         />
-        {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, t("feedback_error"))}</p> : null}
+        {canOpenInCodingMode ? <p className="text-sm text-gray-600 dark:text-gray-300">{t("request_changes_coding_mode_panel_description")}</p> : null}
+        {!canOpenInCodingMode && codingModeBlockedReason ? <p className="text-xs text-gray-600 dark:text-gray-400">{codingModeBlockedReason}</p> : null}
+        {feedbackError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(feedbackError, t("feedback_error"))}</p> : null}
+        {codingModeError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(codingModeError, t("request_changes_error"))}</p> : null}
         <div className="flex flex-wrap justify-end gap-2">
           <Button disabled={isPending} onClick={onCancel} variant="secondary">{t("cancel")}</Button>
-          <Button disabled={isPending || !trimmedBody} type="submit" variant="primary">
-            {isPending ? t("submitting") : t("submit_feedback")}
-          </Button>
-        </div>
-      </form>
-    </section>
-  )
-}
-
-export function RequestChangesPanel({ canOpenInCodingMode, codingModeBlockedReason, error, isCodingModePending, onCancel, onSubmitToCodingMode }: { canOpenInCodingMode: boolean; codingModeBlockedReason?: string | null; error: Error | null; isCodingModePending: boolean; onCancel: () => void; onSubmitToCodingMode: (feedback: string) => void }) {
-  const { t } = useT("jobs")
-  const [feedback, setFeedback] = useState("")
-  const trimmedFeedback = feedback.trim()
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!trimmedFeedback || isCodingModePending || !canOpenInCodingMode) return
-
-    onSubmitToCodingMode(trimmedFeedback)
-  }
-
-  return (
-    <section aria-labelledby="job-request-changes-title" className="rounded border border-brand/30 bg-brand/10 p-4">
-      <form className="space-y-3" onSubmit={submit}>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100" id="job-request-changes-title">{t("request_changes_panel_title")}</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-300">{t("request_changes_coding_mode_panel_description")}</p>
-        <textarea
-          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-          disabled={isCodingModePending}
-          onChange={(event) => setFeedback(event.target.value)}
-          placeholder={t("request_changes_placeholder")}
-          rows={4}
-          value={feedback}
-        />
-        {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, t("request_changes_error"))}</p> : null}
-        {!canOpenInCodingMode && codingModeBlockedReason ? <p className="text-xs text-gray-600 dark:text-gray-400">{codingModeBlockedReason}</p> : null}
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button disabled={isCodingModePending} onClick={onCancel} variant="secondary">{t("cancel")}</Button>
-          <Button disabled={isCodingModePending || !trimmedFeedback || !canOpenInCodingMode} title={canOpenInCodingMode ? undefined : codingModeBlockedReason || t("open_in_coding_mode_unavailable")} type="submit" variant="primary">
-            {isCodingModePending ? t("submitting") : t("submit_request_changes_in_coding_mode")}
-          </Button>
+          {canOpenInCodingMode ? (
+            <Button
+              disabled={isPending || !trimmedBody}
+              onClick={() => onSubmitToCodingMode(trimmedBody)}
+              variant="secondary"
+            >
+              {isCodingModePending ? t("submitting") : t("submit_request_changes_in_coding_mode")}
+            </Button>
+          ) : null}
+          {canGiveFeedback ? (
+            <Button disabled={isPending || !trimmedBody} type="submit" variant="primary">
+              {isFeedbackPending ? t("submitting") : t("submit_feedback")}
+            </Button>
+          ) : null}
         </div>
       </form>
     </section>
