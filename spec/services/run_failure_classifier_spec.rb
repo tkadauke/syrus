@@ -692,6 +692,22 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(false)
   end
 
+  it "refreshes an existing worker-death classification when a late grader diagnostic arrives" do
+    run.step.update!(kind: "grader")
+    run.update!(state: "failed", agent_outcome: "worker_died", finished_at: Time.current)
+    create_resource_summary!(run: run, host_pressure_level: "critical", host_pressure_reasons: [ "IO pressure 55.0% >= 50%" ])
+    described_class.persist!(run)
+
+    expect(run.reload.run_failure_classification.classification).to eq("worker_died_under_resource_pressure")
+
+    diagnostic("Steps::Base::StepFailed", "grader react-tests-focused failed (exit 1)")
+
+    expect(run.reload.run_failure_classification).to have_attributes(
+      classification: "grader_failure",
+      retryable: false
+    )
+  end
+
   it "does not classify a failed grader as timeout just because output mentions timeout" do
     run.step.update!(
       kind: "grader",

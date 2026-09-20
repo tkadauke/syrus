@@ -331,6 +331,8 @@
   "run_log_line_other": "Logzeilen",
   "run_health": "Zustand:",
   "run_failure_label": "Fehler:",
+  "run_classification_retryable": "erneut versuchbare Ursache",
+  "run_classification_not_retryable": "manuell zu prüfende Ursache",
   "run_retryable": "erneut versuchbar",
   "run_not_retryable": "manuelle Prüfung",
   "run_diagnostic_captured": "Diagnose erfasst",

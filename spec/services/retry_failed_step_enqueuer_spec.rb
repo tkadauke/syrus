@@ -308,6 +308,48 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(collect).to be_retry_until_barrier_superseded
   end
 
+  it "cancels active work from the superseded grade loop before starting the replacement loop" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "retry", chain_template: grade_retry_chain_template)
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+
+    fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 4, state: "succeeded", iteration: 1, loop_id: "grade-loop")
+    failed_grader = Step.create!(workflow: workflow, kind: "grader", position: 5, state: "failed", iteration: 1, loop_id: "grade-loop")
+    running_grader = Step.create!(workflow: workflow, kind: "grader", position: 6, state: "running", iteration: 1, loop_id: "grade-loop")
+    queued_grader = Step.create!(workflow: workflow, kind: "grader", position: 7, state: "queued", iteration: 1, loop_id: "grade-loop")
+    collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 8, state: "failed", iteration: 1, loop_id: "grade-loop")
+    fanout.update!(next_step: failed_grader)
+    [ failed_grader, running_grader, queued_grader ].each { |grader| grader.update!(next_step: collect, depends_on_ids: [ fanout.id ]) }
+    collect.update!(depends_on_ids: [ failed_grader.id, running_grader.id, queued_grader.id ])
+
+    failed_grader.runs.create!(job: job, trigger_kind: "retry", state: "failed")
+    running_run = running_grader.runs.create!(job: job, trigger_kind: "retry", state: "running", started_at: 2.minutes.ago)
+    queued_run = queued_grader.runs.create!(job: job, trigger_kind: "retry", state: "queued")
+    collect.runs.create!(job: job, trigger_kind: "retry", state: "failed")
+    process = SpawnedProcess.create!(
+      run: running_run,
+      workflow: workflow,
+      kind: "grader",
+      command: "bin/test",
+      hostname: "worker-a",
+      started_at: 2.minutes.ago
+    )
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(result.step).to have_attributes(kind: "grader_fanout", state: "queued")
+    expect(result.step.loop_id).not_to eq("grade-loop")
+    expect(failed_grader.reload).to be_failed
+    expect(collect.reload).to be_failed
+    expect(collect).to be_retry_until_barrier_superseded
+    expect(running_grader.reload).to have_attributes(state: "cancelled", cancellation_reason: "manual_grade_loop_restart")
+    expect(queued_grader.reload).to have_attributes(state: "cancelled", cancellation_reason: "manual_grade_loop_restart")
+    expect(running_run.reload).to be_cancelled
+    expect(queued_run.reload).to be_cancelled
+    expect(process.reload.kill_requested_at).to be_present
+  end
+
   it "restarts the grade loop from scratch when the repair step inside the loop fails" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "retry", chain_template: grade_retry_chain_template(repair_first: true))
@@ -414,6 +456,24 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(unit.reload).to be_failed
     expect(failed_step.reload).to be_failed
     expect(failed_step.runs).to be_empty
+  end
+
+  it "keeps the owning WorkUnit active when retrying in place" do
+    job = Factories.job_record(state: "failed")
+    workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
+    unit = workflow.work_unit
+    failed_step = workflow.steps.first
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    unit.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    unit.work_unit_locks.active.find_each(&:release!)
+    failed_step.update_columns(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(workflow.reload).to be_running
+    expect(unit.reload).to have_attributes(state: "running", finished_at: nil)
+    expect(unit.work_unit_locks.active.pluck(:lock_key)).to eq([ "job:#{job.id}" ])
   end
 
   it "revives cancelled downstream steps when retrying a failed step in place" do

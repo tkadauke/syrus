@@ -327,6 +327,8 @@
   "run_log_line_other": "lineae actorum",
   "run_health": "Sanitas:",
   "run_failure_label": "Defectus:",
+  "run_classification_retryable": "causa iterabilis",
+  "run_classification_not_retryable": "causa recensenda",
   "run_retryable": "iterabile",
   "run_not_retryable": "recensio manualis",
   "run_diagnostic_captured": "Diagnostica capta",

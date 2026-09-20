@@ -1222,7 +1222,7 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
             </p>
           ) : null}
           {run.health_snapshots.at(-1) ? <p className="mt-2 text-xs text-text-muted">{t("run_health")} {run.health_snapshots.at(-1)?.health_status || "unknown"} {run.health_snapshots.at(-1)?.hint ? `- ${run.health_snapshots.at(-1)?.hint}` : ""}</p> : null}
-          {run.failure_classification ? <p className="mt-1 text-xs text-text-muted">{t("run_failure_label")} {humanize(run.failure_classification.classification)} · {run.failure_classification.retryable ? t("run_retryable") : t("run_not_retryable")}{run.failure_classification.reason ? ` - ${run.failure_classification.reason}` : ""}</p> : null}
+          {run.failure_classification ? <p className="mt-1 text-xs text-text-muted">{t("run_failure_label")} {humanize(run.failure_classification.classification)} · {run.failure_classification.retryable ? t("run_classification_retryable") : t("run_classification_not_retryable")}{run.failure_classification.reason ? ` - ${run.failure_classification.reason}` : ""}</p> : null}
           {targetLabel && (run.state === "failed" || run.state === "cancelled" || run.state === "skipped" || run.failure_classification) ? (
             <p className="mt-1 text-xs">
               <TargetGraphLink jobId={payload.job.id} prefix={prefix} targetLabel={targetLabel} workflowId={workflowId}>

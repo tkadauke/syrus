@@ -41,6 +41,7 @@ module Runs
     end
 
     def succeeded!
+      clear_stale_failure_evidence!
       record_provider_success_evidence!
       broadcast_provider_availability_after_success!
     end
@@ -116,6 +117,15 @@ module Runs
       @failure_classification_record = RunFailureClassifier.persist!(run)
     rescue StandardError => e
       Rails.logger.warn("[RunFailureClassifier] failed for Run ##{run.id}: #{e.class}: #{e.message}")
+      nil
+    end
+
+    def clear_stale_failure_evidence!
+      run_failure_classification&.destroy!
+      run_diagnostic&.destroy!
+      @failure_classification_record = nil
+    rescue StandardError => e
+      Rails.logger.warn("[Run##{run.id}] failed to clear stale failure evidence after success: #{e.class}: #{e.message}")
       nil
     end
 

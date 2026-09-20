@@ -337,6 +337,8 @@
   "run_log_line_other": "log lines",
   "run_health": "Health:",
   "run_failure_label": "Failure:",
+  "run_classification_retryable": "retryable cause",
+  "run_classification_not_retryable": "manual-review cause",
   "run_retryable": "retryable",
   "run_not_retryable": "manual review",
   "run_diagnostic_captured": "Diagnostic captured",

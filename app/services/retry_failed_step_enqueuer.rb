@@ -122,8 +122,7 @@ class RetryFailedStepEnqueuer
       return failure(lock_error)
     end
 
-    workflow.reopen!
-    workflow.save!
+    reopen_workflow_for_retry!
     if grade_loop_restart_retry?(failed_step)
       restart_step = restart_grade_loop!(failed_step)
       if workflow.landing_workflow?
@@ -238,6 +237,7 @@ class RetryFailedStepEnqueuer
 
     Step.transaction do
       supersede_grade_loop!(fanout, restart_loop_id: new_loop_id)
+      cancel_superseded_grade_loop_active_descendants!(fanout.loop_id, restart_loop_id: new_loop_id)
 
       step_kinds = initial_retry_until_step_kinds(loop_node)
       workflow.steps.where("position >= ?", insertion_position).update_all(
@@ -303,6 +303,48 @@ class RetryFailedStepEnqueuer
       end
       step.update_columns(details: details, updated_at: Time.current)
     end
+  end
+
+  def cancel_superseded_grade_loop_active_descendants!(loop_id, restart_loop_id:)
+    now = Time.current
+    old_steps = workflow.steps.where(loop_id: loop_id)
+    active_runs = Run.where(step_id: old_steps.select(:id)).active.to_a
+    active_run_ids = active_runs.map(&:id)
+
+    request_superseded_process_kill!(active_run_ids)
+
+    active_runs.each do |run|
+      run.update_columns(state: "cancelled", finished_at: now, updated_at: now)
+      RunResourceSummary.refresh_for(run.reload)
+    end
+
+    old_steps.where(state: Step::ACTIVE_STATES).find_each do |step|
+      step.update_columns(
+        state: "cancelled",
+        finished_at: now,
+        cancellation_reason: "manual_grade_loop_restart",
+        details: step.details.to_h.merge(
+          "cancelled_by" => "manual_grade_loop_restart",
+          "manual_grade_loop_restart_loop_id" => restart_loop_id,
+          "superseded_active_work_cancelled_at" => now.iso8601
+        ),
+        updated_at: now
+      )
+    end
+  end
+
+  def request_superseded_process_kill!(run_ids)
+    return if run_ids.empty?
+
+    SpawnedProcess.running.where(run_id: run_ids).find_each(&:request_kill!)
+  rescue StandardError => e
+    Rails.logger.warn("[RetryFailedStepEnqueuer] failed to request superseded grade-loop process kills for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
+  end
+
+  def reopen_workflow_for_retry!
+    workflow.reopen!
+    workflow.save!
+    workflow.sync_work_unit_running! if workflow.running? && workflow.work_unit && !workflow.work_unit.running?
   end
 
   def placement_policy_for(kind)
