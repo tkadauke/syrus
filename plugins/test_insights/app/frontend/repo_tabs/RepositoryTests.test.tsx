@@ -192,6 +192,107 @@ describe("DurationChart", () => {
   })
 })
 
+const COLUMNS_STORAGE_KEY = "syrus.test_insights.repository_tests_columns"
+
+function multiTestPayload(): RepositoryTestsPayload {
+  return {
+    repository: REPOSITORY,
+    tabs: TABS,
+    query: "",
+    limit: 20,
+    tests: [
+      { id: 1, suite_name: "spec/a_spec.rb", name: "Zebra test", file_path: null, fingerprint: "f1", last_status: "passed", last_seen_at: "2026-01-03T00:00:00Z", last_failed_at: null, last_passed_at: "2026-01-03T00:00:00Z", last_duration_ms: 100, total_count: 5, failed_count: 0, passed_count: 5, failure_rate: 0, avg_duration_ms: 100, interesting_reasons: [] },
+      { id: 2, suite_name: "spec/b_spec.rb", name: "Alpha test", file_path: null, fingerprint: "f2", last_status: "failed", last_seen_at: "2026-01-01T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: null, last_duration_ms: 500, total_count: 4, failed_count: 3, passed_count: 1, failure_rate: 0.75, avg_duration_ms: 500, interesting_reasons: [ "failing" ] },
+      { id: 3, suite_name: "spec/c_spec.rb", name: "Middle test", file_path: null, fingerprint: "f3", last_status: "passed", last_seen_at: "2026-01-02T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: "2026-01-02T00:00:00Z", last_duration_ms: 2000, total_count: 4, failed_count: 1, passed_count: 3, failure_rate: 0.25, avg_duration_ms: 2000, interesting_reasons: [ "flaky", "slow" ] }
+    ]
+  }
+}
+
+function renderTestList() {
+  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(multiTestPayload()))
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[ "/tests-panel" ]}>
+        <Routes>
+          <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId={null} />} path="/tests-panel" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function visibleTestOrder() {
+  return screen.getAllByRole("link")
+    .map((link) => link.textContent)
+    .filter((text): text is string => text === "Zebra test" || text === "Alpha test" || text === "Middle test")
+}
+
+describe("RepositoryTestsRoute test list", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.localStorage.clear()
+  })
+
+  it("sorts the test list ascending then descending when the Test header is clicked", async () => {
+    renderTestList()
+    await screen.findByText("Zebra test")
+
+    expect(visibleTestOrder()).toEqual([ "Zebra test", "Alpha test", "Middle test" ])
+
+    fireEvent.click(screen.getByRole("button", { name: "Test" }))
+    await waitFor(() => expect(visibleTestOrder()).toEqual([ "Alpha test", "Middle test", "Zebra test" ]))
+
+    fireEvent.click(screen.getByRole("button", { name: "Test" }))
+    await waitFor(() => expect(visibleTestOrder()).toEqual([ "Zebra test", "Middle test", "Alpha test" ]))
+  })
+
+  it("filters the test list with a reason chip", async () => {
+    renderTestList()
+    await screen.findByText("Zebra test")
+
+    fireEvent.click(screen.getByRole("button", { name: "failing" }))
+
+    expect(visibleTestOrder()).toEqual([ "Alpha test" ])
+
+    fireEvent.click(screen.getByRole("button", { name: "failing" }))
+    await waitFor(() => expect(visibleTestOrder()).toHaveLength(3))
+  })
+
+  it("hides a column from the Columns menu and persists the choice", async () => {
+    renderTestList()
+    await screen.findByText("Zebra test")
+
+    expect(screen.getByRole("columnheader", { name: "Suite" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    fireEvent.click(screen.getByRole("checkbox", { name: "Suite" }))
+
+    expect(screen.queryByRole("columnheader", { name: "Suite" })).not.toBeInTheDocument()
+
+    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) || "{}")
+    expect(stored.hidden).toContain("suite")
+  })
+
+  it("reorders columns by dragging a row in the Columns menu and persists the order", async () => {
+    renderTestList()
+    await screen.findByText("Zebra test")
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+
+    const suiteRow = screen.getByRole("checkbox", { name: "Suite" }).closest("[draggable]") as HTMLElement
+    const lastSeenRow = screen.getByRole("checkbox", { name: "Last seen" }).closest("[draggable]") as HTMLElement
+
+    fireEvent.dragStart(suiteRow, { dataTransfer: {} })
+    fireEvent.dragOver(lastSeenRow, { dataTransfer: {} })
+    fireEvent.drop(lastSeenRow, { dataTransfer: {} })
+    fireEvent.dragEnd(suiteRow, { dataTransfer: {} })
+
+    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) || "{}")
+    expect(stored.order.indexOf("suite")).toBeGreaterThan(stored.order.indexOf("last_seen"))
+  })
+})
+
 describe("RepositoryTestsRoute history pagination", () => {
   afterEach(() => vi.restoreAllMocks())
 
