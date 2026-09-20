@@ -113,7 +113,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   })
   const repositoriesQuery = useQuery({
     queryKey: ["repositories"],
-    queryFn: fetchRepositories,
+    queryFn: () => fetchRepositories(),
     staleTime: 60_000
   })
   const [notice, setNotice] = useState<string | null>(null)

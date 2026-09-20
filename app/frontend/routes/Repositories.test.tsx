@@ -1,12 +1,11 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { RepositoriesIndex } from "./Repositories"
-import * as useConfirmModule from "../hooks/useConfirm"
 
-function repositoryRow() {
+function repositoryRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 1,
     slug: "acme/widgets",
@@ -32,7 +31,8 @@ function repositoryRow() {
     last_poll_started_at: null,
     last_poll_error: null,
     repository_path: "/repositories/1",
-    edit_repository_path: "/repositories/1/edit"
+    edit_repository_path: "/repositories/1/edit",
+    ...overrides
   }
 }
 
@@ -58,62 +58,70 @@ function renderRoute() {
   )
 }
 
-describe("RepositoriesIndex archive", () => {
-  let mockConfirm: ReturnType<typeof vi.fn>
-
+describe("RepositoriesIndex data table", () => {
   beforeEach(() => {
-    mockConfirm = vi.fn().mockResolvedValue(true)
-    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
+    window.localStorage.clear()
   })
 
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    window.localStorage.clear()
+  })
 
-  it("opens confirm dialog instead of window.confirm when archiving a repository", async () => {
+  it("shows the default visible columns without polling emphasis", async () => {
     renderRoute()
 
-    const archiveButton = await screen.findByRole("button", { name: "Archive" })
-    fireEvent.click(archiveButton)
+    expect(await screen.findByRole("columnheader", { name: "Repository" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "GitHub owner" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Open jobs" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Last activity" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Health" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Agent" })).toBeInTheDocument()
+
+    expect(screen.queryByRole("columnheader", { name: "Polling" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Last poll" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Trigger label" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Default branch" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Syrus owner" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Upstream" })).not.toBeInTheDocument()
+  })
+
+  it("toggles an opt-in column through the column picker", async () => {
+    renderRoute()
+
+    await screen.findByRole("columnheader", { name: "Repository" })
+    expect(screen.queryByRole("columnheader", { name: "Polling" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    const menu = await screen.findByRole("menu")
+    fireEvent.click(within(menu).getByRole("checkbox", { name: "Polling" }))
 
     await waitFor(() => {
-      expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
+      expect(screen.getByRole("columnheader", { name: "Polling" })).toBeInTheDocument()
     })
   })
 
-  it("calls the archive API when the user confirms", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const url = String(input)
-      if (url === "/api/v1/app/repositories/1/archive" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(repositoriesPayload({ active_repositories: [], message: "Repository archived." })))
-      }
-      return Promise.resolve(jsonResponse(repositoriesPayload()))
-    })
-
+  it("does not render an Archive button on index rows", async () => {
     renderRoute()
 
-    const archiveButton = await screen.findByRole("button", { name: "Archive" })
-    fireEvent.click(archiveButton)
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/archive",
-        expect.objectContaining({ method: "POST" })
-      )
-    })
+    expect(await screen.findByRole("link", { name: "acme/widgets" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
   })
 
-  it("does not call the archive API when the user cancels", async () => {
-    mockConfirm.mockResolvedValue(false)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload()))
-
-    renderRoute()
-
-    const archiveButton = await screen.findByRole("button", { name: "Archive" })
-    await act(async () => { fireEvent.click(archiveButton) })
-
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/repositories/1/archive",
-      expect.objectContaining({ method: "POST" })
+  it("still offers Unarchive on archived rows", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload({
+      active_repositories: [],
+      archived_repositories: [repositoryRow({ id: 2, slug: "acme/attic", archived: true, archived_at: "2026-01-01T00:00:00Z" })]
+    })))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+          <RepositoriesIndex />
+        </MemoryRouter>
+      </QueryClientProvider>
     )
+
+    expect(await screen.findByRole("button", { name: "Unarchive" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
   })
 })
