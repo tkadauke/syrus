@@ -73,19 +73,24 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
                 {t("repo_back_to_tests")}
               </Button>
             </div>
-          ) : (
-            <FilterBar
-              filter={tests.data?.filter ?? null}
-              filterSchema={tests.data?.filter_schema ?? []}
-              pathname={location.pathname}
-              search={listSearch}
-            />
-          )}
+          ) : null}
 
           {selectedTestId ? (
             <TestDetailPanel detail={testDetail.data} error={testDetail.error} isError={testDetail.isError} isPending={testDetail.isPending} onPageChange={setHistoryPage} prefix={prefix} t={t} />
           ) : (
-            <TestList error={tests.error} filterActive={hasActiveFilter(tests.data?.filter)} isError={tests.isError} isFetching={tests.isFetching} payload={tests.data} prefix={prefix} t={t} />
+            <TestList
+              error={tests.error}
+              filter={tests.data?.filter ?? null}
+              filterActive={hasActiveFilter(tests.data?.filter)}
+              filterSchema={tests.data?.filter_schema ?? []}
+              isError={tests.isError}
+              isFetching={tests.isFetching}
+              payload={tests.data}
+              pathname={location.pathname}
+              prefix={prefix}
+              search={listSearch}
+              t={t}
+            />
           )}
         </section>
       ) : null}
@@ -213,7 +218,7 @@ function compareSortValues(a: string | number | null, b: string | number | null,
   return ((a as number) - (b as number)) * direction
 }
 
-function TestList({ error, filterActive, isError, isFetching, payload, prefix, t }: { error: unknown; filterActive: boolean; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; prefix: string; t: TFunction<"test_insights"> }) {
+function TestList({ error, filter, filterActive, filterSchema = [], isError, isFetching, payload, pathname, prefix, search, t }: { error: unknown; filter: RepositoryTestsPayload["filter"]; filterActive: boolean; filterSchema: RepositoryTestsPayload["filter_schema"]; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; pathname: string; prefix: string; search: string; t: TFunction<"test_insights"> }) {
   const [columns, setColumns] = useState<ColumnsState>(() => readColumnsState())
   const [sort, setSort] = useState<SortState>(null)
 
@@ -240,47 +245,50 @@ function TestList({ error, filterActive, isError, isFetching, payload, prefix, t
     })
   }
 
-  if (payload.tests.length === 0) {
-    return <Notice>{filterActive ? t("repo_no_search_results") : t("repo_no_history")}</Notice>
-  }
-
   const visibleColumns: ColumnKey[] = [REQUIRED_COLUMN, ...columns.order.filter((key) => !columns.hidden.includes(key))]
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        {isFetching ? <span className="text-xs text-text-muted">{t("repo_updating_results")}</span> : null}
-        {isError ? <span className="text-xs text-danger">{errorMessage(error, t("repo_error_refresh_results"))}</span> : null}
-        <ColumnsMenu columns={columns} onChange={setColumns} t={t} />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <FilterBar className="flex-1 space-y-2" filter={filter} filterSchema={filterSchema} pathname={pathname} search={search} />
+        <div className="flex shrink-0 items-center gap-3">
+          {isFetching ? <span className="text-xs text-text-muted">{t("repo_updating_results")}</span> : null}
+          {isError ? <span className="text-xs text-danger">{errorMessage(error, t("repo_error_refresh_results"))}</span> : null}
+          <ColumnsMenu columns={columns} onChange={setColumns} t={t} />
+        </div>
       </div>
 
-      <DataTable.Root>
-        <DataTable.Header>
-          <DataTable.Row>
-            {visibleColumns.map((key) => (
-              <DataTable.HeadCell
-                className={COLUMN_DEFS[key].headClassName}
-                key={key}
-                onSort={() => toggleSort(key)}
-                sortDirection={sort?.column === key ? sort.direction : "none"}
-              >
-                {t(COLUMN_DEFS[key].labelKey)}
-              </DataTable.HeadCell>
-            ))}
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {visibleTests.map((test) => (
-            <DataTable.Row key={test.id}>
+      {payload.tests.length === 0 ? (
+        <Notice>{filterActive ? t("repo_no_search_results") : t("repo_no_history")}</Notice>
+      ) : (
+        <DataTable.Root>
+          <DataTable.Header>
+            <DataTable.Row>
               {visibleColumns.map((key) => (
-                <DataTable.Cell className={COLUMN_DEFS[key].cellClassName} key={key} title={COLUMN_DEFS[key].cellTitle?.(test)}>
-                  {COLUMN_DEFS[key].renderCell(test, { payload, prefix, t })}
-                </DataTable.Cell>
+                <DataTable.HeadCell
+                  className={COLUMN_DEFS[key].headClassName}
+                  key={key}
+                  onSort={() => toggleSort(key)}
+                  sortDirection={sort?.column === key ? sort.direction : "none"}
+                >
+                  {t(COLUMN_DEFS[key].labelKey)}
+                </DataTable.HeadCell>
               ))}
             </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
+          </DataTable.Header>
+          <DataTable.Body>
+            {visibleTests.map((test) => (
+              <DataTable.Row key={test.id}>
+                {visibleColumns.map((key) => (
+                  <DataTable.Cell className={COLUMN_DEFS[key].cellClassName} key={key} title={COLUMN_DEFS[key].cellTitle?.(test)}>
+                    {COLUMN_DEFS[key].renderCell(test, { payload, prefix, t })}
+                  </DataTable.Cell>
+                ))}
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      )}
     </div>
   )
 }
