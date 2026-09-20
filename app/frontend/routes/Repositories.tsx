@@ -17,7 +17,6 @@ import {
 import { errorMessage } from "../lib/errorMessage"
 import { linkFromSearch } from "../components/filterBar/helpers"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import type { AdminSmartFolder } from "../api/adminSmartFolders"
 import { Button, buttonClasses, Checkbox, DataTable, Input, PanelMessage, Select, Surface, Text, TonePill, type PillTone } from "../components/ui"
 
@@ -195,7 +194,6 @@ export function RepositoriesIndex() {
 
 function RepositoriesView({ payload, filterOptionsPayload, prefix, pathname, search }: { payload: RepositoriesPayload; filterOptionsPayload: RepositoriesPayload; prefix: string; pathname: string; search: string }) {
   const { t } = useT("settings")
-  const { t: tNav } = useT("nav")
   const queryClient = useQueryClient()
   const setupStatus = useSetupStatus()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
@@ -260,40 +258,24 @@ function RepositoriesView({ payload, filterOptionsPayload, prefix, pathname, sea
           setupStatus={setupStatus}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
-          <AdminSmartFolderNav
-            activeFolderId={activeSmartFolderId}
-            allowSaveWithoutActiveFolder
-            ariaLabel={tNav("smart_folders_aria")}
-            currentFilter={payload.filter}
-            folders={payload.smart_folders}
-            heading={t("repositories.smart_folders_heading")}
-            onMutationSuccess={() => {
-              void queryClient.invalidateQueries({ queryKey: ["repositories"] })
-            }}
-            prefix={prefix}
-            queryKey={["repositories"]}
-            subjectType="repository"
-          />
-          <div className="min-w-0 space-y-4">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <RepositoryFilterBar optionsPayload={filterOptionsPayload} pathname={pathname} search={search} />
-              <RepositoryColumnPicker onToggle={toggleColumn} visibleColumns={visibleColumns} />
-            </div>
-
-            <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-              <RepositoryDataTable
-                emptyMessage={emptyStateMessage(t, activeFolder)}
-                onSort={toggleSortColumn}
-                onUnarchive={(repository) => unarchive.mutate(repository.id)}
-                prefix={prefix}
-                repositories={combinedRepositories}
-                sortState={sortState}
-                unarchivePending={unarchive.isPending}
-                visibleColumns={visibleColumns}
-              />
-            </section>
+        <div className="min-w-0 space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <RepositoryFilterBar optionsPayload={filterOptionsPayload} pathname={pathname} search={search} />
+            <RepositoryColumnPicker onToggle={toggleColumn} visibleColumns={visibleColumns} />
           </div>
+
+          <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            <RepositoryDataTable
+              emptyMessage={emptyStateMessage(t, activeFolder)}
+              onSort={toggleSortColumn}
+              onUnarchive={(repository) => unarchive.mutate(repository.id)}
+              prefix={prefix}
+              repositories={combinedRepositories}
+              sortState={sortState}
+              unarchivePending={unarchive.isPending}
+              visibleColumns={visibleColumns}
+            />
+          </section>
         </div>
       )}
     </>

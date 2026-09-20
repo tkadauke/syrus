@@ -351,8 +351,11 @@ describe("TerminalRoute", () => {
       return Promise.resolve(jsonResponse(bootstrapPayload({ feature_flags: { v2_ui: true } })))
     })
 
+    // A neutral route that isn't Terminal's own path and doesn't match any
+    // primary nav item's own subnav (unlike "/repositories", which now has
+    // a smart-folder subnav that would need its own fetch mock).
     renderWithClient(
-      <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+      <MemoryRouter initialEntries={["/app-shell/settings"]}>
         <AppChromeV2 initialBootstrap={bootstrapPayload({ feature_flags: { v2_ui: true } })}>
           <main>Dashboard</main>
         </AppChromeV2>
@@ -373,8 +376,11 @@ describe("TerminalRoute", () => {
       return Promise.resolve(jsonResponse(bootstrapPayload({ feature_flags: { v2_ui: true } })))
     })
 
+    // A neutral route that isn't Terminal's own path and doesn't match any
+    // primary nav item's own subnav (unlike "/repositories", which now has
+    // a smart-folder subnav that would need its own fetch mock).
     renderWithClient(
-      <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+      <MemoryRouter initialEntries={["/app-shell/settings"]}>
         <AppChromeV2 initialBootstrap={bootstrapPayload({ feature_flags: { v2_ui: true } })}>
           <main>Dashboard</main>
         </AppChromeV2>

@@ -159,12 +159,16 @@ describe("RepositoriesIndex smart folders", () => {
     window.localStorage.clear()
   })
 
-  it("resolves the All/Recent/Archived folders to the right smart_folder_id params", async () => {
+  it("does not render a page-level smart folder sidebar (it lives in the app sidebar's Repositories section instead)", async () => {
     renderRoute()
 
-    expect(await screen.findByRole("link", { name: "All 1" })).toHaveAttribute("href", "/app-shell/repositories?smart_folder_id=1")
-    expect(screen.getByRole("link", { name: "Recent 0" })).toHaveAttribute("href", "/app-shell/repositories?smart_folder_id=2")
-    expect(screen.getByRole("link", { name: "Archived 0" })).toHaveAttribute("href", "/app-shell/repositories?smart_folder_id=3")
+    await screen.findByRole("link", { name: "acme/widgets" })
+    expect(screen.queryByRole("navigation", { name: "Repositories smart folders" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "All 1" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Recent 0" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Archived 0" })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Folder name")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Save as new folder" })).not.toBeInTheDocument()
   })
 
   it("shows both active and archived repositories together when no folder narrows them", async () => {
@@ -202,49 +206,6 @@ describe("RepositoriesIndex smart folders", () => {
     )
 
     expect(await screen.findByText("No repositories with job activity in the last 30 days.")).toBeInTheDocument()
-  })
-
-  it("persists the current dropdown filter as a new user-defined smart folder", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const url = String(input)
-      const method = init?.method || "GET"
-      if (url === "/api/v1/app/smart_folders" && method === "POST") {
-        return Promise.resolve(jsonResponse({
-          message: "Smart folder saved.",
-          redirect_to: "/repositories?smart_folder_id=9",
-          subject_type: "repository",
-          smart_folders: []
-        }))
-      }
-      return Promise.resolve(jsonResponse(repositoriesPayload({
-        filter: { and: [ { field: "health", op: "is", value: "broken" } ] }
-      })))
-    })
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/app-shell/repositories?health=broken"]}>
-          <RepositoriesIndex />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    fireEvent.change(await screen.findByLabelText("Folder name"), { target: { value: "Broken repos" } })
-    fireEvent.click(screen.getByRole("button", { name: "Save as new folder" }))
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/smart_folders",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({
-            filter: JSON.stringify({ and: [ { field: "health", op: "is", value: "broken" } ] }),
-            subject_type: "repository",
-            smart_folder: { name: "Broken repos" }
-          })
-        })
-      )
-    })
   })
 
   it("shows the Archived smart folder's empty state when there is nothing archived", async () => {
