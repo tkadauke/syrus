@@ -673,32 +673,37 @@ A tool opts into the artifact-sink axis with `captures_artifact!` (see
 have nothing to capture and leave it off.
 
 **Input-lease enforcement: the same axis gates both entry points.** `click`,
-`fill`, `hover`, `drag`, and `evaluate` are the only working way to deliver
-real pointer/keyboard input to a browser `RuntimeSession` today
-(`RuntimeSessionProvider#input` itself still answers `not_yet_supported`),
-and they are reachable two ways — directly as `browser_click`/
-`browser_fill`/`browser_hover`/`browser_drag`/`browser_evaluate` via
-`SyrusBrowser::ChatToolSet`, and indirectly as the (currently unimplemented)
-backing for the generic `runtime_input` tool. `evaluate` earns the same gate
-as the others because arbitrary JS can dispatch synthetic click/keyboard
-events or set form field values, functionally simulating the same input the
-rest of the gated tools perform — a JS-execution escape hatch would
-otherwise make the lease trivial to route around. A tool opts into the check
-with `requires_input_lease!` (see `SyrusBrowser::BrowserTool#call`);
-enforcement is a no-op unless `SessionContext#owner` is an actual
-`RuntimeSession` (the workflow Run path used by `visual_review` has no lease
-concept and is unaffected), and rejects the call as `lease_required` unless
-`RuntimeSession#active_agent_input_lease` is present — the exact same lease a
-`runtime_acquire_control(mode: "input")` call grants. This closes what would
-otherwise be a bypass: without it, a Coding Mode agent could call
-`browser_click`/`browser_fill`/`browser_drag`/`browser_evaluate` directly and
-skip DOC-17's Shared Human/Agent Control entirely, racing the operator
-instead of coordinating with them. `navigate` (also how `runtime_launch`
-drives the initial page load, which must not itself require a pre-acquired
-lease), `resize`, `close`, `snapshot`, `screenshot`, and `wait_for` stay
-ungated — they are either lifecycle/observational actions with no "input"
-analog in DOC-17's capability sense, or (navigate) already used internally
-by a flow that must not be gated.
+`fill`, `hover`, `drag`, `drop`, `file_upload`, and `evaluate` are the only
+working way to deliver real pointer/keyboard/file input to a browser
+`RuntimeSession` today (`RuntimeSessionProvider#input` itself still answers
+`not_yet_supported`), and they are reachable two ways — directly as
+`browser_click`/`browser_fill`/`browser_hover`/`browser_drag`/`browser_drop`/
+`browser_file_upload`/`browser_evaluate` via `SyrusBrowser::ChatToolSet`, and
+indirectly as the (currently unimplemented) backing for the generic
+`runtime_input` tool. `evaluate` earns the same gate as the others because
+arbitrary JS can dispatch synthetic click/keyboard events or set form field
+values, functionally simulating the same input the rest of the gated tools
+perform — a JS-execution escape hatch would otherwise make the lease
+trivial to route around. `drop` delivers a real Playwright-synthesized
+drag/drop the same as `drag`; `file_upload` feeds real files into an open
+file chooser and has no state linking "a chooser is open" to "the caller
+holds the lease," so gating the tool itself is what closes that path. A tool
+opts into the check with `requires_input_lease!` (see
+`SyrusBrowser::BrowserTool#call`); enforcement is a no-op unless
+`SessionContext#owner` is an actual `RuntimeSession` (the workflow Run path
+used by `visual_review` has no lease concept and is unaffected), and rejects
+the call as `lease_required` unless `RuntimeSession#active_agent_input_lease`
+is present — the exact same lease a `runtime_acquire_control(mode: "input")`
+call grants. This closes what would otherwise be a bypass: without it, a
+Coding Mode agent could call `browser_click`/`browser_fill`/`browser_drag`/
+`browser_drop`/`browser_file_upload`/`browser_evaluate` directly and skip
+DOC-17's Shared Human/Agent Control entirely, racing the operator instead of
+coordinating with them. `navigate` (also how `runtime_launch` drives the
+initial page load, which must not itself require a pre-acquired lease),
+`resize`, `close`, `snapshot`, `screenshot`, and `wait_for` stay ungated —
+they are either lifecycle/observational actions with no "input" analog in
+DOC-17's capability sense, or (navigate) already used internally by a flow
+that must not be gated.
 
 ### Generic `runtime_*` MCP tools and Runtime Control Lease
 
@@ -753,8 +758,9 @@ acquires as `owner: "agent"`; `runtime_input` does not check the lease
 itself — it delegates straight to the provider's own `#input`, which is what
 actually enforces the gate (see `SyrusBrowser::RuntimeSessionProvider#input`,
 returning `{error: "lease_required"}` with no active agent input lease). The
-same lease also gates the raw `browser_click`/`browser_fill`/`browser_hover`
-tools directly (see `requires_input_lease!` above) so there is exactly one
+same lease also gates the raw `browser_click`/`browser_fill`/`browser_hover`/
+`browser_drag`/`browser_drop`/`browser_file_upload`/`browser_evaluate` tools
+directly (see `requires_input_lease!` above) so there is exactly one
 enforcement point regardless of which tool surface an agent uses to drive
 input. Every acquire/release/cancel/expire and delivered input event is
 audited via `JobLog` (when the session has a `run`) and broadcast live over
