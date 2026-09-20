@@ -144,12 +144,29 @@ RSpec.describe McpToolPolicy do
       expect(described_class.for(context)).to include(Mcp::Tools::ReadLiveStateTool)
     end
 
+    it "matches the workflow registry's role grants for every workflow role" do
+      AgentRole::WORKFLOW_ROLES.each do |role|
+        context = McpToolContext.new(surface: :run, role: role, user: user)
+        registry_tools = McpToolRegistry.tools_for_context(context, surface: :workflow) -
+          [ Mcp::Tools::SubmitJobMetadataTool ]
+
+        expect(described_class.for(context)).to contain_exactly(*registry_tools), "expected workflow policy to match registry grants for #{role}"
+      end
+    end
+
     it "includes submit_job_metadata for refresh_job_metadata runs" do
       run.step.update_columns(kind: "refresh_job_metadata")
       context = McpToolContext.from_run(run.reload)
       tools   = described_class.for(context)
 
       expect(tools).to include(Mcp::Tools::SubmitJobMetadataTool)
+    end
+
+    it "includes review submit tools for the manual workflow role" do
+      context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_MANUAL, user: user)
+      tools = described_class.for(context)
+
+      expect(tools).to include(Mcp::Tools::SubmitAdversarialReviewTool, Mcp::Tools::SubmitVisualReviewTool)
     end
 
     it "includes the delivery-track/ref-movement tools only for run_skill steps" do
@@ -193,9 +210,18 @@ RSpec.describe McpToolPolicy do
         expect(described_class.capability_permitted?(context, :submit_chat_feedback)).to be(false)
       end
 
-      it "permits submit_job_metadata for the summary/test-plan role" do
-        context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN, user: user)
+      it "permits submit_job_metadata for refresh_job_metadata runs" do
+        run.step.update_columns(kind: "refresh_job_metadata")
+        context = McpToolContext.from_run(run.reload)
+
         expect(described_class.capability_permitted?(context, :submit_job_metadata)).to be(true)
+      end
+
+      it "denies submit_job_metadata for other summary/test-plan role steps" do
+        run.step.update_columns(kind: "summarize")
+        context = McpToolContext.from_run(run.reload)
+
+        expect(described_class.capability_permitted?(context, :submit_job_metadata)).to be(false)
       end
 
       it "permits submit_artifact for the implement role" do

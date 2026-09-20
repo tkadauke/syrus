@@ -2464,6 +2464,23 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.unsatisfied_dependencies).to be_empty
     end
 
+    it "reports an unsatisfied dependency when the Epic has not released jobs for execution" do
+      epic = Factories.epic(user: user, repository: repository, state: "ready")
+      job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43)
+
+      expect(job.dependencies).to be_empty
+      expect(job).not_to be_dependencies_satisfied
+      expect(job.unsatisfied_dependencies).to contain_exactly(
+        have_attributes(
+          id: "epic-release:#{epic.id}",
+          source: "epic_release",
+          pending?: false,
+          dependency_succeeded?: false,
+          depends_on_epic: epic
+        )
+      )
+    end
+
     it "treats cancelled dependencies as failed for execution" do
       prerequisite = Factories.job_record(
         user: user,
@@ -2478,6 +2495,24 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job).not_to be_dependencies_satisfied_for_execution
       expect(job).to be_dependencies_failed_for_execution
       expect(job.failed_dependencies_for_execution.map(&:depends_on_job)).to contain_exactly(prerequisite)
+    end
+
+    it "does not treat failed dependencies as failed for execution after an operator override" do
+      prerequisite = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 42,
+        state: "closed",
+        closure_reason: "cancelled"
+      )
+      job = Factories.job_record(user: user, repository: repository, issue_number: 43)
+      job.dependencies.create!(depends_on_job: prerequisite, source: "manual")
+
+      job.force_run_dependencies!(user: user)
+
+      expect(job.reload).to be_dependencies_satisfied_for_execution
+      expect(job).not_to be_dependencies_failed_for_execution
+      expect(job.failed_dependencies_for_execution).to be_empty
     end
 
     it "treats pending dependencies on done Epic issues as satisfied" do
@@ -3410,7 +3445,11 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
   describe "Coding Mode lock" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
-    let(:chat_session) { ChatSession.create!(user: user) }
+    let(:chat_session) { ChatSession.create!(user: user, chat_provider: "claude") }
+
+    before do
+      allow(User).to receive(:chat_providers).and_return(%w[claude])
+    end
 
     def enable_coding_mode!(enabled: true)
       feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
@@ -3466,6 +3505,26 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(job.approved_at).to be_nil
       end
 
+      it "keeps approval unchanged when unapproval succeeds but the coding claim is rejected" do
+        enable_coding_mode!
+        approved_at = Time.current
+        job = Factories.job_record(user: user, repository: repository, state: "approved", approved_at: approved_at,
+                                   approved_via: "operator", approved_by_user: user,
+                                   approval_evidence: { "note" => "ship it" })
+        allow(job).to receive(:may_claim_for_coding?).and_return(false)
+        expect(Job::ApprovalPropagator).not_to receive(:dismiss)
+
+        result = job.lock_for_coding_mode!(chat_session)
+
+        expect(result).to be(false)
+        expect(job.reload).to be_approved
+        expect(job.linked_chat_id).to be_nil
+        expect(job.approved_at).to be_within(1.second).of(approved_at)
+        expect(job.approved_via).to eq("operator")
+        expect(job.approved_by_user).to eq(user)
+        expect(job.approval_evidence).to eq({ "note" => "ship it" })
+      end
+
       it "returns false and does not change state when feature flag is off" do
         job = Factories.job_record(user: user, repository: repository, state: "queued")
 
@@ -3478,7 +3537,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
 
       it "returns false when already locked by a chat session" do
         enable_coding_mode!
-        other_chat = ChatSession.create!(user: user)
+        other_chat = ChatSession.create!(user: user, chat_provider: "claude")
         job = Factories.job_record(user: user, repository: repository, state: "queued")
         job.update!(linked_chat_id: other_chat.id)
         job.update!(state: "coding")
@@ -3594,6 +3653,22 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
 
         expect(job.reload.linked_chat_id).to be_nil
         expect(workflow.artifact("coding_handoff_chat_id")).to eq(chat_session.id)
+      end
+
+      it "returns false without clearing linked_chat_id or launching a workflow when release is not allowed" do
+        enable_coding_mode!
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+        allow(job).to receive(:may_release_from_coding?).and_return(false)
+
+        result = nil
+        expect {
+          result = job.start_coding_handoff!
+        }.not_to change { job.workflows.where(trigger_kind: "coding_handoff").count }
+
+        expect(result).to be(false)
+        expect(job.reload).to be_coding
+        expect(job.linked_chat_id).to eq(chat_session.id)
       end
     end
 

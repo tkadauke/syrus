@@ -7,6 +7,7 @@ class McpToolRegistry
     :feature_flag,
     :feature_flags_by_role,
     :required_roles,
+    :step_kinds,
     :capability,
     :mutation
   ) do
@@ -28,6 +29,7 @@ class McpToolRegistry
         feature_flag: feature_flag,
         feature_flags_by_role: feature_flags_by_role,
         required_roles: required_roles,
+        step_kinds: step_kinds,
         capability: capability,
         mutation: mutation,
         read_only: read_only?
@@ -91,6 +93,14 @@ class McpToolRegistry
       end
     end
 
+    def tool_permitted?(context, tool)
+      surfaces_for_context(context).any? do |surface|
+        entries(surface: surface).any? do |entry|
+          entry.tool == tool && allowed_entry?(entry, context)
+        end
+      end
+    end
+
     private
 
     def all_entries
@@ -121,6 +131,7 @@ class McpToolRegistry
       return false if entry.admin_only && !context.user.admin?
       return false unless feature_allowed?(entry, context)
       return false if entry.required_roles.any? && !entry.required_roles.include?(context.role)
+      return false if entry.step_kinds.any? && !entry.step_kinds.include?(context.run&.step&.kind.to_s)
 
       true
     end
@@ -335,6 +346,13 @@ class McpToolRegistry
         AgentRole::WORKFLOW_MANUAL
       ]
 
+      concern_reporting_roles = [
+        AgentRole::WORKFLOW_IMPLEMENT,
+        AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+        AgentRole::WORKFLOW_REBASE_CONFLICT,
+        AgentRole::WORKFLOW_MANUAL
+      ]
+
       metadata_roles = [
         AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
         AgentRole::WORKFLOW_MANUAL
@@ -347,8 +365,12 @@ class McpToolRegistry
         workflow(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::StopPreviewTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::ReadPreviewLogTool, required_roles: workflow_roles),
-        workflow(Mcp::Tools::ReportMainConcernTool, required_roles: workflow_roles, mutation: true),
-        workflow(Mcp::Tools::RecordIsolatedReproTool, required_roles: workflow_roles, mutation: true),
+        # Reviewers only see a diff (and, for visual review, a running preview)
+        # and cannot distinguish real main-branch regressions from transient
+        # infrastructure failures, so granting these would produce false quorum
+        # signals.
+        workflow(Mcp::Tools::ReportMainConcernTool, required_roles: concern_reporting_roles, mutation: true),
+        workflow(Mcp::Tools::RecordIsolatedReproTool, required_roles: concern_reporting_roles, mutation: true),
         workflow(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitReportTool, capability: :submit_report, required_roles: summary_roles, mutation: true),
@@ -364,7 +386,7 @@ class McpToolRegistry
         workflow(SyrusMcp::SubmitVisualArtifactTool, capability: :submit_visual_artifact, required_roles: visual_artifact_roles, mutation: true),
         workflow(SyrusMcp::ListArtifactsTool, required_roles: visual_artifact_roles),
         workflow(SyrusMcp::ReadArtifactTool, required_roles: visual_artifact_roles),
-        workflow(Mcp::Tools::SubmitJobMetadataTool, capability: :submit_job_metadata, required_roles: metadata_roles, mutation: true),
+        workflow(Mcp::Tools::SubmitJobMetadataTool, capability: :submit_job_metadata, required_roles: metadata_roles, step_kinds: %w[refresh_job_metadata], mutation: true),
         workflow(Mcp::Tools::SubmitAdversarialReviewTool, capability: :submit_adversarial_review, required_roles: [
           AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
           AgentRole::WORKFLOW_MANUAL
@@ -392,7 +414,7 @@ class McpToolRegistry
     end
 
     def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil, feature_flags_by_role: nil,
-              required_roles: [], capability: nil, mutation: false)
+              required_roles: [], step_kinds: [], capability: nil, mutation: false)
       Entry.new(
         tool: tool,
         surface: surface.to_sym,
@@ -401,6 +423,7 @@ class McpToolRegistry
         feature_flag: feature_flag&.to_sym,
         feature_flags_by_role: normalize_feature_flags_by_role(feature_flags_by_role),
         required_roles: Array(required_roles).freeze,
+        step_kinds: Array(step_kinds).map(&:to_s).freeze,
         capability: capability&.to_sym,
         mutation: mutation
       )

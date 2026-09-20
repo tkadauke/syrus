@@ -686,7 +686,9 @@ polling feedback, checking mergeability,
 delegating GitHub issues, firing scheduled tasks, changing repository
 documents, or pausing and resuming the landing queue, also render as inline
 confirmation cards in the message stream so operators can review the target
-before confirming or rejecting them. When the agent acts on several Jobs at
+before confirming or rejecting them. Archiving an Epic also uses a confirmation
+card because the archive cancels and closes every still-open child Job under
+that Epic. When the agent acts on several Jobs at
 once with reopening, retrying, cancelling, closing successfully, forcing a
 landing recheck, killing a process, approving, or unapproving, Syrus renders
 one grouped card with a single Confirm all/Reject all control instead of a

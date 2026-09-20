@@ -52,6 +52,7 @@ RSpec.describe McpToolRegistry do
         feature_flag: nil,
         feature_flags_by_role: nil,
         required_roles: [],
+        step_kinds: [],
         capability: nil,
         mutation: false
       )
@@ -160,6 +161,16 @@ RSpec.describe McpToolRegistry do
       )
     end
 
+    it "exposes submit_job_metadata only for refresh_job_metadata runs" do
+      run = Factories.job.initial_run
+
+      run.step.update_columns(kind: "summarize")
+      expect(tool_names_for(McpToolContext.from_run(run.reload))).not_to include("submit_job_metadata")
+
+      run.step.update_columns(kind: "refresh_job_metadata")
+      expect(tool_names_for(McpToolContext.from_run(run.reload))).to include("submit_job_metadata")
+    end
+
     it "keeps the adversarial reviewer tool set unchanged" do
       run = Factories.job.initial_run
       run.step.update_columns(kind: "adversarial_review")
@@ -169,7 +180,7 @@ RSpec.describe McpToolRegistry do
         *%w[
           read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
-          read_preview_log report_main_concern record_isolated_repro submit_adversarial_review
+          read_preview_log submit_adversarial_review
         ]
       )
     end
@@ -183,7 +194,7 @@ RSpec.describe McpToolRegistry do
         *%w[
           read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
-          read_preview_log report_main_concern record_isolated_repro submit_visual_review submit_visual_artifact
+          read_preview_log submit_visual_review submit_visual_artifact
           list_artifacts read_artifact
         ]
       )
@@ -197,5 +208,14 @@ RSpec.describe McpToolRegistry do
     expect(registry_names).to all(be_present)
     expect(registry_tools).to all(be < MCP::Tool)
     expect(registry_names.uniq.size).to eq(registry_names.size)
+  end
+
+  it "declares submit_job_metadata's step-kind restriction in registry metadata" do
+    summary = described_class.summaries(surface: :workflow).find { |entry| entry[:tool_name] == "submit_job_metadata" }
+
+    expect(summary).to include(
+      capability: :submit_job_metadata,
+      step_kinds: %w[refresh_job_metadata]
+    )
   end
 end

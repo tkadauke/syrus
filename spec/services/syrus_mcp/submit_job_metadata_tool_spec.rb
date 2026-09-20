@@ -64,6 +64,16 @@ RSpec.describe Mcp::Tools::SubmitJobMetadataTool do
     expect(run.job_logs.last.chunk).to include("[mcp] submit_job_metadata received")
   end
 
+  it "rejects calls from other summary/test-plan role steps through registry authorization" do
+    run.step.update_columns(kind: "summarize")
+
+    response = call(changed: false, intent_revision_reason: "No metadata change.")
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("not_authorized")
+    expect(run.workflow.reload.artifact("job_metadata")).to be_nil
+  end
+
   it "exposes the dedicated tool name" do
     expect(described_class.tool_name).to eq("submit_job_metadata")
   end

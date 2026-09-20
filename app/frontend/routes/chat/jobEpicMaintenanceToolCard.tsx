@@ -26,7 +26,7 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   remove_job_dependency: { toolName: "remove_job_dependency", subjectKind: "job", actionLabel: "Remove Job Dependency", verb: "Dependency removed" },
   start_epic: { toolName: "start_epic", subjectKind: "epic", actionLabel: "Start Epic", verb: "Started" },
   move_epic_to_backlog: { toolName: "move_epic_to_backlog", subjectKind: "epic", actionLabel: "Move Epic To Backlog", verb: "Moved to backlog" },
-  archive_epic: { toolName: "archive_epic", subjectKind: "epic", actionLabel: "Archive Epic", verb: "Archived" },
+  archive_epic: { toolName: "archive_epic", subjectKind: "epic", actionLabel: "Archive Epic", verb: "Archive requested" },
   update_epic: { toolName: "update_epic", subjectKind: "epic", actionLabel: "Update Epic", verb: "Updated" },
   add_epic_dependency: { toolName: "add_epic_dependency", subjectKind: "epic", actionLabel: "Add Epic Dependency", verb: "Dependency added" },
   remove_epic_dependency: { toolName: "remove_epic_dependency", subjectKind: "epic", actionLabel: "Remove Epic Dependency", verb: "Dependency removed" }

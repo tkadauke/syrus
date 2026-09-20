@@ -136,7 +136,7 @@ export type DashboardDependencyTarget = {
 }
 
 export type DashboardJobDependency = {
-  id: number
+  id: number | string
   pending: boolean
   succeeded: boolean
   unresolved_slug: string | null

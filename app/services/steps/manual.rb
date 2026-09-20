@@ -22,13 +22,22 @@ module Steps
       run_agent(prompt: run.prompt)
 
       # Capture diff for posterity even though we don't push it.
-      diff = diff_against_default rescue nil
+      diff = capture_diff_against_default
       return if diff.blank?
 
       current_head_sha = head_sha
       step_diff = diff_against_sha(base_sha)
       run.update!(agent_diff: diff, head_sha: current_head_sha, base_sha: base_sha, step_agent_diff: step_diff)
       persist_diff_review_version!(base_sha: base_sha, head_sha: current_head_sha, diff: step_diff)
+    end
+
+    private
+
+    def capture_diff_against_default
+      diff_against_default
+    rescue StandardError => e
+      log("manual: could not capture diff against default: #{e.class}: #{e.message}", kind: "system")
+      nil
     end
   end
 end

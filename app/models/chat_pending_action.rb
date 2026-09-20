@@ -9,6 +9,7 @@ class ChatPendingAction < ApplicationRecord
     rebase_job
     force_rebase
     restack_epic
+    archive_epic
     reopen_job
     approve_job
     unapprove_job
@@ -35,6 +36,7 @@ class ChatPendingAction < ApplicationRecord
     admin_pause_runs
     admin_unpause_runs
     admin_clear_github_cache
+    admin_maintenance_task
     admin_pause_user_scheduling
     admin_unpause_user_scheduling
     admin_retry_step
@@ -91,6 +93,10 @@ class ChatPendingAction < ApplicationRecord
     reenqueue_work
     rerun_ci_repair
     mark_ci_repair_noop
+  ].freeze
+  EPIC_RESOURCE_ACTIONS = %w[
+    restack_epic
+    archive_epic
   ].freeze
   EMPTY_PAYLOAD_ACTIONS = %w[
     admin_reap_stale_runs

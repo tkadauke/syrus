@@ -70,6 +70,9 @@ module SyrusMcp
         return Mcp::Tools.invalid(result.reason) unless result.applied?
 
         Mcp::Tools.success(added: kinds, after: after_kind, chain: WorkflowTemplates.step_kinds_in(result.graph))
+      rescue StandardError => e
+        Rails.logger.error("[SyrusMcp::PatchWorkflowTool] #{e.class}: #{e.message}")
+        MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
       end
     end
   end

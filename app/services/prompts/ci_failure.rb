@@ -159,7 +159,7 @@ module Prompts
     def value(hash, key)
       hash = hash.to_h if hash.respond_to?(:to_h)
       hash = {} unless hash.is_a?(Hash)
-      hash[key] || hash[key.to_s]
+      hash.key?(key) ? hash[key] : hash[key.to_s]
     end
 
     def truncate_summary(summary)

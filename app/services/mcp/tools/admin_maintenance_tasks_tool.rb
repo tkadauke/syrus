@@ -2,6 +2,8 @@ require "mcp"
 
 module Mcp::Tools
   class AdminMaintenanceTasksTool < MCP::Tool
+    extend AdminPendingActionToolSupport
+
     ACTIONS = %w[list read discover start pause resume cancel dismiss].freeze
 
     tool_name "admin_maintenance_tasks"
@@ -33,14 +35,15 @@ module Mcp::Tools
 
     class << self
       def call(action:, task_id: nil, state: nil, limit: 20, server_context:)
-        return Mcp::Tools.unauthorized("Admin access required") unless admin?(server_context)
+        chat_session = require_admin(server_context)
+        return chat_session if chat_session.is_a?(MCP::Tool::Response)
         return Mcp::Tools.invalid("unknown action: #{action}") unless ACTIONS.include?(action.to_s)
 
         case action.to_s
         when "list" then list(state: state, limit: limit)
         when "read" then read(task_id)
         when "discover" then discover
-        else mutate(action.to_s, task_id, server_context.fetch(:chat_session).user)
+        else request_mutation(action.to_s, task_id, server_context, chat_session)
         end
       rescue ActiveRecord::RecordNotFound
         Mcp::Tools.invalid("maintenance task not found")
@@ -49,10 +52,6 @@ module Mcp::Tools
       end
 
       private
-
-      def admin?(server_context)
-        server_context.fetch(:chat_session).user.admin?
-      end
 
       def list(state:, limit:)
         scope = MaintenanceTask.order(updated_at: :desc, id: :desc)
@@ -70,10 +69,15 @@ module Mcp::Tools
         list(state: nil, limit: 50)
       end
 
-      def mutate(action, task_id, user)
+      def request_mutation(action, task_id, server_context, chat_session)
         task = find_task!(task_id)
-        MaintenanceTasks::Actions.public_send(action, task, user: user)
-        Mcp::Tools.success(task: task_payload(task.reload, include_events: true))
+        create_pending_admin_action(
+          server_context: server_context,
+          chat_session: chat_session,
+          action: "admin_maintenance_task",
+          payload: { "task_id" => task.id, "task_action" => action },
+          message: "#{action.capitalize} maintenance task ##{task.id} (#{task.title})?"
+        )
       end
 
       def find_task!(task_id)

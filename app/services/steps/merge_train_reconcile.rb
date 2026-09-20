@@ -37,9 +37,10 @@ module Steps
 
       if step_diff.blank?
         log("merge_train_reconcile: no reconciliation changes needed at #{post_sha.first(9)}")
-        skip_revalidated_grade_steps!(post_sha) if LandingValidationCache.valid_head_for?(job: job, head_sha: post_sha)
+        reuse_validation_after_reconcile!(train, post_sha)
       else
         log("merge_train_reconcile: committed reconciliation changes #{base_sha.first(9)} -> #{post_sha.first(9)}")
+        requeue_cached_validation_steps!
         record_reconcile_commit!(train, post_sha)
       end
     end
@@ -79,8 +80,34 @@ module Steps
       end
     end
 
-    def skip_revalidated_grade_steps!(sha)
-      log("merge_train_reconcile: reusing cached grading validation for #{sha.first(7)}", kind: "system")
+    def reuse_validation_after_reconcile!(train, sha)
+      base_sha = workflow.artifact("merge_train_base_sha")
+      decision = LandingValidationCache.reusable_for?(
+        job: job,
+        head_sha: sha,
+        tree_sha: current_tree_sha,
+        base_sha: base_sha,
+        base_ref: train.base_branch,
+        grader_fingerprint: current_grader_fingerprint,
+        changed_files_fingerprint: current_changed_files_fingerprint(base_sha)
+      )
+      LandingThroughputMetrics.record_validation_decision!(
+        workflow: workflow,
+        decision: decision,
+        context: "merge_train_reconcile",
+        head_sha: sha,
+        base_sha: base_sha
+      )
+
+      if decision.reusable?
+        skip_revalidated_grade_steps!(sha, decision)
+      else
+        log("merge_train_reconcile: landing graders will run - #{decision.reason}", kind: "system")
+      end
+    end
+
+    def skip_revalidated_grade_steps!(sha, decision)
+      log("merge_train_reconcile: reusing cached grading validation (#{decision.match_type}) for #{sha.first(7)} - #{decision.reason}", kind: "system")
       Step.suppress_cancel_cascade do
         cursor = step.next_step
         while cursor && cursor.kind != "merge_train_land"
@@ -88,6 +115,50 @@ module Steps
           cursor = cursor.next_step
         end
       end
+    end
+
+    def requeue_cached_validation_steps!
+      Step.transaction do
+        cursor = step.next_step
+        while cursor && cursor.kind != "merge_train_land"
+          requeue_cached_validation_step!(cursor)
+          cursor = cursor.next_step
+        end
+      end
+    end
+
+    def requeue_cached_validation_step!(candidate)
+      return unless candidate.skipped?
+      return unless candidate.details.to_h["skip_reason"] == "landing_validation_cached"
+
+      details = candidate.details.to_h.except("skipped", "skip_reason")
+      candidate.update!(state: "queued", finished_at: nil, details: details)
+    end
+
+    def current_tree_sha
+      git.run("rev-parse", "HEAD^{tree}", chdir: workspace.path.to_s).strip
+    rescue StandardError => e
+      log("merge_train_reconcile: could not fingerprint reconciled tree: #{e.message}", kind: "system")
+      nil
+    end
+
+    def current_grader_fingerprint
+      plan = RepoGradePlan.for(workspace.path)
+      GraderConclusionCache.fingerprint_for_plan(LandingGraderPlan.landing(plan), target_graph: TargetGraph::Compiler.compile(workspace.path))
+    rescue StandardError => e
+      log("merge_train_reconcile: could not fingerprint current landing graders: #{e.message}", kind: "system")
+      nil
+    end
+
+    def current_changed_files_fingerprint(base_sha)
+      return nil if base_sha.blank?
+
+      files = git.run("diff", "--name-only", "#{base_sha}...HEAD", chdir: workspace.path.to_s)
+        .split("\n").map(&:strip).reject(&:empty?)
+      LandingValidationCache.changed_files_fingerprint(files)
+    rescue StandardError => e
+      log("merge_train_reconcile: could not fingerprint current changed-file selection: #{e.message}", kind: "system")
+      nil
     end
   end
 end

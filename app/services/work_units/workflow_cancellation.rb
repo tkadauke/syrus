@@ -20,11 +20,14 @@ module WorkUnits
       return if retry_workflow_ids.empty?
 
       job.workflows.where(id: retry_workflow_ids).find_each do |candidate|
-        candidate.artifacts = (candidate.artifacts || {}).merge(
-          "retry_cancelled_reason" => reason,
-          "retry_cancelled_at" => Time.current.iso8601
+        cancel!(
+          candidate,
+          reason: reason,
+          artifacts: {
+            "retry_cancelled_reason" => reason,
+            "retry_cancelled_at" => Time.current.iso8601
+          }
         )
-        cancel!(candidate, reason: reason, artifacts: candidate.artifacts)
       end
     end
 
@@ -36,10 +39,19 @@ module WorkUnits
     end
 
     def cancel!
-      workflow.artifacts = workflow.artifacts.to_h.merge(artifacts)
-      workflow.cancel! if workflow.may_cancel?
-      workflow.save!
-      workflow.work_unit&.preempt!(reason: reason, by_work_unit: by_work_unit)
+      merged_artifacts = workflow.artifacts.to_h.merge(artifacts)
+      workflow.reload if workflow.has_changes_to_save?
+
+      workflow.with_lock do
+        workflow.reload
+        if workflow.may_cancel?
+          workflow.artifacts = workflow.artifacts.to_h.merge(merged_artifacts)
+          workflow.cancel!
+          workflow.save!
+          workflow.work_unit&.preempt!(reason: reason, by_work_unit: by_work_unit)
+        end
+      end
+
       workflow
     end
 

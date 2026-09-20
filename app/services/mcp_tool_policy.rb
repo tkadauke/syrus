@@ -90,33 +90,10 @@ class McpToolPolicy
 
   private
 
-  # Per-step workflow tool set. Submit tools are role-specific so the
-  # adversarial reviewer cannot call submit_summary/submit_test_plan, the
-  # visual reviewer cannot call submit_summary/submit_test_plan/submit_artifact,
-  # and non-reviewer roles cannot call submit_adversarial_review/submit_visual_review.
-  # ReportMainConcernTool is excluded from both reviewer roles: they only see a
-  # diff (and, for visual review, a running preview) and cannot distinguish a real
-  # main-branch regression from a transient infrastructure failure, so granting it
-  # would produce false quorum signals.
   def workflow_tools
-    base = [
-      Mcp::Tools::ReadLiveStateTool,
-      Mcp::Tools::GetCoverageReportTool,
-      Mcp::Tools::ReadRunWorkerHealthTool,
-      Mcp::Tools::StartPreviewTool,
-      Mcp::Tools::StopPreviewTool,
-      Mcp::Tools::ReadPreviewLogTool
-    ]
-    if @context.role == AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
-      base + [ Mcp::Tools::SubmitAdversarialReviewTool ]
-    elsif @context.role == AgentRole::WORKFLOW_VISUAL_REVIEWER
-      base + [ Mcp::Tools::SubmitVisualReviewTool, SyrusMcp::SubmitVisualArtifactTool, SyrusMcp::ListArtifactsTool, SyrusMcp::ReadArtifactTool ]
-    else
-      tools = base + [ Mcp::Tools::ReportMainConcernTool, Mcp::Tools::RecordIsolatedReproTool, Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool, Mcp::Tools::SubmitReportTool, Mcp::Tools::SubmitReviewPlanTool, SyrusMcp::SubmitArtifactTool, SyrusMcp::RunTargetPrepareTool, SyrusMcp::PatchWorkflowTool, SyrusMcp::SubmitVisualArtifactTool, SyrusMcp::ListArtifactsTool, SyrusMcp::ReadArtifactTool ]
-      tools << Mcp::Tools::SubmitJobMetadataTool if @context.run&.step&.kind == "refresh_job_metadata"
-      tools += self.class.ref_movement_tools if @context.run&.step&.kind == "run_skill"
-      tools
-    end
+    tools = McpToolRegistry.tools_for_context(@context, surface: :workflow)
+    tools += self.class.ref_movement_tools if @context.run&.step&.kind == "run_skill"
+    tools
   end
 
   # Chat tool set mirrors the existing tools_for_session filtering logic,

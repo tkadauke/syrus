@@ -1110,17 +1110,22 @@ module WorkEngine
         def cancel_child_work_unit!(child)
           workflow = child.workflow
           if workflow&.may_cancel?
-            with_transition_reason do
-              WorkUnits::WorkflowCancellation.cancel!(
-                workflow,
-                reason: "terminal_parent_work_unit",
-                artifacts: {
-                  "cancelled_reason" => "terminal_parent_work_unit",
-                  "cancelled_by_reconciler_at" => Time.current.iso8601
-                }
-              )
+            workflow.with_lock do
+              workflow.reload
+              if workflow.may_cancel?
+                with_transition_reason do
+                  WorkUnits::WorkflowCancellation.cancel!(
+                    workflow,
+                    reason: "terminal_parent_work_unit",
+                    artifacts: {
+                      "cancelled_reason" => "terminal_parent_work_unit",
+                      "cancelled_by_reconciler_at" => Time.current.iso8601
+                    }
+                  )
+                end
+                return
+              end
             end
-            return
           end
 
           child.preempt!(reason: "terminal_parent_work_unit")
@@ -1381,22 +1386,32 @@ module WorkEngine
           return skipped("Keeper #{workflow_label(keeper)} belongs to a different Job") unless keeper.job_id == workflow.job_id
           return skipped("#{workflow_label(workflow)} is not older than keeper #{workflow_label(keeper)}") unless workflow.created_at < keeper.created_at || (workflow.created_at == keeper.created_at && workflow.id < keeper.id)
 
-          with_transition_reason do
-            workflow.artifacts = (workflow.artifacts || {}).merge(
-              "cancelled_reason" => Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
-              "cancelled_by_reconciler_at" => Time.current.iso8601,
-              "cancelled_details" => {
-                "keeper_workflow_id" => keeper.id,
-                "keeper_workflow_slug" => keeper.slug,
-                "keeper_trigger_kind" => keeper.trigger_kind
-              }
-            )
-            WorkUnits::WorkflowCancellation.cancel!(
-              workflow,
-              reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
-              by_work_unit: keeper.work_unit,
-              artifacts: workflow.artifacts
-            )
+          workflow.with_lock do
+            workflow.reload
+            keeper.reload
+            return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
+            return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
+            return skipped("Keeper #{workflow_id_label(keeper_id)} is no longer active") unless keeper.queued? || keeper.running?
+            return skipped("Keeper #{workflow_label(keeper)} belongs to a different Job") unless keeper.job_id == workflow.job_id
+            return skipped("#{workflow_label(workflow)} is not older than keeper #{workflow_label(keeper)}") unless workflow.created_at < keeper.created_at || (workflow.created_at == keeper.created_at && workflow.id < keeper.id)
+
+            with_transition_reason do
+              workflow.artifacts = (workflow.artifacts || {}).merge(
+                "cancelled_reason" => Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+                "cancelled_by_reconciler_at" => Time.current.iso8601,
+                "cancelled_details" => {
+                  "keeper_workflow_id" => keeper.id,
+                  "keeper_workflow_slug" => keeper.slug,
+                  "keeper_trigger_kind" => keeper.trigger_kind
+                }
+              )
+              WorkUnits::WorkflowCancellation.cancel!(
+                workflow,
+                reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+                by_work_unit: keeper.work_unit,
+                artifacts: workflow.artifacts
+              )
+            end
           end
 
           success("cancelled superseded #{workflow_label(workflow)} because newer #{workflow_label(keeper)} is active")
@@ -1414,22 +1429,30 @@ module WorkEngine
           keeper = Workflow.find_by(id: keeper_id)
           return skipped("Keeper #{workflow_id_label(keeper_id)} is no longer active") unless keeper&.queued? || keeper&.running?
 
-          with_transition_reason do
-            workflow.artifacts = (workflow.artifacts || {}).merge(
-              "cancelled_reason" => EpicWorkflowLock::BLOCK_REASON,
-              "cancelled_by_reconciler_at" => Time.current.iso8601,
-              "cancelled_details" => {
-                "keeper_workflow_id" => keeper.id,
-                "keeper_workflow_slug" => keeper.slug,
-                "keeper_trigger_kind" => keeper.trigger_kind
-              }
-            )
-            WorkUnits::WorkflowCancellation.cancel!(
-              workflow,
-              reason: EpicWorkflowLock::BLOCK_REASON,
-              by_work_unit: keeper.work_unit,
-              artifacts: workflow.artifacts
-            )
+          workflow.with_lock do
+            workflow.reload
+            keeper.reload
+            return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
+            return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
+            return skipped("Keeper #{workflow_id_label(keeper_id)} is no longer active") unless keeper.queued? || keeper.running?
+
+            with_transition_reason do
+              workflow.artifacts = (workflow.artifacts || {}).merge(
+                "cancelled_reason" => EpicWorkflowLock::BLOCK_REASON,
+                "cancelled_by_reconciler_at" => Time.current.iso8601,
+                "cancelled_details" => {
+                  "keeper_workflow_id" => keeper.id,
+                  "keeper_workflow_slug" => keeper.slug,
+                  "keeper_trigger_kind" => keeper.trigger_kind
+                }
+              )
+              WorkUnits::WorkflowCancellation.cancel!(
+                workflow,
+                reason: EpicWorkflowLock::BLOCK_REASON,
+                by_work_unit: keeper.work_unit,
+                artifacts: workflow.artifacts
+              )
+            end
           end
 
           success("cancelled #{workflow_label(workflow)} because Epic-wide #{workflow_label(keeper)} is active")

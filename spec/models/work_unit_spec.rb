@@ -105,6 +105,23 @@ RSpec.describe WorkUnit do
     expect(unit.work_unit_locks.active).to be_empty
   end
 
+  it "does not clobber an already-terminal unit when preemption races with completion" do
+    unit = described_class.create!(work_intent: intent, kind: "initial", state: "running", scope_type: "job", scope_id: 123)
+    stale_unit = described_class.find(unit.id)
+
+    unit.mark_terminal!("succeeded")
+    finished_at = unit.reload.finished_at
+
+    stale_unit.preempt!(reason: "superseded_by_newer_workflow")
+
+    expect(unit.reload).to have_attributes(
+      state: "succeeded",
+      preemption_reason: nil,
+      preempted_by_work_unit_id: nil,
+      finished_at: finished_at
+    )
+  end
+
   it "sets active_dedup_key for an active, lock-conflicts-enforced kind" do
     unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
 

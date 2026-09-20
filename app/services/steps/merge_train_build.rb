@@ -58,18 +58,25 @@ module Steps
         grader_fingerprint: current_grader_fingerprint,
         changed_files_fingerprint: current_changed_files_fingerprint(base_sha)
       )
-      LandingThroughputMetrics.record_validation_decision!(
-        workflow: workflow,
-        decision: decision,
-        context: "merge_train",
-        head_sha: sha,
-        base_sha: base_sha
-      )
       if decision.reusable? && decision.match_type == "exact_head"
+        LandingThroughputMetrics.record_validation_decision!(
+          workflow: workflow,
+          decision: decision,
+          context: "merge_train",
+          head_sha: sha,
+          base_sha: base_sha
+        )
         log_cached_validation_reuse(sha, decision)
       elsif decision.reusable?
-        skip_revalidated_grade_steps!(sha, decision)
+        log("merge_train: cached grading validation matched #{sha.first(7)} before reconciliation (#{decision.match_type}) - deferring skip decision until merge_train_reconcile", kind: "system")
       else
+        LandingThroughputMetrics.record_validation_decision!(
+          workflow: workflow,
+          decision: decision,
+          context: "merge_train",
+          head_sha: sha,
+          base_sha: base_sha
+        )
         log("merge_train: landing graders will run - #{decision.reason}", kind: "system")
       end
     end
@@ -223,18 +230,6 @@ module Steps
 
     def fast_grader_plan(plan)
       LandingGraderPlan.landing(plan)
-    end
-
-    def skip_revalidated_grade_steps!(sha, decision)
-      log_cached_validation_reuse(sha, decision)
-      Step.suppress_cancel_cascade do
-        cursor = step.next_step
-        cursor = cursor.next_step if cursor&.kind == "merge_train_reconcile"
-        while cursor && cursor.kind != "merge_train_land"
-          cursor.skip_with_reason!("landing_validation_cached") if cursor.may_skip?
-          cursor = cursor.next_step
-        end
-      end
     end
 
     def log_cached_validation_reuse(sha, decision)

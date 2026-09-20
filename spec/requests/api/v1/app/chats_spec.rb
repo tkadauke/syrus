@@ -5627,6 +5627,28 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     )
   end
 
+  it "links the target Epic for unanchored archive_epic pending actions" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Careful archive target")
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    action = chat.pending_actions.create!(
+      action: "archive_epic",
+      requested_by: "agent",
+      payload: { "epic_id" => epic.id }
+    )
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"]).to contain_exactly(
+      include(
+        "id" => action.id,
+        "label" => "Archive Epic ##{epic.id}",
+        "resource_title" => "Careful archive target",
+        "resource_url" => "/epics/#{epic.id}"
+      )
+    )
+  end
+
   it "confirms admin retry_job pending actions for user-owned Jobs through the app API" do
     admin = Factories.user(admin: true, claude_oauth_token: "oat-admin")
     admin_repository = Factories.repository(user: admin, owner: "acme", name: "supervised")
