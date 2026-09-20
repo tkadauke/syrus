@@ -632,16 +632,20 @@ function DangerZoneSection({ payload, prefix }: { payload: RepositoryFormPayload
 
   const archive = useMutation({
     mutationFn: () => archiveRepositoryFromPath(payload.app_archive_repository_path || ""),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(["repositories"], updated)
+    onSuccess: () => {
+      // The archive/unarchive endpoints respond with the default
+      // (unfiltered) repositories payload, which may not match whatever
+      // smart folder or filters the index was last viewed under -- so
+      // invalidate rather than seed the cache with a mismatched payload.
+      void queryClient.invalidateQueries({ queryKey: ["repositories"] })
       navigate(withRoutePrefix(payload.repositories_path, prefix))
     }
   })
 
   const unarchive = useMutation({
     mutationFn: () => unarchiveRepositoryFromPath(payload.app_unarchive_repository_path || ""),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(["repositories"], updated)
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["repositories"] })
       navigate(withRoutePrefix(payload.repositories_path, prefix))
     }
   })
