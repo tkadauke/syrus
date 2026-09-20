@@ -20,6 +20,8 @@ RSpec.describe "SyrusBrowser input-lease enforcement (DOC-17)" do
       expect(SyrusBrowser::ClickTool.requires_input_lease?).to be true
       expect(SyrusBrowser::FillTool.requires_input_lease?).to be true
       expect(SyrusBrowser::HoverTool.requires_input_lease?).to be true
+      expect(SyrusBrowser::DragTool.requires_input_lease?).to be true
+      expect(SyrusBrowser::EvaluateTool.requires_input_lease?).to be true
     end
 
     it "leaves navigation, observation, and lifecycle tools ungated" do
@@ -52,6 +54,26 @@ RSpec.describe "SyrusBrowser input-lease enforcement (DOC-17)" do
       expect(session).not_to have_received(:call_tool)
     end
 
+    it "rejects browser_drag without an active agent input lease" do
+      response = SyrusBrowser::DragTool.call(
+        start_target: "e1", end_target: "e2", server_context: { runtime_session: runtime_session }
+      )
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("lease_required")
+      expect(session).not_to have_received(:call_tool)
+    end
+
+    it "rejects browser_evaluate without an active agent input lease" do
+      response = SyrusBrowser::EvaluateTool.call(
+        function: "() => document.title", server_context: { runtime_session: runtime_session }
+      )
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("lease_required")
+      expect(session).not_to have_received(:call_tool)
+    end
+
     it "allows browser_click once the agent holds an active input lease" do
       RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "click a button")
 
@@ -59,6 +81,20 @@ RSpec.describe "SyrusBrowser input-lease enforcement (DOC-17)" do
 
       expect(response).not_to be_error
       expect(session).to have_received(:call_tool).with(name: "browser_click", arguments: { "target" => "e1" })
+    end
+
+    it "allows browser_drag and browser_evaluate once the agent holds an active input lease" do
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "reorder a list")
+
+      drag_response = SyrusBrowser::DragTool.call(
+        start_target: "e1", end_target: "e2", server_context: { runtime_session: runtime_session }
+      )
+      evaluate_response = SyrusBrowser::EvaluateTool.call(
+        function: "() => document.title", server_context: { runtime_session: runtime_session }
+      )
+
+      expect(drag_response).not_to be_error
+      expect(evaluate_response).not_to be_error
     end
 
     it "does not accept a build/lifecycle lease as a substitute for an input lease" do
