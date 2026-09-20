@@ -238,6 +238,7 @@
   "discard_coding_changes": "Coding-Änderungen verwerfen",
   "view_files": "Dateien",
   "view_diff": "Diff",
+  "files_tree_resize": "Dateibaumgröße ändern",
   "files_loading": "Dateien werden geladen…",
   "files_error": "Dateibaum konnte nicht geladen werden.",
   "files_empty": "Keine Dateien im Checkout.",
