@@ -17,7 +17,9 @@ import {
 import { errorMessage } from "../lib/errorMessage"
 import { linkFromSearch } from "../components/filterBar/helpers"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
+import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import type { AdminSmartFolder } from "../api/adminSmartFolders"
+import { useMediaQuery } from "./dashboard/components"
 import { Button, buttonClasses, Checkbox, DataTable, Input, PanelMessage, Select, Surface, Text, TonePill, type PillTone } from "../components/ui"
 
 type ColumnKey =
@@ -194,8 +196,15 @@ export function RepositoriesIndex() {
 
 function RepositoriesView({ payload, filterOptionsPayload, prefix, pathname, search }: { payload: RepositoriesPayload; filterOptionsPayload: RepositoriesPayload; prefix: string; pathname: string; search: string }) {
   const { t } = useT("settings")
+  const { t: tNav } = useT("nav")
   const queryClient = useQueryClient()
   const setupStatus = useSetupStatus()
+  // Below the lg breakpoint the app sidebar's Repositories subnav collapses
+  // into the drawer and isn't reachable, so this page falls back to an
+  // in-page "Folders and filters" affordance -- the same pattern Dashboard,
+  // Agent Activity, and Design Docs use to keep smart folders reachable on
+  // narrow viewports.
+  const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(() => readVisibleColumns())
   const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT)
@@ -259,6 +268,31 @@ function RepositoriesView({ payload, filterOptionsPayload, prefix, pathname, sea
         />
       ) : (
         <div className="min-w-0 space-y-4">
+          {!isDesktop ? (
+            <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium">
+                <span>{tNav("filters_layout.folders_and_filters")}</span>
+                <Text as="span" className="group-open:hidden" muted variant="caption">{tNav("filters_layout.show")}</Text>
+                <Text as="span" className="hidden group-open:inline" muted variant="caption">{tNav("filters_layout.hide")}</Text>
+              </summary>
+              <div className="border-t border-gray-200 p-4 dark:border-gray-700">
+                <AdminSmartFolderNav
+                  activeFolderId={activeSmartFolderId}
+                  allowSaveWithoutActiveFolder
+                  ariaLabel={tNav("sidebar_smart_folders_aria", { label: t("repositories.heading") })}
+                  currentFilter={payload.filter}
+                  folders={payload.smart_folders}
+                  heading={t("repositories.smart_folders_heading")}
+                  onMutationSuccess={() => {
+                    void queryClient.invalidateQueries({ queryKey: ["repositories"] })
+                  }}
+                  prefix={prefix}
+                  queryKey={["repositories"]}
+                  subjectType="repository"
+                />
+              </div>
+            </details>
+          ) : null}
           <div className="flex flex-wrap items-end justify-between gap-3">
             <RepositoryFilterBar optionsPayload={filterOptionsPayload} pathname={pathname} search={search} />
             <RepositoryColumnPicker onToggle={toggleColumn} visibleColumns={visibleColumns} />
