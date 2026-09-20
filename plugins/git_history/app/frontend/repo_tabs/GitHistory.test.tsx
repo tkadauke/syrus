@@ -1,11 +1,36 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "@app/testSupport"
 import type { GitHistoryCommit, GitHistoryPage } from "../api/gitHistory"
 import { GitHistory } from "./GitHistory"
+
+// Stub the hover-triggered preview cards so the popup-card assertion below
+// doesn't need to also mock their own job/epic detail fetches.
+vi.mock("@app/components/JobPreviewCard", () => ({
+  JobPreviewCard: ({ id }: { id: number }) => <div data-testid="job-preview-card">JOB-{id}</div>,
+}))
+vi.mock("@app/components/EpicPreviewCard", () => ({
+  EpicPreviewCard: ({ id }: { id: number }) => <div data-testid="epic-preview-card">EPIC-{id}</div>,
+}))
+
+function mockMatchMedia(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+}
 
 function renderRoute(children: ReactNode, initialEntry = "/repositories/7/plugin/git_history") {
   render(
@@ -57,6 +82,40 @@ describe("GitHistory", () => {
     expect(screen.getByRole("link", { name: "EPIC-9" })).toHaveAttribute("href", "/epics/9")
     expect(screen.getByText("by Ada Lovelace")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Issue #12" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/12")
+  })
+
+  it("wraps job and epic slug links in a hover-triggered popup card (which itself offers a copy button)", async () => {
+    mockMatchMedia(true)
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
+      {
+        sha: "a".repeat(40),
+        short_sha: "aaaaaaaaaa",
+        subject: "Add dark mode toggle",
+        authored_at: "2026-08-20T10:00:00Z",
+        classification: "syrus_landed",
+        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+        user: { id: 3, display_name: "Ada Lovelace" }
+      }
+    ])))
+
+    renderRoute(<GitHistory />)
+
+    const jobLink = await screen.findByRole("link", { name: "JOB-42" })
+    const epicLink = screen.getByRole("link", { name: "EPIC-9" })
+
+    vi.useFakeTimers()
+    try {
+      fireEvent.mouseEnter(jobLink.parentElement!)
+      await act(async () => { vi.advanceTimersByTime(300) })
+      expect(screen.getByTestId("job-preview-card")).toBeInTheDocument()
+
+      fireEvent.mouseEnter(epicLink.parentElement!)
+      await act(async () => { vi.advanceTimersByTime(300) })
+      expect(screen.getByTestId("epic-preview-card")).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("renders an epic_landed commit with the epic and every member job", async () => {
