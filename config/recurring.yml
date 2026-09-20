@@ -10,6 +10,10 @@
 #     schedule: at 5am every day
 
 default: &default
+  poll_repositories:
+    class: PollAllRepositoriesJob
+    queue: polling
+    schedule: every 5 minutes
   poll_input_sources:
     class: PollAllInputSourcesJob
     queue: polling
