@@ -29,28 +29,36 @@ they didn't personally trigger it. Every other attention-preset smart folder
 
 ## Proposed section
 
-The Jobs dashboard renders a "Proposed" section above the readiness/health
-banners, showing up to 5 of the current user's most recent pending
-(`state: "proposed"`) chat proposals across their accessible chats
-(`App::DashboardPayload::ChromeSerializers#pending_proposals_json`, keyed
-`pending_proposals` in the dashboard chrome payload). Each card links to the
-originating chat, jumping straight to the message where the proposal was
-posted via a `#message-<id>` URL hash — the same anchor format `origin_chat`
-links on the Job/Epic detail pages already use, consumed by the existing
-bookmark-jump machinery in `MessageStream` (`app/frontend/routes/Chat.tsx`).
-The section is hidden entirely when there are no pending proposals; it never
-renders an empty state.
+Pending (`state: "proposed"`) chat proposals no longer appear on the Jobs
+dashboard. Instead, each chat's own right-sidebar Jobs tab
+(`ChatJobStatusPanel`, `app/frontend/routes/ChatJobStatusPanel.tsx`) renders
+a "Proposed" section above its confirmed/materialized Job and Epic status
+cards, scoped strictly to that chat's own proposals — both direct Job-like
+proposals (`job`, `syrus_issue`) and Epic bundle proposals. `ChatJobStatusQuery`
+(`app/services/chat_job_status_query.rb`) returns `{ pending_proposals, items
+}` instead of a bare array: `pending_proposals` covers this section (an Epic
+bundle proposal's own child proposals are folded into its
+`active_children_count`, not listed separately), while `items` is the
+existing confirmed/materialized Job and Epic status list. Each pending card
+links to the chat message where the proposal was posted, scrolling to it in
+place via the same message-selection mechanism the Pinned workspace tab uses
+(`onSelectMessage` threaded through `ChatWorkspacePanel` from `Chat.tsx`'s
+`selectBookmark`), rather than navigating to a different page. The section is
+omitted entirely when the chat has no pending proposals; when it has pending
+proposals but no confirmed items, the "No confirmed proposals yet" empty
+state is suppressed in favor of the Proposed section alone.
 
 The section updates live from the same `update_proposal` AppEvents broadcast
 the chat surface already emits on every proposal create/edit/confirm/reject/
 withdraw (`Mcp::Tools.broadcast_proposal_created`,
 `Api::V1::App::ChatsController#broadcast_proposal_updated`) — a
-`dashboard_proposal` payload key carries the card's rendering shape. The
-frontend (`app/frontend/lib/appEvents.ts`) patches the dashboard chrome query
-cache directly rather than relying on the throttled (5s-coalesced) dashboard
-row refresh: a proposal entering the `proposed` state adds a card immediately
-(capped at 5, dropping the oldest), and a proposal leaving that state
-(confirmed, rejected, or withdrawn) removes its card immediately.
+`job_status_proposal` payload key (`App::ChatMessagePayload.job_status_proposal_json`)
+carries the card's rendering shape. The frontend (`app/frontend/lib/appEvents.ts`)
+patches that one chat's `["chats", "<id>", "job_status"]` query cache directly,
+scoped by the broadcast's own chat id, rather than relying on a dashboard
+refetch: a proposal entering the `proposed` state adds a card immediately, and
+a proposal leaving that state (confirmed, rejected, or withdrawn) removes its
+card immediately.
 
 ## Backlogged Job actions
 
