@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
+import * as highlighterLib from "../../lib/highlighter"
 import * as performanceMarkers from "../../lib/performanceMarkers"
 import { AgentDiff, DiffHunkSnippet, ReviewableDiff, annotationsForFile, filesFromUnifiedDiff, isLineAnnotations } from "./ReviewableDiff"
 
@@ -952,6 +953,22 @@ describe("hidden-context expansion", () => {
       return element
     })
     expect(loadedKeyword.closest("tr")).toHaveAttribute("data-diff-kind", "context")
+  })
+
+  it("degrades to plain text without an unhandled rejection when the highlighter fails to load (e.g. CSP-blocked WASM)", async () => {
+    const tokenizeSpy = vi.spyOn(highlighterLib, "tokenizeLines").mockRejectedValue(new Error("wasm-unsafe-eval blocked"))
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+
+    render(<ReviewableDiff files={files} mode="continuous" showFileHeaders />)
+
+    await waitFor(() => expect(tokenizeSpy).toHaveBeenCalled())
+    await waitFor(() => expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Diff syntax highlighting failed"), expect.any(Error)))
+
+    expect(getCodeCellText("old")).toBeInTheDocument()
+    expect(getCodeCellText("new")).toBeInTheDocument()
+
+    tokenizeSpy.mockRestore()
+    warnSpy.mockRestore()
   })
 
   it("loads the whole file via the header action, revealing all hidden context at once", async () => {
