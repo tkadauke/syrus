@@ -187,11 +187,15 @@ This capture always runs (best-effort, non-fatal) regardless of whether `sccache
 
 `BuildCache::CacheMismatchDetector` runs after every captured snapshot and files a `WorkflowWarning` (`kind: "sccache_config_mismatch"`, visible on the Job details page with a one-click "file a fix Job" action — see `config/syrus_docs/workflow_warnings.md`) when the daemon's reported state doesn't match what Syrus configured it for:
 
-- **Shared cache expected, but `cache_location` reports local disk** — `SCCACHE_BUCKET` was forwarded into the command's env, but the stats snapshot still reports a local-disk cache. Per-Workflow daemon isolation (above) should make this rare going forward; a recurrence usually means the S3/MinIO backend vars aren't actually reaching the worker pod, or the daemon's connection to the bucket is failing silently.
+- **Shared cache expected, but `cache_location` reports local disk** — `SCCACHE_BUCKET` was forwarded into the command's env, but the stats snapshot still reports a local-disk cache. Per-Workflow daemon isolation (above) should make this rare, but doesn't eliminate every path to it: a same-port collision with an overlapping Workflow (`BuildCache::DaemonAddress`'s own accepted, "negligible" risk), or any subprocess outside `Steps::Prepare`/`Steps::Grader`'s env-building — an agentic tool call, for instance, never receives `SCCACHE_*` env at all — can still start the daemon on this Workflow's derived port before the correct env is available. A recurrence *despite* the self-heal below usually means the S3/MinIO backend vars aren't actually reaching the worker pod, or the daemon's connection to the bucket is failing silently.
 - **Native gem or C/C++ builds fail while the cache endpoint is down** — the worker image should not fail closed here. Compiler invocations go through `/usr/local/bin/syrus-sccache-compiler`, which falls back to the real compiler on sccache startup/backend failures. If this regresses, check the Dockerfile wrapper before changing a repository's `.syrus.yml`.
 - **`basedirs_safe` expected, but stats report `basedirs: []`** — `SCCACHE_BASEDIRS` was forwarded (the repository opted in), but the daemon's stats show it was never applied.
 
-Both warnings are best-effort and never fail the Workflow — they're an operator signal, not a grading gate.
+### Self-heal: restarting a wedged daemon
+
+Since sccache only reads its config at server startup, a daemon caught serving stale config on this Workflow's derived port will keep doing so for the rest of the Workflow — every remaining `prepare`/`grader` command, every grade-loop retry — unless something stops it. Both mismatches above trigger `BuildCache::DaemonRestarter.restart!`, which best-effort runs `sccache --stop-server` with the exact env the mismatched command ran with (so it targets the daemon on *this Workflow's* `SCCACHE_SERVER_PORT`, not sccache's default port). The compiler masquerade lazily respawns a fresh daemon on the next invocation, which reads the current (correct) env. Whether the restart itself reported success is recorded on the warning's `evidence` (`self_heal_restarted_daemon`, `sccache_server_port`) — a `false` there means sccache wasn't on PATH or the stop call failed, and is a stronger signal that the underlying backend config (not just a wedged daemon) needs attention.
+
+Both warnings, and the self-heal attempt, are best-effort and never fail the Workflow — they're an operator signal, not a grading gate.
 
 ## Cache stats UI
 
@@ -208,7 +212,8 @@ Endpoints: `GET /api/v1/app/admin/build_cache` (stats + pending/recent requests)
 ## Plugin ownership
 
 Everything above lives in the `build_cache` plugin: the S3 client, the stats
-capture and summary, the mismatch detector, the clear-request model (table
+capture and summary, the mismatch detector, the mismatch self-heal
+(`BuildCache::DaemonRestarter`), the clear-request model (table
 `build_cache_clear_requests`), the per-repository opt-in
 (`BuildCache::RepositorySettings`, table `build_cache_repository_settings`),
 the admin page, and the Job-detail card.
