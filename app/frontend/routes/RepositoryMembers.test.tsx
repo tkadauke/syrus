@@ -1,15 +1,13 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
-import { RepositoryMembersRoute } from "./RepositoryMembers"
+import { RepositoryMembersSection } from "./RepositoryMembers"
 import * as useConfirmModule from "../hooks/useConfirm"
 
 function membershipsPayload(overrides: Record<string, unknown> = {}) {
   return {
     repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
-    tabs: [],
     memberships: [
       {
         id: 10,
@@ -36,26 +34,22 @@ function membershipsPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function renderRoute(payload = membershipsPayload()) {
+function renderSection(payload = membershipsPayload()) {
   const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/app-shell/repositories/1/memberships"]}>
-        <Routes>
-          <Route element={<RepositoryMembersRoute />} path="/app-shell/repositories/:repositoryId/memberships" />
-        </Routes>
-      </MemoryRouter>
+      <RepositoryMembersSection repositoryId={1} />
     </QueryClientProvider>
   )
   return fetchSpy
 }
 
-describe("RepositoryMembersRoute", () => {
+describe("RepositoryMembersSection", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("lists current members with their roles", async () => {
-    renderRoute()
+    renderSection()
 
     expect(await screen.findByText("Ada Lovelace")).toBeInTheDocument()
     expect(screen.getByText("owner@example.com")).toBeInTheDocument()
@@ -86,11 +80,7 @@ describe("RepositoryMembersRoute", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/app-shell/repositories/1/memberships"]}>
-          <Routes>
-            <Route element={<RepositoryMembersRoute />} path="/app-shell/repositories/:repositoryId/memberships" />
-          </Routes>
-        </MemoryRouter>
+        <RepositoryMembersSection repositoryId={1} />
       </QueryClientProvider>
     )
 
@@ -110,7 +100,7 @@ describe("RepositoryMembersRoute", () => {
   })
 
   it("renders the role select as a compact, non-full-width control", async () => {
-    renderRoute()
+    renderSection()
 
     await screen.findByText("Ada Lovelace")
     const selects = screen.getAllByDisplayValue("Admin")
@@ -123,7 +113,7 @@ describe("RepositoryMembersRoute", () => {
   })
 
   it("uses semantic brand tokens for the add-member primary action", async () => {
-    renderRoute()
+    renderSection()
 
     await screen.findByText("Ada Lovelace")
     const addButton = screen.getAllByRole("button", { name: "Add" })[0]
@@ -152,7 +142,7 @@ describe("RepositoryMembersRoute", () => {
       return Promise.resolve(jsonResponse(membershipsPayload()))
     })
 
-    renderRoute()
+    renderSection()
     await screen.findByText("Grace Hopper")
 
     const selects = screen.getAllByDisplayValue("Read")
@@ -168,7 +158,7 @@ describe("RepositoryMembersRoute", () => {
 
   describe("team grants", () => {
     it("lists existing team grants", async () => {
-      renderRoute(membershipsPayload({
+      renderSection(membershipsPayload({
         team_grants: [
           { id: 20, role: "write", created_at: "2026-01-04T00:00:00Z", team: { id: 5, name: "Platform" } }
         ]
@@ -193,11 +183,7 @@ describe("RepositoryMembersRoute", () => {
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
       render(
         <QueryClientProvider client={client}>
-          <MemoryRouter initialEntries={["/app-shell/repositories/1/memberships"]}>
-            <Routes>
-              <Route element={<RepositoryMembersRoute />} path="/app-shell/repositories/:repositoryId/memberships" />
-            </Routes>
-          </MemoryRouter>
+          <RepositoryMembersSection repositoryId={1} />
         </QueryClientProvider>
       )
 
@@ -232,11 +218,7 @@ describe("RepositoryMembersRoute", () => {
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
       render(
         <QueryClientProvider client={client}>
-          <MemoryRouter initialEntries={["/app-shell/repositories/1/memberships"]}>
-            <Routes>
-              <Route element={<RepositoryMembersRoute />} path="/app-shell/repositories/:repositoryId/memberships" />
-            </Routes>
-          </MemoryRouter>
+          <RepositoryMembersSection repositoryId={1} />
         </QueryClientProvider>
       )
 
@@ -275,11 +257,7 @@ describe("RepositoryMembersRoute", () => {
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
       render(
         <QueryClientProvider client={client}>
-          <MemoryRouter initialEntries={["/app-shell/repositories/1/memberships"]}>
-            <Routes>
-              <Route element={<RepositoryMembersRoute />} path="/app-shell/repositories/:repositoryId/memberships" />
-            </Routes>
-          </MemoryRouter>
+          <RepositoryMembersSection repositoryId={1} />
         </QueryClientProvider>
       )
 
@@ -301,7 +279,7 @@ describe("RepositoryMembersRoute", () => {
 
   describe("GitHub permission mismatch signals", () => {
     it("shows a warning badge on a member with a mismatch reason", async () => {
-      renderRoute(membershipsPayload({
+      renderSection(membershipsPayload({
         memberships: [
           {
             ...membershipsPayload().memberships[0],
@@ -316,14 +294,14 @@ describe("RepositoryMembersRoute", () => {
     })
 
     it("does not show a warning badge when there is no mismatch" , async () => {
-      renderRoute()
+      renderSection()
 
       await screen.findByText("Ada Lovelace")
       expect(screen.queryByText("GitHub mismatch")).not.toBeInTheDocument()
     })
 
     it("lists GitHub-only collaborators with write+ access and no Syrus membership", async () => {
-      renderRoute(membershipsPayload({
+      renderSection(membershipsPayload({
         github_collaborator_discrepancies: [
           { id: 1, github_login: "external-dev", github_permission: "write", checked_at: "2026-01-05T00:00:00Z" }
         ]
@@ -334,7 +312,7 @@ describe("RepositoryMembersRoute", () => {
     })
 
     it("hides the GitHub-only collaborators section when there are none" , async () => {
-      renderRoute()
+      renderSection()
 
       await screen.findByText("Ada Lovelace")
       expect(screen.queryByText("GitHub-only collaborators")).not.toBeInTheDocument()

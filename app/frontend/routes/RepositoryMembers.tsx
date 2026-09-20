@@ -1,12 +1,10 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
-import { PageHeading, SectionHeading } from "../components/Heading"
+import { SectionHeading } from "../components/Heading"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
-import { routePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
 import { useState } from "react"
-import { Link, useLocation, useParams } from "react-router-dom"
 import { NoticeToast } from "../components/NoticeToast"
 import { TonePill } from "../components/StatusPill"
 import {
@@ -26,45 +24,33 @@ import {
   updateRepositoryTeamGrantRole,
   type TeamRepositoryGrant
 } from "../api/repositoryTeamGrants"
-import { RepositoryPageShell } from "../components/RepositoryPageShell"
 import { useT } from "../hooks/useT"
 import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 
-export function RepositoryMembersRoute() {
+// Embedded in the repository edit form (RepositoryForm.tsx) rather than
+// rendered as its own tab/page -- see the "Repositories Memberships"
+// issue: members management moved under repository edit so it shares
+// the edit page's access checks and layout instead of a standalone tab.
+export function RepositoryMembersSection({ repositoryId }: { repositoryId: number }) {
   const { t } = useT("settings")
-  const location = useLocation()
-  const params = useParams()
-  const repositoryId = params.repositoryId || ""
-  const prefix = routePrefix(location.pathname)
   const memberships = useQuery({
-    queryKey: ["repositories", repositoryId, "memberships"],
-    queryFn: () => fetchRepositoryMemberships(repositoryId),
-    enabled: repositoryId.length > 0
+    queryKey: ["repositories", String(repositoryId), "memberships"],
+    queryFn: () => fetchRepositoryMemberships(String(repositoryId))
   })
   const payload = memberships.data
 
   return (
-    <RepositoryPageShell
-      activeTab="members"
-      ariaLabel={t("aria_repo_memberships")}
-      heading={payload ? (
-        <PageHeading mono>
-          <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>{payload.repository.slug}</Link>
-        </PageHeading>
-      ) : null}
-      prefix={prefix}
-      tabs={payload?.tabs ?? []}
-    >
+    <>
       {memberships.isPending ? <PanelMessage>{t("repository_memberships.loading")}</PanelMessage> : null}
       {memberships.isError ? <PanelMessage tone="error">{errorMessage(memberships.error, t("repository_memberships.unable_to_load"))}</PanelMessage> : null}
-      {payload ? <RepositoryMembersView payload={payload} prefix={prefix} /> : null}
-    </RepositoryPageShell>
+      {payload ? <RepositoryMembersView payload={payload} /> : null}
+    </>
   )
 }
 
-function RepositoryMembersView({ payload, prefix }: { payload: RepositoryMembershipsPayload; prefix: string }) {
+function RepositoryMembersView({ payload }: { payload: RepositoryMembershipsPayload }) {
   const { t } = useT("settings")
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
