@@ -8,6 +8,14 @@
 # and BuildCache::DaemonAddress for the per-Workflow daemon isolation this
 # is a safety net for, not a replacement for.
 #
+# Either mismatch also triggers a best-effort self-heal (BuildCache::DaemonRestarter):
+# Syrus stops the daemon on this Workflow's own SCCACHE_SERVER_PORT so the
+# next compiler invocation in this same Workflow lazily respawns one that
+# reads the current env, instead of every remaining command in the Workflow
+# (every grade-loop retry included) continuing to hit the same wedged
+# daemon. Whether the restart itself reported success is recorded on the
+# warning's evidence for operator visibility.
+#
 # Best-effort and non-fatal: any failure here must never affect the
 # workflow or the stats capture that already succeeded.
 module BuildCache
@@ -26,14 +34,21 @@ module BuildCache
       return if env["SCCACHE_BUCKET"].to_s.empty?
       return unless summary.cache_location.to_s.match?(/local disk/i)
 
+      restarted = DaemonRestarter.restart!(env: env)
+
       WorkflowWarnings.record!(
         workflow: workflow,
         step: step,
         kind: WARNING_KIND,
         severity: "medium",
         title: "sccache reports a local-disk cache despite SCCACHE_BUCKET being configured",
-        evidence: { "cache_location" => summary.cache_location, "sccache_bucket" => env["SCCACHE_BUCKET"] },
-        suggested_prompt: local_disk_prompt
+        evidence: {
+          "cache_location" => summary.cache_location,
+          "sccache_bucket" => env["SCCACHE_BUCKET"],
+          "sccache_server_port" => env["SCCACHE_SERVER_PORT"],
+          "self_heal_restarted_daemon" => restarted
+        },
+        suggested_prompt: local_disk_prompt(restarted)
       )
     end
 
@@ -41,14 +56,20 @@ module BuildCache
       return if env["SCCACHE_BASEDIRS"].to_s.empty?
       return unless empty_basedirs?(stats)
 
+      restarted = DaemonRestarter.restart!(env: env)
+
       WorkflowWarnings.record!(
         workflow: workflow,
         step: step,
         kind: WARNING_KIND,
         severity: "medium",
         title: "sccache basedirs configuration did not reach the compiler-serving daemon",
-        evidence: { "expected_basedirs" => env["SCCACHE_BASEDIRS"] },
-        suggested_prompt: basedirs_prompt
+        evidence: {
+          "expected_basedirs" => env["SCCACHE_BASEDIRS"],
+          "sccache_server_port" => env["SCCACHE_SERVER_PORT"],
+          "self_heal_restarted_daemon" => restarted
+        },
+        suggested_prompt: basedirs_prompt(restarted)
       )
     end
 
@@ -61,21 +82,42 @@ module BuildCache
     end
     private_class_method :empty_basedirs?
 
-    def self.local_disk_prompt
-      "sccache reported a local-disk cache_location even though SCCACHE_BUCKET is configured for this repository. " \
-        "This usually means the sccache daemon serving compiler requests was started (by an earlier command, or an " \
-        "unrelated Workflow sharing this worker) before the shared-cache backend env was available, and never " \
-        "restarted -- sccache only reads its backend config once, at server startup. Investigate whether the S3/MinIO " \
+    def self.local_disk_prompt(restarted)
+      base =
+        "sccache reported a local-disk cache_location even though SCCACHE_BUCKET is configured for this repository. " \
+        "This usually means the sccache daemon serving compiler requests was started (by an earlier command, an " \
+        "agentic tool call that never receives sccache env, or an unrelated Workflow sharing this worker's derived " \
+        "port) before the shared-cache backend env was available, and never restarted -- sccache only reads its " \
+        "backend config once, at server startup."
+      base + if restarted
+        " Syrus already sent that daemon a --stop-server self-heal on this Workflow's SCCACHE_SERVER_PORT, so a " \
+        "fresh, correctly-configured daemon should serve the next compiler invocation -- if this recurs for the " \
+        "same Workflow, something is respawning it with stale env faster than Syrus can catch it. Investigate " \
+        "whether the S3/MinIO backend vars are actually reaching the worker pod, and whether daemon isolation " \
+        "(BuildCache::DaemonAddress) needs to widen its port span."
+      else
+        " Syrus attempted a --stop-server self-heal on this Workflow's SCCACHE_SERVER_PORT but it did not report " \
+        "success -- sccache may not be on PATH, or the stop call itself failed. Investigate whether the S3/MinIO " \
         "backend vars (SCCACHE_BUCKET/SCCACHE_ENDPOINT/SCCACHE_REGION/AWS credentials) are actually reaching the " \
         "worker pod, and whether daemon isolation (BuildCache::DaemonAddress) needs to widen its port span."
+      end
     end
     private_class_method :local_disk_prompt
 
-    def self.basedirs_prompt
-      "This repository is configured for cache-safe coverage caching (SCCACHE_BASEDIRS), but the sccache daemon's " \
+    def self.basedirs_prompt(restarted)
+      base =
+        "This repository is configured for cache-safe coverage caching (SCCACHE_BASEDIRS), but the sccache daemon's " \
         "captured stats reported an empty basedirs list -- meaning the daemon serving these compiles did not pick up " \
-        "the setting. sccache only reads SCCACHE_BASEDIRS once, at server startup; investigate whether something else " \
-        "started the daemon on this Workflow's derived port before prepare's env included it."
+        "the setting. sccache only reads SCCACHE_BASEDIRS once, at server startup."
+      base + if restarted
+        " Syrus already sent that daemon a --stop-server self-heal on this Workflow's SCCACHE_SERVER_PORT; if this " \
+        "recurs for the same Workflow, investigate whether something else is starting the daemon on this Workflow's " \
+        "derived port before prepare's env included it."
+      else
+        " Syrus attempted a --stop-server self-heal on this Workflow's SCCACHE_SERVER_PORT but it did not report " \
+        "success -- investigate whether something else started the daemon on this Workflow's derived port before " \
+        "prepare's env included it."
+      end
     end
     private_class_method :basedirs_prompt
   end
