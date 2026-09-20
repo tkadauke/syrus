@@ -265,5 +265,4 @@ RSpec.describe ChatProviders::Muse do
     expect(source).not_to match(/"muse",\s*"exec"/),
       "chat must not assemble its own muse exec command -- it would miss shared flags"
   end
-
 end
