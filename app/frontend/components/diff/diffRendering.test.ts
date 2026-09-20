@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   CONTEXT_EXPAND_LINE_INCREMENT,
   DEFAULT_LARGE_FILE_ROW_THRESHOLD,
@@ -41,6 +41,59 @@ describe("countDiffRows", () => {
   it("returns 0 for a null/empty patch", () => {
     expect(countDiffRows(null)).toBe(0)
     expect(countDiffRows("")).toBe(0)
+  })
+})
+
+describe("parseUnifiedDiff", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    warnSpy.mockRestore()
+  })
+
+  it("does not warn for standard git diff header lines outside any hunk", () => {
+    const lines = parseUnifiedDiff(SAMPLE_PATCH)
+    expect(lines.some((line) => line.kind === "meta")).toBe(true)
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it("classifies a trailing \"\\ No newline at end of file\" marker as no_newline without warning", () => {
+    const patch = [
+      "diff --git a/f b/f",
+      "--- a/f",
+      "+++ b/f",
+      "@@ -1,1 +1,1 @@",
+      "-old",
+      "+new",
+      "\\ No newline at end of file"
+    ].join("\n")
+
+    const lines = parseUnifiedDiff(patch)
+    const marker = lines.at(-1)
+    expect(marker).toMatchObject({ kind: "no_newline", code: "\\ No newline at end of file" })
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it("falls back to meta and warns for a genuinely unexpected in-hunk line", () => {
+    const patch = [
+      "diff --git a/f b/f",
+      "--- a/f",
+      "+++ b/f",
+      "@@ -1,1 +1,1 @@",
+      "-old",
+      "not a valid diff prefix",
+      "+new"
+    ].join("\n")
+
+    const lines = parseUnifiedDiff(patch)
+    const unexpected = lines.find((line) => line.code === "not a valid diff prefix")
+    expect(unexpected).toMatchObject({ kind: "meta" })
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain("unexpected line inside diff")
   })
 })
 

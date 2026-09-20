@@ -1,4 +1,5 @@
-export type DiffLineKind = "file" | "meta" | "hunk" | "add" | "delete" | "context"
+export type DiffLineKind = "file" | "meta" | "hunk" | "add" | "delete" | "context" | "no_newline"
+
 export type DiffLine = {
   kind: DiffLineKind
   oldLine: number | null
@@ -52,6 +53,28 @@ export function splitLines(text: string): string[] {
   return rawLines
 }
 
+// The one non-`+`/`-`/leading-space/`@@`/`diff --git` line unified diffs are
+// expected to contain: git (and most patch producers) emit this immediately
+// after the last line of a hunk when that line has no trailing newline in
+// the file. It carries no line-number/content information of its own, so it
+// gets its own kind instead of falling into the generic "meta" bucket that
+// `parseUnifiedDiff`'s fallback branch uses for genuinely unexpected input.
+export const NO_NEWLINE_MARKER = "\\ No newline at end of file"
+
+// Standard git extended-diff-header lines that legitimately show up outside
+// any hunk (alongside "diff --git ", which gets its own "file" kind). These
+// are expected structure, not parse failures, so the generic-fallback
+// warning in parseUnifiedDiff below must not fire for them.
+const RECOGNIZED_META_PREFIXES = [
+  "--- ", "+++ ", "index ", "old mode ", "new mode ", "deleted file mode ",
+  "new file mode ", "copy from ", "copy to ", "rename from ", "rename to ",
+  "similarity index ", "dissimilarity index ", "Binary files "
+]
+
+function isRecognizedDiffPreambleLine(rawLine: string): boolean {
+  return RECOGNIZED_META_PREFIXES.some((prefix) => rawLine.startsWith(prefix))
+}
+
 export function parseUnifiedDiff(diff: string) {
   const rawLines = splitLines(diff)
 
@@ -86,7 +109,18 @@ export function parseUnifiedDiff(diff: string) {
       lines.push(diffLine("context", rawLine.slice(1), oldLine, newLine, "", hunkId))
       oldLine += 1
       newLine += 1
+    } else if (rawLine === NO_NEWLINE_MARKER) {
+      lines.push(diffLine("no_newline", rawLine))
     } else {
+      // Genuinely unexpected: a line inside the diff that doesn't match any
+      // known unified-diff prefix (e.g. a hunk-body line arriving before
+      // oldLine/newLine are set because the patch was truncated or
+      // reordered, or a line the API forwarded without normalizing). This
+      // silently loses the gutter/coverage alignment for that row, so make
+      // it visible in dev instead of degrading without a trace.
+      if (import.meta.env.DEV && !isRecognizedDiffPreambleLine(rawLine)) {
+        console.warn("parseUnifiedDiff: unexpected line inside diff, falling back to \"meta\" classification", rawLine)
+      }
       lines.push(diffLine("meta", rawLine))
     }
   }
@@ -104,7 +138,7 @@ export function diffLineClass(kind: DiffLineKind) {
     case "delete": return "bg-red-50 dark:bg-red-950/40"
     case "hunk": return "bg-info/10 text-info"
     case "file": return "bg-gray-100 font-semibold dark:bg-gray-800 dark:text-gray-100"
-    case "meta": return "bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-400"
+    case "meta": case "no_newline": return "bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-400"
     default: return "bg-white dark:bg-gray-950"
   }
 }
