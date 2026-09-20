@@ -2,8 +2,8 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading } from "../components/Heading"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useState } from "react"
-import { Link, useLocation, useNavigate } from "react-router-dom"
+import { useMemo, useState } from "react"
+import { Link, useLocation } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
@@ -19,8 +19,9 @@ import { linkFromSearch } from "../components/filterBar/helpers"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import type { AdminSmartFolder } from "../api/adminSmartFolders"
+import { FilterBar } from "../components/FilterBar"
 import { useMediaQuery } from "./dashboard/components"
-import { Button, buttonClasses, Checkbox, DataTable, Input, PanelMessage, Select, Surface, Text, TonePill, type PillTone } from "../components/ui"
+import { Button, buttonClasses, Checkbox, DataTable, PanelMessage, Surface, Text, TonePill, type PillTone } from "../components/ui"
 
 type ColumnKey =
   | "github_owner"
@@ -113,8 +114,6 @@ function sortedRepositories(repositories: RepositoryRow[], sortState: SortState)
   })
 }
 
-const HEALTH_FILTER_VALUES = ["healthy", "broken", "inconclusive", "unknown"] as const
-
 const HEALTH_TONE: Record<string, PillTone> = {
   healthy: "green",
   broken: "red",
@@ -122,31 +121,10 @@ const HEALTH_TONE: Record<string, PillTone> = {
   unknown: "gray"
 }
 
-function readRepositoryFilters(search: string) {
-  const params = new URLSearchParams(search)
-  return {
-    slug: params.get("slug") ?? "",
-    github_owner: params.get("github_owner") ?? "",
-    health: params.get("health") ?? "",
-    agent_provider: params.get("agent_provider") ?? "",
-    has_open_jobs: params.get("has_open_jobs") === "true"
-  }
-}
-
-function uniqueSorted(values: string[]): string[] {
-  return Array.from(new Set(values.filter(Boolean))).sort((left, right) => left.localeCompare(right))
-}
-
-function agentOptionsFrom(repositories: RepositoryRow[]): Array<{ value: string; label: string }> {
-  const byValue = new Map<string, string>()
-  repositories.forEach((repository) => {
-    if (!repository.agent_provider) return
-    if (!byValue.has(repository.agent_provider)) byValue.set(repository.agent_provider, repository.agent_provider_label)
-  })
-  return Array.from(byValue.entries())
-    .map(([value, label]) => ({ value, label }))
-    .sort((left, right) => left.label.localeCompare(right.label))
-}
+// Old flat dropdown param names the shared FilterBar's chip bar replaces --
+// still accepted server-side for back-compat bookmarks, but FilterBar strips
+// them from links it builds so a stale one never lingers alongside `q=`.
+const REPOSITORY_LEGACY_FILTER_KEYS = ["slug", "github_owner", "health", "agent_provider", "has_open_jobs", "archived"]
 
 export function RepositoriesIndex() {
   const { t } = useT("settings")
@@ -161,16 +139,6 @@ export function RepositoriesIndex() {
     // repositories..." and remounting it fresh on every filter change.
     placeholderData: keepPreviousData
   })
-  // A separate, always-unfiltered fetch backing the owner/agent filter
-  // dropdown option lists. Sourcing those options from `repositories.data`
-  // instead would narrow them by whatever filters are already applied
-  // (including the filter's own dimension), so picking a value could make
-  // every other option -- and a way back to it -- disappear.
-  const filterOptions = useQuery({
-    queryKey: ["repositories", "filter-options"],
-    queryFn: () => fetchRepositories(),
-    staleTime: 60_000
-  })
   const prefix = routePrefix(location.pathname)
 
   return (
@@ -183,7 +151,6 @@ export function RepositoriesIndex() {
       {repositories.isError ? <PanelMessage tone="error">{errorMessage(repositories.error, t("repositories.error_load"))}</PanelMessage> : null}
       {repositories.isSuccess ? (
         <RepositoriesView
-          filterOptionsPayload={filterOptions.data ?? repositories.data}
           pathname={location.pathname}
           payload={repositories.data}
           prefix={prefix}
@@ -194,7 +161,7 @@ export function RepositoriesIndex() {
   )
 }
 
-function RepositoriesView({ payload, filterOptionsPayload, prefix, pathname, search }: { payload: RepositoriesPayload; filterOptionsPayload: RepositoriesPayload; prefix: string; pathname: string; search: string }) {
+function RepositoriesView({ payload, prefix, pathname, search }: { payload: RepositoriesPayload; prefix: string; pathname: string; search: string }) {
   const { t } = useT("settings")
   const { t: tNav } = useT("nav")
   const queryClient = useQueryClient()
@@ -293,8 +260,8 @@ function RepositoriesView({ payload, filterOptionsPayload, prefix, pathname, sea
               </div>
             </details>
           ) : null}
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <RepositoryFilterBar optionsPayload={filterOptionsPayload} pathname={pathname} search={search} />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <RepositoryFilterBar payload={payload} pathname={pathname} search={search} />
             <RepositoryColumnPicker onToggle={toggleColumn} visibleColumns={visibleColumns} />
           </div>
 
@@ -333,94 +300,36 @@ function smartFolderIdFromSearch(search: string): number | null {
   return Number.isInteger(id) ? id : null
 }
 
-function RepositoryFilterBar({ optionsPayload, pathname, search }: { optionsPayload: RepositoriesPayload; pathname: string; search: string }) {
-  const { t } = useT("settings")
-  const navigate = useNavigate()
-  const filters = useMemo(() => readRepositoryFilters(search), [search])
-  const [slugDraft, setSlugDraft] = useState(filters.slug)
-
-  useEffect(() => {
-    setSlugDraft(filters.slug)
-  }, [filters.slug])
-
-  useEffect(() => {
-    if (slugDraft === filters.slug) return
-
-    const timeout = window.setTimeout(() => {
-      navigate(linkFromSearch(pathname, search, { slug: slugDraft || null }), { replace: true })
-    }, 300)
-    return () => window.clearTimeout(timeout)
-    // Only the draft value should retrigger the debounce timer; re-running it
-    // off filters.slug/search would cancel the pending navigation the moment
-    // it fires (search changes as soon as this timeout calls navigate).
-  }, [slugDraft])
-
-  // Sourced from the always-unfiltered optionsPayload (see RepositoriesIndex)
-  // so picking a value -- or narrowing via any other filter, including a
-  // dropdown's own dimension -- never removes other choices from the list.
-  const allRepositories = useMemo(() => [...optionsPayload.active_repositories, ...optionsPayload.archived_repositories], [optionsPayload])
-  const ownerOptions = useMemo(
-    () => uniqueSorted([...allRepositories.map((repository) => repository.owner), ...(filters.github_owner ? [filters.github_owner] : [])]),
-    [allRepositories, filters.github_owner]
-  )
-  const agentOptions = useMemo(() => {
-    const options = agentOptionsFrom(allRepositories)
-    if (filters.agent_provider && !options.some((option) => option.value === filters.agent_provider)) {
-      options.push({ value: filters.agent_provider, label: filters.agent_provider })
-    }
-    return options
-  }, [allRepositories, filters.agent_provider])
-
-  function updateParam(key: string, value: string | null) {
-    navigate(linkFromSearch(pathname, search, { [key]: value }))
-  }
-
-  const hasFilters = Boolean(filters.slug || filters.github_owner || filters.health || filters.agent_provider || filters.has_open_jobs)
+// Uses the shared chip-bar FilterBar (the same component Dashboard, Admin
+// Work Units, etc. use) instead of a bespoke set of dropdowns -- the backend
+// now exposes a `filter_schema` and reads/writes the same `q=<base64-json>`
+// wire format every other FilterBar-backed subject uses.
+function RepositoryFilterBar({ payload, pathname, search }: { payload: RepositoriesPayload; pathname: string; search: string }) {
+  const activeSmartFolderId = smartFolderIdFromSearch(search) ?? payload.active_smart_folder_id
+  const activeFolder = payload.smart_folders.find((folder) => folder.id === activeSmartFolderId)
+  // Editing the chip bar while a built-in folder (All/Recent/Archived) is
+  // selected drops that folder's floor server-side (see
+  // Repositories::Filter.smart_folder_floor), so keep the URL in sync by
+  // dropping smart_folder_id too -- otherwise the sidebar would keep
+  // highlighting a folder whose condition no longer applies. A user-defined
+  // folder is the one case worth keeping selected while its own filter is
+  // being edited (mirrors Dashboard's DashboardFilterBar).
+  const keepSmartFolderOnFilter = activeFolder?.kind === "user_defined"
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      <label className="flex flex-col gap-1 text-xs font-medium uppercase text-text-muted">
-        {t("repositories.filter_search")}
-        <Input
-          className="w-56"
-          onChange={(event) => setSlugDraft(event.target.value)}
-          placeholder={t("repositories.filter_search_placeholder")}
-          type="search"
-          value={slugDraft}
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-xs font-medium uppercase text-text-muted">
-        {t("repositories.filter_owner")}
-        <Select className="w-40" fullWidth={false} onChange={(event) => updateParam("github_owner", event.target.value || null)} value={filters.github_owner}>
-          <option value="">{t("repositories.filter_all")}</option>
-          {ownerOptions.map((owner) => <option key={owner} value={owner}>{owner}</option>)}
-        </Select>
-      </label>
-      <label className="flex flex-col gap-1 text-xs font-medium uppercase text-text-muted">
-        {t("repositories.filter_health")}
-        <Select className="w-40" fullWidth={false} onChange={(event) => updateParam("health", event.target.value || null)} value={filters.health}>
-          <option value="">{t("repositories.filter_all")}</option>
-          {HEALTH_FILTER_VALUES.map((value) => <option key={value} value={value}>{t(`repositories.health_${value}`)}</option>)}
-        </Select>
-      </label>
-      <label className="flex flex-col gap-1 text-xs font-medium uppercase text-text-muted">
-        {t("repositories.filter_agent")}
-        <Select className="w-40" fullWidth={false} onChange={(event) => updateParam("agent_provider", event.target.value || null)} value={filters.agent_provider}>
-          <option value="">{t("repositories.filter_all")}</option>
-          {agentOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </Select>
-      </label>
-      <Checkbox
-        checked={filters.has_open_jobs}
-        label={t("repositories.filter_has_open_jobs")}
-        onChange={(event) => updateParam("has_open_jobs", event.target.checked ? "true" : null)}
-      />
-      {hasFilters ? (
-        <button className="text-sm text-text-muted underline hover:text-text-primary" onClick={() => navigate(pathname)} type="button">
-          {t("repositories.filter_clear")}
-        </button>
-      ) : null}
-    </div>
+    <FilterBar
+      buildLink={(path, currentSearch, updates) => {
+        const nextUpdates = { ...updates }
+        if (nextUpdates.smart_folder_id != null && !keepSmartFolderOnFilter) nextUpdates.smart_folder_id = null
+
+        return linkFromSearch(path, currentSearch, nextUpdates)
+      }}
+      filter={payload.filter}
+      filterSchema={payload.filter_schema}
+      legacyFilterKeys={REPOSITORY_LEGACY_FILTER_KEYS}
+      pathname={pathname}
+      search={search}
+    />
   )
 }
 
