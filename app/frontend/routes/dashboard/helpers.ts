@@ -1,4 +1,5 @@
 import { type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardWorkflowItem } from "../../api/dashboard"
+import { visibleColumnKeys } from "../../components/ColumnVisibilityMenu"
 
 
 // Pure dashboard helpers extracted from Dashboard.tsx: link/query-string builders,
@@ -114,16 +115,11 @@ export function dashboardColumnLabel(subject: DashboardSubject, column: string, 
 }
 
 export function dashboardVisibleColumns(payload: DashboardPayload) {
-  const allowed = new Set([
-    ...payload.controls.columns.required.map((column) => column.key),
-    ...payload.controls.columns.optional.map((column) => column.key)
-  ])
-  const normalized = [
-    ...payload.controls.columns.required.map((column) => column.key),
-    ...payload.preferences.visible_columns.map((column) => normalizeDashboardColumn(payload.subject, column))
-  ]
-
-  return normalized.filter((column, index, columns) => allowed.has(column) && columns.indexOf(column) === index)
+  return visibleColumnKeys({
+    requiredColumns: payload.controls.columns.required,
+    optionalColumns: payload.controls.columns.optional,
+    visibleColumns: payload.preferences.visible_columns.map((column) => normalizeDashboardColumn(payload.subject, column))
+  })
 }
 
 export function normalizeDashboardColumn(subject: DashboardSubject, column: string) {
