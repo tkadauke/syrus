@@ -205,8 +205,15 @@ function RepositoriesView({ payload, filterOptionsPayload, prefix, pathname, sea
   const unarchive = useMutation({
     mutationFn: (id: number) => unarchiveRepository(id),
     onSuccess: (updated) => {
-      queryClient.setQueryData(["repositories", search], updated)
+      // The unarchive endpoint responds with the default (unfiltered)
+      // repositories payload, not one scoped to whatever smart folder or
+      // filters are currently active -- caching it directly under the
+      // current search key would leave a stale/mismatched row visible
+      // (e.g. the just-unarchived repo lingering in the Archived folder).
+      // Invalidate instead so the active query refetches through the
+      // normal filtered path.
       setNotice(updated.message || null)
+      void queryClient.invalidateQueries({ queryKey: ["repositories"] })
     }
   })
 
