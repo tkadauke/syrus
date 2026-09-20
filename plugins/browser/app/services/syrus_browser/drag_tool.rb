@@ -31,5 +31,6 @@ module SyrusBrowser
     proxies "browser_drag",
             start_element: "startElement", start_target: "startTarget",
             end_element: "endElement", end_target: "endTarget"
+    requires_input_lease!
   end
 end
