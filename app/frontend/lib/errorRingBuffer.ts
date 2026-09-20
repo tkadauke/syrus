@@ -44,7 +44,7 @@ export function initErrorRingBuffer() {
 }
 
 export function getRecentErrors(): RecentError[] {
-  return [...recentErrors]
+  return recentErrors.map((error) => ({ ...error }))
 }
 
 export function _clearRecentErrors() {
