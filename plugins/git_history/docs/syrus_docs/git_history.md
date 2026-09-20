@@ -45,14 +45,34 @@ a stateless, `repository_id`-keyed read with no session to pin to):
   pod instead of touching `RepositoryBareClone` directly. Talks to a fixed
   internal address, `SYRUS_GIT_HISTORY_INTERNAL_HOST` (default `127.0.0.1`,
   matching the `SYRUS_PREVIEW_INTERNAL_HOST` convention), at the relay's
-  fixed port. No per-request credential — `GitHistoryController` already
-  authorizes the request (`Repository.accessible_to(Current.user)`) before
-  proxying.
+  fixed port, and sends a `Bearer` token (`GitHistory::RelayToken`) on every
+  request.
 
-A relay that's unreachable, times out, or errors degrades to
-`available: false` — the same graceful "not available yet" the tab already
-shows for a repository whose bare clone hasn't synced. It is never surfaced
-as a hard error to the operator.
+A relay that's unreachable, times out, errors, or rejects the request as
+unauthorized degrades to `available: false` — the same graceful "not
+available yet" the tab already shows for a repository whose bare clone
+hasn't synced. It is never surfaced as a hard error to the operator.
+
+**Authorization.** `RelayServer` binds `0.0.0.0`, so `GitHistoryController`'s
+own `Repository.accessible_to(Current.user)` check is not enough on its
+own — anything else reachable on that port/network could otherwise ask for
+any repository id directly, bypassing the controller entirely. Every
+request must carry a `Bearer` token matching `GitHistory::RelayToken.value`,
+derived from the app's own `secret_key_base` via `Rails.application.key_generator`
+(scoped to a fixed purpose string) so both processes can independently
+compute it without any extra deployment config, and the raw
+`secret_key_base` never goes over the wire. A request with a missing or
+incorrect token gets `401`.
+
+**Cursor validation.** `cursor` is passed as a positional revision argument
+to `git log` (`GitHistory::CommitLog#fetch`), not through a shell, so
+there's no shell-injection risk — but an unvalidated cursor is still a *git
+argument* injection risk: a value like `--all` would list commits across
+every ref instead of the default branch, and `--output=<path>` would write
+the log to an arbitrary file on disk. `CommitLog` restricts `cursor` to
+`/\A[0-9a-fA-F]{4,40}\z/` (git's own SHA alphabet) before using it, rejecting
+anything flag- or path-shaped by construction; an invalid cursor degrades to
+an empty page, same as an unknown SHA.
 
 **Single-writer-pod assumption.** See `config/syrus_docs/multi_worker.md`'s
 "Git History relay pinning" section: today exactly one worker pod ever syncs

@@ -6,6 +6,18 @@ module GitHistory
   class CommitLog
     FORMAT = "%H%x09%an%x09%ae%x09%cn%x09%ce%x09%aI%x09%s%x00".freeze
 
+    # cursor is always a commit sha echoed back from a previous page (see
+    # #fetch below). It is passed as a positional revision argument to `git
+    # log`, not through a shell, so there is no shell-injection risk — but an
+    # unvalidated value is still a *git argument* injection risk: something
+    # like `--output=/some/path` or `--all` would be accepted by `git log`
+    # as a flag instead of a revision, letting a caller write arbitrary files
+    # or read commits across every ref in the bare clone instead of just the
+    # default branch. Restricting cursor to a bare hex string (git's own SHA
+    # alphabet) rules out anything flag-shaped or option-shaped by
+    # construction.
+    CURSOR_PATTERN = /\A[0-9a-fA-F]{4,40}\z/.freeze
+
     Page = Struct.new(:entries, :has_more, keyword_init: true)
 
     def initialize(repository:, git: nil)
@@ -24,6 +36,7 @@ module GitHistory
     # so pagination stays stable even if the branch advances between pages.
     def fetch(cursor:, limit:)
       return Page.new(entries: [], has_more: false) unless available?
+      return Page.new(entries: [], has_more: false) if cursor.present? && !valid_cursor?(cursor)
 
       args = [ "log", cursor.presence || @repository.default_branch ]
       args << "--skip=1" if cursor.present?
@@ -37,6 +50,10 @@ module GitHistory
     end
 
     private
+
+    def valid_cursor?(cursor)
+      CURSOR_PATTERN.match?(cursor)
+    end
 
     def bare_clone_path
       @bare_clone_path ||= RepositoryBareClone.path_for(@repository)

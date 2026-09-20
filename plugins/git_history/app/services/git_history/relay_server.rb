@@ -14,9 +14,14 @@ module GitHistory
   # GitHistory::RelayClient for the web-process caller.
   #
   # Mirrors PreviewControlServer's shape: fixed port via env var, bound on the
-  # internal network only, never exposed through public ingress. No
-  # per-request credential — GitHistoryController already authorizes the
-  # request (`Repository.accessible_to(Current.user)`) before proxying.
+  # internal network only, never exposed through public ingress. Binding
+  # 0.0.0.0 means anything else reachable on that port/network could ask for
+  # any repository id, bypassing `GitHistoryController`'s
+  # `Repository.accessible_to(Current.user)` check entirely — the controller
+  # authorizes the *request*, but nothing previously authorized the *caller*.
+  # Every request now requires a `Bearer` token matching GitHistory::RelayToken
+  # (see RelayClient), a secret derived from the app's own secret_key_base so
+  # only another process running this same Syrus app can produce it.
   #
   # Single-writer-pod assumption, now enforced rather than latent: exactly
   # one worker pod ever syncs bare clones, because `RepositoryBareClone#sync!`
@@ -98,6 +103,7 @@ module GitHistory
     def call(env)
       request = Rack::Request.new(env)
       return not_found unless request.get?
+      return unauthorized unless authorized?(request)
 
       if (match = AVAILABLE_PATH.match(request.path))
         available_response(match[1].to_i)
@@ -112,6 +118,16 @@ module GitHistory
     end
 
     private
+
+    def authorized?(request)
+      provided = request.get_header("HTTP_AUTHORIZATION").to_s.delete_prefix("Bearer ").strip
+      expected = RelayToken.value
+      provided.bytesize == expected.bytesize && ActiveSupport::SecurityUtils.secure_compare(provided, expected)
+    end
+
+    def unauthorized
+      json_response(401, error: "unauthorized")
+    end
 
     def available_response(repository_id)
       repository = find_repository(repository_id)

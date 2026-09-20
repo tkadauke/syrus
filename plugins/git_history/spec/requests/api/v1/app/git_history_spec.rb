@@ -24,7 +24,8 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/git_history", type:
     stub_request(:get, %r{\Ahttp://127\.0\.0\.1:#{GitHistory::RelayServer::PORT}/repositories/}).to_return do |request|
       uri = request.uri
       path = uri.query.present? ? "#{uri.path}?#{uri.query}" : uri.path
-      status, headers, body = GitHistory::RelayServer.new.call(Rack::MockRequest.env_for(path))
+      env = Rack::MockRequest.env_for(path, "HTTP_AUTHORIZATION" => request.headers["Authorization"])
+      status, headers, body = GitHistory::RelayServer.new.call(env)
       { status: status, headers: headers, body: body.reduce(:+) }
     end
   end

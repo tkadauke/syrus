@@ -118,5 +118,40 @@ RSpec.describe GitHistory::CommitLog do
       expect(page.entries).to eq([])
       expect(page.has_more).to be false
     end
+
+    it "rejects a flag-shaped cursor instead of passing it through to git log as an argument" do
+      commit!("first")
+      commit!("second")
+      bare_clone!
+
+      log = described_class.new(repository: repository)
+      page = log.fetch(cursor: "--all", limit: 10)
+
+      expect(page.entries).to eq([])
+      expect(page.has_more).to be false
+    end
+
+    it "rejects a path-shaped or option-value-shaped cursor" do
+      commit!("first")
+      bare_clone!
+
+      log = described_class.new(repository: repository)
+      page = log.fetch(cursor: "--output=/tmp/pwned", limit: 10)
+
+      expect(page.entries).to eq([])
+      expect(page.has_more).to be false
+    end
+
+    it "accepts an abbreviated hex cursor" do
+      sha1 = commit!("first")
+      commit!("second")
+      bare_clone!
+
+      log = described_class.new(repository: repository)
+      page = log.fetch(cursor: sha1[0, 7], limit: 10)
+
+      expect(page.entries).to eq([])
+      expect(page.has_more).to be false
+    end
   end
 end
