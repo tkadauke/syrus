@@ -50,6 +50,11 @@ export type ChatRecord = {
   cumulative_output_tokens: number
   cumulative_cost_usd: number
   pending_proposal_count?: number
+  // Scoped subset of pending_proposal_count: only top-level pending Job-like
+  // (job/syrus_issue) or Epic bundle proposals -- the ones ChatJobStatusPanel's
+  // "Proposed" section actually renders. Drives the Jobs tab's visibility so
+  // it appears as soon as the agent proposes work, before anything confirms.
+  pending_job_proposal_count?: number
   confirmed_proposal_count?: number
   active_goal?: ChatGoal | null
   linked_direct_job_count?: number

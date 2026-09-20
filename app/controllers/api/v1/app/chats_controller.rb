@@ -1818,6 +1818,7 @@ module Api
             cumulative_output_tokens: chat_session.cumulative_output_tokens.to_i,
             cumulative_cost_usd: chat_session.cumulative_cost.to_f,
             pending_proposal_count: counts.fetch(:proposed_proposals) + counts.fetch(:pending_actions),
+            pending_job_proposal_count: counts.fetch(:pending_job_proposals),
             confirmed_proposal_count: counts.fetch(:confirmed_proposals),
             linked_direct_job_count: counts.fetch(:linked_direct_jobs),
             scratchpad_items_count: counts.fetch(:scratchpad_items),
@@ -1836,6 +1837,7 @@ module Api
           sql = <<~SQL.squish
             SELECT
               (SELECT COUNT(*) FROM chat_proposals WHERE chat_session_id = #{id} AND state = 'proposed') AS proposed_proposals,
+              (SELECT COUNT(*) FROM chat_proposals WHERE chat_session_id = #{id} AND state = 'proposed' AND parent_proposal_id IS NULL AND kind IN ('#{ChatJobStatusQuery::JOB_PROPOSAL_KINDS.join("','")}','epic')) AS pending_job_proposals,
               (SELECT COUNT(*) FROM chat_pending_actions WHERE chat_session_id = #{id} AND state = 'pending') AS pending_actions,
               (SELECT COUNT(*) FROM chat_proposals WHERE chat_session_id = #{id} AND state = 'confirmed') AS confirmed_proposals,
               (SELECT COUNT(*) FROM jobs WHERE linked_chat_id = #{id} AND kind = 'direct') AS linked_direct_jobs,
@@ -1846,6 +1848,7 @@ module Api
           row = ActiveRecord::Base.connection.select_one(sql) || {}
           {
             proposed_proposals: row.fetch("proposed_proposals", 0).to_i,
+            pending_job_proposals: row.fetch("pending_job_proposals", 0).to_i,
             pending_actions: row.fetch("pending_actions", 0).to_i,
             confirmed_proposals: row.fetch("confirmed_proposals", 0).to_i,
             linked_direct_jobs: row.fetch("linked_direct_jobs", 0).to_i,

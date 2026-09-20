@@ -5990,6 +5990,37 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["pending_proposal_count"]).to eq(1)
   end
 
+  it "counts only top-level pending job/syrus_issue/epic proposals in pending_job_proposal_count" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    chat.proposals.create!(slug: "pending-job", title: "Pending job", body: "Body.", kind: "job")
+    chat.proposals.create!(slug: "pending-issue", title: "Pending issue", body: "Body.", kind: "syrus_issue")
+    epic_proposal = chat.proposals.create!(slug: "pending-epic", title: "Pending epic", body: "Body.", kind: "epic")
+    chat.proposals.create!(slug: "pending-epic-child", title: "Epic child", body: "Body.", kind: "job", parent_proposal: epic_proposal)
+    chat.proposals.create!(slug: "pending-github-issue", title: "Pending GitHub issue", body: "Body.", kind: "github_issue")
+    chat.proposals.create!(slug: "confirmed-job", title: "Confirmed job", body: "Body.", kind: "job", state: "confirmed")
+    chat.proposals.create!(slug: "rejected-job", title: "Rejected job", body: "Body.", kind: "job", state: "rejected")
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    # pending-job, pending-issue, pending-epic -- not the epic's own child,
+    # not the github_issue proposal (a different materialization path
+    # ChatJobStatusQuery's pending_proposals section doesn't render), and
+    # not the confirmed/rejected ones.
+    expect(parse_body.dig("chat", "pending_job_proposal_count")).to eq(3)
+  end
+
+  it "does not count pending_job_proposal_count from other chat sessions" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    other_chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    other_chat.proposals.create!(slug: "other-chat-pending", title: "Other chat pending", body: "Body.", kind: "job")
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body.dig("chat", "pending_job_proposal_count")).to eq(0)
+  end
+
   it "renders queued pending actions and lets the operator cancel them" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

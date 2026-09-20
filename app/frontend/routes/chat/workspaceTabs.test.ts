@@ -157,6 +157,16 @@ describe("availableWorkspaceTabs", () => {
     expect(availableWorkspaceTabs(payload)).toContain("jobs")
   })
 
+  it("includes the jobs tab once there is a pending Job or Epic proposal, before anything confirms", () => {
+    // The primary case the chat Jobs tab's "Proposed" section exists for: a
+    // brand-new chat where the agent just proposed work and nothing has been
+    // confirmed or linked yet. Without this, the tab (and the pending-proposal
+    // cards inside it) would be unreachable.
+    const payload = makePayload()
+    payload.chat.pending_job_proposal_count = 1
+    expect(availableWorkspaceTabs(payload)).toContain("jobs")
+  })
+
   it("includes a read-only files tab for a planning-mode chat with an attached repository", () => {
     const payload = makePayload()
     payload.chat.mode = "planning"

@@ -1,11 +1,16 @@
 # Proposal-editing helpers extracted from Api::V1::App::ChatsController.
 #
 # Backing the update_proposal action: strong params, rebuilding a proposal's
-# dependency edges from a slug list, validating referenced job/epic ids, the
-# compact proposal search JSON, and the app-event broadcast after an edit.
-# They operate on the passed chat session / proposal (no per-user scoping of
-# their own), so they mix straight back in with no behavior change. Kept
-# private on include.
+# dependency edges from a slug list, validating referenced job/epic ids, and
+# the compact proposal search JSON. They operate on the passed chat session /
+# proposal (no per-user scoping of their own), so they mix straight back in
+# with no behavior change. Kept private on include.
+#
+# The app-event broadcast after an edit is NOT here: Api::V1::App::ChatsController
+# defines its own broadcast_proposal_updated directly (richer payload --
+# serialized proposal, job_status_proposal, pending_proposal_count -- fanned
+# out to every participant), which shadows a same-named method defined in an
+# included module. Don't reintroduce one here; it would silently never run.
 module ChatProposalMutation
   private
 
@@ -41,19 +46,5 @@ module ChatProposalMutation
       title: proposal.title,
       state: proposal.state
     }
-  end
-
-  def broadcast_proposal_updated(chat_session, proposal)
-    AppEvents.broadcast(
-      user: chat_session.user,
-      type: "updated",
-      resource: "chat",
-      id: chat_session.id,
-      changed: [ "proposal" ],
-      payload: {
-        action: "update_proposal",
-        proposal_id: proposal.id
-      }
-    )
   end
 end

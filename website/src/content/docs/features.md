@@ -46,12 +46,9 @@ new chat scoped to the Job's repository, seeds an opening "I would like to
 chat about JOB-<id>." user turn so the agent responds immediately,
 permanently attaches the Job to it (visible in that chat's Jobs list), and
 the Job page then links to that chat going forward.
-The Jobs dashboard also shows a "Proposed" section above the readiness and
-health banners with up to 5 of the operator's most recent pending chat
-proposals; each card links straight to the message where the proposal was
-posted, and the section updates live as proposals are created, confirmed,
-rejected, or withdrawn, so a proposal that scrolled out of view in a long
-chat is never effectively lost.
+Pending chat proposals for a Job or Epic show up in that chat's own Jobs tab
+(see below) rather than on the dashboard, so proposed-but-unconfirmed work
+stays scoped to the conversation that's actually driving it.
 If an agent provider hits a current user's usage or quota limit, Jobs that use
 that provider show an additive red triangle warning in dashboards, lists, and
 the Job header until usage is restored or the Job is retried/switched with
@@ -640,15 +637,20 @@ screenshots captured in Coding Mode — has an **Attach to message** action,
 available both on the thumbnail and in its full-size preview, that pulls the
 image into the composer through the same attachment mechanism as a pasted
 screenshot; further discussion or markup happens in chat once it's attached.
-Once at least one proposal in the current chat session has been confirmed, a
-Jobs tab appears in the workspace panel. It groups confirmed proposals into
-their respective Epics (collapsible, with a done/total progress pill) and
-shows remaining standalone Jobs as a flat list. Each card displays the Job
-state, the active workflow step or PR link, and a red blocker banner when
-operator action is required (awaiting review, landing failed, or a failed
-dependency). Clicking a card navigates to the Job detail page. The feed
-updates in real time when any Job originating from this chat session changes. PDFs are passed to the agent
-without an inline preview.
+Once the current chat session has a pending, confirmed, or linked Job or
+Epic proposal, a Jobs tab appears in the workspace panel. A "Proposed"
+section at the top lists proposals still awaiting confirmation — both
+direct Job proposals and Epic bundles, each showing its kind, a relative
+timestamp, and (for an Epic bundle) its child count — and clicking a card
+jumps straight to the chat message where it was posted. Below that, confirmed
+proposals are grouped into their respective Epics (collapsible, with a
+done/total progress pill), with remaining standalone Jobs shown as a flat
+list. Each confirmed card displays the Job state, the active workflow step or
+PR link, and a red blocker banner when operator action is required (awaiting
+review, landing failed, or a failed dependency); clicking it navigates to the
+Job detail page. Both sections update in real time as proposals are created,
+confirmed, rejected, or withdrawn, and as any Job originating from this chat
+session changes. PDFs are passed to the agent without an inline preview.
 Clearing a non-empty canvas automatically saves the previous scene first.
 
 Chats do not silently materialize work just because the assistant suggested

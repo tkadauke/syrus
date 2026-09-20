@@ -149,7 +149,8 @@ export function localDiffTabVisible(payload: ChatPayload): boolean {
 
 export function jobsTabVisible(payload: ChatPayload): boolean {
   return (payload.chat.confirmed_proposal_count ?? 0) > 0 ||
-    (payload.chat.linked_direct_job_count ?? 0) > 0
+    (payload.chat.linked_direct_job_count ?? 0) > 0 ||
+    (payload.chat.pending_job_proposal_count ?? 0) > 0
 }
 
 // DOC-17 "Coding Mode Right Sidebar": the Runtime panel only appears once at
