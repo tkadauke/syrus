@@ -9,6 +9,9 @@ module SyrusBrowser
   # instead only when a scenario needs something browser_drop's paths/data model doesn't
   # cover: inspecting intermediate drag states, a custom DataTransfer configuration (e.g.
   # effectAllowed/dropEffect), or asserting on non-drag page behavior.
+  #
+  # Same input-lease reasoning as DragTool: this is a real, page-affecting drag/drop delivered
+  # via Playwright's own synthesis, not an observation -- see `requires_input_lease!` below.
   class DropTool < BrowserTool
     tool_name "browser_drop"
 
@@ -39,6 +42,7 @@ module SyrusBrowser
 
     argument_aliases target: %i[ref]
     proxies "browser_drop", element: "element", target: "target", paths: "paths", data: "data"
+    requires_input_lease!
 
     class << self
       def call(server_context:, **params)

@@ -5,6 +5,12 @@ module SyrusBrowser
   # click on a file input or similar) with the given absolute file paths. Covers the
   # file-picker attachment path — a real, valid partial substitute for scenarios that don't
   # specifically require simulating drag-and-drop.
+  #
+  # Lease-gated for the same reason as DragTool/DropTool: answering an open file chooser feeds
+  # real files into the page, the same category of page-affecting input those tools deliver.
+  # There is no cross-call state linking "chooser was opened" to "caller holds the lease" -- the
+  # chooser can be opened by anything (including the operator) -- so gating this tool itself is
+  # what prevents an agent from answering a chooser without holding an active input lease.
   class FileUploadTool < BrowserTool
     tool_name "browser_file_upload"
 
@@ -26,5 +32,6 @@ module SyrusBrowser
     )
 
     proxies "browser_file_upload", paths: "paths"
+    requires_input_lease!
   end
 end
