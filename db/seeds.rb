@@ -25,6 +25,11 @@ end
 # targeted rows when a UI surface is otherwise impossible to exercise, but avoid
 # broad scenario dumps that slow previews or obscure real empty-state behavior.
 if Rails.env.development?
+  %w[claude_agent codex_agent].each do |plugin_name|
+    plugin_record = PluginRecord.find_or_create_by!(name: plugin_name)
+    plugin_record.update!(enabled: true) unless plugin_record.enabled?
+  end
+
   demo_user = User.find_or_initialize_by(email_address: "demo@syrus.local")
   demo_user.assign_attributes(
     name: "Demo Operator",

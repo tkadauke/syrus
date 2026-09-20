@@ -43,4 +43,19 @@ RSpec.describe "e2e:seed" do
     demo_epic = Epic.find_by!(repository: demo_repo, title: "Preview the operator workflow")
     expect(demo_epic.done_at).to eq(original_done_at)
   end
+
+  it "enables bundled chat providers before seeding preview users" do
+    %w[claude_agent codex_agent].each do |name|
+      PluginRecord.find_or_create_by!(name: name).update!(enabled: false, disableable: true)
+    end
+
+    expect { Rake::Task["e2e:seed"].invoke }.not_to raise_error
+
+    expect(PluginRecord.find_by!(name: "claude_agent")).to be_enabled
+    expect(PluginRecord.find_by!(name: "codex_agent")).to be_enabled
+    expect(User.find_by!(email_address: "demo@syrus.local")).to have_attributes(
+      agent_provider: "codex",
+      chat_provider: "codex"
+    )
+  end
 end
