@@ -82,7 +82,14 @@ func SaveCredentials(path string, creds Credentials) error {
 		return err
 	}
 	contents := fmt.Sprintf("url=%s\ntoken=%s\n", strings.TrimSpace(creds.URL), strings.TrimSpace(creds.Token))
-	return os.WriteFile(path, []byte(contents), 0600)
+	if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
+		return err
+	}
+	// os.WriteFile only applies the mode bits when creating a new file; if the
+	// file already existed with weaker permissions, WriteFile truncates and
+	// rewrites without changing them. Chmod explicitly so a pre-existing
+	// world/group-readable credentials file is always corrected.
+	return os.Chmod(path, 0600)
 }
 
 func ParseCredentials(r io.Reader) (Credentials, error) {
