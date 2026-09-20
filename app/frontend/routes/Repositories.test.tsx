@@ -264,6 +264,54 @@ describe("RepositoriesIndex smart folders", () => {
 
     expect(await screen.findByText("No archived repositories.")).toBeInTheDocument()
   })
+
+  it("removes the row from the Archived folder view after inline Unarchive, instead of leaving it stale", async () => {
+    let archived = true
+    const archivedRow = () => repositoryRow({ id: 2, slug: "acme/attic", archived, archived_at: archived ? "2026-01-01T00:00:00Z" : null })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      const method = init?.method || "GET"
+
+      if (url === "/api/v1/app/repositories/2/unarchive" && method === "POST") {
+        archived = false
+        return Promise.resolve(jsonResponse(repositoriesPayload({ message: "acme/attic unarchived." })))
+      }
+
+      // The index GET always reflects the currently active smart folder
+      // (Archived here), so once `archived` flips false the repo drops out
+      // of this response entirely -- unlike the unarchive endpoint's own
+      // response above, which is unfiltered.
+      return Promise.resolve(jsonResponse(repositoriesPayload({
+        active_repositories: [],
+        archived_repositories: archived ? [ archivedRow() ] : [],
+        active_smart_folder_id: 3
+      })))
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/repositories?smart_folder_id=3"]}>
+          <RepositoriesIndex />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("link", { name: "acme/attic" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Unarchive" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/2/unarchive",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByRole("link", { name: "acme/attic" })).not.toBeInTheDocument()
+    })
+    expect(await screen.findByText("No archived repositories.")).toBeInTheDocument()
+  })
 })
 
 describe("RepositoriesIndex filter dropdown options", () => {
