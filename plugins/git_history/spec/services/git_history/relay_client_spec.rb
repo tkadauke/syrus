@@ -17,12 +17,28 @@ RSpec.describe GitHistory::RelayClient do
   end
 
   describe "#available?" do
+    it "sends the shared relay bearer token" do
+      stub = stub_request(:get, available_url)
+        .with(headers: { "Authorization" => "Bearer #{GitHistory::RelayToken.value}" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { available: true }.to_json)
+
+      client.available?
+
+      expect(stub).to have_been_requested
+    end
+
     it "returns true when the relay reports the bare clone is available" do
       stub_request(:get, available_url).to_return(
         status: 200, headers: { "Content-Type" => "application/json" }, body: { available: true }.to_json
       )
 
       expect(client.available?).to be true
+    end
+
+    it "returns false (does not raise) when the relay rejects the token as unauthorized" do
+      stub_request(:get, available_url).to_return(status: 401, body: { error: "unauthorized" }.to_json)
+
+      expect(client.available?).to be false
     end
 
     it "returns false when the relay reports the bare clone is not available" do

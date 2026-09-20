@@ -37,8 +37,9 @@ RSpec.describe GitHistory::RelayServer do
     raise "bare clone failed: #{output}" unless $?.success?
   end
 
-  def call(path)
-    server.call(Rack::MockRequest.env_for(path))
+  def call(path, authorized: true)
+    headers = authorized ? { "HTTP_AUTHORIZATION" => "Bearer #{GitHistory::RelayToken.value}" } : {}
+    server.call(Rack::MockRequest.env_for(path, headers))
   end
 
   def json_body(response)
@@ -118,12 +119,56 @@ RSpec.describe GitHistory::RelayServer do
       expect(response[0]).to eq(404)
       expect(json_body(response)).to eq("error" => "not_found")
     end
+
+    it "rejects a flag-shaped cursor instead of passing it through to git log" do
+      commit!("first")
+      commit!("second")
+      bare_clone!
+
+      response = call("/repositories/#{repository.id}/commits?cursor=--all&limit=10")
+
+      expect(response[0]).to eq(200)
+      expect(json_body(response)).to eq("entries" => [], "has_more" => false)
+    end
   end
 
   it "returns 404 for paths that don't match a known route" do
     response = call("/nope")
 
     expect(response[0]).to eq(404)
+  end
+
+  describe "authorization" do
+    it "rejects a request with no Authorization header" do
+      response = call("/repositories/#{repository.id}/available", authorized: false)
+
+      expect(response[0]).to eq(401)
+      expect(json_body(response)).to eq("error" => "unauthorized")
+    end
+
+    it "rejects a request with an incorrect bearer token" do
+      response = server.call(Rack::MockRequest.env_for(
+        "/repositories/#{repository.id}/available", "HTTP_AUTHORIZATION" => "Bearer wrong-token"
+      ))
+
+      expect(response[0]).to eq(401)
+      expect(json_body(response)).to eq("error" => "unauthorized")
+    end
+
+    it "rejects an unauthorized commits request even for a repository that exists and is synced" do
+      commit!("initial")
+      bare_clone!
+
+      response = call("/repositories/#{repository.id}/commits?limit=10", authorized: false)
+
+      expect(response[0]).to eq(401)
+    end
+
+    it "accepts a request with the correct bearer token" do
+      response = call("/repositories/#{repository.id}/available")
+
+      expect(response[0]).to eq(200)
+    end
   end
 
   describe ".ensure_running!" do
