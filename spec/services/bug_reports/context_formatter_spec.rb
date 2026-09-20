@@ -149,4 +149,50 @@ RSpec.describe BugReports::ContextFormatter do
     expect(result).to include("`first error` (app.js)")
     expect(result).to include("`second error` (chunk.js)")
   end
+
+  describe "malformed count values from untrusted client input" do
+    it "does not raise and treats a Hash count as a single occurrence" do
+      result = nil
+      expect {
+        result = call(recent_errors: [ { "message" => "boom", "source" => "app.js", "count" => {} } ])
+      }.not_to raise_error
+
+      expect(result).to include("`boom` (app.js)")
+      expect(result).not_to include("×")
+    end
+
+    it "does not raise and treats an Array count as a single occurrence" do
+      result = call(recent_errors: [ { "message" => "boom", "source" => "app.js", "count" => [ 1, 2 ] } ])
+
+      expect(result).to include("`boom` (app.js)")
+      expect(result).not_to include("×")
+    end
+
+    it "does not raise and treats a boolean count as a single occurrence" do
+      result = call(recent_errors: [ { "message" => "boom", "source" => "app.js", "count" => true } ])
+
+      expect(result).to include("`boom` (app.js)")
+      expect(result).not_to include("×")
+    end
+
+    it "does not raise and treats a non-numeric string count as a single occurrence" do
+      result = call(recent_errors: [ { "message" => "boom", "source" => "app.js", "count" => "lots" } ])
+
+      expect(result).to include("`boom` (app.js)")
+      expect(result).not_to include("×")
+    end
+
+    it "treats a negative or zero count as a single occurrence" do
+      result = call(recent_errors: [ { "message" => "boom", "source" => "app.js", "count" => -5 } ])
+
+      expect(result).to include("`boom` (app.js)")
+      expect(result).not_to include("×")
+    end
+
+    it "truncates a fractional count" do
+      result = call(recent_errors: [ { "message" => "boom", "source" => "app.js", "count" => 3.9 } ])
+
+      expect(result).to include("`boom` (app.js) (×3)")
+    end
+  end
 end

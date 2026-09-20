@@ -46,8 +46,14 @@ module BugReports
       recent_errors.each_with_object({}) do |err, acc|
         key = [ err["message"].to_s, err["source"].to_s ]
         acc[key] ||= 0
-        acc[key] += err["count"].to_i.nonzero? || 1
+        acc[key] += error_occurrence_count(err["count"])
       end
+    end
+
+    def error_occurrence_count(raw_count)
+      count = Integer(raw_count, exception: false)
+      return 1 if count.nil? || count < 1
+      count
     end
   end
 end
