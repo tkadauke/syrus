@@ -42,9 +42,16 @@ class ProviderAvailabilityPause
     @candidate = candidate
   end
 
+  # Basic availability (actively exhausted/rate-limited/erroring/open) always
+  # applies here, regardless of whether the user has opted into proactive
+  # threshold-based pausing for this provider or a ProviderRoutingRule is
+  # configured -- a provider that is provably broken right now must never
+  # admit a Run into it. `low_usage?` is the one check that stays behind the
+  # opt-in `provider_availability_pause_enabled?` setting (checked inside
+  # `low_usage?` itself), since it's the more aggressive proactive pause
+  # (pausing *before* a provider is actually broken).
   def call
     return admit unless provider.present?
-    return admit unless provider_availability_controls_enabled?
 
     refresh_stale_usage
     availability = App::ProviderAvailability.for_user(user, provider, now: now)
@@ -136,11 +143,6 @@ class ProviderAvailabilityPause
     AgentProviders.for(provider).refresh_stale_usage!(user: user, now: now)
   rescue AgentProviders::ConfigurationError
     nil
-  end
-
-  def provider_availability_controls_enabled?
-    user.provider_availability_pause_enabled?(provider) ||
-      ProviderRouting::Resolver.rule_configured?(job: workflow.job, task_key: task_key)
   end
 
   def usage_exhausted?(availability)
