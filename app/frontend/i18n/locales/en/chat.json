@@ -241,6 +241,7 @@
   "files_tree_resize": "Resize file tree",
   "files_loading": "Loading files…",
   "files_error": "Could not load file tree.",
+  "files_not_ready": "Checkout isn't ready yet — preparing workspace…",
   "files_empty": "No files in checkout.",
   "commit_selector_label": "Commit",
   "commit_selector_head": "HEAD (live working tree)",

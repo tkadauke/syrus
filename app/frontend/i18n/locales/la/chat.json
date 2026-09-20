@@ -241,6 +241,7 @@
   "files_tree_resize": "Magnitudinem arboris fasciculorum mutare",
   "files_loading": "Fasciculi onerantur…",
   "files_error": "Arbor fasciculorum onerari non potuit.",
+  "files_not_ready": "Excubiae nondum paratae — spatium operis praeparatur…",
   "files_empty": "Nulli fasciculi in excubiis.",
   "commit_selector_label": "Commit",
   "commit_selector_head": "HEAD (arbor operis viva)",
