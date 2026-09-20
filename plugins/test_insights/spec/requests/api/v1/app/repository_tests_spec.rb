@@ -10,6 +10,11 @@ RSpec.describe "App API repository tests", type: :request do
 
   def parse_body = JSON.parse(response.body)
 
+  def encoded_filter(chips)
+    tree = { "and" => chips }
+    Base64.urlsafe_encode64(JSON.generate(tree), padding: false)
+  end
+
   def make_test_run
     @test_run ||= begin
       run = Factories.job(user: user, repository: repo).initial_run
@@ -75,13 +80,51 @@ RSpec.describe "App API repository tests", type: :request do
       expect(tests_by_name.fetch("runs slowly").fetch("interesting_reasons")).to include("slow")
     end
 
-    it "searches durable tests by name" do
+    it "searches durable tests by name via the query filter chip" do
       make_case(identity: make_identity(name: "needle browser test"), status: "passed")
+      make_case(identity: make_identity(name: "unrelated test"), status: "passed")
 
-      get "/api/v1/app/repositories/#{repo.id}/tests", params: { query: "needle" }
+      q = encoded_filter([ { "field" => "query", "op" => "contains", "value" => "needle" } ])
+      get "/api/v1/app/repositories/#{repo.id}/tests", params: { q: q }
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.fetch("tests").map { |test| test.fetch("name") }).to eq([ "needle browser test" ])
+      expect(parse_body.fetch("filter")).to eq("and" => [ { "field" => "query", "op" => "contains", "value" => "needle" } ])
+    end
+
+    it "filters durable tests by reason via the reason filter chip" do
+      failing = make_identity(name: "fails recently")
+      make_identity(name: "passes quickly")
+      make_case(identity: failing, status: "failed", created_at: 3.minutes.ago)
+
+      q = encoded_filter([ { "field" => "reason", "op" => "is", "value" => "failing" } ])
+      get "/api/v1/app/repositories/#{repo.id}/tests", params: { q: q }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("tests").map { |test| test.fetch("name") }).to eq([ "fails recently" ])
+    end
+
+    it "combines the query and reason filter chips" do
+      failing = make_identity(name: "needle fails recently")
+      make_case(identity: failing, status: "failed", created_at: 3.minutes.ago)
+      make_case(identity: make_identity(name: "needle passes quickly"), status: "passed")
+
+      q = encoded_filter([
+        { "field" => "query", "op" => "contains", "value" => "needle" },
+        { "field" => "reason", "op" => "is", "value" => "failing" }
+      ])
+      get "/api/v1/app/repositories/#{repo.id}/tests", params: { q: q }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("tests").map { |test| test.fetch("name") }).to eq([ "needle fails recently" ])
+    end
+
+    it "exposes the filter schema for the FilterBar so the search box and reason toggles can go" do
+      get "/api/v1/app/repositories/#{repo.id}/tests"
+
+      expect(response).to have_http_status(:ok)
+      fields = parse_body.fetch("filter_schema").map { |field| field.fetch("field") }
+      expect(fields).to contain_exactly("query", "reason")
     end
 
     it "uses persisted recent stats without reading raw test cases" do

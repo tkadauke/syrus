@@ -9,12 +9,27 @@ import type { RepositoryTestDetailPayload, RepositoryTestsPayload } from "../api
 const REPOSITORY = { id: 1, slug: "acme/widgets", github_url: "https://github.com/acme/widgets" }
 const TABS = [ { key: "test_insights.tests", label: "Tests", path: "/repositories/1?tab=tests" } ]
 
+const FILTER_SCHEMA = [
+  { field: "query", label: "Search", bucket: "string", operators: [ "contains" ], values: [], free_text_search: true },
+  {
+    field: "reason",
+    label: "Reason",
+    bucket: "enum",
+    operators: [ "is" ],
+    values: [
+      { value: "failing", label: "Failing" },
+      { value: "flaky", label: "Flaky" },
+      { value: "slow", label: "Slow" }
+    ]
+  }
+]
+
 function listPayload(): RepositoryTestsPayload {
   return {
     repository: REPOSITORY,
     tabs: [],
-    query: "",
-    limit: 20,
+    filter: { and: [] },
+    filter_schema: FILTER_SCHEMA,
     tests: []
   }
 }
@@ -66,7 +81,7 @@ function mockFetch() {
 }
 
 function buildTestsPayload(): RepositoryTestsPayload {
-  return { repository: REPOSITORY, tabs: TABS, query: "", limit: 10, tests: [] }
+  return { repository: REPOSITORY, tabs: TABS, filter: { and: [] }, filter_schema: FILTER_SCHEMA, tests: [] }
 }
 
 function buildDetailPayload(page: number): RepositoryTestDetailPayload {
@@ -194,22 +209,37 @@ describe("DurationChart", () => {
 
 const COLUMNS_STORAGE_KEY = "syrus.test_insights.repository_tests_columns"
 
+const ALL_TESTS: RepositoryTestsPayload["tests"] = [
+  { id: 1, suite_name: "spec/a_spec.rb", name: "Zebra test", file_path: null, fingerprint: "f1", last_status: "passed", last_seen_at: "2026-01-03T00:00:00Z", last_failed_at: null, last_passed_at: "2026-01-03T00:00:00Z", last_duration_ms: 100, total_count: 5, failed_count: 0, passed_count: 5, failure_rate: 0, avg_duration_ms: 100, interesting_reasons: [] },
+  { id: 2, suite_name: "spec/b_spec.rb", name: "Alpha test", file_path: null, fingerprint: "f2", last_status: "failed", last_seen_at: "2026-01-01T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: null, last_duration_ms: 500, total_count: 4, failed_count: 3, passed_count: 1, failure_rate: 0.75, avg_duration_ms: 500, interesting_reasons: [ "failing" ] },
+  { id: 3, suite_name: "spec/c_spec.rb", name: "Middle test", file_path: null, fingerprint: "f3", last_status: "passed", last_seen_at: "2026-01-02T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: "2026-01-02T00:00:00Z", last_duration_ms: 2000, total_count: 4, failed_count: 1, passed_count: 3, failure_rate: 0.25, avg_duration_ms: 2000, interesting_reasons: [ "flaky", "slow" ] }
+]
+
 function multiTestPayload(): RepositoryTestsPayload {
-  return {
-    repository: REPOSITORY,
-    tabs: TABS,
-    query: "",
-    limit: 20,
-    tests: [
-      { id: 1, suite_name: "spec/a_spec.rb", name: "Zebra test", file_path: null, fingerprint: "f1", last_status: "passed", last_seen_at: "2026-01-03T00:00:00Z", last_failed_at: null, last_passed_at: "2026-01-03T00:00:00Z", last_duration_ms: 100, total_count: 5, failed_count: 0, passed_count: 5, failure_rate: 0, avg_duration_ms: 100, interesting_reasons: [] },
-      { id: 2, suite_name: "spec/b_spec.rb", name: "Alpha test", file_path: null, fingerprint: "f2", last_status: "failed", last_seen_at: "2026-01-01T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: null, last_duration_ms: 500, total_count: 4, failed_count: 3, passed_count: 1, failure_rate: 0.75, avg_duration_ms: 500, interesting_reasons: [ "failing" ] },
-      { id: 3, suite_name: "spec/c_spec.rb", name: "Middle test", file_path: null, fingerprint: "f3", last_status: "passed", last_seen_at: "2026-01-02T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: "2026-01-02T00:00:00Z", last_duration_ms: 2000, total_count: 4, failed_count: 1, passed_count: 3, failure_rate: 0.25, avg_duration_ms: 2000, interesting_reasons: [ "flaky", "slow" ] }
-    ]
-  }
+  return { repository: REPOSITORY, tabs: TABS, filter: { and: [] }, filter_schema: FILTER_SCHEMA, tests: ALL_TESTS }
 }
 
+function decodeFilterTree(q: string): { and?: Array<{ field: string; op: string; value?: unknown }> } {
+  const normalized = q.replace(/-/g, "+").replace(/_/g, "/")
+  const base64 = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")
+  const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0))
+  return JSON.parse(new TextDecoder().decode(bytes))
+}
+
+// Stands in for the server: reads the FilterBar's `q=` param off the request
+// URL and filters ALL_TESTS by `reason` the same way the real backend does,
+// so clicking through the FilterBar exercises the same refetch-on-filter
+// path the real page uses.
 function renderTestList() {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(multiTestPayload()))
+  vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const url = new URL(String(input), "http://test.host")
+    const q = url.searchParams.get("q")
+    const tree = q ? decodeFilterTree(q) : { and: [] }
+    const reason = tree.and?.find((chip) => chip.field === "reason")?.value
+    const tests = typeof reason === "string" ? ALL_TESTS.filter((test) => test.interesting_reasons.includes(reason)) : ALL_TESTS
+
+    return Promise.resolve(jsonResponse({ repository: REPOSITORY, tabs: TABS, filter: tree, filter_schema: FILTER_SCHEMA, tests }))
+  })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
@@ -247,15 +277,17 @@ describe("RepositoryTestsRoute test list", () => {
     await waitFor(() => expect(visibleTestOrder()).toEqual([ "Zebra test", "Middle test", "Alpha test" ]))
   })
 
-  it("filters the test list with a reason chip", async () => {
+  it("filters the test list through the FilterBar's reason field", async () => {
     renderTestList()
     await screen.findByText("Zebra test")
 
-    fireEvent.click(screen.getByRole("button", { name: "failing" }))
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Reason list" }))
 
-    expect(visibleTestOrder()).toEqual([ "Alpha test" ])
+    await waitFor(() => expect(visibleTestOrder()).toEqual([ "Alpha test" ]))
+    expect(screen.getByRole("button", { name: "Reason is Failing" })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "failing" }))
+    fireEvent.click(screen.getByRole("link", { name: "Clear filters" }))
     await waitFor(() => expect(visibleTestOrder()).toHaveLength(3))
   })
 
