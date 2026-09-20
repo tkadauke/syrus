@@ -24,19 +24,21 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
   end
 
 
-  it "returns repository GitHub issues" do
+  it "returns repository GitHub issues for the requested smart folder" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
-    issue = fake_issue(number: 7, title: "Fix the forum", labels: [ "syrus", "bug" ], body: "Line one\nLine two")
+    open_issue = fake_issue(number: 5, title: "Open one", labels: [])
+    closed_issue = fake_issue(number: 7, title: "Fix the forum", state: "closed", labels: [ "syrus", "bug" ], body: "Line one\nLine two")
     client = instance_double(GithubClient)
-    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([ issue ])
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ open_issue ])
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([ closed_issue ])
     allow(GithubClient).to receive(:for).and_return(client)
 
-    get "/api/v1/app/repositories/#{repository.id}/issues", params: { state: "closed" }
+    get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "closed" }
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["state"]).to eq("closed")
+    expect(body["folder"]).to eq("closed")
     expect(body["issue_count"]).to eq(1)
     expect(body["issues"]).to contain_exactly(include(
       "number" => 7,
@@ -46,8 +48,61 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
       "delegated" => true,
       "labels" => include({ "name" => "bug", "color" => "0075ca" })
     ))
+    expect(body["folder_counts"]).to eq({ "inbox" => 1, "delegated" => 0, "open" => 1, "closed" => 1 })
     expect(body.dig("paths", "app_delegate_issue_path")).to eq("/api/v1/app/repositories/#{repository.id}/issues/delegate")
-    expect(body.dig("state_paths", "open")).to eq(repository_path(repository, tab: "github_issues", state: "open"))
+    expect(body.dig("folder_paths", "open")).to eq(repository_path(repository, tab: "github_issues", folder: "open"))
+  end
+
+
+  it "partitions open issues into the inbox and delegated smart folders" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
+    inbox_issue = fake_issue(number: 1, title: "Needs triage", labels: [])
+    delegated_issue = fake_issue(number: 2, title: "Already delegated", labels: [ "syrus" ])
+    client = instance_double(GithubClient)
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ inbox_issue, delegated_issue ])
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
+    allow(GithubClient).to receive(:for).and_return(client)
+
+    get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "inbox" }
+
+    body = parse_body
+    expect(body["issues"].map { |issue| issue["number"] }).to eq([ 1 ])
+    expect(body["folder_counts"]).to eq({ "inbox" => 1, "delegated" => 1, "open" => 2, "closed" => 0 })
+  end
+
+
+  it "filters issues by a search query within the active folder without changing other folder counts" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
+    matching = fake_issue(number: 1, title: "Fix the forum", labels: [])
+    other = fake_issue(number: 2, title: "Unrelated", labels: [])
+    client = instance_double(GithubClient)
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ matching, other ])
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
+    allow(GithubClient).to receive(:for).and_return(client)
+
+    get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "open", q: "forum" }
+
+    body = parse_body
+    expect(body["query"]).to eq("forum")
+    expect(body["issue_count"]).to eq(1)
+    expect(body["issues"].map { |issue| issue["number"] }).to eq([ 1 ])
+    expect(body["folder_counts"]["open"]).to eq(2)
+  end
+
+
+  it "falls back to the closed folder for legacy state=closed links" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    client = instance_double(GithubClient)
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([])
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
+    allow(GithubClient).to receive(:for).and_return(client)
+
+    get "/api/v1/app/repositories/#{repository.id}/issues", params: { state: "closed" }
+
+    expect(parse_body["folder"]).to eq("closed")
   end
 
 
@@ -70,12 +125,13 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     client = instance_double(GithubClient)
     expect(client).to receive(:add_issue_comment).with("acme/widgets", 7, "Looks good", on_behalf_of: user)
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([])
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
     allow(GithubClient).to receive(:for).and_return(client)
 
     post "/api/v1/app/repositories/#{repository.id}/issues/comment", params: {
       issue_number: 7,
       comment_body: "Looks good",
-      state: "open"
+      folder: "open"
     }
 
     expect(response).to have_http_status(:ok)
@@ -104,13 +160,14 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     expect(client).to receive(:close_issue).with("acme/widgets", 12)
     expect(client).to receive(:add_label_to_issue).with("acme/widgets", 13, "syrus")
     expect(client).to receive(:list_all_issues).twice.with("acme/widgets", state: "open").and_return([])
+    expect(client).to receive(:list_all_issues).twice.with("acme/widgets", state: "closed").and_return([])
     allow(GithubClient).to receive(:for).and_return(client)
 
-    post "/api/v1/app/repositories/#{repository.id}/issues/close", params: { issue_number: 12, state: "open" }
+    post "/api/v1/app/repositories/#{repository.id}/issues/close", params: { issue_number: 12, folder: "open" }
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Issue #12 closed.")
 
-    post "/api/v1/app/repositories/#{repository.id}/issues/delegate", params: { issue_number: 13, state: "open" }
+    post "/api/v1/app/repositories/#{repository.id}/issues/delegate", params: { issue_number: 13, folder: "open" }
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Issue #13 delegated to Syrus.")
   end
@@ -124,12 +181,13 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     expect(client).to receive(:add_label_to_issue).with("acme/widgets", 8, "syrus")
     expect(client).to receive(:close_issue).with("acme/widgets", 4)
     expect(client).to receive(:list_all_issues).twice.with("acme/widgets", state: "open").and_return([])
+    expect(client).to receive(:list_all_issues).twice.with("acme/widgets", state: "closed").and_return([])
     allow(GithubClient).to receive(:for).and_return(client)
 
     post "/api/v1/app/repositories/#{repository.id}/issues/bulk", params: {
       issue_numbers: %w[4 8],
       bulk_action: "delegate",
-      state: "open"
+      folder: "open"
     }
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("2 issues delegated to Syrus.")
@@ -137,7 +195,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     post "/api/v1/app/repositories/#{repository.id}/issues/bulk", params: {
       issue_numbers: %w[4 4 invalid],
       bulk_action: "close",
-      state: "open"
+      folder: "open"
     }
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("1 issue closed.")
