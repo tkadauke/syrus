@@ -168,6 +168,8 @@
   "delete_confirm": "Delere",
   "unable_to_delete": "Colloquium deleri non potuit.",
   "chat_deleted": "Colloquium deletum.",
+  "history_indicator": "Historia {{index}}/{{total}}",
+  "history_announcement": "Nuntius historiae {{index}} ex {{total}}",
   "suggestion_tab_hint": "tab",
   "suggestion_available": "Nuntius proximus suasus: {{suggestion}}. Preme Tab ut accipias.",
   "create_epic_and_start": "Epicam crea et effectionem incipe",

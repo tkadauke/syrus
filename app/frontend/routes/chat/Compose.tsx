@@ -51,7 +51,14 @@ type ComposerDraftSnapshot = {
   attachments: ChatComposeAttachment[]
 }
 
+type ComposerHistoryMode = {
+  draft: string
+  index: number
+}
 
+const CHAT_HISTORY_LIMIT = 50
+const CHAT_HISTORY_KEY_PREFIX = "syrus.chat.history."
+const STOP_BUTTON_CLASS = "inline-flex h-11 items-center justify-center rounded border border-danger-border bg-surface px-3 text-sm font-medium text-danger-text hover:bg-danger-surface disabled:text-text-muted"
 
 
 // Chat composer extracted from Chat.tsx: the Compose input component and its whole
@@ -79,6 +86,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return ""
     }
   })
+  const [composerHistory, setComposerHistory] = useState<string[]>(() => readComposerHistory(chatId))
+  const [historyMode, setHistoryMode] = useState<ComposerHistoryMode | null>(null)
   const [attachments, setAttachments] = useState<ChatComposeAttachment[]>(() => getDraftAttachments(chatId))
   const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
@@ -182,6 +191,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   })
 
   useEffect(() => {
+    if (historyMode) return
+
     if (text.length > 0) {
       storeWorkspacePreference(CHAT_DRAFT_KEY_PREFIX + chatId, text)
       return
@@ -192,7 +203,12 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     } catch (_error) {
       // Local storage can be unavailable in hardened browser modes.
     }
-  }, [chatId, text])
+  }, [chatId, historyMode, text])
+
+  useEffect(() => {
+    setComposerHistory(readComposerHistory(chatId))
+    setHistoryMode(null)
+  }, [chatId])
 
   // Mirrors the text-draft effect above, but through the in-memory
   // attachmentDraftStore rather than localStorage — see that module for why.
@@ -220,6 +236,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     setText("")
     setAttachments([])
     setAttachmentError(null)
+    setHistoryMode(null)
     try {
       window.localStorage.removeItem(CHAT_DRAFT_KEY_PREFIX + chatId)
     } catch (_error) {
@@ -244,15 +261,21 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       attachments
     }
     clearComposerDraft()
+    setHistoryMode(null)
     setPendingConfirmation(null)
     send.mutate(draft)
+  }
+
+  function rememberSubmittedPrompt(prompt: string | undefined | null) {
+    setComposerHistory(writeComposerHistory(chatId, prompt))
   }
 
   const send = useMutation({
     mutationFn: (draft: SubmittedChatDraft) => agentActive
       ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), draft.messageText, draft.attachments)
       : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments),
-    onSuccess: (updated) => {
+    onSuccess: (updated, draft) => {
+      rememberSubmittedPrompt(draft.messageText)
       queryClient.setQueryData(queryKey, updated)
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
       setPendingConfirmation(null)
@@ -265,10 +288,12 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
   })
   const runShellCommand = useMutation({
-    mutationFn: (command: string) => createChatShellCommand(chatId, command),
-    onSuccess: (record) => {
+    mutationFn: (input: { command: string; composerText: string }) => createChatShellCommand(chatId, input.command),
+    onSuccess: (record, input) => {
+      rememberSubmittedPrompt(input.composerText)
       setShellCommand(record)
       clearComposerDraft()
+      setHistoryMode(null)
       onNotice(null)
     },
     onError: (error) => {
@@ -400,8 +425,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       body: input.body,
       fireAt: input.fireAt.toISOString()
     }),
-    onSuccess: (result) => {
+    onSuccess: (result, input) => {
+      rememberSubmittedPrompt(input.body)
       setText("")
+      setHistoryMode(null)
       setPendingConfirmation(null)
       setScheduleModal(null)
       try {
@@ -519,7 +546,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     if (!command) return
 
     onNotice(null)
-    runShellCommand.mutate(command)
+    runShellCommand.mutate({ command, composerText: text })
   }
 
   function pickerKindForCommand(commandName: SlashCommand["name"]): "job" | "epic" | null {
@@ -1304,6 +1331,12 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return
     }
 
+    if ((event.key === "ArrowUp" || event.key === "ArrowDown") && shouldHandleComposerHistoryKey(event)) {
+      event.preventDefault()
+      navigateComposerHistory(event.key === "ArrowUp" ? -1 : 1)
+      return
+    }
+
     if (event.key === "Tab" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && canStashDraft && attachmentError == null) {
       event.preventDefault()
       stash.mutate(undefined)
@@ -1323,10 +1356,57 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   }
 
   function updateText(nextText: string) {
+    if (historyMode && nextText !== text) setHistoryMode(null)
     setText(nextText)
     if (pendingConfirmation && nextText.trim() !== pendingConfirmation.text) {
       setPendingConfirmation(null)
     }
+  }
+
+  function shouldHandleComposerHistoryKey(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.nativeEvent.isComposing) return false
+    if (composerHistory.length === 0) return false
+
+    const textarea = event.currentTarget
+    if (event.key === "ArrowUp") return text.length === 0 || caretIsOnFirstLine(textarea)
+    if (event.key === "ArrowDown") return historyMode != null && caretIsOnLastLine(textarea)
+    return false
+  }
+
+  function navigateComposerHistory(direction: -1 | 1) {
+    if (composerHistory.length === 0) return
+
+    if (direction < 0) {
+      const nextIndex = historyMode ? Math.max(0, historyMode.index - 1) : composerHistory.length - 1
+      const draft = historyMode?.draft ?? text
+      setHistoryMode({ draft, index: nextIndex })
+      replaceTextFromHistory(composerHistory[nextIndex] || "")
+      return
+    }
+
+    if (!historyMode) return
+    const nextIndex = historyMode.index + 1
+    if (nextIndex >= composerHistory.length) {
+      const draft = historyMode.draft
+      setHistoryMode(null)
+      replaceTextFromHistory(draft)
+      return
+    }
+
+    setHistoryMode({ ...historyMode, index: nextIndex })
+    replaceTextFromHistory(composerHistory[nextIndex] || "")
+  }
+
+  function replaceTextFromHistory(nextText: string) {
+    setText(nextText)
+    setPendingConfirmation(null)
+    moveTextareaCaretToEnd(nextText)
+  }
+
+  function moveTextareaCaretToEnd(nextText: string) {
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.setSelectionRange(nextText.length, nextText.length)
+    })
   }
 
   function insertDictationTranscript(spokenText: string) {
@@ -1801,6 +1881,13 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         {payload.chat.conversation_kind === "group" && (payload.chat.participants?.length ?? 0) > 1 ? (
           <p className="mb-1 text-xs text-gray-500 dark:text-gray-400" data-testid="group-mention-hint">{t("group_mention_hint")}</p>
         ) : null}
+        {historyMode ? (
+          <div className="mb-1 flex justify-end">
+            <span className="rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300" data-testid="chat-history-indicator">
+              {t("history_indicator", { index: historyMode.index + 1, total: composerHistory.length })}
+            </span>
+          </div>
+        ) : null}
         <div className="relative">
           <textarea
             aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
@@ -1831,6 +1918,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             </div>
           ) : null}
           <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
+          <span aria-live="polite" className="sr-only">{historyMode ? t("history_announcement", { index: historyMode.index + 1, total: composerHistory.length }) : ""}</span>
         </div>
         <div className="relative mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 sm:gap-x-2">
           <Button
@@ -2910,7 +2998,7 @@ function StopButton({ className, payload, queryKey }: { className?: string; payl
     onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
   })
   return (
-    <button aria-label={t("aria_stop_agent")} className={className ?? "inline-flex h-11 items-center justify-center rounded border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"} disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
+    <button aria-label={t("aria_stop_agent")} className={className ?? STOP_BUTTON_CLASS} disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
       <StopIcon className={`h-5 w-5 ${payload.chat.stop_requested_at || stop.isPending ? "opacity-50" : ""}`} />
     </button>
   )
@@ -2919,14 +3007,14 @@ function StopButton({ className, payload, queryKey }: { className?: string; payl
 function ShellCommandRunningBanner({ chatId, command, onError, onUpdate }: { chatId: string; command: ChatShellCommandRecord; onError: (error: unknown) => void; onUpdate: (record: ChatShellCommandRecord) => void }) {
   const { t } = useT("chat")
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="shell-command-running-banner">
+    <div className="flex min-w-0 items-center gap-2 rounded border border-warning-border bg-warning-surface px-3 py-1.5 text-xs text-warning-text shadow-sm" data-testid="shell-command-running-banner">
       <div className="min-w-0 flex-1">
         <div className="font-medium">{t("shell_command_running")}</div>
-        <div className="truncate font-mono text-amber-950 dark:text-amber-100" title={command.command}>{command.command}</div>
+        <div className="truncate font-mono text-text-primary" title={command.command}>{command.command}</div>
       </div>
       <ShellCommandStopButton
         chatId={chatId}
-        className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 font-medium text-red-700 hover:bg-red-100 disabled:text-amber-700 disabled:opacity-60 dark:text-red-300 dark:hover:bg-red-950/70 dark:disabled:text-amber-300"
+        className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 font-medium text-danger-text hover:bg-danger-surface disabled:text-warning-text disabled:opacity-60"
         command={command}
         label={t("shell_command_stop")}
         onError={onError}
@@ -2955,6 +3043,43 @@ function ShellCommandStopButton({ chatId, className, command, label, onError, on
       {label ? <span>{label}</span> : null}
     </button>
   )
+}
+
+function composerHistoryKey(chatId: string) {
+  return CHAT_HISTORY_KEY_PREFIX + chatId
+}
+
+function readComposerHistory(chatId: string) {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(composerHistoryKey(chatId)) || "[]")
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []
+  } catch (_error) {
+    return []
+  }
+}
+
+function writeComposerHistory(chatId: string, prompt: string | undefined | null) {
+  const trimmed = prompt?.trim()
+  const current = readComposerHistory(chatId)
+  if (!trimmed) return current
+
+  const next = [...current.filter((entry) => entry !== trimmed), trimmed].slice(-CHAT_HISTORY_LIMIT)
+  try {
+    window.localStorage.setItem(composerHistoryKey(chatId), JSON.stringify(next))
+  } catch (_error) {
+    // Local storage can be unavailable in hardened browser modes.
+  }
+  return next
+}
+
+function caretIsOnFirstLine(textarea: HTMLTextAreaElement) {
+  if (textarea.selectionStart !== textarea.selectionEnd) return false
+  return !textarea.value.slice(0, textarea.selectionStart).includes("\n")
+}
+
+function caretIsOnLastLine(textarea: HTMLTextAreaElement) {
+  if (textarea.selectionStart !== textarea.selectionEnd) return false
+  return !textarea.value.slice(textarea.selectionEnd).includes("\n")
 }
 
 function findProposalBySlug(payload: ChatPayload, slug: string): { app_reject_path: string } | null {
