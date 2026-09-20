@@ -45,15 +45,23 @@ module Workflows
     # review step, since the agent step it reviews always ran before this
     # loop.
     def step_kinds
+      raise_if_nested!
       [ steps.last.to_s ]
     end
 
     def to_chain_template
+      raise_if_nested!
       {
         "type" => "loop",
         "max_iterations" => max_iterations,
         "steps" => steps.map(&:to_s)
       }
+    end
+
+    private
+
+    def raise_if_nested!
+      raise ArgumentError, "nested workflow control nodes are not supported" if @nested
     end
   end
 end

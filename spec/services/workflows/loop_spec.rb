@@ -23,6 +23,12 @@ RSpec.describe Workflows::Loop do
       expect { described_class.new(max_iterations: 5, steps: [ :implement, :adversarial_review, :grade ]) }
         .to raise_error(ArgumentError, "loop requires exactly 2 steps: [agent_step, review_step]")
     end
+
+    it "allows constructing with a nested Loop step (validated lazily by step_kinds/to_chain_template)" do
+      nested = described_class.new(max_iterations: 2, steps: [ :implement, :adversarial_review ])
+
+      expect { described_class.new(max_iterations: 5, steps: [ :implement, nested ]) }.not_to raise_error
+    end
   end
 
   describe "#loop?" do
@@ -39,6 +45,22 @@ RSpec.describe Workflows::Loop do
 
       expect(loop.step_kinds).to eq(%w[ adversarial_review ])
     end
+
+    it "raises instead of producing a garbage step kind string for a nested Loop" do
+      nested = described_class.new(max_iterations: 2, steps: [ :implement, :adversarial_review ])
+      loop = described_class.new(max_iterations: 5, steps: [ :implement, nested ])
+
+      expect { loop.step_kinds }
+        .to raise_error(ArgumentError, "nested workflow control nodes are not supported")
+    end
+
+    it "raises instead of producing a garbage step kind string for a nested RetryUntil" do
+      nested = Workflows::RetryUntil.new(repair: [ :implement ], check: [ :grade ])
+      loop = described_class.new(max_iterations: 5, steps: [ :implement, nested ])
+
+      expect { loop.step_kinds }
+        .to raise_error(ArgumentError, "nested workflow control nodes are not supported")
+    end
   end
 
   describe "#to_chain_template" do
@@ -50,6 +72,14 @@ RSpec.describe Workflows::Loop do
         "max_iterations" => 3,
         "steps" => %w[ implement adversarial_review ]
       )
+    end
+
+    it "raises instead of serializing a garbage step kind string for a nested control node" do
+      nested = described_class.new(max_iterations: 2, steps: [ :implement, :adversarial_review ])
+      loop = described_class.new(max_iterations: 5, steps: [ :implement, nested ])
+
+      expect { loop.to_chain_template }
+        .to raise_error(ArgumentError, "nested workflow control nodes are not supported")
     end
   end
 end

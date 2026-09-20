@@ -77,6 +77,16 @@ module Workflows
       chain_template = steps_for(job)
       raise "no steps declared for #{name}" if chain_template.nil? || chain_template.empty?
 
+      # `steps(*kinds)` (the class-body DSL) already runs every node through
+      # `normalize_chain_template`/`validate_control_node!` at class-load
+      # time. A `steps_for` override (Initial, Retry, CodingHandoff,
+      # AutoMerge, MergeTrain, etc.) builds its chain with plain Ruby instead
+      # and never goes through that path, so a nested control node built here
+      # would otherwise reach `materialize_steps!` unvalidated. Validate here
+      # too so this class of bug is caught at chain-construction time
+      # regardless of which DSL path built the chain.
+      chain_template.each { |node| validate_control_node!(node) if node.respond_to?(:to_chain_template) }
+
       effective_artifacts = artifacts
       effective_chain_template = chain_template
       if (skip_reason = job.prepare_skip_reason)

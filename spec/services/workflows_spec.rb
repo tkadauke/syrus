@@ -480,6 +480,24 @@ RSpec.describe Workflows do
       end.to raise_error(ArgumentError, /nested workflow control nodes/)
     end
 
+    it "rejects nested control nodes even when the chain is built via a steps_for override, not the steps(*kinds) class-body DSL" do
+      workflow_class = Class.new(Workflows::Base) do
+        def self.steps_for(_job)
+          [
+            "prepare",
+            Workflows::Loop.new(
+              max_iterations: 3,
+              steps: [ :implement, Workflows::Loop.new(max_iterations: 2, steps: [ :implement, :adversarial_review ]) ]
+            )
+          ]
+        end
+
+        def self.trigger_kind = "manual"
+      end
+
+      expect { workflow_class.instantiate(job: job) }.to raise_error(ArgumentError, /nested workflow control nodes/)
+    end
+
     it "rejects a loop that isn't exactly an [agent_step, review_step] pair" do
       expect { Workflows::Loop.new(max_iterations: 3, steps: [ :implement ]) }
         .to raise_error(ArgumentError, "loop requires exactly 2 steps: [agent_step, review_step]")
