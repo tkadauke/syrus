@@ -265,19 +265,21 @@ describe("MysqlConnections", () => {
     expect(emptyCell.closest("table")?.parentElement).toHaveAttribute("data-data-table-overflow-wrapper", "true")
   })
 
-  it("creates a connection from the add form", async () => {
+  it("creates a connection from the add modal", async () => {
     const { calls } = setupFetchMock([])
     renderConnections()
 
     await screen.findByText("No connections yet. Add one to get started.")
+    fireEvent.click(screen.getByRole("button", { name: "Add" }))
 
-    fireEvent.change(screen.getByLabelText("Label"), { target: { value: "Prod" } })
+    fireEvent.change(await screen.findByLabelText("Label"), { target: { value: "Prod" } })
     fireEvent.change(screen.getByLabelText("Host"), { target: { value: "db.prod.internal" } })
     fireEvent.change(screen.getByLabelText("Username"), { target: { value: "app" } })
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "hunter2" } })
     fireEvent.click(screen.getByRole("button", { name: "Add connection" }))
 
     expect(await screen.findByText("Prod")).toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(await screen.findByText('Connection "Prod" added.')).toBeInTheDocument()
     expect(document.body.textContent).not.toContain("hunter2")
     expect(calls.find((call) => call.method === "POST" && call.url === "/api/v1/app/admin/mysql_connections")?.body).toEqual({
@@ -299,6 +301,8 @@ describe("MysqlConnections", () => {
     const createDelay = new Promise<void>((resolve) => { finishCreate = resolve })
     setupFetchMock([], { createDelay })
     renderConnections()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add" }))
 
     const label = await screen.findByLabelText("Label")
     expect(document.querySelector(`label[for="${label.id}"]`)).toHaveTextContent("Label")
@@ -326,6 +330,8 @@ describe("MysqlConnections", () => {
     setupFetchMock([], { createError: true })
     renderConnections()
 
+    fireEvent.click(await screen.findByRole("button", { name: "Add" }))
+
     fireEvent.change(await screen.findByLabelText("Label"), { target: { value: "Prod" } })
     fireEvent.change(screen.getByLabelText("Host"), { target: { value: "db.prod.internal" } })
     fireEvent.change(screen.getByLabelText("Username"), { target: { value: "app" } })
@@ -335,21 +341,23 @@ describe("MysqlConnections", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Host can't be blank")
   })
 
-  it("edits a connection without pre-filling the stored password", async () => {
+  it("edits a connection in a modal without pre-filling the stored password", async () => {
     setupFetchMock()
     renderConnections()
 
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
 
-    const editRow = (await screen.findByText("Edit connection")).closest("tr") as HTMLElement
-    const passwordInput = within(editRow).getByLabelText("Password", { exact: false }) as HTMLInputElement
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByText("Edit connection")).toBeInTheDocument()
+    const passwordInput = within(dialog).getByLabelText("Password", { exact: false }) as HTMLInputElement
     expect(passwordInput.value).toBe("")
 
-    fireEvent.change(within(editRow).getByLabelText("Label"), { target: { value: "Staging (renamed)" } })
-    fireEvent.click(within(editRow).getByRole("button", { name: "Save" }))
+    fireEvent.change(within(dialog).getByLabelText("Label"), { target: { value: "Staging (renamed)" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }))
 
     expect(await screen.findByText("Staging (renamed)")).toBeInTheDocument()
     expect(await screen.findByText('Connection "Staging (renamed)" updated.')).toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
   it("deletes a connection after confirmation", async () => {
@@ -445,19 +453,18 @@ describe("MysqlConnections", () => {
       expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
     })
 
-    it("edits a connection inline in the card without a table row", async () => {
+    it("opens the same edit modal from the card's Edit button", async () => {
       mockMobileViewport()
       setupFetchMock()
       renderConnections()
 
       fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
 
-      const heading = await screen.findByText("Edit connection")
-      expect(heading.closest("tr")).toBeNull()
+      const dialog = await screen.findByRole("dialog")
+      expect(within(dialog).getByText("Edit connection")).toBeInTheDocument()
 
-      const editCard = heading.closest("form") as HTMLElement
-      fireEvent.change(within(editCard).getByLabelText("Label"), { target: { value: "Staging (renamed)" } })
-      fireEvent.click(within(editCard).getByRole("button", { name: "Save" }))
+      fireEvent.change(within(dialog).getByLabelText("Label"), { target: { value: "Staging (renamed)" } })
+      fireEvent.click(within(dialog).getByRole("button", { name: "Save" }))
 
       expect(await screen.findByText("Staging (renamed)")).toBeInTheDocument()
     })
