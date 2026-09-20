@@ -156,8 +156,11 @@ RSpec.describe Steps::AdversarialReview do
     expect(review_step.reload.details).to include("adversarial_review_skipped" => true)
   end
 
-  it "skips review after repeated failed reviewer attempts" do
-    Run.create!(job: job, step: review_step, trigger_kind: "initial", state: "failed")
+  it "skips review after repeated failed reviewer attempts of the same kind" do
+    prior_run = Run.create!(job: job, step: review_step, trigger_kind: "initial", state: "failed")
+    RunDiagnostic.create!(run: prior_run, error_class: "Steps::Base::StepFailed",
+                          error_message: "agent didn't call submit_adversarial_review",
+                          problem_code: "missing_required_tool_call")
     allow(handler).to receive(:run_agent)
 
     expect { handler.call }.not_to raise_error
@@ -168,6 +171,28 @@ RSpec.describe Steps::AdversarialReview do
       "skipped" => true
     )
     expect(iteration["skip_reason"]).to include("did not call submit_adversarial_review")
+  end
+
+  it "does not silently approve when a prior failure was an unrelated error" do
+    prior_run = Run.create!(job: job, step: review_step, trigger_kind: "initial", state: "failed")
+    RunDiagnostic.create!(run: prior_run, error_class: "Timeout::Error",
+                          error_message: "provider request timed out", problem_code: nil)
+    allow(handler).to receive(:run_agent)
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /submit_adversarial_review/)
+
+    expect(workflow.reload.artifact("adversarial_review_iterations")).to be_blank
+  end
+
+  it "does not silently approve two unrelated failures in a row" do
+    prior_run = Run.create!(job: job, step: review_step, trigger_kind: "initial", state: "failed")
+    RunDiagnostic.create!(run: prior_run, error_class: "Timeout::Error",
+                          error_message: "provider request timed out", problem_code: nil)
+    allow(handler).to receive(:run_agent).and_raise(RuntimeError, "workspace disk full")
+
+    expect { handler.call }.to raise_error(RuntimeError, "workspace disk full")
+
+    expect(workflow.reload.artifact("adversarial_review_iterations")).to be_blank
   end
 
   context "when affected project criteria are available" do
