@@ -59,9 +59,9 @@ write, or a Syrus user with access now exists) are pruned on the next sync.
 
 ## UI
 
-Both signals surface on the repository's **Members** tab
+Both signals surface on the repository's edit page (Repository → Edit)
 (`GET /api/v1/app/repositories/:id/memberships`, rendered by
-`RepositoryMembersRoute`): a per-row "GitHub mismatch" warning badge for
+`RepositoryMembersSection`): a per-row "GitHub mismatch" warning badge for
 direction 1, and a separate "GitHub-only collaborators" list for direction
-2. Both are read-only displays; there is no action to take from this tab
+2. Both are read-only displays; there is no action to take from this page
 beyond what the existing membership/team-grant controls already offer.
