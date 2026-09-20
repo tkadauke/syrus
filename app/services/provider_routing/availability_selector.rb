@@ -54,7 +54,7 @@ module ProviderRouting
           "state" => payload[:state] || payload["state"],
           "reason" => payload[:reason] || payload["reason"],
           "retry_after" => payload[:retry_after] || payload["retry_after"],
-          "reset_at" => reset_at(usage),
+          "reset_at" => reset_at(usage)&.iso8601,
           "observed_at" => evidence_observed_at(payload)&.iso8601,
           "evidence" => {
             "status" => evidence[:status] || evidence["status"],

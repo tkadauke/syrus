@@ -103,7 +103,7 @@ RSpec.describe ProviderRouting::AvailabilitySelector::Decision do
 
       artifact = decision(availability: availability).artifact
 
-      expect(artifact.dig("unavailable", "reset_at")).to eq("2026-01-01T05:00:00Z")
+      expect(artifact.dig("unavailable", "reset_at")).to be_a(String).and eq("2026-01-01T05:00:00Z")
     end
 
     it "does not raise ArgumentError when reset_at values are a mix of Time objects and ISO8601 strings" do
@@ -118,7 +118,23 @@ RSpec.describe ProviderRouting::AvailabilitySelector::Decision do
       }
 
       expect { decision(availability: availability).artifact }.not_to raise_error
-      expect(decision(availability: availability).artifact.dig("unavailable", "reset_at")).to eq("2026-01-01T05:00:00Z")
+      expect(decision(availability: availability).artifact.dig("unavailable", "reset_at")).to be_a(String).and eq("2026-01-01T05:00:00Z")
+    end
+
+    it "serializes reset_at as a plain ISO8601 string across a JSON round-trip, matching sibling timestamp fields" do
+      availability = {
+        state: "exhausted",
+        usage: {
+          windows: {
+            "five_hour" => { reset_at: "2026-01-01T05:00:00Z" }
+          }
+        }
+      }
+
+      artifact = decision(availability: availability).artifact
+      round_tripped = ActiveSupport::JSON.decode(ActiveSupport::JSON.encode(artifact))
+
+      expect(round_tripped.dig("unavailable", "reset_at")).to eq("2026-01-01T05:00:00Z")
     end
 
     it "omits reset_at when no window carries one" do
