@@ -156,7 +156,17 @@ results without an N+1.
 
 - **Repository Tests tab** — `GET /api/v1/app/repositories/:repository_id/tests`
   (`Api::V1::App::RepositoryTestsController#index`) returns interesting recent
-  failures by default and supports search by test name/suite/file. Clicking a
+  failures by default and is filtered through the standard `FilterBar`
+  component rather than a bespoke search box: the request carries the chip
+  bar's usual `q=<encoded filter tree>` param, decoded server-side by
+  `TestInsights::TestsFilter` (`Filters::Ast`/`Filters::QueryParam`, the same
+  wire format every other `FilterBar` consumer uses) into two fields — a
+  free-text `query` (name/suite/file) and a single-select `reason`
+  (`failing`/`flaky`/`slow`, replacing the old always-visible reason toggle
+  chips). Either field routes the request through `TestInsights::Query`
+  (`category:`/`query:`) instead of the default "interesting" listing; the
+  response echoes back `filter` and `filter_schema` for `FilterBar` to render
+  instead of the old `query`/`limit` fields. Clicking a
   row opens `GET /api/v1/app/repositories/:repository_id/tests/:id`, which
   shows that `TestIdentity`'s execution history, links to the individual Runs,
   and a duration-over-time graph. The history list is paginated (`page`/
