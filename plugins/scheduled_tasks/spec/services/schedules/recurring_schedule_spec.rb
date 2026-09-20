@@ -150,6 +150,56 @@ RSpec.describe ScheduledTasks::Schedules::RecurringSchedule do
     expect(result.errors.join).to include("at most once per hour")
   end
 
+  it "expands a comma-separated hour list into multiple daily fires instead of silently dropping it and firing hourly" do
+    result = described_class.preview(input: "30 0,12 * * *", from: Time.utc(2026, 8, 5, 8, 0, 0))
+
+    expect(result).to be_valid
+    expect(result.expression).to eq("FREQ=DAILY;BYHOUR=0,12;BYMINUTE=30;BYSECOND=0")
+    expect(result.next_fire_at).to eq("2026-08-05T12:30:00Z")
+
+    expect(described_class.next_fire_at(result.expression, from: Time.utc(2026, 8, 5, 13, 0, 0)))
+      .to eq(Time.utc(2026, 8, 6, 0, 30, 0))
+
+    # Not hourly: nothing fires at 5am, only around the two configured hours.
+    expect(described_class.due_window_start(result.expression, now: Time.utc(2026, 8, 5, 5, 31, 0))).to be_nil
+    expect(described_class.due_window_start(result.expression, now: Time.utc(2026, 8, 5, 0, 31, 0)))
+      .to eq(Time.utc(2026, 8, 5, 0, 0, 0))
+  end
+
+  it "expands a comma-separated day-of-month list into specific monthly fires instead of silently dropping it and firing daily" do
+    result = described_class.preview(input: "0 9 1,15 * *", from: Time.utc(2026, 8, 5, 8, 0, 0))
+
+    expect(result).to be_valid
+    expect(result.expression).to eq("FREQ=MONTHLY;BYMONTHDAY=1,15;BYHOUR=9;BYMINUTE=0;BYSECOND=0")
+    expect(result.next_fire_at).to eq("2026-08-15T09:00:00Z")
+
+    expect(described_class.next_fire_at(result.expression, from: Time.utc(2026, 8, 15, 10, 0, 0)))
+      .to eq(Time.utc(2026, 9, 1, 9, 0, 0))
+
+    # Not daily: nothing fires on the 2nd, only the 1st and 15th.
+    expect(described_class.due_window_start(result.expression, now: Time.utc(2026, 8, 2, 9, 1, 0))).to be_nil
+  end
+
+  describe "malformed hour/month/day-of-month values" do
+    it "rejects an unparseable BYHOUR value instead of silently treating it as unrestricted" do
+      schedule = described_class.from_expression("FREQ=DAILY;BYHOUR=oops;BYMINUTE=0;BYSECOND=0")
+
+      expect(schedule.validation_errors).to include("hour must be a whole number or comma-separated list of whole numbers")
+    end
+
+    it "rejects an unparseable BYMONTH value instead of silently treating it as unrestricted" do
+      schedule = described_class.from_expression("FREQ=YEARLY;BYMONTH=oops;BYMONTHDAY=1;BYHOUR=9;BYMINUTE=0;BYSECOND=0")
+
+      expect(schedule.validation_errors).to include("month must be a whole number or comma-separated list of whole numbers")
+    end
+
+    it "rejects an unparseable BYMONTHDAY value instead of silently treating it as unrestricted" do
+      schedule = described_class.from_expression("FREQ=MONTHLY;BYMONTHDAY=oops;BYHOUR=9;BYMINUTE=0;BYSECOND=0")
+
+      expect(schedule.validation_errors).to include("month day must be a whole number or comma-separated list of whole numbers")
+    end
+  end
+
   it "computes due windows without duplicate minute-level fires" do
     expression = "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0"
 
