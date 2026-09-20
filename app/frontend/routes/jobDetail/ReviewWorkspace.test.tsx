@@ -116,6 +116,17 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
   })
 
+  it("does not render a pending-feedback pill in the summary header", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    const heading = await screen.findByText("Implementation review")
+    const header = heading.closest("section") as HTMLElement
+    expect(within(header).queryByText(/pending/i)).not.toBeInTheDocument()
+  })
+
   it("never wraps the diff viewer in an ancestor with non-visible overflow, which would block its sticky file headers from pinning", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
