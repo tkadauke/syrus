@@ -3,7 +3,7 @@ import { Input } from "../Input"
 import { Select } from "../Select"
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react"
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query"
-import { createConsumer } from "@rails/actioncable"
+import { getAppConsumer } from "../../lib/actionCable"
 import {
   clearCredential,
   exchangeCodexOauth,
@@ -679,7 +679,7 @@ function useCodexChatGptFlow(actions: ReturnType<typeof useCredentialActions>, o
   useEffect(() => {
     if (!authStarted) return
 
-    const consumer = createConsumer()
+    const consumer = getAppConsumer()
     const subscription = consumer.subscriptions.create(
       { channel: "AppUserChannel" },
       {
