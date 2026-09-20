@@ -111,6 +111,21 @@ RSpec.describe "App API repository preview", type: :request do
       expect(parse_body.dig("error", "code")).to eq("conflict")
     end
 
+    it "returns conflict when a concurrent preview insert wins the active-owner race" do
+      repo
+      allow_any_instance_of(ActiveRecord::Associations::CollectionProxy)
+        .to receive(:create!)
+        .and_raise(ActiveRecord::RecordNotUnique.new("Duplicate entry"))
+
+      expect {
+        post preview_path(repo), as: :json
+      }.not_to change { repo.preview_environments.count }
+
+      expect(response).to have_http_status(:conflict)
+      expect(parse_body.dig("error", "code")).to eq("conflict")
+      expect(parse_body.dig("error", "message")).to eq("A preview environment is already active for this repository.")
+    end
+
     it "allows creation after the previous preview has stopped" do
       create_preview_env(repo, state: "stopped")
 

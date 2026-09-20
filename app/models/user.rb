@@ -154,6 +154,8 @@ class User < ApplicationRecord
 
   scope :admin, -> { where(global_role: "admin") }
 
+  BOOTSTRAP_ADMIN_LOCK_NAME = "first_user_admin_promotion".freeze
+
   encrypts :claude_oauth_token
   encrypts :codex_api_key
   encrypts :codex_auth_json
@@ -929,8 +931,10 @@ class User < ApplicationRecord
   end
 
   def promote_first_user_to_admin
-    @first_user = User.count.zero?
-    self.global_role = "admin" if @first_user
+    BootstrapLock.fetch!(BOOTSTRAP_ADMIN_LOCK_NAME).with_lock do
+      @first_user = !User.exists?
+      self.global_role = "admin" if @first_user
+    end
   end
 
   # A new Syrus installation should start with a useful set of Cron

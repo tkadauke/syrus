@@ -3,7 +3,9 @@ require "rails_helper"
 RSpec.describe AppSettingRegistry do
   it "covers every persisted AppSetting column except Rails bookkeeping" do
     registry_keys = described_class.definitions.map(&:key).map(&:to_s)
-    persisted_keys = AppSetting.column_names - %w[id created_at updated_at]
+    # singleton_key isn't a configurable setting -- it's a DB-level constraint
+    # column enforcing the single-row invariant, so it's bookkeeping like id.
+    persisted_keys = AppSetting.column_names - %w[id created_at updated_at singleton_key]
 
     expect(registry_keys).to contain_exactly(*persisted_keys)
   end

@@ -75,7 +75,25 @@ module MaintenanceTasks
       def merge_train_repository_ids
         MergeTrain.where(state: "succeeded")
                   .where.not(integration_sha: nil)
-                  .where.not(integration_sha: LandedCommit.select(:sha))
+                  .where(<<~SQL.squish)
+                    NOT EXISTS (
+                      SELECT 1
+                      FROM landed_commits
+                      WHERE landed_commits.sha = merge_trains.integration_sha
+                        AND (
+                          (
+                            merge_trains.epic_id IS NOT NULL
+                            AND landed_commits.landable_type = 'Epic'
+                            AND landed_commits.landable_id = merge_trains.epic_id
+                          )
+                          OR (
+                            merge_trains.epic_id IS NULL
+                            AND landed_commits.landable_type = 'MergeTrain'
+                            AND landed_commits.landable_id = merge_trains.id
+                          )
+                        )
+                    )
+                  SQL
                   .select(:repository_id)
       end
     end

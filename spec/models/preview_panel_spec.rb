@@ -5,6 +5,10 @@ RSpec.describe PreviewPanel, type: :model do
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
+  before do
+    allow(User).to receive(:chat_providers).and_return(%w[claude])
+  end
+
   def build_panel(**attrs)
     described_class.new({ chat_session: chat_session, title: "Widget preview" }.merge(attrs))
   end
@@ -160,6 +164,16 @@ RSpec.describe PreviewPanel, type: :model do
       first_version = panel.create_version!("index.html" => "<h1>v1</h1>")
       first_version.update_columns(created_at: 1.hour.ago)
       second_version = panel.create_version!("index.html" => "<h1>v2</h1>")
+
+      expect(panel.current_version).to eq(second_version)
+    end
+
+    it "uses the higher id as the tie breaker for versions created in the same timestamp tick" do
+      panel = create_panel
+      timestamp = Time.current
+      first_version = panel.create_version!("index.html" => "<h1>v1</h1>")
+      second_version = panel.create_version!("index.html" => "<h1>v2</h1>")
+      PreviewPanelVersion.where(id: [ first_version.id, second_version.id ]).update_all(created_at: timestamp)
 
       expect(panel.current_version).to eq(second_version)
     end

@@ -1,10 +1,9 @@
 module PendingActions
   class WakeLandingQueue < Base
     action_key "wake_landing_queue"
+    admin_only!
 
     def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
       progress!("Queueing landing processor wakeup...")
       LandingQueueProcessorJob.perform_later
       nil

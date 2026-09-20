@@ -45,7 +45,17 @@ module Api
             render_error("conflict", I18n.t("api.repository_preview.already_active"), status: :conflict)
             return
           end
-          env = repository.preview_environments.create!(state: "starting")
+          begin
+            env = repository.preview_environments.create!(state: "starting")
+          rescue ActiveRecord::RecordNotUnique
+            render_error("conflict", I18n.t("api.repository_preview.already_active"), status: :conflict)
+            return
+          rescue ActiveRecord::RecordInvalid => e
+            raise unless active_preview_conflict?(e)
+
+            render_error("conflict", I18n.t("api.repository_preview.already_active"), status: :conflict)
+            return
+          end
           render json: { preview: preview_json(env), message: I18n.t("api.preview.starting") }, status: :created
         end
 
@@ -75,6 +85,11 @@ module Api
             expires_at: env.expires_at&.iso8601,
             error_message: env.error_message
           }
+        end
+
+        def active_preview_conflict?(error)
+          error.record.is_a?(PreviewEnvironment) &&
+            error.record.errors[:base].include?(PreviewEnvironment::ACTIVE_OWNER_CONFLICT_MESSAGE)
         end
 
         def preview_log_json(log)

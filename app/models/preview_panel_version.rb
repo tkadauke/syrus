@@ -2,7 +2,7 @@ class PreviewPanelVersion < ApplicationRecord
   belongs_to :preview_panel
   has_many_attached :files
 
-  default_scope -> { order(created_at: :desc) }
+  default_scope -> { order(created_at: :desc, id: :desc) }
 
   validates :entry_file, presence: true
 

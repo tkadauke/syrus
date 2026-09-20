@@ -346,7 +346,7 @@ class Epic < ApplicationRecord
         archived_at: target_state == "archived" ? Time.current : nil
       )
       if target_state == "in_progress"
-        claim!(user, force: true) unless claimed?
+        claim!(epic_advancement_actor(actor) || user, force: true) unless claimed?
         unblock_child_jobs!
       elsif was_in_progress && %w[backlog ready].include?(target_state)
         restore_child_epic_blocks!

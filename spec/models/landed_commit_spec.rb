@@ -30,10 +30,16 @@ RSpec.describe LandedCommit, type: :model do
     expect(described_class.new(valid_attrs(position: nil))).not_to be_valid
   end
 
-  it "enforces sha uniqueness" do
+  it "allows the same sha under different landables" do
     described_class.create!(valid_attrs)
 
-    expect(described_class.new(valid_attrs(landable: epic, kind: "integration_merge"))).not_to be_valid
+    expect(described_class.new(valid_attrs(landable: epic, kind: "integration_merge"))).to be_valid
+  end
+
+  it "rejects the same sha under the same landable" do
+    described_class.create!(valid_attrs)
+
+    expect(described_class.new(valid_attrs(kind: "reconcile"))).not_to be_valid
   end
 
   it "belongs to a Job landable" do

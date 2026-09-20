@@ -4,6 +4,7 @@ class PreviewEnvironment < ApplicationRecord
 
   STATES = %w[ starting seeding running stopping stopped failed ].freeze
   ACTIVE_STATES = %w[ starting seeding running stopping ].freeze
+  ACTIVE_OWNER_CONFLICT_MESSAGE = "already has an active preview environment"
 
   DEFAULT_PORT_MIN = 20_000
   DEFAULT_PORT_MAX = 29_999
@@ -15,8 +16,11 @@ class PreviewEnvironment < ApplicationRecord
   validates :state, presence: true, inclusion: { in: STATES }
   validates :project_id, format: { with: /\A[A-Za-z0-9_-]+\z/ }, allow_blank: true
   validates :error_message, absence: true, unless: :failed?
+  validates :active_owner_key, uniqueness: true, allow_nil: true
   validate :exactly_one_owner
   validate :only_one_active_per_owner, on: :create
+
+  before_validation :sync_active_owner_key
 
   scope :active, -> { where(state: ACTIVE_STATES) }
   scope :expired, -> { where(state: "running").where("expires_at IS NOT NULL AND expires_at <= ?", Time.current) }
@@ -70,7 +74,19 @@ class PreviewEnvironment < ApplicationRecord
   def only_one_active_per_owner
     scope = job_id.present? ? PreviewEnvironment.where(job_id: job_id) : PreviewEnvironment.where(repository_id: repository_id, job_id: nil)
     if scope.where(state: ACTIVE_STATES).exists?
-      errors.add(:base, "already has an active preview environment")
+      errors.add(:base, ACTIVE_OWNER_CONFLICT_MESSAGE)
     end
+  end
+
+  # Mirrors RuntimeControlLease#active_group_key: non-nil only while this
+  # preview is active, so historical stopped/failed rows never occupy the
+  # owner's one live slot.
+  def sync_active_owner_key
+    self.active_owner_key =
+      if active? && job_id.present?
+        "job:#{job_id}"
+      elsif active? && repository_id.present?
+        "repository:#{repository_id}"
+      end
   end
 end

@@ -1,9 +1,9 @@
 module Admission
   # A user's spend against their daily ceiling (workflow-engine-v3 C1).
   #
-  # Syrus already *accounts* for spend -- `Run#cost_usd` and
-  # `ChatSession#cumulative_cost_usd` feed the spending insights page -- but
-  # nothing enforces it. A budget that is only ever reported is a budget in
+  # Syrus already *accounts* for spend -- `Run#cost_usd` feeds the spending
+  # insights page and `ChatSession` tracks both lifetime and daily chat cost --
+  # but nothing enforces it. A budget that is only ever reported is a budget in
   # name.
   #
   # Like the fairness rung, being over budget **defers**: the work waits for
@@ -54,9 +54,9 @@ module Admission
     end
 
     def chat_spend
-      return 0.0 unless ChatSession.column_names.include?("cumulative_cost_usd")
+      return 0.0 unless ChatSession.column_names.include?("daily_cost_usd")
 
-      ChatSession.where(user_id: @user.id, updated_at: window).sum(:cumulative_cost_usd).to_f
+      ChatSession.where(user_id: @user.id, daily_cost_date: @now.to_date).sum(:daily_cost_usd).to_f
     end
 
     def unlimited_result

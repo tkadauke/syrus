@@ -1,10 +1,9 @@
 module PendingActions
   class WakeProviderAdmission < Base
     action_key "wake_provider_admission"
+    admin_only!
 
     def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
       progress!("Waking provider admission for #{payload.fetch("provider")}...")
       ProviderAdmissionWakeup.call(
         provider: payload.fetch("provider"),

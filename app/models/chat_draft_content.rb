@@ -13,7 +13,7 @@ class ChatDraftContent
 
   def self.from_hash(content)
     hash = content.respond_to?(:to_unsafe_h) ? content.to_unsafe_h : content
-    text = (hash["text"] || hash[:text] || hash["content"] || hash[:content]).to_s.strip
+    text = (hash["text"].presence || hash[:text].presence || hash["content"].presence || hash[:content].presence).to_s.strip
     attachments = hash["attachments"] || hash[:attachments] || []
     metadata = {}
 

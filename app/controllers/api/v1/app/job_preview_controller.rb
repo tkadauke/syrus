@@ -52,7 +52,17 @@ module Api
             return
           end
 
-          env = job.preview_environments.create!(state: "starting", project_id: project.id)
+          begin
+            env = job.preview_environments.create!(state: "starting", project_id: project.id)
+          rescue ActiveRecord::RecordNotUnique
+            render_error("conflict", I18n.t("api.job_preview.already_active"), status: :conflict)
+            return
+          rescue ActiveRecord::RecordInvalid => e
+            raise unless active_preview_conflict?(e)
+
+            render_error("conflict", I18n.t("api.job_preview.already_active"), status: :conflict)
+            return
+          end
           render json: { preview: preview_json(env, project: project), preview_projects: selection.to_a, message: I18n.t("api.preview.starting") }, status: :created
         end
 
@@ -110,6 +120,11 @@ module Api
           else
             I18n.t("api.job_preview.no_preview_configured")
           end
+        end
+
+        def active_preview_conflict?(error)
+          error.record.is_a?(PreviewEnvironment) &&
+            error.record.errors[:base].include?(PreviewEnvironment::ACTIVE_OWNER_CONFLICT_MESSAGE)
         end
 
         def preview_log_json(log)

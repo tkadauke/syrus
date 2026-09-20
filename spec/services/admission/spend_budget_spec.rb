@@ -52,4 +52,25 @@ RSpec.describe Admission::SpendBudget do
 
     expect(described_class.for(user: user, budget_usd: 10)).not_to be_over_budget
   end
+
+  it "counts today's chat cost delta without counting old lifetime chat cost" do
+    ChatSession.create!(
+      user: user,
+      cumulative_cost_usd: 100,
+      daily_cost_usd: 0,
+      daily_cost_date: 2.days.ago.to_date,
+      updated_at: Time.current
+    )
+    ChatSession.create!(
+      user: user,
+      cumulative_cost_usd: 100.25,
+      daily_cost_usd: 0.25,
+      daily_cost_date: Date.current
+    )
+
+    result = described_class.for(user: user, budget_usd: 10)
+
+    expect(result).not_to be_over_budget
+    expect(result.spent_usd).to be_within(0.001).of(0.25)
+  end
 end

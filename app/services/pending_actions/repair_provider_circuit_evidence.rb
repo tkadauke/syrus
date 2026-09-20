@@ -1,6 +1,7 @@
 module PendingActions
   class RepairProviderCircuitEvidence < Base
     action_key "repair_provider_circuit_evidence"
+    admin_only!
 
     def execute
       progress!("Repairing provider circuit evidence...")

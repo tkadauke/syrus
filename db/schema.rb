@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_20_151534) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -205,6 +205,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
     t.boolean "runs_paused", default: false, null: false
     t.boolean "show_work_unit_debug", default: false, null: false
     t.boolean "signups_open", default: false, null: false
+    t.integer "singleton_key", default: 1, null: false
     t.integer "spawned_process_retention_days", default: 7, null: false
     t.string "telegram_bot_handle"
     t.text "telegram_bot_token"
@@ -223,7 +224,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
     t.integer "workflow_step_resource_profile_input_retention_days", default: 180, null: false
     t.integer "workflow_step_resource_profile_retention_days", default: 180, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
+    t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
+    t.check_constraint "singleton_key = 1", name: "chk_app_settings_singleton_key"
   end
 
   create_table "attention_items", force: :cascade do |t|
@@ -328,6 +331,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
     t.index ["run_id"], name: "index_backend_exception_events_on_run_id"
     t.index ["source", "occurred_at"], name: "index_backend_exception_events_on_source_time"
     t.index ["workflow_id"], name: "index_backend_exception_events_on_workflow_id"
+  end
+
+  create_table "bootstrap_locks", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_bootstrap_locks_on_name", unique: true
   end
 
   create_table "browser_error_auto_reports", force: :cascade do |t|
@@ -717,6 +727,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
     t.string "daemon_branch"
     t.boolean "daemon_connected", default: false, null: false
     t.string "daemon_repo"
+    t.date "daily_cost_date"
+    t.decimal "daily_cost_usd", precision: 12, scale: 6, default: "0.0", null: false
     t.datetime "deleted_at"
     t.integer "deleted_by_user_id"
     t.datetime "hidden_at"
@@ -749,6 +761,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
     t.index ["share_token"], name: "index_chat_sessions_on_share_token", unique: true
     t.index ["turn_in_flight", "last_message_at"], name: "idx_chat_sessions_stale_turns"
     t.index ["user_id", "cumulative_cost_usd"], name: "idx_chat_sessions_spending_user_cost"
+    t.index ["user_id", "daily_cost_date", "daily_cost_usd"], name: "idx_chat_sessions_daily_spend"
     t.index ["user_id", "deleted_at", "hidden_at", "system_kind", "pinned", "last_message_at", "created_at", "id"], name: "idx_chat_sessions_active_index_order"
     t.index ["user_id", "hidden_at", "system_kind", "pinned", "last_message_at", "created_at", "id"], name: "idx_chat_sessions_index_order"
     t.index ["user_id", "hidden_at"], name: "index_chat_sessions_on_user_id_and_hidden_at"
@@ -1645,7 +1658,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
     t.datetime "updated_at", null: false
     t.index ["landable_type", "landable_id", "position"], name: "idx_on_landable_type_landable_id_position_4087ee989f"
     t.index ["landable_type", "landable_id"], name: "index_landed_commits_on_landable"
-    t.index ["sha"], name: "index_landed_commits_on_sha", unique: true
+    t.index ["sha", "landable_type", "landable_id"], name: "index_landed_commits_on_sha_and_landable", unique: true
   end
 
   create_table "local_daemon_sessions", force: :cascade do |t|
@@ -1844,7 +1857,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
     t.index ["job_id", "merge_train_id"], name: "idx_merge_train_members_job_train"
     t.index ["job_id"], name: "index_merge_train_members_on_job_id"
     t.index ["merge_train_id", "job_id"], name: "index_merge_train_members_on_merge_train_id_and_job_id", unique: true
-    t.index ["merge_train_id", "position"], name: "index_merge_train_members_on_merge_train_id_and_position"
+    t.index ["merge_train_id", "position"], name: "index_merge_train_members_on_merge_train_id_and_position", unique: true
     t.index ["merge_train_id"], name: "index_merge_train_members_on_merge_train_id"
   end
 
@@ -2085,6 +2098,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
   end
 
   create_table "preview_environments", force: :cascade do |t|
+    t.string "active_owner_key"
     t.datetime "created_at", null: false
     t.text "error_message"
     t.string "error_reason"
@@ -2098,6 +2112,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_120000) do
     t.string "state", default: "starting", null: false
     t.datetime "updated_at", null: false
     t.string "workspace_path"
+    t.index ["active_owner_key"], name: "idx_preview_environments_active_owner_key_unique", unique: true
     t.index ["expires_at"], name: "index_preview_environments_on_expires_at"
     t.index ["job_id", "created_at", "id"], name: "idx_preview_environments_job_latest"
     t.index ["job_id", "project_id", "created_at", "id"], name: "idx_preview_environments_job_project_latest"

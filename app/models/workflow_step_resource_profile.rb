@@ -9,6 +9,13 @@ class WorkflowStepResourceProfile < ApplicationRecord
   NORMAL_ADMISSION_SAMPLE_COUNT = 30
   TIGHT_CONFIDENCE_SAMPLE_COUNT = 100
 
+  # Process accounting gives byte counts, while admission compares 0-100
+  # pressure/percent values. Treat one GiB of command-owned RSS or IO as full
+  # pressure so process-attributed profiles stay conservative without
+  # pretending unknown pressure is zero.
+  PROCESS_ATTRIBUTED_IO_BYTES_AT_FULL_PRESSURE = 1.gigabyte
+  PROCESS_ATTRIBUTED_MEMORY_BYTES_AT_FULL_PERCENT = 1.gigabyte
+
   CONFIDENCE_LEVELS = %w[ defaults_only soft normal tight ].freeze
   ATTRIBUTION_QUALITIES = %w[ defaults_only host_correlated mixed process_attributed ].freeze
   CONSERVATIVE_DEFAULTS = {
@@ -172,8 +179,17 @@ class WorkflowStepResourceProfile < ApplicationRecord
     {
       duration_seconds: observed_or_default(:duration_seconds, p90_process_attributed_duration_seconds),
       cpu_pressure: observed_or_default(:cpu_pressure, p90_process_attributed_cpu_percent),
-      io_pressure: 0.0,
-      memory_used_percent: 0.0,
+      io_pressure: process_attributed_pressure_percent(
+        p90_process_attributed_io_bytes,
+        PROCESS_ATTRIBUTED_IO_BYTES_AT_FULL_PRESSURE
+      ) || observed_or_default(:io_pressure, p90_host_pressure_io || p90_io_pressure),
+      memory_used_percent: process_attributed_pressure_percent(
+        p90_process_attributed_memory_bytes,
+        PROCESS_ATTRIBUTED_MEMORY_BYTES_AT_FULL_PERCENT
+      ) || observed_or_default(
+        :memory_used_percent,
+        p90_host_pressure_memory_used_percent || p90_memory_used_percent
+      ),
       prediction_source: "command_attributed",
       fallback_reason: nil
     }
@@ -209,5 +225,12 @@ class WorkflowStepResourceProfile < ApplicationRecord
 
   def observed_or_default(key, observed)
     observed || CONSERVATIVE_DEFAULTS.fetch(key)
+  end
+
+  def process_attributed_pressure_percent(observed_bytes, full_pressure_bytes)
+    return if observed_bytes.nil?
+
+    percent = (observed_bytes.to_f / full_pressure_bytes.to_f) * 100.0
+    percent.clamp(0.0, 100.0).round(1)
   end
 end
