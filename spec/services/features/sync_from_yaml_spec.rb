@@ -129,6 +129,15 @@ RSpec.describe Features::SyncFromYaml do
     end
   end
 
+  it "seeds Feature.visual_review_enabled? to true on a fresh install with no operator override, " \
+     "matching config/features.yml's default and CLAUDE.md's documented on-by-default behavior" do
+    Feature.where(slug: "visual_review").delete_all
+
+    described_class.call
+
+    expect(Feature.visual_review_enabled?).to be(true)
+  end
+
   it "does not delete features removed from YAML" do
     feature = Feature.create!(slug: "removed_feature", category: "Old", name: "Removed")
     path = write_features_yaml("features: []\n")

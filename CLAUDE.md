@@ -370,7 +370,8 @@ Key steps:
   immediately after the `adversarial_review` loop, before the grader retry
   loop, in `initial`, `retry`, `pr_comment`, and `chat_feedback`; gated by
   `visual_review.enabled` in `.syrus.yml` or the instance-wide `visual_review`
-  Labs feature flag (`Feature.visual_review_enabled?`, off by default);
+  feature flag (`Feature.visual_review_enabled?`, on by default since its
+  September 2026 graduation out of Labs-preview status);
   skipped in `ci_failure`, `auto_merge`, and maintenance workflows.
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   asks the agent to call `submit_summary`.
