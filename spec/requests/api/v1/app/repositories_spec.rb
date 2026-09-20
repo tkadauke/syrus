@@ -574,6 +574,9 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       { "key" => "documents", "label" => "Documents", "path" => repository_documents_path(repository) },
       { "badge" => nil, "key" => "scheduled_tasks.repository", "label" => "Scheduled Tasks", "path" => repository_scheduled_tasks_path(repository) }
     )
+    # Member management moved under repository edit; the standalone
+    # Members tab is gone from every repository page's tab bar.
+    expect(body["tabs"].map { |tab| tab["key"] }).not_to include("members")
     expect(body["counts"]).to include("running" => 1, "queued" => 1, "failed_7d" => 2)
     expect(body["retry_failed_jobs"]).to include("count" => 1, "agent_provider_label" => "Codex")
     expect(body.dig("retry_failed_jobs", "provider_circuit")).to include("provider" => "codex", "open" => false)

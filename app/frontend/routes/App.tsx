@@ -1,8 +1,8 @@
-import { withRoutePrefix } from "../lib/routing"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
 import { BRAND_ICON_SRC } from "../lib/brandIcon"
 import { useEffect, useState, type ReactNode } from "react"
-import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom"
+import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { authPrimaryButtonClass } from "../lib/buttonStyles"
 import { isDesktopShell } from "../lib/desktopShell"
@@ -58,7 +58,6 @@ import { RepositoriesIndex } from "./Repositories"
 import { RepositoryDetailRoute } from "./RepositoryDetail"
 import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
 import { RepositoryFormRoute } from "./RepositoryForm"
-import { RepositoryMembersRoute } from "./RepositoryMembers"
 import { RepositorySkillNewRoute } from "./RepositorySkillNew"
 import { RepositoryTargetGraphRoute } from "./RepositoryTargetGraph"
 import { Tags } from "./Tags"
@@ -134,7 +133,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/design_system", element: <SettingsSectionRoute><DesignSystemRoute /></SettingsSectionRoute> },
   { path: "/repositories/:repositoryId/skills/new", element: <RepositorySkillNewRoute /> },
   { path: "/repositories/:repositoryId/documents", element: <RepositoryDocumentsRoute /> },
-  { path: "/repositories/:repositoryId/memberships", element: <RepositoryMembersRoute /> },
+  { path: "/repositories/:repositoryId/memberships", element: <RepositoryMembershipsRedirect /> },
   { path: "/repositories/:repositoryId/target_graph", element: <RepositoryTargetGraphRoute /> },
   { path: "/repositories/:repositoryId/plugin/*", element: <PluginRepoPageTabRoute /> },
   { path: "/repositories/new", element: <RepositoryFormRoute mode="new" /> },
@@ -475,6 +474,16 @@ function SetupRedirect() {
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   return <Navigate replace to={`${prefix}/onboarding`} />
+}
+
+// The standalone Members tab/page was retired -- member management now
+// lives on the repository edit page. Keep this redirect so old links and
+// bookmarks to /repositories/:id/memberships still land somewhere useful.
+function RepositoryMembershipsRedirect() {
+  const location = useLocation()
+  const params = useParams()
+  const prefix = routePrefix(location.pathname)
+  return <Navigate replace to={withRoutePrefix(`/repositories/${params.repositoryId}/edit`, prefix)} />
 }
 
 function OnboardingShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | null }) {

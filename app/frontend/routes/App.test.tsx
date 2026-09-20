@@ -8802,6 +8802,14 @@ describe("App", () => {
       if (path === "/api/v1/app/repositories/owners") {
         return Promise.resolve(new Response(JSON.stringify({ error: "no_token" }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
+      if (path === "/api/v1/app/repositories/3/memberships" && (init?.method || "GET") === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({
+          repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+          memberships: [],
+          team_grants: [],
+          github_collaborator_discrepancies: []
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
 
       return Promise.resolve(new Response(JSON.stringify(repositoryFormPayload({
         repository: {
@@ -8861,6 +8869,62 @@ describe("App", () => {
     expect(await screen.findByText("Trigger label can't be blank")).toBeInTheDocument()
   })
 
+  it("redirects the retired repository memberships tab to repository edit", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/repositories/owners") {
+        return Promise.resolve(new Response(JSON.stringify({ error: "no_token" }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/repositories/3/memberships" && (init?.method || "GET") === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({
+          repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+          memberships: [],
+          team_grants: [],
+          github_collaborator_discrepancies: []
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(repositoryFormPayload({
+        repository: {
+          id: 3,
+          owner: "acme",
+          name: "widgets",
+          slug: "acme/widgets",
+          default_branch: "main",
+          upstream_owner: "",
+          upstream_name: "",
+          upstream_default_branch: "",
+          trigger_label: "syrus",
+          polling_enabled: true,
+          prepare_enabled: true,
+          pr_cost_footer_enabled: true,
+          auto_merge_enabled: false,
+          trust_clean_rebase_grade: false,
+          main_branch_health_enabled: true,
+          main_branch_repair_enabled: true,
+          main_branch_repair_blocks_work: true,
+          main_branch_repair_auto_approve: false,
+          treat_grader_timeouts_as_failures: false,
+          agent_provider: "",
+          auto_approve_mode: "never",
+          github_owner_id: null,
+          github_repository_id: null,
+          repository_path: "/repositories/3"
+        }
+      })), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/3/memberships"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("main", { name: "Edit Repository" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "Members" })).toBeInTheDocument()
+  })
 
   it("runs repository detail commands through the app API", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true)

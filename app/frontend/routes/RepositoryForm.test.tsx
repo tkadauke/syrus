@@ -1,6 +1,6 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi, afterEach } from "vitest"
 import { RepositoryFormRoute } from "./RepositoryForm"
@@ -67,13 +67,44 @@ function editPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function mockFetch(repositoryOverrides: Record<string, unknown> = {}, finalApprovers: unknown[] = []) {
+function membershipsPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+    memberships: [],
+    team_grants: [],
+    github_collaborator_discrepancies: [],
+    ...overrides
+  }
+}
+
+function mockFetch(repositoryOverrides: Record<string, unknown> = {}, finalApprovers: unknown[] = [], membershipsOverrides: Record<string, unknown> = {}) {
   return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
     const url = String(input)
     const method = init?.method || "GET"
 
     if (url === "/api/v1/app/repositories/1/edit") {
       return Promise.resolve(jsonResponse(editPayload({ repository: { ...editPayload().repository, ...repositoryOverrides } })))
+    }
+    if (url === "/api/v1/app/repositories/1/memberships" && method === "GET") {
+      return Promise.resolve(jsonResponse(membershipsPayload(membershipsOverrides)))
+    }
+    if (url === "/api/v1/app/repositories/1/memberships" && method === "POST") {
+      return Promise.resolve(jsonResponse(membershipsPayload({
+        ...membershipsOverrides,
+        memberships: [
+          ...(membershipsOverrides.memberships as unknown[] ?? []),
+          {
+            id: 12,
+            role: "write",
+            agent_provider: null,
+            created_at: "2026-01-03T00:00:00Z",
+            github_permission_mismatch_reason: null,
+            github_permission_mismatch_checked_at: null,
+            user: { id: 3, email_address: "writer@example.com", name: "Writer Person" }
+          }
+        ],
+        message: "writer@example.com added as write."
+      })))
     }
     if (url === "/api/v1/app/repositories/owners") {
       return Promise.resolve(jsonResponse({ error: "no_token" }))
@@ -469,11 +500,12 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     const fetchSpy = mockFetch({ review_policy: "final_say" })
     renderRoute()
 
-    await screen.findByRole("heading", { name: "Final approvers" })
+    const heading = await screen.findByRole("heading", { name: "Final approvers" })
     expect(await screen.findByText("No final approvers yet.")).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new-approver@example.com" } })
-    fireEvent.click(screen.getByRole("button", { name: "Add" }))
+    const section = within(heading.closest("section")!)
+    fireEvent.change(section.getByLabelText("Email"), { target: { value: "new-approver@example.com" } })
+    fireEvent.click(section.getByRole("button", { name: "Add" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -489,11 +521,56 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     mockFetch({ review_policy: "final_say" })
     renderRoute()
 
-    const email = await screen.findByLabelText("Email")
-    expect(screen.getByText("Email")).toHaveAttribute("for", email.id)
+    const heading = await screen.findByRole("heading", { name: "Final approvers" })
+    const section = within(heading.closest("section")!)
+    const email = section.getByLabelText("Email")
+    expect(section.getByText("Email")).toHaveAttribute("for", email.id)
 
     const apiKey = screen.getByLabelText("API key")
     expect(apiKey).toHaveAttribute("type", "password")
     expect(screen.getByText("API key")).toHaveAttribute("for", apiKey.id)
+  })
+
+  describe("repository member management", () => {
+    it("lists current members embedded in the edit page", async () => {
+      mockFetch({}, [], {
+        memberships: [
+          {
+            id: 10,
+            role: "admin",
+            agent_provider: null,
+            created_at: "2026-01-01T00:00:00Z",
+            github_permission_mismatch_reason: null,
+            github_permission_mismatch_checked_at: null,
+            user: { id: 1, email_address: "owner@example.com", name: "Ada Lovelace" }
+          }
+        ]
+      })
+      renderRoute()
+
+      expect(await screen.findByRole("heading", { name: "Members" })).toBeInTheDocument()
+      expect(await screen.findByText("Ada Lovelace")).toBeInTheDocument()
+      expect(screen.getByText("owner@example.com")).toBeInTheDocument()
+    })
+
+    it("adds a member by email from the edit page, without a separate Members tab", async () => {
+      const fetchSpy = mockFetch()
+      renderRoute()
+
+      // The "Add a member" form is its own section, a sibling of the
+      // members-list section -- no final approvers section renders for the
+      // default "self" review policy, so the Email field is unambiguous here.
+      await screen.findByRole("heading", { name: "Members" })
+      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "writer@example.com" } })
+      fireEvent.click(screen.getAllByRole("button", { name: "Add" })[0])
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/repositories/1/memberships",
+          expect.objectContaining({ method: "POST" })
+        )
+      })
+      expect(await screen.findByText("Writer Person")).toBeInTheDocument()
+    })
   })
 })

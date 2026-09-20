@@ -26,7 +26,6 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/memberships", type:
         include("role" => "admin", "user" => include("id" => owner.id), "github_permission_mismatch_reason" => nil)
       )
       expect(parse_body.dig("repository", "id")).to eq(repository.id)
-      expect(parse_body["tabs"].map { |tab| tab["key"] }).to include("members")
       expect(parse_body["github_collaborator_discrepancies"]).to eq([])
     end
 

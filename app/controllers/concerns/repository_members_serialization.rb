@@ -1,11 +1,11 @@
-# Shared payload for the repository "Members" tab: direct
+# Shared payload for repository member management: direct
 # RepositoryMemberships plus additive TeamRepository grants. Both
 # RepositoryMembershipsController and RepositoryTeamGrantsController
 # return this same shape so either mutation can update the page's single
-# query cache entry.
+# query cache entry. Rendered embedded in the repository edit form, not
+# as its own tab -- see RepositoryTabsSerialization.
 module RepositoryMembersSerialization
   extend ActiveSupport::Concern
-  include RepositoryTabsSerialization
 
   private
 
@@ -16,7 +16,6 @@ module RepositoryMembersSerialization
         slug: repository.slug,
         repository_path: repository_path(repository)
       },
-      tabs: repository_tabs_json(repository),
       memberships: repository.repository_memberships.includes(:user).order(:id).map { |m| repository_membership_json(m) },
       team_grants: repository.team_repositories.includes(:team).order(:id).map { |g| repository_team_grant_json(g) },
       github_collaborator_discrepancies: repository.github_collaborator_discrepancies.order(:id).map { |d| github_collaborator_discrepancy_json(d) },

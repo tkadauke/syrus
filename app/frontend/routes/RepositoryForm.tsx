@@ -32,6 +32,7 @@ import {
   deleteRepositoryFinalApprover,
   fetchRepositoryFinalApprovers
 } from "../api/repositoryFinalApprovers"
+import { RepositoryMembersSection } from "./RepositoryMembers"
 import { ApiError } from "../api/client"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -600,6 +601,10 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           </Link>
         </div>
       </form>
+
+      {mode === "edit" && payload.repository.id ? (
+        <RepositoryMembersSection repositoryId={payload.repository.id} />
+      ) : null}
 
       {mode === "edit" && payload.repository.id && values.review_policy === "final_say" ? (
         <FinalApproversSection repositoryId={payload.repository.id} />
