@@ -84,6 +84,19 @@ describe("errorRingBuffer", () => {
     expect(getRecentErrors()).toHaveLength(1)
   })
 
+  it("does not let a later duplicate mutate a previously captured snapshot's entries", () => {
+    window.dispatchEvent(new ErrorEvent("error", { message: "Repeats", filename: "app.js" }))
+    const snapshot = getRecentErrors()
+    expect(snapshot[0].count).toBe(1)
+
+    // A later occurrence of the same error bumps the internal count in place;
+    // the earlier snapshot's own object must not observe that mutation.
+    window.dispatchEvent(new ErrorEvent("error", { message: "Repeats", filename: "app.js" }))
+
+    expect(snapshot[0].count).toBe(1)
+    expect(getRecentErrors()[0].count).toBe(2)
+  })
+
   it("truncates very long messages to 500 characters", () => {
     const longMessage = "x".repeat(600)
     window.dispatchEvent(new ErrorEvent("error", { message: longMessage }))
