@@ -9,6 +9,7 @@ module MysqlDbBrowser
                 "Read-only SELECT/SHOW/DESCRIBE/EXPLAIN diagnostics are allowed by default, as is a " \
                 "WITH ... SELECT CTE; a WITH ... UPDATE/DELETE/INSERT CTE counts as a write. " \
                 "Writes are rejected unless the connection has explicitly opted into writes. " \
+                "SELECT ... INTO OUTFILE/DUMPFILE is always rejected, even with writes enabled. " \
                 "Every attempt, successful or not, is audit-logged."
 
     input_schema(

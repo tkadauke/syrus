@@ -217,6 +217,13 @@ escaper before running it). Guardrails, mirroring `AdminMysql::Inspector`:
   the same shared-concern gate `K8sCluster::AgenticAccess.cluster_with_write_access!`
   uses, applied to the connection `ExecuteQueryTool` already resolved via
   `.connection!` rather than re-resolving by id.
+- **`SELECT ... INTO OUTFILE`/`DUMPFILE` is always rejected**, even on a
+  connection with `allow_writes` enabled. It's classified read-only by the
+  grammar above (it doesn't touch table data), but it writes an arbitrary
+  file to the MySQL server's filesystem when the connected user has the
+  `FILE` privilege - outside this console's read-only-by-default safe
+  envelope. Rejected with `FilesystemWriteNotAllowed`, audited as a failed
+  attempt, before any write-access check runs.
 - **Statement-timeout hint** - literal `SELECT` statements get
   `SELECT /*+ MAX_EXECUTION_TIME(5000) */ ...` prepended (skipped for `WITH`
   CTEs, since the hint must immediately follow `SELECT`).
