@@ -51,6 +51,7 @@ module BugReports
 
       chat_session = nil
       user_message = nil
+      turn_triggered = false
       ApplicationRecord.transaction do
         chat_session = ChatSession.create!(
           user: user,
@@ -60,12 +61,18 @@ module BugReports
         )
         content = { "text" => prompt_text }
         content["attachments"] = chat_attachments if chat_attachments.any?
-        user_message = chat_session.messages.create!(role: "user", content: content, sender_user_id: user.id)
+        turn_triggered = chat_session.should_trigger_agent?(prompt_text)
+        user_message = chat_session.messages.create!(
+          role: "user",
+          content: content,
+          sender_user_id: user.id,
+          skip_turn_trigger: !turn_triggered
+        )
         chat_session.pin_chat_provider!
       end
 
       ChatTitleJob.perform_later(chat_session.id, user_message.id)
-      ChatTurnJob.perform_later(chat_session.id, user_message.id) if chat_session.should_trigger_agent?(prompt_text)
+      ChatTurnJob.perform_later(chat_session.id, user_message.id) if turn_triggered
 
       Result.new(chat_session: chat_session)
     rescue ActiveRecord::RecordInvalid => e
