@@ -519,13 +519,14 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
   it "exchanges a pasted code, saves the token, and tests it" do
     sign_in_as(user)
     post "/api/v1/app/credentials/claude_oauth_start"
+    state = Rack::Utils.parse_query(URI(parse_body["authorize_url"]).query)["state"]
 
     stub_request(:post, ClaudeOauth::TOKEN_URL)
       .to_return(status: 200, body: { access_token: "sk-ant-oat01-new" }.to_json, headers: { "Content-Type" => "application/json" })
     probe = CredentialProbe::Result.new(credential: "claude_oauth_token", ok: true, message: "Claude OAuth token is valid.", details: {})
     expect(CredentialProbe).to receive(:call).with(user: user, credential: "claude_oauth_token").and_return(probe)
 
-    post "/api/v1/app/credentials/claude_oauth_exchange", params: { code: "auth-code#state" }
+    post "/api/v1/app/credentials/claude_oauth_exchange", params: { code: "auth-code##{state}" }
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("credential_test", "ok")).to be true

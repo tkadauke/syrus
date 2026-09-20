@@ -71,6 +71,10 @@ class ClaudeOauth
     raw_code = raw_code.to_s.strip
     raise Error, "Missing authorization code." if raw_code.blank?
 
+    if embedded_state.present? && embedded_state != state
+      raise Error, "Authorization state did not match. Start a new Claude authorization."
+    end
+
     effective_state = embedded_state.presence || state
 
     body = {

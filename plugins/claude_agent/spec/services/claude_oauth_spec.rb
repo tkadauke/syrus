@@ -68,12 +68,18 @@ RSpec.describe ClaudeOauth do
 
     it "splits the paste-flow code#state form and posts only the code" do
       stub_request(:post, token_url)
-        .with(body: hash_including("code" => "abc", "state" => "embedded"))
+        .with(body: hash_including("code" => "abc", "state" => "session-state"))
         .to_return(status: 200, body: { access_token: "tok" }.to_json, headers: { "Content-Type" => "application/json" })
 
-      token = described_class.exchange(code: "abc#embedded", verifier: "ver", state: "session-state", redirect_uri: "http://x/cb")
+      token = described_class.exchange(code: "abc#session-state", verifier: "ver", state: "session-state", redirect_uri: "http://x/cb")
 
       expect(token).to eq("tok")
+    end
+
+    it "raises when the pasted state does not match the session" do
+      expect {
+        described_class.exchange(code: "abc#wrong-state", verifier: "ver", state: "session-state", redirect_uri: "http://x/cb")
+      }.to raise_error(described_class::Error, /state did not match/)
     end
 
     it "raises a friendly error when the code is blank" do
