@@ -4,8 +4,8 @@ Syrus runs in production as a chat-driven, multi-repo coding automation
 harness — not just an issue→PR bot. Issue-driven, cron-driven, and
 operator-initiated ("direct") Jobs, **Epics** (ordered stacks of Jobs for
 work too big for one PR), and **Chat** (planning, Coding Mode, Local Mode,
-Chat Goals for multi-turn continuation loops, and an admin Supervisor
-control room) all funnel into the same Workflow → Step → Run execution
+and Chat Goals for multi-turn continuation loops) all funnel into the
+same Workflow → Step → Run execution
 pipeline described in `CLAUDE.md`. Around that core: a landing queue with
 per-repo auto-merge and Epic **merge trains** (atomic multi-PR landing
 through one integration branch), **delivery tracks** (`promotion` /
@@ -229,10 +229,17 @@ re-reading the source doc for before restarting either:
   (`config/syrus_docs/connected_platforms.md`) — the bidirectional
   comment-in-Slack / approve-from-Slack / notify-on-finish loop the scan
   proposed has not been built.
-- **A more actively ambient Supervisor.** Supervisor chat shipped as a
-  pinned, feature-gated admin control room fed by `SupervisorEvents` and
-  `ChatScopedEventEvaluatorJob` (`config/syrus_docs/chat.md`). Whether
-  its current reactive-evaluation shape fully matches the scan's
-  "actively pings the operator only when there's a real decision"
-  framing is worth checking against current Supervisor behavior before
-  treating this as closed.
+- **A more actively ambient Supervisor.** The admin Supervisor chat
+  control room this scan originally judged against has since been
+  removed. Its event-evaluation pipeline lives on in a different shape:
+  `ChatWorkEvents.publish!` (renamed from `SupervisorEvents`) now records
+  scoped operational events on ordinary chats that originated the
+  referenced work, resolved through confirmed proposal lineage
+  (`ChatScopedEventRecipients`), and a disposable
+  `ChatScopedEventEvaluatorJob` reviews each event with read-only tools,
+  recording `no_op` or creating a real `ChatWakeup` (`respond`/`act`)
+  (`config/syrus_docs/chat.md`). Whether that reactive-evaluation shape
+  fully matches the scan's "actively pings the operator only when
+  there's a real decision" framing is worth checking against the current
+  `ChatWorkEvents`/`ChatScopedEventEvaluatorJob` behavior before treating
+  this as closed.
