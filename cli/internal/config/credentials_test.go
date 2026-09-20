@@ -60,3 +60,22 @@ func TestSaveCredentialsCreatesPrivateFile(t *testing.T) {
 		t.Fatalf("credentials = %#v", creds)
 	}
 }
+
+func TestSaveCredentialsTightensPermissionsOnExistingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "credentials")
+	if err := os.WriteFile(path, []byte("url=https://stale.example.com\ntoken=stale\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := SaveCredentials(path, Credentials{URL: "https://syrus.example.com", Token: "secret"}); err != nil {
+		t.Fatalf("SaveCredentials returned error: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0600 {
+		t.Fatalf("file mode = %v, want 0600", got)
+	}
+}
