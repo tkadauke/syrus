@@ -3,6 +3,7 @@ import type { SetupStatusPayload } from "./setup"
 import type { JobRetryState, PreviewEnvironmentRecord } from "./jobs"
 import type { ProviderAvailability, ProviderFailover } from "./providerAvailability"
 import type { ProviderRoutingOptions, ProviderRoutingRule } from "./providerRoutingRules"
+import type { AdminSmartFolder } from "./adminSmartFolders"
 
 export type RepositoryEpicDependencyPolicy = "linear"
 
@@ -41,6 +42,9 @@ export type RepositoriesPayload = {
   archived_repositories: RepositoryRow[]
   new_repository_path: string
   setup?: SetupStatusPayload
+  smart_folders: AdminSmartFolder[]
+  active_smart_folder_id: number | null
+  filter: Record<string, unknown>
   message?: string | null
 }
 
@@ -82,6 +86,8 @@ export type RepositoryFormRecord = {
   github_owner_id: number | null
   github_repository_id: number | null
   repository_path: string | null
+  archived: boolean
+  archived_at: string | null
 }
 
 export type RepositoryProviderOption = {
@@ -120,6 +126,8 @@ export type RepositoryFormPayload = {
   input_source_types: InputSourceType[]
   auto_approve_modes: RepositoryAutoApproveMode[]
   repositories_path: string
+  app_archive_repository_path: string | null
+  app_unarchive_repository_path: string | null
   agent_insights_enabled?: boolean
   insight_schedule_config?: InsightScheduleConfigRecord
 }
@@ -612,6 +620,10 @@ export function runRepositoryRecommendation(path: string, page: number) {
 }
 
 export function archiveRepositoryFromPath(path: string) {
+  return postJson<RepositoriesPayload>(path)
+}
+
+export function unarchiveRepositoryFromPath(path: string) {
   return postJson<RepositoriesPayload>(path)
 }
 

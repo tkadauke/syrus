@@ -326,7 +326,9 @@ module Api
             provider_routing_options: agent_provider_catalog_options(Current.user),
             input_source_types: input_source_types_json(repository),
             auto_approve_modes: auto_approve_modes_json,
-            repositories_path: repositories_path
+            repositories_path: repositories_path,
+            app_archive_repository_path: repository.persisted? ? "/api/v1/app/repositories/#{repository.id}/archive" : nil,
+            app_unarchive_repository_path: repository.persisted? ? "/api/v1/app/repositories/#{repository.id}/unarchive" : nil
           }
 
           payload
@@ -414,6 +416,9 @@ module Api
               repositories: PerformanceLogging.phase("repositories_index.cli_repositories_json", repository_count: filtered_repos.size) { filtered_repos.map { |repository| repository_cli_json(repository) } },
               new_repository_path: new_repository_path,
               setup: PerformanceLogging.phase("repositories_index.setup") { ::App::SetupStatus.call(user: Current.user) },
+              smart_folders: PerformanceLogging.phase("repositories_index.smart_folders", repository_count: repos.size) { repository_smart_folders_json(repos) },
+              active_smart_folder_id: active_repository_smart_folder&.id,
+              filter: repository_filter.to_h,
               message: message
             }
           end
@@ -518,7 +523,9 @@ module Api
             epic_dependency_policy: repository.epic_dependency_policy,
             github_owner_id: repository.github_owner_id,
             github_repository_id: repository.github_repository_id,
-            repository_path: repository.persisted? ? repository_path(repository) : nil
+            repository_path: repository.persisted? ? repository_path(repository) : nil,
+            archived: repository.archived?,
+            archived_at: repository.archived_at&.iso8601
           }
         end
 
@@ -1053,78 +1060,54 @@ module Api
         end
 
         def filter_repository_index_repositories(repositories)
-          repositories
-            .then { |rows| filter_repository_index_by_slug(rows) }
-            .then { |rows| filter_repository_index_by_github_owner(rows) }
-            .then { |rows| filter_repository_index_by_health(rows) }
-            .then { |rows| filter_repository_index_by_agent_provider(rows) }
-            .then { |rows| filter_repository_index_by_open_jobs(rows) }
-            .then { |rows| filter_repository_index_by_archived(rows) }
-            .then { |rows| filter_repository_index_by_activity_since(rows) }
-            .then { |rows| filter_repository_index_by_activity_before(rows) }
+          repository_filter.apply(
+            repositories,
+            open_jobs_counts: @repository_index_open_job_counts || {},
+            last_job_activity_by_id: repository_index_last_job_activity_by_id
+          )
         end
 
-        def filter_repository_index_by_slug(repositories)
-          term = params[:slug].presence || params[:q].presence || params[:search].presence
-          term = term.to_s.strip.downcase
-          return repositories if term.blank?
+        # Resolves the active SmartFolder (by id, scoped to built-ins and this
+        # user's own folders -- same visibility rule as every other subject).
+        def active_repository_smart_folder
+          return @active_repository_smart_folder if defined?(@active_repository_smart_folder)
 
-          repositories.select { |repository| repository.slug.downcase.include?(term) }
+          id = Integer(params[:smart_folder_id], exception: false)
+          @active_repository_smart_folder = id && SmartFolder.for_subject("repository")
+            .where("user_id IS NULL OR user_id = ?", Current.user.id)
+            .find_by(id: id)
         end
 
-        def filter_repository_index_by_github_owner(repositories)
-          owners = repository_index_param_values(:github_owner).map(&:downcase)
-          return repositories if owners.empty?
-
-          repositories.select { |repository| owners.include?(repository.owner.downcase) }
-        end
-
-        def filter_repository_index_by_health(repositories)
-          health_values = repository_index_param_values(:health)
-          return repositories if health_values.empty?
-
-          repositories.select { |repository| health_values.include?(repository.main_health) }
-        end
-
-        def filter_repository_index_by_agent_provider(repositories)
-          providers = repository_index_param_values(:agent_provider)
-          return repositories if providers.empty?
-
-          repositories.select { |repository| providers.include?(repository.agent_provider.to_s) }
-        end
-
-        def filter_repository_index_by_open_jobs(repositories)
-          desired = repository_index_boolean_param(:has_open_jobs)
-          return repositories if desired.nil?
-
-          repositories.select { |repository| repository_index_open_jobs_count(repository).positive? == desired }
-        end
-
-        def filter_repository_index_by_archived(repositories)
-          desired = repository_index_boolean_param(:archived)
-          return repositories if desired.nil?
-
-          repositories.select { |repository| repository.archived? == desired }
-        end
-
-        def filter_repository_index_by_activity_since(repositories)
-          cutoff = repository_index_time_param(:activity_since)
-          return repositories unless cutoff
-
-          repositories.select do |repository|
-            activity_at = repository_index_last_job(repository)&.updated_at
-            activity_at && activity_at >= cutoff
+        # The active filter for the current request: the selected folder's
+        # filter acts as a floor, but any explicit legacy dropdown param
+        # (github_owner, health, etc.) present on the request takes over
+        # instead of ANDing with it -- see Repositories::Filter.smart_folder_floor.
+        def repository_filter
+          @repository_filter ||= begin
+            floor = Repositories::Filter.smart_folder_floor(params, active_repository_smart_folder, user: Current.user)
+            Repositories::Filter.from_params(params, smart_folder: floor, user: Current.user)
           end
         end
 
-        def filter_repository_index_by_activity_before(repositories)
-          cutoff = repository_index_time_param(:activity_before) || repository_index_time_param(:before)
-          return repositories unless cutoff
+        def repository_smart_folders_json(repositories)
+          SmartFolder.ensure_builtins_for_subject!("repository")
 
-          repositories.select do |repository|
-            activity_at = repository_index_last_job(repository)&.updated_at
-            activity_at && activity_at <= cutoff
-          end
+          ::Admin::SmartFolderNavigation.new(
+            subject: "repository",
+            user: Current.user,
+            active_folder: active_repository_smart_folder,
+            base_scope: repositories,
+            filter_class: Repositories::Filter,
+            count_provider: ->(folder) { repository_count_for_folder(folder, repositories) }
+          ).folders
+        end
+
+        def repository_count_for_folder(folder, repositories)
+          Repositories::Filter.from_tree(folder.filter, user: Current.user).apply(
+            repositories,
+            open_jobs_counts: @repository_index_open_job_counts || {},
+            last_job_activity_by_id: repository_index_last_job_activity_by_id
+          ).size
         end
 
         def repository_index_open_jobs_count(repository)
@@ -1143,26 +1126,9 @@ module Api
           end
         end
 
-        def repository_index_param_values(key)
-          value = params[key]
-          values = value.is_a?(Array) ? value : value.to_s.split(",")
-          values.map { |item| item.to_s.strip }.reject(&:blank?)
-        end
-
-        def repository_index_boolean_param(key)
-          value = params[key]
-          return nil if value.nil? || value == ""
-
-          ActiveModel::Type::Boolean.new.cast(value)
-        end
-
-        def repository_index_time_param(key)
-          value = params[key].to_s.strip
-          return if value.blank?
-
-          Time.zone.parse(value)
-        rescue ArgumentError
-          nil
+        def repository_index_last_job_activity_by_id
+          @repository_index_last_job_activity_by_id ||= (@repository_index_last_jobs_by_repository_id || {})
+            .transform_values(&:updated_at)
         end
 
         def preload_repository_detail_job_state(jobs)

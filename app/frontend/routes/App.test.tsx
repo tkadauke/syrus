@@ -8883,14 +8883,6 @@ describe("App", () => {
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
-      if (path === "/api/v1/app/repositories/3/archive" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify(repositoriesPayload({ message: "acme/widgets archived." })), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
-      if (path === "/api/v1/app/repositories") {
-        return Promise.resolve(new Response(JSON.stringify(repositoriesPayload({ message: "acme/widgets archived." })), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
       return Promise.resolve(new Response(JSON.stringify(repositoryDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
@@ -8928,15 +8920,10 @@ describe("App", () => {
     })
     expect(await screen.findByText("Retry enqueued for 1 failed job with Codex.")).toBeInTheDocument()
 
+    // Archive lives in the edit form's danger zone now, not the detail
+    // page's "More" menu.
     fireEvent.click(screen.getByText("More"))
-    fireEvent.click(screen.getByRole("button", { name: "Archive" }))
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/3/archive",
-        expect.objectContaining({ method: "POST", credentials: "same-origin" })
-      )
-    })
-    expect(await screen.findByRole("main", { name: "Repositories" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
   })
 
 
@@ -15405,6 +15392,13 @@ function repositoriesPayload(overrides: {
         }
       }
     }),
+    smart_folders: [
+      { id: 1, name: "All", i18n_key: "repositories_all", position: 0, kind: "builtin", subject_type: "repository", visibility: "always", count: 2, active: true, filter: { and: [] }, path: "/repositories?smart_folder_id=1" },
+      { id: 2, name: "Recent", i18n_key: "repositories_recent", position: 1, kind: "builtin", subject_type: "repository", visibility: "always", count: 0, active: false, filter: { and: [] }, path: "/repositories?smart_folder_id=2" },
+      { id: 3, name: "Archived", i18n_key: "repositories_archived", position: 2, kind: "builtin", subject_type: "repository", visibility: "always", count: 1, active: false, filter: { and: [] }, path: "/repositories?smart_folder_id=3" }
+    ],
+    active_smart_folder_id: null,
+    filter: { and: [] },
     message: overrides.message
   }
 }

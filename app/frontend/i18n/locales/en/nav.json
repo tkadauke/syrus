@@ -258,7 +258,10 @@
     "admin_queue_polling": "Polling",
     "admin_queue_indexing": "Indexing",
     "admin_queue_cleanup": "Cleanup",
-    "admin_queue_low_priority_maintenance": "Low-priority maintenance"
+    "admin_queue_low_priority_maintenance": "Low-priority maintenance",
+    "repositories_all": "All",
+    "repositories_recent": "Recent",
+    "repositories_archived": "Archived"
   },
   "notifications": {
     "title": "Notifications",
