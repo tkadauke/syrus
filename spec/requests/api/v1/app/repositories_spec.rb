@@ -451,6 +451,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     get "/api/v1/app/repositories/#{repository.id}"
 
     expect(response).to have_http_status(:ok)
+    expect(parse_body["can_edit"]).to eq(false)
     expect(parse_body["can_release_triage_jobs"]).to eq(false)
     expect(parse_body["needs_triage_count"]).to eq(0)
     expect(parse_body["needs_triage_jobs"]).to eq([])
@@ -691,6 +692,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body.dig("repository", "main_branch_repair_blocks_work")).to eq(true)
     expect(body.dig("repository", "main_branch_repair_auto_approve")).to eq(false)
     expect(body.dig("repository", "treat_grader_timeouts_as_failures")).to eq(false)
+    expect(body["can_edit"]).to eq(true)
     expect(body.dig("health_history", "landing_paused")).to eq(true)
     expect(body.dig("health_history", "main_branch_health_enabled")).to eq(true)
     expect(body.dig("health_history", "main_branch_repair_enabled")).to eq(true)

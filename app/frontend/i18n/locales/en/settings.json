@@ -464,7 +464,7 @@
     "new_job": "New job",
     "launch_skill": "Launch skill",
     "poll_now": "Poll now",
-    "more": "More",
+    "more_actions": "More actions",
     "edit": "Edit",
     "retry_failed_with": "Retry {{count}} failed with {{provider}}",
     "insight_started": "Insight analysis started.",
