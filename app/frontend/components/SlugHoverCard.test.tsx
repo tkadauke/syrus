@@ -39,7 +39,7 @@ function mockMatchMedia(matches: boolean) {
 function renderCard(kind: "job" | "epic" | "plugin", id: number, prefix?: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const label = kind === "plugin" ? prefix : kind.toUpperCase()
-  render(
+  return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
         <SlugHoverCard id={id} kind={kind} prefix={prefix}>
@@ -180,5 +180,37 @@ describe("SlugHoverCard on a pointer:fine device", () => {
     await act(async () => { fireEvent.mouseLeave(card) })
 
     expect(screen.queryByTestId("job-card")).not.toBeInTheDocument()
+  })
+
+  it("does not warn or render a stale portal when unmounted before the open timer fires", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const { unmount } = renderCard("job", 42)
+    const span = screen.getByRole("link", { name: "JOB-42" }).parentElement!
+    fireEvent.mouseEnter(span)
+
+    unmount()
+
+    await act(async () => { vi.advanceTimersByTime(300) })
+
+    expect(screen.queryByTestId("job-card")).not.toBeInTheDocument()
+    expect(errorSpy).not.toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
+  it("does not warn or render a stale portal when unmounted before the close timer fires", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const { unmount } = renderCard("job", 42)
+    const span = screen.getByRole("link", { name: "JOB-42" }).parentElement!
+    fireEvent.mouseEnter(span)
+    await act(async () => { vi.advanceTimersByTime(300) })
+    expect(screen.getByTestId("job-card")).toBeInTheDocument()
+
+    fireEvent.mouseLeave(span)
+    unmount()
+
+    await act(async () => { vi.advanceTimersByTime(100) })
+
+    expect(errorSpy).not.toHaveBeenCalled()
+    errorSpy.mockRestore()
   })
 })
