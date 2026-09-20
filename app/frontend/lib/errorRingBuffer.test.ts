@@ -16,8 +16,28 @@ describe("errorRingBuffer", () => {
 
     const errors = getRecentErrors()
     expect(errors).toHaveLength(1)
-    expect(errors[0]).toMatchObject({ message: "Test error", source: "app.js" })
+    expect(errors[0]).toMatchObject({ message: "Test error", source: "app.js", count: 1 })
     expect(errors[0].at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it("deduplicates repeated identical errors and counts them instead of growing the buffer", () => {
+    for (let i = 0; i < 3; i++) {
+      window.dispatchEvent(new ErrorEvent("error", { message: "Same error", filename: "app.js" }))
+    }
+
+    const errors = getRecentErrors()
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toMatchObject({ message: "Same error", source: "app.js", count: 3 })
+  })
+
+  it("does not dedupe errors with the same message but a different source", () => {
+    window.dispatchEvent(new ErrorEvent("error", { message: "Same error", filename: "app.js" }))
+    window.dispatchEvent(new ErrorEvent("error", { message: "Same error", filename: "other.js" }))
+
+    const errors = getRecentErrors()
+    expect(errors).toHaveLength(2)
+    expect(errors[0].count).toBe(1)
+    expect(errors[1].count).toBe(1)
   })
 
   it("captures unhandledrejection with Error reason", () => {

@@ -104,4 +104,49 @@ RSpec.describe BugReports::ContextFormatter do
     result = call(recent_errors: [])
     expect(result).not_to include("Recent JS errors")
   end
+
+  it "deduplicates repeated errors and shows a count" do
+    result = call(
+      recent_errors: [
+        { "message" => "Refused to create a WebAssembly object", "source" => "promise" },
+        { "message" => "Refused to create a WebAssembly object", "source" => "promise" },
+        { "message" => "Refused to create a WebAssembly object", "source" => "promise" }
+      ]
+    )
+
+    expect(result.scan("Refused to create a WebAssembly object").length).to eq(1)
+    expect(result).to include("`Refused to create a WebAssembly object` (promise) (×3)")
+  end
+
+  it "sums an incoming count field across duplicate entries" do
+    result = call(
+      recent_errors: [
+        { "message" => "boom", "source" => "app.js", "count" => 4 },
+        { "message" => "boom", "source" => "app.js", "count" => 2 }
+      ]
+    )
+
+    expect(result).to include("`boom` (app.js) (×6)")
+  end
+
+  it "omits the count suffix for a single occurrence" do
+    result = call(
+      recent_errors: [ { "message" => "TypeError: x is null", "source" => "app.js" } ]
+    )
+
+    expect(result).to include("`TypeError: x is null` (app.js)")
+    expect(result).not_to include("×")
+  end
+
+  it "keeps distinct errors on separate lines" do
+    result = call(
+      recent_errors: [
+        { "message" => "first error", "source" => "app.js" },
+        { "message" => "second error", "source" => "chunk.js" }
+      ]
+    )
+
+    expect(result).to include("`first error` (app.js)")
+    expect(result).to include("`second error` (chunk.js)")
+  end
 end

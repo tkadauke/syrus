@@ -155,7 +155,7 @@ describe("BugReportButton", () => {
 
   it("shows recent errors in the preview when present", async () => {
     mockGetRecentErrors.mockReturnValue([
-      { message: "TypeError: cannot read x", source: "app.js", at: "2025-01-01T00:00:00.000Z" }
+      { message: "TypeError: cannot read x", source: "app.js", at: "2025-01-01T00:00:00.000Z", count: 1 }
     ])
 
     const ref = renderButton()
@@ -163,6 +163,28 @@ describe("BugReportButton", () => {
 
     expect(screen.getByText("TypeError: cannot read x")).toBeInTheDocument()
     expect(screen.getByText("(app.js)")).toBeInTheDocument()
+  })
+
+  it("shows a count badge for a deduplicated recurring error", async () => {
+    mockGetRecentErrors.mockReturnValue([
+      { message: "TypeError: cannot read x", source: "app.js", at: "2025-01-01T00:00:00.000Z", count: 5 }
+    ])
+
+    const ref = renderButton()
+    await openDialog(ref)
+
+    expect(screen.getByText("×5")).toBeInTheDocument()
+  })
+
+  it("omits the count badge for a single occurrence", async () => {
+    mockGetRecentErrors.mockReturnValue([
+      { message: "TypeError: cannot read x", source: "app.js", at: "2025-01-01T00:00:00.000Z", count: 1 }
+    ])
+
+    const ref = renderButton()
+    await openDialog(ref)
+
+    expect(screen.queryByText("×1")).not.toBeInTheDocument()
   })
 
   it("shows the chat session row when chatId is provided", async () => {
@@ -230,7 +252,7 @@ describe("BugReportButton", () => {
   it("sends context JSON with the bug report submission", async () => {
     mockCreateBugReport.mockResolvedValue({ message: "Bug report queued." } satisfies BugReportPayload)
     mockGetRecentErrors.mockReturnValue([
-      { message: "ReferenceError: x is not defined", source: "chunk.js", at: "2025-06-01T12:00:00.000Z" }
+      { message: "ReferenceError: x is not defined", source: "chunk.js", at: "2025-06-01T12:00:00.000Z", count: 1 }
     ])
 
     const ref = renderButton({ context: "Admin" })
@@ -306,7 +328,7 @@ describe("BugReportButton", () => {
   it("starts a chat with the selected screenshot, files, and context", async () => {
     const onChatStarted = vi.fn()
     mockGetRecentErrors.mockReturnValue([
-      { message: "TypeError: boom", source: "app.js", at: "2026-09-15T00:00:00.000Z" }
+      { message: "TypeError: boom", source: "app.js", at: "2026-09-15T00:00:00.000Z", count: 1 }
     ])
     const ref = renderButton({
       bugReportMode: "direct_job",
