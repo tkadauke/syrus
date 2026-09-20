@@ -937,6 +937,23 @@ function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: {
     if (focusedThreadId != null || focusedSuggestionId != null) setNarrowDrawerOpen(true)
   }, [narrowView, focusedThreadId, focusedSuggestionId])
 
+  // Runs one commit after the effect above: threadRefs/suggestionRefs only
+  // populate once the drawer's cards actually render, which happens on the
+  // render triggered by that effect's setNarrowDrawerOpen(true), not the
+  // one where focusedThreadId/focusedSuggestionId first changed. Without
+  // this, a focused card deep in a long comment list could open off-screen
+  // inside the drawer's own scroll area.
+  useEffect(() => {
+    if (!narrowView || !narrowDrawerOpen) return
+
+    const cardEl = focusedThreadId != null
+      ? threadRefs.current[focusedThreadId]
+      : focusedSuggestionId != null
+        ? suggestionRefs.current[focusedSuggestionId]
+        : null
+    cardEl?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })
+  }, [narrowView, narrowDrawerOpen, focusedThreadId, focusedSuggestionId])
+
   useEffect(() => {
     persistedDraftRef.current = persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown)
   }, [canWriteCanonical, doc.id])
@@ -1894,9 +1911,21 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compose
   // CommentThreadCard/SuggestionThreadCard directly rather than the rail's
   // absolute-positioned, anchor-aligned stack -- there is no adjacent
   // document column for cards to line up next to at this width.
+  //
+  // `sticky`, not `fixed`: a chat workspace tab renders this inside its own
+  // `overflow-y-auto` side panel (WorkspaceDesignDocs.tsx), with no
+  // transform/filter ancestor to scope `fixed` to that panel -- a `fixed`
+  // drawer would escape to the full browser viewport and overlay the
+  // unrelated main chat conversation next to it, not just this panel.
+  // `position: sticky` resolves against the nearest actual scrolling
+  // ancestor (that panel, or the page itself on a real mobile viewport),
+  // transparently skipping every non-scrolling wrapper in between, and
+  // -- since it stays a normal-flow block instead of being pulled out of
+  // flow -- it also reserves its own space so the document body's last
+  // lines never end up hidden underneath it.
   if (narrowView) {
     return (
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface shadow-lg" data-testid="design-doc-comment-drawer">
+      <div className="sticky bottom-0 z-40 border-t border-border bg-surface shadow-lg" data-testid="design-doc-comment-drawer">
         <button
           aria-controls="design-doc-comment-drawer-panel"
           aria-expanded={drawerOpen}

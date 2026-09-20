@@ -739,18 +739,31 @@ describe("DesignDocsSurface", () => {
   it("opens the comment drawer to a thread when its highlighted anchor is clicked in the read-only body", async () => {
     mockMobileViewport()
     mockFetch()
-    renderSurface("/design_docs/1")
+    const scrollIntoViewSpy = vi.fn()
+    HTMLElement.prototype.scrollIntoView = scrollIntoViewSpy as typeof HTMLElement.prototype.scrollIntoView
 
-    const body = await screen.findByRole("region", { name: "Design doc content" })
-    const highlight = body.querySelector("mark[data-thread-id='7']")
-    expect(highlight).not.toBeNull()
+    try {
+      renderSurface("/design_docs/1")
 
-    fireEvent.click(highlight!)
+      const body = await screen.findByRole("region", { name: "Design doc content" })
+      const highlight = body.querySelector("mark[data-thread-id='7']")
+      expect(highlight).not.toBeNull()
 
-    const toggle = await screen.findByRole("button", { name: "2 comments" })
-    expect(toggle).toHaveAttribute("aria-expanded", "true")
-    expect(await screen.findByText("Needs evidence")).toBeInTheDocument()
-    expect(screen.getByText("Needs evidence").closest("[data-anchor-offset]")).toHaveClass("border-amber-400")
+      fireEvent.click(highlight!)
+
+      const toggle = await screen.findByRole("button", { name: "2 comments" })
+      expect(toggle).toHaveAttribute("aria-expanded", "true")
+      const card = (await screen.findByText("Needs evidence")).closest("[data-anchor-offset]")
+      expect(card).toHaveClass("border-amber-400")
+      // The card only mounts once the drawer opens (a render after the
+      // click), so scrolling it into view within the drawer's own scroll
+      // area has to be a later, separate effect from the one that scrolls
+      // the in-document highlight -- it can't happen synchronously in the
+      // click handler.
+      await waitFor(() => expect(scrollIntoViewSpy).toHaveBeenCalledWith(expect.objectContaining({ block: "nearest" })))
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
+    }
   })
 
   it("creates a new comment from a text selection through the narrow-view drawer composer", async () => {
