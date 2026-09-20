@@ -1212,6 +1212,8 @@ module WorkEngine
           intent = target_work_intent
           return skipped("WorkIntent no longer exists") unless intent
           return skipped("WorkIntent is #{intent.state}, not requested") unless intent.requested?
+          obsolete_job = cancel_obsolete_closed_job_intent!(intent)
+          return success("cancelled #{work_intent_label(intent)} because #{job_label(obsolete_job)} is closed") if obsolete_job
 
           result = WorkIntents::Scheduler.start_ready!(
             intent,
@@ -1233,6 +1235,19 @@ module WorkEngine
         end
 
         private
+
+        def cancel_obsolete_closed_job_intent!(intent)
+          job = job_for_intent(intent)
+          return false unless job&.closed?
+
+          active_unit_ids = intent.work_units
+            .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
+            .pluck(:id)
+          return false if active_unit_ids.any?
+
+          intent.cancel!
+          job
+        end
 
         def latest_artifacts_for(intent)
           latest_workflow_for(intent)&.artifacts.presence || intent.payload_artifacts.presence || {}
