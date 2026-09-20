@@ -1,7 +1,7 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading } from "../components/Heading"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
@@ -151,7 +151,22 @@ export function RepositoriesIndex() {
   const location = useLocation()
   const repositories = useQuery({
     queryKey: ["repositories", location.search],
-    queryFn: () => fetchRepositories(location.search)
+    queryFn: () => fetchRepositories(location.search),
+    // Keeps the previously filtered table (and the mounted FilterBar/column
+    // picker/select DOM nodes) on screen while a new filter's query is in
+    // flight, instead of tearing the whole view down to "Loading
+    // repositories..." and remounting it fresh on every filter change.
+    placeholderData: keepPreviousData
+  })
+  // A separate, always-unfiltered fetch backing the owner/agent filter
+  // dropdown option lists. Sourcing those options from `repositories.data`
+  // instead would narrow them by whatever filters are already applied
+  // (including the filter's own dimension), so picking a value could make
+  // every other option -- and a way back to it -- disappear.
+  const filterOptions = useQuery({
+    queryKey: ["repositories", "filter-options"],
+    queryFn: () => fetchRepositories(),
+    staleTime: 60_000
   })
   const prefix = routePrefix(location.pathname)
 
@@ -163,12 +178,20 @@ export function RepositoriesIndex() {
         </PanelMessage>
       ) : null}
       {repositories.isError ? <PanelMessage tone="error">{errorMessage(repositories.error, t("repositories.error_load"))}</PanelMessage> : null}
-      {repositories.isSuccess ? <RepositoriesView pathname={location.pathname} payload={repositories.data} prefix={prefix} search={location.search} /> : null}
+      {repositories.isSuccess ? (
+        <RepositoriesView
+          filterOptionsPayload={filterOptions.data ?? repositories.data}
+          pathname={location.pathname}
+          payload={repositories.data}
+          prefix={prefix}
+          search={location.search}
+        />
+      ) : null}
     </main>
   )
 }
 
-function RepositoriesView({ payload, prefix, pathname, search }: { payload: RepositoriesPayload; prefix: string; pathname: string; search: string }) {
+function RepositoriesView({ payload, filterOptionsPayload, prefix, pathname, search }: { payload: RepositoriesPayload; filterOptionsPayload: RepositoriesPayload; prefix: string; pathname: string; search: string }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const setupStatus = useSetupStatus()
@@ -224,7 +247,7 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
       ) : (
         <>
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <RepositoryFilterBar payload={payload} pathname={pathname} search={search} />
+            <RepositoryFilterBar optionsPayload={filterOptionsPayload} pathname={pathname} search={search} />
             <RepositoryColumnPicker onToggle={toggleColumn} visibleColumns={visibleColumns} />
           </div>
 
@@ -252,7 +275,7 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
   )
 }
 
-function RepositoryFilterBar({ payload, pathname, search }: { payload: RepositoriesPayload; pathname: string; search: string }) {
+function RepositoryFilterBar({ optionsPayload, pathname, search }: { optionsPayload: RepositoriesPayload; pathname: string; search: string }) {
   const { t } = useT("settings")
   const navigate = useNavigate()
   const filters = useMemo(() => readRepositoryFilters(search), [search])
@@ -274,7 +297,10 @@ function RepositoryFilterBar({ payload, pathname, search }: { payload: Repositor
     // it fires (search changes as soon as this timeout calls navigate).
   }, [slugDraft])
 
-  const allRepositories = useMemo(() => [...payload.active_repositories, ...payload.archived_repositories], [payload])
+  // Sourced from the always-unfiltered optionsPayload (see RepositoriesIndex)
+  // so picking a value -- or narrowing via any other filter, including a
+  // dropdown's own dimension -- never removes other choices from the list.
+  const allRepositories = useMemo(() => [...optionsPayload.active_repositories, ...optionsPayload.archived_repositories], [optionsPayload])
   const ownerOptions = useMemo(
     () => uniqueSorted([...allRepositories.map((repository) => repository.owner), ...(filters.github_owner ? [filters.github_owner] : [])]),
     [allRepositories, filters.github_owner]
