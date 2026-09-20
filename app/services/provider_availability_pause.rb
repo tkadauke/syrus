@@ -18,16 +18,14 @@ class ProviderAvailabilityPause
         "availability_state" => availability&.dig(:state) || availability&.dig("state"),
         "usage_status" => usage[:status] || usage["status"],
         "observed_at" => usage[:observed_at] || usage["observed_at"],
-        "reset_at" => reset_at,
+        "reset_at" => reset_at&.iso8601,
         "provider_failover_decision" => failover&.artifact
       }.compact
     end
 
     def reset_at
       usage = availability&.dig(:usage) || {}
-      windows = usage[:windows] || usage["windows"] || {}
-      [ windows.dig(:five_hour, :reset_at), windows.dig("five_hour", "reset_at"),
-        windows.dig(:weekly, :reset_at), windows.dig("weekly", "reset_at") ].compact.min
+      ProviderRouting::UsageWindows.earliest_reset_at(usage)
     end
   end
 
@@ -191,9 +189,7 @@ class ProviderAvailabilityPause
 
   def earliest_reset_at(availability)
     usage = availability&.dig(:usage) || availability&.dig("usage") || {}
-    windows = usage[:windows] || usage["windows"] || {}
-    [ windows.dig(:five_hour, :reset_at), windows.dig("five_hour", "reset_at"),
-      windows.dig(:weekly, :reset_at), windows.dig("weekly", "reset_at") ].compact.min
+    ProviderRouting::UsageWindows.earliest_reset_at(usage)
   end
 
   def overridden?(availability)
@@ -210,6 +206,8 @@ class ProviderAvailabilityPause
   end
 
   def parse_time(value)
+    return value if value.is_a?(Time)
+
     Time.zone.parse(value.to_s)
   rescue ArgumentError, TypeError
     nil

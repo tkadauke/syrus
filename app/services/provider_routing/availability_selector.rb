@@ -65,13 +65,7 @@ module ProviderRouting
       end
 
       def reset_at(usage)
-        windows = usage[:windows] || usage["windows"] || {}
-        [
-          windows.dig(:five_hour, :reset_at),
-          windows.dig("five_hour", "reset_at"),
-          windows.dig(:weekly, :reset_at),
-          windows.dig("weekly", "reset_at")
-        ].compact.min
+        ProviderRouting::UsageWindows.earliest_reset_at(usage)
       end
     end
 
