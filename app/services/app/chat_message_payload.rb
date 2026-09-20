@@ -10,6 +10,35 @@ module App
       new(repository: repository).send(:proposal_json, proposal, chat_session: chat_session)
     end
 
+    def self.proposal_title(proposal)
+      proposal.title
+    end
+
+    def self.anchor_message_id(proposal)
+      if proposal.message_anchors.loaded?
+        proposal.message_anchors.max_by(&:id)&.id
+      else
+        proposal.message_anchors.reorder(id: :desc).pick(:id)
+      end
+    end
+
+    # Shared shape for a proposal card on the Jobs tab's "Proposed" section --
+    # used both by the dashboard chrome payload and by the proposal AppEvents
+    # broadcasts, so a live add/remove patch on the frontend never needs a
+    # dashboard refetch to have enough data to render or link the card.
+    def self.dashboard_pending_proposal_json(proposal)
+      chat_session = proposal.chat_session
+      {
+        id: proposal.id,
+        title: proposal_title(proposal),
+        state: proposal.state,
+        chat_session_id: proposal.chat_session_id,
+        chat_title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository),
+        anchor_message_id: anchor_message_id(proposal),
+        created_at: proposal.created_at&.iso8601
+      }
+    end
+
     def initialize(repository:)
       @repository = repository
       @proposal_by_chat_and_slug = {}
@@ -536,11 +565,7 @@ module App
     end
 
     def anchor_message_id(proposal)
-      if proposal.message_anchors.loaded?
-        proposal.message_anchors.max_by(&:id)&.id
-      else
-        proposal.message_anchors.reorder(id: :desc).pick(:id)
-      end
+      self.class.anchor_message_id(proposal)
     end
 
     def proposal_for_slug(chat_session, slug)
