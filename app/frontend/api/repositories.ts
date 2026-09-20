@@ -749,10 +749,6 @@ export function syncFork(id: number) {
   return postJson<{ message?: string }>(`/api/v1/app/repositories/${id}/sync_fork`)
 }
 
-export function archiveRepository(id: number) {
-  return postJson<RepositoriesPayload>(`/api/v1/app/repositories/${id}/archive`)
-}
-
 export function unarchiveRepository(id: number) {
   return postJson<RepositoriesPayload>(`/api/v1/app/repositories/${id}/unarchive`)
 }
