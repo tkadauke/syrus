@@ -129,8 +129,7 @@ module App
     end
 
     def latest_run_for(step)
-      rows = step.association(:runs).loaded? ? step.runs.to_a : step.runs.to_a
-      rows.max_by { |run| [ run.created_at || Time.zone.at(0), run.id || 0 ] }
+      step.runs.to_a.max_by { |run| [ run.created_at || Time.zone.at(0), run.id || 0 ] }
     end
   end
 end
