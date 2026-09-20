@@ -9,13 +9,23 @@ module SyrusBrowser
   # browser_drop for the common case of dropping a file onto a drop zone — it synthesizes a
   # real drag/drop via Playwright itself rather than a hand-rolled DataTransfer approximation.
   #
-  # Arbitrary JS execution is more powerful than the other proxied tools, but it doesn't
-  # meaningfully expand what a workflow agent can already do: the review step already has
-  # unrestricted shell access to the same sandboxed workspace (see Prompts::VisualReview), so
-  # an agent willing to exfiltrate data via evaluated `fetch`/XHR could already do so directly
-  # via shell — there is no separate network egress policy this tool would be bypassing.
-  # LoopbackGuard only restricts browser_navigate's top-level navigation target; it makes no
-  # claim about in-page network calls, evaluated or otherwise.
+  # Two separate concerns, two separate answers:
+  #
+  # 1. Network egress: arbitrary JS execution doesn't meaningfully expand what a workflow
+  #    agent can already do. The review step already has unrestricted shell access to the same
+  #    sandboxed workspace (see Prompts::VisualReview), so an agent willing to exfiltrate data
+  #    via evaluated `fetch`/XHR could already do so directly via shell -- there is no separate
+  #    network egress policy this tool would be bypassing. LoopbackGuard only restricts
+  #    browser_navigate's top-level navigation target; it makes no claim about in-page network
+  #    calls, evaluated or otherwise. This is why the tool stays exempt from LoopbackGuard.
+  #
+  # 2. Input lease (DOC-17's Shared Human/Agent Control, see BrowserTool#requires_input_lease!):
+  #    a JS function can dispatch synthetic click/keyboard events or set form field values,
+  #    functionally simulating the same pointer/keyboard input browser_click/browser_fill/
+  #    browser_hover exist to gate. That's a different capability than network egress and isn't
+  #    covered by the reasoning above, so this tool also requires the lease -- see
+  #    `requires_input_lease!` below. A Coding Mode agent that only needs read-only inspection
+  #    (page state, assertions) should reach for browser_snapshot instead, which stays ungated.
   class EvaluateTool < BrowserTool
     tool_name "browser_evaluate"
 
@@ -36,5 +46,6 @@ module SyrusBrowser
 
     argument_aliases target: %i[ref]
     proxies "browser_evaluate", element: "element", target: "target", function: "function"
+    requires_input_lease!
   end
 end
