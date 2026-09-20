@@ -6,6 +6,8 @@
   "loading": "Nexus onerantur…",
   "error_loading": "Nexus onerari non possunt.",
   "empty": "Nulli adhuc nexus. Unum adde ut incipias.",
+  "add_button": "Adde",
+  "close_button": "Claude",
   "add_heading": "Nexum adde",
   "edit_heading": "Nexum muta",
   "field_label": "Titulus",
