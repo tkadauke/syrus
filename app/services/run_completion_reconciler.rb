@@ -81,6 +81,7 @@ class RunCompletionReconciler
     return true if record&.running?
     return false unless allow_terminal_recovery
     return false unless record
+    return true if deterministic_success_step_recovered_state?(record, label)
 
     if record.cancelled? || record.failed?
       true
@@ -91,6 +92,12 @@ class RunCompletionReconciler
       @unreconciled_reason = "#{label} is #{record.state}, not running"
       false
     end
+  end
+
+  def deterministic_success_step_recovered_state?(record, label)
+    label == :step &&
+      successful_handler_terminal_recovery_step? &&
+      (record.queued? || record.succeeded?)
   end
 
   def reconcile_pr_open

@@ -44,7 +44,7 @@ class Step < ApplicationRecord
   # outcome -- a failed dependency is still a settled one, and what happens
   # next is the remediation table's business, not the graph's.
   def dependencies_settled?(settled_step: nil)
-    settled_step_id = settled_step&.terminal? ? settled_step.id : nil
+    settled_step_id = settled_step&.id
 
     if depends_on_step_ids.empty?
       predecessor = previous_step

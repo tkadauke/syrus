@@ -1555,7 +1555,11 @@ class StepDispatcher
   end
 
   def downstream_work_pending?
-    return @workflow.steps.active.exists? if distributed_ready_set_enabled?
+    if distributed_ready_set_enabled?
+      scope = @workflow.steps.active
+      scope = scope.where("position > ?", @from_step.position) if @from_step
+      return scope.exists?
+    end
 
     cursor = @from_step ? @from_step.next_step : @workflow.first_step
     while cursor
@@ -1658,7 +1662,7 @@ class StepDispatcher
   MERGEABILITY_RECHECK_DELAY = 30.seconds
 
   def finish_workflow!
-    return if @workflow.active_descendants?
+    return if workflow_finish_blocked_by_live_descendants?
 
     if @workflow.uncleared_retry_until_barrier?
       return hard_fail_workflow!("uncleared_retry_until_barrier_after_success")
@@ -1675,6 +1679,13 @@ class StepDispatcher
     StackRebaseCoordinator.parent_amended(@workflow.job) if pushed_workflow? && @workflow.trigger_kind != "stack_rebase"
     schedule_mergeability_recheck
     schedule_auto_merge_recheck
+  end
+
+  def workflow_finish_blocked_by_live_descendants?
+    return true if @workflow.runs.active.exists?
+    return true if @workflow.projected_running_steps.any?
+
+    downstream_work_pending?
   end
 
   def pushed_workflow?

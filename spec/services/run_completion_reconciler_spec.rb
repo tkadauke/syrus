@@ -94,6 +94,30 @@ RSpec.describe RunCompletionReconciler do
       expect(StepDispatcher).to have_received(:advance_from).with(fanout)
     end
 
+    it "recovers deterministic fanout when the step was already reset out of running" do
+      workflow.steps.destroy_all
+      fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 1)
+      collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 2)
+      fanout.update!(next_step: collect)
+      run = fanout.runs.create!(job: job, trigger_kind: "initial", agent_provider: job.agent_provider)
+      workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+      run.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+      allow(StepDispatcher).to receive(:advance_from)
+
+      %w[queued succeeded].each do |state|
+        fanout.update_columns(state: state, started_at: 5.minutes.ago, finished_at: (state == "succeeded" ? 1.minute.ago : nil))
+        run.update_columns(state: "failed", finished_at: 1.minute.ago)
+
+        result = described_class.call(run, allow_terminal_recovery: true)
+
+        expect(result).to be_reconciled
+        expect(result.reason).to eq("grader_fanout: handler returned successfully after terminal race")
+        expect(run.reload).to be_succeeded
+        expect(fanout.reload).to be_succeeded
+        expect(workflow.reload).to be_running
+      end
+    end
+
     it "revives grader steps cancelled by terminal cleanup when fanout recovers after a terminal race" do
       workflow.steps.destroy_all
       loop_id = SecureRandom.uuid
