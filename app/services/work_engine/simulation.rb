@@ -6,6 +6,7 @@ module WorkEngine
       def success? = status == "success"
       def waiting? = status == "waiting"
       def stuck? = status == "stuck"
+      def error? = status == "error"
     end
 
     Outcome = Data.define(:default, :steps)

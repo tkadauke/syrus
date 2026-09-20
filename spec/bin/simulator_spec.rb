@@ -69,6 +69,14 @@ RSpec.describe "bin/simulator", :ci_only do
     expect(stdout).to include("(expected stuck)")
   end
 
+  it "resolves symbolic alternate providers with no agent-provider plugins manually enabled" do
+    stdout, stderr, status = run_simulator("spec/fixtures/work_engine_simulations/provider_switch_relaunches_blocked_work.yml")
+
+    expect(status).to be_success, stderr
+    expect(stdout).to include("provider switch relaunches blocked work: success")
+    expect(stdout).to include("work-engine simulations passed (1 scenarios)")
+  end
+
   it "returns usage errors for extra arguments" do
     stdout, stderr, status = run_simulator("one.yml", "two.yml")
 
