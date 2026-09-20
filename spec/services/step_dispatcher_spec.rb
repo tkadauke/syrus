@@ -1020,6 +1020,9 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "creates a Run on the next runnable step" do
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
       expect {
         described_class.advance_from(s1)
       }.to change { s2.runs.count }.by(1)
@@ -1527,6 +1530,8 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "keeps workflows without loops on the existing linear path" do
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
       expect {
         described_class.advance_from(s1)
       }.to change { s2.runs.count }.by(1)
