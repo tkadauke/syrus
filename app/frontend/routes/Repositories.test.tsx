@@ -125,3 +125,54 @@ describe("RepositoriesIndex data table", () => {
     expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
   })
 })
+
+describe("RepositoriesIndex filter dropdown options", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  afterEach(() => {
+    window.localStorage.clear()
+  })
+
+  it("keeps every owner option available after filtering narrows the visible repositories", async () => {
+    const fullPayload = repositoriesPayload({
+      active_repositories: [
+        repositoryRow({ id: 1, slug: "acme/widgets", owner: "acme" }),
+        repositoryRow({ id: 2, slug: "bob/gadgets", owner: "bob" })
+      ]
+    })
+    const narrowedPayload = repositoriesPayload({
+      active_repositories: [repositoryRow({ id: 1, slug: "acme/widgets", owner: "acme" })]
+    })
+
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input)
+      if (url.includes("github_owner=acme")) return Promise.resolve(jsonResponse(narrowedPayload))
+      return Promise.resolve(jsonResponse(fullPayload))
+    })
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+          <RepositoriesIndex />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const ownerSelect = await screen.findByRole("combobox", { name: "GitHub owner" })
+    expect(within(ownerSelect).getByRole("option", { name: "bob" })).toBeInTheDocument()
+
+    fireEvent.change(ownerSelect, { target: { value: "acme" } })
+
+    await waitFor(() => {
+      expect(screen.queryByText("bob/gadgets")).not.toBeInTheDocument()
+    })
+
+    // The result set narrowed to acme's own repository, but the owner
+    // dropdown must still offer "bob" -- otherwise there is no way back to
+    // it short of clearing every filter.
+    expect(within(ownerSelect).getByRole("option", { name: "bob" })).toBeInTheDocument()
+  })
+})
