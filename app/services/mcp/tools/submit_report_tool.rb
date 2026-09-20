@@ -76,6 +76,7 @@ module Mcp::Tools
         run = Mcp::Tools.run_from_context(server_context)
         context = McpToolContext.from_run(run)
         return Mcp::Tools.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_report)
+        return Mcp::Tools.not_authorized unless run.step&.kind == "submit_report"
 
         normalized_title = Mcp::Tools.utf8(title).strip.truncate(MAX_TITLE_LENGTH)
         normalized_narrative = Mcp::Tools.utf8(narrative).strip.truncate(MAX_NARRATIVE_LENGTH)

@@ -10,9 +10,11 @@ RSpec.describe Mcp::Tools::SubmitReportTool do
       investigation: true
     )
   end
-  let(:run) { job.workflows.last.first_step.runs.first }
+  let(:workflow) { job.workflows.last }
+  let(:submit_report_step) { workflow.steps.find_by!(kind: "submit_report") }
+  let(:run) { Run.create!(job: job, step: submit_report_step, trigger_kind: "investigation") }
 
-  def call(title: "Dashboard slowness", narrative: "It's slow because of an N+1 query.", findings: nil, references: nil)
+  def call(title: "Dashboard slowness", narrative: "It's slow because of an N+1 query.", findings: nil, references: nil, run: self.run)
     described_class.call(title: title, narrative: narrative, findings: findings, references: references, server_context: { run: run })
   end
 
@@ -115,6 +117,32 @@ RSpec.describe Mcp::Tools::SubmitReportTool do
     expect(response).to be_error
     expect(response.content.first[:text]).to include("narrative is required")
     expect(run.workflow.reload.artifact("investigation_report")).to be_nil
+  end
+
+  it "rejects an ordinary implement step in a non-investigation workflow" do
+    ordinary_job = Factories.job_with_run(step_attrs: { kind: "implement" })
+    implement_run = ordinary_job.runs.last
+
+    response = call(run: implement_run)
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("not_authorized")
+    expect(implement_run.workflow.reload.artifact("investigation_report")).to be_nil
+  end
+
+  it "rejects an agent rebase step in a non-investigation workflow" do
+    ordinary_job = Factories.job_with_run(
+      workflow_attrs: { trigger_kind: "rebase" },
+      step_attrs: { kind: "agent_rebase" },
+      run_attrs: { trigger_kind: "rebase" }
+    )
+    rebase_run = ordinary_job.runs.last
+
+    response = call(run: rebase_run)
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("not_authorized")
+    expect(rebase_run.workflow.reload.artifact("investigation_report")).to be_nil
   end
 
   it "writes a JobLog audit line" do
