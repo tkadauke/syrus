@@ -33,7 +33,7 @@ module Steps
         issue: issue_for_prompt,
         comments: hydrate_comments(comments),
         cutoff: cutoff,
-        prior_summaries: prior_feedback_summaries(%w[pr_comment]),
+        prior_summaries: prior_feedback_summaries(Workflow::TriggerKind.feedback_values),
         recent_commits: recent_branch_commits,
         epic: job.epic,
         job: job,
@@ -67,7 +67,7 @@ module Steps
       nil
     end
 
-    # Pull agent_summary strings off every prior pr_comment Workflow
+    # Pull agent_summary strings off every prior feedback Workflow
     # on this Job that produced one, in chronological order. The
     # current workflow is excluded — the summary it will produce is
     # not relevant to this Step's own prompt. Skips Workflows that
