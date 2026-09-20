@@ -14,6 +14,16 @@ vi.mock("./attachMediaLibraryImage", () => ({
   attachMediaLibraryImage: vi.fn()
 }))
 
+const actionCable = vi.hoisted(() => {
+  const createSubscription = vi.fn(() => ({ perform: vi.fn(), unsubscribe: vi.fn() }))
+  const createConsumer = vi.fn(() => ({ subscriptions: { create: createSubscription } }))
+  return { createConsumer, createSubscription }
+})
+
+vi.mock("@rails/actioncable", () => ({
+  createConsumer: actionCable.createConsumer
+}))
+
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
   return {
@@ -902,6 +912,49 @@ describe("ChatWorkspacePanel pinned tab", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Discuss aqueducts\./ }))
 
     expect(onBookmarkSelect).toHaveBeenCalledWith(21)
+  })
+})
+
+describe("ChatWorkspacePanel local diff tab", () => {
+  beforeEach(() => {
+    actionCable.createConsumer.mockClear()
+    actionCable.createSubscription.mockClear()
+  })
+
+  function makeLocalDiffPayload(): ChatPayload {
+    return {
+      ...makePayload({ mode: "local" }),
+      local_mode_enabled: true,
+      local_tunnel_connected: true
+    }
+  }
+
+  it("subscribes through the shared ActionCable consumer, unsubscribes on unmount, and never opens a second WebSocket when the tab is remounted", async () => {
+    const firstUnsubscribe = vi.fn()
+    actionCable.createSubscription.mockReturnValueOnce({ perform: vi.fn(), unsubscribe: firstUnsubscribe })
+
+    const { unmount } = renderWorkspacePanel(makeLocalDiffPayload(), { activeTab: "diff" })
+
+    await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: "LocalDiffChannel" }),
+      expect.anything()
+    ))
+    // Only one underlying WebSocket (the shared consumer) backs the panel.
+    expect(actionCable.createConsumer).toHaveBeenCalledTimes(1)
+
+    unmount()
+
+    expect(firstUnsubscribe).toHaveBeenCalledTimes(1)
+    // Unmounting the panel must not disconnect (or recreate) the shared
+    // app-wide consumer that other components rely on.
+    expect(actionCable.createConsumer).toHaveBeenCalledTimes(1)
+
+    // Simulates switching out of and back into the "diff" tab, which
+    // previously called createConsumer() fresh every time and leaked a
+    // WebSocket connection that was never closed.
+    renderWorkspacePanel(makeLocalDiffPayload(), { activeTab: "diff" })
+    await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalledTimes(2))
+    expect(actionCable.createConsumer).toHaveBeenCalledTimes(1)
   })
 })
 

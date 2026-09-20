@@ -1,4 +1,3 @@
-import { createConsumer } from "@rails/actioncable"
 import { PageHeading } from "../components/Heading"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
@@ -17,6 +16,7 @@ import {
   type PlatformIdentity
 } from "../api/platformIdentities"
 import { ApiError } from "../api/client"
+import { getAppConsumer } from "../lib/actionCable"
 
 const queryKey = ["platform_identities"] as const
 
@@ -209,7 +209,7 @@ function LinkingInstructions({
   onLinkedRef.current = onLinked
 
   useEffect(() => {
-    const consumer = createConsumer()
+    const consumer = getAppConsumer()
     const subscription = consumer.subscriptions.create(
       { channel: "AppUserChannel" },
       {
