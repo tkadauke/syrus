@@ -54,6 +54,45 @@ RSpec.describe CoverageAnalysis::Parsers::Lcov do
     expect(result.lines_pct).to eq(33.33)
   end
 
+  it "merges (not overwrites) hit data for multiple SF: records sharing a source file" do
+    result = parse(<<~LCOV)
+      SF:app/models/multi.rb
+      DA:1,2
+      DA:2,0
+      LF:2
+      LH:1
+      BRF:2
+      BRH:1
+      FNF:1
+      FNH:1
+      end_of_record
+      SF:app/models/multi.rb
+      DA:10,1
+      DA:11,0
+      LF:2
+      LH:1
+      BRF:1
+      BRH:0
+      FNF:1
+      FNH:0
+      end_of_record
+    LCOV
+
+    expect(result.raw[:hit_map]["app/models/multi.rb"]).to eq({
+      "1" => 2, "2" => 0, "10" => 1, "11" => 0
+    })
+
+    stats = result.raw[:file_stats]["app/models/multi.rb"]
+    expect(stats).to include(lf: 4, lh: 2, brf: 3, brh: 1, fnf: 2, fnh: 1)
+
+    expect(result.raw[:lf]).to eq(4)
+    expect(result.raw[:lh]).to eq(2)
+    expect(result.raw[:brf]).to eq(3)
+    expect(result.raw[:brh]).to eq(1)
+    expect(result.raw[:fnf]).to eq(2)
+    expect(result.raw[:fnh]).to eq(1)
+  end
+
   it "returns empty results for empty input" do
     result = parse("")
     expect(result.raw[:hit_map]).to be_empty

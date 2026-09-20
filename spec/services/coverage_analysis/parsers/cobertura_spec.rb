@@ -124,6 +124,42 @@ RSpec.describe CoverageAnalysis::Parsers::Cobertura do
     expect(stats[:lh]).to eq(2)
   end
 
+  it "merges (not overwrites) hit data for multiple classes sharing a filename" do
+    xml = <<~XML
+      <?xml version="1.0" ?>
+      <coverage>
+        <packages><package><classes>
+          <class filename="app/models/multi_class.rb">
+            <lines>
+              <line number="1" hits="2" branch="false"/>
+              <line number="2" hits="0" branch="false"/>
+            </lines>
+          </class>
+          <class filename="app/models/multi_class.rb">
+            <lines>
+              <line number="10" hits="1" branch="false"/>
+              <line number="11" hits="0" branch="true" condition-coverage="50% (1/2)"/>
+            </lines>
+          </class>
+        </classes></package></packages>
+      </coverage>
+    XML
+
+    result = parse(xml)
+
+    expect(result.raw[:hit_map]["app/models/multi_class.rb"]).to eq({
+      "1" => 2, "2" => 0, "10" => 1, "11" => 0
+    })
+
+    stats = result.raw[:file_stats]["app/models/multi_class.rb"]
+    expect(stats).to include(lf: 4, lh: 2, brf: 2, brh: 1)
+
+    expect(result.raw[:lf]).to eq(4)
+    expect(result.raw[:lh]).to eq(2)
+    expect(result.raw[:brf]).to eq(2)
+    expect(result.raw[:brh]).to eq(1)
+  end
+
   it "skips classes with an empty filename" do
     xml = <<~XML
       <?xml version="1.0" ?>

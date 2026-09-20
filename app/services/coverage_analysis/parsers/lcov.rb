@@ -53,8 +53,7 @@ module CoverageAnalysis
             reported_lf = current_stats[:lf] > 0 ? current_stats[:lf] : current_lines.size
             reported_lh = current_stats[:lh] > 0 ? current_stats[:lh] : current_lines.count { |_, c| c > 0 }
 
-            hit_map[current_file] = current_lines.dup
-            file_stats[current_file] = current_stats.dup
+            merge_file_hit_data!(hit_map, file_stats, current_file, current_lines.dup, current_stats.dup)
 
             total_lf  += reported_lf
             total_lh  += reported_lh
