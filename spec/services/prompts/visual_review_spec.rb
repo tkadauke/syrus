@@ -186,6 +186,35 @@ RSpec.describe Prompts::VisualReview do
     expect(prompt).to include("tooling blocker")
   end
 
+  it "forbids approving from an unrelated proxy route when the changed surface can't be reached" do
+    expect(prompt).to include("Changed-surface coverage")
+    expect(prompt).to include("do not approve the change based on")
+    expect(prompt).to include("screenshots of a different, unrelated, or merely similar-looking page")
+    expect(prompt).to include("used as a proxy for it")
+  end
+
+  it "allows a faithful proxy only when the Job/diff makes the shared component itself the target, with a stated reason" do
+    expect(prompt).to include("verifying that shared component through another page the intended")
+    expect(prompt).to include("state in your critique exactly why the proxy page")
+    expect(prompt).to include("is a faithful stand-in for the changed surface")
+  end
+
+  it "tells the reviewer to record skipped for a tooling/seed-data blocker on the intended surface" do
+    expect(prompt).to include('verdict "skipped" when the blocker')
+    expect(prompt).to include("no synced clone, missing seed data")
+  end
+
+  it "tells the reviewer to record needs_work when the missing route/data/preview setup is itself a defect" do
+    expect(prompt).to include('verdict "needs_work" when the')
+    expect(prompt).to include("implementation or preview-seeding defect")
+  end
+
+  it "requires the critique to name the intended surface and the rejected fallback" do
+    expect(prompt).to include("must explicitly name (a) the intended")
+    expect(prompt).to include("surface you could not exercise, and (b) the fallback or proxy page")
+    expect(prompt).to include("Do not silently substitute a different")
+  end
+
   it "does not include a test-plan hint section by default" do
     expect(prompt).not_to include("recommended running visual review")
     expect(prompt).not_to include("did NOT recommend")

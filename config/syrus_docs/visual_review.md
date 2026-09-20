@@ -80,6 +80,30 @@ This is a three-layer gate: the glob pre-filter (deterministic, no agent
 turn), the implementer's hint (informational only), and the reviewer's own
 judgment (authoritative).
 
+## Changed-surface coverage
+
+Independence from the implementer does not mean the reviewer can substitute a
+different page for the one that actually changed. `Prompts::VisualReview`
+requires the reviewer to identify the specific route/screen/component state
+the diff changed and, if that exact surface can't be reached or populated in
+the preview (unsynced clone, missing seed data, a route that errors, auth it
+can't obtain), forbids approving from screenshots of an unrelated or merely
+similar-looking proxy page instead. A proxy is only acceptable when the Job
+description or diff itself makes verifying a shared component through another
+page the intended target of the review — and even then the reviewer must say
+in its critique why that proxy is faithful, not just convenient.
+
+When the intended surface is unreachable and no faithful proxy applies, the
+reviewer must not approve. It records `skipped` when the blocker is
+tooling/environment (no synced clone, missing seed data, preview
+infrastructure not wired up for that route), or `needs_work` when the missing
+route, missing data, or broken preview setup is itself an implementation or
+preview-seeding defect. Either way, the critique must name both the intended
+surface that couldn't be exercised and the fallback/proxy that was considered
+and rejected — so a review that couldn't reach the real surface is auditable
+rather than silently passing on the strength of an adjacent page's
+screenshots.
+
 ## Verdicts
 
 The reviewer agent must call `submit_visual_review` with one of three
