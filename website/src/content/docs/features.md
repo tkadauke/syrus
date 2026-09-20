@@ -51,8 +51,8 @@ that provider show an additive red triangle warning in dashboards, lists, and
 the Job header until usage is restored or the Job is retried/switched with
 another configured provider. Transient provider outages remain separate from
 quota exhaustion and keep the existing non-red circuit treatment.
-Repository throughput metrics are available per repository through the app
-repository overview and API at
+Repository throughput metrics are available per repository on the repository
+page's own "Throughput" tab and API at
 `GET /api/v1/app/repositories/:id/throughput_metrics`, reporting PR creation,
 output, landing, and review funnel windows with explicit confidence labels for
 sparse samples.
@@ -1521,11 +1521,14 @@ path Syrus uses for polling.
 
 Polling also tracks how many open GitHub issues on each repository are
 **not** carrying the trigger label — issues Syrus never ingests because no
-one labeled them. The main Dashboard surfaces this as a dismissible
+one labeled them. The Dashboard's Jobs view surfaces this as a dismissible
 cross-repo notice ("N unlabeled open issues across M repositories") with
 links straight into each repository's GitHub Issues tab, so operators
 notice unlabeled bug reports without visiting every repository one at a
-time.
+time. The notice only appears on the Inbox smart folder, directly above the
+data table, since that is where new unlabeled work would otherwise go
+unnoticed.
+
 When approval propagation is enabled, Syrus mirrors eligible Job approvals as
 GitHub PR reviews. It posts as the approving user's own connected GitHub
 account whenever their GitHub identity differs from the PR's author; when the

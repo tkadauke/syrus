@@ -173,23 +173,28 @@ test("DB Browser lists connections, databases, and tables read-only with no writ
   await expect(page.getByRole("heading", { name: "DB Browser" })).toBeVisible()
   await expectNativePluginSurface(page, "DB Browser")
 
-  const labelInput = page.getByLabel("Label", { exact: true })
+  await page.getByRole("button", { name: "Add", exact: true }).click()
+  const formDialog = page.getByRole("dialog")
+  await expect(formDialog.getByRole("heading", { name: "Add connection" })).toBeVisible()
+
+  const labelInput = formDialog.getByLabel("Label", { exact: true })
   await expect(labelInput).toHaveAttribute("id", /.+/)
   const labelInputId = await labelInput.getAttribute("id")
   await expect(page.locator(`label[for="${labelInputId}"]`)).toHaveText("Label")
-  await expect(page.getByLabel("Allow agentic query access")).toBeVisible()
-  await expect(page.getByText("Lets workflow and chat agents browse this connection's schema and run queries against it")).toBeVisible()
+  await expect(formDialog.getByLabel("Allow agentic query access")).toBeVisible()
+  await expect(formDialog.getByText("Lets workflow and chat agents browse this connection's schema and run queries against it")).toBeVisible()
 
   await labelInput.fill(connectionLabel)
-  await page.getByLabel("Host", { exact: true }).fill("127.0.0.1")
-  await page.getByLabel("Port", { exact: true }).fill("3306")
-  await page.getByLabel("Username", { exact: true }).fill("reporting")
-  await page.getByLabel("Password", { exact: true }).fill("not-a-real-password")
+  await formDialog.getByLabel("Host", { exact: true }).fill("127.0.0.1")
+  await formDialog.getByLabel("Port", { exact: true }).fill("3306")
+  await formDialog.getByLabel("Username", { exact: true }).fill("reporting")
+  await formDialog.getByLabel("Password", { exact: true }).fill("not-a-real-password")
   const createRequest = page.waitForRequest((request) => (
     request.method() === "POST" &&
     new URL(request.url()).pathname === "/api/v1/app/admin/mysql_connections"
   ))
-  await page.getByRole("button", { name: "Add connection", exact: true }).click()
+  await formDialog.getByRole("button", { name: "Add connection", exact: true }).click()
+  await expect(formDialog).not.toBeVisible()
   expect((await createRequest).postDataJSON()).toEqual({
     mysql_connection: {
       label: connectionLabel,

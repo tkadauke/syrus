@@ -47,7 +47,24 @@ module Admin
       def clear_github_cache(user_id:, source:)
         require_admin!
         pattern, summary = github_cache_scope(user_id)
-        cleared = clear_cache_pattern(pattern)
+        begin
+          cleared = clear_cache_pattern(pattern)
+        rescue NotImplementedError, StandardError => e
+          Rails.logger.warn("[Admin::Console] cache clear failed: #{e.class}: #{e.message}")
+          AdminAction.log!(
+            user: actor,
+            action: :clear_github_cache,
+            params: {
+              source: source,
+              scope: pattern,
+              ok: false,
+              error_class: e.class.name,
+              error_message: e.message
+            }
+          )
+          return show.merge(ok: false, message: "Failed to clear GitHub cache entries #{summary}.")
+        end
+
         AdminAction.log!(user: actor, action: :clear_github_cache, params: { source: source, scope: pattern, cleared_count: cleared })
         show.merge(ok: true, message: "Cleared #{cleared} GitHub cache entries #{summary}.")
       end
@@ -113,9 +130,6 @@ module Admin
 
       def clear_cache_pattern(pattern)
         Rails.cache.delete_matched(pattern)
-      rescue NotImplementedError, StandardError => e
-        Rails.logger.warn("[Admin::Console] cache clear failed: #{e.class}: #{e.message}")
-        0
       end
     end
   end

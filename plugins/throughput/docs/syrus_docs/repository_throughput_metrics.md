@@ -57,11 +57,11 @@ GET /api/v1/app/repositories/:id/throughput_metrics
 The endpoint is scoped through the signed-in user's repository workspace
 memberships and computes directly from durable rows at request time.
 
-The repository overview page also renders this contract as a throughput panel.
-It exposes the same window selector, headline rates, confidence labels,
-sample counts, merge-train unit/job split, review funnel, and landing
-bottleneck signals. UI consumers should keep the API contract as the source of
-truth rather than duplicating metric derivation in React.
+The repository detail page also renders this contract on its own "Throughput"
+tab. It exposes a window selector, headline rates, confidence labels, sample
+counts, merge-train unit/job split, review funnel, and landing bottleneck
+signals. UI consumers should keep the API contract as the source of truth
+rather than duplicating metric derivation in React.
 
 ## Windows
 
@@ -367,9 +367,10 @@ contract shape or introduce a new `version`.
 
 This feature lives in the `throughput` plugin, not core. The plugin owns
 `Throughput::MetricContract`, `Throughput::AdminMetricsPayload`, the
-`throughput_metrics` and `/api/v1/admin/throughput` endpoints, and the panel
-component, and contributes the panel to the repository detail page through the
-`repository.detail` `ui_slot`. Disabling the plugin removes the panel and both
+`throughput_metrics` and `/api/v1/admin/throughput` endpoints, and the tab
+component, and contributes a "Throughput" tab to the repository detail page
+through the `repo_page_tab` extension point
+(`Throughput::RepoPageTabs`). Disabling the plugin removes the tab and both
 endpoints; nothing else on the page changes. Core has no reference to either
 contract -- `bin/check-plugin-boundaries` (and the slower opt-in
 `bin/plugin-boundary-audit throughput`) enforce it.

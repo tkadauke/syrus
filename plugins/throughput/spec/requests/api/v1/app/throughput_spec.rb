@@ -11,6 +11,8 @@ RSpec.describe "API: repository throughput metrics", type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body["repository_id"]).to eq(repository.id)
     expect(response.parsed_body["version"]).to eq(Throughput::MetricContract::VERSION)
+    expect(response.parsed_body["repository"]).to include("id" => repository.id, "slug" => repository.slug)
+    expect(response.parsed_body["tabs"].map { |tab| tab["key"] }).to include("throughput.repository")
   end
 
   it "scopes lookup to repositories the signed-in user can access" do

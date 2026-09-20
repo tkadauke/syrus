@@ -16,7 +16,7 @@ import { FilePreviewModal } from "../../components/FilePreviewModal"
 import { DocumentPreviewModal, isImageContentType, isPreviewableTextContentType } from "../../components/DocumentPreviewModal"
 import { useJobCommand } from "./command"
 import { jobSlug } from "./formatting"
-import type { ReactNode, UIEvent } from "react"
+import type { HTMLAttributes, ReactNode, UIEvent } from "react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { AnsiText } from "../../components/AnsiText"
@@ -32,8 +32,8 @@ import { coalesceTranscriptLogs, isRunTranscriptAtBottom, scrollRunTranscriptToB
 // the run-transcript log stream. Kept in a leaf module so both the route file and
 // the workflow/step/run render subtree can import them without a circular edge.
 
-export function SmallPill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "info" | "warning" | "danger" | "success" }) {
-  return <Pill tone={tone}>{children}</Pill>
+export function SmallPill({ children, tone = "neutral", ...props }: { children: ReactNode; tone?: "neutral" | "info" | "warning" | "danger" | "success" } & HTMLAttributes<HTMLSpanElement>) {
+  return <Pill tone={tone} {...props}>{children}</Pill>
 }
 
 export function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {

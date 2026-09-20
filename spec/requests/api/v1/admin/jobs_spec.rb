@@ -463,6 +463,38 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       )
     end
 
+    it "returns expected GitHub PR snapshot failures inline without logging an unexpected error" do
+      job.update!(pr_number: 7)
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).with(repository: job.repository, user: admin).and_return(client)
+      allow(client).to receive(:pull_request).and_raise(
+        Octokit::NotFound.new(status: 404, body: { message: "Not Found" })
+      )
+      allow(Rails.logger).to receive(:error).and_call_original
+
+      get "/api/v1/admin/jobs/#{job.id}", params: { include_github: "true" }, headers: auth(admin_token)
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("github_pr", "error")).to include("Octokit::NotFound")
+      expect(Rails.logger).not_to have_received(:error).with(include("unexpected GitHub PR snapshot error"))
+    end
+
+    it "logs unexpected GitHub PR snapshot exceptions before returning them inline" do
+      job.update!(pr_number: 7)
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).with(repository: job.repository, user: admin).and_return(client)
+      allow(client).to receive(:pull_request).and_raise(NoMethodError, "undefined method `head' for nil")
+      allow(Rails.logger).to receive(:error).and_call_original
+
+      get "/api/v1/admin/jobs/#{job.id}", params: { include_github: "true" }, headers: auth(admin_token)
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("github_pr", "error")).to eq("NoMethodError: undefined method `head' for nil")
+      expect(Rails.logger).to have_received(:error).with(
+        include("unexpected GitHub PR snapshot error", job.slug, "#{job.repository.slug}#7", "NoMethodError")
+      )
+    end
+
     it "reports repository installation diagnostics when the job uses app credentials" do
       AppSetting.current.update!(github_app_id: "123")
       installation = Factories.installation(user: admin, github_installation_id: 131_743_025, account_login: "acme")
@@ -621,6 +653,31 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       expect(row["issue_title"]).to eq(job_124.issue_title)
       expect(row["agent_provider"]).to eq(job_124.agent_provider)
       expect(row).not_to have_key("workflows")
+    end
+
+    it "honors pagination params and reports the unpaginated total" do
+      pagination_repo = Factories.repository(user: admin, owner: "acme", name: "paginated-jobs")
+      jobs = 5.times.map do |index|
+        Factories.job_record(
+          user: admin,
+          repository: pagination_repo,
+          issue_number: 10_000 + index,
+          issue_title: "Paginated job #{index}"
+        ).tap do |created|
+          created.update_columns(updated_at: (index + 1).minutes.ago)
+        end
+      end
+
+      get "/api/v1/admin/jobs", params: { repo: "acme/paginated-jobs", page: 2, per: 2 }, headers: auth(admin_token)
+
+      body = parse_body
+      expect(body).to include(
+        "count" => 2,
+        "total" => 5,
+        "page" => 2,
+        "per" => 2
+      )
+      expect(body["jobs"].map { |row| row["id"] }).to eq([ jobs[2].id, jobs[3].id ])
     end
 
     it "401s without a token" do

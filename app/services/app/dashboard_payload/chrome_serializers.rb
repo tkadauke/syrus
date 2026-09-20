@@ -274,8 +274,14 @@ module App
           (repository.main_health_broken? || repository.main_health_inconclusive?)
       end
 
+      def untagged_issues_visible?
+        subject == "job" && active_smart_folder&.attention_preset == "inbox"
+      end
+
       def untagged_issues_json
         @untagged_issues_json ||= PerformanceLogging.phase("dashboard_untagged_issues", subject: subject) do
+          next { total: 0, repositories: [] } unless untagged_issues_visible?
+
           repositories = active_repositories_scope.where("untagged_open_issue_count > 0")
           repositories_json = repositories.map { |repo| untagged_issue_repository_json(repo) }
           {

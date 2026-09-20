@@ -16,8 +16,28 @@ describe("errorRingBuffer", () => {
 
     const errors = getRecentErrors()
     expect(errors).toHaveLength(1)
-    expect(errors[0]).toMatchObject({ message: "Test error", source: "app.js" })
+    expect(errors[0]).toMatchObject({ message: "Test error", source: "app.js", count: 1 })
     expect(errors[0].at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it("deduplicates repeated identical errors and counts them instead of growing the buffer", () => {
+    for (let i = 0; i < 3; i++) {
+      window.dispatchEvent(new ErrorEvent("error", { message: "Same error", filename: "app.js" }))
+    }
+
+    const errors = getRecentErrors()
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toMatchObject({ message: "Same error", source: "app.js", count: 3 })
+  })
+
+  it("does not dedupe errors with the same message but a different source", () => {
+    window.dispatchEvent(new ErrorEvent("error", { message: "Same error", filename: "app.js" }))
+    window.dispatchEvent(new ErrorEvent("error", { message: "Same error", filename: "other.js" }))
+
+    const errors = getRecentErrors()
+    expect(errors).toHaveLength(2)
+    expect(errors[0].count).toBe(1)
+    expect(errors[1].count).toBe(1)
   })
 
   it("captures unhandledrejection with Error reason", () => {
@@ -62,6 +82,19 @@ describe("errorRingBuffer", () => {
 
     expect(snapshot).toHaveLength(0)
     expect(getRecentErrors()).toHaveLength(1)
+  })
+
+  it("does not let a later duplicate mutate a previously captured snapshot's entries", () => {
+    window.dispatchEvent(new ErrorEvent("error", { message: "Repeats", filename: "app.js" }))
+    const snapshot = getRecentErrors()
+    expect(snapshot[0].count).toBe(1)
+
+    // A later occurrence of the same error bumps the internal count in place;
+    // the earlier snapshot's own object must not observe that mutation.
+    window.dispatchEvent(new ErrorEvent("error", { message: "Repeats", filename: "app.js" }))
+
+    expect(snapshot[0].count).toBe(1)
+    expect(getRecentErrors()[0].count).toBe(2)
   })
 
   it("truncates very long messages to 500 characters", () => {

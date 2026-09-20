@@ -286,7 +286,7 @@
     "plugins/team_directory/app/frontend/routes/TeamDirectory.tsx": 3,
     "plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx": 3,
     "plugins/test_insights/app/frontend/tool_cards/read_test_insight.tsx": 1,
-    "plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx": 1,
+    "plugins/throughput/app/frontend/repo_tabs/RepositoryThroughput.tsx": 1,
     "plugins/whiteboard/app/frontend/workspaceTabs/WhiteboardTab.tsx": 2,
     "plugins/worker_timeline/app/frontend/components/WorkflowWaterfall.tsx": 1
   },
@@ -586,7 +586,7 @@
     "plugins/test_insights/app/frontend/tool_cards/read_test_insight.tsx": 13,
     "plugins/test_insights/app/frontend/ui_slots/JobTests.tsx": 58,
     "plugins/theming_tools/app/frontend/themeToolCard.tsx": 29,
-    "plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx": 17,
+    "plugins/throughput/app/frontend/repo_tabs/RepositoryThroughput.tsx": 17,
     "plugins/whiteboard/app/frontend/whiteboardToolCard.tsx": 12,
     "plugins/whiteboard/app/frontend/workspaceTabs/WhiteboardTab.tsx": 32,
     "plugins/worker_timeline/app/frontend/components/TimelineLanes.tsx": 24,

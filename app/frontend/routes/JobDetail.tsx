@@ -23,7 +23,7 @@ import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobD
 import type { TypedArtifact } from "../api/artifacts"
 import { CoverageCard } from "../components/CoverageCard"
 import { PluginUiSlot, type UiSlotPanel } from "../pluginUiSlots"
-import { ProviderAvailabilityWarning, ProviderFailoverNotice } from "../components/ProviderAvailabilityWarning"
+import { ProviderAvailabilityWarning, providerFailoverTooltip } from "../components/ProviderAvailabilityWarning"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
 import { errorMessage } from "../lib/errorMessage"
@@ -31,7 +31,7 @@ import type { JobDetailQueryKey, JobTab, JobWorkflowsQueryKey } from "./jobDetai
 import { CommandButton, useJobCommand, type JobCommand } from "./jobDetail/command"
 import { TagsPanel, NeedsAttentionBanner, TriageDecisionBanner, FeedbackSourceBadge, EpicSummaryLink, TimelinePanel, AttachmentPreview, AttachmentCard, MergeablePill, JobStateBadge, PendingJobTitle, JobSourceLink, DependencyLink, JobDependencyTargetReference, PanelMessage, SmallPill, jobSourceLabel } from "./jobDetail/components"
 import { DeliveryPanel, deliveryPanelRelevant } from "./jobDetail/Delivery"
-import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel, RequestChangesPanel } from "./jobDetail/JobHeader"
+import { canSubmitFeedbackDirectly, ChatBubbleIcon, HeaderActions, JobFeedbackPanel } from "./jobDetail/JobHeader"
 import { PreviewPanel, PreviewStopModal } from "../components/PreviewPanel"
 import { diffRefsFromLocation, jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
@@ -120,7 +120,6 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [feedbackPanelOpen, setFeedbackPanelOpen] = useState(false)
-  const [requestChangesPanelOpen, setRequestChangesPanelOpen] = useState(false)
   const [previewStopModal, setPreviewStopModal] = useState<{ onProceed: () => void } | null>(null)
   const command = useJobCommand(payload.job.id, queryKey, workflowsQueryKey, setNotice)
   const bugReportTrigger = useBugReportTrigger()
@@ -163,7 +162,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
   const requestChangesInCodingMode = useMutation({
     mutationFn: (body: string) => openJobInCodingMode(payload.paths.app_open_in_coding_mode_path, body),
     onSuccess: (result) => {
-      setRequestChangesPanelOpen(false)
+      setFeedbackPanelOpen(false)
       setNotice(result.message || t("open_in_coding_mode_feedback_submitted"))
       if (result.redirect_to) navigate(result.redirect_to)
       scheduleJobDetailInvalidation(queryClient, queryKey)
@@ -253,14 +252,13 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
               <JobStateBadge state={payload.job.summary_state} />
             </div>
             <div className="flex flex-wrap items-center justify-end gap-3">
-              <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
               <HeaderActions
                 command={command}
                 onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
                 onToggleFeedbackPanel={() => withPreviewStop(() => setFeedbackPanelOpen((current) => !current))}
-                onToggleRequestChangesPanel={() => withPreviewStop(() => setRequestChangesPanelOpen((current) => !current))}
                 payload={payload}
               />
+              <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -269,9 +267,8 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
               <span className="px-2 text-gray-300 dark:text-gray-600">/</span>
               <JobSourceLink payload={payload} prefix={prefix} />
             </p>
-            {payload.job.agent_provider ? <SmallPill>{payload.job.agent_provider}</SmallPill> : null}
+            {payload.job.agent_provider ? <SmallPill title={providerFailoverTooltip(payload.job.provider_failover)}>{payload.job.agent_provider}</SmallPill> : null}
             <ProviderAvailabilityWarning availability={payload.job.provider_availability} />
-            <ProviderFailoverNotice failover={payload.job.provider_failover} />
             {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
@@ -331,19 +328,15 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       ) : null}
       {feedbackPanelOpen ? (
         <JobFeedbackPanel
-          error={feedback.error}
-          isPending={feedback.isPending}
-          onCancel={() => setFeedbackPanelOpen(false)}
-          onSubmit={(body) => withPreviewStop(() => feedback.mutate(body))}
-        />
-      ) : null}
-      {requestChangesPanelOpen ? (
-        <RequestChangesPanel
+          canGiveFeedback={canSubmitFeedbackDirectly(payload)}
           canOpenInCodingMode={payload.actions.can_open_in_coding_mode}
           codingModeBlockedReason={payload.actions.open_in_coding_mode_blocked_reason}
-          error={requestChangesInCodingMode.error}
+          codingModeError={requestChangesInCodingMode.error}
+          feedbackError={feedback.error}
           isCodingModePending={requestChangesInCodingMode.isPending}
-          onCancel={() => setRequestChangesPanelOpen(false)}
+          isFeedbackPending={feedback.isPending}
+          onCancel={() => setFeedbackPanelOpen(false)}
+          onSubmitFeedback={(body) => withPreviewStop(() => feedback.mutate(body))}
           onSubmitToCodingMode={(body) => withPreviewStop(() => requestChangesInCodingMode.mutate(body))}
         />
       ) : null}
@@ -466,7 +459,7 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
         <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">▾</span>
       </button>
       {jumpOpen ? (
-        <div className="absolute left-8 top-full z-30 mt-1 max-h-80 w-96 max-w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950" id="job-navigation-jump-list" role="listbox">
+        <div className="absolute right-0 top-full z-30 mt-1 max-h-80 w-96 max-w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950" id="job-navigation-jump-list" role="listbox">
           {context.items.map((item, index) => (
             <button
               aria-label={t("navigation_jump_option", { position: index + 1, slug: item.slug, title: item.title })}

@@ -1,4 +1,4 @@
-import { SortableColumnHeader, TimestampCell, useMediaQuery, ExternalMetadataLink, ExternalPrBadge, MetadataLine, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges, WorkflowTriggerPill } from "./components"
+import { SortableColumnHeader, TimestampCell, UntaggedIssuesBanner, useMediaQuery, ExternalMetadataLink, ExternalPrBadge, MetadataLine, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges, WorkflowTriggerPill } from "./components"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { formatRelativeDate } from "../../lib/relativeTime"
 import { translateBlockedReason } from "../../lib/translateBlockedReason"
@@ -19,7 +19,7 @@ import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
 import { ProviderAvailabilityWarning, ProviderMismatchPill } from "../../components/ProviderAvailabilityWarning"
 import { PILL_TONE_CLASSES, StatusPill, TonePill } from "../../components/StatusPill"
-import { bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLandingQueueStatus, type DashboardPayload } from "../../api/dashboard"
+import { bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLandingQueueStatus, type DashboardPayload, type DashboardUntaggedIssues } from "../../api/dashboard"
 import { type LandingQueueBlockerJob } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
@@ -31,7 +31,7 @@ import { createDashboardJobNavigationContext, jobNavigationHref, storeJobNavigat
 // per-job cells, and the mobile jobs list. Entry point rendered by the table
 // view. Depends only on leaf modules and shared UI imports.
 
-export function JobsDashboardTable({ items, columns, controls, landingQueueEntries, landingQueueStatus, prefix, sortState, t }: { items: DashboardJobItem[]; columns: string[]; controls: DashboardPayload["controls"]; landingQueueEntries: DashboardLandingQueueEntry[]; landingQueueStatus?: DashboardLandingQueueStatus | null; prefix: string; sortState: DashboardSortState; t: (key: string, opts?: Record<string, unknown>) => string }) {
+export function JobsDashboardTable({ items, columns, controls, landingQueueEntries, landingQueueStatus, prefix, sortState, t, untaggedIssues }: { items: DashboardJobItem[]; columns: string[]; controls: DashboardPayload["controls"]; landingQueueEntries: DashboardLandingQueueEntry[]; landingQueueStatus?: DashboardLandingQueueStatus | null; prefix: string; sortState: DashboardSortState; t: (key: string, opts?: Record<string, unknown>) => string; untaggedIssues?: DashboardUntaggedIssues }) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const visibleIds = useMemo(() => items.map((item) => item.id), [items])
   const selectedArray = useMemo(() => Array.from(selectedIds), [selectedIds])
@@ -65,6 +65,7 @@ export function JobsDashboardTable({ items, columns, controls, landingQueueEntri
     <div className="space-y-3">
       <BulkJobActions controls={controls} items={items} selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
       {landingQueueStatus ? <LandingQueueSummary status={landingQueueStatus} prefix={prefix} /> : null}
+      <UntaggedIssuesBanner prefix={prefix} untaggedIssues={untaggedIssues} />
       <JobsTable
         allSelected={allSelected}
         columns={columns}

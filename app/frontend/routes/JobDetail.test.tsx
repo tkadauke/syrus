@@ -155,7 +155,7 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("img", { name: /Codex usage is low \(8% remaining; threshold 10%\)/ })).toBeInTheDocument()
   })
 
-  it("shows automatic provider failover in the job detail header", () => {
+  it("shows automatic provider failover as a tooltip on the provider pill in the job detail header", () => {
     renderJobDetail(jobPayload({
       job: {
         ...baseJob(),
@@ -183,9 +183,11 @@ describe("JobDetailView", () => {
       }
     }))
 
-    const notice = screen.getByText("Claude Code unavailable; running this workflow with Codex.")
-    expect(notice).toBeInTheDocument()
-    expect(notice).toHaveAttribute("title", expect.stringContaining("Evidence: failed from provider_circuit"))
+    expect(screen.queryByText("Claude Code unavailable; running this workflow with Codex.")).not.toBeInTheDocument()
+
+    const pill = screen.getByTitle(/Claude Code unavailable; running this workflow with Codex\./)
+    expect(pill).toHaveTextContent("claude")
+    expect(pill).toHaveAttribute("title", expect.stringContaining("Evidence: failed from provider_circuit"))
   })
 
   it("renders the pressure breakdown and telemetry state for a job blocked on step-profile pressure", () => {
@@ -1061,7 +1063,7 @@ describe("JobDetailView", () => {
     expect(screen.getByPlaceholderText("What should be changed?")).toBeInTheDocument()
   })
 
-  it("renders the Request changes action in the overflow menu when Coding Mode feedback is allowed", () => {
+  it("renders the Give feedback action in the overflow menu when only Coding Mode feedback is allowed", () => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state: "approved", summary_state: "approved" },
       actions: { ...jobPayload().actions, can_open_in_coding_mode: true }
@@ -1069,7 +1071,7 @@ describe("JobDetailView", () => {
 
     openOverflowMenu()
 
-    expect(screen.getByRole("menuitem", { name: "Request changes" })).toBeInTheDocument()
+    expect(screen.getByRole("menuitem", { name: "Give feedback" })).toBeInTheDocument()
   })
 
   it("opens an implemented Job directly in Coding Mode chat from the actions menu", async () => {
@@ -1093,14 +1095,40 @@ describe("JobDetailView", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chats/42"))
   })
 
-  it("hides the Request changes action when the action is not allowed", () => {
+  it("hides the Give feedback action when no feedback action is allowed", () => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state: "running", summary_state: "running" }
     }))
 
     openOverflowMenu()
 
-    expect(screen.queryByRole("menuitem", { name: "Request changes" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: "Give feedback" })).not.toBeInTheDocument()
+  })
+
+  it("only offers the Open in Coding Chat action when direct feedback is not allowed", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "approved", summary_state: "approved" },
+      actions: { ...jobPayload().actions, can_open_in_coding_mode: true }
+    }))
+
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
+
+    expect(screen.getByRole("button", { name: "Open in Coding Chat" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Submit feedback" })).not.toBeInTheDocument()
+  })
+
+  it("offers both actions in the feedback panel when both are allowed", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" },
+      actions: { ...jobPayload().actions, can_open_in_coding_mode: true }
+    }))
+
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
+
+    expect(screen.getByRole("button", { name: "Submit feedback" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open in Coding Chat" })).toBeInTheDocument()
   })
 
   it("opens request-changes feedback in Coding Mode chat", async () => {
@@ -1111,7 +1139,7 @@ describe("JobDetailView", () => {
     }), { showLocation: true })
 
     openOverflowMenu()
-    fireEvent.click(screen.getByRole("menuitem", { name: "Request changes" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
     expect(screen.queryByRole("button", { name: "Create Job" })).not.toBeInTheDocument()
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "  Tighten the copy.  " } })
     fireEvent.click(screen.getByRole("button", { name: "Open in Coding Chat" }))
@@ -1133,7 +1161,7 @@ describe("JobDetailView", () => {
     }))
 
     openOverflowMenu()
-    fireEvent.click(screen.getByRole("menuitem", { name: "Request changes" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "x" } })
     fireEvent.click(screen.getByRole("button", { name: "Open in Coding Chat" }))
 
@@ -2984,6 +3012,31 @@ describe("Job detail navigation", () => {
 
     fireEvent.keyDown(window, { key: "n" })
     expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/2?job_nav=nav-token")
+  })
+
+  it("renders to the right of the \"...\" overflow menu in the header", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    const overflowMenuButton = screen.getByRole("button", { name: "⋯" })
+    const jumpButton = screen.getByRole("button", { name: "Jump to Job" })
+
+    expect(overflowMenuButton.compareDocumentPosition(jumpButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("opens the jump list right-anchored to the control so it extends leftward instead of off-screen", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Jump to Job" }))
+
+    const jumpList = screen.getByRole("listbox")
+    expect(jumpList).toHaveClass("right-0")
+    expect(jumpList).not.toHaveClass("left-8")
   })
 })
 

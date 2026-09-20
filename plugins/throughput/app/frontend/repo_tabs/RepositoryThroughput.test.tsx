@@ -1,9 +1,17 @@
+import { jsonResponse } from "@app/testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import ThroughputPanel from "./ThroughputPanel"
+import { RepositoryThroughputRoute } from "./RepositoryThroughput"
+import type { RepositoryThroughputMetricsPayload } from "../api/throughput"
 
 const THROUGHPUT_PATH = "/api/v1/app/repositories/1/throughput_metrics"
+const REPOSITORY = { id: 1, slug: "acme/widgets", github_url: "https://github.com/acme/widgets" }
+const TABS = [
+  { key: "overview", label: "Overview", path: "/repositories/1" },
+  { key: "throughput.repository", label: "Throughput", path: "/repositories/1/plugin/throughput" }
+]
 
 function throughputWindow(overrides = {}) {
   return {
@@ -103,7 +111,7 @@ function throughputWindow(overrides = {}) {
   }
 }
 
-function throughputPayload() {
+function throughputPayload(): RepositoryThroughputMetricsPayload {
   const empty = throughputWindow({
     range: { start: "2026-07-31T11:00:00Z", end: "2026-07-31T12:00:00Z", hours: 1 },
     pr_creation: {
@@ -120,6 +128,8 @@ function throughputPayload() {
     version: 1,
     repository_id: 1,
     generated_at: "2026-07-31T12:00:00Z",
+    repository: REPOSITORY,
+    tabs: TABS,
     windows: {
       "1h": empty,
       "4h": throughputWindow(),
@@ -127,48 +137,37 @@ function throughputPayload() {
       "7d": throughputWindow({ range: { start: "2026-07-24T12:00:00Z", end: "2026-07-31T12:00:00Z", hours: 168 } }),
       last_active: throughputWindow({ range: { start: "2026-07-31T10:20:00Z", end: "2026-07-31T11:20:00Z", hours: 1 } })
     }
-  }
+  } as RepositoryThroughputMetricsPayload
 }
 
-function renderPanel() {
+function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <ThroughputPanel repository={{ id: 1 }} />
+      <MemoryRouter>
+        <RepositoryThroughputRoute prefix="" repositoryId="1" />
+      </MemoryRouter>
     </QueryClientProvider>
   )
 }
 
-describe("ThroughputPanel", () => {
+describe("RepositoryThroughputRoute", () => {
   beforeEach(() => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString()
-      if (url === THROUGHPUT_PATH) {
-        return Promise.resolve(new Response(JSON.stringify(throughputPayload()), {
-          status: 200,
-          headers: { "Content-Type": "application/json" }
-        }))
-      }
+      if (url === THROUGHPUT_PATH) return Promise.resolve(jsonResponse(throughputPayload()))
       return Promise.reject(new Error(`unexpected fetch: ${url}`))
     })
   })
 
   afterEach(() => vi.restoreAllMocks())
 
-  it("renders nothing without a repository", () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const { container } = render(
-      <QueryClientProvider client={client}>
-        <ThroughputPanel />
-      </QueryClientProvider>
-    )
-    expect(container).toBeEmptyDOMElement()
-  })
+  it("renders the repository heading, tab bar, and throughput metrics", async () => {
+    renderRoute()
 
-  it("shows throughput metrics from the high-activity landing window fixture", async () => {
-    renderPanel()
-
-    expect(await screen.findByText("8 Syrus-authored, 9 observed")).toBeInTheDocument()
+    expect(await screen.findByText("acme/widgets")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Throughput" })).toBeInTheDocument()
+    expect(screen.getByText("8 Syrus-authored, 9 observed")).toBeInTheDocument()
     expect(screen.getByText("2/h")).toBeInTheDocument()
     expect(screen.getByText("0.75/h")).toBeInTheDocument()
     expect(screen.getByText("1 auto, 2 trains")).toBeInTheDocument()
@@ -181,7 +180,7 @@ describe("ThroughputPanel", () => {
   })
 
   it("switches windows and keeps sparse confidence visible", async () => {
-    renderPanel()
+    renderRoute()
 
     const oneHour = await screen.findByRole("button", { name: "1h" })
     fireEvent.click(oneHour)

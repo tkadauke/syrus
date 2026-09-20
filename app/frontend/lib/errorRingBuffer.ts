@@ -4,6 +4,7 @@ export type RecentError = {
   message: string
   source: string
   at: string
+  count: number
 }
 
 const recentErrors: RecentError[] = []
@@ -12,7 +13,17 @@ let errorHandler: ((e: ErrorEvent) => void) | null = null
 let rejectionHandler: ((e: PromiseRejectionEvent) => void) | null = null
 
 function recordError(message: string, source: string) {
-  recentErrors.push({ message: String(message).slice(0, 500), source, at: new Date().toISOString() })
+  const trimmedMessage = String(message).slice(0, 500)
+  const at = new Date().toISOString()
+
+  const existing = recentErrors.find((e) => e.message === trimmedMessage && e.source === source)
+  if (existing) {
+    existing.count += 1
+    existing.at = at
+    return
+  }
+
+  recentErrors.push({ message: trimmedMessage, source, at, count: 1 })
   if (recentErrors.length > MAX_ERRORS) recentErrors.shift()
 }
 
@@ -33,7 +44,7 @@ export function initErrorRingBuffer() {
 }
 
 export function getRecentErrors(): RecentError[] {
-  return [...recentErrors]
+  return recentErrors.map((error) => ({ ...error }))
 }
 
 export function _clearRecentErrors() {

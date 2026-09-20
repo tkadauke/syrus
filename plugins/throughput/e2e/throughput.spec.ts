@@ -112,14 +112,19 @@ function windowPayload({ prCreationCount, hours }: { prCreationCount: number; ho
   }
 }
 
-function metricsPayload() {
+function metricsPayload(repositoryId: number) {
   const fourHour = windowPayload({ prCreationCount: 1, hours: 4 })
   const twentyFourHour = windowPayload({ prCreationCount: 3, hours: 24 })
 
   return {
     version: 1,
-    repository_id: 1,
+    repository_id: repositoryId,
     generated_at: "2026-09-01T12:00:00Z",
+    repository: { id: repositoryId, slug: "demo/syrus-preview", github_url: "https://github.com/demo/syrus-preview" },
+    tabs: [
+      { key: "overview", label: "Overview", path: `/repositories/${repositoryId}` },
+      { key: "throughput.repository", label: "Throughput", path: `/repositories/${repositoryId}/plugin/throughput` }
+    ],
     windows: {
       "1h": windowPayload({ prCreationCount: 0, hours: 1 }),
       "4h": fourHour,
@@ -134,12 +139,14 @@ async function mockThroughputMetrics(page: Page) {
   await page.route(
     (url) => METRICS_PATH_RE.test(url.pathname),
     async (route) => {
-      await route.fulfill({ json: metricsPayload() })
+      const match = new URL(route.request().url()).pathname.match(/\/repositories\/(\d+)\/throughput_metrics$/)
+      const repositoryId = match ? Number(match[1]) : 1
+      await route.fulfill({ json: metricsPayload(repositoryId) })
     }
   )
 }
 
-test("Throughput plugin renders repository delivery metrics", async ({ page }) => {
+test("Throughput plugin renders repository delivery metrics on its own tab", async ({ page }) => {
   await signInAsDemo(page)
   await mockThroughputMetrics(page)
 
@@ -154,6 +161,11 @@ test("Throughput plugin renders repository delivery metrics", async ({ page }) =
 
   await page.goto("/repositories")
   await page.getByRole("link", { name: "demo/syrus-preview" }).click()
+
+  // The Overview tab no longer embeds throughput metrics; it moved to its
+  // own "Throughput" tab.
+  await expect(page.getByRole("region", { name: "Repository throughput" })).toHaveCount(0)
+  await page.getByRole("link", { name: "Throughput" }).click()
 
   const panel = page.getByRole("region", { name: "Repository throughput" })
   await expect(panel).toBeVisible()

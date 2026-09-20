@@ -14,6 +14,7 @@ import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../
 import { ApiError } from "../api/client"
 import { Button, buttonClasses } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
+import { ColumnVisibilityMenu } from "../components/ColumnVisibilityMenu"
 import { DashboardSmartFolderNav, smartFolderIdFromSearch } from "../components/DashboardSmartFolderNav"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { CloseIcon } from "../components/CloseIcon"
@@ -24,7 +25,7 @@ import { Notice, Page, Section, Surface, Text } from "../components/ui"
 import { SyrusTour } from "../components/SyrusTour"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { useTour } from "../hooks/useTour"
-import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChromeWithMeta, fetchDashboardRowsWithMeta, fetchEpicsGraph, fetchJobsGraph, mergeDashboardPayload, recordDashboardFilterUsage, requestDashboardMainBranchRepair, updateDashboardPreferences, type DashboardHealthBlockedRepository, type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardUntaggedIssues, type DashboardWorkflowItem } from "../api/dashboard"
+import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChromeWithMeta, fetchDashboardRowsWithMeta, fetchEpicsGraph, fetchJobsGraph, mergeDashboardPayload, recordDashboardFilterUsage, requestDashboardMainBranchRepair, updateDashboardPreferences, type DashboardHealthBlockedRepository, type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
 import type { JsonResponseMeta } from "../api/client"
 import { TopoDepGraph } from "../components/TopoDepGraph"
 import { errorMessage } from "../lib/errorMessage"
@@ -185,7 +186,6 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
       </Page.Header>
       <ReadinessPanel className="mx-4 sm:mx-0" prefix={prefix} readiness={readiness} />
       <RepositoryHealthBanners className="mx-4 sm:mx-0" prefix={prefix} repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []} />
-      <UntaggedIssuesBanner className="mx-4 sm:mx-0" prefix={prefix} untaggedIssues={payload.untagged_issues} />
 
       {isDesktop ? (
         <>
@@ -406,70 +406,6 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
   )
 }
 
-const UNTAGGED_ISSUES_DISMISSAL_KEY = "syrus.untagged_issues_banner_dismissed"
-
-function untaggedIssuesEvidenceToken(untaggedIssues: DashboardUntaggedIssues): string {
-  return `${untaggedIssues.total}:${untaggedIssues.repositories.map((repo) => `${repo.id}:${repo.count}`).join(",")}`
-}
-
-function readUntaggedIssuesDismissal(): string | null {
-  try {
-    return window.sessionStorage.getItem(UNTAGGED_ISSUES_DISMISSAL_KEY)
-  } catch {
-    return null
-  }
-}
-
-function writeUntaggedIssuesDismissal(token: string): void {
-  try {
-    window.sessionStorage.setItem(UNTAGGED_ISSUES_DISMISSAL_KEY, token)
-  } catch {
-    // sessionStorage can be unavailable in private or restricted browser contexts.
-  }
-}
-
-export function UntaggedIssuesBanner({ className = "", prefix, untaggedIssues }: { className?: string; prefix: string; untaggedIssues?: DashboardUntaggedIssues }) {
-  const { t } = useT("dashboard")
-  const [dismissedToken, setDismissedToken] = useState<string | null>(() => readUntaggedIssuesDismissal())
-
-  if (!untaggedIssues || untaggedIssues.total === 0 || untaggedIssues.repositories.length === 0) return null
-
-  const token = untaggedIssuesEvidenceToken(untaggedIssues)
-  if (dismissedToken === token) return null
-
-  return (
-    <Notice className={className} contentClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" role="status" tone="warning">
-      <div className="min-w-0">
-        <span>
-          {t("untagged_issues_summary", { count: untaggedIssues.total })}{" "}
-          {t("untagged_issues_repo_count", { count: untaggedIssues.repositories.length })}
-        </span>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-          {untaggedIssues.repositories.map((repo, index) => (
-            <span key={repo.id}>
-              {index > 0 ? ", " : null}
-              <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(repo.issues_path, prefix)}>
-                {repo.slug} ({repo.count})
-              </Link>
-            </span>
-          ))}
-        </div>
-      </div>
-      <button
-        aria-label={t("untagged_issues_dismiss")}
-        className="shrink-0 text-warning hover:text-warning-text"
-        onClick={() => {
-          setDismissedToken(token)
-          writeUntaggedIssuesDismissal(token)
-        }}
-        type="button"
-      >
-        <CloseIcon />
-      </button>
-    </Notice>
-  )
-}
-
 function DesktopDashboardControls({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
   return <div data-tour="dashboard-filter-bar"><DashboardFilterBar pathname={pathname} search={search} payload={payload} /></div>
 }
@@ -615,9 +551,7 @@ export function SubjectTabs({ pathname, payload, prefix, className = "inline-fle
 export function DashboardToolbar({ payload, pathname, search, showConfiguration = true, isDesktop = true }: { payload: DashboardPayload; pathname: string; search: string; showConfiguration?: boolean; isDesktop?: boolean }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
-  const [columnsOpen, setColumnsOpen] = useState(false)
   const [lanesOpen, setLanesOpen] = useState(false)
-  const columnsMenuRef = useDismissiblePopup<HTMLDivElement>(columnsOpen, () => setColumnsOpen(false))
   const lanesMenuRef = useDismissiblePopup<HTMLDivElement>(lanesOpen, () => setLanesOpen(false))
   const updatePreferences = useMutation({
     mutationFn: updateDashboardPreferences,
@@ -635,54 +569,27 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
     })
   }
 
-  function updateColumn(column: string, checked: boolean) {
-    const optionalColumns = payload.controls.columns.optional.map((option) => option.key)
-    const next = optionalColumns.filter((candidate) => {
-      if (candidate === column) return checked
-      return payload.preferences.visible_columns.includes(candidate)
-    })
-    updatePreferences.mutate({
-      subject: payload.subject,
-      visible_columns: next
-    })
-  }
   const viewTabs = isDesktop ? payload.controls.views : payload.controls.views.filter((view) => view !== "dependencies")
 
   return (
     <div className="shrink-0">
       <div className="flex flex-wrap items-center justify-end gap-3">
         {showConfiguration && payload.view === "list" ? (
-          <div className="relative" ref={columnsMenuRef}>
-            <Button
-              aria-label={t("columns")}
-              aria-controls="dashboard-columns-menu"
-              aria-expanded={columnsOpen}
-              aria-haspopup="menu"
-              className="h-[var(--control-height-md)] w-[var(--control-height-md)]"
-              onClick={() => setColumnsOpen((open) => !open)}
-              size="icon"
-              variant="secondary"
-            >
-              <ColumnsIcon />
-            </Button>
-            {columnsOpen ? (
-              <Surface className="absolute right-0 z-20 mt-2 w-64 shadow-lg" id="dashboard-columns-menu" padding="sm" role="menu">
-                <fieldset className="space-y-2">
-                  <Text as="legend" muted variant="label">{t("visible_columns")}</Text>
-                  {payload.controls.columns.optional.map((column) => (
-                    <label className="flex items-center gap-2 text-sm text-text-primary" key={column.key}>
-                      <Checkbox
-                        checked={payload.preferences.visible_columns.includes(column.key)}
-                        disabled={updatePreferences.isPending}
-                        onChange={(event) => updateColumn(column.key, event.target.checked)}
-                      />
-                      <span>{column.title}</span>
-                    </label>
-                  ))}
-                </fieldset>
-              </Surface>
-            ) : null}
-          </div>
+          <ColumnVisibilityMenu
+            downLabel={t("column_down")}
+            menuId="dashboard-columns-menu"
+            moveDownLabel={(title) => t("column_move_down", { title })}
+            moveUpLabel={(title) => t("column_move_up", { title })}
+            onChange={(next) => updatePreferences.mutate({ subject: payload.subject, visible_columns: next })}
+            optionalColumns={payload.controls.columns.optional}
+            pending={updatePreferences.isPending}
+            triggerAriaLabel={t("columns")}
+            triggerClassName="h-[var(--control-height-md)] w-[var(--control-height-md)]"
+            triggerSize="icon"
+            upLabel={t("column_up")}
+            visibleColumns={payload.preferences.visible_columns}
+            visibleLabel={t("visible_columns")}
+          />
         ) : null}
         {showConfiguration && payload.view === "kanban" ? (
           <div className="relative" ref={lanesMenuRef}>
@@ -871,6 +778,7 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
         prefix={prefix}
         sortState={sortState}
         t={t}
+        untaggedIssues={payload.untagged_issues}
       />
     )
   }

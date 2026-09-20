@@ -76,6 +76,28 @@ module WorkEngine
           end
         end
         result
+      rescue => e
+        error_result(path, e)
+      end
+
+      def error_result(path, error)
+        WorkEngine::Simulation::Result.new(
+          scenario: scenario_name_for(path),
+          ticks: 0,
+          status: "error",
+          events: [],
+          stuck_reasons: [ "#{error.class}: #{error.message}", *Array(error.backtrace).first(5) ],
+          wait_reasons: [],
+          job_ids: [],
+          epic_ids: [],
+          work_intent_ids: []
+        )
+      end
+
+      def scenario_name_for(path)
+        YAML.safe_load(path.read, permitted_classes: [ Symbol ], aliases: false).to_h.fetch("name", nil).presence || path.basename.to_s
+      rescue StandardError
+        path.basename.to_s
       end
 
       def expected_status_for(path)
@@ -100,6 +122,9 @@ module WorkEngine
           result.wait_reasons.each { |reason| stream.puts "  #{reason}" }
         elsif result.stuck?
           stream.puts "stuck:"
+          result.stuck_reasons.each { |reason| stream.puts "  #{reason}" }
+        elsif result.error?
+          stream.puts "error:"
           result.stuck_reasons.each { |reason| stream.puts "  #{reason}" }
         end
       end

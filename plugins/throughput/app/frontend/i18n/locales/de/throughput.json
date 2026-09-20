@@ -1,4 +1,5 @@
 {
+  "tab_throughput": "Durchsatz",
   "heading": "Durchsatz",
   "loading": "Durchsatzmetriken werden geladen...",
   "load_error": "Durchsatzmetriken konnten nicht geladen werden.",

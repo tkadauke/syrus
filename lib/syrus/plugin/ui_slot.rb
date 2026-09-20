@@ -4,10 +4,10 @@ module Syrus
     # existing core page.
     #
     # Admin pages, sidebar pages, and repo-page tabs all give a plugin a whole
-    # page. A ui_slot gives it a section of one — the throughput panel on the
-    # repository detail page, the sccache card on the job detail page. Without
-    # this, a feature that reads as part of a core page can only be extracted
-    # by turning it into a separate tab, which changes the product to suit the
+    # page. A ui_slot gives it a section of one — the sccache card on the job
+    # detail page, the test-run panel on the job detail page. Without this, a
+    # feature that reads as part of a core page can only be extracted by
+    # turning it into a separate tab, which changes the product to suit the
     # plugin boundary.
     #
     # Providers expose:

@@ -958,6 +958,15 @@ function useHighlightedDiffLines(lines: DiffLine[], lang: HighlighterLanguageId 
       const tokenSpanCount = results.reduce((sum, [, tokens]) => sum + tokens.reduce((lineSum, lineTokens) => lineSum + lineTokens.length, 0), 0)
       endMarker(marker, { metadata: { hunk_count: missing.length, language: lang, token_span_count: tokenSpanCount } })
       bumpVersion()
+    }).catch((error: unknown) => {
+      // A blocked/failed highlighter load (e.g. CSP-blocked WASM in a
+      // browser that hasn't picked up 'wasm-unsafe-eval' yet) must not
+      // surface as an unhandled promise rejection -- the diff already
+      // renders correctly as plain text without tokens, so this is a
+      // silent degrade, not a UI error.
+      if (cancelled) return
+      endMarker(marker, { metadata: { hunk_count: missing.length, language: lang, error: true } })
+      console.warn("Diff syntax highlighting failed; falling back to plain text.", error)
     })
 
     return () => {
