@@ -274,6 +274,25 @@ describe("RepositoryTestsRoute test list", () => {
     expect(stored.hidden).toContain("suite")
   })
 
+  it("renders the Columns menu through a portal instead of nesting it under the trigger", async () => {
+    renderTestList()
+    await screen.findByText("Zebra test")
+
+    const trigger = screen.getByRole("button", { name: "Columns" })
+    fireEvent.click(trigger)
+
+    const menu = screen.getByRole("menu")
+
+    // Regression guard: the old implementation rendered the menu as an
+    // `absolute right-0` child of the trigger's own wrapping div, which put
+    // most of the menu off-screen when that div sat near the left edge of a
+    // narrow viewport. It now renders through a FloatingPortal (with
+    // flip/shift middleware keeping it inside the viewport), so it's no
+    // longer a DOM descendant of the trigger's container at all.
+    expect(trigger.parentElement?.contains(menu)).toBe(false)
+    expect(document.body.contains(menu)).toBe(true)
+  })
+
   it("reorders columns by dragging a row in the Columns menu and persists the order", async () => {
     renderTestList()
     await screen.findByText("Zebra test")
