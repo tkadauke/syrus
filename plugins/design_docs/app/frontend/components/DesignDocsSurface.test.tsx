@@ -2094,6 +2094,7 @@ describe("DesignDocsSurface", () => {
       y: 218,
       toJSON: () => ({})
     } as DOMRect)
+    fireEvent.click(within(titleBar).getByRole("button", { name: "More actions" }))
     const shareButton = within(titleBar).getByRole("button", { name: "Share" })
     vi.spyOn(shareButton, "getBoundingClientRect").mockReturnValue({
       bottom: 350,
@@ -2115,6 +2116,102 @@ describe("DesignDocsSurface", () => {
     expect(shareMenu).toHaveClass("z-40")
     expect(menuLeft).toBeGreaterThanOrEqual(16)
     expect(menuLeft + menuWidth).toBeLessThanOrEqual(window.innerWidth - 16)
+  })
+
+  it("collapses the title bar to title, Edit, and an overflow menu in narrow view, and keeps the full row otherwise", async () => {
+    mockFetch()
+    const narrowRender = renderSurface("/chats/237")
+
+    const narrowTitleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    expect(within(narrowTitleBar).getByText("Checkout design")).toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByRole("textbox", { name: "Design doc title" })).not.toBeInTheDocument()
+    expect(within(narrowTitleBar).getByRole("link", { name: "Edit" })).toBeInTheDocument()
+    expect(within(narrowTitleBar).getByRole("button", { name: "More actions" })).toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByText("private")).not.toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByText("draft")).not.toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByRole("button", { name: "Share" })).not.toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByRole("combobox", { name: "Version selection" })).not.toBeInTheDocument()
+
+    fireEvent.click(within(narrowTitleBar).getByRole("button", { name: "More actions" }))
+    const narrowMenu = within(narrowTitleBar).getByTestId("design-doc-title-bar-menu")
+    expect(within(narrowMenu).getByText("private")).toBeInTheDocument()
+    expect(within(narrowMenu).getByText("draft")).toBeInTheDocument()
+    expect(within(narrowMenu).getByText("acme/widgets")).toBeInTheDocument()
+    expect(within(narrowMenu).getByRole("button", { name: "Add repository" })).toBeInTheDocument()
+    expect(within(narrowMenu).getByRole("button", { name: "Share" })).toBeInTheDocument()
+    expect(within(narrowMenu).getByRole("button", { name: "Archive" })).toBeInTheDocument()
+    expect(within(narrowMenu).getByRole("button", { name: "Save" })).toBeInTheDocument()
+    expect(within(narrowMenu).getByRole("combobox", { name: "Version selection" })).toBeInTheDocument()
+    narrowRender.unmount()
+
+    renderSurface("/design_docs/1")
+    const wideBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    expect(within(wideBar).getByRole("textbox", { name: "Design doc title" })).toBeInTheDocument()
+    expect(within(wideBar).getByText("private")).toBeInTheDocument()
+    expect(within(wideBar).getByText("draft")).toBeInTheDocument()
+    expect(within(wideBar).getByRole("button", { name: "Share" })).toBeInTheDocument()
+    expect(within(wideBar).getByRole("button", { name: "Archive" })).toBeInTheDocument()
+    expect(within(wideBar).getByRole("button", { name: "Save" })).toBeInTheDocument()
+    expect(within(wideBar).getByRole("combobox", { name: "Version selection" })).toBeInTheDocument()
+    expect(within(wideBar).queryByRole("button", { name: "More actions" })).not.toBeInTheDocument()
+    expect(within(wideBar).queryByRole("link", { name: "Edit" })).not.toBeInTheDocument()
+  })
+
+  it("shares, saves, and archives a design doc from inside the narrow title bar overflow menu", async () => {
+    const fetchSpy = mockFetch()
+    mockMobileViewport()
+    renderSurface("/design_docs/1")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    fireEvent.click(within(titleBar).getByRole("button", { name: "Edit" }))
+    await screen.findByRole("toolbar", { name: "Formatting toolbar" })
+
+    fireEvent.click(within(titleBar).getByRole("button", { name: "More actions" }))
+    const menu = within(titleBar).getByTestId("design-doc-title-bar-menu")
+
+    fireEvent.click(within(menu).getByRole("button", { name: "Share" }))
+    fireEvent.change(within(menu).getByRole("combobox", { name: "Share visibility" }), { target: { value: "public" } })
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" })))
+    const visibilityRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.visibility === "public")
+    expect(visibilityRequest).toBeTruthy()
+
+    fireEvent.click(within(menu).getByRole("button", { name: "Save" }))
+    expect(screen.getByRole("textbox", { name: "Change summary" })).toBeInTheDocument()
+    fireEvent.click(within(menu).getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const saveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.checkpoint === true)
+      expect(saveRequest).toBeTruthy()
+    })
+
+    fireEvent.click(within(menu).getByRole("button", { name: "Archive" }))
+
+    await waitFor(() => {
+      const archiveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.state === "archived")
+      expect(archiveRequest).toBeTruthy()
+    })
+    expect(await screen.findByText("This design doc is archived. Content, comments, suggestions, and reviews are read only.")).toBeInTheDocument()
+  })
+
+  it("changes the viewed design doc version from inside the narrow title bar overflow menu", async () => {
+    const fetchSpy = mockFetch()
+    mockMobileViewport()
+    renderSurface("/design_docs/1")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    fireEvent.click(within(titleBar).getByRole("button", { name: "More actions" }))
+    const menu = within(titleBar).getByTestId("design-doc-title-bar-menu")
+
+    const versionSelect = within(menu).getByRole("combobox", { name: "Version selection" })
+    fireEvent.focus(versionSelect)
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/versions", expect.objectContaining({ credentials: "same-origin" })))
+    await within(menu).findByRole("option", { name: "v1 - Initial" })
+    fireEvent.change(versionSelect, { target: { value: "1" } })
+
+    await waitFor(() => expect(screen.getByRole("region", { name: "Design doc content" })).toHaveTextContent("Historical body"))
   })
 
   it("reviews suggestions and exposes version history from the title bar", async () => {
