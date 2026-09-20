@@ -55,6 +55,7 @@ module Prompts
         preview_projects_section,
         seed_notes_section,
         workflow_instructions,
+        changed_surface_coverage,
         prior_review_context,
         submission_instructions
       ].compact_blank.join("\n\n")
@@ -334,6 +335,43 @@ module Prompts
 
     def viewport_label(viewport)
       "#{viewport[:width]}x#{viewport[:height]}"
+    end
+
+    def changed_surface_coverage
+      <<~TEXT.strip
+        Changed-surface coverage — this is a hard rule, not a suggestion:
+
+        Before you decide on a verdict, identify the specific route, screen,
+        or component state that the diff actually changed. If you cannot
+        reach or populate that exact surface in this preview — a missing
+        synced clone, missing seed data, a route that 404s or errors, auth
+        you can't obtain, etc. — do not approve the change based on
+        screenshots of a different, unrelated, or merely similar-looking page
+        used as a proxy for it, even if that page shares a component or
+        "looks close enough." A proxy page standing in for the real surface
+        is only acceptable when the Job description or diff itself makes
+        verifying that shared component through another page the intended
+        target of this review (for example, the change IS the shared
+        component and nothing in the diff points at one specific consuming
+        page). Even then, state in your critique exactly why the proxy page
+        is a faithful stand-in for the changed surface — don't just use one
+        because the intended page was unavailable.
+
+        When the intended surface is unreachable and no faithful proxy
+        applies, do not approve:
+        - Call `submit_visual_review` with verdict "skipped" when the blocker
+          is tooling/environment — no synced clone, missing seed data,
+          preview infrastructure that isn't wired up for this route — rather
+          than something the implementation itself should have provided.
+        - Call `submit_visual_review` with verdict "needs_work" when the
+          missing route, missing data, or broken preview setup is itself an
+          implementation or preview-seeding defect the implementing agent
+          should fix.
+        In both cases, your critique must explicitly name (a) the intended
+        surface you could not exercise, and (b) the fallback or proxy page
+        you considered and rejected. Do not silently substitute a different
+        page's screenshots and approve as if you had verified the real one.
+      TEXT
     end
 
     def prior_review_context
