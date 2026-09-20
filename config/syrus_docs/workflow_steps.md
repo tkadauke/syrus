@@ -265,9 +265,17 @@ timeout.
 chooses ordered provider/model/effort candidates for a Workflow from explicit
 Job pins, repository rules, user rules, and the hardcoded fallback. Workflow
 creation records the chosen candidate in `agent_provider_routing_decision`.
-Before the first Run starts, provider availability can walk that ordered
-candidate list and choose the first candidate that is not paused, exhausted,
-rate-limited, or manually overridden. Automatic candidate changes record
+Before the first Run starts, `ProviderRouting::AvailabilitySelector` walks
+that ordered candidate list and chooses the first one that is not exhausted,
+rate-limited, in an auth-error state, or manually overridden -- this basic
+"is it actually broken right now" check always applies, independent of any
+per-provider setting. The proactive remaining-usage-percent threshold (the
+`provider_availability_pause_thresholds` percentage described above) is the
+one part of this that stays opt-in per provider: a candidate under that
+threshold is skipped only when `provider_availability_pause_enabled?` is
+true for it. A user who sets a provider's threshold to 0 disables the
+proactive pause for that provider but does not lose the hard-unavailability
+check. Automatic candidate changes record
 `provider_failover_decision` on the Workflow artifacts, and app payloads project
 that as `provider_failover` on Job detail, dashboard rows, repository Job rows,
 compact Job payloads, and Workflow cards. The payload includes original and
