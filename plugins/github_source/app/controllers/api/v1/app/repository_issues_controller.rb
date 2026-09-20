@@ -10,9 +10,17 @@ module Api
         include RepositoryTabsSerialization
         include RepositorySummarySerialization
 
+        # Smart folders over the open/closed issue sets GitHub already gives
+        # us -- "inbox" and "delegated" partition the open set by whether it
+        # carries the repository's trigger label, so no extra GitHub calls
+        # are needed beyond the open/closed fetches every folder already
+        # requires for accurate counts (see #repository_issues_payload).
+        FOLDERS = %w[inbox delegated open closed].freeze
+        ISSUES_PER_PAGE = 50
+
         def issues
           repository = find_repository
-          render json: repository_issues_payload(repository, state: issue_state)
+          render json: repository_issues_payload(repository, folder: issue_folder, query: issue_query)
         end
 
 
@@ -32,7 +40,7 @@ module Api
             on_behalf_of: Current.user
           )
 
-          render json: repository_issues_payload(repository, state: issue_state, message: I18n.t("api.repositories.comment_added", number: issue_number))
+          render json: repository_issues_payload(repository, folder: issue_folder, query: issue_query, message: I18n.t("api.repositories.comment_added", number: issue_number))
         rescue Octokit::Error => e
           render_error("github_error", I18n.t("api.repositories.comment_failed", error: e.message), status: :bad_gateway)
         end
@@ -43,7 +51,7 @@ module Api
           issue_number = params.require(:issue_number).to_i
           GithubClient.for(repository: repository, user: Current.user).close_issue(repository.slug, issue_number)
 
-          render json: repository_issues_payload(repository, state: issue_state, message: I18n.t("api.repositories.issue_closed", number: issue_number))
+          render json: repository_issues_payload(repository, folder: issue_folder, query: issue_query, message: I18n.t("api.repositories.issue_closed", number: issue_number))
         rescue Octokit::Error => e
           render_error("github_error", I18n.t("api.repositories.issue_close_failed", error: e.message), status: :bad_gateway)
         end
@@ -54,7 +62,7 @@ module Api
           issue_number = params.require(:issue_number).to_i
           GithubClient.for(repository: repository, user: Current.user).add_label_to_issue(repository.slug, issue_number, repository.trigger_label)
 
-          render json: repository_issues_payload(repository, state: issue_state, message: I18n.t("api.repositories.issue_delegated", number: issue_number))
+          render json: repository_issues_payload(repository, folder: issue_folder, query: issue_query, message: I18n.t("api.repositories.issue_delegated", number: issue_number))
         rescue Octokit::Error => e
           render_error("github_error", I18n.t("api.repositories.issue_delegate_failed", error: e.message), status: :bad_gateway)
         end
@@ -79,29 +87,45 @@ module Api
         end
 
 
-        def repository_issues_payload(repository, state:, message: nil)
-          issues = []
+        # Fetches both open and closed issues on every call so every smart
+        # folder's count is accurate (not just the currently selected one) --
+        # GithubClient#list_all_issues already auto-paginates through the
+        # full set per state, so this adds no truncation risk, only a second
+        # (cheap, conditionally-cached) GitHub request.
+        def repository_issues_payload(repository, folder:, query: nil, message: nil)
+          open_issues = []
+          closed_issues = []
           error_message = nil
           begin
-            issues = GithubClient.for(repository: repository, user: Current.user).list_all_issues(repository.slug, state: state).first(50)
+            client = GithubClient.for(repository: repository, user: Current.user)
+            open_issues = client.list_all_issues(repository.slug, state: "open")
+            closed_issues = client.list_all_issues(repository.slug, state: "closed")
           rescue ArgumentError
             error_message = I18n.t("api.repositories.no_github_token")
           rescue Octokit::Error => e
             error_message = I18n.t("api.repositories.github_error", error: e.message)
           end
 
+          delegated_issues, inbox_issues = open_issues.partition { |issue| issue_delegated?(repository, issue) }
+          folder_issues = {
+            "inbox" => inbox_issues,
+            "delegated" => delegated_issues,
+            "open" => open_issues,
+            "closed" => closed_issues
+          }
+          matching_issues = filter_by_query(folder_issues.fetch(folder), query)
+
           {
             message: message,
             error_message: error_message,
             repository: repository_detail_json(repository),
             tabs: repository_tabs_json(repository),
-            state: state,
-            issue_count: issues.size,
-            issues: issues.map { |issue| issue_json(repository, issue) },
-            state_paths: {
-              open: repository_path(repository, tab: "github_issues", state: "open"),
-              closed: repository_path(repository, tab: "github_issues", state: "closed")
-            },
+            folder: folder,
+            query: query.presence,
+            issue_count: matching_issues.size,
+            issues: matching_issues.first(ISSUES_PER_PAGE).map { |issue| issue_json(repository, issue) },
+            folder_counts: folder_issues.transform_values(&:size),
+            folder_paths: FOLDERS.index_with { |value| repository_path(repository, tab: "github_issues", folder: value) },
             paths: {
               github_issues_path: "https://github.com/#{repository.slug}/issues",
               app_comment_issue_path: "/api/v1/app/repositories/#{repository.id}/issues/comment",
@@ -124,8 +148,13 @@ module Api
             user_login: issue.user&.login,
             created_at: issue.created_at&.iso8601,
             labels: labels.map { |label| issue_label_json(label) },
-            delegated: labels.any? { |label| label.name == repository.trigger_label }
+            delegated: issue_delegated?(repository, issue)
           }
+        end
+
+
+        def issue_delegated?(repository, issue)
+          Array(issue.labels).any? { |label| label.name == repository.trigger_label }
         end
 
 
@@ -137,8 +166,29 @@ module Api
         end
 
 
-        def issue_state
-          params.fetch(:state, "open").presence_in(%w[open closed]) || "open"
+        def filter_by_query(issues, query)
+          return issues if query.blank?
+
+          needle = query.downcase
+          issues.select do |issue|
+            issue.title.to_s.downcase.include?(needle) ||
+              issue.body.to_s.downcase.include?(needle) ||
+              issue.user&.login.to_s.downcase.include?(needle)
+          end
+        end
+
+
+        def issue_folder
+          folder = params[:folder].presence
+          return folder if FOLDERS.include?(folder)
+          return "closed" if params[:state] == "closed"
+
+          "open"
+        end
+
+
+        def issue_query
+          params[:q].to_s.strip.presence
         end
 
 
@@ -157,7 +207,8 @@ module Api
 
           render json: repository_issues_payload(
             repository,
-            state: issue_state,
+            folder: issue_folder,
+            query: issue_query,
             message: I18n.t("api.repositories.bulk_delegated", count: issue_numbers.size)
           )
         rescue Octokit::Error => e
@@ -173,7 +224,8 @@ module Api
 
           render json: repository_issues_payload(
             repository,
-            state: issue_state,
+            folder: issue_folder,
+            query: issue_query,
             message: I18n.t("api.repositories.bulk_closed", count: issue_numbers.size)
           )
         rescue Octokit::Error => e
