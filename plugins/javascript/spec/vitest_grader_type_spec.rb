@@ -45,6 +45,19 @@ RSpec.describe JavaScript::VitestGraderType do
     ])
   end
 
+  it "uses root-relative test paths and unique artifacts for nested projects" do
+    steps = described_class.grade_steps(
+      config: { "_syrus_project_path" => "plugins/example" },
+      default_failures: "strict"
+    )
+
+    expect(steps.first.run).to include("run_vitest run plugins/example/app/frontend plugins/example/src")
+    expect(steps.first.junit_output).to eq(".syrus/grade-output/plugins-example-vitest-junit.xml")
+    expect(steps.second.run).to include("plugins/example")
+    expect(steps.second.junit_output).to eq(".syrus/grade-output/plugins-example-vitest-focused-junit.xml")
+    expect(steps.first.when_files_changed).to include("**/*.ts", "package.json")
+  end
+
   it "uses configured test paths for full and ci modes" do
     steps = described_class.grade_steps(
       config: { "paths" => [ "app/frontend", "plugins/*/app/frontend" ] },

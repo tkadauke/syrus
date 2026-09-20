@@ -48,6 +48,12 @@ formatters:
       - "cli/**/*.go"
       - "plugins/*/cli/**/*.go"
 
+targets:
+  - name: website-deploy-workflow
+    kind: default
+    sources:
+      - ".github/workflows/deploy-website.yml"
+
 preview:
   setup: *syrus_prepare
   start: bin/syrus-preview-dev
@@ -275,7 +281,7 @@ grade:
     # bundle-check graders that the 3-minute budget those got bumped to has
     # itself started producing spurious exit-124s here with zero eager-load
     # findings; 5 minutes matches the headroom already given to
-    # fresh-production-db-prepare/cli-go-workspace-backstop.
+    # fresh-production-db-prepare.
     timeout_minutes: 5
 
   - name: work-engine-simulations
@@ -312,41 +318,6 @@ grade:
     phases: [review, landing, ci]
     timeout_minutes: 5
 
-  - name: cli-go-workspace-backstop
-    description: |
-      Runs the full Go workspace for cross-project CLI integration changes:
-      the core CLI module, plugin-owned CLI modules, go.work membership, and
-      release/desktop packaging paths that ship the CLI binary. The core CLI
-      module's project metadata lives in cli/.syrus.yml, and desktop app
-      metadata lives in desktop/.syrus.yml; keep this root check executable
-      until nested grader targets are materialized directly by workflow
-      fanout.
-    run: mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/...")'
-    phases: [review, landing, ci]
-    when_files_changed:
-      - "cli/**/*.go"
-      - "cli/go.mod"
-      - "cli/go.sum"
-      - "cli/Makefile"
-      - "go.work"
-      - "plugins/*/cli/**/*.go"
-      - "plugins/*/cli/go.mod"
-      - "bin/release-cli"
-      - "bin/release-desktop"
-      - ".github/workflows/_build-app.yml"
-      - ".github/workflows/desktop-ci.yml"
-      - ".github/workflows/release.yml"
-      - ".github/workflows/test-build.yml"
-      - "desktop/scripts/stage-cli.mjs"
-      - "desktop/electron/main.ts"
-      - "desktop/electron/preload.cts"
-      - "desktop/electron/settings.ts"
-      - "desktop/electron/credentialsStore.ts"
-      - "desktop/src/App.tsx"
-      - "desktop/package.json"
-      - "desktop/package-lock.json"
-    timeout_minutes: 5
-
   - type: rspec
     name: rspec
     description: |
@@ -378,16 +349,11 @@ grade:
     typecheck: true
     paths:
       - "app/frontend"
-      - "plugins/*/app/frontend"
     when_files_changed:
       - "app/frontend/**/*.js"
       - "app/frontend/**/*.jsx"
       - "app/frontend/**/*.ts"
       - "app/frontend/**/*.tsx"
-      - "plugins/*/app/frontend/**/*.js"
-      - "plugins/*/app/frontend/**/*.jsx"
-      - "plugins/*/app/frontend/**/*.ts"
-      - "plugins/*/app/frontend/**/*.tsx"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -395,25 +361,6 @@ grade:
     timeout_minutes: 20
     focused_timeout_minutes: 20
     ci_timeout_minutes: 20
-
-  - name: website-build
-    description: |
-      Builds the public Next.js website with committed release metadata
-      instead of refreshing it from GitHub. This rejects stale source layouts,
-      broken static export/type validation, and release-download page
-      regressions before `.github/workflows/deploy-website.yml` fails after
-      merge, without dirtying grader workspaces when newer release metadata
-      exists upstream.
-    run: npm --prefix website ci && npm --prefix website run sync-release:check && npm --prefix website run build
-    phases: [landing, ci]
-    failures: allow_inherited
-    base_retry:
-      strategy: full_command
-    required: true
-    when_files_changed:
-      - "website/**/*"
-      - ".github/workflows/deploy-website.yml"
-    timeout_minutes: 10
 
 coverage:
   sources:

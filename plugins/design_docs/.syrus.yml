@@ -8,3 +8,5 @@ grade:
     deps:
       - "//plugins/global_search:grade/rspec"
   - type: vitest
+  - type: go-test
+    path: cli

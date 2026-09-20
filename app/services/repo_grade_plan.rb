@@ -25,18 +25,19 @@ class RepoGradePlan
     end
   end
 
-  def self.for(workspace_path)
-    new(workspace_path).resolve
+  def self.for(workspace_path, project_path: nil)
+    new(workspace_path, project_path: project_path).resolve
   end
 
-  def initialize(workspace_path)
+  def initialize(workspace_path, project_path: nil)
     @path = Pathname.new(workspace_path)
+    @project_path = project_path.to_s.strip.presence
   end
 
   def resolve
     return empty_result(source: "none", note: "no .syrus.yml") unless config_present?
 
-    config = SyrusYml.load_repo(@path)
+    config = SyrusYml.load_repo(@path, project_path: @project_path)
     grade = config.grade
 
     return empty_result(source: ".syrus.yml", note: "no graders configured") unless grade

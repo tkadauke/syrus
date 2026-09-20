@@ -79,6 +79,29 @@ RSpec.describe Steps::PreflightGraderFanout do
     expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec lint])
   end
 
+  it "materializes nested preflight grader targets" do
+    write_grade_config("grade: []\n")
+    FileUtils.mkdir_p(@ws_path.join("cli"))
+    @ws_path.join("cli/.syrus.yml").write(<<~YAML)
+      project:
+        id: cli
+        label: CLI
+        kind: cli
+
+      grade:
+        - type: go-test
+    YAML
+
+    handler.call
+
+    grader_step = workflow.steps.find_by!(kind: "preflight_grader")
+    expect(grader_step.details).to include(
+      "name" => "cli-go-tests",
+      "target_label" => "//cli:grade/go-tests",
+      "command" => "mise exec go@1.26.5 -- sh -c 'cd cli && go test ./...'"
+    )
+  end
+
   it "retries transient step materialization deadlocks" do
     write_grade_config(<<~YAML)
       grade:
@@ -146,7 +169,7 @@ RSpec.describe Steps::PreflightGraderFanout do
     snapshot = workflow.source_snapshots.sole
     expect(grader_step.placement_policy).to eq(Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
     expect(grader_step.details).to include(
-      "projected_target_label" => "//:preflight-grade/tests",
+      "projected_target_label" => "//:grade/tests",
       "barrier_labels" => [ "preflight_grader_collect" ],
       "source_snapshot_id" => snapshot.id
     )

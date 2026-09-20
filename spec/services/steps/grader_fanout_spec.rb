@@ -792,16 +792,8 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[website-build rspec])
   end
 
-  it "keeps the root Go workspace backstop executable for core CLI changes while CLI targets are nested" do
-    write_config(<<~YAML)
-      grade:
-        - name: cli-go-workspace-backstop
-          run: mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/...")'
-          phases: [review, landing, ci]
-          when_files_changed:
-            - "cli/**/*.go"
-            - "plugins/*/cli/**/*.go"
-    YAML
+  it "materializes a nested CLI grader target for core CLI changes" do
+    write_config("grade: []\n")
     FileUtils.mkdir_p(@ws_path.join("cli"))
     @ws_path.join("cli/.syrus.yml").write(<<~YAML)
       project:
@@ -813,11 +805,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
         - mise exec go@1.26.5 -- go mod download
 
       grade:
-        - name: go-tests
-          run: mise exec go@1.26.5 -- go test ./...
-          phases: [review, landing, ci]
-          when_files_changed:
-            - "**/*.go"
+        - type: go-test
     YAML
     stub_changed_files("cli/cmd/jobs.go")
 
@@ -825,13 +813,17 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
     grader_step = workflow.steps.find_by!(kind: "grader")
     expect(grader_step.details).to include(
-      "name" => "cli-go-workspace-backstop",
-      "command" => %(mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/...")')
+      "name" => "cli-go-tests",
+      "target_label" => "//cli:grade/go-tests",
+      "command" => "mise exec go@1.26.5 -- sh -c 'cd cli && go test ./...'"
     )
+    expect(grader_step.details["prepare_targets"]).to eq([
+      { "target_label" => "//cli:prepare", "commands" => [ "mise exec go@1.26.5 -- go mod download" ], "project_path" => "cli" }
+    ])
     expect(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY)).to contain_exactly(
       include(
-        "name" => "cli-go-workspace-backstop",
-        "target_label" => "//:grade/cli-go-workspace-backstop",
+        "name" => "cli-go-tests",
+        "target_label" => "//cli:grade/go-tests",
         "affected" => true
       )
     )

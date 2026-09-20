@@ -1,0 +1,27 @@
+project:
+  id: website
+  label: Website
+  kind: website
+
+prepare:
+  - npm ci
+
+grade:
+  - name: build
+    description: |
+      Builds the public Next.js website with committed release metadata
+      instead of refreshing it from GitHub. This rejects stale source layouts,
+      broken static export/type validation, and release-download page
+      regressions before deploy workflows fail after merge, without dirtying
+      grader workspaces when newer release metadata exists upstream.
+    run: npm --prefix website ci && npm --prefix website run sync-release:check && npm --prefix website run build
+    phases: [landing, ci]
+    failures: allow_inherited
+    base_retry:
+      strategy: full_command
+    required: true
+    when_files_changed:
+      - "**/*"
+    deps:
+      - "//:website-deploy-workflow"
+    timeout_minutes: 10

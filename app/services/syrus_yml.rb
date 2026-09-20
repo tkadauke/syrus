@@ -224,18 +224,19 @@ class SyrusYml
   CoverageThreshold = RepoCoveragePlan::Threshold
   CoverageConfig    = RepoCoveragePlan
 
-  def self.load_file(path)
-    new(Pathname.new(path).read).parse
+  def self.load_file(path, project_path: nil)
+    new(Pathname.new(path).read, project_path: project_path).parse
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
   end
 
-  def self.load_repo(workspace_path)
-    load_file(Pathname.new(workspace_path).join(CONFIG_FILE))
+  def self.load_repo(workspace_path, project_path: nil)
+    load_file(Pathname.new(workspace_path).join(CONFIG_FILE), project_path: project_path)
   end
 
-  def initialize(contents)
+  def initialize(contents, project_path: nil)
     @contents = contents
+    @project_path = project_path.to_s.strip.presence
   end
 
   def parse
@@ -527,7 +528,9 @@ class SyrusYml
     provider = providers.find { |candidate| candidate.type_name.to_s == type }
     raise ParseError, "#{label}.type: unknown grader type #{type.inspect}" unless provider
 
-    Array(provider.grade_steps(config: raw.deep_stringify_keys, default_failures: default_failures))
+    provider_config = raw.deep_stringify_keys
+    provider_config["_syrus_project_path"] = @project_path if @project_path
+    Array(provider.grade_steps(config: provider_config, default_failures: default_failures))
   rescue ArgumentError => e
     raise ParseError, "#{label}.type #{type.inspect}: #{e.message}"
   end

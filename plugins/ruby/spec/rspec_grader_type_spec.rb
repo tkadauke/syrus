@@ -49,6 +49,21 @@ RSpec.describe Ruby::RspecGraderType do
     ])
   end
 
+  it "uses root-relative command paths and unique artifacts for nested projects" do
+    steps = described_class.grade_steps(
+      config: { "_syrus_project_path" => "plugins/example" },
+      default_failures: "strict"
+    )
+
+    expect(steps.first.run).to include("bundle exec rspec")
+    expect(steps.first.run).to include("plugins/example/spec")
+    expect(steps.first.junit_output).to eq(".syrus/grade-output/plugins-example-rspec-junit.xml")
+    expect(steps.first.run).to include(".syrus/rspec-json/plugins-example-rspec.json")
+    expect(steps.second.run).to include("plugins/example")
+    expect(steps.second.junit_output).to eq(".syrus/grade-output/plugins-example-rspec-focused-junit.xml")
+    expect(steps.first.when_files_changed).to include("**/*.rb", "Gemfile")
+  end
+
   it "passes dependency labels through typed grader expansion" do
     steps = described_class.grade_steps(
       config: { "deps" => [ "//plugins/ruby:grade/rspec" ] },

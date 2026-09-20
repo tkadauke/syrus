@@ -2,6 +2,7 @@ require "go/prepare_detector"
 require "go/review_criteria_provider"
 require "go/gofmt_autofix"
 require "go/dependency_audit_command"
+require "go/test_grader_type"
 
 module Go
   extend Syrus::PluginApi
@@ -22,6 +23,7 @@ module Go
     provides prepare_detector: "Go::PrepareDetector",
              review_criteria_provider: "Go::ReviewCriteriaProvider",
              autofix_command: "Go::GofmtAutofix",
-             dependency_audit_command: "Go::DependencyAuditCommand"
+             dependency_audit_command: "Go::DependencyAuditCommand",
+             grader_type: "Go::TestGraderType"
   end
 end

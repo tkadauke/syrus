@@ -25,7 +25,7 @@ module Steps
 
     def call
       workspace.setup
-      plan = effective_plan(RepoGradePlan.for(workspace.path))
+      plan = effective_plan(graph_grade_plan)
       grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan, target_graph: target_graph)
 
       workflow.set_artifact!("preflight_grade_plan_source", plan.source)
@@ -52,6 +52,10 @@ module Steps
 
     def effective_plan(plan)
       LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: 1)
+    end
+
+    def graph_grade_plan
+      TargetGraph::GradePlan.for(workspace_path: workspace.path, graph: target_graph)
     end
 
     def materialize_grader_steps!(graders)
@@ -163,7 +167,7 @@ module Steps
       return {} unless distributed_grader_projection_enabled?
 
       {
-        "projected_target_label" => "//:preflight-grade/#{grader.name}",
+        "projected_target_label" => target_label_for(grader),
         "projected_target_fingerprint" => target_fingerprints.command_fingerprint,
         "barrier_labels" => [ "preflight_grader_collect" ],
         "source_snapshot_id" => source_snapshot.id,
@@ -303,7 +307,7 @@ module Steps
     end
 
     def target_label_for(grader)
-      "//:grade/#{grader.name}"
+      grader.metadata["target_label"].presence || "//:grade/#{grader.name}"
     end
 
     def target_graph

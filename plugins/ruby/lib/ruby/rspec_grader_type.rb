@@ -112,6 +112,17 @@ module Ruby
       configured_scope
     end
 
+    def project_path
+      config["_syrus_project_path"].to_s.strip.presence
+    end
+
+    def project_relative(path)
+      path = path.to_s
+      return path if project_path.blank? || path.start_with?("#{project_path}/")
+
+      "#{project_path}/#{path}"
+    end
+
     def configured_deps
       raw = config["deps"] || config["dependencies"]
       refs =
@@ -143,13 +154,23 @@ module Ruby
     end
 
     def junit_output(name)
-      ".syrus/grade-output/#{name}-junit.xml"
+      ".syrus/grade-output/#{artifact_name(name)}-junit.xml"
+    end
+
+    def json_output(name)
+      ".syrus/rspec-json/#{artifact_name(name)}.json"
+    end
+
+    def artifact_name(name)
+      return name if project_path.blank?
+
+      "#{project_path.tr('/', '-')}-#{name}"
     end
 
     def full_command
       rspec_command(
         junit_output: junit_output(full_name),
-        json_output: ".syrus/rspec-json/#{full_name}.json",
+        json_output: json_output(full_name),
         coverage: coverage?,
         args: [ "--tag", "~ci_only", *rspec_paths ]
       )
@@ -158,7 +179,7 @@ module Ruby
     def ci_command
       rspec_command(
         junit_output: junit_output(ci_name),
-        json_output: ".syrus/rspec-json/#{ci_name}.json",
+        json_output: json_output(ci_name),
         coverage: coverage?,
         env: { "RUN_CI_ONLY_SPECS" => "true" },
         args: rspec_paths
@@ -167,7 +188,7 @@ module Ruby
 
     def rspec_paths
       raw = config["paths"] || config["spec_paths"] || DEFAULT_RSPEC_PATHS
-      Array(raw).map(&:to_s).map(&:strip).reject(&:empty?)
+      Array(raw).map(&:to_s).map(&:strip).reject(&:empty?).map { |path| project_relative(path) }
     end
 
     def focused_command
@@ -175,7 +196,7 @@ module Ruby
         #{setup_prefix} &&
         ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/rspec-focused-files &&
         if [ ! -s .syrus/rspec-focused-files ]; then echo "No focused RSpec files matched changed Ruby files"; exit 0; fi &&
-        #{rspec_command(junit_output: junit_output(focused_name), json_output: ".syrus/rspec-json/#{focused_name}.json", coverage: false, args: [ "--tag", "~ci_only", "$(cat .syrus/rspec-focused-files)" ], shell_expand_args: true, skip_setup: true)}
+        #{rspec_command(junit_output: junit_output(focused_name), json_output: json_output(focused_name), coverage: false, args: [ "--tag", "~ci_only", "$(cat .syrus/rspec-focused-files)" ], shell_expand_args: true, skip_setup: true)}
       BASH
     end
 
@@ -222,23 +243,28 @@ module Ruby
     end
 
     def focused_selector_ruby
-      <<~'RUBY'.sub("__SYRUS_SCOPE__", focused_scope.inspect)
+      <<~'RUBY'.sub("__SYRUS_SCOPE__", focused_scope.inspect).sub("__SYRUS_PROJECT_PATH__", project_path.to_s.inspect)
         base = %w[origin/main origin/master main master].find { |ref| system("git", "rev-parse", "--verify", "#{ref}^{commit}", out: File::NULL, err: File::NULL) }
         exit 0 unless base
         scope = __SYRUS_SCOPE__
+        project_path = __SYRUS_PROJECT_PATH__
+        prefixed = ->(path) { project_path.empty? ? path : File.join(project_path, path) }
+        relative = ->(path) { project_path.empty? ? path : path.delete_prefix("#{project_path}/") }
         matches_scope = ->(path) { scope.empty? || scope.any? { |pattern| File.fnmatch?(pattern, path, File::FNM_DOTMATCH) } }
         changed = `git diff --name-only --diff-filter=ACMR #{base}...HEAD -- "*.rb"`.lines.map(&:strip)
-        specs = changed.select { |path| matches_scope.call(path) }.flat_map do |path|
-          if path.start_with?("spec/") && path.end_with?("_spec.rb")
+        project_matches = ->(path) { project_path.empty? || path.start_with?("#{project_path}/") }
+        specs = changed.select { |path| project_matches.call(path) && matches_scope.call(relative.call(path)) }.flat_map do |path|
+          rel = relative.call(path)
+          if rel.start_with?("spec/") && rel.end_with?("_spec.rb")
             [ path ]
           else
-            stem = path.sub(/\.rb\z/, "")
+            stem = rel.sub(/\.rb\z/, "")
             [
               "#{stem}_spec.rb",
               "spec/#{stem}_spec.rb",
-              path.start_with?("app/") ? "spec/#{path.delete_prefix("app/").sub(/\.rb\z/, "_spec.rb")}" : nil,
-              path.start_with?("lib/") ? "spec/lib/#{path.delete_prefix("lib/").sub(/\.rb\z/, "_spec.rb")}" : nil
-            ].compact
+              rel.start_with?("app/") ? "spec/#{rel.delete_prefix("app/").sub(/\.rb\z/, "_spec.rb")}" : nil,
+              rel.start_with?("lib/") ? "spec/lib/#{rel.delete_prefix("lib/").sub(/\.rb\z/, "_spec.rb")}" : nil
+            ].compact.map { |candidate| prefixed.call(candidate) }
           end
         end
         puts specs.uniq.sort.select { |path| File.exist?(path) }

@@ -35,7 +35,7 @@ module Steps
       workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, [])
       workflow.set_artifact!(TARGET_HEALTH_FORCED_ARTIFACT_KEY, [])
       workflow.set_artifact!(TARGET_HEALTH_SKIPS_ARTIFACT_KEY, [])
-      plan = effective_plan(RepoGradePlan.for(workspace.path))
+      plan = effective_plan(graph_grade_plan)
       grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan, target_graph: target_graph)
       record_plan_source!(plan, grader_fingerprint)
       apply_loop_max_iterations!(plan.max_iterations)
@@ -540,7 +540,7 @@ module Steps
     def distributed_grader_details(grader, source_snapshot:, target_fingerprints:)
       return {} unless distributed_grader_projection_enabled?
 
-      target_label = "//:grade/#{grader.name}"
+      target_label = target_label_for(grader)
 
       {
         "projected_target_label" => target_label,
@@ -670,6 +670,10 @@ module Steps
       LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: run.iteration)
     end
 
+    def graph_grade_plan
+      TargetGraph::GradePlan.for(workspace_path: workspace.path, graph: target_graph)
+    end
+
     # One entry per transitive `kind: prepare` dependency target, in
     # dependency order -- Steps::Grader (via PrepareTargetExecution) runs
     # each of these at most once per workflow workspace before the grader
@@ -714,7 +718,7 @@ module Steps
     end
 
     def target_label_for(grader)
-      "//:grade/#{grader.name}"
+      grader.metadata["target_label"].presence || "//:grade/#{grader.name}"
     end
 
     def target_graph

@@ -24,7 +24,8 @@ RSpec.describe Go::Engine do
             prepare_detector:         Go::PrepareDetector,
             review_criteria_provider: Go::ReviewCriteriaProvider,
             autofix_command:          Go::GofmtAutofix,
-            dependency_audit_command: Go::DependencyAuditCommand
+            dependency_audit_command: Go::DependencyAuditCommand,
+            grader_type:              Go::TestGraderType
           }
         )
       end
@@ -44,8 +45,8 @@ RSpec.describe Go::Engine do
       expect(registration.category).to eq("language")
     end
 
-    it "provides exactly the :prepare_detector, :review_criteria_provider, :autofix_command, and :dependency_audit_command extension point keys" do
-      expect(registration.provides.keys).to contain_exactly(:prepare_detector, :review_criteria_provider, :autofix_command, :dependency_audit_command)
+    it "provides exactly the expected extension point keys" do
+      expect(registration.provides.keys).to contain_exactly(:prepare_detector, :review_criteria_provider, :autofix_command, :dependency_audit_command, :grader_type)
     end
 
     it "registers GofmtAutofix as the :autofix_command" do
@@ -62,6 +63,10 @@ RSpec.describe Go::Engine do
 
     it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
       expect(registration.provides[:review_criteria_provider]).to eq(Go::ReviewCriteriaProvider)
+    end
+
+    it "registers TestGraderType as the :grader_type" do
+      expect(registration.provides[:grader_type]).to eq(Go::TestGraderType)
     end
   end
 

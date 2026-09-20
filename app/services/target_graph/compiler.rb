@@ -23,10 +23,13 @@ class TargetGraph
   # current diff, through its own source scope or a `deps:` dependency's.
   # `RepoPrepPlan`, `Steps::Format`, and `Steps::Generate` still don't read
   # the compiled graph, and a nested `.syrus.yml`'s formatter/generator/
-  # builder/grader targets don't materialize as workflow Steps yet -- they
-  # compile into the graph (so graph-level tooling and dependency closures
-  # can already see them) but nothing executes them, pending a decision on
-  # what directory a nested target's command should run from. Root
+  # builder targets don't materialize as workflow Steps yet -- they compile
+  # into the graph (so graph-level tooling and dependency closures can already
+  # see them) but nothing executes them, pending a decision on what directory
+  # those nested target commands should run from. Nested grader targets are
+  # consumed by Steps::GraderFanout, whose commands run from the repository
+  # root; typed grader providers receive the declaring project path so they can
+  # synthesize root-relative command arguments and artifact paths. Root
   # `.syrus.yml` compilation is unchanged by any of this: a repository with
   # no nested config compiles exactly as it did before nested discovery
   # existed. This class exists so operator tooling and later graph-aware
@@ -258,7 +261,7 @@ class TargetGraph
         nested_owner_config_path = "#{relative_dir}/#{SyrusYml::CONFIG_FILE}"
 
         begin
-          nested_config = SyrusYml.load_file(workspace_path.join(relative_dir, SyrusYml::CONFIG_FILE))
+          nested_config = SyrusYml.load_file(workspace_path.join(relative_dir, SyrusYml::CONFIG_FILE), project_path: relative_dir)
           validate_nested_deployment_stages!(nested_config)
         rescue SyrusYml::ParseError => e
           @nested_parse_errors << "#{nested_owner_config_path}: #{e.message}"
@@ -614,7 +617,7 @@ class TargetGraph
     end
 
     def compile_graders!(graph, syrus_workspace_path: workspace_path, package: "", project_id: root_project_id, config_path: owner_config_path)
-      RepoGradePlan.for(syrus_workspace_path).graders.each do |grader|
+      RepoGradePlan.for(syrus_workspace_path, project_path: package).graders.each do |grader|
         add_target!(
           graph,
           TargetGraph::Target.new(
@@ -631,7 +634,8 @@ class TargetGraph
             metadata: {
               "description" => grader.description,
               "junit_output" => grader.junit_output,
-              "failures" => grader.failures
+              "failures" => grader.failures,
+              "base_retry" => grader.base_retry&.to_h
             }.merge(grader.metadata).compact
           ),
           declaration: "legacy grade #{grader.name.inspect}"

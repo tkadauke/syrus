@@ -6,3 +6,5 @@ project:
 grade:
   - type: rspec
   - type: vitest
+  - type: go-test
+    path: cli

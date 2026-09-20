@@ -126,6 +126,17 @@ module JavaScript
       configured_scope
     end
 
+    def project_path
+      config["_syrus_project_path"].to_s.strip.presence
+    end
+
+    def project_relative(path)
+      path = path.to_s
+      return path if project_path.blank? || path.start_with?("#{project_path}/")
+
+      "#{project_path}/#{path}"
+    end
+
     def configured_deps
       raw = config["deps"] || config["dependencies"]
       refs =
@@ -171,7 +182,13 @@ module JavaScript
     end
 
     def junit_output(name)
-      ".syrus/grade-output/#{name}-junit.xml"
+      ".syrus/grade-output/#{artifact_name(name)}-junit.xml"
+    end
+
+    def artifact_name(name)
+      return name if project_path.blank?
+
+      "#{project_path.tr('/', '-')}-#{name}"
     end
 
     def full_command
@@ -194,7 +211,7 @@ module JavaScript
 
     def test_paths
       raw = config["paths"] || config["test_paths"] || DEFAULT_TEST_PATHS
-      Array(raw).map(&:to_s).map(&:strip).reject(&:empty?)
+      Array(raw).map(&:to_s).map(&:strip).reject(&:empty?).map { |path| project_relative(path) }
     end
 
     def focused_command
@@ -254,13 +271,17 @@ module JavaScript
 
     def focused_selector_ruby
       scope_literal = focused_scope.inspect
+      project_path_literal = project_path.to_s.inspect
       <<~RUBY
         base = %w[origin/main origin/master main master].find { |ref| system("git", "rev-parse", "--verify", "\#{ref}^{commit}", out: File::NULL, err: File::NULL) }
         exit 0 unless base
         scope = #{scope_literal}
+        project_path = #{project_path_literal}
+        project_matches = ->(path) { project_path.empty? || path.start_with?("\#{project_path}/") }
+        relative = ->(path) { project_path.empty? ? path : path.delete_prefix("\#{project_path}/") }
         matches_scope = ->(path) { scope.empty? || scope.any? { |pattern| File.fnmatch?(pattern, path, File::FNM_DOTMATCH) } }
         changed = `git diff --name-only --diff-filter=ACMR \#{base}...HEAD -- "*.js" "*.jsx" "*.ts" "*.tsx"`.lines.map(&:strip)
-        puts changed.uniq.sort.select { |path| File.exist?(path) && matches_scope.call(path) }
+        puts changed.uniq.sort.select { |path| File.exist?(path) && project_matches.call(path) && matches_scope.call(relative.call(path)) }
       RUBY
     end
 

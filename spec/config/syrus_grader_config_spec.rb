@@ -57,31 +57,12 @@ RSpec.describe "Syrus grader configuration" do
     expect(grader.timeout_minutes).to eq(3)
   end
 
-  it "keeps an executable Go workspace backstop in the root config" do
+  it "does not keep the old broad Go workspace backstop in the root config" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
 
     grader = config.grade.steps.find { |step| step.name == "cli-go-workspace-backstop" }
 
-    # The core CLI module has project metadata in cli/.syrus.yml, but normal
-    # grader fanout still materializes only root RepoGradePlan entries. Keep
-    # this broad executable backstop until nested grader targets run directly.
-    expect(grader).to have_attributes(
-      run: %(mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/...")'),
-      phases: %w[review landing ci],
-      required: true,
-      timeout_minutes: 5
-    )
-    expect(grader.when_files_changed).to include(
-      "cli/**/*.go",
-      "cli/go.mod",
-      "cli/go.sum",
-      "cli/Makefile",
-      "go.work",
-      "plugins/*/cli/**/*.go",
-      "plugins/*/cli/go.mod",
-      "bin/release-cli",
-      "desktop/scripts/stage-cli.mjs"
-    )
+    expect(grader).to be_nil
   end
 
   it "declares the root Rails app project while keeping global policy in the root config" do
@@ -153,13 +134,9 @@ RSpec.describe "Syrus grader configuration" do
 
     cli_prepare = graph.target("//cli:prepare")
     cli_tests = graph.affected("//cli:grade/go-tests", changed_files: [ "cli/cmd/jobs.go" ])
-    root_backstop = graph.affected("//:grade/cli-go-workspace-backstop", changed_files: [ "cli/cmd/jobs.go" ])
-    plugin_cli = graph.affected("//:grade/cli-go-workspace-backstop", changed_files: [ "plugins/example/cli/cmd/example.go" ])
 
     expect(cli_prepare.command).to eq("mise exec go@1.26.5 -- go mod download")
     expect(cli_tests.affected).to be(true)
-    expect(root_backstop.affected).to be(true)
-    expect(plugin_cli.affected).to be(true)
   end
 
   it "selects the union of Rails app and CLI project primitives for mixed app and CLI changes" do
@@ -168,13 +145,11 @@ RSpec.describe "Syrus grader configuration" do
 
     app_focused_specs = graph.affected("//:grade/rspec-focused", changed_files: changed_files)
     cli_tests = graph.affected("//cli:grade/go-tests", changed_files: changed_files)
-    root_backstop = graph.affected("//:grade/cli-go-workspace-backstop", changed_files: changed_files)
 
     expect(app_focused_specs.affected).to be(true)
     expect(app_focused_specs.target.project_id).to eq("repo")
     expect(cli_tests.affected).to be(true)
     expect(cli_tests.target.project_id).to eq("cli")
-    expect(root_backstop.affected).to be(true)
   end
 
   it "selects desktop targets without treating the root React grader as a desktop backstop" do
@@ -224,10 +199,6 @@ RSpec.describe "Syrus grader configuration" do
       "app/frontend/**/*.jsx",
       "app/frontend/**/*.ts",
       "app/frontend/**/*.tsx",
-      "plugins/*/app/frontend/**/*.js",
-      "plugins/*/app/frontend/**/*.jsx",
-      "plugins/*/app/frontend/**/*.ts",
-      "plugins/*/app/frontend/**/*.tsx",
       "package.json",
       "package-lock.json",
       "tsconfig.json",
@@ -262,7 +233,8 @@ RSpec.describe "Syrus grader configuration" do
       if frontend_test_plugins.include?(project.id)
         expect(vitest).not_to be_nil
         expect(vitest.project_id).to eq(project.id)
-        expect(vitest.command).to include("run_vitest run app/frontend")
+        expect(vitest.command).to include("run_vitest run plugins/#{project.id}/app/frontend")
+        expect(vitest.metadata["junit_output"]).to eq(".syrus/grade-output/plugins-#{project.id}-vitest-junit.xml")
         expect(vitest.source_scope).to include(
           "plugins/#{project.id}/**/*.ts",
           "plugins/#{project.id}/**/*.tsx",
@@ -271,6 +243,18 @@ RSpec.describe "Syrus grader configuration" do
         expect(vitest.dependencies).to eq([ TargetGraph.root_label ])
       else
         expect(vitest).to be_nil
+      end
+
+      go_tests = graph.target("//plugins/#{project.id}:grade/go-tests")
+      if Rails.root.join("plugins/#{project.id}/cli/go.mod").exist?
+        expect(go_tests).not_to be_nil
+        expect(go_tests.command).to include("cd plugins/#{project.id}/cli && go test ./...")
+        expect(go_tests.source_scope).to include(
+          "plugins/#{project.id}/cli/**/*.go",
+          "plugins/#{project.id}/cli/go.mod"
+        )
+      else
+        expect(go_tests).to be_nil
       end
     end
   end
@@ -293,17 +277,17 @@ RSpec.describe "Syrus grader configuration" do
   end
 
   it "scopes the website build grader to website and website deploy changes" do
-    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    config = SyrusYml.new(Rails.root.join("website/.syrus.yml").read, project_path: "website").parse
     graph = TargetGraph::Compiler.compile(Rails.root)
-    grader = config.grade.steps.find { |step| step.name == "website-build" }
+    grader = config.grade.steps.find { |step| step.name == "build" }
 
-    expect(grader.when_files_changed).to contain_exactly(
-      "website/**/*",
-      ".github/workflows/deploy-website.yml"
+    expect(grader.when_files_changed).to contain_exactly("**/*")
+    expect(graph.affected("//website:grade/build", changed_files: [ "website/src/site-pages/Home.tsx" ]).affected).to be(true)
+    expect(graph.affected("//website:grade/build", changed_files: [ ".github/workflows/deploy-website.yml" ])).to have_attributes(
+      affected: true,
+      reason: "dependency //:website-deploy-workflow source scope matched a changed file"
     )
-    expect(graph.affected("//:grade/website-build", changed_files: [ "website/src/app/page.tsx" ]).affected).to be(true)
-    expect(graph.affected("//:grade/website-build", changed_files: [ ".github/workflows/deploy-website.yml" ]).affected).to be(true)
-    expect(graph.affected("//:grade/website-build", changed_files: [ "app/models/job.rb" ]).affected).to be(false)
+    expect(graph.affected("//website:grade/build", changed_files: [ "app/models/job.rb" ]).affected).to be(false)
   end
 
   # migration-baselines ran `bin/rails db:create` with no bundle installed and
