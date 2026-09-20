@@ -620,6 +620,42 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body["paths"].keys).not_to include("poll_repository_path", "archive_repository_path", "retry_failed_jobs_repository_path")
   end
 
+  it "includes a Health tab with a badge when the main branch is broken" do
+    sign_in_as(user)
+    repository = Factories.repository(
+      user: user,
+      main_branch_health_enabled: true,
+      ci_health: "healthy",
+      grader_health: "broken"
+    )
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["tabs"]).to include(
+      { "key" => "health", "label" => "Health", "path" => "/repositories/#{repository.id}/health", "badge" => "!" }
+    )
+  end
+
+  it "includes a Health tab with no badge when the main branch is healthy" do
+    sign_in_as(user)
+    repository = Factories.repository(
+      user: user,
+      main_branch_health_enabled: true,
+      ci_health: "healthy",
+      grader_health: "healthy"
+    )
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["tabs"]).to include(
+      { "key" => "health", "label" => "Health", "path" => "/repositories/#{repository.id}/health" }
+    )
+  end
+
   it "summarizes repository .syrus.yml configuration on the detail payload" do
     sign_in_as(user)
     repository = Factories.repository(user: user)

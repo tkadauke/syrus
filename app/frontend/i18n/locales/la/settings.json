@@ -536,6 +536,8 @@
     "run_graders_now": "Examinatores nunc agere",
     "check_ci_now": "CI nunc inspicere",
     "aria_repository": "Repositorium",
+    "aria_repository_health": "Sanitas repositorii",
+    "health_tab_empty": "Nulla notitia sanitatis pro hoc repositorio adhuc praesto est.",
     "archive": "Condere",
     "flaky_tests_title": "Probationes Instabiles",
     "flaky_col_test": "Probatio",

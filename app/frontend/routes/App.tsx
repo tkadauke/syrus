@@ -58,6 +58,7 @@ import { RepositoriesIndex } from "./Repositories"
 import { RepositoryDetailRoute } from "./RepositoryDetail"
 import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
 import { RepositoryFormRoute } from "./RepositoryForm"
+import { RepositoryHealthRoute } from "./RepositoryHealth"
 import { RepositoryMembersRoute } from "./RepositoryMembers"
 import { RepositorySkillNewRoute } from "./RepositorySkillNew"
 import { RepositoryTargetGraphRoute } from "./RepositoryTargetGraph"
@@ -133,6 +134,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/tags", element: <SettingsSectionRoute><Tags /></SettingsSectionRoute> },
   { path: "/design_system", element: <SettingsSectionRoute><DesignSystemRoute /></SettingsSectionRoute> },
   { path: "/repositories/:repositoryId/skills/new", element: <RepositorySkillNewRoute /> },
+  { path: "/repositories/:repositoryId/health", element: <RepositoryHealthRoute /> },
   { path: "/repositories/:repositoryId/documents", element: <RepositoryDocumentsRoute /> },
   { path: "/repositories/:repositoryId/memberships", element: <RepositoryMembersRoute /> },
   { path: "/repositories/:repositoryId/target_graph", element: <RepositoryTargetGraphRoute /> },
