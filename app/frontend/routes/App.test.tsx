@@ -8555,7 +8555,7 @@ describe("App", () => {
     })
   })
 
-  it("renders repositories with proper action buttons and no Poll now action", async () => {
+  it("renders repositories in the data table with no Poll now or index Archive action", async () => {
     vi.spyOn(window, "fetch").mockImplementation(() => {
       return Promise.resolve(new Response(JSON.stringify(repositoriesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
@@ -8570,19 +8570,15 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Repositories" })).toHaveClass("max-w-[96rem]")
     expect(await screen.findByText("acme/widgets")).toBeInTheDocument()
-    expect(screen.getByRole("columnheader", { name: "Working repository" })).toBeInTheDocument()
-    expect(screen.getByText("rails/rails")).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Repository" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "GitHub owner" })).toBeInTheDocument()
     expect(screen.getByText("old/repo")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Add" })).toHaveAttribute("href", "/app-shell/repositories/new")
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.queryByRole("button", { name: "Poll now" })).not.toBeInTheDocument()
-
-    const editLink = screen.getByRole("link", { name: "Edit" })
-    expect(editLink).toHaveAttribute("href", "/app-shell/repositories/3/edit")
-    expect(editLink.className).toContain("bg-gray-100")
-
-    const archiveButton = screen.getByRole("button", { name: "Archive" })
-    expect(archiveButton.className).toContain("bg-amber-600")
+    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Unarchive" })).toBeInTheDocument()
   })
 
   it("points an empty repositories index to the setup next action", async () => {
