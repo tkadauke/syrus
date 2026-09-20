@@ -129,38 +129,30 @@ RSpec.describe App::JobDetailPayload, :ci_only do
   end
 
   describe "#actions_json can_run_visual_review" do
-    # Mirrors can_start_preview's approach: read .syrus.yml straight off the
-    # local bare clone (no GitHub API call) so job-detail rendering stays
-    # cheap. Build a real tiny bare clone under a scratch SYRUS_DATA_ROOT so
-    # the git-show code path is exercised rather than stubbed away.
-    around do |example|
-      @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
-      previous_root = ENV["SYRUS_DATA_ROOT"]
-      ENV["SYRUS_DATA_ROOT"] = @data_root.to_s
-      example.run
-      ENV["SYRUS_DATA_ROOT"] = previous_root
-      FileUtils.rm_rf(@data_root)
+    # `.syrus.yml` is read through GitHub (RepoDefaultBranchSyrusYml) rather
+    # than the local bare clone: job-detail payloads are built on the web
+    # tier, and web pods don't mount the worker's on-disk bare clone (see
+    # "Deploy target" in CLAUDE.md — "Web pods don't need this volume"). No
+    # $SYRUS_DATA_ROOT clone is created anywhere in this describe block,
+    # simulating that environment; the `client:` seam injects a double
+    # directly instead of stubbing `GithubClient.for`, since `instance_double`
+    # isn't `is_a?(GithubClient)`.
+    let(:user) { Factories.user(github_token: "ghp_test") }
+    let(:client) { instance_double(GithubClient) }
+
+    def payload_for(job)
+      described_class.build(job: job, user: user, client: client)
     end
 
-    def write_bare_clone(repository, syrus_yml: nil)
-      work_dir = Dir.mktmpdir("syrus-work")
-      system("git", "init", "-q", "-b", "main", work_dir, exception: true)
-      system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
-      system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
-      File.write(File.join(work_dir, "README.md"), "hi") unless syrus_yml
-      File.write(File.join(work_dir, ".syrus.yml"), syrus_yml) if syrus_yml
-      system("git", "-C", work_dir, "add", ".", exception: true)
-      system("git", "-C", work_dir, "commit", "-q", "-m", "init", exception: true)
-
-      clone_path = @data_root.join("clones", "#{repository.id}.git")
-      FileUtils.mkdir_p(clone_path.dirname)
-      system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
-    ensure
-      FileUtils.rm_rf(work_dir) if work_dir
+    def stub_syrus_yml(content)
+      result = content ? { content: content, size: content.bytesize } : nil
+      allow(client).to receive(:file_content_at)
+        .with(repo.slug, SyrusYml::CONFIG_FILE, repo.default_branch)
+        .and_return(result)
     end
 
     it "is true for an implemented job when .syrus.yml enables visual_review" do
-      write_bare_clone(repo, syrus_yml: "visual_review:\n  enabled: true\n")
+      stub_syrus_yml("visual_review:\n  enabled: true\n")
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(true)
@@ -168,14 +160,14 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
     it "is false when .syrus.yml explicitly disables visual_review" do
       allow(Feature).to receive(:visual_review_enabled?).and_return(true)
-      write_bare_clone(repo, syrus_yml: "visual_review:\n  enabled: false\n")
+      stub_syrus_yml("visual_review:\n  enabled: false\n")
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
 
     it "falls back to the instance-wide default when .syrus.yml has a visual_review block without an enabled key" do
-      write_bare_clone(repo, syrus_yml: "visual_review:\n  rounds: 2\n")
+      stub_syrus_yml("visual_review:\n  rounds: 2\n")
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
       allow(Feature).to receive(:visual_review_enabled?).and_return(true)
@@ -186,7 +178,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
 
     it "falls back to the instance-wide default when .syrus.yml has no visual_review block" do
-      write_bare_clone(repo)
+      stub_syrus_yml(nil)
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
       allow(Feature).to receive(:visual_review_enabled?).and_return(true)
@@ -196,15 +188,22 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
 
-    it "falls back to the instance-wide default when there is no local clone yet" do
-      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+    it "falls back to the instance-wide default when GitHub credentials are unavailable -- the web-pod scenario this bug covers" do
+      # No $SYRUS_DATA_ROOT clone exists in this process at all, and this
+      # job's user has no GitHub credentials either, so the only possible
+      # source of an answer (GithubClient) is unreachable. The old
+      # local-bare-clone read degraded the exact same way when the clone
+      # was absent -- both must fall back rather than raise.
+      credentialless_user = Factories.user
+      credentialless_repo = Factories.repository(user: credentialless_user)
+      job = Factories.job_record(user: credentialless_user, repository: credentialless_repo, state: "implemented")
 
       allow(Feature).to receive(:visual_review_enabled?).and_return(true)
-      expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(true)
+      expect(described_class.build(job: job, user: credentialless_user).dig(:actions, :can_run_visual_review)).to be(true)
     end
 
     it "is false for a job that is not implemented or approved, even when configured" do
-      write_bare_clone(repo, syrus_yml: "visual_review:\n  enabled: true\n")
+      stub_syrus_yml("visual_review:\n  enabled: true\n")
       job = Factories.job_record(user: user, repository: repo, state: "running")
 
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
@@ -222,88 +221,71 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
 
     it "is false for an implemented job with an active run" do
-      write_bare_clone(repo, syrus_yml: "visual_review:\n  enabled: true\n")
+      stub_syrus_yml("visual_review:\n  enabled: true\n")
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
       job.runs.create!(trigger_kind: "manual_visual_review", agent_provider: job.agent_provider)
 
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
 
-    it "reuses one local .syrus.yml read for deploy, preview, and visual-review action gates" do
-      allow(Syrus::Plugin::PreviewProvider).to receive(:configured?).and_return(false)
-      write_bare_clone(
-        repo,
-        syrus_yml: <<~YAML
-          preview:
-            start: bin/dev
-          deploy:
-            run: bin/deploy
-          visual_review:
-            enabled: true
-        YAML
-      )
+    it "reuses one GitHub .syrus.yml fetch for deploy and visual-review action gates" do
+      stub_syrus_yml(<<~YAML)
+        deploy:
+          run: bin/deploy
+        visual_review:
+          enabled: true
+      YAML
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
-      git_show_calls = 0
-
-      allow_any_instance_of(described_class).to receive(:`).and_wrap_original do |original, command|
-        git_show_calls += 1 if command.include?(" show HEAD:.syrus.yml ")
-        original.call(command)
-      end
 
       actions = payload_for(job).fetch(:actions)
 
       expect(actions).to include(
         can_deploy: true,
-        can_start_preview: true,
         can_run_visual_review: true
       )
-      expect(git_show_calls).to eq(1)
+      expect(client).to have_received(:file_content_at).once
     end
   end
 
   describe "#actions_json can_deploy and #deploy" do
-    around do |example|
-      @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
-      previous_root = ENV["SYRUS_DATA_ROOT"]
-      ENV["SYRUS_DATA_ROOT"] = @data_root.to_s
-      example.run
-      ENV["SYRUS_DATA_ROOT"] = previous_root
-      FileUtils.rm_rf(@data_root)
+    # `.syrus.yml` is read through GitHub (RepoDefaultBranchSyrusYml) rather
+    # than the local bare clone: job-detail payloads are built on the web
+    # tier, and web pods don't mount the worker's on-disk bare clone (see
+    # "Deploy target" in CLAUDE.md — "Web pods don't need this volume"). No
+    # $SYRUS_DATA_ROOT clone is created anywhere in this describe block,
+    # simulating that environment; the `client:` seam injects a double
+    # directly instead of stubbing `GithubClient.for`, since `instance_double`
+    # isn't `is_a?(GithubClient)`.
+    let(:user) { Factories.user(github_token: "ghp_test") }
+    let(:client) { instance_double(GithubClient) }
+
+    def payload_for(job)
+      described_class.build(job: job, user: user, client: client)
     end
 
-    def write_bare_clone(repository, syrus_yml: nil)
-      work_dir = Dir.mktmpdir("syrus-work")
-      system("git", "init", "-q", "-b", "main", work_dir, exception: true)
-      system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
-      system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
-      File.write(File.join(work_dir, "README.md"), "hi") unless syrus_yml
-      File.write(File.join(work_dir, ".syrus.yml"), syrus_yml) if syrus_yml
-      system("git", "-C", work_dir, "add", ".", exception: true)
-      system("git", "-C", work_dir, "commit", "-q", "-m", "init", exception: true)
-
-      clone_path = @data_root.join("clones", "#{repository.id}.git")
-      FileUtils.mkdir_p(clone_path.dirname)
-      system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
-    ensure
-      FileUtils.rm_rf(work_dir) if work_dir
+    def stub_syrus_yml(content)
+      result = content ? { content: content, size: content.bytesize } : nil
+      allow(client).to receive(:file_content_at)
+        .with(repo.slug, SyrusYml::CONFIG_FILE, repo.default_branch)
+        .and_return(result)
     end
 
     it "is true for an implemented job when .syrus.yml configures deploy" do
-      write_bare_clone(repo, syrus_yml: "deploy:\n  run: bin/deploy\n")
+      stub_syrus_yml("deploy:\n  run: bin/deploy\n")
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
       expect(payload_for(job).dig(:actions, :can_deploy)).to be(true)
     end
 
     it "is false when .syrus.yml has no deploy block" do
-      write_bare_clone(repo)
+      stub_syrus_yml(nil)
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
       expect(payload_for(job).dig(:actions, :can_deploy)).to be(false)
     end
 
     it "is false for a job that has not been implemented yet, even when configured" do
-      write_bare_clone(repo, syrus_yml: "deploy:\n  run: bin/deploy\n")
+      stub_syrus_yml("deploy:\n  run: bin/deploy\n")
       job = Factories.job_record(user: user, repository: repo, state: "running")
 
       expect(payload_for(job).dig(:actions, :can_deploy)).to be(false)
@@ -326,13 +308,14 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
 
     it "is true for a closed job that landed, when configured" do
-      write_bare_clone(repo, syrus_yml: "deploy:\n  run: bin/deploy\n")
+      stub_syrus_yml("deploy:\n  run: bin/deploy\n")
       job = Factories.job_record(user: user, repository: repo, state: "closed", landed_sha: "abc123")
 
       expect(payload_for(job).dig(:actions, :can_deploy)).to be(true)
     end
 
     it "includes the latest deploy workflow's status" do
+      stub_syrus_yml(nil)
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
       Workflow.create!(job: job, trigger_kind: "deploy", state: "succeeded", finished_at: 1.hour.ago)
       latest = Workflow.create!(job: job, trigger_kind: "deploy", state: "running", started_at: Time.current)
@@ -343,6 +326,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
 
     it "is nil when no deploy workflow exists" do
+      stub_syrus_yml(nil)
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
       expect(payload_for(job).fetch(:deploy)).to be_nil
