@@ -6,6 +6,8 @@
   "loading": "Loading connections…",
   "error_loading": "Unable to load connections.",
   "empty": "No connections yet. Add one to get started.",
+  "add_button": "Add",
+  "close_button": "Close",
   "add_heading": "Add connection",
   "edit_heading": "Edit connection",
   "field_label": "Label",
