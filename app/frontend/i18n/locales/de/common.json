@@ -112,7 +112,8 @@
     "context_no_recent_errors": "Keine",
     "include_transcript": "Chat-Verlauf einschließen",
     "transcript_preview": "Vorschau des Verlaufs",
-    "annotate_screenshot": "Bildschirmfoto markieren"
+    "annotate_screenshot": "Bildschirmfoto markieren",
+    "discard_confirm": "Diesen Fehlerbericht verwerfen?"
   },
   "image_annotation": {
     "annotate": "{{name}} annotieren",
