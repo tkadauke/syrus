@@ -9,9 +9,12 @@ module MysqlDbBrowser
   # GRANT-error hints. Every attempt, successful or not, is recorded to
   # MysqlQueryAudit.
   #
-  # Read-only is the default posture: anything that isn't a SELECT, WITH,
-  # SHOW, DESCRIBE, or EXPLAIN-style diagnostic statement is rejected unless
-  # the connection has explicitly opted into writes (MysqlConnection#allow_writes).
+  # Read-only is the default posture: anything that isn't a SELECT, SHOW,
+  # DESCRIBE, or EXPLAIN-style diagnostic statement is rejected unless the
+  # connection has explicitly opted into writes (MysqlConnection#allow_writes).
+  # A WITH-prefixed statement is only read-only when its terminal statement
+  # (after every CTE definition) is a SELECT/TABLE - `WITH x AS (...) UPDATE`/
+  # `DELETE`/`INSERT` still require write access despite the leading WITH.
   class QueryExecutor
     CONNECT_TIMEOUT_SECONDS = 5
     QUERY_TIMEOUT_MS = 5_000
@@ -89,12 +92,14 @@ module MysqlDbBrowser
     end
 
     def read_only_statement?(statement)
-      statement.match?(/\A(SELECT|WITH|SHOW|DESCRIBE|DESC)\b/i) || explain_statement?(statement)
+      return true if statement.match?(/\A(SELECT|SHOW|DESCRIBE|DESC)\b/i)
+      return explain_statement?(statement) if statement.match?(/\AEXPLAIN\b/i)
+      return read_only_with_statement?(statement) if statement.match?(/\AWITH\b/i)
+
+      false
     end
 
     def explain_statement?(statement)
-      return false unless statement.match?(/\AEXPLAIN\b/i)
-
       rest = statement.sub(/\AEXPLAIN\b/i, "").strip
       return false if rest.blank?
 
@@ -103,6 +108,113 @@ module MysqlDbBrowser
       rest = rest.sub(/\AFORMAT\s*=\s*(?:TRADITIONAL|JSON|TREE)\b/i, "").strip
       pattern = analyze ? /\A(SELECT|WITH|TABLE)\b/i : /\A(SELECT|WITH|TABLE|UPDATE|DELETE|INSERT|REPLACE)\b/i
       rest.match?(pattern)
+    end
+
+    # A `WITH ...` statement is only read-only when its terminal statement
+    # (after every CTE definition) is a SELECT/TABLE - `WITH x AS (...)
+    # UPDATE/DELETE/INSERT` mutates despite starting with the WITH keyword.
+    # Parses past the CTE definitions (quote-aware, balanced-paren matching)
+    # to find that terminal keyword rather than keying off the leading WITH
+    # alone. A CTE list Syrus can't parse is treated as NOT read-only,
+    # erring toward requiring write access rather than assuming safety.
+    def read_only_with_statement?(statement)
+      terminal = terminal_statement_after_ctes(statement)
+      return false if terminal.nil?
+
+      terminal.match?(/\A(SELECT|TABLE)\b/i)
+    end
+
+    def terminal_statement_after_ctes(statement)
+      rest = statement.sub(/\AWITH\b/i, "").strip
+      rest = rest.sub(/\ARECURSIVE\b/i, "").strip
+
+      loop do
+        name_match = rest.match(/\A(`[^`]+`|"(?:[^"]|"")*"|[A-Za-z_][A-Za-z0-9_$]*)/)
+        return nil unless name_match
+
+        rest = rest[name_match[0].length..].to_s.lstrip
+
+        if rest.start_with?("(")
+          close_index = matching_paren_index(rest, 0)
+          return nil unless close_index
+
+          rest = rest[(close_index + 1)..].to_s.lstrip
+        end
+
+        as_match = rest.match(/\AAS\b/i)
+        return nil unless as_match
+
+        rest = rest[as_match[0].length..].to_s.lstrip
+        return nil unless rest.start_with?("(")
+
+        close_index = matching_paren_index(rest, 0)
+        return nil unless close_index
+
+        rest = rest[(close_index + 1)..].to_s.lstrip
+
+        if rest.start_with?(",")
+          rest = rest[1..].to_s.lstrip
+        else
+          break
+        end
+      end
+
+      rest
+    end
+
+    # Finds the index (within str) of the ")" matching the "(" at
+    # open_index, skipping over quoted string/identifier literals so a
+    # paren inside a CTE body's string values doesn't unbalance the count.
+    def matching_paren_index(str, open_index)
+      depth = 0
+      i = open_index
+      len = str.length
+
+      while i < len
+        char = str[i]
+        case char
+        when "("
+          depth += 1
+          i += 1
+        when ")"
+          depth -= 1
+          return i if depth.zero?
+
+          i += 1
+        when "'", "\"", "`"
+          i = skip_quoted(str, i, char) + 1
+        else
+          i += 1
+        end
+      end
+
+      nil
+    end
+
+    # Returns the index of the closing quote matching quote_char at
+    # start_index, honoring backslash escapes (not applicable to backtick
+    # identifiers) and doubled-quote escaping (`''`, `""`, `` `` ``).
+    def skip_quoted(str, start_index, quote_char)
+      i = start_index + 1
+      len = str.length
+
+      while i < len
+        char = str[i]
+
+        if char == "\\" && quote_char != "`"
+          i += 2
+        elsif char == quote_char
+          if str[i + 1] == quote_char
+            i += 2
+          else
+            return i
+          end
+        else
+          i += 1
+        end
+      end
+
+      len - 1
     end
 
     def build_client
