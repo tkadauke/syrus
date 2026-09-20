@@ -3,6 +3,7 @@ import { useInfiniteQuery } from "@tanstack/react-query"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
+import { SlugHoverCard } from "@app/components/SlugHoverCard"
 import { TonePill } from "@app/components/StatusPill"
 import { Button } from "@app/components/Button"
 import { Notice, PageHeading, Section } from "@app/components/ui"
@@ -250,18 +251,34 @@ function ClassificationPill({ commit }: { commit: GitHistoryCommit }) {
   return <TonePill tone="gray">{t("classification.external_push")}</TonePill>
 }
 
+// Popup card (hover-triggered JobPreviewCard/EpicPreviewCard, same as
+// elsewhere in the app) also carries a CopyableSlug, so hovering a Job or
+// Epic slug in the commit list offers a one-click copy in addition to
+// navigation.
+function JobSlugLink({ id, slug }: { id: number; slug: string }) {
+  return (
+    <SlugHoverCard id={id} kind="job">
+      <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/jobs/${id}`}>{slug}</Link>
+    </SlugHoverCard>
+  )
+}
+
+function EpicSlugLink({ id, slug }: { id: number; slug: string }) {
+  return (
+    <SlugHoverCard id={id} kind="epic">
+      <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/epics/${id}`}>{slug}</Link>
+    </SlugHoverCard>
+  )
+}
+
 function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
   const { t } = useT("git_history")
 
   if (commit.classification === "syrus_landed") {
     return (
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        {commit.job ? (
-          <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/jobs/${commit.job.id}`}>{commit.job.slug}</Link>
-        ) : null}
-        {commit.epic ? (
-          <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/epics/${commit.epic.id}`}>{commit.epic.slug}</Link>
-        ) : null}
+        {commit.job ? <JobSlugLink id={commit.job.id} slug={commit.job.slug} /> : null}
+        {commit.epic ? <EpicSlugLink id={commit.epic.id} slug={commit.epic.slug} /> : null}
         {commit.user ? <span>{t("attribution.by", { name: commit.user.display_name })}</span> : null}
         <OriginLink origin={commit.origin} />
       </span>
@@ -271,12 +288,8 @@ function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
   if (commit.classification === "epic_landed") {
     return (
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        {commit.epic ? (
-          <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/epics/${commit.epic.id}`}>{commit.epic.slug}</Link>
-        ) : null}
-        {(commit.jobs ?? []).map((job) => (
-          <Link className="text-brand hover:underline dark:text-brand-emphasis" key={job.id} to={`/jobs/${job.id}`}>{job.slug}</Link>
-        ))}
+        {commit.epic ? <EpicSlugLink id={commit.epic.id} slug={commit.epic.slug} /> : null}
+        {(commit.jobs ?? []).map((job) => <JobSlugLink id={job.id} key={job.id} slug={job.slug} />)}
       </span>
     )
   }
@@ -284,9 +297,7 @@ function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
   if (commit.classification === "epic_reconciliation") {
     return (
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        {commit.epic ? (
-          <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/epics/${commit.epic.id}`}>{commit.epic.slug}</Link>
-        ) : null}
+        {commit.epic ? <EpicSlugLink id={commit.epic.id} slug={commit.epic.slug} /> : null}
       </span>
     )
   }
@@ -295,9 +306,7 @@ function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
     return (
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {commit.bundle ? <span>{t("attribution.bundle", { id: commit.bundle.id })}</span> : null}
-        {(commit.jobs ?? []).map((job) => (
-          <Link className="text-brand hover:underline dark:text-brand-emphasis" key={job.id} to={`/jobs/${job.id}`}>{job.slug}</Link>
-        ))}
+        {(commit.jobs ?? []).map((job) => <JobSlugLink id={job.id} key={job.id} slug={job.slug} />)}
       </span>
     )
   }
