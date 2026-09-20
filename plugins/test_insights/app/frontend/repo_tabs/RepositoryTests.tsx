@@ -1,13 +1,14 @@
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { Button } from "@app/components/Button"
+import { Checkbox } from "@app/components/Checkbox"
 import { Input } from "@app/components/Input"
 import { withRoutePrefix } from "@app/lib/routing"
 import { fetchRepositoryTestDetail, fetchRepositoryTests, type RepositoryTestDetailPayload, type RepositoryTestDurationPoint, type RepositoryTestHistoryItem, type RepositoryTestHistoryPagination, type RepositoryTestIdentity, type RepositoryTestsPayload } from "../api/tests"
 import { errorMessage } from "@app/lib/errorMessage"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react"
 import { useT } from "@app/hooks/useT"
 import type { TFunction } from "i18next"
 import {
@@ -93,65 +94,335 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
   )
 }
 
+type ColumnKey = "test" | "suite" | "recent_failures" | "duration" | "last_seen"
+type CellContext = { payload: RepositoryTestsPayload; prefix: string; t: TFunction<"test_insights"> }
+type ColumnDef = {
+  headClassName?: string
+  cellClassName?: string
+  cellTitle?: (test: RepositoryTestIdentity) => string | undefined
+  labelKey: string
+  renderCell: (test: RepositoryTestIdentity, ctx: CellContext) => ReactNode
+  sortValue: (test: RepositoryTestIdentity) => string | number | null
+}
+
+const REQUIRED_COLUMN: ColumnKey = "test"
+const CUSTOMIZABLE_COLUMNS: ColumnKey[] = ["suite", "recent_failures", "duration", "last_seen"]
+const REASON_FILTER_KEYS = ["failing", "flaky", "slow"]
+const COLUMNS_STORAGE_KEY = "syrus.test_insights.repository_tests_columns"
+
+const COLUMN_DEFS: Record<ColumnKey, ColumnDef> = {
+  test: {
+    cellClassName: "max-w-md",
+    labelKey: "repo_col_test",
+    sortValue: (test) => test.name,
+    renderCell: (test, { payload, prefix, t }) => (
+      <>
+        <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}/plugin/tests?test_id=${test.id}`, prefix)}>
+          {test.name}
+        </Link>
+        {test.interesting_reasons.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {test.interesting_reasons.map((reason) => <ReasonBadge key={reason} label={t(`reason_${reason}`, { defaultValue: reason })} reason={reason} />)}
+          </div>
+        ) : null}
+        {test.file_path ? <Text className="mt-1 truncate" variant="caption" tone="muted">{test.file_path}</Text> : null}
+      </>
+    )
+  },
+  suite: {
+    cellClassName: "hidden max-w-xs truncate text-text-muted md:table-cell",
+    cellTitle: (test) => test.suite_name,
+    headClassName: "hidden md:table-cell",
+    labelKey: "repo_col_suite",
+    sortValue: (test) => test.suite_name,
+    renderCell: (test) => test.suite_name
+  },
+  recent_failures: {
+    cellClassName: "whitespace-nowrap",
+    labelKey: "repo_col_recent_failures",
+    sortValue: (test) => test.failed_count,
+    renderCell: (test) => <TonePill tone={test.failed_count > 0 ? "red" : "gray"}>{test.failed_count}/{test.total_count}</TonePill>
+  },
+  duration: {
+    cellClassName: "hidden whitespace-nowrap text-text-muted sm:table-cell",
+    headClassName: "hidden sm:table-cell",
+    labelKey: "repo_col_duration",
+    sortValue: (test) => test.avg_duration_ms,
+    renderCell: (test) => formatDuration(test.avg_duration_ms)
+  },
+  last_seen: {
+    cellClassName: "hidden whitespace-nowrap text-text-muted sm:table-cell",
+    headClassName: "hidden sm:table-cell",
+    labelKey: "repo_col_last_seen",
+    sortValue: (test) => test.last_seen_at ? new Date(test.last_seen_at).getTime() : null,
+    renderCell: (test) => test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "—"
+  }
+}
+
+type ColumnsState = { hidden: ColumnKey[]; order: ColumnKey[] }
+
+function defaultColumnsState(): ColumnsState {
+  return { hidden: [], order: [...CUSTOMIZABLE_COLUMNS] }
+}
+
+function sanitizeColumnsState(parsed: unknown): ColumnsState {
+  if (!parsed || typeof parsed !== "object") return defaultColumnsState()
+
+  const raw = parsed as { hidden?: unknown; order?: unknown }
+  const isColumnKey = (key: unknown): key is ColumnKey => CUSTOMIZABLE_COLUMNS.includes(key as ColumnKey)
+  const storedOrder = Array.isArray(raw.order) ? raw.order.filter(isColumnKey) : []
+  const missing = CUSTOMIZABLE_COLUMNS.filter((key) => !storedOrder.includes(key))
+  const hidden = Array.isArray(raw.hidden) ? raw.hidden.filter(isColumnKey) : []
+
+  return { hidden, order: [...storedOrder, ...missing] }
+}
+
+function readColumnsState(): ColumnsState {
+  try {
+    const raw = window.localStorage.getItem(COLUMNS_STORAGE_KEY)
+    return raw ? sanitizeColumnsState(JSON.parse(raw)) : defaultColumnsState()
+  } catch {
+    return defaultColumnsState()
+  }
+}
+
+function writeColumnsState(state: ColumnsState) {
+  try {
+    window.localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // localStorage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+type SortState = { column: ColumnKey; direction: "ascending" | "descending" } | null
+
+function compareSortValues(a: string | number | null, b: string | number | null, direction: 1 | -1) {
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
+  if (typeof a === "string" && typeof b === "string") return a.localeCompare(b) * direction
+  return ((a as number) - (b as number)) * direction
+}
+
+function reasonFilterChipClass(reason: string, active: boolean) {
+  const tone = reason === "failing"
+    ? "border-red-200 text-red-700 dark:border-red-900 dark:text-red-300"
+    : reason === "flaky"
+      ? "border-yellow-300 text-yellow-800 dark:border-yellow-800 dark:text-yellow-300"
+      : "border-info/40 text-info"
+  const activeClasses = active ? "bg-surface-raised ring-1 ring-inset ring-current" : "bg-transparent hover:bg-surface-raised"
+
+  return `inline-flex items-center rounded border px-2 py-1 text-xs font-medium transition-colors ${tone} ${activeClasses}`
+}
+
 function TestList({ error, isError, isFetching, payload, prefix, query, t }: { error: unknown; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; prefix: string; query: string; t: TFunction<"test_insights"> }) {
+  const [columns, setColumns] = useState<ColumnsState>(() => readColumnsState())
+  const [activeReasons, setActiveReasons] = useState<Set<string>>(() => new Set())
+  const [sort, setSort] = useState<SortState>(null)
+
+  useEffect(() => {
+    writeColumnsState(columns)
+  }, [columns])
+
+  const tests = payload?.tests ?? []
+  const visibleTests = useMemo(() => {
+    const filtered = activeReasons.size === 0
+      ? tests
+      : tests.filter((test) => test.interesting_reasons.some((reason) => activeReasons.has(reason)))
+    if (!sort) return filtered
+
+    const direction = sort.direction === "ascending" ? 1 : -1
+    const sortValue = COLUMN_DEFS[sort.column].sortValue
+    return [...filtered].sort((a, b) => compareSortValues(sortValue(a), sortValue(b), direction))
+  }, [activeReasons, sort, tests])
+
   if (!payload) return null
+
+  function toggleReason(reason: string) {
+    setActiveReasons((current) => {
+      const next = new Set(current)
+      if (next.has(reason)) next.delete(reason)
+      else next.add(reason)
+      return next
+    })
+  }
+
+  function toggleSort(column: ColumnKey) {
+    setSort((current) => {
+      if (!current || current.column !== column) return { column, direction: "ascending" }
+      if (current.direction === "ascending") return { column, direction: "descending" }
+      return null
+    })
+  }
+
   if (payload.tests.length === 0) {
     return <Notice>{query ? t("repo_no_search_results") : t("repo_no_history")}</Notice>
   }
 
+  const visibleColumns: ColumnKey[] = [REQUIRED_COLUMN, ...columns.order.filter((key) => !columns.hidden.includes(key))]
+
   return (
-    <Section.Root className="overflow-hidden p-0">
-      <div className="flex items-center justify-between border-b border-border px-4 py-2 text-xs text-text-muted">
-        <span>{query ? t("repo_search_results") : t("repo_interesting_tests")}</span>
-        {isFetching ? <span>{t("repo_updating_results")}</span> : null}
-        {isError ? <span className="text-danger">{errorMessage(error, t("repo_error_refresh_results"))}</span> : null}
-      </div>
-      <DataTable.Root wrapperClassName="rounded-none border-0">
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("repo_col_test")}</DataTable.HeadCell>
-            <DataTable.HeadCell className="hidden md:table-cell">{t("repo_col_suite")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("repo_col_recent_failures")}</DataTable.HeadCell>
-            <DataTable.HeadCell className="hidden sm:table-cell">{t("repo_col_duration")}</DataTable.HeadCell>
-            <DataTable.HeadCell className="hidden sm:table-cell">{t("repo_col_last_seen")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {payload.tests.map((test) => (
-            <DataTable.Row key={test.id}>
-              <DataTable.Cell className="max-w-md">
-                <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}/plugin/tests?test_id=${test.id}`, prefix)}>
-                  {test.name}
-                </Link>
-                {test.interesting_reasons.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {test.interesting_reasons.map((reason) => <ReasonBadge key={reason} reason={reason} />)}
-                  </div>
-                ) : null}
-                {test.file_path ? <Text className="mt-1 truncate" variant="caption" tone="muted">{test.file_path}</Text> : null}
-              </DataTable.Cell>
-              <DataTable.Cell className="hidden max-w-xs truncate text-text-muted md:table-cell" title={test.suite_name}>{test.suite_name}</DataTable.Cell>
-              <DataTable.Cell className="whitespace-nowrap">
-                <TonePill tone={test.failed_count > 0 ? "red" : "gray"}>{test.failed_count}/{test.total_count}</TonePill>
-              </DataTable.Cell>
-              <DataTable.Cell className="hidden whitespace-nowrap text-text-muted sm:table-cell">{formatDuration(test.avg_duration_ms)}</DataTable.Cell>
-              <DataTable.Cell className="hidden whitespace-nowrap text-text-muted sm:table-cell">{test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "—"}</DataTable.Cell>
-            </DataTable.Row>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">{query ? t("repo_search_results") : t("repo_interesting_tests")}</span>
+          {REASON_FILTER_KEYS.map((reason) => (
+            <button
+              aria-pressed={activeReasons.has(reason)}
+              className={reasonFilterChipClass(reason, activeReasons.has(reason))}
+              key={reason}
+              onClick={() => toggleReason(reason)}
+              type="button"
+            >
+              {t(`reason_${reason}`, { defaultValue: reason })}
+            </button>
           ))}
-        </DataTable.Body>
-      </DataTable.Root>
-    </Section.Root>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {isFetching ? <span className="text-xs text-text-muted">{t("repo_updating_results")}</span> : null}
+          {isError ? <span className="text-xs text-danger">{errorMessage(error, t("repo_error_refresh_results"))}</span> : null}
+          <ColumnsMenu columns={columns} onChange={setColumns} t={t} />
+        </div>
+      </div>
+
+      {visibleTests.length === 0 ? (
+        <Notice>{t("repo_no_filtered_results")}</Notice>
+      ) : (
+        <DataTable.Root>
+          <DataTable.Header>
+            <DataTable.Row>
+              {visibleColumns.map((key) => (
+                <DataTable.HeadCell
+                  className={COLUMN_DEFS[key].headClassName}
+                  key={key}
+                  onSort={() => toggleSort(key)}
+                  sortDirection={sort?.column === key ? sort.direction : "none"}
+                >
+                  {t(COLUMN_DEFS[key].labelKey)}
+                </DataTable.HeadCell>
+              ))}
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {visibleTests.map((test) => (
+              <DataTable.Row key={test.id}>
+                {visibleColumns.map((key) => (
+                  <DataTable.Cell className={COLUMN_DEFS[key].cellClassName} key={key} title={COLUMN_DEFS[key].cellTitle?.(test)}>
+                    {COLUMN_DEFS[key].renderCell(test, { payload, prefix, t })}
+                  </DataTable.Cell>
+                ))}
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      )}
+    </div>
   )
 }
 
-function ReasonBadge({ reason }: { reason: string }) {
+function ColumnsMenu({ columns, onChange, t }: { columns: ColumnsState; onChange: (next: ColumnsState) => void; t: TFunction<"test_insights"> }) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const dragIndexRef = useRef<number | null>(null)
+  const [draggingKey, setDraggingKey] = useState<ColumnKey | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false)
+    }
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target
+      if (target instanceof Node && menuRef.current?.contains(target)) return
+      setOpen(false)
+    }
+
+    window.addEventListener("keydown", closeOnEscape)
+    window.addEventListener("pointerdown", closeOnOutsidePointer)
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape)
+      window.removeEventListener("pointerdown", closeOnOutsidePointer)
+    }
+  }, [open])
+
+  function toggleVisible(key: ColumnKey) {
+    const hidden = columns.hidden.includes(key) ? columns.hidden.filter((hiddenKey) => hiddenKey !== key) : [...columns.hidden, key]
+    onChange({ ...columns, hidden })
+  }
+
+  // Reuses the native HTML5 DnD pattern AppChromeV2 uses for sidebar nav
+  // reordering rather than adding a drag-and-drop dependency.
+  function startDrag(index: number, event: DragEvent<HTMLDivElement>) {
+    dragIndexRef.current = index
+    setDraggingKey(columns.order[index] ?? null)
+    event.dataTransfer.effectAllowed = "move"
+  }
+
+  function dragOver(index: number, event: DragEvent<HTMLDivElement>) {
+    const sourceIndex = dragIndexRef.current
+    if (sourceIndex == null) return
+
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "move"
+    if (sourceIndex === index) return
+
+    const nextOrder = [...columns.order]
+    const [moved] = nextOrder.splice(sourceIndex, 1)
+    nextOrder.splice(index, 0, moved)
+    dragIndexRef.current = index
+    onChange({ ...columns, order: nextOrder })
+  }
+
+  function endDrag() {
+    dragIndexRef.current = null
+    setDraggingKey(null)
+  }
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <Button aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((value) => !value)} size="sm" variant="secondary">
+        {t("repo_columns_button")}
+      </Button>
+      {open ? (
+        <div className="absolute right-0 top-full z-20 mt-1 w-64 rounded border border-border bg-surface p-2 shadow-lg" role="menu">
+          <div className="flex items-center justify-between px-1.5 pb-1.5">
+            <span className="text-xs font-semibold uppercase text-text-muted">{t("repo_columns_heading")}</span>
+            <button className="text-xs font-medium text-brand-emphasis hover:underline" onClick={() => onChange(defaultColumnsState())} type="button">
+              {t("repo_columns_reset")}
+            </button>
+          </div>
+          <div className="flex items-center gap-2 px-1.5 py-1 text-sm text-text-muted">
+            <Checkbox checked disabled label={t(COLUMN_DEFS[REQUIRED_COLUMN].labelKey)} />
+          </div>
+          {columns.order.map((key, index) => (
+            <div
+              className={`cursor-grab rounded px-1.5 py-1 text-sm text-text-primary active:cursor-grabbing ${draggingKey === key ? "opacity-50" : ""}`}
+              draggable
+              key={key}
+              onDragEnd={endDrag}
+              onDragOver={(event) => dragOver(index, event)}
+              onDragStart={(event) => startDrag(index, event)}
+              onDrop={(event) => event.preventDefault()}
+            >
+              <Checkbox checked={!columns.hidden.includes(key)} label={t(COLUMN_DEFS[key].labelKey)} onChange={() => toggleVisible(key)} />
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ReasonBadge({ label, reason }: { label?: string; reason: string }) {
   const classes = reason === "failing"
     ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
     : reason === "flaky"
       ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-300"
       : "border-info/30 bg-info/10 text-info"
 
-  return <span className={`inline-flex rounded border px-1.5 py-0.5 text-2xs font-medium ${classes}`}>{reason}</span>
+  return <span className={`inline-flex rounded border px-1.5 py-0.5 text-2xs font-medium ${classes}`}>{label ?? reason}</span>
 }
 
 function TestDetailPanel({ detail, error, isError, isPending, onPageChange, prefix, t }: { detail?: RepositoryTestDetailPayload; error: unknown; isError: boolean; isPending: boolean; onPageChange: (page: number) => void; prefix: string; t: TFunction<"test_insights"> }) {
@@ -173,8 +444,8 @@ function TestDetailPanel({ detail, error, isError, isPending, onPageChange, pref
         <DurationChart history={detail.history} points={detail.duration_points} prefix={prefix} t={t} />
       </Section.Root>
 
-      <Section.Root className="overflow-hidden p-0">
-        <DataTable.Root wrapperClassName="rounded-none border-0">
+      <div className="space-y-2">
+        <DataTable.Root>
           <DataTable.Header>
             <DataTable.Row>
               <DataTable.HeadCell>{t("repo_col_time")}</DataTable.HeadCell>
@@ -189,7 +460,7 @@ function TestDetailPanel({ detail, error, isError, isPending, onPageChange, pref
           </DataTable.Body>
         </DataTable.Root>
         <HistoryPagination onPageChange={onPageChange} pagination={detail.pagination} t={t} />
-      </Section.Root>
+      </div>
     </div>
   )
 }
@@ -201,7 +472,7 @@ function HistoryPagination({ onPageChange, pagination, t }: { onPageChange: (pag
   const lastItem = Math.min(pagination.page * pagination.per_page, pagination.total)
 
   return (
-    <div className="flex items-center justify-between border-t border-gray-200 px-4 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400">
+    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
       <span>{t("repo_showing", { first: firstItem, last: lastItem, total: pagination.total })}</span>
       <div className="flex gap-2">
         {pagination.page > 1 ? (
