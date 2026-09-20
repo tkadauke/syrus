@@ -31,7 +31,8 @@ module PlatformDelivery
       remaining = text
       while remaining.length > TELEGRAM_MAX_CHARS
         chunk = remaining[0, TELEGRAM_MAX_CHARS]
-        split_at = chunk.rindex("\n") || TELEGRAM_MAX_CHARS
+        newline_index = chunk.rindex("\n")
+        split_at = newline_index.to_i.positive? ? newline_index : TELEGRAM_MAX_CHARS
         chunks << remaining[0, split_at]
         remaining = remaining[split_at..].lstrip
       end

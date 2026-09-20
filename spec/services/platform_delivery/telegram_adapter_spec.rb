@@ -71,6 +71,23 @@ RSpec.describe PlatformDelivery::TelegramAdapter do
       end
     end
 
+    context "when the only newline in a 4096-char window is at index 0" do
+      let(:long_text) { "\n" + ("A" * 5000) }
+      let(:message) { ChatMessage.new(chat_session: session, role: "assistant", content: { "text" => long_text }) }
+
+      it "does not send an empty chunk" do
+        chunks_sent = []
+        client = instance_double(TelegramClient)
+        allow(client).to receive(:send_message) { |args| chunks_sent << args[:text] }
+        allow(TelegramClient).to receive(:new).and_return(client)
+
+        described_class.new.deliver(message: message, platform_identity: identity)
+
+        expect(chunks_sent).not_to include("")
+        expect(chunks_sent.join).to eq(long_text)
+      end
+    end
+
     context "when TelegramClient raises an error" do
       let(:message) { ChatMessage.new(chat_session: session, role: "assistant", content: { "text" => "Hello" }) }
 
