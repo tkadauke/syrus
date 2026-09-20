@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import { Button } from "@app/components/Button"
+import { Button, buttonClasses } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { Checkbox } from "@app/components/Checkbox"
 import { CopyableSlug } from "@app/components/CopyableSlug"
@@ -129,6 +129,8 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   const activeSmartFolderId = smartFolderIdFromSearch(search) ?? indexQuery.data?.active_smart_folder_id ?? null
   const docPath = (docId: string | number) => `${prefix}/design_docs/${docId}${search}`
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const isNarrowViewport = useMediaQuery("(max-width: 767px)", false)
+  const narrowView = compact || isNarrowViewport
   const sidebarOwnsDesktopFolders = mode === "index" && isDesktop
   const showDesktopInlineFolders = showIndexControls && isDesktop && !sidebarOwnsDesktopFolders
   const filterBar = showIndexControls ? (
@@ -240,6 +242,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
               doc={selectedDoc}
               key={selectedDoc.id}
               mode={mode}
+              narrowView={narrowView}
               repositories={repositoryOptions.map((repository) => ({ id: repository.id, slug: repository.slug }))}
               onDocChange={(nextDoc, message) => {
                 queryClient.setQueryData(["design_docs", "detail", String(nextDoc.id)], { design_doc: nextDoc })
@@ -588,7 +591,7 @@ function emptySelection(): SelectionRange {
   return { start: 0, end: 0, text: "", selectedText: "", rect: null }
 }
 
-function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
+function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; narrowView: boolean; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
   const { t } = useT("design_docs")
   const [draft, setDraft] = useState(doc.rendered_markdown || doc.markdown)
   const [editorMode, setEditorMode] = useState<EditorMode>("rich_text")
@@ -606,6 +609,9 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [versionsOpen, setVersionsOpen] = useState(false)
   const [selectedVersionId, setSelectedVersionId] = useState("current")
   const [markdownScrollTop, setMarkdownScrollTop] = useState(0)
+  const [forceEditable, setForceEditable] = useState(false)
+  const [narrowDrawerOpen, setNarrowDrawerOpen] = useState(false)
+  const editingLocked = narrowView && !forceEditable
   const isArchived = doc.state === "archived"
   const canWriteCanonical = !isArchived && doc.permissions.can_write_canonical
   const canSuggest = !isArchived && doc.permissions.can_suggest
@@ -617,6 +623,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const saveDisabled = effectiveChangeMode === "suggest" && !canSuggest
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wysiwygRef = useRef<HTMLDivElement | null>(null)
+  const readOnlyBodyRef = useRef<HTMLDivElement | null>(null)
   const markdownMirrorRef = useRef<HTMLDivElement | null>(null)
   const wysiwygRenderRef = useRef<{ highlights: AnchorHighlight[]; focusedThreadId: number | null; focusedSuggestionId: number | null }>({ highlights: [], focusedThreadId: null, focusedSuggestionId: null })
   const editorShellRef = useRef<HTMLDivElement | null>(null)
@@ -754,40 +761,36 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   function updateWysiwygSelection() {
     if (!wysiwygRef.current) return
 
-    const range = document.getSelection()
-    if (!range || range.rangeCount === 0) {
-      setSelection(emptySelection())
+    setSelection(selectionRangeFromRoot(wysiwygRef.current, draft, editorShellRef.current))
+  }
+
+  // The narrow-view read-only body renders the same markdownToWysiwygHtml
+  // output (data-source-start/end spans and all) as the editable Rich Text
+  // surface above, just via dangerouslySetInnerHTML instead of
+  // contentEditable -- so the same offset-mapping logic applies unchanged,
+  // just pointed at a different root.
+  function updateReadOnlySelection() {
+    if (!readOnlyBodyRef.current) return
+
+    setSelection(selectionRangeFromRoot(readOnlyBodyRef.current, draft, editorShellRef.current))
+  }
+
+  function openSelectionComposer() {
+    setFocusedThreadId(null)
+    setFocusedSuggestionId(null)
+    if (narrowView) setNarrowDrawerOpen(true)
+    window.setTimeout(() => newThreadComposerRef.current?.focus(), 0)
+  }
+
+  function handleAnchorMarkerClick(event: React.MouseEvent<HTMLElement>) {
+    const target = event.target as HTMLElement
+    const suggestionMarker = target.closest("[data-suggestion-id]") as HTMLElement | null
+    if (suggestionMarker?.dataset.suggestionId) {
+      focusSuggestion(Number(suggestionMarker.dataset.suggestionId))
       return
     }
-
-    const selectedRange = range.getRangeAt(0)
-    if (!wysiwygRef.current.contains(selectedRange.commonAncestorContainer)) {
-      setSelection(emptySelection())
-      return
-    }
-
-    const selectedText = selectedRange.toString()
-    const sourceStart = sourceOffsetForSelectionBoundary(wysiwygRef.current, selectedRange.startContainer, selectedRange.startOffset, "start")
-    const sourceEnd = sourceOffsetForSelectionBoundary(wysiwygRef.current, selectedRange.endContainer, selectedRange.endOffset, "end")
-    if (sourceStart == null || sourceEnd == null) {
-      setSelection(emptySelection())
-      return
-    }
-
-    const start = Math.max(0, Math.min(draft.length, sourceStart))
-    const end = Math.max(start, Math.min(draft.length, sourceEnd))
-    if (range.isCollapsed || start === end) {
-      setSelection({ start, end, text: "", selectedText: "", rect: null })
-      return
-    }
-
-    setSelection({
-      start,
-      end,
-      text: draft.slice(start, end),
-      selectedText,
-      rect: rangeSelectionRect(selectedRange, editorShellRef.current)
-    })
+    const marker = target.closest("[data-thread-id]") as HTMLElement | null
+    if (marker?.dataset.threadId) focusThread(Number(marker.dataset.threadId))
   }
 
   function applyFormattingCommand(command: DesignDocFormattingCommand) {
@@ -827,7 +830,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     const nextHtml = markdownToWysiwygHtml(draft, activeHighlights, focusedThreadId, focusedSuggestionId)
     if (wysiwygRef.current.innerHTML !== nextHtml) wysiwygRef.current.innerHTML = nextHtml
     wysiwygRenderRef.current = { highlights: activeHighlights, focusedThreadId, focusedSuggestionId }
-  }, [draft, editorMode, focusedThreadId, focusedSuggestionId, activeHighlights])
+  }, [draft, editorMode, focusedThreadId, focusedSuggestionId, activeHighlights, editingLocked])
 
   // Declared after (and thus, within this component, always flushed after)
   // the Rich Text sync effect above: that effect is what actually inserts
@@ -922,6 +925,36 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   }, [canWriteCanonical, doc.id])
 
   useEffect(() => {
+    setForceEditable(false)
+  }, [doc.id])
+
+  // Anchor clicks and version review both route through focusThread/
+  // focusSuggestion regardless of view width; only the narrow-view drawer
+  // needs to auto-expand in response, since the desktop rail is always
+  // visible in the document flow.
+  useEffect(() => {
+    if (!narrowView) return
+    if (focusedThreadId != null || focusedSuggestionId != null) setNarrowDrawerOpen(true)
+  }, [narrowView, focusedThreadId, focusedSuggestionId])
+
+  // Runs one commit after the effect above: threadRefs/suggestionRefs only
+  // populate once the drawer's cards actually render, which happens on the
+  // render triggered by that effect's setNarrowDrawerOpen(true), not the
+  // one where focusedThreadId/focusedSuggestionId first changed. Without
+  // this, a focused card deep in a long comment list could open off-screen
+  // inside the drawer's own scroll area.
+  useEffect(() => {
+    if (!narrowView || !narrowDrawerOpen) return
+
+    const cardEl = focusedThreadId != null
+      ? threadRefs.current[focusedThreadId]
+      : focusedSuggestionId != null
+        ? suggestionRefs.current[focusedSuggestionId]
+        : null
+    cardEl?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })
+  }, [narrowView, narrowDrawerOpen, focusedThreadId, focusedSuggestionId])
+
+  useEffect(() => {
     persistedDraftRef.current = persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown)
   }, [canWriteCanonical, doc.id])
 
@@ -982,7 +1015,8 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       return
     }
 
-    const marker = wysiwygRef.current?.querySelector(`[data-thread-id="${threadId}"]`) as HTMLElement | null
+    const highlightRoot = editingLocked ? readOnlyBodyRef.current : wysiwygRef.current
+    const marker = highlightRoot?.querySelector(`[data-thread-id="${threadId}"]`) as HTMLElement | null
     marker?.scrollIntoView?.({ block: "center", behavior: "smooth" })
   }
 
@@ -1004,7 +1038,8 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       return
     }
 
-    const marker = wysiwygRef.current?.querySelector(`[data-suggestion-id="${suggestionId}"]`) as HTMLElement | null
+    const highlightRoot = editingLocked ? readOnlyBodyRef.current : wysiwygRef.current
+    const marker = highlightRoot?.querySelector(`[data-suggestion-id="${suggestionId}"]`) as HTMLElement | null
     marker?.scrollIntoView?.({ block: "center", behavior: "smooth" })
   }
 
@@ -1014,11 +1049,21 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     if (match?.suggestionId) focusSuggestion(match.suggestionId)
   }
 
+  const editEntry = narrowView && editingLocked ? (
+    mode === "chat" ? (
+      <Link className={buttonClasses("secondary", "sm")} to={`/design_docs/${doc.id}`}>{t("edit")}</Link>
+    ) : (
+      <Button onClick={() => setForceEditable(true)} size="sm">{t("edit")}</Button>
+    )
+  ) : null
+
   return (
     <div className="min-w-0 space-y-4">
       <DesignDocTitleBar
         collaborators={collaborators}
         doc={doc}
+        editEntry={editEntry}
+        narrowView={narrowView}
         repoIds={repoIds}
         repositories={repositories}
         repositoryPickerOpen={repositoryPickerOpen}
@@ -1070,83 +1115,92 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             {summaryVisible ? <Input aria-label={t("aria_change_summary")} className="min-w-[12rem] flex-1" placeholder={t("optional_change_summary")} value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
           </div>
           ) : null}
-          <DesignDocFormattingToolbar
-            canWriteCanonical={canWriteCanonical}
-            readOnly={isArchived || !canSuggest}
-            changeMode={effectiveChangeMode}
-            draft={draft}
-            editorMode={editorMode}
-            selection={selection}
-            setChangeMode={setChangeMode}
-            setEditorMode={setEditorMode}
-            onCommand={applyFormattingCommand}
-          />
-          <div className="relative" ref={editorShellRef}>
-          {editorMode === "markdown" ? (
-            <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
-              <span className="sr-only">{t("markdown_editor")}</span>
-              <MarkdownHighlightMirror draft={draft} focusedSuggestionId={focusedSuggestionId} focusedThreadId={focusedThreadId} highlights={activeHighlights} mirrorRef={markdownMirrorRef} scrollTop={markdownScrollTop} />
-              <textarea
-                aria-label={t("markdown_editor")}
-                className="relative z-10 min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 outline-none selection:bg-brand/20 dark:caret-gray-100"
-                onBlur={() => updateSelection()}
-                onClick={(event) => focusThreadAtOffset(event.currentTarget.selectionStart)}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyUp={() => updateSelection()}
-                onMouseUp={() => updateSelection()}
-                onScroll={(event) => setMarkdownScrollTop(event.currentTarget.scrollTop)}
-                readOnly={isArchived}
-                ref={textareaRef}
-                value={draft}
+          {editingLocked ? (
+            <div className="relative" ref={editorShellRef}>
+              <DesignDocReadOnlyBody
+                bodyRef={readOnlyBodyRef}
+                draft={draft}
+                focusedSuggestionId={focusedSuggestionId}
+                focusedThreadId={focusedThreadId}
+                highlights={activeHighlights}
+                onClick={handleAnchorMarkerClick}
+                onKeyUp={updateReadOnlySelection}
+                onMouseUp={updateReadOnlySelection}
               />
-            </label>
+              <SelectionCommentAffordance
+                disabled={selection.end <= selection.start || !canSuggest}
+                selection={selection}
+                onOpenComposer={openSelectionComposer}
+              />
+            </div>
           ) : (
-            <div
-              aria-label={t("rich_text_editor")}
-              className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
-              contentEditable={!isArchived}
-              onBlur={() => {
-                setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))
-                window.setTimeout(() => {
-                  if (document.activeElement === newThreadComposerRef.current) return
-                  updateWysiwygSelection()
-                }, 0)
-              }}
-              onClick={(event) => {
-                const target = event.target as HTMLElement
-                const suggestionMarker = target.closest("[data-suggestion-id]") as HTMLElement | null
-                if (suggestionMarker?.dataset.suggestionId) {
-                  focusSuggestion(Number(suggestionMarker.dataset.suggestionId))
-                  return
-                }
-                const marker = target.closest("[data-thread-id]") as HTMLElement | null
-                if (marker?.dataset.threadId) focusThread(Number(marker.dataset.threadId))
-              }}
-              onInput={() => {
-                if (!wysiwygRef.current) return
-                const markdown = wysiwygHtmlToMarkdown(wysiwygRef.current)
-                const rendered = wysiwygRenderRef.current
-                resyncWysiwygSourceOffsets(wysiwygRef.current, markdown, rendered.highlights, rendered.focusedThreadId, rendered.focusedSuggestionId)
-                setDraft(markdown)
-              }}
-              onKeyUp={updateWysiwygSelection}
-              onMouseUp={updateWysiwygSelection}
-              ref={wysiwygRef}
-              role="textbox"
-              suppressContentEditableWarning
-              tabIndex={0}
-            />
+            <>
+              <DesignDocFormattingToolbar
+                canWriteCanonical={canWriteCanonical}
+                readOnly={isArchived || !canSuggest}
+                changeMode={effectiveChangeMode}
+                draft={draft}
+                editorMode={editorMode}
+                selection={selection}
+                setChangeMode={setChangeMode}
+                setEditorMode={setEditorMode}
+                onCommand={applyFormattingCommand}
+              />
+              <div className="relative" ref={editorShellRef}>
+              {editorMode === "markdown" ? (
+                <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
+                  <span className="sr-only">{t("markdown_editor")}</span>
+                  <MarkdownHighlightMirror draft={draft} focusedSuggestionId={focusedSuggestionId} focusedThreadId={focusedThreadId} highlights={activeHighlights} mirrorRef={markdownMirrorRef} scrollTop={markdownScrollTop} />
+                  <textarea
+                    aria-label={t("markdown_editor")}
+                    className="relative z-10 min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 outline-none selection:bg-brand/20 dark:caret-gray-100"
+                    onBlur={() => updateSelection()}
+                    onClick={(event) => focusThreadAtOffset(event.currentTarget.selectionStart)}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyUp={() => updateSelection()}
+                    onMouseUp={() => updateSelection()}
+                    onScroll={(event) => setMarkdownScrollTop(event.currentTarget.scrollTop)}
+                    readOnly={isArchived}
+                    ref={textareaRef}
+                    value={draft}
+                  />
+                </label>
+              ) : (
+                <div
+                  aria-label={t("rich_text_editor")}
+                  className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
+                  contentEditable={!isArchived}
+                  onBlur={() => {
+                    setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))
+                    window.setTimeout(() => {
+                      if (document.activeElement === newThreadComposerRef.current) return
+                      updateWysiwygSelection()
+                    }, 0)
+                  }}
+                  onClick={handleAnchorMarkerClick}
+                  onInput={() => {
+                    if (!wysiwygRef.current) return
+                    const markdown = wysiwygHtmlToMarkdown(wysiwygRef.current)
+                    const rendered = wysiwygRenderRef.current
+                    resyncWysiwygSourceOffsets(wysiwygRef.current, markdown, rendered.highlights, rendered.focusedThreadId, rendered.focusedSuggestionId)
+                    setDraft(markdown)
+                  }}
+                  onKeyUp={updateWysiwygSelection}
+                  onMouseUp={updateWysiwygSelection}
+                  ref={wysiwygRef}
+                  role="textbox"
+                  suppressContentEditableWarning
+                  tabIndex={0}
+                />
+              )}
+              <SelectionCommentAffordance
+                disabled={selection.end <= selection.start || !canSuggest}
+                selection={selection}
+                onOpenComposer={openSelectionComposer}
+              />
+              </div>
+            </>
           )}
-          <SelectionCommentAffordance
-            disabled={selection.end <= selection.start || !canSuggest}
-            selection={selection}
-            onOpenComposer={() => {
-              setFocusedThreadId(null)
-              setFocusedSuggestionId(null)
-              window.setTimeout(() => newThreadComposerRef.current?.focus(), 0)
-            }}
-          />
-          </div>
         </Section.Root>
       </section>
       <aside className="space-y-4">
@@ -1154,10 +1208,12 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           commentPending={commentMutation.isPending}
           composerRef={newThreadComposerRef}
           doc={doc}
+          drawerOpen={narrowDrawerOpen}
           historicalVersion={historicalVersionForRail}
           historicalVersionLoading={historicalVersionLoadingForRail}
           focusedThreadId={focusedThreadId}
           focusedSuggestionId={focusedSuggestionId}
+          narrowView={narrowView}
           readOnly={isArchived}
           canComment={canSuggest}
           canReviewSuggestions={canReviewSuggestions}
@@ -1169,6 +1225,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           selection={selection}
           suggestionRefs={suggestionRefs}
           threadRefs={threadRefs}
+          onDrawerOpenChange={setNarrowDrawerOpen}
           onFocus={focusThread}
           onFocusSuggestion={focusSuggestion}
           onComment={(body, onSuccess) => commentMutation.mutate(body, { onSuccess })}
@@ -1186,13 +1243,15 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   )
 }
 
-function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, isArchived, onArchive, onMetadataSave, onSave, saveLabel, saveDisabled, onVersionChange, onVersionsOpen, onVisibilityChange }: {
+function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, editEntry, narrowView, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, isArchived, onArchive, onMetadataSave, onSave, saveLabel, saveDisabled, onVersionChange, onVersionsOpen, onVisibilityChange }: {
   archiveDisabled: boolean
   canArchive: boolean
   collaborators: string
   canManageMetadata: boolean
   doc: DesignDocDetail
+  editEntry: ReactNode
   isArchived: boolean
+  narrowView: boolean
   repoIds: string[]
   repositories: Array<{ id: number; slug: string }>
   repositoryPickerOpen: boolean
@@ -1221,6 +1280,8 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
   const titleBarRef = useRef<HTMLElement | null>(null)
   const shareButtonRef = useRef<HTMLButtonElement | null>(null)
   const [shareMenuStyle, setShareMenuStyle] = useState<React.CSSProperties>({})
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreMenuRef = useDismissiblePopup<HTMLDivElement>(moreOpen, () => setMoreOpen(false))
 
   function positionShareMenu() {
     const rect = shareButtonRef.current?.getBoundingClientRect()
@@ -1255,6 +1316,129 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
     setShareOpen(nextOpen)
   }
 
+  const repositoryPicker = (
+    <div className="relative min-w-0">
+      <div className="flex max-w-full flex-wrap items-center gap-1.5">
+        {selectedRepositories.length === 0 ? <Text as="span" variant="caption" tone="muted">{t("no_repositories")}</Text> : null}
+        {selectedRepositories.map((repository) => (
+          <span className="max-w-[11rem] truncate rounded border border-border px-2 py-1 text-xs text-text-secondary" key={repository.id}>
+            {repository.slug}
+          </span>
+        ))}
+        {canManageMetadata ? (
+        <Button aria-expanded={repositoryPickerOpen} aria-label={t("aria_add_repository")} className="h-7 w-7" onClick={() => setRepositoryPickerOpen(!repositoryPickerOpen)} size="icon" variant="secondary">
+          <span aria-hidden="true" className="text-base leading-none">+</span>
+        </Button>
+        ) : null}
+      </div>
+      {repositoryPickerOpen && canManageMetadata ? (
+        <div className="absolute left-0 z-20 mt-2 w-72 rounded border border-border bg-surface p-3 shadow-lg">
+          <label className="block text-xs font-medium uppercase text-text-muted">
+            {t("repositories")}
+            <Select
+              aria-label={t("aria_repository_associations")}
+              className="mt-1 min-h-24"
+              multiple
+              value={repoIds}
+              onChange={(event) => setRepoIds(Array.from(event.target.selectedOptions).map((option) => option.value))}
+            >
+              {repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.slug}</option>)}
+            </Select>
+          </label>
+          <div className="mt-3 flex justify-end">
+            <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_repositories")}</Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+
+  const shareControl = (
+    <div className="relative">
+      {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={toggleShareMenu} ref={shareButtonRef} size="sm" variant="secondary">{t("share")}</Button> : <StatusLabel value="review only" />}
+      {shareOpen && canManageMetadata ? (
+        <div
+          className="absolute z-40 mt-2 max-w-[calc(100vw-2rem)] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950"
+          data-testid="design-doc-share-menu"
+          style={shareMenuStyle}
+        >
+          <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            {t("visibility")}
+            <Select aria-label={t("aria_share_visibility")} className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
+              <option value="private">{t("visibility_private")}</option>
+              <option value="public">{t("visibility_public")}</option>
+            </Select>
+          </label>
+          <label className="mt-3 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            {t("explicit_collaborators")}
+            <Input aria-label={t("aria_collaborator_user_ids")} className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
+          </label>
+          <Text className="mt-3" variant="caption" tone="muted">{t("owner", { name: doc.owner?.name || doc.owner?.email_address || t("unknown_owner") })}</Text>
+          <div className="mt-3 flex justify-end">
+            <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_sharing")}</Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+
+  const versionSelector = (
+    <Select
+      aria-label={t("aria_version_selection")}
+      className={narrowView ? "w-full" : "ml-auto max-w-[12rem]"}
+      fullWidth={false}
+      onFocus={onVersionsOpen}
+      onMouseDown={onVersionsOpen}
+      value={selectedVersionId}
+      onChange={(event) => onVersionChange(event.target.value)}
+    >
+      <option value="current">{t("version_current", { number: doc.current_version_number ?? "?" })}</option>
+      {versionsOpen && versionsLoading ? <option value="loading">{t("loading")}</option> : null}
+      {versions.map((version) => (
+        <option key={version.id} value={version.id}>v{version.version_number}{version.change_summary ? ` - ${version.change_summary}` : ""}</option>
+      ))}
+    </Select>
+  )
+
+  if (narrowView) {
+    return (
+      <section aria-label={t("aria_title_bar")} className="rounded-[var(--radius-panel)] border border-[length:var(--border-width)] border-border bg-surface p-3 text-text-primary" ref={titleBarRef}>
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <Text className="truncate" variant="heading-sm">{title}</Text>
+            <Text className="mt-1 flex items-center gap-1" variant="caption" tone="muted">
+              <CopyableSlug className="text-xs font-medium" slug={doc.display_id} />
+              <span>{t("saved_prefix")} <RelativeTimestamp value={doc.updated_at} /></span>
+            </Text>
+          </div>
+          {editEntry}
+          <div className="relative shrink-0" ref={moreMenuRef}>
+            <Button aria-expanded={moreOpen} aria-label={t("aria_title_bar_more_actions")} className="h-8 w-8" onClick={() => setMoreOpen((open) => !open)} size="icon" variant="secondary">
+              <span aria-hidden="true" className="text-base leading-none">...</span>
+            </Button>
+            {moreOpen ? (
+              <div className="absolute right-0 z-40 mt-2 w-72 max-w-[calc(100vw-2rem)] space-y-3 rounded border border-border bg-surface p-3 shadow-lg" data-testid="design-doc-title-bar-menu" role="menu">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusLabel value={doc.visibility} />
+                  <StatusLabel value={doc.state} />
+                </div>
+                {repositoryPicker}
+                <div className="flex flex-wrap items-center gap-2">
+                  {shareControl}
+                  {canArchive ? (
+                    <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">{t("archive")}</Button>
+                  ) : null}
+                  {!isArchived ? <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button> : null}
+                </div>
+                {versionSelector}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section aria-label={t("aria_title_bar")} className="rounded-[var(--radius-panel)] border border-[length:var(--border-width)] border-border bg-surface p-3 text-text-primary" ref={titleBarRef}>
       <div className="flex flex-wrap items-center gap-3">
@@ -1267,85 +1451,13 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
         </div>
         <StatusLabel value={doc.visibility} />
         <StatusLabel value={doc.state} />
-        <div className="relative min-w-0">
-          <div className="flex max-w-full flex-wrap items-center gap-1.5">
-            {selectedRepositories.length === 0 ? <Text as="span" variant="caption" tone="muted">{t("no_repositories")}</Text> : null}
-            {selectedRepositories.map((repository) => (
-              <span className="max-w-[11rem] truncate rounded border border-border px-2 py-1 text-xs text-text-secondary" key={repository.id}>
-                {repository.slug}
-              </span>
-            ))}
-            {canManageMetadata ? (
-            <Button aria-expanded={repositoryPickerOpen} aria-label={t("aria_add_repository")} className="h-7 w-7" onClick={() => setRepositoryPickerOpen(!repositoryPickerOpen)} size="icon" variant="secondary">
-              <span aria-hidden="true" className="text-base leading-none">+</span>
-            </Button>
-            ) : null}
-          </div>
-          {repositoryPickerOpen && canManageMetadata ? (
-            <div className="absolute left-0 z-20 mt-2 w-72 rounded border border-border bg-surface p-3 shadow-lg">
-              <label className="block text-xs font-medium uppercase text-text-muted">
-                {t("repositories")}
-                <Select
-                  aria-label={t("aria_repository_associations")}
-                  className="mt-1 min-h-24"
-                  multiple
-                  value={repoIds}
-                  onChange={(event) => setRepoIds(Array.from(event.target.selectedOptions).map((option) => option.value))}
-                >
-                  {repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.slug}</option>)}
-                </Select>
-              </label>
-              <div className="mt-3 flex justify-end">
-                <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_repositories")}</Button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-        <div className="relative">
-          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={toggleShareMenu} ref={shareButtonRef} size="sm" variant="secondary">{t("share")}</Button> : <StatusLabel value="review only" />}
-          {shareOpen && canManageMetadata ? (
-            <div
-              className="absolute z-40 mt-2 max-w-[calc(100vw-2rem)] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950"
-              data-testid="design-doc-share-menu"
-              style={shareMenuStyle}
-            >
-              <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {t("visibility")}
-                <Select aria-label={t("aria_share_visibility")} className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
-                  <option value="private">{t("visibility_private")}</option>
-                  <option value="public">{t("visibility_public")}</option>
-                </Select>
-              </label>
-              <label className="mt-3 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                {t("explicit_collaborators")}
-                <Input aria-label={t("aria_collaborator_user_ids")} className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
-              </label>
-              <Text className="mt-3" variant="caption" tone="muted">{t("owner", { name: doc.owner?.name || doc.owner?.email_address || t("unknown_owner") })}</Text>
-              <div className="mt-3 flex justify-end">
-                <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_sharing")}</Button>
-              </div>
-            </div>
-          ) : null}
-        </div>
+        {repositoryPicker}
+        {shareControl}
         {canArchive ? (
           <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">{t("archive")}</Button>
         ) : null}
         {!isArchived ? <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button> : null}
-        <Select
-          aria-label={t("aria_version_selection")}
-          className="ml-auto max-w-[12rem]"
-          fullWidth={false}
-          onFocus={onVersionsOpen}
-          onMouseDown={onVersionsOpen}
-          value={selectedVersionId}
-          onChange={(event) => onVersionChange(event.target.value)}
-        >
-          <option value="current">{t("version_current", { number: doc.current_version_number ?? "?" })}</option>
-          {versionsOpen && versionsLoading ? <option value="loading">{t("loading")}</option> : null}
-          {versions.map((version) => (
-            <option key={version.id} value={version.id}>v{version.version_number}{version.change_summary ? ` - ${version.change_summary}` : ""}</option>
-          ))}
-        </Select>
+        {versionSelector}
       </div>
     </section>
   )
@@ -1568,6 +1680,43 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
   )
 }
 
+// Narrow-view (compact chat tabs, or a mobile-width repository/index route)
+// stand-in for the formatting toolbar + editable textarea/contentEditable
+// surfaces: plain rendered content, instead of the always-live editing
+// toolbar there isn't room for at this width. The Edit affordance back into
+// the full editor lives in the collapsed DesignDocTitleBar, not here. Reuses
+// markdownToWysiwygHtml -- the same renderer the editable Rich Text surface
+// uses -- so active thread/suggestion anchors still highlight and carry
+// data-thread-id/data-suggestion-id markers a click can resolve back to the
+// bottom comment drawer (DesignDocEditor's handleAnchorMarkerClick).
+function DesignDocReadOnlyBody({ bodyRef, draft, focusedSuggestionId, focusedThreadId, highlights, onClick, onKeyUp, onMouseUp }: {
+  bodyRef: React.MutableRefObject<HTMLDivElement | null>
+  draft: string
+  focusedSuggestionId: number | null
+  focusedThreadId: number | null
+  highlights: AnchorHighlight[]
+  onClick: (event: React.MouseEvent<HTMLElement>) => void
+  onKeyUp: () => void
+  onMouseUp: () => void
+}) {
+  const { t } = useT("design_docs")
+
+  return (
+    <div className="p-4" data-testid="design-doc-read-only-body">
+      <section
+        aria-label={t("document_content")}
+        className="chat-prose min-h-[36rem] max-w-none text-sm leading-6 text-text-primary"
+        dangerouslySetInnerHTML={{ __html: markdownToWysiwygHtml(draft, highlights, focusedThreadId, focusedSuggestionId) }}
+        onClick={onClick}
+        onKeyUp={onKeyUp}
+        onMouseUp={onMouseUp}
+        ref={bodyRef}
+        tabIndex={0}
+      />
+    </div>
+  )
+}
+
 function ToolbarButtonGroup({ children, label }: { children: ReactNode; label: string }) {
   return (
     <div aria-label={label} className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface" role="group">
@@ -1682,16 +1831,18 @@ function activeRailEntries({ doc, historicalVersion, historicalVersionLoading }:
   return { viewingHistory, entries }
 }
 
-function ThreadPanel({ canComment, canReviewSuggestions, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, railEntries, railLayout, railContainerRef, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+function ThreadPanel({ canComment, canReviewSuggestions, commentPending, composerRef, doc, drawerOpen, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, narrowView, railEntries, railLayout, railContainerRef, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onDrawerOpenChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
   canComment: boolean
   canReviewSuggestions: boolean
   commentPending: boolean
   composerRef: React.MutableRefObject<HTMLInputElement | null>
   doc: DesignDocDetail
+  drawerOpen: boolean
   historicalVersion: { version: DesignDocVersion; threads: DesignDocThread[]; suggestions: DesignDocSuggestion[] } | null
   historicalVersionLoading: boolean
   focusedSuggestionId: number | null
   focusedThreadId: number | null
+  narrowView: boolean
   railEntries: RailEntry[]
   railLayout: RailLayout
   railContainerRef: React.MutableRefObject<HTMLDivElement | null>
@@ -1702,6 +1853,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compose
   suggestionRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
   threadRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
   onComment: (body: string, onSuccess: () => void) => void
+  onDrawerOpenChange: (open: boolean) => void
   onFocus: (threadId: number) => void
   onFocusSuggestion: (suggestionId: number) => void
   onReply: (threadId: number) => void
@@ -1724,6 +1876,105 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compose
     onComment(commentBody, () => setCommentBody(""))
   }
 
+  const selectionComposer = hasSelection ? (
+    <div className="rounded border border-brand/30 bg-brand/5 p-3 dark:border-brand/40 dark:bg-brand/10">
+      <p className="text-xs font-medium text-text-secondary">{t("new_comment_on_selection")}</p>
+      <p className="mt-2 line-clamp-3 rounded bg-surface p-2 text-xs text-text-secondary ring-1 ring-border">
+        {selection.selectedText || selection.text}
+      </p>
+      <div className="mt-3 flex gap-2">
+        <Input
+          aria-label={t("aria_new_thread_comment")}
+          onChange={(event) => setCommentBody(event.target.value)}
+          onKeyDown={submitCommentOnShortcut}
+          placeholder={t("comment")}
+          ref={composerRef}
+          value={commentBody}
+        />
+        <Button
+          disabled={commentPending || commentBody.trim().length === 0}
+          onClick={() => onComment(commentBody, () => setCommentBody(""))}
+          size="sm"
+          variant="secondary"
+        >
+          {t("comment")}
+        </Button>
+      </div>
+    </div>
+  ) : null
+  const loadingIndicator = historicalVersionLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">{t("loading")}</p> : null
+  const emptyState = !historicalVersionLoading && railEntries.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? t("empty_threads_for_version") : t("empty_threads")}</p> : null
+
+  // Narrow view (compact chat tabs, or a mobile-width repository/index
+  // route) replaces the always-visible side rail with a bottom-docked
+  // drawer, collapsed by default to a slim comment-count bar. It reuses
+  // CommentThreadCard/SuggestionThreadCard directly rather than the rail's
+  // absolute-positioned, anchor-aligned stack -- there is no adjacent
+  // document column for cards to line up next to at this width.
+  //
+  // `sticky`, not `fixed`: a chat workspace tab renders this inside its own
+  // `overflow-y-auto` side panel (WorkspaceDesignDocs.tsx), with no
+  // transform/filter ancestor to scope `fixed` to that panel -- a `fixed`
+  // drawer would escape to the full browser viewport and overlay the
+  // unrelated main chat conversation next to it, not just this panel.
+  // `position: sticky` resolves against the nearest actual scrolling
+  // ancestor (that panel, or the page itself on a real mobile viewport),
+  // transparently skipping every non-scrolling wrapper in between, and
+  // -- since it stays a normal-flow block instead of being pulled out of
+  // flow -- it also reserves its own space so the document body's last
+  // lines never end up hidden underneath it.
+  if (narrowView) {
+    return (
+      <div className="sticky bottom-0 z-40 border-t border-border bg-surface shadow-lg" data-testid="design-doc-comment-drawer">
+        <button
+          aria-controls="design-doc-comment-drawer-panel"
+          aria-expanded={drawerOpen}
+          className="flex w-full items-center justify-between px-4 py-2 text-sm font-medium text-text-primary"
+          onClick={() => onDrawerOpenChange(!drawerOpen)}
+          type="button"
+        >
+          <span>{t("comment_drawer_count", { count: railEntries.length })}</span>
+          <span aria-hidden="true">{drawerOpen ? "▾" : "▴"}</span>
+        </button>
+        {drawerOpen ? (
+          <div className="max-h-[25vh] space-y-3 overflow-y-auto border-t border-border p-3" id="design-doc-comment-drawer-panel" style={{ height: "25vh" }}>
+            {selectionComposer}
+            {loadingIndicator}
+            {emptyState}
+            {railEntries.map((entry) => entry.kind === "thread" ? (
+              <CommentThreadCard
+                focused={focusedThreadId === entry.thread.id}
+                key={entry.id}
+                readOnly={interactionsReadOnly}
+                replyBody={replyBodies[entry.thread.id] ?? ""}
+                thread={entry.thread}
+                threadRefs={threadRefs}
+                onFocus={onFocus}
+                onReply={onReply}
+                onReplyChange={onReplyChange}
+                onResolve={onResolve}
+              />
+            ) : (
+              <SuggestionThreadCard
+                canReview={!interactionsReadOnly && canReviewSuggestions}
+                focused={focusedSuggestionId === entry.suggestion.id}
+                key={entry.id}
+                readOnly={interactionsReadOnly}
+                replyBody={entry.suggestion.thread ? replyBodies[entry.suggestion.thread.id] ?? "" : ""}
+                suggestion={entry.suggestion}
+                suggestionRefs={suggestionRefs}
+                onFocus={onFocusSuggestion}
+                onReply={onReply}
+                onReplyChange={onReplyChange}
+                onReview={onReview}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
   return (
     <Panel className="relative min-h-[36rem]">
       <SectionHeading as="h3">{t("threads")}</SectionHeading>
@@ -1733,34 +1984,9 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compose
         </p>
       ) : null}
       <div className="relative mt-3 space-y-3">
-        {hasSelection ? (
-          <div className="rounded border border-brand/30 bg-brand/5 p-3 dark:border-brand/40 dark:bg-brand/10">
-            <p className="text-xs font-medium text-text-secondary">{t("new_comment_on_selection")}</p>
-            <p className="mt-2 line-clamp-3 rounded bg-surface p-2 text-xs text-text-secondary ring-1 ring-border">
-              {selection.selectedText || selection.text}
-            </p>
-            <div className="mt-3 flex gap-2">
-              <Input
-                aria-label={t("aria_new_thread_comment")}
-                onChange={(event) => setCommentBody(event.target.value)}
-                onKeyDown={submitCommentOnShortcut}
-                placeholder={t("comment")}
-                ref={composerRef}
-                value={commentBody}
-              />
-              <Button
-                disabled={commentPending || commentBody.trim().length === 0}
-                onClick={() => onComment(commentBody, () => setCommentBody(""))}
-                size="sm"
-                variant="secondary"
-              >
-                {t("comment")}
-              </Button>
-            </div>
-          </div>
-        ) : null}
-        {historicalVersionLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">{t("loading")}</p> : null}
-        {!historicalVersionLoading && railEntries.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? t("empty_threads_for_version") : t("empty_threads")}</p> : null}
+        {selectionComposer}
+        {loadingIndicator}
+        {emptyState}
         <div
           className="overflow-hidden max-xl:!pb-0"
           data-testid="design-doc-rail-clip"
@@ -2986,5 +3212,34 @@ function rangeSelectionRect(range: Range, container: HTMLElement | null): Select
     top: rangeRect.top - containerRect.top,
     width: rangeRect.width,
     containerWidth: containerRect.width
+  }
+}
+
+// Shared by the editable Rich Text surface and the narrow-view read-only
+// body: both render markdownToWysiwygHtml's data-source-start/end markers,
+// so both can map a live DOM selection back to markdown offsets the same
+// way.
+function selectionRangeFromRoot(root: HTMLElement, draft: string, rectContainer: HTMLElement | null): SelectionRange {
+  const range = document.getSelection()
+  if (!range || range.rangeCount === 0) return emptySelection()
+
+  const selectedRange = range.getRangeAt(0)
+  if (!root.contains(selectedRange.commonAncestorContainer)) return emptySelection()
+
+  const selectedText = selectedRange.toString()
+  const sourceStart = sourceOffsetForSelectionBoundary(root, selectedRange.startContainer, selectedRange.startOffset, "start")
+  const sourceEnd = sourceOffsetForSelectionBoundary(root, selectedRange.endContainer, selectedRange.endOffset, "end")
+  if (sourceStart == null || sourceEnd == null) return emptySelection()
+
+  const start = Math.max(0, Math.min(draft.length, sourceStart))
+  const end = Math.max(start, Math.min(draft.length, sourceEnd))
+  if (range.isCollapsed || start === end) return { start, end, text: "", selectedText: "", rect: null }
+
+  return {
+    start,
+    end,
+    text: draft.slice(start, end),
+    selectedText,
+    rect: rangeSelectionRect(selectedRange, rectContainer)
   }
 }

@@ -510,12 +510,19 @@ function mockFetch(detail = docDetail) {
   })
 }
 
+// Simulates a real mobile viewport by answering every `min-width` query
+// (desktop-and-up breakpoints) with no match and every `max-width` query
+// (mobile-and-down breakpoints, e.g. narrowView's own check) with a match --
+// rather than hardcoding `matches: false` for every query regardless of
+// direction, which happened to work for the min-width-only checks that
+// predate narrowView but silently never simulates "narrow" for a max-width
+// query.
 function mockMobileViewport() {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     writable: true,
     value: vi.fn((query: string) => ({
-      matches: false,
+      matches: query.includes("max-width"),
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -671,9 +678,135 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     renderSurface("/chats/237")
 
-    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: "Edit" })).toBeInTheDocument()
     const main = screen.getByRole("main", { name: "Design docs" })
     expect(main.className).not.toContain("max-w-")
+  })
+
+  it("locks a compact chat-tab design doc to read-only content with a Link-based Edit entry point to the full page", async () => {
+    mockFetch()
+    renderSurface("/chats/237")
+
+    expect(await screen.findByRole("region", { name: "Design doc content" })).toHaveTextContent("Alpha beta gamma")
+    expect(screen.queryByRole("toolbar", { name: "Formatting toolbar" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Rich Text editor" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Markdown editor" })).not.toBeInTheDocument()
+
+    const editLink = screen.getByRole("link", { name: "Edit" })
+    expect(editLink).toHaveAttribute("href", "/design_docs/1")
+  })
+
+  it("locks the design doc detail route to read-only content with an in-place Edit toggle on a narrow viewport", async () => {
+    mockMobileViewport()
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    expect(await screen.findByRole("region", { name: "Design doc content" })).toHaveTextContent("Alpha beta gamma")
+    expect(screen.queryByRole("toolbar", { name: "Formatting toolbar" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Rich Text editor" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+
+    expect(await screen.findByRole("toolbar", { name: "Formatting toolbar" })).toBeInTheDocument()
+    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
+    expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/1")
+  })
+
+  it("toggles the bottom-docked comment drawer between collapsed and expanded on a narrow viewport", async () => {
+    mockMobileViewport()
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("region", { name: "Design doc content" })
+    const toggle = screen.getByRole("button", { name: "2 comments" })
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("Needs evidence")).not.toBeInTheDocument()
+    expect(screen.queryByText("Use newer name")).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    expect(await screen.findByText("Needs evidence")).toBeInTheDocument()
+    expect(screen.getByText("Use newer name")).toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("Needs evidence")).not.toBeInTheDocument()
+  })
+
+  it("opens the comment drawer to a thread when its highlighted anchor is clicked in the read-only body", async () => {
+    mockMobileViewport()
+    mockFetch()
+    const scrollIntoViewSpy = vi.fn()
+    HTMLElement.prototype.scrollIntoView = scrollIntoViewSpy as typeof HTMLElement.prototype.scrollIntoView
+
+    try {
+      renderSurface("/design_docs/1")
+
+      const body = await screen.findByRole("region", { name: "Design doc content" })
+      const highlight = body.querySelector("mark[data-thread-id='7']")
+      expect(highlight).not.toBeNull()
+
+      fireEvent.click(highlight!)
+
+      const toggle = await screen.findByRole("button", { name: "2 comments" })
+      expect(toggle).toHaveAttribute("aria-expanded", "true")
+      const card = (await screen.findByText("Needs evidence")).closest("[data-anchor-offset]")
+      expect(card).toHaveClass("border-amber-400")
+      // The card only mounts once the drawer opens (a render after the
+      // click), so scrolling it into view within the drawer's own scroll
+      // area has to be a later, separate effect from the one that scrolls
+      // the in-document highlight -- it can't happen synchronously in the
+      // click handler.
+      await waitFor(() => expect(scrollIntoViewSpy).toHaveBeenCalledWith(expect.objectContaining({ block: "nearest" })))
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
+    }
+  })
+
+  it("creates a new comment from a text selection through the narrow-view drawer composer", async () => {
+    const fetchSpy = mockFetch()
+    mockMobileViewport()
+    renderSurface("/design_docs/1")
+
+    const body = await screen.findByRole("region", { name: "Design doc content" })
+    const textNode = body.querySelector("[data-source-start]")!.firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 0)
+    range.setEnd(textNode, 5)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+
+    fireEvent.mouseUp(body)
+    expect(screen.queryByRole("textbox", { name: "New thread comment" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+
+    const toggle = await screen.findByRole("button", { name: "2 comments" })
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    const composer = await screen.findByRole("textbox", { name: "New thread comment" })
+    await waitFor(() => expect(composer).toHaveFocus())
+
+    fireEvent.change(composer, { target: { value: "Drawer comment" } })
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
+    expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Drawer comment" }
+    })
+  })
+
+  it("keeps the design doc detail route editable by default on a desktop-width viewport", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    expect(await screen.findByRole("toolbar", { name: "Formatting toolbar" })).toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "Design doc content" })).not.toBeInTheDocument()
+    expect(screen.queryByTestId("design-doc-read-only-body")).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument()
   })
 
   it("loads the focused detail route without fetching or rendering list-page controls", async () => {
@@ -756,7 +889,7 @@ describe("DesignDocsSurface", () => {
     const fetchSpy = mockFetch()
     renderSurface("/chats/237")
 
-    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
+    expect(await screen.findByRole("region", { name: "Design doc content" })).toHaveTextContent("Alpha beta gamma")
     expect(screen.queryByRole("heading", { name: "Design Docs" })).not.toBeInTheDocument()
     expect(screen.getAllByText("DOC-1").length).toBeGreaterThan(0)
     expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
@@ -1981,6 +2114,7 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     renderSurface("/design_docs/1")
 
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
     await screen.findByRole("textbox", { name: "Rich Text editor" })
     expect(screen.queryByRole("group", { name: "List formatting" })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "More formatting" }))
@@ -2090,6 +2224,7 @@ describe("DesignDocsSurface", () => {
       y: 218,
       toJSON: () => ({})
     } as DOMRect)
+    fireEvent.click(within(titleBar).getByRole("button", { name: "More actions" }))
     const shareButton = within(titleBar).getByRole("button", { name: "Share" })
     vi.spyOn(shareButton, "getBoundingClientRect").mockReturnValue({
       bottom: 350,
@@ -2111,6 +2246,102 @@ describe("DesignDocsSurface", () => {
     expect(shareMenu).toHaveClass("z-40")
     expect(menuLeft).toBeGreaterThanOrEqual(16)
     expect(menuLeft + menuWidth).toBeLessThanOrEqual(window.innerWidth - 16)
+  })
+
+  it("collapses the title bar to title, Edit, and an overflow menu in narrow view, and keeps the full row otherwise", async () => {
+    mockFetch()
+    const narrowRender = renderSurface("/chats/237")
+
+    const narrowTitleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    expect(within(narrowTitleBar).getByText("Checkout design")).toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByRole("textbox", { name: "Design doc title" })).not.toBeInTheDocument()
+    expect(within(narrowTitleBar).getByRole("link", { name: "Edit" })).toBeInTheDocument()
+    expect(within(narrowTitleBar).getByRole("button", { name: "More actions" })).toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByText("private")).not.toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByText("draft")).not.toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByRole("button", { name: "Share" })).not.toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
+    expect(within(narrowTitleBar).queryByRole("combobox", { name: "Version selection" })).not.toBeInTheDocument()
+
+    fireEvent.click(within(narrowTitleBar).getByRole("button", { name: "More actions" }))
+    const narrowMenu = within(narrowTitleBar).getByTestId("design-doc-title-bar-menu")
+    expect(within(narrowMenu).getByText("private")).toBeInTheDocument()
+    expect(within(narrowMenu).getByText("draft")).toBeInTheDocument()
+    expect(within(narrowMenu).getByText("acme/widgets")).toBeInTheDocument()
+    expect(within(narrowMenu).getByRole("button", { name: "Add repository" })).toBeInTheDocument()
+    expect(within(narrowMenu).getByRole("button", { name: "Share" })).toBeInTheDocument()
+    expect(within(narrowMenu).getByRole("button", { name: "Archive" })).toBeInTheDocument()
+    expect(within(narrowMenu).getByRole("button", { name: "Save" })).toBeInTheDocument()
+    expect(within(narrowMenu).getByRole("combobox", { name: "Version selection" })).toBeInTheDocument()
+    narrowRender.unmount()
+
+    renderSurface("/design_docs/1")
+    const wideBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    expect(within(wideBar).getByRole("textbox", { name: "Design doc title" })).toBeInTheDocument()
+    expect(within(wideBar).getByText("private")).toBeInTheDocument()
+    expect(within(wideBar).getByText("draft")).toBeInTheDocument()
+    expect(within(wideBar).getByRole("button", { name: "Share" })).toBeInTheDocument()
+    expect(within(wideBar).getByRole("button", { name: "Archive" })).toBeInTheDocument()
+    expect(within(wideBar).getByRole("button", { name: "Save" })).toBeInTheDocument()
+    expect(within(wideBar).getByRole("combobox", { name: "Version selection" })).toBeInTheDocument()
+    expect(within(wideBar).queryByRole("button", { name: "More actions" })).not.toBeInTheDocument()
+    expect(within(wideBar).queryByRole("link", { name: "Edit" })).not.toBeInTheDocument()
+  })
+
+  it("shares, saves, and archives a design doc from inside the narrow title bar overflow menu", async () => {
+    const fetchSpy = mockFetch()
+    mockMobileViewport()
+    renderSurface("/design_docs/1")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    fireEvent.click(within(titleBar).getByRole("button", { name: "Edit" }))
+    await screen.findByRole("toolbar", { name: "Formatting toolbar" })
+
+    fireEvent.click(within(titleBar).getByRole("button", { name: "More actions" }))
+    const menu = within(titleBar).getByTestId("design-doc-title-bar-menu")
+
+    fireEvent.click(within(menu).getByRole("button", { name: "Share" }))
+    fireEvent.change(within(menu).getByRole("combobox", { name: "Share visibility" }), { target: { value: "public" } })
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" })))
+    const visibilityRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.visibility === "public")
+    expect(visibilityRequest).toBeTruthy()
+
+    fireEvent.click(within(menu).getByRole("button", { name: "Save" }))
+    expect(screen.getByRole("textbox", { name: "Change summary" })).toBeInTheDocument()
+    fireEvent.click(within(menu).getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const saveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.checkpoint === true)
+      expect(saveRequest).toBeTruthy()
+    })
+
+    fireEvent.click(within(menu).getByRole("button", { name: "Archive" }))
+
+    await waitFor(() => {
+      const archiveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.state === "archived")
+      expect(archiveRequest).toBeTruthy()
+    })
+    expect(await screen.findByText("This design doc is archived. Content, comments, suggestions, and reviews are read only.")).toBeInTheDocument()
+  })
+
+  it("changes the viewed design doc version from inside the narrow title bar overflow menu", async () => {
+    const fetchSpy = mockFetch()
+    mockMobileViewport()
+    renderSurface("/design_docs/1")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    fireEvent.click(within(titleBar).getByRole("button", { name: "More actions" }))
+    const menu = within(titleBar).getByTestId("design-doc-title-bar-menu")
+
+    const versionSelect = within(menu).getByRole("combobox", { name: "Version selection" })
+    fireEvent.focus(versionSelect)
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/versions", expect.objectContaining({ credentials: "same-origin" })))
+    await within(menu).findByRole("option", { name: "v1 - Initial" })
+    fireEvent.change(versionSelect, { target: { value: "1" } })
+
+    await waitFor(() => expect(screen.getByRole("region", { name: "Design doc content" })).toHaveTextContent("Historical body"))
   })
 
   it("reviews suggestions and exposes version history from the title bar", async () => {
