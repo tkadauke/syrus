@@ -7,19 +7,21 @@ class AddUniquePositionIndexToMergeTrainMembers < ActiveRecord::Migration[8.1]
       remove_index :merge_train_members, name: INDEX_NAME
     end
 
-    add_index :merge_train_members,
-      [ :merge_train_id, :position ],
-      unique: true,
-      name: INDEX_NAME,
-      if_not_exists: true
+    unless index_exists?(:merge_train_members, [ :merge_train_id, :position ], name: INDEX_NAME)
+      add_index :merge_train_members,
+        [ :merge_train_id, :position ],
+        unique: true,
+        name: INDEX_NAME
+    end
   end
 
   def down
     remove_index :merge_train_members, name: INDEX_NAME if index_exists?(:merge_train_members, name: INDEX_NAME)
 
-    add_index :merge_train_members,
-      [ :merge_train_id, :position ],
-      name: INDEX_NAME,
-      if_not_exists: true
+    unless index_exists?(:merge_train_members, [ :merge_train_id, :position ], name: INDEX_NAME)
+      add_index :merge_train_members,
+        [ :merge_train_id, :position ],
+        name: INDEX_NAME
+    end
   end
 end
