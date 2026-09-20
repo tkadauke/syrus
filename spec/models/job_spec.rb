@@ -1825,6 +1825,24 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.validity).to eq("valid")
     end
 
+    it "records a StateTransition audit row for the closed to triaging recovery" do
+      job = Job.create!(user: user, repository: repository, issue_number: 1)
+      job.update!(
+        state: "closed",
+        closure_reason: "duplicate",
+        finished_at: Time.current,
+        validity: "duplicate",
+        invalidation_reason: "Already covered.",
+        invalidation_evidence: [ "https://github.com/acme/widgets/issues/2" ]
+      )
+
+      expect { job.mark_valid_and_queue! }
+        .to change { StateTransition.where(subject: job, from_state: "closed", to_state: "triaging").count }.from(0).to(1)
+
+      transition = StateTransition.where(subject: job, from_state: "closed", to_state: "triaging").last
+      expect(transition.event_name).to eq("reopen")
+    end
+
     it "blocks on backlog epics and queues when the epic enters in_progress" do
       epic = Factories.epic(user: user, repository: repository, state: "backlog")
       job = Job.create!(user: user, repository: repository, issue_number: 1, epic: epic)
