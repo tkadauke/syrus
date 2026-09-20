@@ -13,7 +13,6 @@ function client() {
 
 function buildPayload(overrides: Partial<DashboardPayload> = {}): DashboardPayload {
   return {
-    simple_mode: false,
     subject: "job",
     view: "list",
     page: 1,
