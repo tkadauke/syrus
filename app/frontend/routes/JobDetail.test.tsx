@@ -155,7 +155,7 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("img", { name: /Codex usage is low \(8% remaining; threshold 10%\)/ })).toBeInTheDocument()
   })
 
-  it("shows automatic provider failover in the job detail header", () => {
+  it("shows automatic provider failover as a tooltip on the provider pill in the job detail header", () => {
     renderJobDetail(jobPayload({
       job: {
         ...baseJob(),
@@ -183,9 +183,11 @@ describe("JobDetailView", () => {
       }
     }))
 
-    const notice = screen.getByText("Claude Code unavailable; running this workflow with Codex.")
-    expect(notice).toBeInTheDocument()
-    expect(notice).toHaveAttribute("title", expect.stringContaining("Evidence: failed from provider_circuit"))
+    expect(screen.queryByText("Claude Code unavailable; running this workflow with Codex.")).not.toBeInTheDocument()
+
+    const pill = screen.getByTitle(/Claude Code unavailable; running this workflow with Codex\./)
+    expect(pill).toHaveTextContent("claude")
+    expect(pill).toHaveAttribute("title", expect.stringContaining("Evidence: failed from provider_circuit"))
   })
 
   it("renders the pressure breakdown and telemetry state for a job blocked on step-profile pressure", () => {
