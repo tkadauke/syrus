@@ -13,6 +13,12 @@
     "tags": "Pittacia",
     "connected_platforms": "Suggestus Coniuncti"
   },
+  "nav_groups": {
+    "account": "Ratio",
+    "product": "Productum",
+    "workspace": "Spatium Operis",
+    "integrations": "Integrationes"
+  },
   "themes": {
     "description": "Themata colorum propria administra.",
     "error_no_theme": "Nullum thema ad duplicandum praesto est.",
@@ -223,7 +229,8 @@
     "pref_pr_merged": "Me certiorem fac cum officium unitur",
     "pref_epic_completed": "Me certiorem fac cum epicum completur",
     "pref_main_inconclusive": "Me certiorem fac cum sanitas rami principalis recognitionem requirit",
-    "updated": "Praeferentiae nuntiationum renovatae."
+    "updated": "Praeferentiae nuntiationum renovatae.",
+    "see_also": "Hoc gubernat de quibus rebus certior fias. Ut eligas quo nuntiationes mittantur, vide"
   },
   "design_system": {
     "heading": "Systema Formarum",
@@ -731,6 +738,7 @@
     "automation_section": "Automatio",
     "agent_default": "Meum defaltum uti ({{provider}})",
     "agent_hint": "Nova officia pro hoc receptaculo hunc agentem utuntur nisi officium iam suum proprium agentem habet.",
+    "agent_see_also": "Vide etiam:",
     "danger_heading": "Zona periculi",
     "danger_description": "Archivatio scrutinium sistit et hoc receptaculum ex indice principali celat. In loculamento sollerti \"Archivata\" manet accessibile, et quovis tempore ex archivo retrahi potest.",
     "danger_archived_description": "Hoc receptaculum archivatum est. Ex archivo retrahe ut scrutinium resumatur et in indice principali iterum monstretur.",
@@ -1003,6 +1011,8 @@
     "avatar_url": "URL Avatarum",
     "profile_bio": "Vita Personae",
     "agent_provider": "Praebitor Agentis",
+    "agent_provider_see_also": "Hic est praebitor agentis defectus pro novis Officiis. Separatus est a praebitore colloquii tui (vide",
+    "agent_provider_see_also_suffix": "), et quodlibet receptaculum eum proprie superscribere potest.",
     "max_turns": "Vices Maximae",
     "language": "Lingua",
     "auto_approval_fallback": "Subsidiarium Adprobationis Automaticae",
@@ -1109,6 +1119,7 @@
     "aria": "Connected Platforms",
     "heading": "Connected Platforms",
     "description": "Link your Syrus account to external messaging platforms.",
+    "see_also": "This controls where notifications are delivered. To choose what you're notified about, see",
     "loading": "Loading connected platforms...",
     "load_error": "Unable to load connected platforms.",
     "disconnected_notice": "Platform account disconnected.",
@@ -1198,6 +1209,7 @@
     "agy_missing_summary": "Clavem API Gemini adde ut Antigravity pro cursibus agentis et colloquii praesto sit.",
     "chat_provider_heading": "Praebitor colloquiorum",
     "chat_provider_desc": "Praebitor quo colloquia Syri utuntur. Mutationes statim servantur.",
+    "chat_provider_see_also": "Hic separatus est a praebitore agentis defectus pro Officiis.",
     "chat_provider_saved_notice": "Praebitor colloquiorum servatus.",
     "claude_set_up": "Claude conecte",
     "codex_code_label": "Codex auctoritatis ChatGPT",

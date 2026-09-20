@@ -1,6 +1,7 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
 import * as useConfirmModule from "../hooks/useConfirm"
@@ -39,7 +40,9 @@ function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <ConnectedPlatformsRoute />
+      <MemoryRouter>
+        <ConnectedPlatformsRoute />
+      </MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -63,6 +66,9 @@ describe("ConnectedPlatformsRoute", () => {
     expect(await screen.findByText(/Connected as @ada since/)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Disconnect" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Not yet available" })).toBeDisabled()
+    // Two halves of one mental model — where notifications are delivered vs.
+    // what you're notified about — cross-link to each other.
+    expect(screen.getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/notifications/settings")
   })
 
   it("requests a linking token and updates when ActionCable reports completion", async () => {

@@ -50,6 +50,7 @@ import { scheduleJobDetailInvalidation } from "../lib/appEvents"
 import { Notice, Section } from "../components/ui"
 import { jobNavigationHref, navigationIndex, readJobNavigationContext, storeJobNavigationContext, withUpdatedNavigationItemState, type JobNavigationContext } from "../lib/jobNavigationContext"
 import { MetadataLine, OwnerBadge } from "./dashboard/components"
+import { UnderlineTabs } from "../components/Tabs"
 
 export function JobDetailRoute() {
   const { t } = useT("jobs")
@@ -273,7 +274,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
             <span>{t("workflow_count", { count: payload.job.workflows_count })} · {t("run_count", { count: payload.job.runs_count })}</span>
-            {payload.job.total_cost_usd == null ? null : <span>· {formatCurrency(payload.job.total_cost_usd)}</span>}
+            {payload.job.total_cost_usd == null ? null : <span>· <JobCostLink prefix={prefix} value={payload.job.total_cost_usd} /></span>}
             {payload.job.prepare_skipped ? <span className="font-medium text-amber-700">· {t("prepare_skipped")}</span> : null}
             {payload.job.source_chat ? (
               <span className="inline-flex items-center gap-1">
@@ -534,18 +535,16 @@ function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, inve
   }
 
   return (
-    <div className="scroll-fade-x flex overflow-x-auto border-b border-gray-200 dark:border-gray-700">
-      {tabs.map((tab) => (
-        <button
-          className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium ${active === tab.id ? "border-brand text-brand" : "border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"}`}
-          key={tab.id}
-          onClick={() => onSelect(tab.id)}
-          type="button"
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
+    <UnderlineTabs
+      activeKey={active}
+      activeClassName="border-brand text-brand"
+      ariaLabel="Job sections"
+      className="scroll-fade-x flex overflow-x-auto border-b border-gray-200 dark:border-gray-700"
+      inactiveClassName="border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+      itemClassName="px-4 py-3 text-sm"
+      items={tabs.map((tab) => ({ key: tab.id, label: tab.label }))}
+      onSelect={onSelect}
+    />
   )
 }
 
@@ -660,7 +659,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
               <KeyValue label={t("detail_stack_base")}><StackBaseForm command={command} payload={payload} /></KeyValue>
               {payload.job.pr_number || payload.job.external_pr_number ? <KeyValue label={t("detail_pull_request")}><PullRequestSummary payload={payload} /></KeyValue> : null}
               {!payload.job.pr_number && !payload.job.external_pr_number && payload.job.no_pr_reason ? <KeyValue label={t("detail_pull_request")}><span className="text-gray-600 dark:text-gray-300">{payload.job.no_pr_reason.message || t("no_pr_opened")}</span></KeyValue> : null}
-              <KeyValue label={t("detail_cost")}>{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} {t("detail_billed")})</span></KeyValue>
+              <KeyValue label={t("detail_cost")}>{payload.job.total_cost_usd == null ? "-" : <JobCostLink prefix={prefix} value={payload.job.total_cost_usd} />} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} {t("detail_billed")})</span></KeyValue>
               <KeyValue label={t("detail_started")}><RelativeTimestamp value={payload.job.started_at} /></KeyValue>
               {payload.job.finished_at ? <KeyValue label={t("detail_closed")}><RelativeTimestamp value={payload.job.finished_at} /> ({payload.job.closure_reason || "unspecified"})</KeyValue> : null}
               {payload.job.closure_reason === "emergency_landed" ? (
@@ -688,6 +687,14 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
 }
 
 const JOB_PRIORITIES = ["urgent", "high", "medium", "low"] as const
+
+function JobCostLink({ prefix, value }: { prefix: string; value: number }) {
+  return (
+    <Link className="text-current underline-offset-2 hover:underline focus:underline" to={withRoutePrefix("/insights/spending", prefix)}>
+      {formatCurrency(value)}
+    </Link>
+  )
+}
 
 function EmergencyLandAudit({ job }: { job: JobDetailPayload["job"] }) {
   const user = job.emergency_landed_by_user

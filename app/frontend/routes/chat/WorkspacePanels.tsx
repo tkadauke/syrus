@@ -10,6 +10,7 @@ import { formatClock } from "../../components/WalkthroughRecorder"
 import { mergeChatPayloadUpdate, updateRecentChatCache } from "../../lib/chatCache"
 import { chatPreviewPanelFileUrl, closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, switchChatProvider, type ChatMediaImage, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVersion, type ChatPreviewPanelVisibility, type ChatWhiteboardScene, type PreviewPanelPayload, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
+import { UnderlineTabs, type UnderlineTabItem } from "../../components/Tabs"
 import { Select } from "../../components/Select"
 import { Modal } from "../../components/Modal"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
@@ -32,7 +33,7 @@ import { newestPins, useChatPins, useHasPins } from "./pins"
 import type { WorkspaceTab } from "./workspaceTabs"
 import type { FileTreeNode } from "./fileTree"
 import { buildFileTree } from "./fileTree"
-import { availableWorkspaceTabs, clampFilesTreeWidth, defaultWorkspaceTab, isPluginTab, isPreviewTab, pluginTabIdFromTab, previewTabId, storedFilesTreeCollapsed, storedFilesTreeWidth, storeWorkspacePreference, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
+import { availableWorkspaceTabs, clampFilesTreeWidth, defaultWorkspaceTab, isPluginTab, isPreviewTab, pluginTabIdFromTab, previewTabId, storedFilesTreeCollapsed, storedFilesTreeWidth, storeWorkspacePreference, workspaceTabLabel } from "./workspaceTabs"
 import { pluginWorkspaceTabComponentFor } from "../../pluginWorkspaceTabs"
 import { parseUnifiedDiff } from "../../components/diff/diffRendering"
 import { UnifiedDiffTable } from "../../components/diff/ReviewableDiff"
@@ -90,74 +91,49 @@ export function ChatWorkspacePanel({
   useEffect(() => {
     if (activeTab === null || !tabs.includes(activeTab)) onSelectTab(defaultWorkspaceTab(payload))
   }, [activeTab, onSelectTab, payload, tabs])
+  const tabItems = tabs.flatMap((tab): UnderlineTabItem<WorkspaceTab>[] => {
+    if (!isPreviewTab(tab)) {
+      const tabId = isPluginTab(tab) ? pluginTabIdFromTab(tab) : null
+      const pluginTab = tabId ? payload.workspace_tabs.find((candidate) => candidate.id === tabId) : null
+      const label = workspaceTabLabel(tab, t, [], payload.workspace_tabs)
+
+      return [{
+        key: tab,
+        label,
+        title: label,
+        labelClassName: pluginTab?.closable ? "max-w-[8rem] truncate" : undefined,
+        closeLabel: pluginTab?.closable ? t("aria_close_workspace_tab", { title: label }) : undefined,
+        onClose: pluginTab?.closable ? () => setClosedPluginTabs((current) => tabId && !current.includes(tabId) ? [...current, tabId] : current) : undefined
+      }]
+    }
+
+    const panel = payload.preview_panels.find((candidate) => previewTabId(candidate.id) === tab)
+    if (!panel) return []
+
+    return [{
+      key: tab,
+      label: panel.title,
+      title: panel.title,
+      labelClassName: "max-w-[8rem] truncate",
+      closeLabel: t("aria_close_preview_panel", { title: panel.title }),
+      disabled: closePreviewPanel.isPending,
+      onClose: () => closePreviewPanel.mutate(panel.app_close_path)
+    }]
+  })
 
   return (
     <aside aria-label={t("aria_chat_workspace")} className="flex h-full w-full min-h-0 min-w-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       {!showTabs ? null : (
         <nav aria-label={t("aria_workspace_tabs")} className="flex min-w-0 items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
-          <div className="flex min-w-0 flex-1 overflow-x-auto">
-            {tabs.map((tab) => {
-              if (!isPreviewTab(tab)) {
-                const tabId = isPluginTab(tab) ? pluginTabIdFromTab(tab) : null
-                const pluginTab = tabId ? payload.workspace_tabs.find((candidate) => candidate.id === tabId) : null
-                if (pluginTab?.closable) {
-                  const label = workspaceTabLabel(tab, t, [], payload.workspace_tabs)
-                  return (
-                    <span className={`group flex items-center gap-1 ${workspaceTabClass(activeTab === tab)}`} key={tab}>
-                      <button className="max-w-[8rem] truncate" onClick={() => onSelectTab(tab)} title={label} type="button">
-                        {label}
-                      </button>
-                      <button
-                        aria-label={t("aria_close_workspace_tab", { title: label })}
-                        className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          setClosedPluginTabs((current) => tabId && !current.includes(tabId) ? [...current, tabId] : current)
-                        }}
-                        type="button"
-                      >
-                        <CloseIcon className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )
-                }
-
-                return (
-                  <button
-                    className={workspaceTabClass(activeTab === tab)}
-                    key={tab}
-                    onClick={() => onSelectTab(tab)}
-                    type="button"
-                  >
-                    {workspaceTabLabel(tab, t, [], payload.workspace_tabs)}
-                  </button>
-                )
-              }
-
-              const panel = payload.preview_panels.find((candidate) => previewTabId(candidate.id) === tab)
-              if (!panel) return null
-
-              return (
-                <span className={`group flex items-center gap-1 ${workspaceTabClass(activeTab === tab)}`} key={tab}>
-                  <button className="max-w-[8rem] truncate" onClick={() => onSelectTab(tab)} title={panel.title} type="button">
-                    {panel.title}
-                  </button>
-                  <button
-                    aria-label={t("aria_close_preview_panel", { title: panel.title })}
-                    className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-                    disabled={closePreviewPanel.isPending}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      closePreviewPanel.mutate(panel.app_close_path)
-                    }}
-                    type="button"
-                  >
-                    <CloseIcon className="h-3 w-3" />
-                  </button>
-                </span>
-              )
-            })}
-          </div>
+          <UnderlineTabs
+            activeKey={activeTab}
+            ariaLabel={t("aria_workspace_tabs")}
+            as="div"
+            className="flex min-w-0 flex-1 overflow-x-auto"
+            itemClassName="max-w-[33vw] truncate px-3 py-2"
+            items={tabItems}
+            onSelect={onSelectTab}
+          />
           {onToggleCollapse ? (
             <button
               aria-label={t("aria_close_workspace")}

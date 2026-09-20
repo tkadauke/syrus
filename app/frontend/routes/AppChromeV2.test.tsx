@@ -2238,6 +2238,22 @@ describe("buildAdminNavItems", () => {
     expect(aIndex).toBeLessThan(bIndex)
   })
 
+  it("orders operations by triage, execution internals, then event logs", () => {
+    const { groups } = buildAdminNavItems({}, [], translate)
+    const opItems = groups.find(({ group }) => group.id === "operations")?.items.map((i) => i.id) ?? []
+
+    expect(opItems).toEqual([
+      "queue",
+      "stuck",
+      "attention_items",
+      "work_units",
+      "maintenance_tasks",
+      "processes",
+      "activity",
+      "reconciler_activity"
+    ])
+  })
+
   it("preserves all five stable group ids in order", () => {
     expect(ADMIN_NAV_GROUPS.map((g) => g.id)).toEqual([
       "operations",

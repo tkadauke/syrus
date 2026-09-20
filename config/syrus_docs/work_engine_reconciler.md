@@ -285,7 +285,7 @@ count; the overview embeds the first page from the cached snapshot plus
 `stuck_pagination` so the health tile can show the last known total without
 rendering every row or blocking on reconciliation.
 
-The admin Reconciler Activity page (`/admin/reconciler_activity`) is the
+The admin Reconciler Events page (`/admin/reconciler_activity`) is the
 operator activity log for what the reconciler did and why. Read-only inspections
 used by admin stuck surfaces do not create activity rows. Repairing reconciler
 runs record `run_started`, detailed issue/plan/execution rows for applied or
