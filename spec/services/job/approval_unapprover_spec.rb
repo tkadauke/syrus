@@ -39,4 +39,17 @@ RSpec.describe Job::ApprovalUnapprover do
     expect(result.review_id).to be_nil
     expect(result.message).to eq("GitHub review dismissed.")
   end
+
+  it "is a no-op when the job may not be unapproved, instead of dismissing a stale review" do
+    job.update!(approval_evidence: { "github_review_id" => 555 })
+    job.unapprove! if job.may_unapprove?
+    expect(job.reload).not_to be_approved
+    expect(client).not_to receive(:dismiss_pr_review)
+    expect(client).not_to receive(:pr_reviews)
+
+    result = described_class.call(job: job, user: user)
+
+    expect(result.review_id).to be_nil
+    expect(result.github_result).to be_nil
+  end
 end
