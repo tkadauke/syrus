@@ -8906,7 +8906,8 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    fireEvent.click(await screen.findByRole("button", { name: "Poll now" }))
+    fireEvent.click(await screen.findByRole("button", { name: "More actions" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Poll now" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/repositories/3/poll",
@@ -8919,7 +8920,8 @@ describe("App", () => {
     })
     expect(await screen.findByText("Polling acme/widgets now.")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Retry 1 failed with Codex" }))
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Retry 1 failed with Codex" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/repositories/3/retry_failed_jobs",
@@ -8932,8 +8934,8 @@ describe("App", () => {
     })
     expect(await screen.findByText("Retry enqueued for 1 failed job with Codex.")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText("More"))
-    fireEvent.click(screen.getByRole("button", { name: "Archive" }))
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/repositories/3/archive",

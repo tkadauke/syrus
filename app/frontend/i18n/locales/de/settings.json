@@ -444,7 +444,7 @@
     "new_job": "Neue Aufgabe",
     "launch_skill": "Skill starten",
     "poll_now": "Jetzt abfragen",
-    "more": "Mehr",
+    "more_actions": "Weitere Aktionen",
     "edit": "Bearbeiten",
     "retry_failed_with": "{{count}} fehlgeschlagene mit {{provider}} erneut versuchen",
     "insight_started": "Insight-Analyse gestartet.",

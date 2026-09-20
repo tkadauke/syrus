@@ -444,7 +444,7 @@
     "new_job": "Officium Novum",
     "launch_skill": "Artem Incipe",
     "poll_now": "Nunc interrogare",
-    "more": "Plus",
+    "more_actions": "Actiones plures",
     "edit": "Emendare",
     "retry_failed_with": "Itera {{count}} defecta cum {{provider}}",
     "insight_started": "Analysis consilii coepta est.",
