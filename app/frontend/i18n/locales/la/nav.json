@@ -258,7 +258,10 @@
     "admin_queue_polling": "Scrutatio",
     "admin_queue_indexing": "Indexatio",
     "admin_queue_cleanup": "Purgatio",
-    "admin_queue_low_priority_maintenance": "Cura humilis"
+    "admin_queue_low_priority_maintenance": "Cura humilis",
+    "repositories_all": "Omnia",
+    "repositories_recent": "Recentia",
+    "repositories_archived": "Archivata"
   },
   "notifications": {
     "title": "Nuntii",

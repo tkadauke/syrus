@@ -3,6 +3,8 @@ import type { SetupStatusPayload } from "./setup"
 import type { JobRetryState, PreviewEnvironmentRecord } from "./jobs"
 import type { ProviderAvailability, ProviderFailover } from "./providerAvailability"
 import type { ProviderRoutingOptions, ProviderRoutingRule } from "./providerRoutingRules"
+import type { AdminSmartFolder } from "./adminSmartFolders"
+import type { FilterSchemaField } from "../components/filterBar/types"
 
 export type RepositoryEpicDependencyPolicy = "linear"
 
@@ -25,6 +27,9 @@ export type RepositoryRow = {
   archived_at: string | null
   agent_provider: string | null
   agent_provider_label: string
+  main_health: string
+  open_jobs_count: number
+  last_job_activity_at: string | null
   epic_dependency_policy: RepositoryEpicDependencyPolicy
   last_poll_status: string | null
   last_poll_started_at: string | null
@@ -38,6 +43,10 @@ export type RepositoriesPayload = {
   archived_repositories: RepositoryRow[]
   new_repository_path: string
   setup?: SetupStatusPayload
+  smart_folders: AdminSmartFolder[]
+  active_smart_folder_id: number | null
+  filter: Record<string, unknown>
+  filter_schema: FilterSchemaField[]
   message?: string | null
 }
 
@@ -79,6 +88,8 @@ export type RepositoryFormRecord = {
   github_owner_id: number | null
   github_repository_id: number | null
   repository_path: string | null
+  archived: boolean
+  archived_at: string | null
 }
 
 export type RepositoryProviderOption = {
@@ -117,6 +128,8 @@ export type RepositoryFormPayload = {
   input_source_types: InputSourceType[]
   auto_approve_modes: RepositoryAutoApproveMode[]
   repositories_path: string
+  app_archive_repository_path: string | null
+  app_unarchive_repository_path: string | null
   agent_insights_enabled?: boolean
   insight_schedule_config?: InsightScheduleConfigRecord
 }
@@ -563,8 +576,8 @@ export function fetchRepositoryCoverageTrend(id: number | string, days = 30) {
   return getJson<CoverageTrendPayload>(`/api/v1/app/repositories/${id}/coverage_trend?days=${days}`)
 }
 
-export function fetchRepositories() {
-  return getJson<RepositoriesPayload>("/api/v1/app/repositories")
+export function fetchRepositories(search = "") {
+  return getJson<RepositoriesPayload>(`/api/v1/app/repositories${search}`)
 }
 
 export function fetchRepositoryDetail(id: string, search = "") {
@@ -609,6 +622,10 @@ export function runRepositoryRecommendation(path: string, page: number) {
 }
 
 export function archiveRepositoryFromPath(path: string) {
+  return postJson<RepositoriesPayload>(path)
+}
+
+export function unarchiveRepositoryFromPath(path: string) {
   return postJson<RepositoriesPayload>(path)
 }
 
@@ -744,10 +761,6 @@ export function fetchLinearTeams(apiKey: string) {
 
 export function syncFork(id: number) {
   return postJson<{ message?: string }>(`/api/v1/app/repositories/${id}/sync_fork`)
-}
-
-export function archiveRepository(id: number) {
-  return postJson<RepositoriesPayload>(`/api/v1/app/repositories/${id}/archive`)
 }
 
 export function unarchiveRepository(id: number) {

@@ -6,6 +6,7 @@ import type { FormEvent, ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
+  archiveRepositoryFromPath,
   createRepository,
   fetchEditRepositoryForm,
   fetchInputSource,
@@ -24,6 +25,7 @@ import {
   type RepositoryReviewPolicy,
   saveInputSource,
   syncFork,
+  unarchiveRepositoryFromPath,
   updateInsightScheduleConfig,
   updateRepository
 } from "../api/repositories"
@@ -38,7 +40,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
 import { Button } from "../components/Button"
 import { Checkbox as CheckboxPrimitive } from "../components/Checkbox"
-import { Form } from "../components/ui"
+import { Form, Surface, Text } from "../components/ui"
 import { useConfirm } from "../hooks/useConfirm"
 import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
 
@@ -615,7 +617,70 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           initialConfig={payload.insight_schedule_config}
         />
       ) : null}
+
+      {mode === "edit" ? <DangerZoneSection payload={payload} prefix={prefix} /> : null}
     </>
+  )
+}
+
+function DangerZoneSection({ payload, prefix }: { payload: RepositoryFormPayload; prefix: string }) {
+  const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const slug = payload.repository.slug || `${payload.repository.owner}/${payload.repository.name}`
+
+  const archive = useMutation({
+    mutationFn: () => archiveRepositoryFromPath(payload.app_archive_repository_path || ""),
+    onSuccess: () => {
+      // The archive/unarchive endpoints respond with the default
+      // (unfiltered) repositories payload, which may not match whatever
+      // smart folder or filters the index was last viewed under -- so
+      // invalidate rather than seed the cache with a mismatched payload.
+      void queryClient.invalidateQueries({ queryKey: ["repositories"] })
+      navigate(withRoutePrefix(payload.repositories_path, prefix))
+    }
+  })
+
+  const unarchive = useMutation({
+    mutationFn: () => unarchiveRepositoryFromPath(payload.app_unarchive_repository_path || ""),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["repositories"] })
+      navigate(withRoutePrefix(payload.repositories_path, prefix))
+    }
+  })
+
+  async function archiveRepository() {
+    if (await confirm({ message: t("repository_form.confirm_archive", { slug }), confirmLabel: t("repository_form.danger_archive"), destructive: true })) {
+      archive.mutate()
+    }
+  }
+
+  if (!payload.app_archive_repository_path) return null
+
+  return (
+    <Surface className="space-y-3" variant="danger">
+      <div>
+        <SectionHeading>{t('repository_form.danger_heading')}</SectionHeading>
+        <Text className="mt-1" tone="danger" variant="caption">
+          {payload.repository.archived ? t('repository_form.danger_archived_description') : t('repository_form.danger_description')}
+        </Text>
+      </div>
+
+      {archive.isError ? <PanelMessage tone="error">{errorMessage(archive.error, t('repository_form.archive_failed'))}</PanelMessage> : null}
+      {unarchive.isError ? <PanelMessage tone="error">{errorMessage(unarchive.error, t('repository_form.unarchive_failed'))}</PanelMessage> : null}
+
+      {payload.repository.archived ? (
+        <Button disabled={unarchive.isPending} onClick={() => unarchive.mutate()} variant="secondary">
+          {unarchive.isPending ? t('repository_form.unarchiving') : t('repository_form.danger_unarchive')}
+        </Button>
+      ) : (
+        <Button disabled={archive.isPending} onClick={archiveRepository} variant="danger">
+          {archive.isPending ? t('repository_form.archiving') : t('repository_form.danger_archive')}
+        </Button>
+      )}
+      {dialog}
+    </Surface>
   )
 }
 

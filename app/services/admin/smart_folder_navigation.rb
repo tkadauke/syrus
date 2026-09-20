@@ -103,6 +103,8 @@ module Admin
         admin_queue_path(path_context.fetch(:tab), smart_folder_id: folder.id)
       when "spawned_process"
         admin_processes_path(smart_folder_id: folder.id)
+      when "repository"
+        repositories_path(smart_folder_id: folder.id)
       else
         SmartFolder.path_for_subject(subject, smart_folder_id: folder.id) || smart_folders_path(subject_type: subject)
       end

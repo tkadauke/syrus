@@ -580,6 +580,89 @@ describe("AppChromeV2", () => {
     expect(fetchSpy).toHaveBeenCalled()
   })
 
+  it("renders repository smart folders under the active Repositories sidebar item instead of a page-level sidebar", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(jsonResponse(chatsIndexPayload()))
+      }
+
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/sidebar_pages") {
+        return Promise.resolve(jsonResponse({ pages: [] }))
+      }
+
+      if (url.pathname === "/api/v1/app/repositories") {
+        expect(url.searchParams.get("smart_folder_id")).toBe("2")
+        return Promise.resolve(jsonResponse({
+          active_repositories: [],
+          archived_repositories: [],
+          new_repository_path: "/repositories/new",
+          active_smart_folder_id: 2,
+          filter: { and: [] },
+          message: null,
+          smart_folders: [
+            {
+              id: 1,
+              name: "All",
+              i18n_key: "repositories_all",
+              kind: "builtin",
+              subject_type: "repository",
+              visibility: "always",
+              position: 0,
+              count: 4,
+              active: false,
+              filter: { and: [] },
+              path: "/repositories?smart_folder_id=1"
+            },
+            {
+              id: 2,
+              name: "Recent",
+              i18n_key: "repositories_recent",
+              kind: "builtin",
+              subject_type: "repository",
+              visibility: "always",
+              position: 1,
+              count: 2,
+              active: true,
+              filter: { and: [{ field: "last_job_activity_at", op: "within_days", value: 30 }] },
+              path: "/repositories?smart_folder_id=2"
+            },
+            {
+              id: 3,
+              name: "Archived",
+              i18n_key: "repositories_archived",
+              kind: "builtin",
+              subject_type: "repository",
+              visibility: "always",
+              position: 2,
+              count: 1,
+              active: false,
+              filter: { and: [{ field: "archived", op: "is_true", value: null }] },
+              path: "/repositories?smart_folder_id=3"
+            }
+          ]
+        }))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppChrome(<div>Repositories</div>, {
+      initialEntries: ["/repositories?smart_folder_id=2"]
+    })
+
+    expect(await screen.findByRole("link", { name: "Repositories" })).toBeInTheDocument()
+    const folderNav = await screen.findByRole("navigation", { name: "Repositories smart folders" })
+    // The repositories index registers its own unfiltered "All" folder, so
+    // the generic sidebar catch-all link must not be duplicated alongside it.
+    expect(within(folderNav).queryByRole("link", { name: "All repositories" })).not.toBeInTheDocument()
+    expect(within(folderNav).getByRole("link", { name: "All 4" })).toHaveAttribute("href", "/repositories?smart_folder_id=1")
+    expect(within(folderNav).getByRole("link", { name: "Recent 2" })).toHaveAttribute("href", "/repositories?smart_folder_id=2")
+    expect(within(folderNav).getByRole("link", { name: "Archived 1" })).toHaveAttribute("href", "/repositories?smart_folder_id=3")
+    expect(fetchSpy).toHaveBeenCalled()
+  })
+
   it("does not render plugin smart folders on plugin detail subroutes", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
@@ -2369,7 +2452,11 @@ function renderAppChrome(
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={options.initialEntries ?? ["/repositories"]}>
+      {/* A neutral route that doesn't match any primary nav item (unlike
+          "/repositories", now that it has its own smart-folder subnav) --
+          otherwise every test using the default route would need to mock
+          that subnav's smart-folder fetch too. */}
+      <MemoryRouter initialEntries={options.initialEntries ?? ["/settings"]}>
         {options.routeWrapper ? (
           <Routes>
             <Route element={chrome} path="*" />

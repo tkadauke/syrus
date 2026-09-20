@@ -8,6 +8,14 @@ module Api
 
         PER_PAGE = 20
 
+        HEALTH_FILTER_VALUES = %w[ healthy broken inconclusive unknown ].freeze
+        HEALTH_FILTER_LABELS = {
+          "healthy" => "Healthy",
+          "broken" => "Broken",
+          "inconclusive" => "Inconclusive",
+          "unknown" => "Unknown"
+        }.freeze
+
         def index
           render json: repositories_payload
         end
@@ -326,7 +334,9 @@ module Api
             provider_routing_options: agent_provider_catalog_options(Current.user),
             input_source_types: input_source_types_json(repository),
             auto_approve_modes: auto_approve_modes_json,
-            repositories_path: repositories_path
+            repositories_path: repositories_path,
+            app_archive_repository_path: repository.persisted? ? "/api/v1/app/repositories/#{repository.id}/archive" : nil,
+            app_unarchive_repository_path: repository.persisted? ? "/api/v1/app/repositories/#{repository.id}/unarchive" : nil
           }
 
           payload
@@ -406,13 +416,18 @@ module Api
           PerformanceLogging.phase("repositories_index_payload") do
             repos = PerformanceLogging.phase("repositories_index.repositories_query") { policy_scope(Repository).includes(:user).order(:owner, :name).to_a }
             PerformanceLogging.phase("repositories_index.preload_job_state", repository_count: repos.size) { preload_repository_index_job_state(repos) }
+            filtered_repos = PerformanceLogging.phase("repositories_index.apply_filters", repository_count: repos.size) { filter_repository_index_repositories(repos) }
 
             {
-              active_repositories: PerformanceLogging.phase("repositories_index.active_repositories_json", repository_count: repos.size) { repos.select { |repository| !repository.archived? }.map { |repository| repository_json(repository) } },
-              archived_repositories: PerformanceLogging.phase("repositories_index.archived_repositories_json", repository_count: repos.size) { repos.select(&:archived?).map { |repository| repository_json(repository) } },
-              repositories: PerformanceLogging.phase("repositories_index.cli_repositories_json", repository_count: repos.size) { repos.map { |repository| repository_cli_json(repository) } },
+              active_repositories: PerformanceLogging.phase("repositories_index.active_repositories_json", repository_count: filtered_repos.size) { filtered_repos.select { |repository| !repository.archived? }.map { |repository| repository_json(repository) } },
+              archived_repositories: PerformanceLogging.phase("repositories_index.archived_repositories_json", repository_count: filtered_repos.size) { filtered_repos.select(&:archived?).map { |repository| repository_json(repository) } },
+              repositories: PerformanceLogging.phase("repositories_index.cli_repositories_json", repository_count: filtered_repos.size) { filtered_repos.map { |repository| repository_cli_json(repository) } },
               new_repository_path: new_repository_path,
               setup: PerformanceLogging.phase("repositories_index.setup") { ::App::SetupStatus.call(user: Current.user) },
+              smart_folders: PerformanceLogging.phase("repositories_index.smart_folders", repository_count: repos.size) { repository_smart_folders_json(repos) },
+              active_smart_folder_id: active_repository_smart_folder&.id,
+              filter: repository_filter.to_h,
+              filter_schema: repository_filter_schema(repos),
               message: message
             }
           end
@@ -436,6 +451,9 @@ module Api
             archived_at: repository.archived_at&.iso8601,
             agent_provider: repository.agent_provider,
             agent_provider_label: repository.agent_provider.present? ? agent_provider_label(repository.agent_provider) : "default",
+            main_health: repository.main_health,
+            open_jobs_count: repository_index_open_jobs_count(repository),
+            last_job_activity_at: repository_index_last_job(repository)&.updated_at&.iso8601,
             last_poll_status: repository.last_poll_status,
             last_poll_started_at: repository.last_poll_started_at&.iso8601,
             last_poll_error: repository.last_poll_error,
@@ -445,21 +463,13 @@ module Api
         end
 
         def repository_cli_json(repository)
-          last_job = if defined?(@repository_index_last_jobs_by_repository_id)
-            @repository_index_last_jobs_by_repository_id[repository.id]
-          else
-            repository.jobs.order(updated_at: :desc).first
-          end
+          last_job = repository_index_last_job(repository)
 
           {
             id: repository.id,
             slug: repository.slug,
             archived: repository.archived?,
-            active_jobs_count: if defined?(@repository_index_open_job_counts)
-              @repository_index_open_job_counts.fetch(repository.id, 0)
-                               else
-              repository.jobs.open_threads.count
-                               end,
+            active_jobs_count: repository_index_open_jobs_count(repository),
             last_job: last_job && {
               id: last_job.id,
               title: last_job.issue_title.to_s,
@@ -522,7 +532,9 @@ module Api
             epic_dependency_policy: repository.epic_dependency_policy,
             github_owner_id: repository.github_owner_id,
             github_repository_id: repository.github_repository_id,
-            repository_path: repository.persisted? ? repository_path(repository) : nil
+            repository_path: repository.persisted? ? repository_path(repository) : nil,
+            archived: repository.archived?,
+            archived_at: repository.archived_at&.iso8601
           }
         end
 
@@ -1054,6 +1066,132 @@ module Api
           @repository_index_last_jobs_by_repository_id = PerformanceLogging.phase("repositories_index.preload.latest_jobs", repository_count: repository_ids.size) do
             latest_jobs_by_repository_id(repository_ids)
           end
+        end
+
+        def filter_repository_index_repositories(repositories)
+          repository_filter.apply(
+            repositories,
+            open_jobs_counts: @repository_index_open_job_counts || {},
+            last_job_activity_by_id: repository_index_last_job_activity_by_id
+          )
+        end
+
+        # Resolves the active SmartFolder (by id, scoped to built-ins and this
+        # user's own folders -- same visibility rule as every other subject).
+        def active_repository_smart_folder
+          return @active_repository_smart_folder if defined?(@active_repository_smart_folder)
+
+          id = Integer(params[:smart_folder_id], exception: false)
+          @active_repository_smart_folder = id && SmartFolder.for_subject("repository")
+            .where("user_id IS NULL OR user_id = ?", Current.user.id)
+            .find_by(id: id)
+        end
+
+        # The active filter for the current request: the selected folder's
+        # filter acts as a floor, but any explicit legacy dropdown param
+        # (github_owner, health, etc.) present on the request takes over
+        # instead of ANDing with it -- see Repositories::Filter.smart_folder_floor.
+        def repository_filter
+          @repository_filter ||= begin
+            floor = Repositories::Filter.smart_folder_floor(params, active_repository_smart_folder, user: Current.user)
+            Repositories::Filter.from_params(params, smart_folder: floor, user: Current.user)
+          end
+        end
+
+        def repository_smart_folders_json(repositories)
+          SmartFolder.ensure_builtins_for_subject!("repository")
+
+          ::Admin::SmartFolderNavigation.new(
+            subject: "repository",
+            user: Current.user,
+            active_folder: active_repository_smart_folder,
+            base_scope: repositories,
+            filter_class: Repositories::Filter,
+            count_provider: ->(folder) { repository_count_for_folder(folder, repositories) }
+          ).folders
+        end
+
+        # The repository index's chip-bar UI (FilterBar) renders its
+        # "+ Add filter" menu and per-chip editors from this schema.
+        # `repositories` is the same unfiltered array `repositories_payload`
+        # already loaded before applying the active filter/smart folder, so
+        # the owner/agent value lists never narrow to just what the current
+        # filter matched -- picking a value (or narrowing via any other
+        # filter) never removes other choices from the picker.
+        def repository_filter_schema(repositories)
+          [
+            {
+              field: "slug",
+              label: "Repository",
+              bucket: "string",
+              free_text_search: true,
+              operators: %w[ contains does_not_contain starts_with does_not_start_with ends_with does_not_end_with equals not_equals is_set is_unset ]
+            },
+            {
+              field: "github_owner",
+              label: "GitHub owner",
+              bucket: "enum",
+              operators: %w[ is is_not is_one_of is_none_of is_set is_unset ],
+              values: repository_owner_filter_values(repositories)
+            },
+            {
+              field: "health",
+              label: "Health",
+              bucket: "enum",
+              operators: %w[ is is_not is_one_of is_none_of ],
+              values: HEALTH_FILTER_VALUES.map { |value| { value: value, label: HEALTH_FILTER_LABELS.fetch(value) } }
+            },
+            {
+              field: "agent_provider",
+              label: "Agent",
+              bucket: "enum",
+              operators: %w[ is is_not is_one_of is_none_of is_set is_unset ],
+              values: repository_agent_provider_filter_values(repositories)
+            },
+            {
+              field: "has_open_jobs",
+              label: "Has open jobs",
+              bucket: "boolean",
+              operators: %w[ is_true is_false ]
+            }
+          ]
+        end
+
+        def repository_owner_filter_values(repositories)
+          repositories.map(&:owner).uniq.sort.map { |owner| { value: owner, label: owner } }
+        end
+
+        def repository_agent_provider_filter_values(repositories)
+          repositories.filter_map(&:agent_provider).uniq.sort.map { |provider| { value: provider, label: agent_provider_label(provider) } }
+        end
+
+        def repository_count_for_folder(folder, repositories)
+          Repositories::Filter.from_tree(folder.filter, user: Current.user).apply(
+            repositories,
+            open_jobs_counts: @repository_index_open_job_counts || {},
+            last_job_activity_by_id: repository_index_last_job_activity_by_id
+          ).size
+        end
+
+        def repository_index_open_jobs_count(repository)
+          if defined?(@repository_index_open_job_counts)
+            @repository_index_open_job_counts.fetch(repository.id, 0)
+          else
+            repository.jobs.open_threads.count
+          end
+        end
+
+        def repository_index_last_job(repository)
+          if defined?(@repository_index_last_jobs_by_repository_id)
+            @repository_index_last_jobs_by_repository_id[repository.id]
+          else
+            repository.jobs.order(updated_at: :desc, id: :desc).first
+          end
+        end
+
+        def repository_index_last_job_activity_by_id
+          @repository_index_last_job_activity_by_id ||= (@repository_index_last_jobs_by_repository_id || {})
+            .transform_values(&:updated_at)
         end
 
         def preload_repository_detail_job_state(jobs)

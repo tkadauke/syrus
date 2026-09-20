@@ -8555,7 +8555,7 @@ describe("App", () => {
     })
   })
 
-  it("renders repositories with proper action buttons and no Poll now action", async () => {
+  it("renders repositories in the data table with no Poll now or index Archive action", async () => {
     vi.spyOn(window, "fetch").mockImplementation(() => {
       return Promise.resolve(new Response(JSON.stringify(repositoriesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
@@ -8570,19 +8570,15 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Repositories" })).toHaveClass("max-w-[96rem]")
     expect(await screen.findByText("acme/widgets")).toBeInTheDocument()
-    expect(screen.getByRole("columnheader", { name: "Working repository" })).toBeInTheDocument()
-    expect(screen.getByText("rails/rails")).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Repository" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "GitHub owner" })).toBeInTheDocument()
     expect(screen.getByText("old/repo")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Add" })).toHaveAttribute("href", "/app-shell/repositories/new")
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.queryByRole("button", { name: "Poll now" })).not.toBeInTheDocument()
-
-    const editLink = screen.getByRole("link", { name: "Edit" })
-    expect(editLink).toHaveAttribute("href", "/app-shell/repositories/3/edit")
-    expect(editLink.className).toContain("bg-gray-100")
-
-    const archiveButton = screen.getByRole("button", { name: "Archive" })
-    expect(archiveButton.className).toContain("bg-amber-600")
+    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Unarchive" })).toBeInTheDocument()
   })
 
   it("points an empty repositories index to the setup next action", async () => {
@@ -8887,14 +8883,6 @@ describe("App", () => {
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
-      if (path === "/api/v1/app/repositories/3/archive" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify(repositoriesPayload({ message: "acme/widgets archived." })), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
-      if (path === "/api/v1/app/repositories") {
-        return Promise.resolve(new Response(JSON.stringify(repositoriesPayload({ message: "acme/widgets archived." })), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
       return Promise.resolve(new Response(JSON.stringify(repositoryDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
@@ -8932,15 +8920,10 @@ describe("App", () => {
     })
     expect(await screen.findByText("Retry enqueued for 1 failed job with Codex.")).toBeInTheDocument()
 
+    // Archive lives in the edit form's danger zone now, not the detail
+    // page's "More" menu.
     fireEvent.click(screen.getByText("More"))
-    fireEvent.click(screen.getByRole("button", { name: "Archive" }))
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/3/archive",
-        expect.objectContaining({ method: "POST", credentials: "same-origin" })
-      )
-    })
-    expect(await screen.findByRole("main", { name: "Repositories" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
   })
 
 
@@ -15330,6 +15313,9 @@ function repositoriesPayload(overrides: {
         archived_at: null,
         agent_provider: "codex",
         agent_provider_label: "Codex",
+        main_health: "unknown",
+        open_jobs_count: 0,
+        last_job_activity_at: null,
         last_poll_status: "ok",
         last_poll_started_at: "2026-05-30T12:00:00Z",
         last_poll_error: null,
@@ -15361,6 +15347,9 @@ function repositoriesPayload(overrides: {
         archived_at: "2026-05-29T12:00:00Z",
         agent_provider: null,
         agent_provider_label: "default",
+        main_health: "unknown",
+        open_jobs_count: 0,
+        last_job_activity_at: null,
         last_poll_status: null,
         last_poll_started_at: null,
         last_poll_error: null,
@@ -15403,6 +15392,25 @@ function repositoriesPayload(overrides: {
         }
       }
     }),
+    smart_folders: [
+      { id: 1, name: "All", i18n_key: "repositories_all", position: 0, kind: "builtin", subject_type: "repository", visibility: "always", count: 2, active: true, filter: { and: [] }, path: "/repositories?smart_folder_id=1" },
+      { id: 2, name: "Recent", i18n_key: "repositories_recent", position: 1, kind: "builtin", subject_type: "repository", visibility: "always", count: 0, active: false, filter: { and: [] }, path: "/repositories?smart_folder_id=2" },
+      { id: 3, name: "Archived", i18n_key: "repositories_archived", position: 2, kind: "builtin", subject_type: "repository", visibility: "always", count: 1, active: false, filter: { and: [] }, path: "/repositories?smart_folder_id=3" }
+    ],
+    active_smart_folder_id: null,
+    filter: { and: [] },
+    filter_schema: [
+      { field: "slug", label: "Repository", bucket: "string", operators: ["contains"], free_text_search: true },
+      { field: "github_owner", label: "GitHub owner", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [] },
+      { field: "health", label: "Health", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [
+        { value: "healthy", label: "Healthy" },
+        { value: "broken", label: "Broken" },
+        { value: "inconclusive", label: "Inconclusive" },
+        { value: "unknown", label: "Unknown" }
+      ] },
+      { field: "agent_provider", label: "Agent", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [] },
+      { field: "has_open_jobs", label: "Has open jobs", bucket: "boolean", operators: ["is_true", "is_false"] }
+    ],
     message: overrides.message
   }
 }

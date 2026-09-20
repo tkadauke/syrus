@@ -153,13 +153,27 @@ class SmartFolder < ApplicationRecord
     { key: "admin_queue_low_priority_maintenance", name: "Low-priority maintenance", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "low_priority_maintenance" } ] } }
   ].freeze
 
+  # Repositories index folders. "All" is a real (unfiltered) builtin row here
+  # rather than the bypass-link pattern Dashboard's "All jobs"/etc. use, so
+  # archive can move entirely into per-folder scope: selecting "Archived"
+  # is the only way to see archived repositories, and "All" genuinely means
+  # every accessible repository, active or archived. "Recent" is a fixed,
+  # non-adjustable 30-day job-activity window -- not a user-editable knob --
+  # so it stays a builtin rather than exposing the underlying date chip.
+  REPOSITORY_BUILTINS = [
+    { key: "repositories_all",      name: "All",      visibility: :always, filter: { "and" => [] } },
+    { key: "repositories_recent",   name: "Recent",   visibility: :always, filter: { "and" => [ { "field" => "last_job_activity_at", "op" => "within_last", "value" => { "n" => 30, "unit" => "days" } } ] } },
+    { key: "repositories_archived", name: "Archived", visibility: :always, filter: { "and" => [ { "field" => "archived", "op" => "is", "value" => true } ] } }
+  ].freeze
+
   BUILTINS_BY_SUBJECT = {
     "job" => JOB_BUILTINS,
     "epic" => EPIC_BUILTINS,
     "workflow" => WORKFLOW_BUILTINS,
     "admin_user" => ADMIN_USER_BUILTINS,
     "admin_queue" => ADMIN_QUEUE_BUILTINS,
-    "spawned_process" => SPAWNED_PROCESS_BUILTINS
+    "spawned_process" => SPAWNED_PROCESS_BUILTINS,
+    "repository" => REPOSITORY_BUILTINS
   }.freeze
 
   @registered_subjects = {}
@@ -217,9 +231,10 @@ class SmartFolder < ApplicationRecord
   ADMIN_USER_BUILTIN_DEFINITIONS = ADMIN_USER_BUILTINS
   ADMIN_QUEUE_BUILTIN_DEFINITIONS = ADMIN_QUEUE_BUILTINS
   SPAWNED_PROCESS_BUILTIN_DEFINITIONS = SPAWNED_PROCESS_BUILTINS
+  REPOSITORY_BUILTIN_DEFINITIONS = REPOSITORY_BUILTINS
 
   KINDS = %w[ builtin user_defined ].freeze
-  SUBJECT_TYPES = %w[ job epic workflow admin_user admin_queue spawned_process ].freeze
+  SUBJECT_TYPES = %w[ job epic workflow admin_user admin_queue spawned_process repository ].freeze
 
   belongs_to :user, optional: true
 

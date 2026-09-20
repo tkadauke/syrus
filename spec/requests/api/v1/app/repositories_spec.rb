@@ -189,6 +189,17 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       last_poll_status: "ok",
       last_poll_started_at: Time.zone.parse("2026-05-30 12:00:00")
     )
+    active.update!(
+      main_branch_health_enabled: true,
+      last_health_checked_sha: "abc123",
+      last_ci_evaluated_sha: "abc123",
+      last_graded_sha: "abc123",
+      ci_health: "healthy",
+      grader_health: "broken"
+    )
+    job_activity_at = Time.zone.parse("2026-05-30 12:30:00")
+    job = Factories.job_record(user: user, repository: active, state: "queued")
+    job.update_columns(updated_at: job_activity_at)
     archived = Factories.repository(user: user, owner: "old", name: "repo")
     archived.archive!
     Factories.repository(user: Factories.user, owner: "other", name: "private")
@@ -206,6 +217,9 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         "trigger_label" => "syrus",
         "polling_enabled" => true,
         "agent_provider_label" => "Codex",
+        "main_health" => "broken",
+        "open_jobs_count" => 1,
+        "last_job_activity_at" => job_activity_at.iso8601,
         "last_poll_status" => "ok",
         "repository_path" => repository_path(active),
         "edit_repository_path" => edit_repository_path(active)
@@ -217,9 +231,123 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body.to_s).not_to include("other/private")
     expect(body["new_repository_path"]).to eq(new_repository_path)
     expect(body["repositories"]).to include(
-      include("slug" => "acme/widgets", "active_jobs_count" => 0),
+      include("slug" => "acme/widgets", "active_jobs_count" => 1),
       include("slug" => "old/repo", "archived" => true)
     )
+  end
+
+  it "filters repository index rows by derived and repository attributes" do
+    sign_in_as(user)
+    match = Factories.repository(
+      user: user,
+      owner: "acme",
+      name: "widgets",
+      agent_provider: "codex",
+      main_branch_health_enabled: true,
+      last_health_checked_sha: "abc123",
+      last_ci_evaluated_sha: "abc123",
+      last_graded_sha: "abc123",
+      ci_health: "healthy",
+      grader_health: "broken"
+    )
+    Factories.job_record(user: user, repository: match, state: "running")
+    Factories.repository(user: user, owner: "acme", name: "api", agent_provider: "claude")
+    Factories.repository(user: user, owner: "other", name: "widgets", agent_provider: "codex")
+
+    get "/api/v1/app/repositories", params: {
+      github_owner: [ "acme" ],
+      health: "broken",
+      agent_provider: "codex",
+      has_open_jobs: "true",
+      slug: "widgets"
+    }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["active_repositories"]).to contain_exactly(include("id" => match.id, "slug" => "acme/widgets"))
+    expect(body["repositories"]).to contain_exactly(include("id" => match.id, "slug" => "acme/widgets"))
+  end
+
+  it "filters repository index activity by job activity instead of polling activity, via the Recent smart folder's fixed 30-day cutoff" do
+    travel_to Time.zone.parse("2026-05-30 12:00:00") do
+      sign_in_as(user)
+      poll_only = Factories.repository(
+        user: user,
+        owner: "acme",
+        name: "poll-only",
+        last_poll_started_at: 5.minutes.ago
+      )
+      recent = Factories.repository(user: user, owner: "acme", name: "recent")
+      old = Factories.repository(user: user, owner: "acme", name: "old")
+      recent_job = Factories.job_record(user: user, repository: recent, state: "closed")
+      old_job = Factories.job_record(user: user, repository: old, state: "closed")
+      recent_job.update_columns(updated_at: 30.minutes.ago)
+      old_job.update_columns(updated_at: 40.days.ago)
+
+      SmartFolder.ensure_builtins_for_subject!("repository")
+      recent_folder = SmartFolder.for_subject("repository").builtin.find_by!(name: "Recent")
+
+      get "/api/v1/app/repositories", params: { smart_folder_id: recent_folder.id }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["active_smart_folder_id"]).to eq(recent_folder.id)
+      slugs = body.fetch("active_repositories").map { |row| row.fetch("slug") }
+      expect(slugs).to contain_exactly("acme/recent")
+      expect(slugs).not_to include(poll_only.slug, old.slug)
+    end
+  end
+
+  it "lists repository smart folders with All/Recent/Archived built-ins and honors a saved user folder" do
+    sign_in_as(user)
+    match = Factories.repository(user: user, owner: "acme", name: "widgets", agent_provider: "codex")
+    Factories.repository(user: user, owner: "acme", name: "other", agent_provider: "claude")
+    archived = Factories.repository(user: user, owner: "acme", name: "archived")
+    archived.archive!
+    saved = SmartFolder.create!(
+      user: user,
+      kind: "user_defined",
+      subject_type: "repository",
+      name: "Codex repos",
+      filter: { "and" => [ { "field" => "agent_provider", "op" => "is", "value" => "codex" } ] },
+      position: 0
+    )
+
+    get "/api/v1/app/repositories"
+
+    expect(response).to have_http_status(:ok)
+    folders = parse_body.fetch("smart_folders")
+    expect(folders.map { |f| f["name"] }).to include("All", "Recent", "Archived", "Codex repos")
+    all_folder = folders.find { |f| f["name"] == "All" }
+    expect(all_folder["count"]).to eq(3)
+    archived_folder = folders.find { |f| f["name"] == "Archived" }
+    expect(archived_folder["count"]).to eq(1)
+    saved_folder = folders.find { |f| f["id"] == saved.id }
+    expect(saved_folder["count"]).to eq(1)
+    expect(saved_folder["kind"]).to eq("user_defined")
+
+    archived_folder_id = archived_folder.fetch("id")
+    get "/api/v1/app/repositories", params: { smart_folder_id: archived_folder_id }
+
+    body = parse_body
+    expect(body["active_repositories"]).to be_empty
+    expect(body["archived_repositories"]).to contain_exactly(include("slug" => "acme/archived"))
+    expect(match).to be_present
+  end
+
+  it "returns archived rows when the repository index archived filter is true" do
+    sign_in_as(user)
+    active = Factories.repository(user: user, owner: "acme", name: "active")
+    archived = Factories.repository(user: user, owner: "acme", name: "archived")
+    archived.archive!
+
+    get "/api/v1/app/repositories", params: { archived: "true" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["active_repositories"]).to be_empty
+    expect(body["archived_repositories"]).to contain_exactly(include("id" => archived.id, "slug" => "acme/archived", "archived" => true))
+    expect(body["repositories"]).to contain_exactly(include("id" => archived.id, "slug" => "acme/archived"))
   end
 
   it "rejects self-enrollment when the same GitHub slug is already registered by another user" do
