@@ -1,8 +1,19 @@
 require "rails_helper"
+require "shellwords"
 
 RSpec.describe JavaScript::VitestGraderType do
   it "registers the vitest type name" do
     expect(described_class.type_name).to eq("vitest")
+  end
+
+  it "embeds a syntactically valid focused file-selector script despite the surrounding command being squished" do
+    steps = described_class.grade_steps(config: {}, default_failures: "strict")
+    focused_run = steps.second.run
+
+    tokens = Shellwords.split(focused_run)
+    ruby_source = tokens[tokens.index("-e") + 1]
+
+    expect { RubyVM::InstructionSequence.compile(ruby_source) }.not_to raise_error
   end
 
   it "expands to typed focused review, full landing, and ci graders" do
