@@ -1538,15 +1538,19 @@ function statusFromPatch(patch: string) {
   return "modified"
 }
 
-function annotationsForFile(
+export function annotationsForFile(
   annotations: ReviewableDiffProps["annotations"],
   path: string
 ): Record<string, LineAnnotation> | undefined {
-  if (!annotations) return undefined
+  if (!annotations || Object.keys(annotations).length === 0) return undefined
   if (isLineAnnotations(annotations)) return annotations
   return annotations[path]
 }
 
-function isLineAnnotations(annotations: NonNullable<ReviewableDiffProps["annotations"]>): annotations is Record<string, LineAnnotation> {
-  return Object.values(annotations).every((value) => typeof value === "string")
+// Empty objects satisfy `.every` vacuously, so an empty map must never reach
+// this heuristic (annotationsForFile short-circuits it above); requiring at
+// least one entry keeps this predicate honest if it's ever called directly.
+export function isLineAnnotations(annotations: NonNullable<ReviewableDiffProps["annotations"]>): annotations is Record<string, LineAnnotation> {
+  const values = Object.values(annotations)
+  return values.length > 0 && values.every((value) => typeof value === "string")
 }
