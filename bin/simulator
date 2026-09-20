@@ -1,19 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-ENV["RAILS_ENV"] ||= "test"
-if ENV["RAILS_ENV"] == "test" && ENV["TEST_ENV_NUMBER"].to_s.empty?
-  require "fileutils"
-  require "securerandom"
+require_relative "../lib/simulator_test_database_identity"
 
-  ENV["TEST_ENV_NUMBER"] = "_simulator_#{Process.pid}_#{SecureRandom.hex(4)}"
-  at_exit do
-    %w[test test_search].each do |database|
-      path = File.expand_path("../storage/#{database}#{ENV['TEST_ENV_NUMBER']}.sqlite3", __dir__)
-      FileUtils.rm_f([ path, "#{path}-shm", "#{path}-wal" ])
-    end
-  end
-end
+ENV["RAILS_ENV"] ||= "test"
+SimulatorTestDatabaseIdentity.ensure_env_number! if ENV["RAILS_ENV"] == "test"
 
 require_relative "../config/environment"
 
