@@ -948,7 +948,7 @@ class StepDispatcher
       # Run failure propagation). For grader Steps that
       # advance-on-fail, both calls would try to create a Run on
       # the same next_step. Skip if already materialized.
-      runnable_steps = next_steps.reject { |step| step.runs.any? }
+      runnable_steps = next_steps.reject { |step| step.runs.active.exists? }
       return if runnable_steps.empty?
       return if runnable_steps.any? { |step| manually_paused_before_next_step?(step) }
       return if runnable_steps.any? { |step| landing_queue_paused_before_next_step?(step) }

@@ -13,23 +13,27 @@ class RetryFailedStepEnqueuer
   def self.failed_step_for(workflow)
     step = workflow.steps.where(state: "failed").reorder(position: :desc, id: :desc).first ||
       cancelled_publication_step_for(workflow)
-    step = failed_grader_before_collect(step) if step&.kind == "grader_collect"
+    step = grade_loop_fanout_for(step) if grade_loop_failure?(step)
     return unless step
     return if crosses_uncleared_retry_until_barrier?(step)
 
     step
   end
 
-  def self.failed_grader_before_collect(step)
-    grader = step.workflow.steps
-      .where(kind: "grader", state: "failed", loop_id: step.loop_id, iteration: step.iteration)
+  def self.grade_loop_failure?(step)
+    step&.kind.in?(%w[grader grader_collect]) && step.loop_id.present?
+  end
+
+  def self.grade_loop_fanout_for(step)
+    return step if step.kind == "grader_fanout"
+
+    step.workflow.steps
+      .where(kind: "grader_fanout", loop_id: step.loop_id, iteration: step.iteration)
       .where("position < ?", step.position)
       .reorder(position: :desc, id: :desc)
-      .first
-
-    grader || step
+      .first || step
   end
-  private_class_method :failed_grader_before_collect
+  private_class_method :grade_loop_failure?, :grade_loop_fanout_for
 
   # A fanout batch can fail more than one required grader at once; retrying
   # only the single Step returned by failed_step_for left every sibling
@@ -117,10 +121,21 @@ class RetryFailedStepEnqueuer
       return failure(lock_error)
     end
 
-    sibling_graders = self.class.failed_grader_siblings(failed_step)
-
     workflow.reopen!
     workflow.save!
+    if grade_loop_fanout_retry?(failed_step)
+      reset_grade_loop!(failed_step)
+      if workflow.landing_workflow?
+        job = workflow.job
+        job.update_columns(landing_failure_reason: nil) if job.landing_failure_reason.present?
+      end
+
+      run = create_run_for!(failed_step)
+      return Result.new(run: run, workflow: workflow, step: failed_step, error: nil)
+    end
+
+    sibling_graders = self.class.failed_grader_siblings(failed_step)
+
     reopen_step!(failed_step)
     sibling_graders.each { |sibling| reopen_step!(sibling) }
     reopen_collect_barrier_after_grader!(failed_step)
@@ -205,6 +220,33 @@ class RetryFailedStepEnqueuer
     end
   end
 
+  def grade_loop_fanout_retry?(step)
+    step.kind == "grader_fanout" && step.loop_id.present?
+  end
+
+  def reset_grade_loop!(fanout)
+    loop_steps_for(fanout).each { |step| reset_step_to_queued!(step) }
+    revive_cancelled_downstream_steps_after(collect_step_for(fanout) || fanout)
+  end
+
+  def loop_steps_for(fanout)
+    workflow.steps
+      .where(loop_id: fanout.loop_id, iteration: fanout.iteration)
+      .where(kind: %w[grader_fanout grader grader_collect])
+      .order(:position, :id)
+      .to_a
+  end
+
+  def reset_step_to_queued!(step)
+    step.update_columns(
+      state: "queued",
+      started_at: nil,
+      finished_at: nil,
+      cancellation_reason: nil,
+      updated_at: Time.current
+    )
+  end
+
   def lock_keys_for_retry
     workflow.work_definition.lock_keys_for(
       job: workflow.job,
@@ -228,7 +270,11 @@ class RetryFailedStepEnqueuer
   end
 
   def revive_cancelled_downstream_steps!(failed_step)
-    cursor = downstream_start_after(failed_step)
+    revive_cancelled_downstream_steps_after(failed_step)
+  end
+
+  def revive_cancelled_downstream_steps_after(step)
+    cursor = downstream_start_after(step)
     while cursor
       if cursor.cancelled? && cursor.runs.none?
         cursor.update_columns(
