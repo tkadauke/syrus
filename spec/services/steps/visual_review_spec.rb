@@ -107,6 +107,14 @@ RSpec.describe Steps::VisualReview do
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /no succeeded implement diff/)
   end
 
+  it "does not swallow a reviewer failure after a prior failed attempt, unlike AdversarialReview" do
+    Run.create!(job: job, step: review_step, trigger_kind: "initial", state: "failed")
+    allow(handler).to receive(:run_agent).and_raise(StandardError, "boom")
+
+    expect { handler.call }.to raise_error(StandardError, "boom")
+    expect(workflow.reload.artifact("visual_review_iterations")).to be_blank
+  end
+
   it "reviews the latest implement step diff instead of the cumulative stack diff" do
     implement_run.update!(
       agent_diff: <<~DIFF,
