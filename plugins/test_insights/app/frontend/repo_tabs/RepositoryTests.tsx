@@ -6,6 +6,8 @@ import { Input } from "@app/components/Input"
 import { withRoutePrefix } from "@app/lib/routing"
 import { fetchRepositoryTestDetail, fetchRepositoryTests, type RepositoryTestDetailPayload, type RepositoryTestDurationPoint, type RepositoryTestHistoryItem, type RepositoryTestHistoryPagination, type RepositoryTestIdentity, type RepositoryTestsPayload } from "../api/tests"
 import { errorMessage } from "@app/lib/errorMessage"
+import { useDismissiblePopup } from "@app/lib/useDismissiblePopup"
+import { FloatingPortal, flip, offset, shift, useFloating, useMergeRefs } from "@floating-ui/react"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react"
@@ -322,30 +324,18 @@ function TestList({ error, isError, isFetching, payload, prefix, query, t }: { e
 
 function ColumnsMenu({ columns, onChange, t }: { columns: ColumnsState; onChange: (next: ColumnsState) => void; t: TFunction<"test_insights"> }) {
   const [open, setOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
   const dragIndexRef = useRef<number | null>(null)
   const [draggingKey, setDraggingKey] = useState<ColumnKey | null>(null)
-
-  useEffect(() => {
-    if (!open) return
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false)
-    }
-
-    function closeOnOutsidePointer(event: PointerEvent) {
-      const target = event.target
-      if (target instanceof Node && menuRef.current?.contains(target)) return
-      setOpen(false)
-    }
-
-    window.addEventListener("keydown", closeOnEscape)
-    window.addEventListener("pointerdown", closeOnOutsidePointer)
-    return () => {
-      window.removeEventListener("keydown", closeOnEscape)
-      window.removeEventListener("pointerdown", closeOnOutsidePointer)
-    }
-  }, [open])
+  // flip/shift keep the menu within the viewport instead of a fixed
+  // `absolute right-0`, which renders mostly off-screen when the trigger
+  // button sits near the left edge of a narrow viewport (the flex-wrap
+  // filter bar can push it there on mobile).
+  const { floatingStyles, refs: floatingRefs } = useFloating({
+    middleware: [offset(4), flip(), shift({ padding: 8 })],
+    placement: "bottom-end"
+  })
+  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false), [floatingRefs.floating])
+  const referenceRef = useMergeRefs([menuRef, floatingRefs.setReference])
 
   function toggleVisible(key: ColumnKey) {
     const hidden = columns.hidden.includes(key) ? columns.hidden.filter((hiddenKey) => hiddenKey !== key) : [...columns.hidden, key]
@@ -381,35 +371,37 @@ function ColumnsMenu({ columns, onChange, t }: { columns: ColumnsState; onChange
   }
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div ref={referenceRef}>
       <Button aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((value) => !value)} size="sm" variant="secondary">
         {t("repo_columns_button")}
       </Button>
       {open ? (
-        <div className="absolute right-0 top-full z-20 mt-1 w-64 rounded border border-border bg-surface p-2 shadow-lg" role="menu">
-          <div className="flex items-center justify-between px-1.5 pb-1.5">
-            <span className="text-xs font-semibold uppercase text-text-muted">{t("repo_columns_heading")}</span>
-            <button className="text-xs font-medium text-brand-emphasis hover:underline" onClick={() => onChange(defaultColumnsState())} type="button">
-              {t("repo_columns_reset")}
-            </button>
-          </div>
-          <div className="flex items-center gap-2 px-1.5 py-1 text-sm text-text-muted">
-            <Checkbox checked disabled label={t(COLUMN_DEFS[REQUIRED_COLUMN].labelKey)} />
-          </div>
-          {columns.order.map((key, index) => (
-            <div
-              className={`cursor-grab rounded px-1.5 py-1 text-sm text-text-primary active:cursor-grabbing ${draggingKey === key ? "opacity-50" : ""}`}
-              draggable
-              key={key}
-              onDragEnd={endDrag}
-              onDragOver={(event) => dragOver(index, event)}
-              onDragStart={(event) => startDrag(index, event)}
-              onDrop={(event) => event.preventDefault()}
-            >
-              <Checkbox checked={!columns.hidden.includes(key)} label={t(COLUMN_DEFS[key].labelKey)} onChange={() => toggleVisible(key)} />
+        <FloatingPortal>
+          <div className="z-50 w-64 rounded border border-border bg-surface p-2 shadow-lg" ref={floatingRefs.setFloating} role="menu" style={floatingStyles}>
+            <div className="flex items-center justify-between px-1.5 pb-1.5">
+              <span className="text-xs font-semibold uppercase text-text-muted">{t("repo_columns_heading")}</span>
+              <button className="text-xs font-medium text-brand-emphasis hover:underline" onClick={() => onChange(defaultColumnsState())} type="button">
+                {t("repo_columns_reset")}
+              </button>
             </div>
-          ))}
-        </div>
+            <div className="flex items-center gap-2 px-1.5 py-1 text-sm text-text-muted">
+              <Checkbox checked disabled label={t(COLUMN_DEFS[REQUIRED_COLUMN].labelKey)} />
+            </div>
+            {columns.order.map((key, index) => (
+              <div
+                className={`cursor-grab rounded px-1.5 py-1 text-sm text-text-primary active:cursor-grabbing ${draggingKey === key ? "opacity-50" : ""}`}
+                draggable
+                key={key}
+                onDragEnd={endDrag}
+                onDragOver={(event) => dragOver(index, event)}
+                onDragStart={(event) => startDrag(index, event)}
+                onDrop={(event) => event.preventDefault()}
+              >
+                <Checkbox checked={!columns.hidden.includes(key)} label={t(COLUMN_DEFS[key].labelKey)} onChange={() => toggleVisible(key)} />
+              </div>
+            ))}
+          </div>
+        </FloatingPortal>
       ) : null}
     </div>
   )
