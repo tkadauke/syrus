@@ -647,6 +647,16 @@ RSpec.describe User do
       expect(user.dashboard_visible_columns("jobs")).to include("created_at", "updated_at", "started_at", "finished_at", "approved_at", "dependencies_overridden_at", "last_feedback_addressed_at", "last_seen_comment_at", "pr_mergeable_checked_at")
       expect(user.dashboard_visible_columns("workflows")).to include("created_at", "updated_at", "started_at", "finished_at", "cleaned_up_at")
     end
+
+    it "preserves the requested optional column order, not just membership, after the required-column prefix" do
+      user = User.create!(attrs)
+
+      user.update_dashboard_columns!(subject: "jobs", columns: %w[owner state])
+      expect(user.dashboard_visible_columns("jobs")).to eq(%w[checkbox issue owner state])
+
+      user.update_dashboard_columns!(subject: "jobs", columns: %w[state owner])
+      expect(user.dashboard_visible_columns("jobs")).to eq(%w[checkbox issue state owner])
+    end
   end
 
   describe ".agent_providers" do

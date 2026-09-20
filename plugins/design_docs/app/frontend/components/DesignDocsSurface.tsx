@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEv
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
-import { Checkbox } from "@app/components/Checkbox"
+import { ColumnVisibilityMenu, visibleColumnKeys } from "@app/components/ColumnVisibilityMenu"
 import { CopyableSlug } from "@app/components/CopyableSlug"
 import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
@@ -287,14 +287,7 @@ function DesignDocsColumnsMenu({ controls, preferences }: {
   const { t } = useT("design_docs")
   const queryClient = useQueryClient()
   const isDesktop = useMediaQuery("(min-width: 768px)", true)
-  const [columnsOpen, setColumnsOpen] = useState(false)
-  const columnsMenuRef = useDismissiblePopup<HTMLDivElement>(columnsOpen, () => setColumnsOpen(false))
-  const requiredColumns = controls?.columns.required ?? [{ key: "title", title: t("columns.title") }]
   const optionalColumns = controls?.columns.optional ?? defaultDesignDocOptionalColumns(t)
-  const columns = designDocVisibleColumns({ requiredColumns, optionalColumns, preferences })
-  const menuColumns = designDocOptionalColumnOrder({ optionalColumns, preferences })
-    .map((key) => optionalColumns.find((column) => column.key === key))
-    .filter((column): column is { key: string; title: string } => column != null)
   const updatePreferences = useMutation({
     mutationFn: updateDesignDocPreferences,
     onSuccess: () => {
@@ -302,66 +295,24 @@ function DesignDocsColumnsMenu({ controls, preferences }: {
     }
   })
 
-  function updateColumn(column: string, checked: boolean) {
-    const current = designDocVisibleOptionalColumns({ optionalColumns, preferences })
-    const next = checked ? [ ...current, column ].filter(uniqueValue) : current.filter((value) => value !== column)
-    updatePreferences.mutate({ visible_columns: next })
-  }
-
-  function moveColumn(column: string, direction: -1 | 1) {
-    const current = designDocVisibleOptionalColumns({ optionalColumns, preferences })
-    const index = current.indexOf(column)
-    const target = index + direction
-    if (index < 0 || target < 0 || target >= current.length) return
-
-    const next = [ ...current ]
-    const [moved] = next.splice(index, 1)
-    next.splice(target, 0, moved)
-    updatePreferences.mutate({ visible_columns: next })
-  }
-
   if (!isDesktop) return null
 
   return (
-    <div className="relative" ref={columnsMenuRef}>
-      <Button
-        aria-label={t("columns.menu")}
-        aria-controls="design-docs-columns-menu"
-        aria-expanded={columnsOpen}
-        aria-haspopup="menu"
-        className="h-9 w-9"
-        onClick={() => setColumnsOpen((open) => !open)}
-        size="sm"
-        variant="secondary"
-      >
-        <ColumnsIcon />
-      </Button>
-      {columnsOpen ? (
-        <div className="absolute right-0 z-20 mt-2 w-72 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="design-docs-columns-menu" role="menu">
-          <fieldset className="space-y-2">
-            <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("columns.visible")}</legend>
-            {menuColumns.map((column) => {
-              const checked = columns.includes(column.key)
-              return (
-                <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={column.key}>
-                  <label className="flex min-w-0 items-center gap-2">
-                    <Checkbox
-                      checked={checked}
-                      disabled={updatePreferences.isPending}
-                      onChange={(event) => updateColumn(column.key, event.target.checked)}
-                    />
-                    <span className="truncate">{column.title}</span>
-                  </label>
-                  <button aria-label={t("columns.move_up", { title: column.title })} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, -1)} type="button">{t("columns.up")}</button>
-                  <button aria-label={t("columns.move_down", { title: column.title })} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, 1)} type="button">{t("columns.down")}</button>
-                </div>
-              )
-            })}
-          </fieldset>
-          {updatePreferences.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, t("columns.error_update"))}</p> : null}
-        </div>
-      ) : null}
-    </div>
+    <ColumnVisibilityMenu
+      downLabel={t("columns.down")}
+      error={updatePreferences.isError ? updatePreferences.error : undefined}
+      errorFallback={t("columns.error_update")}
+      menuId="design-docs-columns-menu"
+      moveDownLabel={(title) => t("columns.move_down", { title })}
+      moveUpLabel={(title) => t("columns.move_up", { title })}
+      onChange={(next) => updatePreferences.mutate({ visible_columns: next })}
+      optionalColumns={optionalColumns}
+      pending={updatePreferences.isPending}
+      triggerAriaLabel={t("columns.menu")}
+      upLabel={t("columns.up")}
+      visibleColumns={preferences?.visible_columns}
+      visibleLabel={t("columns.visible")}
+    />
   )
 }
 
@@ -523,25 +474,8 @@ function defaultDesignDocOptionalColumns(t: DesignDocT) {
   ]
 }
 
-function designDocOptionalColumnOrder({ optionalColumns, preferences }: { optionalColumns: Array<{ key: string; title: string }>; preferences: RepositoryDesignDocsPayload["preferences"] | null }) {
-  const optional = new Set(optionalColumns.map((column) => column.key))
-  const preferred = designDocVisibleOptionalColumns({ optionalColumns, preferences })
-  const knownPreferred = new Set(preferred)
-  return [ ...preferred, ...optionalColumns.map((column) => column.key).filter((column) => !knownPreferred.has(column)) ]
-}
-
-function designDocVisibleOptionalColumns({ optionalColumns, preferences }: { optionalColumns: Array<{ key: string; title: string }>; preferences: RepositoryDesignDocsPayload["preferences"] | null }) {
-  const optional = new Set(optionalColumns.map((column) => column.key))
-  const preferred = (preferences?.visible_columns ?? optionalColumns.map((column) => column.key)).filter((column) => optional.has(column))
-  return preferred.filter(uniqueValue)
-}
-
 function designDocVisibleColumns({ optionalColumns, preferences, requiredColumns }: { optionalColumns: Array<{ key: string; title: string }>; preferences: RepositoryDesignDocsPayload["preferences"] | null; requiredColumns: Array<{ key: string; title: string }> }) {
-  const allowed = new Set([ ...requiredColumns, ...optionalColumns ].map((column) => column.key))
-  const required = requiredColumns.map((column) => column.key)
-  const preferred = preferences?.visible_columns ?? [ ...required, ...optionalColumns.map((column) => column.key) ]
-  const normalized = [ ...required, ...preferred ].filter((column, index, columns) => allowed.has(column) && columns.indexOf(column) === index)
-  return normalized.length > 0 ? normalized : required
+  return visibleColumnKeys({ requiredColumns, optionalColumns, visibleColumns: preferences?.visible_columns })
 }
 
 function designDocColumnLabel(column: string, requiredColumns: Array<{ key: string; title: string }>, optionalColumns: Array<{ key: string; title: string }>) {
@@ -566,18 +500,6 @@ function designDocColumnClass(column: string, kind: "header" | "cell") {
 
 function repositoryLabel(doc: DesignDocSummary, t: DesignDocT) {
   return doc.repositories.map((repository) => repository.slug).join(", ") || t("no_repositories")
-}
-
-function uniqueValue(value: string, index: number, values: string[]) {
-  return values.indexOf(value) === index
-}
-
-function ColumnsIcon() {
-  return (
-    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
-      <path d="M7 4v16M17 4v16M5 5h14M5 12h14M5 19h14" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-    </svg>
-  )
 }
 
 function persistedDraftFingerprint(docId: string | number, title: string, markdown: string) {

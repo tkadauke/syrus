@@ -1877,6 +1877,22 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       )
     end
 
+    it "persists a reordered visible_columns list in the requested order, not just membership" do
+      patch "/api/v1/app/dashboard/preferences",
+            params: { subject: "jobs", visible_columns: %w[owner state] },
+            as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(user.reload.dashboard_preferences.dig("jobs", "visible_columns")).to eq(%w[checkbox issue owner state])
+
+      patch "/api/v1/app/dashboard/preferences",
+            params: { subject: "jobs", visible_columns: %w[state owner] },
+            as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(user.reload.dashboard_preferences.dig("jobs", "visible_columns")).to eq(%w[checkbox issue state owner])
+    end
+
     it "returns structured validation errors" do
       patch "/api/v1/app/dashboard/preferences",
             params: { subject: "jobs", sort_column: "vapor", sort_direction: "asc" },
