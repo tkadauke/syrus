@@ -188,6 +188,7 @@ class ChatPendingAction < ApplicationRecord
     raise ActiveRecord::RecordInvalid, self unless valid?
 
     command = PendingActions.for(action_key).new(self)
+    command.authorize_execution!
     repair_targets = command.repair_snapshot_targets
     if command.repair_action?
       update_confirmation_progress!("running", "Capturing before snapshot...")
