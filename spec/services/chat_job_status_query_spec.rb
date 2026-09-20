@@ -59,13 +59,13 @@ RSpec.describe ChatJobStatusQuery do
 
   describe "#call" do
     it "returns an empty array when there are no proposals and no direct linked jobs" do
-      expect(described_class.call(session)).to eq([])
+      expect(described_class.call(session)[:items]).to eq([])
     end
 
     it "includes jobs from confirmed proposals" do
       _, job = confirmed_job_proposal(title: "Proposal Job")
 
-      result = described_class.call(session)
+      result = described_class.call(session)[:items]
 
       expect(result.length).to eq(1)
       expect(result.first).to include(kind: "job", job_id: job.id, title: job.title)
@@ -80,7 +80,7 @@ RSpec.describe ChatJobStatusQuery do
         linked_chat_id: session.id
       )
 
-      result = described_class.call(session)
+      result = described_class.call(session)[:items]
 
       expect(result.length).to eq(1)
       expect(result.first).to include(kind: "job", job_id: job.id)
@@ -96,7 +96,7 @@ RSpec.describe ChatJobStatusQuery do
         linked_chat_id: other_session.id
       )
 
-      expect(described_class.call(session)).to be_empty
+      expect(described_class.call(session)[:items]).to be_empty
     end
 
     it "does not duplicate a job that is both proposal-linked and directly linked" do
@@ -117,7 +117,7 @@ RSpec.describe ChatJobStatusQuery do
       )
       proposal.update!(job: job)
 
-      result = described_class.call(session)
+      result = described_class.call(session)[:items]
 
       expect(result.length).to eq(1)
       expect(result.first[:job_id]).to eq(job.id)
@@ -133,7 +133,7 @@ RSpec.describe ChatJobStatusQuery do
         linked_chat_id: session.id
       )
 
-      result = described_class.call(session)
+      result = described_class.call(session)[:items]
 
       job_ids = result.map { |r| r[:job_id] }
       expect(job_ids).to contain_exactly(proposal_job.id, direct_job.id)
@@ -147,7 +147,7 @@ RSpec.describe ChatJobStatusQuery do
         linked_chat_id: session.id
       )
 
-      expect(described_class.call(session)).to be_empty
+      expect(described_class.call(session)[:items]).to be_empty
     end
 
     it "includes workflow_step for a running direct linked job" do
@@ -174,7 +174,7 @@ RSpec.describe ChatJobStatusQuery do
         position: 1
       )
 
-      result = described_class.call(session)
+      result = described_class.call(session)[:items]
 
       expect(result.first[:workflow_step]).to eq("implement")
       expect(result.first[:active_workflow]).to include(
@@ -197,7 +197,7 @@ RSpec.describe ChatJobStatusQuery do
       )
       attach_work_unit(workflow, member_jobs: [ job ], state: "queued")
 
-      result = described_class.call(session)
+      result = described_class.call(session)[:items]
 
       expect(result.first[:workflow_step]).to eq("chat_feedback")
       expect(result.first[:active_workflow]).to include(
@@ -227,7 +227,7 @@ RSpec.describe ChatJobStatusQuery do
       )
       attach_work_unit(workflow, member_jobs: [ owner_job, member_job ], kind: "merge_train")
 
-      result = described_class.call(session)
+      result = described_class.call(session)[:items]
 
       expect(result.first[:job_id]).to eq(member_job.id)
       expect(result.first[:workflow_step]).to eq("merge_train_build")
@@ -259,9 +259,65 @@ RSpec.describe ChatJobStatusQuery do
         attach_work_unit(workflow, member_jobs: [ job ])
       end
 
-      sql_count = count_sql { described_class.call(session) }
+      sql_count = count_sql { described_class.call(session)[:items] }
 
       expect(sql_count).to be <= 12
+    end
+  end
+
+  describe "#call pending proposals" do
+    it "returns an empty array when there are no pending proposals" do
+      expect(described_class.call(session)[:pending_proposals]).to eq([])
+    end
+
+    it "includes a pending direct job proposal" do
+      proposal = session.proposals.create!(
+        slug: "pending-job",
+        title: "Pending job",
+        body: "Not yet filed.",
+        kind: "job"
+      )
+
+      result = described_class.call(session)[:pending_proposals]
+
+      expect(result.length).to eq(1)
+      expect(result.first).to include(id: proposal.id, kind: "job", title: "Pending job", state: "proposed")
+    end
+
+    it "includes a pending epic bundle proposal with its active child count" do
+      epic_proposal = session.proposals.create!(slug: "pending-epic", title: "Pending epic", body: "Body.", kind: "epic")
+      session.proposals.create!(slug: "pending-epic-child", title: "Child", body: "Body.", kind: "job", parent_proposal: epic_proposal)
+      session.proposals.create!(slug: "pending-epic-child-rejected", title: "Rejected child", body: "Body.", kind: "job", parent_proposal: epic_proposal, state: "rejected")
+
+      result = described_class.call(session)[:pending_proposals]
+
+      entry = result.find { |e| e[:id] == epic_proposal.id }
+      expect(entry).to include(kind: "epic", active_children_count: 1)
+    end
+
+    it "does not surface an epic bundle's own children as standalone pending entries" do
+      epic_proposal = session.proposals.create!(slug: "pending-epic-2", title: "Pending epic 2", body: "Body.", kind: "epic")
+      child_proposal = session.proposals.create!(slug: "pending-epic-2-child", title: "Child", body: "Body.", kind: "job", parent_proposal: epic_proposal)
+
+      result = described_class.call(session)[:pending_proposals]
+
+      expect(result.map { |e| e[:id] }).to contain_exactly(epic_proposal.id)
+      expect(result.map { |e| e[:id] }).not_to include(child_proposal.id)
+    end
+
+    it "excludes confirmed, rejected, and withdrawn proposals" do
+      %w[confirmed rejected withdrawn].each do |state|
+        session.proposals.create!(slug: "resolved-#{state}", title: "Resolved #{state}", body: "Body.", kind: "job", state: state)
+      end
+
+      expect(described_class.call(session)[:pending_proposals]).to eq([])
+    end
+
+    it "does not include pending proposals from other chat sessions" do
+      other_session = ChatSession.create!(repository: repository, user: user)
+      other_session.proposals.create!(slug: "other-pending", title: "Other pending", body: "Body.", kind: "job")
+
+      expect(described_class.call(session)[:pending_proposals]).to eq([])
     end
   end
 end

@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState, type KeyboardEvent } from "react"
 import { useNavigate } from "react-router-dom"
-import type { ChatJobStatusBlocker, ChatJobStatusEpicItem, ChatJobStatusItem, ChatJobStatusJobItem } from "../api/chats"
+import type { ChatJobStatusBlocker, ChatJobStatusEpicItem, ChatJobStatusItem, ChatJobStatusJobItem, ChatJobStatusPendingProposal } from "../api/chats"
 import { fetchChatJobStatus } from "../api/chats"
 import { useT } from "../hooks/useT"
 import { CopyableSlug } from "../components/CopyableSlug"
+import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { SlugHoverCard } from "../components/SlugHoverCard"
 import { StatusPill } from "../components/StatusPill"
 
@@ -164,7 +165,53 @@ function EpicSection({ epic, hideClosedJobs, onJobClick }: { epic: ChatJobStatus
   )
 }
 
-export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
+function PendingProposalCard({ onSelect, proposal }: { onSelect: (messageId: number) => void; proposal: ChatJobStatusPendingProposal }) {
+  const { t } = useT("chat")
+  const hasAnchor = proposal.anchor_message_id != null
+  const activate = () => { if (proposal.anchor_message_id != null) onSelect(proposal.anchor_message_id) }
+
+  return (
+    <div
+      className={`w-full border-l-4 border-l-brand bg-surface px-3 py-2.5 text-left transition ${hasAnchor ? "cursor-pointer hover:bg-surface-raised" : ""}`}
+      onClick={activate}
+      onKeyDown={(event) => activateOnEnterOrSpace(event, activate)}
+      role="button"
+      tabIndex={0}
+    >
+      <p className="truncate text-sm font-medium text-text-primary">{proposal.title}</p>
+      <div className="mt-0.5 flex flex-wrap items-center gap-2">
+        <span className="rounded bg-brand/10 px-1.5 py-0.5 text-[11px] font-medium text-brand">
+          {proposal.kind === "epic" ? t("job_status_proposal_kind_epic") : t("job_status_proposal_kind_job")}
+        </span>
+        {proposal.kind === "epic" && proposal.active_children_count != null ? (
+          <span className="text-xs text-text-muted">
+            {t("job_status_proposal_child_count", { count: proposal.active_children_count })}
+          </span>
+        ) : null}
+        {proposal.created_at ? <RelativeTimestamp className="text-xs text-text-muted" value={proposal.created_at} /> : null}
+      </div>
+    </div>
+  )
+}
+
+function PendingProposalsSection({ onSelectMessage, proposals }: { onSelectMessage: (messageId: number) => void; proposals: ChatJobStatusPendingProposal[] }) {
+  const { t } = useT("chat")
+
+  if (proposals.length === 0) return null
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t("job_status_proposed_title")}</p>
+      <div className="divide-y divide-border rounded border border-border">
+        {proposals.map((proposal) => (
+          <PendingProposalCard key={proposal.id} onSelect={onSelectMessage} proposal={proposal} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string | number; onSelectMessage?: (messageId: number) => void }) {
   const queryClient = useQueryClient()
   const { t } = useT("chat")
   const navigate = useNavigate()
@@ -197,9 +244,10 @@ export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
     return <p className="text-sm text-red-600 dark:text-red-400">{t("job_status_error")}</p>
   }
 
-  const items: ChatJobStatusItem[] = Array.isArray(data) ? data : []
+  const pendingProposals = data?.pending_proposals ?? []
+  const items: ChatJobStatusItem[] = data?.items ?? []
 
-  if (items.length === 0) {
+  if (items.length === 0 && pendingProposals.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">{t("job_status_empty")}</p>
   }
 
@@ -224,6 +272,7 @@ export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
 
   return (
     <div className="space-y-3">
+      <PendingProposalsSection onSelectMessage={onSelectMessage ?? (() => {})} proposals={pendingProposals} />
       {hasClosedItems ? (
         <div className="flex justify-end">
           <button

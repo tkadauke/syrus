@@ -1605,7 +1605,7 @@ module Api
               action: "update_proposal",
               proposal_id: proposal.id,
               proposal: ::App::ChatMessagePayload.proposal(proposal, chat_session: chat_session, repository: repository),
-              dashboard_proposal: ::App::ChatMessagePayload.dashboard_pending_proposal_json(proposal),
+              job_status_proposal: ::App::ChatMessagePayload.job_status_proposal_json(proposal),
               pending_proposal_count: chat_session.proposals.where(state: "proposed").count
             }
           }

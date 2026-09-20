@@ -22,20 +22,21 @@ module App
       end
     end
 
-    # Shared shape for a proposal card on the Jobs tab's "Proposed" section --
-    # used both by the dashboard chrome payload and by the proposal AppEvents
-    # broadcasts, so a live add/remove patch on the frontend never needs a
-    # dashboard refetch to have enough data to render or link the card.
-    def self.dashboard_pending_proposal_json(proposal)
-      chat_session = proposal.chat_session
+    # Shared shape for a proposal card on the chat Jobs tab's "Proposed"
+    # section -- used both by ChatJobStatusQuery's initial fetch and by the
+    # proposal AppEvents broadcasts, so a live add/remove patch on the
+    # frontend never needs a refetch to have enough data to render or link
+    # the card. Scoped to a single chat by construction (the card lives on
+    # that chat's own Jobs tab), so it deliberately omits chat identity.
+    def self.job_status_proposal_json(proposal)
       {
         id: proposal.id,
+        kind: proposal.epic_bundle? ? "epic" : "job",
         title: proposal_title(proposal),
         state: proposal.state,
-        chat_session_id: proposal.chat_session_id,
-        chat_title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository),
         anchor_message_id: anchor_message_id(proposal),
-        created_at: proposal.created_at&.iso8601
+        created_at: proposal.created_at&.iso8601,
+        active_children_count: proposal.epic_bundle? ? proposal.active_child_proposals.count : nil
       }
     end
 

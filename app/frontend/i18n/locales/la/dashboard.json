@@ -163,7 +163,6 @@
   "untagged_issues_repo_count_one": "in {{count}} repositorio",
   "untagged_issues_repo_count_other": "in {{count}} repositoriis",
   "untagged_issues_dismiss": "Dimitte",
-  "pending_proposals_title": "Proposita",
   "needs_attention_aria": "Attentionem requirit",
   "delivery_status": {
     "waiting_for_local_approval": "Probationem localem exspectat",

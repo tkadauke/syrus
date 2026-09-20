@@ -1,6 +1,5 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
-import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConversationKind, ChatMessageItem, ChatParticipant, ChatPayload, ChatProposal, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
-import type { DashboardChromePayload, DashboardPendingProposal } from "../api/dashboard"
+import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConversationKind, ChatJobStatusPayload, ChatJobStatusPendingProposal, ChatMessageItem, ChatParticipant, ChatPayload, ChatProposal, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
 import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
 import { replaceProposalInMessages } from "../routes/chat/messageStreamItems"
@@ -558,8 +557,8 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   if (updateProposal) {
     void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
 
-    if (updateProposal.dashboard_proposal) {
-      patchDashboardPendingProposals(queryClient, updateProposal.dashboard_proposal)
+    if (updateProposal.job_status_proposal) {
+      patchChatJobStatusPendingProposal(queryClient, event.id, updateProposal.job_status_proposal)
     }
 
     if (!updateProposal.proposal) {
@@ -674,7 +673,7 @@ type ChatUpdateProposalPayload = {
   action: "update_proposal"
   proposal_id: number
   proposal?: ChatProposal
-  dashboard_proposal?: DashboardPendingProposal
+  job_status_proposal?: ChatJobStatusPendingProposal
   pending_proposal_count?: number
 }
 
@@ -881,7 +880,7 @@ function chatUpdateProposalPayload(payload: unknown): ChatUpdateProposalPayload 
     action: "update_proposal",
     proposal_id: candidate.proposal_id,
     proposal: isChatProposal(candidate.proposal, candidate.proposal_id) ? candidate.proposal : undefined,
-    dashboard_proposal: isDashboardPendingProposal(candidate.dashboard_proposal) ? candidate.dashboard_proposal : undefined,
+    job_status_proposal: isChatJobStatusPendingProposal(candidate.job_status_proposal) ? candidate.job_status_proposal : undefined,
     pending_proposal_count: typeof candidate.pending_proposal_count === "number" ? candidate.pending_proposal_count : undefined
   }
 }
@@ -899,32 +898,34 @@ function isChatProposal(value: unknown, expectedId: number): value is ChatPropos
   )
 }
 
-function isDashboardPendingProposal(value: unknown): value is DashboardPendingProposal {
+function isChatJobStatusPendingProposal(value: unknown): value is ChatJobStatusPendingProposal {
   if (!value || typeof value !== "object") return false
 
-  const candidate = value as Partial<DashboardPendingProposal>
+  const candidate = value as Partial<ChatJobStatusPendingProposal>
   return (
     typeof candidate.id === "number" &&
     typeof candidate.title === "string" &&
     typeof candidate.state === "string" &&
-    typeof candidate.chat_session_id === "number"
+    (candidate.kind === "job" || candidate.kind === "epic")
   )
 }
 
-// Direct-cache-patch counterpart to the dashboard's own chrome query: adds a
-// card immediately when a proposal is created (or edited while still
-// pending), and removes it immediately once it leaves the "proposed" state
-// (confirmed, rejected, or withdrawn) -- the operator's stated requirement
-// that a resolved proposal disappear right away, not on the next throttled
-// dashboard refresh.
-function patchDashboardPendingProposals(queryClient: QueryClient, proposal: DashboardPendingProposal) {
-  queryClient.setQueriesData<DashboardChromePayload>(
-    { queryKey: ["dashboard", "chrome"] },
+// Direct-cache-patch counterpart to the chat Jobs tab's own query: adds a
+// card immediately to that chat's "Proposed" section when a proposal is
+// created (or edited while still pending), and removes it immediately once
+// it leaves the "proposed" state (confirmed, rejected, or withdrawn) -- the
+// operator's stated requirement that a resolved proposal disappear right
+// away, not on the next throttled refetch. `chatSessionId` is the AppEvent's
+// own `id` (the proposal's chat), so this only ever touches that one chat's
+// cached job_status query.
+function patchChatJobStatusPendingProposal(queryClient: QueryClient, chatSessionId: number | string, proposal: ChatJobStatusPendingProposal) {
+  queryClient.setQueriesData<ChatJobStatusPayload>(
+    { queryKey: ["chats", String(chatSessionId), "job_status"] },
     (current) => {
       if (!current) return current
 
       const withoutExisting = (current.pending_proposals ?? []).filter((entry) => entry.id !== proposal.id)
-      const pendingProposals = proposal.state === "proposed" ? [ proposal, ...withoutExisting ].slice(0, 5) : withoutExisting
+      const pendingProposals = proposal.state === "proposed" ? [ proposal, ...withoutExisting ] : withoutExisting
 
       return { ...current, pending_proposals: pendingProposals }
     }

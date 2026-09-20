@@ -9,6 +9,14 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
     JSON.parse(response.body)
   end
 
+  def parse_items
+    parse_body.fetch("items")
+  end
+
+  def parse_pending_proposals
+    parse_body.fetch("pending_proposals")
+  end
+
   it "returns 401 when not signed in" do
     get "/api/v1/app/chats/#{chat_session.id}/job_status"
     expect(response).to have_http_status(:unauthorized)
@@ -35,7 +43,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
       get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq([])
+      expect(parse_items).to eq([])
     end
 
     it "excludes confirmed proposals with no materialized job or epic" do
@@ -46,7 +54,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
       get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-      expect(parse_body).to eq([])
+      expect(parse_items).to eq([])
     end
 
     describe "job items" do
@@ -63,7 +71,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
         expect(response).to have_http_status(:ok)
-        item = parse_body.first
+        item = parse_items.first
         expect(item["kind"]).to eq("job")
         expect(item["job_id"]).to eq(job.id)
         expect(item["slug"]).to eq(job.slug)
@@ -90,7 +98,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        item = parse_body.first
+        item = parse_items.first
         expect(item["pr_number"]).to eq(42)
         expect(item["pr_url"]).to eq("https://github.com/acme/widgets/pull/42")
       end
@@ -111,8 +119,8 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        expect(parse_body.first["workflow_step"]).to eq("implement")
-        expect(parse_body.first["active_workflow"]).to include(
+        expect(parse_items.first["workflow_step"]).to eq("implement")
+        expect(parse_items.first["active_workflow"]).to include(
           "id" => workflow.id,
           "slug" => workflow.slug,
           "state" => "running",
@@ -136,8 +144,8 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        expect(parse_body.first["workflow_step"]).to eq("retry")
-        expect(parse_body.first["active_workflow"]).to include(
+        expect(parse_items.first["workflow_step"]).to eq("retry")
+        expect(parse_items.first["active_workflow"]).to include(
           "state" => "running",
           "trigger_kind" => "retry",
           "step" => "retry"
@@ -160,7 +168,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        item = parse_body.first
+        item = parse_items.first
         expect(item["state"]).to eq("implemented")
         expect(item["workflow_step"]).to eq("chat_feedback")
         expect(item["active_workflow"]).to include(
@@ -186,7 +194,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        blocker = parse_body.first["blocker"]
+        blocker = parse_items.first["blocker"]
         expect(blocker["reason"]).to eq("awaiting_review")
       end
 
@@ -204,7 +212,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        expect(parse_body.first["blocker"]).to be_nil
+        expect(parse_items.first["blocker"]).to be_nil
       end
 
       it "returns no blocker when implemented and already approved" do
@@ -220,7 +228,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        expect(parse_body.first["blocker"]).to be_nil
+        expect(parse_items.first["blocker"]).to be_nil
       end
 
       it "returns landing_failed when approved and the latest auto_merge workflow failed" do
@@ -237,7 +245,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        expect(parse_body.first.dig("blocker", "reason")).to eq("landing_failed")
+        expect(parse_items.first.dig("blocker", "reason")).to eq("landing_failed")
       end
 
       it "returns landing_failed when landing state and the latest auto_merge workflow failed" do
@@ -254,7 +262,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        expect(parse_body.first.dig("blocker", "reason")).to eq("landing_failed")
+        expect(parse_items.first.dig("blocker", "reason")).to eq("landing_failed")
       end
 
       it "returns no blocker when the latest auto_merge workflow succeeded" do
@@ -271,7 +279,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        expect(parse_body.first["blocker"]).to be_nil
+        expect(parse_items.first["blocker"]).to be_nil
       end
 
       it "returns dependency_failed when queued and a dependency job has a failure closure reason" do
@@ -292,7 +300,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        expect(parse_body.first.dig("blocker", "reason")).to eq("dependency_failed")
+        expect(parse_items.first.dig("blocker", "reason")).to eq("dependency_failed")
       end
 
       it "returns no blocker when a dependency closed successfully" do
@@ -313,7 +321,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        expect(parse_body.first["blocker"]).to be_nil
+        expect(parse_items.first["blocker"]).to be_nil
       end
     end
 
@@ -348,7 +356,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
         expect(response).to have_http_status(:ok)
-        items = parse_body
+        items = parse_items
         expect(items.size).to eq(1)
 
         epic_item = items.first
@@ -392,7 +400,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        items = parse_body
+        items = parse_items
         expect(items.size).to eq(2)
 
         epic_item      = items.find { |i| i["kind"] == "epic" }
@@ -410,7 +418,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        expect(parse_body).to eq([])
+        expect(parse_items).to eq([])
       end
     end
 
@@ -435,7 +443,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        items = parse_body
+        items = parse_items
         expect(items.map { |i| i["slug"] }).to eq([ newer_job.slug, older_job.slug ])
       end
 
@@ -466,7 +474,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        children = parse_body.first["children"]
+        children = parse_items.first["children"]
         expect(children.map { |c| c["slug"] }).to eq([ newer_child.slug, older_child.slug ])
       end
 
@@ -496,12 +504,94 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
-        items = parse_body
+        items = parse_items
         expect(items.size).to eq(2)
         # standalone updated 1 hour ago, epic's latest child updated 3 hours ago
         expect(items.first["kind"]).to eq("job")
         expect(items.first["slug"]).to eq(standalone.slug)
         expect(items.last["kind"]).to eq("epic")
+      end
+    end
+
+    describe "pending proposals" do
+      it "includes a pending direct job proposal with an anchor message id" do
+        proposal = ChatProposal.create!(
+          chat_session: chat_session, slug: "pending-job", kind: "job",
+          title: "A pending job", body: "Not yet filed.", state: "proposed"
+        )
+        anchor = chat_session.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposed." })
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        expect(response).to have_http_status(:ok)
+        entry = parse_pending_proposals.first
+        expect(entry["id"]).to eq(proposal.id)
+        expect(entry["kind"]).to eq("job")
+        expect(entry["title"]).to eq("A pending job")
+        expect(entry["state"]).to eq("proposed")
+        expect(entry["anchor_message_id"]).to eq(anchor.id)
+      end
+
+      it "includes a pending epic bundle proposal with an active children count" do
+        epic_proposal = ChatProposal.create!(
+          chat_session: chat_session, slug: "pending-epic", kind: "epic",
+          title: "A pending epic", body: "Not yet filed."
+        )
+        ChatProposal.create!(
+          chat_session: chat_session, slug: "pending-epic-child-a", kind: "job",
+          title: "Child A", body: "Part.", parent_proposal: epic_proposal
+        )
+        ChatProposal.create!(
+          chat_session: chat_session, slug: "pending-epic-child-b", kind: "job",
+          title: "Child B", body: "Part.", parent_proposal: epic_proposal, state: "rejected"
+        )
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        entry = parse_pending_proposals.find { |e| e["id"] == epic_proposal.id }
+        expect(entry["kind"]).to eq("epic")
+        expect(entry["active_children_count"]).to eq(1)
+      end
+
+      it "does not include child proposals of a pending epic bundle as their own entries" do
+        epic_proposal = ChatProposal.create!(
+          chat_session: chat_session, slug: "pending-epic-2", kind: "epic",
+          title: "Pending epic 2", body: "Not yet filed."
+        )
+        child_proposal = ChatProposal.create!(
+          chat_session: chat_session, slug: "pending-epic-2-child", kind: "job",
+          title: "Child", body: "Part.", parent_proposal: epic_proposal
+        )
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        expect(parse_pending_proposals.map { |e| e["id"] }).to contain_exactly(epic_proposal.id)
+        expect(parse_pending_proposals.map { |e| e["id"] }).not_to include(child_proposal.id)
+      end
+
+      it "does not include confirmed, rejected, or withdrawn proposals as pending" do
+        %w[confirmed rejected withdrawn].each do |state|
+          ChatProposal.create!(
+            chat_session: chat_session, slug: "resolved-#{state}", kind: "job",
+            title: "Resolved #{state}", body: "Body.", state: state
+          )
+        end
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        expect(parse_pending_proposals).to eq([])
+      end
+
+      it "does not include pending proposals from other chat sessions" do
+        other_session = ChatSession.create!(user: user)
+        ChatProposal.create!(
+          chat_session: other_session, slug: "other-chat-pending", kind: "job",
+          title: "Other chat pending", body: "Body."
+        )
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        expect(parse_pending_proposals).to eq([])
       end
     end
   end

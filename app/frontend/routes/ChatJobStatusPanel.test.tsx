@@ -4,16 +4,17 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatJobStatusPanel } from "./ChatJobStatusPanel"
-import type { ChatJobStatusItem } from "../api/chats"
+import type { ChatJobStatusItem, ChatJobStatusPendingProposal } from "../api/chats"
+import { applyAppEvent } from "../lib/appEvents"
 
-function renderPanel(chatId: number | string = 8) {
+function renderPanel(chatId: number | string = 8, options: { onSelectMessage?: (messageId: number) => void } = {}) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
         <LocationProbe />
         <Routes>
           <Route
-            element={<ChatJobStatusPanel chatId={chatId} />}
+            element={<ChatJobStatusPanel chatId={chatId} onSelectMessage={options.onSelectMessage} />}
             path="/app-shell/chats/:id"
           />
           <Route element={<div data-testid="job-detail" />} path="/jobs/:id" />
@@ -73,9 +74,21 @@ function epicItem(overrides: Partial<ChatJobStatusItem & { kind: "epic" }> = {})
   }
 }
 
+function pendingProposal(overrides: Partial<ChatJobStatusPendingProposal> = {}): ChatJobStatusPendingProposal {
+  return {
+    id: 1,
+    kind: "job",
+    title: "Survey aqueduct route",
+    state: "proposed",
+    anchor_message_id: 42,
+    created_at: "2026-05-30T12:00:00.000Z",
+    ...overrides
+  }
+}
+
 describe("ChatJobStatusPanel empty state", () => {
   beforeEach(() => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [] }))
   })
 
   it("shows the empty state when no confirmed proposals exist", async () => {
@@ -84,8 +97,8 @@ describe("ChatJobStatusPanel empty state", () => {
     expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
   })
 
-  it("shows the empty state when the API returns a non-array payload", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [] }))
+  it("shows the empty state when the API returns a malformed payload", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
 
     renderPanel()
 
@@ -101,7 +114,7 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("renders a standalone job card with title and slug", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem()]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [jobItem()] }))
 
     renderPanel()
 
@@ -110,9 +123,9 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("shows the workflow step when present", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       jobItem({ workflow_step: "implement" })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -120,7 +133,7 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("renders an active queued feedback workflow instead of plain implemented review state", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       jobItem({
         state: "implemented",
         workflow_step: "chat_feedback",
@@ -133,7 +146,7 @@ describe("ChatJobStatusPanel job cards", () => {
         },
         blocker: null
       })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -144,9 +157,9 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("shows a PR link when pr_number and pr_url are set", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       jobItem({ pr_number: 7, pr_url: "https://github.com/acme/widgets/pull/7" })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -155,7 +168,7 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("navigates to the job detail page when the card is clicked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem()]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [jobItem()] }))
 
     renderPanel()
 
@@ -168,7 +181,7 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("navigates to the job detail page when the card is activated by keyboard", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem()]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [jobItem()] }))
 
     renderPanel()
 
@@ -181,7 +194,7 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("copies the job slug to clipboard when the slug button is clicked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem()]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [jobItem()] }))
 
     renderPanel()
 
@@ -192,7 +205,7 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("does not navigate when the job slug button is clicked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem()]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [jobItem()] }))
 
     renderPanel()
 
@@ -208,11 +221,11 @@ describe("ChatJobStatusPanel job cards", () => {
 
 describe("ChatJobStatusPanel blocker banner", () => {
   it("shows an amber (not red, not the warning token) blocker banner for awaiting_review, since it is an expected step, not a failure", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       jobItem({
         blocker: { reason: "awaiting_review", description: "Waiting for PR review and approval" }
       })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -230,12 +243,12 @@ describe("ChatJobStatusPanel blocker banner", () => {
   })
 
   it("shows a red landing failed banner for landing_failed blockers", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       jobItem({
         state: "landing",
         blocker: { reason: "landing_failed", description: "Auto-merge failed" }
       })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -247,12 +260,12 @@ describe("ChatJobStatusPanel blocker banner", () => {
   })
 
   it("shows a red dependency failed banner for dependency_failed blockers", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       jobItem({
         state: "queued",
         blocker: { reason: "dependency_failed", description: "A dependency failed" }
       })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -272,7 +285,7 @@ describe("ChatJobStatusPanel epic tree", () => {
   })
 
   it("renders an epic section with title and progress pill", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem()]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [epicItem()] }))
 
     renderPanel()
 
@@ -282,7 +295,7 @@ describe("ChatJobStatusPanel epic tree", () => {
   })
 
   it("renders child job cards under the epic when expanded", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem()]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [epicItem()] }))
 
     renderPanel()
 
@@ -291,7 +304,7 @@ describe("ChatJobStatusPanel epic tree", () => {
   })
 
   it("collapses and expands the epic section on header click", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem()]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [epicItem()] }))
 
     renderPanel()
 
@@ -307,7 +320,7 @@ describe("ChatJobStatusPanel epic tree", () => {
   })
 
   it("copies the epic slug to clipboard when the slug button is clicked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem()]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [epicItem()] }))
 
     renderPanel()
 
@@ -318,7 +331,7 @@ describe("ChatJobStatusPanel epic tree", () => {
   })
 
   it("does not toggle the epic section when the epic slug button is clicked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem()]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [epicItem()] }))
 
     renderPanel()
 
@@ -331,7 +344,7 @@ describe("ChatJobStatusPanel epic tree", () => {
 
   it("does not emit React invalid nesting warnings for copyable slugs inside clickable cards", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem(), jobItem()]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [epicItem(), jobItem()] }))
 
     renderPanel()
 
@@ -352,9 +365,9 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("does not show the hide-closed button when no jobs are closed", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       jobItem({ state: "running" })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -363,9 +376,9 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("shows the hide-closed button when at least one standalone job is closed", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       jobItem({ state: "closed" })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -373,10 +386,10 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("hides closed standalone jobs when the toggle is clicked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       jobItem({ job_id: 1, slug: "JOB-1", title: "Open job", state: "running" }),
       jobItem({ job_id: 2, slug: "JOB-2", title: "Closed job", state: "closed" })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -390,9 +403,9 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("shows closed jobs again when the toggle is clicked a second time", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       jobItem({ job_id: 1, slug: "JOB-1", title: "Closed job", state: "closed" })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -405,14 +418,14 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("hides closed children inside an epic but keeps open children visible", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       epicItem({
         children: [
           { kind: "job", job_id: 10, slug: "JOB-10", title: "Open child", state: "running", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" },
           { kind: "job", job_id: 11, slug: "JOB-11", title: "Closed child", state: "closed", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T11:00:00Z" }
         ]
       })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -427,13 +440,13 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("hides the entire epic when all its children are closed and hide is active", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       epicItem({
         children: [
           { kind: "job", job_id: 10, slug: "JOB-10", title: "Done child", state: "closed", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" }
         ]
       })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -445,13 +458,13 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("shows the hide-closed button when an epic has at least one closed child", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ items: [
       epicItem({
         children: [
           { kind: "job", job_id: 10, slug: "JOB-10", title: "Closed child", state: "closed", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" }
         ]
       })
-    ]))
+    ] }))
 
     renderPanel()
 
@@ -460,7 +473,7 @@ describe("ChatJobStatusPanel hide closed", () => {
 
   it("persists the hide-closed preference to localStorage and restores it on remount", async () => {
     const items = [jobItem({ job_id: 1, slug: "JOB-1", title: "Closed job", state: "closed" })]
-    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(items)))
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse({ items })))
 
     const { unmount } = render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -498,7 +511,7 @@ describe("ChatJobStatusPanel live updates", () => {
     let callCount = 0
     vi.spyOn(window, "fetch").mockImplementation(() => {
       callCount++
-      return Promise.resolve(jsonResponse([jobItem({ title: callCount === 1 ? "First load" : "After update" })]))
+      return Promise.resolve(jsonResponse({ items: [jobItem({ title: callCount === 1 ? "First load" : "After update" })] }))
     })
 
     renderPanel(8)
@@ -516,7 +529,7 @@ describe("ChatJobStatusPanel live updates", () => {
     let callCount = 0
     vi.spyOn(window, "fetch").mockImplementation(() => {
       callCount++
-      return Promise.resolve(jsonResponse([jobItem({ title: "Stable title" })]))
+      return Promise.resolve(jsonResponse({ items: [jobItem({ title: "Stable title" })] }))
     })
 
     renderPanel(8)
@@ -530,5 +543,168 @@ describe("ChatJobStatusPanel live updates", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(callCount).toBe(fetchCountBefore)
+  })
+})
+
+describe("ChatJobStatusPanel pending proposals", () => {
+  it("renders a pending job proposal card above confirmed job cards", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      pending_proposals: [pendingProposal({ id: 1, title: "Survey aqueduct route" })],
+      items: [jobItem({ title: "Confirmed job" })]
+    }))
+
+    renderPanel()
+
+    expect(await screen.findByText("Proposed")).toBeInTheDocument()
+    const proposalCard = screen.getByText("Survey aqueduct route")
+    const confirmedCard = await screen.findByText("Confirmed job")
+    expect(proposalCard).toBeInTheDocument()
+    // Proposed section renders above the confirmed job list.
+    expect(proposalCard.compareDocumentPosition(confirmedCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("renders a pending epic proposal card with a child count", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      pending_proposals: [pendingProposal({ id: 2, kind: "epic", title: "Aqueduct epic", active_children_count: 3 })],
+      items: []
+    }))
+
+    renderPanel()
+
+    expect(await screen.findByText("Aqueduct epic")).toBeInTheDocument()
+    expect(screen.getByText("Epic")).toBeInTheDocument()
+    expect(screen.getByText("3 child Jobs")).toBeInTheDocument()
+  })
+
+  it("shows the proposed section without the confirmed-empty message when only pending proposals exist", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      pending_proposals: [pendingProposal()],
+      items: []
+    }))
+
+    renderPanel()
+
+    expect(await screen.findByText("Survey aqueduct route")).toBeInTheDocument()
+    expect(screen.queryByText("No confirmed proposals yet.")).not.toBeInTheDocument()
+  })
+
+  it("shows the empty state when there are neither pending proposals nor confirmed items", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_proposals: [], items: [] }))
+
+    renderPanel()
+
+    expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
+  })
+
+  it("selects the proposal's anchor message when the card is clicked", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      pending_proposals: [pendingProposal({ anchor_message_id: 77 })],
+      items: []
+    }))
+    const onSelectMessage = vi.fn()
+
+    renderPanel(8, { onSelectMessage })
+
+    const card = await screen.findByRole("button", { name: /Survey aqueduct route/ })
+    fireEvent.click(card)
+
+    expect(onSelectMessage).toHaveBeenCalledWith(77)
+  })
+
+  it("adds a pending proposal card live when an update_proposal broadcast reports a new proposal for this chat", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_proposals: [], items: [] }))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatJobStatusPanel chatId={8} />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
+
+    applyAppEvent(queryClient, {
+      type: "chat.updated",
+      resource: "chat",
+      id: 8,
+      changed: [ "proposal" ],
+      payload: {
+        action: "update_proposal",
+        proposal_id: 1,
+        job_status_proposal: pendingProposal({ id: 1, title: "New proposal" })
+      }
+    })
+
+    expect(await screen.findByText("New proposal")).toBeInTheDocument()
+  })
+
+  it("removes a pending proposal card live once it is confirmed or rejected", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      pending_proposals: [pendingProposal({ id: 1, title: "Survey aqueduct route" })],
+      items: []
+    }))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatJobStatusPanel chatId={8} />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Survey aqueduct route")).toBeInTheDocument()
+
+    applyAppEvent(queryClient, {
+      type: "chat.updated",
+      resource: "chat",
+      id: 8,
+      changed: [ "proposal" ],
+      payload: {
+        action: "update_proposal",
+        proposal_id: 1,
+        job_status_proposal: pendingProposal({ id: 1, title: "Survey aqueduct route", state: "confirmed" })
+      }
+    })
+
+    await waitFor(() => expect(screen.queryByText("Survey aqueduct route")).not.toBeInTheDocument())
+  })
+
+  it("does not patch a different chat's pending proposal cache", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_proposals: [], items: [] }))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatJobStatusPanel chatId={8} />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
+
+    applyAppEvent(queryClient, {
+      type: "chat.updated",
+      resource: "chat",
+      id: 99,
+      changed: [ "proposal" ],
+      payload: {
+        action: "update_proposal",
+        proposal_id: 5,
+        job_status_proposal: pendingProposal({ id: 5, title: "Other chat's proposal" })
+      }
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(screen.queryByText("Other chat's proposal")).not.toBeInTheDocument()
   })
 })

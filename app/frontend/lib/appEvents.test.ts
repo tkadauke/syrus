@@ -811,58 +811,74 @@ describe("applyAppEvent", () => {
     expect(dispatched[0].detail).toEqual({ chatSessionId: "9", proposal: confirmedProposal })
   })
 
-  it("adds a dashboard pending-proposal card immediately when a new proposal broadcasts as proposed", () => {
+  it("adds a chat Jobs-tab pending-proposal card immediately when a new job proposal broadcasts as proposed", () => {
     const queryClient = new QueryClient()
-    queryClient.setQueryData(["dashboard", "chrome", ""], dashboardChromePayload([]))
+    queryClient.setQueryData(["chats", "9", "job_status"], chatJobStatusPayload([]))
 
     applyAppEvent(queryClient, {
       ...event("chat", 9),
       payload: {
         action: "update_proposal",
         proposal_id: 42,
-        dashboard_proposal: dashboardPendingProposal(42, { state: "proposed" })
+        job_status_proposal: chatJobStatusPendingProposal(42, { kind: "job", state: "proposed" })
       }
     })
 
-    const patched = queryClient.getQueryData<{ pending_proposals: Array<{ id: number }> }>(["dashboard", "chrome", ""])
+    const patched = queryClient.getQueryData<{ pending_proposals: Array<{ id: number }> }>(["chats", "9", "job_status"])
     expect(patched?.pending_proposals?.map((entry) => entry.id)).toEqual([42])
   })
 
-  it("removes a dashboard pending-proposal card immediately when it is confirmed, rejected, or withdrawn", () => {
+  it("adds a chat Jobs-tab pending-proposal card immediately when a new epic bundle proposal broadcasts as proposed", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "9", "job_status"], chatJobStatusPayload([]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "update_proposal",
+        proposal_id: 43,
+        job_status_proposal: chatJobStatusPendingProposal(43, { kind: "epic", state: "proposed", active_children_count: 2 })
+      }
+    })
+
+    const patched = queryClient.getQueryData<{ pending_proposals: Array<{ id: number; kind: string }> }>(["chats", "9", "job_status"])
+    expect(patched?.pending_proposals?.map((entry) => ({ id: entry.id, kind: entry.kind }))).toEqual([{ id: 43, kind: "epic" }])
+  })
+
+  it("removes a chat Jobs-tab pending-proposal card immediately when it is confirmed, rejected, or withdrawn", () => {
     for (const state of [ "confirmed", "rejected", "withdrawn" ]) {
       const queryClient = new QueryClient()
-      queryClient.setQueryData(["dashboard", "chrome", ""], dashboardChromePayload([ dashboardPendingProposal(42, { state: "proposed" }) ]))
+      queryClient.setQueryData(["chats", "9", "job_status"], chatJobStatusPayload([ chatJobStatusPendingProposal(42, { state: "proposed" }) ]))
 
       applyAppEvent(queryClient, {
         ...event("chat", 9),
         payload: {
           action: "update_proposal",
           proposal_id: 42,
-          dashboard_proposal: dashboardPendingProposal(42, { state })
+          job_status_proposal: chatJobStatusPendingProposal(42, { state })
         }
       })
 
-      const patched = queryClient.getQueryData<{ pending_proposals: Array<{ id: number }> }>(["dashboard", "chrome", ""])
+      const patched = queryClient.getQueryData<{ pending_proposals: Array<{ id: number }> }>(["chats", "9", "job_status"])
       expect(patched?.pending_proposals).toEqual([])
     }
   })
 
-  it("caps the dashboard pending-proposal list at 5, dropping the oldest", () => {
+  it("does not patch a different chat's Jobs-tab pending-proposal cache", () => {
     const queryClient = new QueryClient()
-    const existing = [ 5, 4, 3, 2, 1 ].map((id) => dashboardPendingProposal(id, { state: "proposed" }))
-    queryClient.setQueryData(["dashboard", "chrome", ""], dashboardChromePayload(existing))
+    queryClient.setQueryData(["chats", "10", "job_status"], chatJobStatusPayload([]))
 
     applyAppEvent(queryClient, {
       ...event("chat", 9),
       payload: {
         action: "update_proposal",
-        proposal_id: 6,
-        dashboard_proposal: dashboardPendingProposal(6, { state: "proposed" })
+        proposal_id: 42,
+        job_status_proposal: chatJobStatusPendingProposal(42, { state: "proposed" })
       }
     })
 
-    const patched = queryClient.getQueryData<{ pending_proposals: Array<{ id: number }> }>(["dashboard", "chrome", ""])
-    expect(patched?.pending_proposals?.map((entry) => entry.id)).toEqual([6, 5, 4, 3, 2])
+    const patched = queryClient.getQueryData<{ pending_proposals: Array<{ id: number }> }>(["chats", "10", "job_status"])
+    expect(patched?.pending_proposals).toEqual([])
   })
 
   it("does not corrupt job_status cache when update_controls arrives", () => {
@@ -1016,21 +1032,20 @@ function chatProposal(id: number, overrides: Record<string, unknown> = {}) {
   }
 }
 
-function dashboardPendingProposal(id: number, overrides: Record<string, unknown> = {}) {
+function chatJobStatusPendingProposal(id: number, overrides: Record<string, unknown> = {}) {
   return {
     id,
+    kind: "job",
     title: "Add greeting helper",
     state: "proposed",
-    chat_session_id: 9,
-    chat_title: "Roadmap chat",
     anchor_message_id: 5,
     created_at: "2026-05-30T12:00:00.000Z",
     ...overrides
   }
 }
 
-function dashboardChromePayload(pendingProposals: Array<ReturnType<typeof dashboardPendingProposal>>) {
-  return { pending_proposals: pendingProposals }
+function chatJobStatusPayload(pendingProposals: Array<ReturnType<typeof chatJobStatusPendingProposal>>) {
+  return { pending_proposals: pendingProposals, items: [] }
 }
 
 function message(id: number, role: "user" | "assistant" | "tool_use" | "tool_result" | "system", text: string, overrides: Record<string, unknown> = {}) {

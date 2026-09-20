@@ -70,10 +70,23 @@ class ChatJobStatusQuery
 
     direct_jobs.each { |job| result << build_job_hash(job) }
 
-    result.sort_by { |item| item[:latest_updated_at] || item[:updated_at] || "" }.reverse
+    {
+      pending_proposals: pending_proposals_json,
+      items: result.sort_by { |item| item[:latest_updated_at] || item[:updated_at] || "" }.reverse
+    }
   end
 
   private
+
+  def pending_proposals_json
+    pending = @chat_session.proposals.pending.includes(:message_anchors).to_a
+    top_level_pending = pending.select { |proposal| proposal.epic_bundle? || (JOB_PROPOSAL_KINDS.include?(proposal.kind) && proposal.parent_proposal_id.nil?) }
+
+    top_level_pending
+      .sort_by { |proposal| proposal.created_at || Time.at(0) }
+      .reverse
+      .map { |proposal| App::ChatMessagePayload.job_status_proposal_json(proposal) }
+  end
 
   def preload_runtime_state!(jobs)
     jobs = jobs.compact.uniq(&:id)

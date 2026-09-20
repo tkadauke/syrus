@@ -182,7 +182,7 @@ module Mcp
           payload: {
             action: "update_proposal",
             proposal_id: proposal.id,
-            dashboard_proposal: App::ChatMessagePayload.dashboard_pending_proposal_json(proposal)
+            job_status_proposal: App::ChatMessagePayload.job_status_proposal_json(proposal)
           }
         )
       end

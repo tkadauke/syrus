@@ -1487,9 +1487,31 @@ export type ChatJobStatusEpicItem = {
 
 export type ChatJobStatusItem = ChatJobStatusEpicItem | ChatJobStatusJobItem
 
+// A proposal that hasn't been confirmed/rejected yet, scoped to the chat the
+// Jobs tab is showing -- rendered in the "Proposed" section above confirmed
+// job/epic status cards. `active_children_count` is only meaningful for
+// kind "epic" (an Epic bundle proposal's un-rejected child proposals).
+export type ChatJobStatusPendingProposal = {
+  id: number
+  kind: "job" | "epic"
+  title: string
+  state: string
+  anchor_message_id: number | null
+  created_at: string | null
+  active_children_count?: number | null
+}
+
+export type ChatJobStatusPayload = {
+  pending_proposals: ChatJobStatusPendingProposal[]
+  items: ChatJobStatusItem[]
+}
+
 export async function fetchChatJobStatus(chatId: string | number) {
-  const payload = await getJson<unknown>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/job_status`)
-  return Array.isArray(payload) ? (payload as ChatJobStatusItem[]) : []
+  const payload = await getJson<Partial<ChatJobStatusPayload>>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/job_status`)
+  return {
+    pending_proposals: Array.isArray(payload?.pending_proposals) ? payload.pending_proposals : [],
+    items: Array.isArray(payload?.items) ? payload.items : []
+  }
 }
 
 // DOC-17 Runtime Sessions (Coding Mode right-sidebar Runtime panel).
