@@ -1,6 +1,16 @@
 require "rails_helper"
 
 RSpec.describe "recurring job configuration" do
+  it "polls repositories every five minutes" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("poll_repositories")).to include(
+      "class" => "PollAllRepositoriesJob",
+      "queue" => "polling",
+      "schedule" => "every 5 minutes"
+    )
+  end
+
   it "runs the unified merge-state poller every five minutes" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
     task = config.fetch("default").fetch("poll_merge_states")
