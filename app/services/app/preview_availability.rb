@@ -1,30 +1,21 @@
-require "shellwords"
-
 module App
   # Shared "is a preview even possible for this repository" check, used by
-  # JobDetailPayload's can_start_preview action. Detects either a registered
-  # `:preview_provider` plugin or a `.syrus.yml` `preview:` block read
-  # straight off the repository's local bare clone (no GitHub API call, so
-  # this stays cheap enough to call per dashboard row).
+  # RepositoryFeatureRecommendations' visual-review recommendation. Detects
+  # either a registered `:preview_provider` plugin or a `.syrus.yml`
+  # `preview:` block, read from the repository's default branch through
+  # GitHub (RepoDefaultBranchSyrusYml) rather than the local bare clone:
+  # this is called from a repository-detail page load, which runs on the
+  # web tier, and web pods don't mount the worker's on-disk bare clone (see
+  # "Deploy target" in CLAUDE.md — "Web pods don't need this volume").
+  # Mirrors the fix RepositoryFeatureRecommendations already applied for
+  # its own local-bare-clone reads.
   class PreviewAvailability
-    def self.configured?(repository)
-      Syrus::Plugin::PreviewProvider.configured? || syrus_yml_has_preview?(repository)
+    def self.configured?(repository, user: nil, client: nil)
+      Syrus::Plugin::PreviewProvider.configured? || syrus_yml_has_preview?(repository, user: user, client: client)
     end
 
-    def self.syrus_yml_has_preview?(repository)
-      clone_path = File.join(
-        ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")),
-        "clones",
-        "#{repository.id}.git"
-      )
-      return false unless File.directory?(clone_path)
-
-      yml_content = `git --git-dir #{clone_path.shellescape} show HEAD:.syrus.yml 2>/dev/null`
-      return false unless $?.success? && yml_content.present?
-
-      SyrusYml.new(yml_content).parse.preview.present?
-    rescue StandardError
-      false
+    def self.syrus_yml_has_preview?(repository, user: nil, client: nil)
+      RepoDefaultBranchSyrusYml.new(repository: repository, user: user || repository.user, client: client).resolve.config&.preview.present?
     end
   end
 end

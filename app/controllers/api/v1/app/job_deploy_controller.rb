@@ -14,7 +14,7 @@ module Api
             render_error("validation_failed", "Deploy is only available for implemented, approved, or landing jobs, or landed jobs.", status: :unprocessable_content)
             return
           end
-          unless job.approved? || ::App::DeployAvailability.allow_unapproved?(job.repository)
+          unless job.approved? || ::App::DeployAvailability.allow_unapproved?(job.repository, user: Current.user)
             render_error("forbidden", "Deploying an unapproved Job is disabled for #{job.repository.slug}. Approve the Job first, or set deploy.allow_unapproved in .syrus.yml.", status: :forbidden)
             return
           end
