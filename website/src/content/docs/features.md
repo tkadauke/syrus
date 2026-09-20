@@ -1521,11 +1521,14 @@ path Syrus uses for polling.
 
 Polling also tracks how many open GitHub issues on each repository are
 **not** carrying the trigger label — issues Syrus never ingests because no
-one labeled them. The main Dashboard surfaces this as a dismissible
+one labeled them. The Dashboard's Jobs view surfaces this as a dismissible
 cross-repo notice ("N unlabeled open issues across M repositories") with
 links straight into each repository's GitHub Issues tab, so operators
 notice unlabeled bug reports without visiting every repository one at a
-time.
+time. The notice only appears on the Inbox smart folder, directly above the
+data table, since that is where new unlabeled work would otherwise go
+unnoticed.
+
 When approval propagation is enabled, Syrus mirrors eligible Job approvals as
 GitHub PR reviews. It posts as the approving user's own connected GitHub
 account whenever their GitHub identity differs from the PR's author; when the
