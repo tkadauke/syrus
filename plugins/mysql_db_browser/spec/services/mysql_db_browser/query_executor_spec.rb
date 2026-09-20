@@ -202,6 +202,32 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
         described_class.new(connection).execute("EXPLAIN ANALYZE UPDATE users SET name = 'x'", user: user)
       }.to raise_error(described_class::WriteNotAllowed)
     end
+
+    it "rejects SELECT ... INTO OUTFILE without opening a connection, even though it's otherwise a SELECT" do
+      described_class.client_factory = ->(**) { raise "should not connect" }
+
+      expect {
+        described_class.new(connection).execute("SELECT * FROM users INTO OUTFILE '/tmp/users.csv'", user: user)
+      }.to raise_error(described_class::FilesystemWriteNotAllowed, /INTO OUTFILE/)
+
+      audit = MysqlQueryAudit.last
+      expect(audit.success).to be(false)
+      expect(audit.read_only).to be(false)
+      expect(audit.error_message).to include("INTO OUTFILE")
+    end
+
+    it "rejects SELECT ... INTO DUMPFILE even on a connection with write access enabled" do
+      connection.update!(allow_writes: true)
+      described_class.client_factory = ->(**) { raise "should not connect" }
+
+      expect {
+        described_class.new(connection).execute("SELECT * FROM users LIMIT 1 INTO DUMPFILE '/tmp/row.dat'", user: user)
+      }.to raise_error(described_class::FilesystemWriteNotAllowed)
+    end
+
+    it "classifies FilesystemWriteNotAllowed as a WriteNotAllowed so existing callers' rescues still catch it" do
+      expect(described_class::FilesystemWriteNotAllowed.ancestors).to include(described_class::WriteNotAllowed)
+    end
   end
 
   describe "#execute_select" do
