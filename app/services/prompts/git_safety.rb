@@ -6,12 +6,10 @@ module Prompts
   # *Syrus* contracts, not per-repo conventions, and they apply to
   # every target repo uniformly.
   #
-  # Real-world incident this guards: tkadauke/syrus#82 (Run 94). Agent
-  # hit a tooling error mid-run, decided to "manually" fix things, ran
-  # `git checkout --orphan` (or equivalent), produced a branch with no
-  # shared ancestor to main. Pipeline's diff capture (`git diff
-  # main...HEAD`) failed with exit 128, run was marked failed, ~1 hour
-  # of agent work lost.
+  # Real-world incident this guards: an agent hit a tooling error mid-run,
+  # decided to "manually" fix things, ran `git checkout --orphan` (or
+  # equivalent), and produced a branch with no shared ancestor to main.
+  # Pipeline diff capture then failed with exit 128 and the work was lost.
   module GitSafety
     TEXT = <<~TXT.strip
       ---
@@ -57,7 +55,7 @@ module Prompts
         - `git update-ref` on HEAD or refs/heads/*
         - `git commit-tree` produced by yourself, then attached to HEAD
 
-      If a tool gives you trouble (a Rails task fails because dev gems
+      If a tool gives you trouble (a setup task fails because dependencies
       aren't installed, a linter blows up, etc.), surface that in the
       run's requested reporting channel instead of working around it via
       destructive git ops. Syrus would rather record "I couldn't do X

@@ -72,8 +72,8 @@ module Prompts
           hand off the work.
         - Inspect before writing: use `read_file` or `list_files` to understand the
           current state before creating or modifying files.
-        - Run tests after changes to verify correctness: `run_command("bundle exec rspec ...")`
-          or the appropriate test command for the repository.
+        - Run focused tests or checks after changes to verify correctness: use the
+          repository's narrowest relevant command for the files or behavior you touched.
 
         ### Handoff when explicitly requested
 

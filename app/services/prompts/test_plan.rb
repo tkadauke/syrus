@@ -25,7 +25,7 @@ module Prompts
         - `notes`: optional short context for reviewers, under 500 characters.
 
         Use normal JSON arguments only. For example:
-        `{ "steps": ["Run bin/rspec spec/services/example_spec.rb", "Open /jobs/123 and verify the changed UI."], "notes": "Focus on the new workflow state." }`
+        `{ "steps": ["Run the repository's focused test for the changed module.", "Open the affected screen and verify the changed UI."], "notes": "Focus on the changed behavior." }`
         Never use placeholder syntax such as `<parameter name="item">`.
         Never use object keys like `"0"`, `"item"`, or duplicate `"steps"` keys.
 

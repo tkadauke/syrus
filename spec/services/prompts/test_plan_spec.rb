@@ -15,4 +15,13 @@ RSpec.describe Prompts::TestPlan do
     expect(text).to include('duplicate `"steps"` keys')
     expect(text).to include("Don't make")
   end
+
+  it "uses repository-agnostic reviewer examples" do
+    text = described_class.new.to_s
+
+    expect(text).to include("repository's focused test")
+    expect(text).to include("affected screen")
+    expect(text).not_to include("bin/rspec")
+    expect(text).not_to include("/jobs/123")
+  end
 end
