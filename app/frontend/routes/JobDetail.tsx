@@ -23,7 +23,7 @@ import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobD
 import type { TypedArtifact } from "../api/artifacts"
 import { CoverageCard } from "../components/CoverageCard"
 import { PluginUiSlot, type UiSlotPanel } from "../pluginUiSlots"
-import { ProviderAvailabilityWarning, ProviderFailoverNotice } from "../components/ProviderAvailabilityWarning"
+import { ProviderAvailabilityWarning, providerFailoverTooltip } from "../components/ProviderAvailabilityWarning"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
 import { errorMessage } from "../lib/errorMessage"
@@ -267,9 +267,8 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
               <span className="px-2 text-gray-300 dark:text-gray-600">/</span>
               <JobSourceLink payload={payload} prefix={prefix} />
             </p>
-            {payload.job.agent_provider ? <SmallPill>{payload.job.agent_provider}</SmallPill> : null}
+            {payload.job.agent_provider ? <SmallPill title={providerFailoverTooltip(payload.job.provider_failover)}>{payload.job.agent_provider}</SmallPill> : null}
             <ProviderAvailabilityWarning availability={payload.job.provider_availability} />
-            <ProviderFailoverNotice failover={payload.job.provider_failover} />
             {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
