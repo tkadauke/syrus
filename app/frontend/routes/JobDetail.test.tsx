@@ -2985,6 +2985,31 @@ describe("Job detail navigation", () => {
     fireEvent.keyDown(window, { key: "n" })
     expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/2?job_nav=nav-token")
   })
+
+  it("renders to the right of the \"...\" overflow menu in the header", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    const overflowMenuButton = screen.getByRole("button", { name: "⋯" })
+    const jumpButton = screen.getByRole("button", { name: "Jump to Job" })
+
+    expect(overflowMenuButton.compareDocumentPosition(jumpButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("opens the jump list right-anchored to the control so it extends leftward instead of off-screen", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Jump to Job" }))
+
+    const jumpList = screen.getByRole("listbox")
+    expect(jumpList).toHaveClass("right-0")
+    expect(jumpList).not.toHaveClass("left-8")
+  })
 })
 
 describe("Job Detail keyboard shortcuts", () => {
