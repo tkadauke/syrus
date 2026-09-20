@@ -1906,9 +1906,9 @@ Several layers, each catching different failure modes:
   polling, per-repo trigger label, prepare/trust-rebase settings,
   agent provider, manual poll, scheduled tasks.
 - **`/repositories/:id`** — show page: metadata, recent jobs,
-  GitHub link, retry failed Jobs with alternate providers, repository
-  throughput metrics, plugin-provided repository tabs (for example Git
-  History and Design Docs), hosted "Preview main" controls, and Agent
+  GitHub link, retry failed Jobs with alternate providers,
+  plugin-provided repository tabs (for example Throughput, Git
+  History, and Design Docs), hosted "Preview main" controls, and Agent
   Insights entry points when enabled.
 - **`/repositories/:id/insights`** — per-repository
   `InsightSuggestion` review surface, gated by the `agent_insights`

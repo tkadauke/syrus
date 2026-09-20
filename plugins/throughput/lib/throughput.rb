@@ -12,14 +12,14 @@ module Throughput
     long_description "Throughput measures how work actually moves through a repository: PR creation by source, commits and lines produced, landing attempts and their waste, and the latency of each step from PR open to merge.\n\nEvery figure carries a sample count and a confidence rating, so a number computed from three data points is not mistaken for a trend. Use it to find where delivery is stalling rather than to grade people."
 
     optionally_depends_on [ "metrics_dashboard" ]
-    provides ui_slot: "Throughput::UiSlots",
+    provides repo_page_tab: "Throughput::RepoPageTabs",
              "metrics_dashboard:tab" => "Throughput::MetricsDashboardTabs"
 
     route :get, "/api/v1/app/repositories/:repository_id/throughput_metrics",
           to: "api/v1/app/repository_throughput#show"
     route :get, "/api/v1/admin/throughput", to: "api/v1/admin/throughput#show"
 
-    frontend ui_slots: { "throughput/ThroughputPanel" => "app/frontend/ui_slots/ThroughputPanel.tsx" },
+    frontend routes: { "throughput/RepositoryThroughput" => "app/frontend/repo_tabs/RepositoryThroughput.tsx" },
              i18n: [ "app/frontend/i18n/locales/*/throughput.json" ]
 
     # NOT Throughput::MetricContract (see MetricsSampler's doc) -- that's a
