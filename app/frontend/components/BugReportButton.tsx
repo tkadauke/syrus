@@ -7,6 +7,7 @@ import { useT } from "../hooks/useT"
 import { Button } from "./Button"
 import { Checkbox } from "./Checkbox"
 import { CloseIcon } from "./CloseIcon"
+import { ConfirmDialog } from "./ConfirmDialog"
 import { Input } from "./Input"
 import { ImageAnnotationModal, type Shape } from "./ImageAnnotationModal"
 import { NoticeToast } from "./NoticeToast"
@@ -90,8 +91,13 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   const [selectedOptionalAttachmentIds, setSelectedOptionalAttachmentIds] = useState<Set<string>>(new Set())
   const [notice, setNotice] = useState<ReactNode>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
 
   const [bugContext, setBugContext] = useState<BugReportContext | null>(null)
+
+  // Snapshot of which optional attachments were pre-selected when the dialog opened, so
+  // Escape can tell a user's own checkbox toggle apart from the dialog's own defaults.
+  const initialOptionalAttachmentIdsRef = useRef<Set<string>>(new Set())
 
   // Always-current reference to openDialog so the imperative handle never closes
   // over a stale version of the function.
@@ -144,6 +150,31 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     }
   }), [])
 
+  useEffect(() => {
+    if (!open) return
+
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape" || confirmDiscardOpen || annotatingChoice) return
+      event.preventDefault()
+      if (hasUnsavedInput()) {
+        setConfirmDiscardOpen(true)
+      } else {
+        closeDialog()
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [open, confirmDiscardOpen, annotatingChoice, title, description, attachments, selectedOptionalAttachmentIds, captures, context])
+
+  function hasUnsavedInput() {
+    if (title !== `${context} bug`) return true
+    if (description.trim() !== "") return true
+    if (attachments.length > 0) return true
+    if (!sameIds(selectedOptionalAttachmentIds, initialOptionalAttachmentIdsRef.current)) return true
+    return Object.values(captures).some((capture) => (capture?.shapes?.length ?? 0) > 0)
+  }
+
   async function openDialog(options: BugReportOpenOptions = {}) {
     if (capturing || open) return
     const mergedOptionalAttachments = mergeOptionalAttachments(pageAttachments, options.optionalAttachments)
@@ -159,7 +190,9 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     setAttachments([])
     setAttachmentError(null)
     setOptionalAttachments(mergedOptionalAttachments)
-    setSelectedOptionalAttachmentIds(new Set(mergedOptionalAttachments.filter((attachment) => attachment.defaultChecked).map((attachment) => attachment.id)))
+    const defaultSelectedIds = new Set(mergedOptionalAttachments.filter((attachment) => attachment.defaultChecked).map((attachment) => attachment.id))
+    setSelectedOptionalAttachmentIds(defaultSelectedIds)
+    initialOptionalAttachmentIdsRef.current = defaultSelectedIds
     setNotice(null)
     setBugContext(collectContext(chatId, featureFlags))
     setIsDragOver(false)
@@ -216,6 +249,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     setOptionalAttachments([])
     setSelectedOptionalAttachmentIds(new Set())
     setIsDragOver(false)
+    setConfirmDiscardOpen(false)
     setOpen(false)
   }
 
@@ -234,6 +268,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     setOptionalAttachments([])
     setSelectedOptionalAttachmentIds(new Set())
     setIsDragOver(false)
+    setConfirmDiscardOpen(false)
   }
 
   function applyAnnotation(choice: CapturedScreenshotChoice, annotatedDataUrl: string, shapes: Shape[]) {
@@ -562,6 +597,15 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
           </section>
         </div>
       ) : null}
+      <ConfirmDialog
+        cancelLabel={t("image_annotation.keep_editing")}
+        confirmLabel={t("image_annotation.discard")}
+        destructive
+        message={t("bug_report.discard_confirm")}
+        onCancel={() => setConfirmDiscardOpen(false)}
+        onConfirm={closeDialog}
+        open={confirmDiscardOpen}
+      />
     </>
   )
 
@@ -866,4 +910,12 @@ async function buildSelectedOptionalAttachments(attachments: BugReportOptionalAt
 function truncateForPreview(text: string): string {
   if (text.length <= OPTIONAL_ATTACHMENT_PREVIEW_MAX_CHARS) return text
   return `${text.slice(0, OPTIONAL_ATTACHMENT_PREVIEW_MAX_CHARS)}...`
+}
+
+function sameIds(first: Set<string>, second: Set<string>): boolean {
+  if (first.size !== second.size) return false
+  for (const id of first) {
+    if (!second.has(id)) return false
+  }
+  return true
 }

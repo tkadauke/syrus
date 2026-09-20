@@ -276,6 +276,56 @@ describe("BugReportButton", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
+  it("closes the dialog on Escape when no input was made", async () => {
+    const ref = renderButton()
+    await openDialog(ref)
+
+    fireEvent.keyDown(document, { key: "Escape" })
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("asks for confirmation on Escape when the description was edited, and closes on confirm", async () => {
+    const ref = renderButton()
+    await openDialog(ref)
+
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Cards overlap after resize." } })
+    fireEvent.keyDown(document, { key: "Escape" })
+
+    const confirmDialog = await screen.findByRole("dialog", { name: "Discard this bug report?" })
+    expect(screen.getByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
+
+    fireEvent.click(within(confirmDialog).getByRole("button", { name: "Discard" }))
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Report a bug" })).not.toBeInTheDocument())
+    expect(screen.queryByRole("dialog", { name: "Discard this bug report?" })).not.toBeInTheDocument()
+  })
+
+  it("keeps the bug report dialog open when the discard confirmation is cancelled", async () => {
+    const ref = renderButton()
+    await openDialog(ref)
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Something custom" } })
+    fireEvent.keyDown(document, { key: "Escape" })
+
+    const confirmDialog = await screen.findByRole("dialog", { name: "Discard this bug report?" })
+    fireEvent.click(within(confirmDialog).getByRole("button", { name: "Keep Editing" }))
+
+    expect(screen.queryByRole("dialog", { name: "Discard this bug report?" })).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Title")).toHaveValue("Something custom")
+  })
+
+  it("asks for confirmation on Escape when an extra attachment was added", async () => {
+    const ref = renderButton()
+    await openDialog(ref)
+
+    const file = new File(["log contents"], "log.txt", { type: "text/plain" })
+    fireEvent.change(screen.getByLabelText(/add files/i), { target: { files: [file] } })
+    fireEvent.keyDown(document, { key: "Escape" })
+
+    expect(await screen.findByRole("dialog", { name: "Discard this bug report?" })).toBeInTheDocument()
+  })
+
   it("shows a queued notice on successful direct-job submission", async () => {
     mockCreateBugReport.mockResolvedValue({ message: "Bug report queued." } satisfies BugReportPayload)
 
