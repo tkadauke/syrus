@@ -15399,6 +15399,18 @@ function repositoriesPayload(overrides: {
     ],
     active_smart_folder_id: null,
     filter: { and: [] },
+    filter_schema: [
+      { field: "slug", label: "Repository", bucket: "string", operators: ["contains"], free_text_search: true },
+      { field: "github_owner", label: "GitHub owner", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [] },
+      { field: "health", label: "Health", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [
+        { value: "healthy", label: "Healthy" },
+        { value: "broken", label: "Broken" },
+        { value: "inconclusive", label: "Inconclusive" },
+        { value: "unknown", label: "Unknown" }
+      ] },
+      { field: "agent_provider", label: "Agent", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [] },
+      { field: "has_open_jobs", label: "Has open jobs", bucket: "boolean", operators: ["is_true", "is_false"] }
+    ],
     message: overrides.message
   }
 }

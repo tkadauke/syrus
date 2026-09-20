@@ -8,6 +8,14 @@ module Api
 
         PER_PAGE = 20
 
+        HEALTH_FILTER_VALUES = %w[ healthy broken inconclusive unknown ].freeze
+        HEALTH_FILTER_LABELS = {
+          "healthy" => "Healthy",
+          "broken" => "Broken",
+          "inconclusive" => "Inconclusive",
+          "unknown" => "Unknown"
+        }.freeze
+
         def index
           render json: repositories_payload
         end
@@ -419,6 +427,7 @@ module Api
               smart_folders: PerformanceLogging.phase("repositories_index.smart_folders", repository_count: repos.size) { repository_smart_folders_json(repos) },
               active_smart_folder_id: active_repository_smart_folder&.id,
               filter: repository_filter.to_h,
+              filter_schema: repository_filter_schema(repos),
               message: message
             }
           end
@@ -1100,6 +1109,60 @@ module Api
             filter_class: Repositories::Filter,
             count_provider: ->(folder) { repository_count_for_folder(folder, repositories) }
           ).folders
+        end
+
+        # The repository index's chip-bar UI (FilterBar) renders its
+        # "+ Add filter" menu and per-chip editors from this schema.
+        # `repositories` is the same unfiltered array `repositories_payload`
+        # already loaded before applying the active filter/smart folder, so
+        # the owner/agent value lists never narrow to just what the current
+        # filter matched -- picking a value (or narrowing via any other
+        # filter) never removes other choices from the picker.
+        def repository_filter_schema(repositories)
+          [
+            {
+              field: "slug",
+              label: "Repository",
+              bucket: "string",
+              free_text_search: true,
+              operators: %w[ contains does_not_contain starts_with does_not_start_with ends_with does_not_end_with equals not_equals is_set is_unset ]
+            },
+            {
+              field: "github_owner",
+              label: "GitHub owner",
+              bucket: "enum",
+              operators: %w[ is is_not is_one_of is_none_of is_set is_unset ],
+              values: repository_owner_filter_values(repositories)
+            },
+            {
+              field: "health",
+              label: "Health",
+              bucket: "enum",
+              operators: %w[ is is_not is_one_of is_none_of ],
+              values: HEALTH_FILTER_VALUES.map { |value| { value: value, label: HEALTH_FILTER_LABELS.fetch(value) } }
+            },
+            {
+              field: "agent_provider",
+              label: "Agent",
+              bucket: "enum",
+              operators: %w[ is is_not is_one_of is_none_of is_set is_unset ],
+              values: repository_agent_provider_filter_values(repositories)
+            },
+            {
+              field: "has_open_jobs",
+              label: "Has open jobs",
+              bucket: "boolean",
+              operators: %w[ is_true is_false ]
+            }
+          ]
+        end
+
+        def repository_owner_filter_values(repositories)
+          repositories.map(&:owner).uniq.sort.map { |owner| { value: owner, label: owner } }
+        end
+
+        def repository_agent_provider_filter_values(repositories)
+          repositories.filter_map(&:agent_provider).uniq.sort.map { |provider| { value: provider, label: agent_provider_label(provider) } }
         end
 
         def repository_count_for_folder(folder, repositories)

@@ -3,9 +3,9 @@ require "rails_helper"
 RSpec.describe Repositories::Filter do
   let(:user) { Factories.user }
 
-  describe ".tree_from_params" do
+  describe ".build_tree_from_url_params" do
     it "translates legacy dropdown params into a flat AND-of-chips tree" do
-      tree = described_class.tree_from_params({ github_owner: "acme", health: "broken", agent_provider: "codex" })
+      tree = described_class.build_tree_from_url_params({ github_owner: "acme", health: "broken", agent_provider: "codex" })
 
       expect(tree["and"]).to contain_exactly(
         { "field" => "github_owner", "op" => "is", "value" => "acme" },
@@ -14,14 +14,14 @@ RSpec.describe Repositories::Filter do
       )
     end
 
-    it "translates the slug/q/search text params into a contains chip" do
-      expect(described_class.tree_from_params({ slug: "widgets" })["and"]).to contain_exactly(
+    it "translates the slug/search text params into a contains chip" do
+      expect(described_class.build_tree_from_url_params({ slug: "widgets" })["and"]).to contain_exactly(
         { "field" => "slug", "op" => "contains", "value" => "widgets" }
       )
     end
 
     it "translates has_open_jobs/archived booleans" do
-      tree = described_class.tree_from_params({ has_open_jobs: "true", archived: "true" })
+      tree = described_class.build_tree_from_url_params({ has_open_jobs: "true", archived: "true" })
 
       expect(tree["and"]).to contain_exactly(
         { "field" => "has_open_jobs", "op" => "is", "value" => true },
@@ -30,11 +30,35 @@ RSpec.describe Repositories::Filter do
     end
 
     it "ignores has_open_jobs/archived when explicitly false" do
-      expect(described_class.tree_from_params({ has_open_jobs: "false", archived: "false" })["and"]).to eq([])
+      expect(described_class.build_tree_from_url_params({ has_open_jobs: "false", archived: "false" })["and"]).to eq([])
     end
 
     it "returns an empty AND tree when no legacy params are present" do
-      expect(described_class.tree_from_params({})).to eq("and" => [])
+      expect(described_class.build_tree_from_url_params({})).to eq("and" => [])
+    end
+
+    it "does not treat q= as a legacy slug search term" do
+      q = Filters::QueryParam.encode({ "and" => [ { "field" => "github_owner", "op" => "is", "value" => "acme" } ] })
+
+      expect(described_class.build_tree_from_url_params({ q: q })).to eq("and" => [])
+    end
+  end
+
+  describe ".from_params with q=" do
+    it "decodes the chip-bar's base64-json wire format, including OR groups" do
+      q = Filters::QueryParam.encode(
+        "or" => [
+          { "field" => "github_owner", "op" => "is", "value" => "acme" },
+          { "field" => "github_owner", "op" => "is", "value" => "bob" }
+        ]
+      )
+
+      filter = described_class.from_params({ q: q }, user: user)
+      acme = Factories.repository(user: user, owner: "acme", name: "widgets")
+      bob = Factories.repository(user: user, owner: "bob", name: "gadgets")
+      carol = Factories.repository(user: user, owner: "carol", name: "gizmos")
+
+      expect(filter.apply([ acme, bob, carol ])).to contain_exactly(acme, bob)
     end
   end
 
@@ -107,6 +131,25 @@ RSpec.describe Repositories::Filter do
       )
 
       expect(result).to contain_exactly(repository)
+    end
+
+    it "supports is_not/is_none_of as the negation of is/is_one_of" do
+      filter = described_class.from_tree({ "and" => [ { "field" => "agent_provider", "op" => "is_not", "value" => "codex" } ] }, user: user)
+
+      expect(filter.apply([ repository, other ])).to contain_exactly(other)
+    end
+
+    it "supports the boolean bucket's is_true/is_false operators" do
+      filter = described_class.from_tree({ "and" => [ { "field" => "has_open_jobs", "op" => "is_false" } ] }, user: user)
+
+      expect(filter.apply([ repository, other ], open_jobs_counts: { repository.id => 2 })).to contain_exactly(other)
+    end
+
+    it "evaluates a NOT-wrapped chip as its own negation" do
+      filter = described_class.from_tree({ "and" => [ { "not" => { "field" => "github_owner", "op" => "is", "value" => "acme" } } ] }, user: user)
+      carol = Factories.repository(user: user, owner: "carol", name: "gizmos")
+
+      expect(filter.apply([ repository, carol ])).to contain_exactly(carol)
     end
 
     it "is inactive and a no-op when the tree has no chips" do
