@@ -231,6 +231,45 @@ describe("dashboard DataTable migrations", () => {
     expect(screen.getByText("2 selected")).toBeInTheDocument()
   })
 
+  it("renders the untagged issues banner directly above the data table", () => {
+    setDesktop(true)
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["issue"]}
+        controls={controls}
+        items={[job()]}
+        landingQueueEntries={[]}
+        prefix=""
+        sortState={sortState()}
+        t={(key, opts) => key === "untagged_issues_summary" ? `${opts?.count} unlabeled open issues` : key === "untagged_issues_repo_count" ? `across ${opts?.count} repositories` : key}
+        untaggedIssues={{ total: 4, repositories: [{ id: 1, slug: "acme/widgets", count: 4, issues_path: "/repositories/1?tab=github_issues" }] }}
+      />
+    )
+
+    const banner = screen.getByRole("status")
+    expect(banner).toHaveTextContent("4 unlabeled open issues")
+    expect(banner.compareDocumentPosition(screen.getByRole("table"))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it("omits the untagged issues banner when there is nothing untagged", () => {
+    setDesktop(true)
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["issue"]}
+        controls={controls}
+        items={[job()]}
+        landingQueueEntries={[]}
+        prefix=""
+        sortState={sortState()}
+        t={(key) => key}
+      />
+    )
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+  })
+
   it("preserves landing-queue grouping and expandable blocker rows", () => {
     setDesktop(true)
     const approved = job({

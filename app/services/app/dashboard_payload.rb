@@ -159,6 +159,7 @@ module App
         preferences: PerformanceLogging.phase("dashboard_rows.preferences", subject: subject) { preferences_json },
         controls: PerformanceLogging.phase("dashboard_rows.controls", subject: subject) { rows_controls_json },
         landing_queue: PerformanceLogging.phase("dashboard_rows.landing_queue", subject: subject, view: view) { landing_queue_json },
+        untagged_issues: PerformanceLogging.phase("dashboard_rows.untagged_issues", subject: subject, view: view) { untagged_issues_json },
         items: result.fetch(:items),
         lanes: PerformanceLogging.phase("dashboard_rows.lanes", subject: subject, view: view) { lanes_json },
         kanban_limit: view == "kanban" ? kanban_limit : nil
