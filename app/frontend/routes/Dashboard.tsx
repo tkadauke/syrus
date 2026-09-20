@@ -14,6 +14,7 @@ import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../
 import { ApiError } from "../api/client"
 import { Button, buttonClasses } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
+import { ColumnVisibilityMenu } from "../components/ColumnVisibilityMenu"
 import { DashboardSmartFolderNav, smartFolderIdFromSearch } from "../components/DashboardSmartFolderNav"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { CloseIcon } from "../components/CloseIcon"
@@ -615,9 +616,7 @@ export function SubjectTabs({ pathname, payload, prefix, className = "inline-fle
 export function DashboardToolbar({ payload, pathname, search, showConfiguration = true, isDesktop = true }: { payload: DashboardPayload; pathname: string; search: string; showConfiguration?: boolean; isDesktop?: boolean }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
-  const [columnsOpen, setColumnsOpen] = useState(false)
   const [lanesOpen, setLanesOpen] = useState(false)
-  const columnsMenuRef = useDismissiblePopup<HTMLDivElement>(columnsOpen, () => setColumnsOpen(false))
   const lanesMenuRef = useDismissiblePopup<HTMLDivElement>(lanesOpen, () => setLanesOpen(false))
   const updatePreferences = useMutation({
     mutationFn: updateDashboardPreferences,
@@ -635,54 +634,27 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
     })
   }
 
-  function updateColumn(column: string, checked: boolean) {
-    const optionalColumns = payload.controls.columns.optional.map((option) => option.key)
-    const next = optionalColumns.filter((candidate) => {
-      if (candidate === column) return checked
-      return payload.preferences.visible_columns.includes(candidate)
-    })
-    updatePreferences.mutate({
-      subject: payload.subject,
-      visible_columns: next
-    })
-  }
   const viewTabs = isDesktop ? payload.controls.views : payload.controls.views.filter((view) => view !== "dependencies")
 
   return (
     <div className="shrink-0">
       <div className="flex flex-wrap items-center justify-end gap-3">
         {showConfiguration && payload.view === "list" ? (
-          <div className="relative" ref={columnsMenuRef}>
-            <Button
-              aria-label={t("columns")}
-              aria-controls="dashboard-columns-menu"
-              aria-expanded={columnsOpen}
-              aria-haspopup="menu"
-              className="h-[var(--control-height-md)] w-[var(--control-height-md)]"
-              onClick={() => setColumnsOpen((open) => !open)}
-              size="icon"
-              variant="secondary"
-            >
-              <ColumnsIcon />
-            </Button>
-            {columnsOpen ? (
-              <Surface className="absolute right-0 z-20 mt-2 w-64 shadow-lg" id="dashboard-columns-menu" padding="sm" role="menu">
-                <fieldset className="space-y-2">
-                  <Text as="legend" muted variant="label">{t("visible_columns")}</Text>
-                  {payload.controls.columns.optional.map((column) => (
-                    <label className="flex items-center gap-2 text-sm text-text-primary" key={column.key}>
-                      <Checkbox
-                        checked={payload.preferences.visible_columns.includes(column.key)}
-                        disabled={updatePreferences.isPending}
-                        onChange={(event) => updateColumn(column.key, event.target.checked)}
-                      />
-                      <span>{column.title}</span>
-                    </label>
-                  ))}
-                </fieldset>
-              </Surface>
-            ) : null}
-          </div>
+          <ColumnVisibilityMenu
+            downLabel={t("column_down")}
+            menuId="dashboard-columns-menu"
+            moveDownLabel={(title) => t("column_move_down", { title })}
+            moveUpLabel={(title) => t("column_move_up", { title })}
+            onChange={(next) => updatePreferences.mutate({ subject: payload.subject, visible_columns: next })}
+            optionalColumns={payload.controls.columns.optional}
+            pending={updatePreferences.isPending}
+            triggerAriaLabel={t("columns")}
+            triggerClassName="h-[var(--control-height-md)] w-[var(--control-height-md)]"
+            triggerSize="icon"
+            upLabel={t("column_up")}
+            visibleColumns={payload.preferences.visible_columns}
+            visibleLabel={t("visible_columns")}
+          />
         ) : null}
         {showConfiguration && payload.view === "kanban" ? (
           <div className="relative" ref={lanesMenuRef}>

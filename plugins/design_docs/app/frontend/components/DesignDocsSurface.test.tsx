@@ -728,6 +728,22 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("persists reordered Design Docs columns from the Up/Down controls", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Columns" }))
+    fireEvent.click(screen.getByLabelText("Move Repository up"))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/preferences", expect.objectContaining({ method: "PATCH" })))
+    const request = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/preferences")
+    expect(JSON.parse(String(request?.[1]?.body))).toEqual({
+      preferences: {
+        visible_columns: ["repository", "state", "owner", "collaborators", "comments", "latest_version", "updated_at", "actions"]
+      }
+    })
+  })
+
   it("keeps repository-scoped smart folders visible on desktop because the app sidebar does not own them", async () => {
     mockFetch()
     renderSurface("/repositories/10/design_docs")
