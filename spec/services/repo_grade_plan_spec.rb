@@ -81,6 +81,35 @@ RSpec.describe RepoGradePlan do
       ])
     end
 
+    it "preserves typed grader metadata for runtime fanout and target graph consumers" do
+      write(".syrus.yml", <<~YAML)
+        grade:
+          - name: tests
+            run: bin/test
+            metadata:
+              grader_type: rspec
+              grader_framework: rspec
+              grader_mode: full
+              coverage_outputs:
+                - artifact: coverage/lcov.info
+                  format: lcov
+              filter_capabilities:
+                failed_cases: true
+      YAML
+
+      grader = described_class.for(@dir).graders.first
+
+      expect(grader.metadata).to include(
+        "grader_type" => "rspec",
+        "grader_framework" => "rspec",
+        "grader_mode" => "full",
+        "filter_capabilities" => { "failed_cases" => true }
+      )
+      expect(grader.metadata["coverage_outputs"]).to eq([
+        { "artifact" => "coverage/lcov.info", "format" => "lcov" }
+      ])
+    end
+
     it "parses shorthand array form and caps timeouts" do
       write(".syrus.yml", <<~YAML)
         grade:

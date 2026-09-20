@@ -149,7 +149,30 @@ class SyrusYml
   # into a synthetic `*-ci` grader in the `ci` phase. Runtime grading
   # otherwise selects configured grader entries by `phases`.
   BaseRetry = Data.define(:strategy, :command)
-  GradeStep = Data.define(:name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps)
+  GradeStep = Data.define(:name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata) do
+    def initialize(
+      name:, run:, ci:, phases:, description:, required:, timeout_minutes:,
+      when_files_changed:, junit_output:, failures:, base_retry:, deps:, metadata: {}
+    )
+      raise ArgumentError, "metadata must be a Hash" unless metadata.is_a?(Hash)
+
+      super(
+        name: name,
+        run: run,
+        ci: ci,
+        phases: phases,
+        description: description,
+        required: required,
+        timeout_minutes: timeout_minutes,
+        when_files_changed: when_files_changed,
+        junit_output: junit_output,
+        failures: failures,
+        base_retry: base_retry,
+        deps: deps,
+        metadata: metadata.deep_stringify_keys
+      )
+    end
+  end
   # Deterministic, in-place, semantics-preserving cosmetic passes (safe
   # autocorrect only). `files` are the globs this formatter owns — both its
   # target set and its self-gate (empty slice of the diff → no-op).
@@ -494,7 +517,8 @@ class SyrusYml
       junit_output: raw["junit_output"]&.to_s&.strip&.presence,
       failures: parse_grade_failure_policy(raw.fetch("failures", default_failures), "grade step #{name.inspect} failures"),
       base_retry: parse_base_retry(raw["base_retry"], "#{label}.base_retry"),
-      deps: parse_dependency_refs(raw["deps"] || raw["dependencies"], "#{label}.deps")
+      deps: parse_dependency_refs(raw["deps"] || raw["dependencies"], "#{label}.deps"),
+      metadata: parse_grade_metadata(raw, label)
     )
   end
 
@@ -515,6 +539,13 @@ class SyrusYml
     raise ParseError, "#{label}.name: must match #{GRADE_NAME_PATTERN.inspect}" unless name.match?(GRADE_NAME_PATTERN)
     raise ParseError, "#{label}.run: is required" if run.empty?
     remember_unique_name!(seen, name, label)
+  end
+
+  def parse_grade_metadata(raw, label)
+    return {} unless raw.key?("metadata")
+    raise ParseError, "#{label}.metadata: must be a mapping" unless raw["metadata"].is_a?(Hash)
+
+    raw["metadata"].deep_stringify_keys
   end
 
   def parse_base_retry(raw, label)

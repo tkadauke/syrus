@@ -74,6 +74,9 @@ class RepoGradePlan
   end
 
   def grader_for(step, name:, command:, phases:, legacy_ci: false)
+    metadata = step.metadata.to_h
+    metadata = metadata.merge("legacy_ci_command" => true, "legacy_source_grader" => step.name) if legacy_ci
+
     Grader.new(
       name: name,
       command: command,
@@ -86,7 +89,7 @@ class RepoGradePlan
       failures: step.failures,
       base_retry: step.base_retry,
       deps: step.deps,
-      metadata: legacy_ci ? { "legacy_ci_command" => true, "legacy_source_grader" => step.name } : {}
+      metadata: metadata
     )
   end
 
