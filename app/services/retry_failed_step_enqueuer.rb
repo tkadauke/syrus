@@ -259,8 +259,9 @@ class RetryFailedStepEnqueuer
     loop_node = retry_until_loop_node_for(fanout)
     raise AASM::InvalidTransition, "Step #{fanout.id} is not in a retry-until grade loop" unless loop_node
 
-    anchor = loop_restart_anchor_for(fanout)
-    continuation = anchor.next_step
+    continuation = grade_loop_continuation_after(fanout)
+    anchor = loop_restart_anchor_for(fanout, continuation: continuation)
+    continuation ||= anchor.next_step
     insertion_position = anchor.position + 1
     new_loop_id = SecureRandom.uuid
     new_steps = []
@@ -313,12 +314,18 @@ class RetryFailedStepEnqueuer
     end
   end
 
-  def loop_restart_anchor_for(fanout)
+  def grade_loop_continuation_after(fanout)
     workflow.steps
-      .where(loop_id: fanout.loop_id, iteration: fanout.iteration)
-      .where("position >= ?", fanout.position)
-      .reorder(position: :desc, id: :desc)
-      .first || fanout
+      .where("position > ?", fanout.position)
+      .where(loop_id: nil)
+      .reorder(:position, :id)
+      .first
+  end
+
+  def loop_restart_anchor_for(fanout, continuation:)
+    scope = workflow.steps.where("position >= ?", fanout.position).where.not(loop_id: nil)
+    scope = scope.where("position < ?", continuation.position) if continuation
+    scope.reorder(position: :desc, id: :desc).first || fanout
   end
 
   def supersede_grade_loop!(fanout, restart_loop_id:)

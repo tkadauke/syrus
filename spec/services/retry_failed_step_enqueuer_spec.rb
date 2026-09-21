@@ -188,6 +188,41 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(described_class.failed_step_for(workflow)).to eq(downstream)
   end
 
+  it "appends a restarted grade loop after every prior grade-loop attempt" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", chain_template: grade_retry_chain_template)
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+
+    failed_fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 4, state: "succeeded", iteration: 1, loop_id: "failed-loop")
+    failed_collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 5, state: "failed", iteration: 1, loop_id: "failed-loop")
+    prior_restart_fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 6, state: "succeeded", iteration: 1, loop_id: "prior-restart")
+    prior_restart_collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 7, state: "succeeded", iteration: 1, loop_id: "prior-restart")
+    summarize = Step.create!(workflow: workflow, kind: "summarize", position: 8, state: "cancelled")
+    failed_fanout.update!(next_step: failed_collect)
+    failed_collect.update!(next_step: prior_restart_fanout)
+    prior_restart_fanout.update!(next_step: prior_restart_collect)
+    prior_restart_collect.update!(next_step: summarize)
+    failed_fanout.runs.create!(job: job, trigger_kind: "initial", state: "succeeded")
+    failed_collect.runs.create!(job: job, trigger_kind: "initial", state: "failed")
+    prior_restart_fanout.runs.create!(job: job, trigger_kind: "initial", state: "succeeded")
+    prior_restart_collect.runs.create!(job: job, trigger_kind: "initial", state: "succeeded")
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(workflow.steps.reorder(:position, :id).pluck(:loop_id, :kind)).to eq([
+      [ "failed-loop", "grader_fanout" ],
+      [ "failed-loop", "grader_collect" ],
+      [ "prior-restart", "grader_fanout" ],
+      [ "prior-restart", "grader_collect" ],
+      [ result.step.loop_id, "grader_fanout" ],
+      [ result.step.loop_id, "grader_collect" ],
+      [ nil, "summarize" ]
+    ])
+    expect(prior_restart_collect.reload.next_step).to eq(result.step)
+    expect(result.step.next_step.next_step).to eq(summarize)
+  end
+
   it "resets every grader in the batch under distributed-projection wiring" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "retry", chain_template: grade_retry_chain_template)
