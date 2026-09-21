@@ -1,22 +1,35 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatJobStatusPanel } from "./ChatJobStatusPanel"
-import type { ChatJobStatusItem } from "../api/chats"
+import type { ChatJobStatusItem, ChatJobStatusPendingProposal } from "../api/chats"
+import { applyAppEvent } from "../lib/appEvents"
 
-function renderPanel(chatId: number | string = 8) {
+function renderPanel(chatId: number | string = 8, onSelectMessage?: (messageId: number) => void) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
         <LocationProbe />
         <Routes>
           <Route
-            element={<ChatJobStatusPanel chatId={chatId} />}
+            element={<ChatJobStatusPanel chatId={chatId} onSelectMessage={onSelectMessage} />}
             path="/app-shell/chats/:id"
           />
           <Route element={<div data-testid="job-detail" />} path="/jobs/:id" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function renderPanelWithClient(queryClient: QueryClient, chatId: number | string = 8) {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+        <Routes>
+          <Route element={<ChatJobStatusPanel chatId={chatId} />} path="/app-shell/chats/:id" />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -493,6 +506,83 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 })
 
+function pendingProposal(overrides: Partial<ChatJobStatusPendingProposal> = {}): ChatJobStatusPendingProposal {
+  return {
+    id: 1,
+    kind: "job",
+    title: "Survey aqueduct route",
+    state: "proposed",
+    anchor_message_id: 42,
+    active_children_count: null,
+    created_at: "2026-05-30T12:00:00.000Z",
+    ...overrides
+  }
+}
+
+describe("ChatJobStatusPanel pending proposals", () => {
+  it("renders a pending Job proposal card above confirmed job status cards", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      pending_proposals: [pendingProposal()],
+      items: [jobItem({ title: "Confirmed job" })]
+    }))
+
+    renderPanel()
+
+    expect(await screen.findByText("Survey aqueduct route")).toBeInTheDocument()
+    const proposedSection = screen.getByLabelText("Proposed")
+    expect(proposedSection).toContainElement(screen.getByText("Survey aqueduct route"))
+    expect(screen.getByText("Confirmed job")).toBeInTheDocument()
+  })
+
+  it("renders a pending Epic proposal card with its kind and active child count", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      pending_proposals: [pendingProposal({ id: 2, kind: "epic", title: "Aqueduct renovation epic", active_children_count: 3 })],
+      items: []
+    }))
+
+    renderPanel()
+
+    expect(await screen.findByText("Aqueduct renovation epic")).toBeInTheDocument()
+    expect(screen.getByText("Epic")).toBeInTheDocument()
+    expect(screen.getByText("3 jobs")).toBeInTheDocument()
+  })
+
+  it("calls onSelectMessage with the proposal's anchor message id when a pending card is clicked", async () => {
+    const onSelectMessage = vi.fn()
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      pending_proposals: [pendingProposal({ anchor_message_id: 99 })],
+      items: []
+    }))
+
+    renderPanel(8, onSelectMessage)
+
+    const card = await screen.findByRole("button", { name: /Survey aqueduct route/i })
+    fireEvent.click(card)
+
+    expect(onSelectMessage).toHaveBeenCalledWith(99)
+  })
+
+  it("shows the proposed section instead of the confirmed-empty message when only pending proposals exist", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      pending_proposals: [pendingProposal()],
+      items: []
+    }))
+
+    renderPanel()
+
+    expect(await screen.findByText("Survey aqueduct route")).toBeInTheDocument()
+    expect(screen.queryByText("No confirmed proposals yet.")).not.toBeInTheDocument()
+  })
+
+  it("shows the empty state when there are neither pending proposals nor confirmed jobs", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_proposals: [], items: [] }))
+
+    renderPanel()
+
+    expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
+  })
+})
+
 describe("ChatJobStatusPanel live updates", () => {
   it("invalidates the job_status query when a matching syrus:job-status-changed event fires", async () => {
     let callCount = 0
@@ -530,5 +620,83 @@ describe("ChatJobStatusPanel live updates", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(callCount).toBe(fetchCountBefore)
+  })
+})
+
+describe("ChatJobStatusPanel pending proposal live updates", () => {
+  it("adds a pending proposal card live when an update_proposal broadcast reports a new proposed proposal", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "8", "job_status"], { pending_proposals: [], items: [] })
+    renderPanelWithClient(queryClient)
+
+    await waitFor(() => expect(screen.queryByText("Survey aqueduct route")).not.toBeInTheDocument())
+
+    act(() => {
+      applyAppEvent(queryClient, {
+        type: "chat.updated",
+        resource: "chat",
+        id: 8,
+        changed: [ "proposal" ],
+        payload: {
+          action: "update_proposal",
+          proposal_id: 1,
+          job_status_proposal: pendingProposal({ id: 1, title: "Survey aqueduct route" })
+        }
+      })
+    })
+
+    expect(await screen.findByText("Survey aqueduct route")).toBeInTheDocument()
+  })
+
+  it("removes a pending proposal card live the moment an update_proposal broadcast confirms or rejects it", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "8", "job_status"], {
+      pending_proposals: [ pendingProposal({ id: 1, title: "Survey aqueduct route" }) ],
+      items: []
+    })
+    renderPanelWithClient(queryClient)
+
+    expect(await screen.findByText("Survey aqueduct route")).toBeInTheDocument()
+
+    act(() => {
+      applyAppEvent(queryClient, {
+        type: "chat.updated",
+        resource: "chat",
+        id: 8,
+        changed: [ "proposal" ],
+        payload: {
+          action: "update_proposal",
+          proposal_id: 1,
+          job_status_proposal: pendingProposal({ id: 1, title: "Survey aqueduct route", state: "confirmed" })
+        }
+      })
+    })
+
+    await waitFor(() => expect(screen.queryByText("Survey aqueduct route")).not.toBeInTheDocument())
+  })
+
+  it("does not patch a different chat's job_status cache", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "8", "job_status"], { pending_proposals: [], items: [] })
+    renderPanelWithClient(queryClient)
+
+    await waitFor(() => expect(screen.queryByText("Other chat's proposal")).not.toBeInTheDocument())
+
+    act(() => {
+      applyAppEvent(queryClient, {
+        type: "chat.updated",
+        resource: "chat",
+        id: 99,
+        changed: [ "proposal" ],
+        payload: {
+          action: "update_proposal",
+          proposal_id: 2,
+          job_status_proposal: pendingProposal({ id: 2, title: "Other chat's proposal" })
+        }
+      })
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.queryByText("Other chat's proposal")).not.toBeInTheDocument()
   })
 })

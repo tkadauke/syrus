@@ -516,7 +516,7 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
       payload: hash_including(
         action: "update_proposal",
         proposal_id: proposal.id,
-        dashboard_proposal: hash_including(id: proposal.id, title: "Broadcast test", state: "proposed")
+        job_status_proposal: hash_including(id: proposal.id, title: "Broadcast test", state: "proposed")
       )
     )
   end

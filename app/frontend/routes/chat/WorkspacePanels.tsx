@@ -157,7 +157,7 @@ export function ChatWorkspacePanel({
         {activeTab === "pinned" ? <PinnedPanel payload={payload} queryKey={queryKey} onSelectMessage={onBookmarkSelect} /> : null}
         {activeTab === "files" ? <CodingFilesPanel payload={payload} readOnly={!codingFilesTabVisible(payload)} /> : null}
         {activeTab === "diff" && localDiffTabVisible(payload) ? <LocalDiffPanel chatId={payload.chat.id} /> : null}
-        {activeTab === "jobs" ? <ChatJobStatusPanel chatId={payload.chat.id} /> : null}
+        {activeTab === "jobs" ? <ChatJobStatusPanel chatId={payload.chat.id} onSelectMessage={onBookmarkSelect} /> : null}
         {activeTab === "runtime" ? <RuntimePanel chatId={payload.chat.id} /> : null}
         {isPluginTab(activeTab) ? <PluginWorkspaceTabPanel activeTab={activeTab} payload={payload} /> : null}
       </div>
