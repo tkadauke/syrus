@@ -242,6 +242,7 @@
   "files_loading": "Loading files…",
   "files_error": "Could not load file tree.",
   "files_empty": "No files in checkout.",
+  "coding_checkout_not_ready": "Checkout isn't ready yet — fetching…",
   "commit_selector_label": "Commit",
   "commit_selector_head": "HEAD (live working tree)",
   "file_content_loading": "Loading file…",
