@@ -1,4 +1,6 @@
 require "rails_helper"
+require "open3"
+require "shellwords"
 
 RSpec.describe Ruby::RspecGraderType do
   it "registers the rspec type name" do
@@ -122,6 +124,19 @@ RSpec.describe Ruby::RspecGraderType do
     ).first
 
     expect(step.run).not_to include("bin/rails db:test:prepare")
+  end
+
+  it "generates a focused-selector ruby script with valid syntax" do
+    step = described_class.grade_steps(config: {}, default_failures: "strict").second
+
+    tokens = Shellwords.split(step.run)
+    flag_index = tokens.index("-e")
+    raise "could not find `ruby -e` in generated command: #{step.run}" unless flag_index
+
+    script = tokens[flag_index + 1]
+    _stdout, stderr, status = Open3.capture3("ruby", "-c", "-e", script)
+
+    expect(status).to be_success, "expected valid ruby syntax, got: #{stderr}"
   end
 
   it "marks coverage-capable commands when coverage is enabled" do

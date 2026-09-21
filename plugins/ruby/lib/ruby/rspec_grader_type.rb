@@ -191,13 +191,19 @@ module Ruby
       Array(raw).map(&:to_s).map(&:strip).reject(&:empty?).map { |path| project_relative(path) }
     end
 
+    FOCUSED_SELECTOR_PLACEHOLDER = "__SYRUS_FOCUSED_SELECTOR_SCRIPT__"
+
     def focused_command
-      <<~BASH.squish
+      template = <<~BASH.squish
         #{setup_prefix} &&
-        ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/rspec-focused-files &&
+        ruby -e #{FOCUSED_SELECTOR_PLACEHOLDER} > .syrus/rspec-focused-files &&
         if [ ! -s .syrus/rspec-focused-files ]; then echo "No focused RSpec files matched changed Ruby files"; exit 0; fi &&
         #{rspec_command(junit_output: junit_output(focused_name), json_output: json_output(focused_name), coverage: false, args: [ "--tag", "~ci_only", "$(cat .syrus/rspec-focused-files)" ], shell_expand_args: true, skip_setup: true)}
       BASH
+      # `squish` above would otherwise collapse the escaped script's embedded
+      # newlines into spaces, corrupting its Ruby syntax -- substitute it in
+      # after squishing so its newlines survive intact.
+      template.sub(FOCUSED_SELECTOR_PLACEHOLDER) { Shellwords.escape(focused_selector_ruby) }
     end
 
     def rspec_command(junit_output:, json_output:, coverage:, env: {}, args: [], shell_expand_args: false, skip_setup: false)
