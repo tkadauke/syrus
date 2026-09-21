@@ -248,19 +248,25 @@ function compareVersions(a: DiffReviewVersion, b: DiffReviewVersion) {
 
 export function canonicalReviewVersions(versions: DiffReviewVersion[]) {
   const canonicalByRunRange = new Map<string, DiffReviewVersion>()
+  const canonicalAllChangesByRange = new Map<string, DiffReviewVersion>()
   const canonical = new Set<DiffReviewVersion>()
-  let canonicalAllChanges: DiffReviewVersion | null = null
   const hasNonEmptyVersion = versions.some((version) => version.files_count > 0)
   for (const version of versions) {
-    // "All changes" is a singleton per Job on the backend, but a synthetic
-    // version has no run_id (runRangeKey returns null), so a legacy
-    // duplicate row must still be collapsed here defensively.
+    // "All changes" is no longer a singleton per Job on the backend: the
+    // live diff is recomputed without mutating a previously persisted row
+    // (see JobSourceDiffPayload#resolve_diff_review_version), so a later
+    // "All changes" recompute against a new head_sha is a genuinely new,
+    // immutable historical row, not a duplicate -- it must stay visible
+    // here. Only an exact base_sha/head_sha repeat (a real duplicate, e.g.
+    // a race writing the same range twice) collapses to its most recent row.
     if (isAllChangesVersion(version)) {
       if (hasNonEmptyVersion && version.files_count === 0) continue
 
-      if (!canonicalAllChanges || version.id > canonicalAllChanges.id) {
-        if (canonicalAllChanges) canonical.delete(canonicalAllChanges)
-        canonicalAllChanges = version
+      const key = `${version.base_sha}:${version.head_sha}`
+      const existing = canonicalAllChangesByRange.get(key)
+      if (!existing || version.id > existing.id) {
+        if (existing) canonical.delete(existing)
+        canonicalAllChangesByRange.set(key, version)
         canonical.add(version)
       }
       continue

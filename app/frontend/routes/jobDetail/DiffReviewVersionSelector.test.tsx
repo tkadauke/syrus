@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { canonicalReviewVersions, DiffReviewVersionSelector, duplicateRunIds } from "./DiffReviewVersionSelector"
 import type { DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
@@ -82,13 +82,24 @@ function allChangesVersion(overrides: Partial<DiffReviewVersion>): DiffReviewVer
 }
 
 describe("canonicalReviewVersions", () => {
-  it("collapses two source_diff versions (a legacy duplicate) into the most recent single All changes entry", () => {
-    const older = allChangesVersion({ id: 1, version_index: 1, head_sha: "claude-head" })
-    const newer = allChangesVersion({ id: 2, version_index: 2, head_sha: "codex-head" })
+  it("collapses two source_diff versions sharing the same base/head range into the most recent entry", () => {
+    const older = allChangesVersion({ id: 1, version_index: 1 })
+    const newer = allChangesVersion({ id: 2, version_index: 2 })
 
     const canonical = canonicalReviewVersions([ older, newer ])
 
     expect(canonical).toEqual([ newer ])
+  })
+
+  it("keeps two source_diff versions with different head_sha as distinct historical All changes entries", () => {
+    // JobSourceDiffPayload#resolve_diff_review_version no longer mutates a
+    // previously persisted "All changes" row in place -- a later recompute
+    // against a new head_sha creates its own immutable row, so both must
+    // stay visible here rather than collapsing to just the newest.
+    const first = allChangesVersion({ id: 1, version_index: 1, head_sha: "claude-head" })
+    const second = allChangesVersion({ id: 2, version_index: 2, head_sha: "codex-head" })
+
+    expect(canonicalReviewVersions([ first, second ])).toEqual([ first, second ])
   })
 
   it("leaves a single All changes version untouched" , () => {
@@ -159,7 +170,25 @@ describe("duplicateRunIds", () => {
 })
 
 describe("DiffReviewVersionSelector", () => {
-  it("renders only one All changes option in the dropdown when the payload carries a legacy duplicate", () => {
+  it("renders only one All changes option in the dropdown when the payload carries a same-range duplicate", () => {
+    const versions = [
+      allChangesVersion({ id: 1, version_index: 1 }),
+      allChangesVersion({ id: 2, version_index: 2 })
+    ]
+
+    render(
+      <DiffReviewVersionSelector
+        latestVersionId={2}
+        onChange={() => {}}
+        selectedVersionId={2}
+        versions={versions}
+      />
+    )
+
+    expect(screen.getAllByText("All changes")).toHaveLength(1)
+  })
+
+  it("renders a distinct All changes option per historical head_sha instead of collapsing them", () => {
     const versions = [
       allChangesVersion({ id: 1, version_index: 1, head_sha: "claude-head" }),
       allChangesVersion({ id: 2, version_index: 2, head_sha: "codex-head" })
@@ -174,7 +203,10 @@ describe("DiffReviewVersionSelector", () => {
       />
     )
 
-    expect(screen.getAllByText("All changes")).toHaveLength(1)
+    fireEvent.click(screen.getByLabelText("Version"))
+    const listbox = within(screen.getByRole("listbox", { name: "Version" }))
+
+    expect(listbox.getAllByText("All changes")).toHaveLength(2)
   })
 
   it("gives a resumed Run's two versions distinguishable dropdown row labels instead of showing the same Run identifier twice", () => {
