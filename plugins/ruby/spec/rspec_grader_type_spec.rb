@@ -102,6 +102,93 @@ RSpec.describe Ruby::RspecGraderType do
     ])
   end
 
+  it "supports tag filters per generated RSpec mode" do
+    steps = described_class.grade_steps(
+      config: {
+        "tags" => {
+          "exclude" => [ "slow" ],
+          "fast" => { "exclude" => [ "external" ] },
+          "focused" => { "include" => [ "models" ] },
+          "ci" => { "include" => [ "ci_only" ] }
+        }
+      },
+      default_failures: "strict"
+    )
+
+    expect(steps.first.run).to include("--tag \\~external")
+    expect(steps.first.run).to include("--tag \\~slow")
+    expect(steps.second.run).to include("--tag models")
+    expect(steps.second.run).to include("--tag ~slow")
+    expect(steps.third.run).to include("--tag ci_only")
+    expect(steps.third.run).to include("--tag \\~slow")
+  end
+
+  it "uses configured parallel_rspec for fast and focused modes" do
+    steps = described_class.grade_steps(
+      config: {
+        "parallel_rspec" => {
+          "enabled" => true,
+          "rspec_modes" => [ "full", "focused" ],
+          "processes" => "4",
+          "exec_args" => "bin/rspec-worker",
+          "prepare_command" => "bundle exec rake parallel:prepare"
+        }
+      },
+      default_failures: "strict"
+    )
+
+    expect(steps.first.run).to include("bundle exec parallel_rspec -n 4 --quiet")
+    expect(steps.first.run).to include("--exec-args bin/rspec-worker spec")
+    expect(steps.first.run).to include("bundle exec rake parallel:prepare")
+    expect(steps.first.run).to include("RSPEC_TAG_ARGS=--tag\\ \\~ci_only")
+    expect(steps.first.run).to include("RSPEC_OUTPUT_PREFIX=rspec")
+    expect(steps.first.run).to include("parallel-rspec-junit")
+    expect(steps.second.run).to include("bundle exec parallel_rspec -n 4 --quiet")
+    expect(steps.second.run).to include("--exec-args bin/rspec-worker $(cat .syrus/rspec-focused-files)")
+    expect(steps.third.run).to include("bundle exec rspec")
+    expect(steps.third.run).not_to include("parallel_rspec")
+  end
+
+  it "splits CI into a parallel fast pass plus configured serial tag pass" do
+    step = described_class.grade_steps(
+      config: {
+        "tags" => { "ci" => { "include" => [ "ci_only" ] } },
+        "parallel_rspec" => {
+          "enabled" => true,
+          "rspec_modes" => [ "ci" ],
+          "exec_args" => "bin/rspec-worker"
+        }
+      },
+      default_failures: "strict"
+    ).third
+
+    expect(step.run).to include("RUN_CI_ONLY_SPECS=false")
+    expect(step.run).to include("bundle exec parallel_rspec --quiet")
+    expect(step.run).to include("RSPEC_TAG_ARGS=--tag\\ \\~ci_only")
+    expect(step.run).to include("RUN_CI_ONLY_SPECS=true bundle exec rspec")
+    expect(step.run).to include("--tag ci_only")
+    expect(step.run).to include("serial_status")
+  end
+
+  it "supports direct parallel_rspec command generation without a worker wrapper" do
+    step = described_class.grade_steps(
+      config: {
+        "parallel_rspec" => {
+          "enabled" => true,
+          "rspec_modes" => [ "full" ],
+          "processes" => "2"
+        }
+      },
+      default_failures: "strict"
+    ).first
+
+    expect(step.run).to include("bundle exec parallel_rspec -n 2 --quiet")
+    expect(step.run).to include("--test-options")
+    expect(step.run).to include(".syrus/rspec-json/rspec-")
+    expect(step.run).to include(".syrus/grade-output/parallel-rspec-junit/rspec-")
+    expect(step.run.scan(/\sspec(?:;|\s)/).length).to eq(1)
+  end
+
   it "supports per-mode timeout overrides" do
     steps = described_class.grade_steps(
       config: { "timeout_minutes" => 60, "timeouts" => { "focused" => 10 } },

@@ -200,23 +200,17 @@ from lockfiles such as `Gemfile`, `yarn.lock`, `pnpm-lock.yaml`,
 `package-lock.json`, or `package.json`. Use `prepare: []` or
 `prepare: false` only when no setup should run.
 
-Graders can opt into phases. Use fast, focused commands for `review`, final
-merge-safety commands for `landing`, and CI-only commands for `ci` repair
-and main-branch health. Put formatter, coverage, and parallel-test behavior
-in wrapper scripts such as `bin/rspec-fast` or `bin/rspec-ci`; Syrus runs the
-configured command as-is.
+Graders can opt into phases. Prefer plugin-defined grader types for common
+frameworks: the plugin can provide fast review/landing commands, CI-mode
+commands, focused reruns, coverage, and result artifacts without each
+repository writing wrapper scripts.
 
 ```yaml
 grade:
-  - name: focused
-    run: bin/rspec-focused
-    phases: [review]
-  - name: rspec
-    run: bin/rspec-fast
-    phases: [landing]
-  - name: rspec-ci
-    run: bin/rspec-ci
-    phases: [ci]
+  - type: rspec
+    tags:
+      ci:
+        include: [ci_only]
 ```
 
 If the repository root contains a version file (`.tool-versions`,

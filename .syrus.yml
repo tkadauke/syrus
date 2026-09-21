@@ -328,6 +328,15 @@ grade:
       The Ruby plugin owns the RSpec commands, focused review selection,
       CI-only tag policy, JSON/JUnit output, and base-revision retry.
     failures: allow_inherited
+    tags:
+      ci:
+        include:
+          - ci_only
+    parallel_rspec:
+      enabled: true
+      rspec_modes: [full, focused, ci]
+      exec_args: bin/rspec-worker
+      prepare_command: bundle exec rake parallel:prepare
     when_files_changed:
       - "app/**/*.rb"
       - "lib/**/*.rb"

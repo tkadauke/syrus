@@ -53,9 +53,8 @@ preview:
   health_check: /up
 
 grade:
-  - name: rspec
-    run: bin/rspec-fast
-    phases: [review, landing]
+  - type: rspec
+    failures: allow_inherited
   - name: react
     run: npm run test:react
     phases: [review, landing]
@@ -85,8 +84,8 @@ preview:
 grade:
   - name: smoke
     run: bin/check-eager-load
-  - name: tests
-    run: bin/rspec-fast
+  - type: rspec
+    failures: allow_inherited
 ```
 
 Small CLI:

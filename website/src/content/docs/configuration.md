@@ -56,21 +56,11 @@ preview:
   health_check: /up
 
 grade:
-  - name: quick-ruby
-    run: bin/rspec-focused
-    phases: [review]
-    junit_output: .syrus/grade-output/rspec-focused-junit.xml
+  - type: rspec
     failures: allow_inherited
-  - name: rspec
-    run: bin/rspec-fast
-    phases: [landing]
-    junit_output: .syrus/grade-output/rspec-junit.xml
-    failures: allow_inherited
-  - name: rspec-ci
-    run: bin/rspec-ci
-    phases: [ci]
-    junit_output: .syrus/grade-output/rspec-ci-junit.xml
-    failures: allow_inherited
+    tags:
+      ci:
+        include: [ci_only]
 
 hooks:
   post_checkout:
@@ -192,9 +182,11 @@ repository keeps the original root preview behavior.
 ### `grade`
 
 `grade` defines checks Syrus runs after agent work. Syrus runs the command
-exactly as configured; put coverage, parallelism, JSON/JUnit output, or
-other formatter behavior in wrapper scripts such as `bin/rspec-fast` or
-`bin/rspec-ci`.
+exactly as configured. Framework plugins can also define typed graders such as
+`type: rspec`; those expand into focused review, landing, and CI variants with
+the right JSON/JUnit output and base-revision retry metadata. Use custom
+`run:` commands when a plugin-defined grader cannot express a repository's
+test command yet.
 
 `phases` controls where a grader runs:
 

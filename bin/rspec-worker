@@ -3,29 +3,28 @@ set -euo pipefail
 
 export RAILS_ENV="${RAILS_ENV:-test}"
 export RSPEC_JSON_DIR="${RSPEC_JSON_DIR:-.syrus/rspec-json}"
-# Per-worker JUnit XML. bin/rspec-fast merges these into one document so the
-# `junit_output:` grader key still ingests under parallelism — a single worker
-# only ever sees its own slice of the suite.
+# Per-worker JUnit XML. The typed RSpec grader command merges these into the
+# configured `junit_output:` path after parallel_rspec finishes.
 export RSPEC_JUNIT_DIR="${RSPEC_JUNIT_DIR:-.syrus/rspec-junit}"
 
 mkdir -p "$RSPEC_JSON_DIR" "$RSPEC_JUNIT_DIR"
 worker_id="${TEST_ENV_NUMBER:-1}"
+json_prefix="${RSPEC_OUTPUT_PREFIX:-rspec}"
+junit_prefix="${RSPEC_JUNIT_PREFIX:-rspec-junit}"
+tag_args=()
+if [ -n "${RSPEC_TAG_ARGS:-}" ]; then
+  # shellcheck disable=SC2206
+  tag_args=(${RSPEC_TAG_ARGS})
+else
+  tag_args=(--tag ~ci_only)
+fi
 
-# bin/rspec-fast's contract is "excludes :ci_only" unconditionally (see
-# CLAUDE.md) — bin/rspec-ci's second phase is solely responsible for running
-# them. But spec_helper.rb's config-level filter also treats a bare
-# ENV["CI"] (which GitHub Actions always sets to "true") as "include
-# ci_only", so under real CI this worker would otherwise run every ci_only
-# spec once here AND again in bin/rspec-ci's explicit second phase —
-# doubling load on a fixed-core runner and producing spurious SQLite lock
-# contention / subprocess-timing failures. Force the exclusion at the CLI
-# level so it holds regardless of the ambient CI env var.
 exec bin/rspec \
-  --tag ~ci_only \
+  "${tag_args[@]}" \
   --require rspec_junit_formatter \
   --format progress \
   --format json \
-  --out "$RSPEC_JSON_DIR/rspec-${worker_id}.json" \
+  --out "$RSPEC_JSON_DIR/${json_prefix}-${worker_id}.json" \
   --format RspecJunitFormatter \
-  --out "$RSPEC_JUNIT_DIR/rspec-junit-${worker_id}.xml" \
+  --out "$RSPEC_JUNIT_DIR/${junit_prefix}-${worker_id}.xml" \
   "$@"

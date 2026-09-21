@@ -6,9 +6,10 @@ description: Configure fast review checks, landing checks, CI repair checks, cov
 # Tests and Graders
 
 Graders are repository-owned commands that Syrus runs to decide whether agent
-work is good enough to continue. Syrus does not rewrite the commands. Put
-parallelism, coverage, JSON/JUnit formatters, and CI-only behavior in wrapper
-scripts that live in the repository.
+work is good enough to continue. Custom `run:` graders execute exactly as
+configured. Framework plugins can also provide typed graders that own the
+normal command shape, JSON/JUnit output, and base-revision retry metadata for
+common test frameworks.
 
 ## Phases
 
@@ -22,26 +23,17 @@ Example:
 
 ```yaml
 grade:
-  - name: quick-ruby
-    run: bin/rspec-focused
-    phases: [review]
-    junit_output: .syrus/grade-output/rspec-focused-junit.xml
-
-  - name: rspec
-    run: bin/rspec-fast
-    phases: [landing]
-    junit_output: .syrus/grade-output/rspec-junit.xml
+  - type: rspec
     failures: allow_inherited
-
-  - name: rspec-ci
-    run: bin/rspec-ci
-    phases: [ci]
-    junit_output: .syrus/grade-output/rspec-ci-junit.xml
-    failures: allow_inherited
+    tags:
+      ci:
+        include: [ci_only]
 ```
 
 The practical pattern is to keep review checks fast enough that iteration
 feels interactive, then run heavier checks at landing or during CI repair.
+Typed graders can generate those variants from one declaration; custom graders
+use `phases` directly.
 
 ## Required and Optional Checks
 
@@ -183,7 +175,8 @@ gate when relevant files change.
 
 ## Good Wrapper Scripts
 
-Good grader scripts are deterministic, reasonably quiet, and produce
-machine-readable output in a known location. For test suites, prefer a wrapper
-such as `bin/rspec-fast` or `bin/rspec-ci` over embedding a long formatter
-command directly in `.syrus.yml`.
+Good grader commands are deterministic, reasonably quiet, and produce
+machine-readable output in a known location. For common test suites, prefer
+typed graders such as `type: rspec` or `type: vitest`; use custom wrapper
+scripts only when the framework plugin cannot express a repository-specific
+requirement yet.

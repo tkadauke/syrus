@@ -225,6 +225,8 @@ most once per workflow workspace.
 | `required` | no | `true` | Non-required failures warn but don't block |
 | `timeout_minutes` | no | 15 | Clamped to 90 max |
 | `<mode>_timeout_minutes` / `timeouts` | no | `timeout_minutes` | Plugin-defined graders can override generated `full`, `focused`, or `ci` grader timeouts |
+| `tags` / `<mode>_include_tags` / `<mode>_exclude_tags` | no | plugin-defined | Plugin-defined test graders can add RSpec/Vitest tag filters per generated mode |
+| `parallel_rspec` | no | `false` | RSpec-only; opt into `parallel_rspec` command generation for selected RSpec modes |
 | `when_files_changed` | no | — | Array of glob patterns; grader is skipped at fanout time if none of the PR's changed files match |
 | `junit_output` | no | — | Path to JUnit XML produced by the command; enables per-test result ingestion |
 | `failures` | no | `grade.failures` or `strict` | `strict` or `allow_inherited` |
@@ -267,6 +269,38 @@ defaults. Use
 `when_files_changed` only to narrow or widen that framework default for this
 particular project. Do not make a root grader cover unrelated plugin or
 subproject paths; give those projects their own `.syrus.yml` and graders.
+
+`type: rspec` supports tag filters without a wrapper script. By default, the
+full landing and focused review graders exclude `ci_only`; the CI grader
+inherits `RUN_CI_ONLY_SPECS=true` and may include any tags you configure.
+
+```yaml
+grade:
+  - type: rspec
+    tags:
+      ci:
+        include: [ci_only]
+```
+
+`parallel_rspec` is opt-in because repositories differ in database setup and
+result-shard merging. A repository can ask the Ruby plugin to use
+`parallel_rspec` for selected RSpec modes (`full`, `focused`, `ci`) and, when
+needed, provide a worker command that writes per-worker JSON/JUnit artifacts.
+Those RSpec modes are generated command variants; they are separate from
+workflow `phases`, which decide when each generated grader runs. If CI tags are
+configured and the CI mode is parallelized, Syrus runs the normal fast pass in
+parallel and then runs the configured CI-tag pass serially before merging the
+JUnit shards.
+
+```yaml
+grade:
+  - type: rspec
+    parallel_rspec:
+      enabled: true
+      rspec_modes: [full, focused, ci]
+      exec_args: bin/rspec-worker
+      prepare_command: bundle exec rake parallel:prepare
+```
 
 Custom `run:` commands are executed as-is. A `fast:` key is no longer accepted
 at all — declaring it in `.syrus.yml` has no effect and is not parsed into
