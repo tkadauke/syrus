@@ -24,6 +24,22 @@ class DiffReviewVersion < ApplicationRecord
   scope :ordered, -> { order(:version_index, :id) }
   scope :latest_first, -> { order(version_index: :desc, id: :desc) }
   scope :all_changes, -> { where(reason: "source_diff") }
+  # Avoids loading the full files_snapshot JSON blob just to report a count --
+  # shared by every index-style payload (App::DiffReviewVersionsPayload,
+  # App::JobSourceDiffPayload) that lists a Job's versions without diffing them.
+  scope :with_files_snapshot_count, -> {
+    select(
+      :id, :job_id, :workflow_id, :run_id, :version_index,
+      :base_sha, :head_sha, :base_ref, :head_ref, :trigger_kind,
+      :label, :reason, :truncated, :metadata, :created_at,
+      Arel.sql("#{files_snapshot_count_sql} AS files_snapshot_count")
+    )
+  }
+
+  def self.files_snapshot_count_sql
+    adapter = connection.adapter_name.to_s.downcase
+    adapter.include?("mysql") ? "JSON_LENGTH(files_snapshot)" : "json_array_length(files_snapshot)"
+  end
 
   def self.next_index_for(job)
     where(job: job).maximum(:version_index).to_i + 1

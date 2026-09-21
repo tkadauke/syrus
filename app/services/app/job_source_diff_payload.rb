@@ -349,20 +349,7 @@ module App
     end
 
     def diff_review_versions_for_index
-      @job.diff_review_versions
-          .select(
-            :id, :job_id, :workflow_id, :run_id, :version_index,
-            :base_sha, :head_sha, :base_ref, :head_ref, :trigger_kind,
-            :label, :reason, :truncated, :metadata, :created_at,
-            Arel.sql("#{files_snapshot_count_sql} AS files_snapshot_count")
-          )
-          .includes(:workflow, :run)
-          .ordered
-    end
-
-    def files_snapshot_count_sql
-      adapter = DiffReviewVersion.connection.adapter_name.to_s.downcase
-      adapter.include?("mysql") ? "JSON_LENGTH(files_snapshot)" : "json_array_length(files_snapshot)"
+      @job.diff_review_versions.with_files_snapshot_count.includes(:workflow, :run).ordered
     end
 
     def comments_count_for(version)
