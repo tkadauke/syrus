@@ -1,6 +1,44 @@
 require "rails_helper"
+require "tmpdir"
+require "open3"
 
 RSpec.describe Ruby::RspecGraderType do
+  describe "#focused_command" do
+    it "embeds a ruby -e selector script that survives squish and actually runs" do
+      grader = described_class.new(config: {}, default_failures: "strict")
+      command = grader.send(:focused_command)
+
+      match = command.match(/ruby -e (.*?) > \.syrus\/rspec-focused-files/m)
+      raise "expected focused_command to contain a `ruby -e ... > .syrus/rspec-focused-files` invocation" unless match
+
+      ruby_arg = match[1]
+
+      Dir.mktmpdir do |dir|
+        Dir.chdir(dir) do
+          system("git", "init", "-q")
+          system("git", "config", "user.email", "test@example.com")
+          system("git", "config", "user.name", "Test")
+          system("git", "checkout", "-q", "-b", "main")
+          File.write("keep.txt", "x")
+          system("git", "add", "-A")
+          system("git", "commit", "-q", "-m", "init")
+          system("git", "checkout", "-q", "-b", "feature")
+          FileUtils.mkdir_p("app")
+          FileUtils.mkdir_p("spec/app")
+          File.write("app/thing.rb", "class Thing; end\n")
+          File.write("spec/app/thing_spec.rb", "RSpec.describe Thing do; end\n")
+          system("git", "add", "-A")
+          system("git", "commit", "-q", "-m", "feature")
+
+          out, err, status = Open3.capture3("bash", "-c", "ruby -e #{ruby_arg}")
+
+          expect(status).to be_success, "expected the selector script to run cleanly, got stderr: #{err}"
+          expect(out.lines.map(&:strip)).to eq([ "spec/app/thing_spec.rb" ])
+        end
+      end
+    end
+  end
+
   it "registers the rspec type name" do
     expect(described_class.type_name).to eq("rspec")
   end

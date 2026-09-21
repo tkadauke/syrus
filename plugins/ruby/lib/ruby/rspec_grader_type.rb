@@ -192,12 +192,21 @@ module Ruby
     end
 
     def focused_command
+      # Squish the skeleton *before* substituting in the Shellwords-escaped
+      # ruby script: Shellwords.escape preserves literal newlines inside
+      # single quotes (so the shell sees them as real newlines in the -e
+      # argument), and squishing the fully-interpolated string would
+      # collapse those quoted newlines into spaces, corrupting the script
+      # into one unparseable line.
       <<~BASH.squish
-        #{setup_prefix} &&
-        ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/rspec-focused-files &&
+        __SETUP__ &&
+        ruby -e __SCRIPT__ > .syrus/rspec-focused-files &&
         if [ ! -s .syrus/rspec-focused-files ]; then echo "No focused RSpec files matched changed Ruby files"; exit 0; fi &&
-        #{rspec_command(junit_output: junit_output(focused_name), json_output: json_output(focused_name), coverage: false, args: [ "--tag", "~ci_only", "$(cat .syrus/rspec-focused-files)" ], shell_expand_args: true, skip_setup: true)}
+        __RSPEC__
       BASH
+        .sub("__SETUP__") { setup_prefix }
+        .sub("__SCRIPT__") { Shellwords.escape(focused_selector_ruby) }
+        .sub("__RSPEC__") { rspec_command(junit_output: junit_output(focused_name), json_output: json_output(focused_name), coverage: false, args: [ "--tag", "~ci_only", "$(cat .syrus/rspec-focused-files)" ], shell_expand_args: true, skip_setup: true) }
     end
 
     def rspec_command(junit_output:, json_output:, coverage:, env: {}, args: [], shell_expand_args: false, skip_setup: false)
