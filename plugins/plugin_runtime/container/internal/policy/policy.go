@@ -13,7 +13,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tkadauke/syrus/runtime-manager/internal/spec"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/spec"
 )
 
 var (

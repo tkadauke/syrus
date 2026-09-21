@@ -22,10 +22,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tkadauke/syrus/runtime-manager/internal/docker"
-	"github.com/tkadauke/syrus/runtime-manager/internal/manager"
-	"github.com/tkadauke/syrus/runtime-manager/internal/policy"
-	"github.com/tkadauke/syrus/runtime-manager/internal/server"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/docker"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/manager"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/policy"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/server"
 )
 
 const (

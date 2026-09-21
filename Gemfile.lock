@@ -141,6 +141,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/plugin_runtime
+  specs:
+    plugin_runtime (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/python
   specs:
     python (0.1.0)
@@ -851,6 +857,7 @@ DEPENDENCIES
   octokit (~> 10.0)
   parallel_tests (~> 5.7)
   pdf-reader
+  plugin_runtime!
   propshaft
   puma (>= 5.0)
   pundit
@@ -1055,6 +1062,7 @@ CHECKSUMS
   parallel_tests (5.7.0) sha256=3f1762c46ca2c223b8af8ef877217f9d76974e191bfa934f2580b58bcf1d005c
   parser (3.3.12.0) sha256=21a6d7f755d5a24dfbdc6e6b772e4e879a52e7631a88bc5a3a134606052c9828
   pdf-reader (2.16.0) sha256=bf1b5564c085264d8279bde3cf1467778b75841494d20c0fe7da3dad475f3732
+  plugin_runtime (0.1.0)
   pp (0.6.4) sha256=dfcb0fce700c41456265922884f9fe195d7fbb0674a3578e6c0f69588e82b570
   prettyprint (0.2.0) sha256=2bc9e15581a94742064a3cc8b0fb9d45aae3d03a1baa6ef80922627a0766f193
   prism (1.9.0) sha256=7b530c6a9f92c24300014919c9dcbc055bf4cdf51ec30aed099b06cd6674ef85

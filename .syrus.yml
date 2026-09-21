@@ -43,10 +43,11 @@ formatters:
       - "package-lock.json"
       - "tsconfig.json"
       - "vite.config.ts"
-  - command: gofmt -w cli plugins/*/cli
+  - command: gofmt -w cli plugins/*/cli plugins/*/container
     files:
       - "cli/**/*.go"
       - "plugins/*/cli/**/*.go"
+      - "plugins/*/container/**/*.go"
 
 targets:
   - name: website-deploy-workflow

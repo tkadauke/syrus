@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tkadauke/syrus/runtime-manager/internal/docker"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/docker"
 )
 
 // fakeDocker is an in-memory daemon. It is deliberately literal about the

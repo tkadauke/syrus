@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tkadauke/syrus/runtime-manager/internal/manager"
-	"github.com/tkadauke/syrus/runtime-manager/internal/policy"
-	"github.com/tkadauke/syrus/runtime-manager/internal/spec"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/manager"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/policy"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/spec"
 )
 
 const token = "0123456789abcdef0123456789abcdef"

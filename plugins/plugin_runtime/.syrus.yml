@@ -1,0 +1,9 @@
+project:
+  id: plugin_runtime
+  label: "plugin_runtime plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+  - type: go-test
+    path: container

@@ -19,9 +19,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tkadauke/syrus/runtime-manager/internal/docker"
-	"github.com/tkadauke/syrus/runtime-manager/internal/policy"
-	"github.com/tkadauke/syrus/runtime-manager/internal/spec"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/docker"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/policy"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/spec"
 )
 
 // Labels stamped on every managed container and volume.
