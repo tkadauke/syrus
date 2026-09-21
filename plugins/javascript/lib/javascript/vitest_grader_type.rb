@@ -215,12 +215,27 @@ module JavaScript
     end
 
     def focused_command
-      <<~BASH.squish
+      # NOTE: `Shellwords.escape` represents embedded newlines in
+      # focused_selector_ruby as literal `'\n'` sequences (a closing quote,
+      # a real newline, a reopening quote) so the multi-line Ruby script
+      # stays intact once the shell unescapes it. `.squish` doesn't know
+      # about that shell-quoting -- it collapses every run of whitespace
+      # (including those literal embedded newlines) down to a single space,
+      # which silently deletes the statement separators from the Ruby
+      # script and turns it into one unparsable line. Substitute the
+      # escaped script in AFTER squishing so squish never sees it.
+      template = <<~BASH.squish
         #{setup_prefix} &&
-        ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/vitest-focused-files &&
+        ruby -e __SYRUS_FOCUSED_SELECTOR__ > .syrus/vitest-focused-files &&
         if [ ! -s .syrus/vitest-focused-files ]; then echo "No focused Vitest files matched changed JavaScript/TypeScript files"; exit 0; fi &&
         #{vitest_command(junit_output: junit_output(focused_name), coverage: false, include_typecheck: false, args: [ "related", "--run", "--passWithNoTests", "$(cat .syrus/vitest-focused-files)" ], shell_expand_args: true, skip_setup: true)}
       BASH
+      # Block form: a plain-string replacement argument to `sub` treats
+      # backslash sequences like `` \` `` specially (Ruby's pre-match
+      # backreference) -- and Shellwords.escape emits exactly that when it
+      # escapes the backtick command-substitution in focused_selector_ruby.
+      # The block form inserts its return value literally.
+      template.sub("__SYRUS_FOCUSED_SELECTOR__") { Shellwords.escape(focused_selector_ruby) }
     end
 
     def vitest_command(junit_output:, coverage:, include_typecheck:, args:, shell_expand_args: false, skip_setup: false)

@@ -192,12 +192,27 @@ module Ruby
     end
 
     def focused_command
-      <<~BASH.squish
+      # NOTE: `Shellwords.escape` represents embedded newlines in
+      # focused_selector_ruby as literal `'\n'` sequences (a closing quote,
+      # a real newline, a reopening quote) so the multi-line Ruby script
+      # stays intact once the shell unescapes it. `.squish` doesn't know
+      # about that shell-quoting -- it collapses every run of whitespace
+      # (including those literal embedded newlines) down to a single space,
+      # which silently deletes the statement separators from the Ruby
+      # script and turns it into one unparsable line. Substitute the
+      # escaped script in AFTER squishing so squish never sees it.
+      template = <<~BASH.squish
         #{setup_prefix} &&
-        ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/rspec-focused-files &&
+        ruby -e __SYRUS_FOCUSED_SELECTOR__ > .syrus/rspec-focused-files &&
         if [ ! -s .syrus/rspec-focused-files ]; then echo "No focused RSpec files matched changed Ruby files"; exit 0; fi &&
         #{rspec_command(junit_output: junit_output(focused_name), json_output: json_output(focused_name), coverage: false, args: [ "--tag", "~ci_only", "$(cat .syrus/rspec-focused-files)" ], shell_expand_args: true, skip_setup: true)}
       BASH
+      # Block form: a plain-string replacement argument to `sub` treats
+      # backslash sequences like `` \` `` specially (Ruby's pre-match
+      # backreference) -- and Shellwords.escape emits exactly that when it
+      # escapes the backtick command-substitution in focused_selector_ruby.
+      # The block form inserts its return value literally.
+      template.sub("__SYRUS_FOCUSED_SELECTOR__") { Shellwords.escape(focused_selector_ruby) }
     end
 
     def rspec_command(junit_output:, json_output:, coverage:, env: {}, args: [], shell_expand_args: false, skip_setup: false)

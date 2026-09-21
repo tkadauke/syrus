@@ -106,6 +106,28 @@ RSpec.describe JavaScript::VitestGraderType do
     ])
   end
 
+  it "embeds a syntactically valid, correctly shell-quoted focused-file selector script" do
+    # Regression test: `focused_command` interpolates a multi-line Ruby
+    # script (which contains embedded newlines) via `Shellwords.escape`,
+    # then formats the whole bash command with `.squish`. `.squish`
+    # collapses whitespace blindly, including the literal newlines
+    # Shellwords.escape embeds inside single-quoted segments to represent
+    # the script's own line breaks -- if that happens after interpolation,
+    # every line-break in the Ruby script gets flattened into a bare space,
+    # destroying its statement separators and making it unparsable (a
+    # syntax error at grader run time, not at generation time, so nothing
+    # short of actually invoking `ruby -c` on the reconstructed argument
+    # catches it).
+    steps = described_class.grade_steps(config: {}, default_failures: "strict")
+    command = steps.second.run
+
+    words = Shellwords.split(command)
+    selector_script = words[words.index("-e") + 1]
+
+    expect { RubyVM::InstructionSequence.compile(selector_script) }.not_to raise_error
+    expect(selector_script).to include("\n")
+  end
+
   it "can disable typecheck and enable coverage" do
     step = described_class.grade_steps(
       config: { "typecheck" => false, "coverage" => true },
