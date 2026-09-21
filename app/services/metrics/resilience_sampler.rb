@@ -30,6 +30,12 @@ module Metrics
         gauge :github_rate_limit_remaining, tags: %i[credential_mode],
               comment: "Lowest observed GitHub API rate-limit remaining, by credential mode " \
                        "(GLOBAL -- aggregate with max by, never sum)"
+        gauge :github_app_rate_limit_remaining_percent,
+              comment: "Lowest observed GitHub App installation rate-limit remaining percentage " \
+                       "(GLOBAL -- aggregate with max by, never sum)"
+        gauge :github_app_api_blocked_count,
+              comment: "Active GitHub App installations currently marked API-blocked " \
+                       "(GLOBAL -- aggregate with max by, never sum)"
         gauge :repositories_main_branch_broken_count,
               comment: "Repositories whose default branch health is currently broken -- StepDispatcher " \
                        "pauses every workflow instance-wide, including landing, while this is nonzero " \
@@ -53,6 +59,10 @@ module Metrics
       payload = {
         provider_circuit_state: guard("provider circuit state", {}) { source.provider_circuit_states },
         github_rate_limit_remaining: guard("github rate limit remaining", {}) { source.github_rate_limit_remaining },
+        github_app_rate_limit_remaining_percent: guard("github app rate limit remaining percent", nil) do
+          source.github_app_rate_limit_remaining_percent
+        end,
+        github_app_api_blocked_count: guard("github app api blocked count", 0) { source.github_app_api_blocked_count },
         main_branch_broken_count: guard("main branch broken count", 0) { source.main_branch_broken_repository_count }
       }
       Rails.cache.write(CACHE_KEY, payload, expires_in: CACHE_TTL)
@@ -70,6 +80,14 @@ module Metrics
       end
 
       set_each(:syrus_github_rate_limit_remaining, payload[:github_rate_limit_remaining], :credential_mode)
+      app_percent_gauge = Syrus::Metrics.gauge(:syrus_github_app_rate_limit_remaining_percent)
+      if payload.key?(:github_app_rate_limit_remaining_percent) && payload[:github_app_rate_limit_remaining_percent].present?
+        app_percent_gauge.set(payload[:github_app_rate_limit_remaining_percent].to_f)
+      else
+        app_percent_gauge.clear
+      end
+
+      Syrus::Metrics.gauge(:syrus_github_app_api_blocked_count).set(payload[:github_app_api_blocked_count].to_i)
 
       Syrus::Metrics.gauge(:syrus_repositories_main_branch_broken_count).set(payload[:main_branch_broken_count].to_i)
 

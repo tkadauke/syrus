@@ -272,6 +272,8 @@ unbounded case the rest of the allowlist guards against -- see the comment on
 |---|---|
 | `syrus_provider_circuit_state{provider}` | circuit state per configured agent provider |
 | `syrus_github_rate_limit_remaining{credential_mode}` | lowest observed GitHub API rate-limit remaining, by credential mode |
+| `syrus_github_app_rate_limit_remaining_percent` | lowest observed GitHub App installation rate-limit remaining percentage |
+| `syrus_github_app_api_blocked_count` | active GitHub App installations currently marked API-blocked |
 | `syrus_repositories_main_branch_broken_count` | repositories whose default branch health is currently broken |
 
 `Metrics::ResilienceSampler` (`app/services/metrics/resilience_sampler.rb`) owns
@@ -311,6 +313,18 @@ informative reading here, the same instinct `Metrics::WorkerSampler` uses for
 "one worker at 3277m and another idle at 51m." A credential mode with no
 observation yet (nobody has made a tracked GitHub call under it) is omitted
 rather than reported as `0`, which would misread as "exhausted."
+
+**`github_app_rate_limit_remaining_percent`** is the same GitHub response
+header data restricted to active GitHub App installations and normalized by
+each installation's current limit before taking the lowest value. The
+dashboard uses this as the App-specific saturation view because installation
+limits vary; 700 remaining requests can be healthy for one installation and
+nearly exhausted for another. It is intentionally unlabelled rather than
+tagged by installation or account, because those identifiers grow with the
+number of connected installations and belong in admin tables, not Prometheus
+series. **`github_app_api_blocked_count`** counts active installations with
+`gh_api_blocked_at` set, which is the state that drives the in-app GitHub App
+rate-limit banner.
 
 **`repositories_main_branch_broken_count`** counts repositories where
 `Repository#main_health_broken?` is true. `StepDispatcher` pauses every

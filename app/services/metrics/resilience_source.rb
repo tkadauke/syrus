@@ -35,6 +35,20 @@ module Metrics
       }.compact
     end
 
+    def github_app_rate_limit_remaining_percent
+      percentages = Installation.active
+        .where.not(gh_rate_limit_remaining: nil)
+        .where("gh_rate_limit_limit IS NOT NULL AND gh_rate_limit_limit > 0")
+        .pluck(:gh_rate_limit_remaining, :gh_rate_limit_limit)
+        .map { |remaining, limit| (remaining.to_f / limit.to_f) * 100.0 }
+
+      percentages.min
+    end
+
+    def github_app_api_blocked_count
+      Installation.active.where.not(gh_api_blocked_at: nil).count
+    end
+
     # Repositories whose default branch is currently graded broken --
     # StepDispatcher pauses every workflow on the instance, including
     # landing, while any of these exist (see CLAUDE.md "Main-branch health &

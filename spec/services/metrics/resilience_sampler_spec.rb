@@ -17,6 +17,8 @@ RSpec.describe Metrics::ResilienceSampler do
 
     def provider_circuit_states(now: nil) = resolve(@provider_circuit_states)
     def github_rate_limit_remaining = resolve(@github_rate_limit_remaining)
+    def github_app_rate_limit_remaining_percent = resolve(nil)
+    def github_app_api_blocked_count = resolve(0)
     def main_branch_broken_repository_count = resolve(@main_branch_broken_repository_count)
 
     private
@@ -88,7 +90,8 @@ RSpec.describe Metrics::ResilienceSampler do
     it "distinguishes a usage-limit open state from an ordinary open state" do
       run = failed_agent_run(provider: "codex", outcome: "provider_usage_limit")
       RunDiagnostic.create!(run: run, error_class: "Steps::Base::StepFailed", error_message: "Codex API error: model gpt-5.5 weekly usage limit exhausted; check billing")
-      run.create_run_failure_classification!(
+      classification = run.run_failure_classification || run.build_run_failure_classification
+      classification.update!(
         classification: "provider_usage_limit",
         confidence: 0.95,
         retryable: false,
@@ -120,6 +123,34 @@ RSpec.describe Metrics::ResilienceSampler do
       described_class.refresh_gauges!
 
       expect(Syrus::Metrics.render).not_to include("syrus_github_rate_limit_remaining{")
+    end
+
+    it "caches the lowest observed github app rate-limit percentage" do
+      Factories.installation(user: user, gh_rate_limit_remaining: 300, gh_rate_limit_limit: 1000)
+      Factories.installation(user: user, gh_rate_limit_remaining: 4000, gh_rate_limit_limit: 8000)
+      Factories.installation(user: user, gh_rate_limit_remaining: 0, gh_rate_limit_limit: 5000, removed_at: 1.hour.ago)
+
+      described_class.sample!
+      described_class.refresh_gauges!
+
+      expect(Syrus::Metrics.render).to include("syrus_github_app_rate_limit_remaining_percent 30")
+    end
+
+    it "omits github app rate-limit percentage when no app limit has been observed yet" do
+      described_class.sample!
+      described_class.refresh_gauges!
+
+      expect(Syrus::Metrics.render).not_to include("syrus_github_app_rate_limit_remaining_percent")
+    end
+
+    it "caches the count of github app installations marked api blocked" do
+      Factories.installation(user: user, gh_api_blocked_at: Time.current, gh_api_blocked_reason: "rate limited")
+      Factories.installation(user: user, gh_api_blocked_at: Time.current, gh_api_blocked_reason: "removed", removed_at: 1.hour.ago)
+
+      described_class.sample!
+      described_class.refresh_gauges!
+
+      expect(Syrus::Metrics.render).to include("syrus_github_app_api_blocked_count 1")
     end
 
     it "caches the count of repositories whose default branch health is broken" do

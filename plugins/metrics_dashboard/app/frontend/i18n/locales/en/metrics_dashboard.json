@@ -37,6 +37,8 @@
     "spawned_processes": "Spawned processes, by kind",
     "provider_circuit_state": "Provider circuit state, by provider",
     "github_rate_limit": "GitHub rate limit remaining, by credential mode",
+    "github_app_rate_limit_percent": "GitHub App rate limit remaining",
+    "github_app_api_blocked": "GitHub App API-blocked installations",
     "main_branch_broken_count": "Repositories with a broken main branch",
     "recurring_job_last_success": "Time since last recurring job success, by job",
     "provider_sessions_bytes": "Provider session storage",

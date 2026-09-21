@@ -236,6 +236,7 @@ RSpec.describe MetricsDashboard::DashboardPayload do
       expect(by_key["queue_ready"][:category]).to eq(described_class::CATEGORY_QUEUE_THROUGHPUT)
       expect(by_key["worker_cpu"][:category]).to eq(described_class::CATEGORY_WORKERS_FLEET)
       expect(by_key["worker_disk"][:category]).to eq(described_class::CATEGORY_WORKERS_FLEET)
+      expect(by_key["github_app_rate_limit_percent"][:category]).to eq(described_class::CATEGORY_RESILIENCE_PRODUCT)
       expect(by_key["feature_usage"][:category]).to eq(described_class::CATEGORY_RESILIENCE_PRODUCT)
     end
 
