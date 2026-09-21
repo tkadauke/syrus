@@ -23,6 +23,20 @@ RSpec.describe Workflows::Loop do
       expect { described_class.new(max_iterations: 5, steps: [ :implement, :adversarial_review, :grade ]) }
         .to raise_error(ArgumentError, "loop requires exactly 2 steps: [agent_step, review_step]")
     end
+
+    it "rejects a nested Loop instead of silently stringifying it" do
+      nested = described_class.new(max_iterations: 3, steps: [ :implement, :adversarial_review ])
+
+      expect { described_class.new(max_iterations: 5, steps: [ nested, :adversarial_review ]) }
+        .to raise_error(ArgumentError, "nested workflow control nodes are not supported")
+    end
+
+    it "rejects a nested RetryUntil instead of silently stringifying it" do
+      nested = Workflows::RetryUntil.new(repair: :implement, check: :graders)
+
+      expect { described_class.new(max_iterations: 5, steps: [ :implement, nested ]) }
+        .to raise_error(ArgumentError, "nested workflow control nodes are not supported")
+    end
   end
 
   describe "#loop?" do
