@@ -1,5 +1,6 @@
 class ChatJobStatusQuery
   JOB_PROPOSAL_KINDS = %w[job syrus_issue].freeze
+  PENDING_PROPOSAL_KINDS = (JOB_PROPOSAL_KINDS + %w[epic]).freeze
 
   def self.call(chat_session)
     new(chat_session).call
@@ -10,6 +11,24 @@ class ChatJobStatusQuery
   end
 
   def call
+    {
+      pending_proposals: pending_proposals_json,
+      items: job_status_items
+    }
+  end
+
+  private
+
+  def pending_proposals_json
+    @chat_session.proposals
+      .proposed
+      .where(parent_proposal_id: nil, kind: PENDING_PROPOSAL_KINDS)
+      .includes(:message_anchors)
+      .order(created_at: :desc, id: :desc)
+      .map { |proposal| App::ChatMessagePayload.job_status_proposal_json(proposal) }
+  end
+
+  def job_status_items
     proposals = @chat_session.proposals
       .confirmed
       .includes(job: :repository, epic: [])
@@ -72,8 +91,6 @@ class ChatJobStatusQuery
 
     result.sort_by { |item| item[:latest_updated_at] || item[:updated_at] || "" }.reverse
   end
-
-  private
 
   def preload_runtime_state!(jobs)
     jobs = jobs.compact.uniq(&:id)

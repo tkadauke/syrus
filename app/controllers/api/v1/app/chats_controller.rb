@@ -1590,18 +1590,21 @@ module Api
 
         def broadcast_proposal_updated(chat_session, proposal)
           repository = chat_session.repository
+          payload = {
+            action: "update_proposal",
+            proposal_id: proposal.id,
+            proposal: ::App::ChatMessagePayload.proposal(proposal, chat_session: chat_session, repository: repository),
+            pending_proposal_count: chat_session.proposals.where(state: "proposed").count
+          }
+          if ::App::ChatMessagePayload.job_status_pending_proposal_kind?(proposal)
+            payload[:job_status_proposal] = ::App::ChatMessagePayload.job_status_proposal_json(proposal)
+          end
           event_args = {
             type: "updated",
             resource: "chat",
             id: chat_session.id,
             changed: [ "proposal" ],
-            payload: {
-              action: "update_proposal",
-              proposal_id: proposal.id,
-              proposal: ::App::ChatMessagePayload.proposal(proposal, chat_session: chat_session, repository: repository),
-              dashboard_proposal: ::App::ChatMessagePayload.dashboard_pending_proposal_json(proposal),
-              pending_proposal_count: chat_session.proposals.where(state: "proposed").count
-            }
+            payload: payload
           }
           (chat_session.participants.to_a.presence || [ chat_session.user ]).each do |p|
             AppEvents.broadcast(user: p, **event_args)
