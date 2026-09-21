@@ -215,7 +215,7 @@ module JavaScript
     end
 
     def focused_command
-      <<~BASH.squish
+      <<~BASH
         #{setup_prefix} &&
         ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/vitest-focused-files &&
         if [ ! -s .syrus/vitest-focused-files ]; then echo "No focused Vitest files matched changed JavaScript/TypeScript files"; exit 0; fi &&

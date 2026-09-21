@@ -123,6 +123,15 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.third.run).to include("--tag \\~slow")
   end
 
+  it "keeps the focused selector as valid Ruby after shell escaping" do
+    command = described_class.grade_steps(config: {}, default_failures: "strict").second.run
+    script_arg = command.match(/ruby -e (?<script>.+?) > \.syrus\/rspec-focused-files/m)[:script]
+    script = Shellwords.split(script_arg).sole
+
+    expect { RubyVM::InstructionSequence.compile(script) }.not_to raise_error
+    expect(script).to include("exit 0 unless base\nscope =")
+  end
+
   it "uses configured parallel_rspec for fast and focused modes" do
     steps = described_class.grade_steps(
       config: {

@@ -69,6 +69,15 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.third.run).to include("run_vitest run app/frontend plugins/\\*/app/frontend")
   end
 
+  it "keeps the focused selector as valid Ruby after shell escaping" do
+    command = described_class.grade_steps(config: {}, default_failures: "strict").second.run
+    script_arg = command.match(/ruby -e (?<script>.+?) > \.syrus\/vitest-focused-files/m)[:script]
+    script = Shellwords.split(script_arg).sole
+
+    expect { RubyVM::InstructionSequence.compile(script) }.not_to raise_error
+    expect(script).to include("exit 0 unless base\nscope =")
+  end
+
   it "passes configured target dependencies through to every generated grader" do
     steps = described_class.grade_steps(
       config: { "deps" => [ "//plugins/browser:grade/vitest" ] },

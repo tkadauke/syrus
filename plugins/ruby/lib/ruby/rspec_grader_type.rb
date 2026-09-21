@@ -211,7 +211,7 @@ module Ruby
     end
 
     def focused_command
-      <<~BASH.squish
+      <<~BASH
         #{setup_prefix} &&
         ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/rspec-focused-files &&
         if [ ! -s .syrus/rspec-focused-files ]; then echo "No focused RSpec files matched changed Ruby files"; exit 0; fi &&
