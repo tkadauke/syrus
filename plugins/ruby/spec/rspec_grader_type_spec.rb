@@ -2,6 +2,7 @@ require "rails_helper"
 require "open3"
 require "tmpdir"
 require "fileutils"
+require "shellwords"
 
 RSpec.describe Ruby::RspecGraderType do
   it "registers the rspec type name" do
