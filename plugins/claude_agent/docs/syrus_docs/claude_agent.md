@@ -1,10 +1,12 @@
 # Claude Agent
 
 The `claude_agent` plugin (`plugins/claude_agent/`) connects Syrus workflow
-Runs and chat turns to the Claude Code CLI. It is default-ON, customer-facing,
-and provides both an `agent_provider` (`AgentProviders::Claude`) and a
-`chat_provider` (`ChatProviders::Claude`), category `agent_provider`,
-`disableable: true`.
+Runs and chat turns to the Claude Code CLI. It is customer-facing but
+**disabled by default** (`default_enabled: false`, `disableable: true`) — a
+brand-new install starts with every agent-provider plugin off, so an
+operator enables at least one from Admin -> Plugins before Jobs or chats can
+run. It provides both an `agent_provider` (`AgentProviders::Claude`) and a
+`chat_provider` (`ChatProviders::Claude`), category `agent_provider`.
 
 ## Invocation (`ClaudeInvocation`)
 
