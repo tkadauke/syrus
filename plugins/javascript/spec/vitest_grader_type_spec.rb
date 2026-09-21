@@ -1,6 +1,41 @@
 require "rails_helper"
+require "tmpdir"
+require "open3"
 
 RSpec.describe JavaScript::VitestGraderType do
+  describe "#focused_command" do
+    it "embeds a ruby -e selector script that survives squish and actually runs" do
+      grader = described_class.new(config: {}, default_failures: "strict")
+      command = grader.send(:focused_command)
+
+      match = command.match(/ruby -e (.*?) > \.syrus\/vitest-focused-files/m)
+      raise "expected focused_command to contain a `ruby -e ... > .syrus/vitest-focused-files` invocation" unless match
+
+      ruby_arg = match[1]
+
+      Dir.mktmpdir do |dir|
+        Dir.chdir(dir) do
+          system("git", "init", "-q")
+          system("git", "config", "user.email", "test@example.com")
+          system("git", "config", "user.name", "Test")
+          system("git", "checkout", "-q", "-b", "main")
+          File.write("keep.txt", "x")
+          system("git", "add", "-A")
+          system("git", "commit", "-q", "-m", "init")
+          system("git", "checkout", "-q", "-b", "feature")
+          File.write("app.ts", "export const x = 1;\n")
+          system("git", "add", "-A")
+          system("git", "commit", "-q", "-m", "feature")
+
+          out, err, status = Open3.capture3("bash", "-c", "ruby -e #{ruby_arg}")
+
+          expect(status).to be_success, "expected the selector script to run cleanly, got stderr: #{err}"
+          expect(out.lines.map(&:strip)).to eq([ "app.ts" ])
+        end
+      end
+    end
+  end
+
   it "registers the vitest type name" do
     expect(described_class.type_name).to eq("vitest")
   end

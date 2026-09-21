@@ -215,12 +215,21 @@ module JavaScript
     end
 
     def focused_command
+      # Squish the skeleton *before* substituting in the Shellwords-escaped
+      # ruby script: Shellwords.escape preserves literal newlines inside
+      # single quotes (so the shell sees them as real newlines in the -e
+      # argument), and squishing the fully-interpolated string would
+      # collapse those quoted newlines into spaces, corrupting the script
+      # into one unparseable line.
       <<~BASH.squish
-        #{setup_prefix} &&
-        ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/vitest-focused-files &&
+        __SETUP__ &&
+        ruby -e __SCRIPT__ > .syrus/vitest-focused-files &&
         if [ ! -s .syrus/vitest-focused-files ]; then echo "No focused Vitest files matched changed JavaScript/TypeScript files"; exit 0; fi &&
-        #{vitest_command(junit_output: junit_output(focused_name), coverage: false, include_typecheck: false, args: [ "related", "--run", "--passWithNoTests", "$(cat .syrus/vitest-focused-files)" ], shell_expand_args: true, skip_setup: true)}
+        __VITEST__
       BASH
+        .sub("__SETUP__") { setup_prefix }
+        .sub("__SCRIPT__") { Shellwords.escape(focused_selector_ruby) }
+        .sub("__VITEST__") { vitest_command(junit_output: junit_output(focused_name), coverage: false, include_typecheck: false, args: [ "related", "--run", "--passWithNoTests", "$(cat .syrus/vitest-focused-files)" ], shell_expand_args: true, skip_setup: true) }
     end
 
     def vitest_command(junit_output:, coverage:, include_typecheck:, args:, shell_expand_args: false, skip_setup: false)
