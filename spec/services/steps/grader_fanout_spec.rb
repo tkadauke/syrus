@@ -97,9 +97,11 @@ RSpec.describe Steps::GraderFanout, :ci_only do
   end
 
   def current_fingerprint
+    graph = TargetGraph::Compiler.compile(@ws_path)
+    plan = TargetGraph::GradePlan.for(workspace_path: @ws_path, graph: graph)
     GraderConclusionCache.fingerprint_for_plan(
-      LandingGraderPlan.effective(RepoGradePlan.for(@ws_path), trigger_kind: workflow.trigger_kind, iteration: run.iteration),
-      target_graph: TargetGraph::Compiler.compile(@ws_path)
+      LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: run.iteration),
+      target_graph: graph
     )
   end
 
@@ -1068,6 +1070,34 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("skipped rspec (latest target health record passed from previou) [//:grade/rspec]")
+  end
+
+  it "serializes reusable target health refs after executable dependencies without mixing hash and record shapes" do
+    write_config(<<~YAML)
+      targets:
+        - name: deps
+          kind: prepare
+          run: npm ci
+      grade:
+        - name: rspec
+          run: bin/rspec
+          deps: [":deps"]
+    YAML
+    grader_health = record_target_health("//:grade/rspec", status: "passed")
+    dependency_health = record_target_health("//:deps", status: "passed")
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader")).to be_empty
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY)).to contain_exactly(
+      include(
+        "name" => "rspec",
+        "target_health_record_refs" => contain_exactly(
+          include("target_health_record_id" => grader_health.id),
+          include("target_health_record_id" => dependency_health.id)
+        )
+      )
+    )
   end
 
   it "does not skip optional grader targets from reusable target health" do

@@ -299,7 +299,14 @@ class TargetGraph
         compile_prepare!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
         compile_formatters!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
         compile_generated!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
-        compile_graders!(graph, syrus_workspace_path: workspace_path.join(relative_dir), package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
+        compile_graders!(
+          graph,
+          syrus_workspace_path: workspace_path.join(relative_dir),
+          syrus_config: nested_config,
+          package: relative_dir,
+          project_id: project_id,
+          config_path: nested_owner_config_path
+        )
       end
     end
 
@@ -516,12 +523,14 @@ class TargetGraph
       provider.class.name || provider.class.inspect
     end
 
-    # Root prepare is left out of the dependency graph on purpose: it is the
+    # Root prepare is left out of root executable dependency edges on purpose: it is the
     # legacy pre-implementation baseline (runs unconditionally before every
     # workflow step, not selectively per affected target), so wiring it as a
     # dependency of every root executable target would assert a selection
     # relationship that doesn't exist yet. See DOC-20 "Prepare Semantics."
-    # The same treatment applies to a nested `.syrus.yml`'s own `prepare:`.
+    # Nested `.syrus.yml` prepare targets still compile as normal prepare
+    # targets; nested grader targets depend on their own project's prepare so
+    # distributed grader runs can materialize that project-local setup.
     def compile_prepare!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
       return unless syrus_config
       return unless syrus_config.prepare.is_a?(Array)
@@ -616,7 +625,7 @@ class TargetGraph
       end
     end
 
-    def compile_graders!(graph, syrus_workspace_path: workspace_path, package: "", project_id: root_project_id, config_path: owner_config_path)
+    def compile_graders!(graph, syrus_workspace_path: workspace_path, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
       RepoGradePlan.for(syrus_workspace_path, project_path: package).graders.each do |grader|
         add_target!(
           graph,
@@ -626,7 +635,11 @@ class TargetGraph
             project_id: project_id,
             source_scope: scoped_source_scope(package, grader.when_files_changed),
             command: grader.command,
-            dependencies: legacy_dependencies(grader.deps, package: package),
+            dependencies: legacy_dependencies(
+              grader.deps,
+              package: package,
+              additional: project_prepare_dependencies(syrus_config, package: package)
+            ),
             phases: grader.phases,
             required: grader.required,
             timeout_minutes: positive_timeout(grader.timeout_minutes),
@@ -707,8 +720,18 @@ class TargetGraph
       timeout_minutes if timeout_minutes.is_a?(Integer) && timeout_minutes.positive?
     end
 
-    def legacy_dependencies(raw_dependencies, package:)
-      [ TargetGraph.root_label, *resolved_dependencies(raw_dependencies, package: package) ].uniq
+    def project_prepare_dependencies(syrus_config, package:)
+      return [] if package.blank?
+      return [] unless syrus_config&.prepare.is_a?(Array)
+
+      commands = syrus_config.prepare.map(&:to_s).map(&:strip).reject(&:empty?)
+      return [] if commands.empty?
+
+      [ label_for("prepare", package: package) ]
+    end
+
+    def legacy_dependencies(raw_dependencies, package:, additional: [])
+      [ TargetGraph.root_label, *additional, *resolved_dependencies(raw_dependencies, package: package) ].uniq
     end
 
     def resolved_dependencies(raw_dependencies, package:)

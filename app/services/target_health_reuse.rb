@@ -14,7 +14,7 @@ class TargetHealthReuse
     end
 
     def record_refs
-      ([ record ] + dependency_results.flat_map(&:record_refs)).compact.uniq(&:id).map do |health|
+      health_records.map do |health|
         {
           "target_health_record_id" => health.id,
           "target_label" => health.target_label,
@@ -24,6 +24,10 @@ class TargetHealthReuse
           "checked_at" => health.checked_at&.iso8601
         }.compact
       end
+    end
+
+    def health_records
+      ([ record ] + dependency_results.flat_map(&:health_records)).compact.uniq(&:id)
     end
 
     private
