@@ -215,9 +215,15 @@ module JavaScript
     end
 
     def focused_command
-      <<~BASH.squish
+      # Shellwords.escape embeds literal newlines (via adjacent quoted
+      # segments) to keep this multi-line ruby script one shell word.
+      # .squish would blindly collapse those newlines into spaces and
+      # break the script's syntax, so substitute the escaped script in
+      # after squishing the rest of the template.
+      placeholder = "__SYRUS_FOCUSED_SELECTOR_RUBY__"
+      <<~BASH.squish.sub(placeholder) { Shellwords.escape(focused_selector_ruby) }
         #{setup_prefix} &&
-        ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/vitest-focused-files &&
+        ruby -e #{placeholder} > .syrus/vitest-focused-files &&
         if [ ! -s .syrus/vitest-focused-files ]; then echo "No focused Vitest files matched changed JavaScript/TypeScript files"; exit 0; fi &&
         #{vitest_command(junit_output: junit_output(focused_name), coverage: false, include_typecheck: false, args: [ "related", "--run", "--passWithNoTests", "$(cat .syrus/vitest-focused-files)" ], shell_expand_args: true, skip_setup: true)}
       BASH

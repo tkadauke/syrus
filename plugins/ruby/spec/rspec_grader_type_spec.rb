@@ -1,8 +1,38 @@
 require "rails_helper"
+require "open3"
+require "tmpdir"
+require "fileutils"
 
 RSpec.describe Ruby::RspecGraderType do
   it "registers the rspec type name" do
     expect(described_class.type_name).to eq("rspec")
+  end
+
+  it "generates a focused command whose embedded ruby selector survives .squish intact" do
+    Dir.mktmpdir do |dir|
+      run_git = ->(*args) { Open3.capture3("git", "-C", dir, *args) }
+      run_git.call("init", "-q", "-b", "main")
+      run_git.call("config", "user.email", "test@example.com")
+      run_git.call("config", "user.name", "Test")
+      run_git.call("config", "commit.gpgsign", "false")
+      FileUtils.mkdir_p(File.join(dir, "spec/models/concerns"))
+      File.write(File.join(dir, "spec/models/concerns/widget_spec.rb"), "RSpec.describe(Widget) {}\n")
+      run_git.call("add", "-A")
+      run_git.call("commit", "-q", "-m", "base")
+      run_git.call("checkout", "-q", "-b", "feature")
+      FileUtils.mkdir_p(File.join(dir, "app/models/concerns"))
+      File.write(File.join(dir, "app/models/concerns/widget.rb"), "class Widget; end\n")
+      run_git.call("add", "-A")
+      run_git.call("commit", "-q", "-m", "feature")
+
+      command = described_class.grade_steps(config: {}, default_failures: "strict").second.run
+      selector = command[command.index("ruby -e ")...command.index(" > .syrus/rspec-focused-files")]
+
+      stdout, stderr, status = Open3.capture3("bash", "-c", selector, chdir: dir)
+
+      expect(status).to be_success, "expected the focused-file selector to run without a shell/ruby syntax error, got:\n#{stderr}"
+      expect(stdout).to include("spec/models/concerns/widget_spec.rb")
+    end
   end
 
   it "expands to typed focused review, full landing, and ci graders" do

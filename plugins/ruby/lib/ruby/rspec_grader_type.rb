@@ -192,9 +192,15 @@ module Ruby
     end
 
     def focused_command
-      <<~BASH.squish
+      # Shellwords.escape embeds literal newlines (via adjacent quoted
+      # segments) to keep this multi-line ruby script one shell word.
+      # .squish would blindly collapse those newlines into spaces and
+      # break the script's syntax, so substitute the escaped script in
+      # after squishing the rest of the template.
+      placeholder = "__SYRUS_FOCUSED_SELECTOR_RUBY__"
+      <<~BASH.squish.sub(placeholder) { Shellwords.escape(focused_selector_ruby) }
         #{setup_prefix} &&
-        ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/rspec-focused-files &&
+        ruby -e #{placeholder} > .syrus/rspec-focused-files &&
         if [ ! -s .syrus/rspec-focused-files ]; then echo "No focused RSpec files matched changed Ruby files"; exit 0; fi &&
         #{rspec_command(junit_output: junit_output(focused_name), json_output: json_output(focused_name), coverage: false, args: [ "--tag", "~ci_only", "$(cat .syrus/rspec-focused-files)" ], shell_expand_args: true, skip_setup: true)}
       BASH
