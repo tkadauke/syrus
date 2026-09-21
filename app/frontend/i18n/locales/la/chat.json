@@ -242,6 +242,7 @@
   "files_loading": "Fasciculi onerantur…",
   "files_error": "Arbor fasciculorum onerari non potuit.",
   "files_empty": "Nulli fasciculi in excubiis.",
+  "coding_checkout_not_ready": "Excubiae nondum paratae sunt — accipiuntur…",
   "commit_selector_label": "Commit",
   "commit_selector_head": "HEAD (arbor operis viva)",
   "file_content_loading": "Fasciculus oneratur…",
