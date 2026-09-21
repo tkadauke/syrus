@@ -117,4 +117,101 @@ RSpec.describe App::PreviewProjects do
 
     expect(result.choices.map(&:id)).to eq([ "repo" ])
   end
+
+  describe "caching the default-branch graph" do
+    # Test runs on :null_store, which would make every assertion below pass
+    # vacuously; the cache under test needs a store that actually stores.
+    around do |example|
+      original = Rails.cache
+      Rails.cache = ActiveSupport::Cache::MemoryStore.new
+      example.run
+    ensure
+      Rails.cache = original
+    end
+
+    let(:web_yml) { "project:\n  id: web\n  label: Web\npreview:\n  start: npm run dev\n" }
+
+    def stub_tree_with_shas(entries, commit_sha: "c0ffee")
+      allow(client).to receive(:file_tree_at)
+        .with(repository.slug, repository.default_branch)
+        .and_return(
+          items: entries.map { |path, sha| { path: path, size: 0, sha: sha } },
+          truncated: false,
+          commit_sha: commit_sha
+        )
+    end
+
+    def stub_syrus_yml_at(path, content, ref)
+      allow(client).to receive(:file_content_at)
+        .with(repository.slug, path, ref)
+        .and_return(content: content, size: content.bytesize)
+    end
+
+    # The Job detail page polls, and every poll used to fetch each
+    # `.syrus.yml` in the repository one at a time -- 43 serial GitHub calls
+    # for a repo shaped like Syrus's own, ~12k requests an hour from one open
+    # tab, enough to push the App into rate limiting.
+    it "compiles once and serves repeat requests without refetching the configs" do
+      stub_tree_with_shas([ [ "apps/web/.syrus.yml", "aaa" ], [ "apps/web/index.tsx", "bbb" ] ])
+      stub_syrus_yml_at("apps/web/.syrus.yml", web_yml, "c0ffee")
+      stub_changed_files(%w[apps/web/index.tsx])
+
+      3.times { expect(described(job).for_job.choices.map(&:id)).to eq([ "web" ]) }
+
+      expect(client).to have_received(:file_content_at).once
+    end
+
+    # Keyed on the configs' blob SHAs, so a changed `.syrus.yml` is a new key
+    # and is recompiled immediately -- never served stale until a TTL runs out.
+    it "recompiles as soon as a .syrus.yml changes" do
+      stub_tree_with_shas([ [ "apps/web/.syrus.yml", "aaa" ] ])
+      stub_syrus_yml_at("apps/web/.syrus.yml", web_yml, "c0ffee")
+      stub_changed_files(%w[apps/web/index.tsx])
+      expect(described(job).for_job.choices.map(&:label)).to eq([ "Web" ])
+
+      stub_tree_with_shas([ [ "apps/web/.syrus.yml", "changed" ] ], commit_sha: "beef")
+      stub_syrus_yml_at("apps/web/.syrus.yml", web_yml.sub("label: Web", "label: Web App"), "beef")
+
+      expect(described(job).for_job.choices.map(&:label)).to eq([ "Web App" ])
+    end
+
+    # A commit that touches no `.syrus.yml` moves main but changes nothing the
+    # graph depends on -- which is nearly every commit.
+    it "keeps serving the cached graph across commits that touch no config" do
+      stub_tree_with_shas([ [ "apps/web/.syrus.yml", "aaa" ], [ "apps/web/index.tsx", "v1" ] ])
+      stub_syrus_yml_at("apps/web/.syrus.yml", web_yml, "c0ffee")
+      stub_changed_files(%w[apps/web/index.tsx])
+      described(job).for_job
+
+      stub_tree_with_shas([ [ "apps/web/.syrus.yml", "aaa" ], [ "apps/web/index.tsx", "v2" ] ], commit_sha: "newer")
+      described(job).for_job
+
+      expect(client).to have_received(:file_content_at).once
+    end
+
+    # The cache key describes the files at the tree's commit, so they must be
+    # read there too. Reading the moving branch name could store content from
+    # a later commit under a key that describes the earlier one.
+    it "reads configs at the commit the tree came from, not the branch name" do
+      stub_tree_with_shas([ [ "apps/web/.syrus.yml", "aaa" ] ], commit_sha: "pinned")
+      stub_syrus_yml_at("apps/web/.syrus.yml", web_yml, "pinned")
+      stub_changed_files(%w[apps/web/index.tsx])
+
+      described(job).for_job
+
+      expect(client).to have_received(:file_content_at).with(repository.slug, "apps/web/.syrus.yml", "pinned")
+    end
+
+    # With no SHA there is no exact key. Caching under a guessed one would
+    # keep serving the old graph after a config change.
+    it "does not cache when the tree carries no blob SHAs" do
+      stub_tree(%w[apps/web/.syrus.yml apps/web/index.tsx])
+      stub_syrus_yml("apps/web/.syrus.yml", web_yml)
+      stub_changed_files(%w[apps/web/index.tsx])
+
+      2.times { described(job).for_job }
+
+      expect(client).to have_received(:file_content_at).twice
+    end
+  end
 end

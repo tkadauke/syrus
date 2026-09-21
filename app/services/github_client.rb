@@ -871,11 +871,15 @@ class GithubClient
   def file_tree_at(repo_slug, ref)
     commit = track_rate_limits { @client.commit(repo_slug, ref) }
     tree   = track_rate_limits { @client.tree(repo_slug, commit.commit.tree.sha, recursive: 1) }
+    # `sha` (the blob's content address) and `commit_sha` are passed through
+    # so callers can key caches on exactly the content they depend on and
+    # read files at the same commit the tree came from, rather than at a
+    # branch name that may have moved between the two calls.
     items  = Array(tree.tree)
                .select { |item| item.type == "blob" }
-               .map    { |item| { path: item.path, size: item.size.to_i } }
+               .map    { |item| { path: item.path, size: item.size.to_i, sha: item.sha } }
                .sort_by { |item| item[:path] }
-    { items: items, truncated: tree.truncated == true }
+    { items: items, truncated: tree.truncated == true, commit_sha: commit.sha }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}@#{ref} tree: #{e.message}")
     raise

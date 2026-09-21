@@ -354,6 +354,37 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#file_tree_at" do
+    # Callers cache on the blob SHAs and read files at the tree's commit, so
+    # both have to survive the mapping. Dropping them is what forced a caller
+    # to refetch every file on every request to find out whether any changed.
+    it "keeps each blob's SHA and the commit the tree came from" do
+      client = described_class.new(user)
+      octokit = double(
+        "octokit",
+        last_response: nil,
+        commit: OpenStruct.new(sha: "commit123", commit: OpenStruct.new(tree: OpenStruct.new(sha: "tree456"))),
+        tree: OpenStruct.new(
+          truncated: false,
+          tree: [
+            OpenStruct.new(type: "blob", path: "b/.syrus.yml", size: 10, sha: "blob-b"),
+            OpenStruct.new(type: "tree", path: "b", size: 0, sha: "dir-b"),
+            OpenStruct.new(type: "blob", path: ".syrus.yml", size: 20, sha: "blob-root")
+          ]
+        )
+      )
+      client.instance_variable_set(:@client, octokit)
+
+      result = client.file_tree_at("acme/widgets", "main")
+
+      expect(result[:commit_sha]).to eq("commit123")
+      expect(result[:items]).to eq([
+        { path: ".syrus.yml", size: 20, sha: "blob-root" },
+        { path: "b/.syrus.yml", size: 10, sha: "blob-b" }
+      ])
+    end
+  end
+
   describe "#main_branch_check_runs_summary_for" do
     def github_actions_check(name:, status:, conclusion:, run_id:)
       OpenStruct.new(

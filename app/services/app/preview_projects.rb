@@ -25,6 +25,11 @@ module App
       end
     end
 
+    # A backstop, not the invalidation mechanism -- the key already changes
+    # the moment a `.syrus.yml` does. This only bounds how long an unused
+    # entry for a repository nobody is looking at lingers.
+    GRAPH_CACHE_TTL = 1.day
+
     Result = Data.define(:choices, :unavailable_reason) do
       def available? = choices.any?
       def single? = choices.one?
@@ -73,17 +78,52 @@ module App
     def graph_choices
       return [] unless github_client
 
-      paths = config_paths
-      return [] if paths.empty?
+      tree = default_branch_tree
+      entries = config_entries(tree)
+      return [] if entries.empty?
 
-      Dir.mktmpdir("syrus-preview-projects") do |dir|
-        materialize_syrus_yml_files!(dir, paths)
-        graph = TargetGraph::Compiler.compile(dir)
-        graph.projects.values.select(&:preview).map { |project| choice_for(project) }
-      end
+      cached_graph_choices(entries) { compile_graph_choices(entries, tree[:commit_sha]) }
     rescue StandardError => e
       Rails.logger.warn("[App::PreviewProjects] unavailable for #{repository.slug}: #{e.class}: #{e.message}")
       []
+    end
+
+    # The compiled graph depends on nothing but the default branch's
+    # `.syrus.yml` files, so it is cached under their blob SHAs: a new key
+    # exactly when one of them changes, and the same key across every
+    # unrelated commit to main.
+    #
+    # This is on the Job detail page's request path, which polls. Uncached,
+    # every poll fetched each `.syrus.yml` in the repository one at a time --
+    # 43 serial GitHub calls for Syrus's own repo. One open Job page drove
+    # ~12k GitHub requests an hour, 94% of the App's entire traffic, pushed it
+    # into rate limiting (which stalls polling for everything else), and spent
+    # ~6s per request waiting on them. faraday-http-cache turned most of those
+    # into 304s, which spared the quota but not the round trips.
+    #
+    # Only cached when every entry carries a SHA. Without one there is no
+    # exact key, and a guessed one would serve a stale graph after a config
+    # change -- worse than the latency it saves.
+    def cached_graph_choices(entries)
+      return yield unless entries.all? { |entry| entry[:sha].present? }
+
+      rows = Rails.cache.fetch(graph_cache_key(entries), expires_in: GRAPH_CACHE_TTL) do
+        yield.map(&:to_h)
+      end
+      rows.map { |row| Choice.new(**row.transform_keys(&:to_sym)) }
+    end
+
+    def compile_graph_choices(entries, ref)
+      Dir.mktmpdir("syrus-preview-projects") do |dir|
+        materialize_syrus_yml_files!(dir, entries.map { |entry| entry[:path] }, ref)
+        graph = TargetGraph::Compiler.compile(dir)
+        graph.projects.values.select(&:preview).map { |project| choice_for(project) }
+      end
+    end
+
+    def graph_cache_key(entries)
+      digest = Digest::SHA256.hexdigest(entries.map { |entry| "#{entry[:path]}\0#{entry[:sha]}" }.join("\n"))
+      "syrus:preview_projects:v1:#{repository.id}:#{digest}"
     end
 
     # Only `.syrus.yml` files are fetched and written into the scratch
@@ -94,9 +134,14 @@ module App
     # tree at the ref, so untracked/gitignored files are already excluded --
     # no separate `git check-ignore` pass is needed the way the local
     # filesystem-walk version of NestedConfigDiscovery needs one.
-    def materialize_syrus_yml_files!(dir, paths)
+    # Read at the commit the tree came from when it is known, not the branch
+    # name. The cache key is those blob SHAs, so contents fetched from a
+    # branch that moved in between would be stored under a key describing
+    # different files.
+    def materialize_syrus_yml_files!(dir, paths, ref)
+      ref = ref.presence || repository.default_branch
       paths.each do |path|
-        file = github_client.file_content_at(repository.slug, path, repository.default_branch)
+        file = github_client.file_content_at(repository.slug, path, ref)
         next unless file
 
         full_path = File.join(dir, path)
@@ -105,9 +150,13 @@ module App
       end
     end
 
-    def config_paths
-      tree = github_client.file_tree_at(repository.slug, repository.default_branch)
-      Array(tree[:items]).map { |item| item[:path] }.select do |path|
+    def default_branch_tree
+      github_client.file_tree_at(repository.slug, repository.default_branch)
+    end
+
+    def config_entries(tree)
+      Array(tree[:items]).select do |item|
+        path = item[:path].to_s
         path == SyrusYml::CONFIG_FILE || path.end_with?("/#{SyrusYml::CONFIG_FILE}")
       end
     end
