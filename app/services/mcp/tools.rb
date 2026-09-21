@@ -173,17 +173,20 @@ module Mcp
       end
 
       def broadcast_proposal_created(chat_session, proposal)
+        payload = {
+          action: "update_proposal",
+          proposal_id: proposal.id
+        }
+        if App::ChatMessagePayload.job_status_pending_proposal_kind?(proposal)
+          payload[:job_status_proposal] = App::ChatMessagePayload.job_status_proposal_json(proposal)
+        end
         AppEvents.broadcast(
           user: chat_session.user,
           type: "updated",
           resource: "chat",
           id: chat_session.id,
           changed: [ "proposal" ],
-          payload: {
-            action: "update_proposal",
-            proposal_id: proposal.id,
-            dashboard_proposal: App::ChatMessagePayload.dashboard_pending_proposal_json(proposal)
-          }
+          payload: payload
         )
       end
 

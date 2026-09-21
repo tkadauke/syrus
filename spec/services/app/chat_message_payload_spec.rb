@@ -869,6 +869,53 @@ RSpec.describe App::ChatMessagePayload do
     end
   end
 
+  describe ".job_status_proposal_json" do
+    it "builds a compact card shape for a pending Job proposal" do
+      proposal = chat.proposals.create!(slug: "pending-job", title: "Pending job", body: "Work.", kind: "job")
+      anchor = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposed a job." })
+
+      payload = described_class.job_status_proposal_json(proposal)
+
+      expect(payload).to include(
+        id: proposal.id,
+        kind: "job",
+        title: "Pending job",
+        state: "proposed",
+        anchor_message_id: anchor.id,
+        active_children_count: nil
+      )
+    end
+
+    it "includes the active child count for an Epic bundle proposal" do
+      epic_proposal = chat.proposals.create!(slug: "pending-epic", title: "Pending epic", body: "Work.", kind: "epic")
+      chat.proposals.create!(slug: "child-a", title: "Child A", body: "Work.", kind: "job", parent_proposal: epic_proposal)
+      chat.proposals.create!(slug: "child-b", title: "Child B", body: "Work.", kind: "job", parent_proposal: epic_proposal, state: "rejected")
+
+      payload = described_class.job_status_proposal_json(epic_proposal)
+
+      expect(payload.fetch(:active_children_count)).to eq(1)
+    end
+  end
+
+  describe ".job_status_pending_proposal_kind?" do
+    it "is true for a top-level Job or Epic proposal" do
+      job_proposal = chat.proposals.create!(slug: "top-job", title: "Top job", body: "Work.", kind: "job")
+      epic_proposal = chat.proposals.create!(slug: "top-epic", title: "Top epic", body: "Work.", kind: "epic")
+
+      expect(described_class.job_status_pending_proposal_kind?(job_proposal)).to be(true)
+      expect(described_class.job_status_pending_proposal_kind?(epic_proposal)).to be(true)
+    end
+
+    it "is false for a github_issue proposal or an Epic's own child proposal" do
+      issue_proposal = chat.proposals.create!(slug: "top-issue", title: "Top issue", body: "Work.", kind: "github_issue")
+      epic_proposal = chat.proposals.create!(slug: "parent-epic", title: "Parent epic", body: "Work.", kind: "epic")
+      child_proposal = chat.proposals.create!(slug: "child-job", title: "Child job", body: "Work.", kind: "job", parent_proposal: epic_proposal)
+
+      expect(described_class.job_status_pending_proposal_kind?(issue_proposal)).to be(false)
+      expect(described_class.job_status_pending_proposal_kind?(child_proposal)).to be(false)
+    end
+  end
+
   def capture_sql
     queries = []
     subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|

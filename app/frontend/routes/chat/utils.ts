@@ -149,7 +149,11 @@ export function localDiffTabVisible(payload: ChatPayload): boolean {
 
 export function jobsTabVisible(payload: ChatPayload): boolean {
   return (payload.chat.confirmed_proposal_count ?? 0) > 0 ||
-    (payload.chat.linked_direct_job_count ?? 0) > 0
+    (payload.chat.linked_direct_job_count ?? 0) > 0 ||
+    // payload.pending_proposal_count (not payload.chat.pending_proposal_count) is the
+    // one live proposal broadcasts keep fresh -- see chatUpdateProposalPayload handling
+    // in appEvents.ts -- so a newly proposed Job/Epic reveals the tab without a reload.
+    (payload.pending_proposal_count ?? payload.chat.pending_proposal_count ?? 0) > 0
 }
 
 // DOC-17 "Coding Mode Right Sidebar": the Runtime panel only appears once at

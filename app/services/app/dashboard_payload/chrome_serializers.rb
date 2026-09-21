@@ -300,34 +300,6 @@ module App
         }
       end
 
-      def pending_proposals_json
-        @pending_proposals_json ||= PerformanceLogging.phase("dashboard_pending_proposals", subject: subject) do
-          pending_proposals.map { |proposal| pending_proposal_json(proposal) }
-        end
-      end
-
-      def pending_proposals
-        @pending_proposals ||= begin
-          accessible_session_ids = user.accessible_chat_sessions.visible.active.select(:id)
-          ChatProposal
-            .pending
-            .joins(:chat_session)
-            .where(chat_session_id: accessible_session_ids)
-            .where(
-              "chat_proposals.repository_id IN (:repository_ids) OR chat_proposals.repository_id IS NULL",
-              repository_ids: active_repo_ids.presence || [ nil ]
-            )
-            .includes(:chat_session, :message_anchors)
-            .order(created_at: :desc, id: :desc)
-            .limit(5)
-            .to_a
-        end
-      end
-
-      def pending_proposal_json(proposal)
-        App::ChatMessagePayload.dashboard_pending_proposal_json(proposal)
-      end
-
       def main_branch_repair_json(status)
         {
           enabled: status[:enabled],
