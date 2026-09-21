@@ -9,12 +9,27 @@ import type { RepositoryTestDetailPayload, RepositoryTestsPayload } from "../api
 const REPOSITORY = { id: 1, slug: "acme/widgets", github_url: "https://github.com/acme/widgets" }
 const TABS = [ { key: "test_insights.tests", label: "Tests", path: "/repositories/1?tab=tests" } ]
 
+const FILTER_SCHEMA = [
+  { field: "query", label: "Search", bucket: "string", operators: [ "contains" ], values: [], free_text_search: true },
+  {
+    field: "reason",
+    label: "Reason",
+    bucket: "enum",
+    operators: [ "is" ],
+    values: [
+      { value: "failing", label: "Failing" },
+      { value: "flaky", label: "Flaky" },
+      { value: "slow", label: "Slow" }
+    ]
+  }
+]
+
 function listPayload(): RepositoryTestsPayload {
   return {
     repository: REPOSITORY,
     tabs: [],
-    query: "",
-    limit: 20,
+    filter: { and: [] },
+    filter_schema: FILTER_SCHEMA,
     tests: []
   }
 }
@@ -66,7 +81,7 @@ function mockFetch() {
 }
 
 function buildTestsPayload(): RepositoryTestsPayload {
-  return { repository: REPOSITORY, tabs: TABS, query: "", limit: 10, tests: [] }
+  return { repository: REPOSITORY, tabs: TABS, filter: { and: [] }, filter_schema: FILTER_SCHEMA, tests: [] }
 }
 
 function buildDetailPayload(page: number): RepositoryTestDetailPayload {
@@ -189,6 +204,143 @@ describe("DurationChart", () => {
     fireEvent.click(failedDot)
 
     expect(await screen.findByText("Run detail page")).toBeInTheDocument()
+  })
+})
+
+const COLUMNS_STORAGE_KEY = "syrus.test_insights.repository_tests_columns"
+
+const ALL_TESTS: RepositoryTestsPayload["tests"] = [
+  { id: 1, suite_name: "spec/a_spec.rb", name: "Zebra test", file_path: null, fingerprint: "f1", last_status: "passed", last_seen_at: "2026-01-03T00:00:00Z", last_failed_at: null, last_passed_at: "2026-01-03T00:00:00Z", last_duration_ms: 100, total_count: 5, failed_count: 0, passed_count: 5, failure_rate: 0, avg_duration_ms: 100, interesting_reasons: [] },
+  { id: 2, suite_name: "spec/b_spec.rb", name: "Alpha test", file_path: null, fingerprint: "f2", last_status: "failed", last_seen_at: "2026-01-01T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: null, last_duration_ms: 500, total_count: 4, failed_count: 3, passed_count: 1, failure_rate: 0.75, avg_duration_ms: 500, interesting_reasons: [ "failing" ] },
+  { id: 3, suite_name: "spec/c_spec.rb", name: "Middle test", file_path: null, fingerprint: "f3", last_status: "passed", last_seen_at: "2026-01-02T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: "2026-01-02T00:00:00Z", last_duration_ms: 2000, total_count: 4, failed_count: 1, passed_count: 3, failure_rate: 0.25, avg_duration_ms: 2000, interesting_reasons: [ "flaky", "slow" ] }
+]
+
+function multiTestPayload(): RepositoryTestsPayload {
+  return { repository: REPOSITORY, tabs: TABS, filter: { and: [] }, filter_schema: FILTER_SCHEMA, tests: ALL_TESTS }
+}
+
+function decodeFilterTree(q: string): { and?: Array<{ field: string; op: string; value?: unknown }> } {
+  const normalized = q.replace(/-/g, "+").replace(/_/g, "/")
+  const base64 = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")
+  const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0))
+  return JSON.parse(new TextDecoder().decode(bytes))
+}
+
+// Stands in for the server: reads the FilterBar's `q=` param off the request
+// URL and filters ALL_TESTS by `reason` the same way the real backend does,
+// so clicking through the FilterBar exercises the same refetch-on-filter
+// path the real page uses.
+function renderTestList() {
+  vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const url = new URL(String(input), "http://test.host")
+    const q = url.searchParams.get("q")
+    const tree = q ? decodeFilterTree(q) : { and: [] }
+    const reason = tree.and?.find((chip) => chip.field === "reason")?.value
+    const tests = typeof reason === "string" ? ALL_TESTS.filter((test) => test.interesting_reasons.includes(reason)) : ALL_TESTS
+
+    return Promise.resolve(jsonResponse({ repository: REPOSITORY, tabs: TABS, filter: tree, filter_schema: FILTER_SCHEMA, tests }))
+  })
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[ "/tests-panel" ]}>
+        <Routes>
+          <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId={null} />} path="/tests-panel" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function visibleTestOrder() {
+  return screen.getAllByRole("link")
+    .map((link) => link.textContent)
+    .filter((text): text is string => text === "Zebra test" || text === "Alpha test" || text === "Middle test")
+}
+
+describe("RepositoryTestsRoute test list", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.localStorage.clear()
+  })
+
+  it("sorts the test list ascending then descending when the Test header is clicked", async () => {
+    renderTestList()
+    await screen.findByText("Zebra test")
+
+    expect(visibleTestOrder()).toEqual([ "Zebra test", "Alpha test", "Middle test" ])
+
+    fireEvent.click(screen.getByRole("button", { name: "Test" }))
+    await waitFor(() => expect(visibleTestOrder()).toEqual([ "Alpha test", "Middle test", "Zebra test" ]))
+
+    fireEvent.click(screen.getByRole("button", { name: "Test" }))
+    await waitFor(() => expect(visibleTestOrder()).toEqual([ "Zebra test", "Middle test", "Alpha test" ]))
+  })
+
+  it("filters the test list through the FilterBar's reason field", async () => {
+    renderTestList()
+    await screen.findByText("Zebra test")
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Reason list" }))
+
+    await waitFor(() => expect(visibleTestOrder()).toEqual([ "Alpha test" ]))
+    expect(screen.getByRole("button", { name: "Reason is Failing" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("link", { name: "Clear filters" }))
+    await waitFor(() => expect(visibleTestOrder()).toHaveLength(3))
+  })
+
+  it("hides a column from the Columns menu and persists the choice", async () => {
+    renderTestList()
+    await screen.findByText("Zebra test")
+
+    expect(screen.getByRole("columnheader", { name: "Suite" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    fireEvent.click(screen.getByRole("checkbox", { name: "Suite" }))
+
+    expect(screen.queryByRole("columnheader", { name: "Suite" })).not.toBeInTheDocument()
+
+    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) || "{}")
+    expect(stored.hidden).toContain("suite")
+  })
+
+  it("renders the Columns menu through a portal instead of nesting it under the trigger", async () => {
+    renderTestList()
+    await screen.findByText("Zebra test")
+
+    const trigger = screen.getByRole("button", { name: "Columns" })
+    fireEvent.click(trigger)
+
+    const menu = screen.getByRole("menu")
+
+    // Regression guard: the old implementation rendered the menu as an
+    // `absolute right-0` child of the trigger's own wrapping div, which put
+    // most of the menu off-screen when that div sat near the left edge of a
+    // narrow viewport. It now renders through a FloatingPortal (with
+    // flip/shift middleware keeping it inside the viewport), so it's no
+    // longer a DOM descendant of the trigger's container at all.
+    expect(trigger.parentElement?.contains(menu)).toBe(false)
+    expect(document.body.contains(menu)).toBe(true)
+  })
+
+  it("reorders columns by dragging a row in the Columns menu and persists the order", async () => {
+    renderTestList()
+    await screen.findByText("Zebra test")
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+
+    const suiteRow = screen.getByRole("checkbox", { name: "Suite" }).closest("[draggable]") as HTMLElement
+    const lastSeenRow = screen.getByRole("checkbox", { name: "Last seen" }).closest("[draggable]") as HTMLElement
+
+    fireEvent.dragStart(suiteRow, { dataTransfer: {} })
+    fireEvent.dragOver(lastSeenRow, { dataTransfer: {} })
+    fireEvent.drop(lastSeenRow, { dataTransfer: {} })
+    fireEvent.dragEnd(suiteRow, { dataTransfer: {} })
+
+    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) || "{}")
+    expect(stored.order.indexOf("suite")).toBeGreaterThan(stored.order.indexOf("last_seen"))
   })
 })
 

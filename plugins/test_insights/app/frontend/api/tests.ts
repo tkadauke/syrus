@@ -1,5 +1,6 @@
 import { getJson } from "@app/api/client"
 import type { RepositoryTab } from "@app/api/repositories"
+import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type RepositoryTestIdentity = {
   id: number
@@ -53,8 +54,8 @@ export type RepositoryTestsPayload = {
     github_url: string
   }
   tabs: RepositoryTab[]
-  query: string
-  limit: number
+  filter?: Record<string, unknown> | null
+  filter_schema?: FilterSchemaField[]
   tests: RepositoryTestIdentity[]
 }
 
@@ -74,10 +75,10 @@ export type RepositoryTestDetailPayload = {
   duration_points: RepositoryTestDurationPoint[]
 }
 
-export function fetchRepositoryTests(repositoryId: string | number, query = "") {
-  const params = new URLSearchParams()
-  if (query.trim()) params.set("query", query.trim())
-  const suffix = params.toString() ? `?${params}` : ""
+export function fetchRepositoryTests(repositoryId: string | number, search = "") {
+  const params = new URLSearchParams(search)
+  const q = params.get("q")
+  const suffix = q ? `?q=${encodeURIComponent(q)}` : ""
   return getJson<RepositoryTestsPayload>(`/api/v1/app/repositories/${repositoryId}/tests${suffix}`)
 }
 

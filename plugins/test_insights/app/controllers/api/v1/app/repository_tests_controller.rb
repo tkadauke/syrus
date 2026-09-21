@@ -7,22 +7,33 @@ module Api
 
         DEFAULT_INTERESTING_LIMIT = TestInsights::TestIdentity::INTERESTING_LIMIT
         DEFAULT_SEARCH_LIMIT = 50
-        MAX_LIMIT = 100
         PER_PAGE = 20
 
         def index
           repository = find_repository
-          query = params[:query].to_s.strip
-          default_limit = query.present? ? DEFAULT_SEARCH_LIMIT : DEFAULT_INTERESTING_LIMIT
-          limit = params.fetch(:limit, default_limit).to_i.clamp(1, MAX_LIMIT)
-          tests = TestInsights::TestIdentity.interesting_for_repository(repository, query: query.presence, limit: limit)
+          filter = TestInsights::TestsFilter.from_params(params)
+
+          tests =
+            if filter.active?
+              TestInsights::Query.call(
+                user: Current.user,
+                repository: repository,
+                category: filter.reason,
+                query: filter.query,
+                sort: "last_seen",
+                limit: DEFAULT_SEARCH_LIMIT
+              ).tests
+            else
+              TestInsights::TestIdentity.interesting_for_repository(repository, limit: DEFAULT_INTERESTING_LIMIT)
+                .map { |test_identity| test_identity_json(test_identity, stats: test_identity.persisted_recent_stats) }
+            end
 
           render json: {
             repository: repository_json(repository),
             tabs: repository_tabs_json(repository),
-            query: query,
-            limit: limit,
-            tests: tests.map { |test_identity| test_identity_json(test_identity, stats: test_identity.persisted_recent_stats) }
+            filter: filter.to_h,
+            filter_schema: TestInsights::TestsFilter.schema,
+            tests: tests
           }
         end
 

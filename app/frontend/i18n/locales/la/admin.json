@@ -357,7 +357,7 @@
     "confirm_remove_member": "{{email}} ex hac societate removere?",
     "added_at": "Additum",
     "repository_grants": "Accessus Repositorii",
-    "repository_grants_description": "Repositoria quibus haec societas accessum accepit. Accessus ex tabella Membrorum repositorii administrantur.",
+    "repository_grants_description": "Repositoria quibus haec societas accessum accepit. Accessus e pagina emendationis repositorii administrantur.",
     "no_repository_grants": "Haec societas nullos accessus repositorii adhuc habet.",
     "aria_index": "Societates administratoris",
     "aria_detail": "Societatis detalium"

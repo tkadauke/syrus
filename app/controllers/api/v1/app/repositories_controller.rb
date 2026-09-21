@@ -376,6 +376,7 @@ module Api
               end,
               counts: PerformanceLogging.phase("repository_detail.counts", repository_id: repository.id) { repository_counts_json(repository) },
               retry_failed_jobs: PerformanceLogging.phase("repository_detail.retry_failed_jobs", repository_id: repository.id) { retry_failed_jobs_json(repository) },
+              can_edit: RepositoryPolicy.new(Current.user, repository).admin?,
               can_release_triage_jobs: can_release_triage_jobs?(repository),
               needs_triage_count: PerformanceLogging.phase("repository_detail.needs_triage_count", repository_id: repository.id) { needs_triage_jobs_count(repository) },
               needs_triage_jobs: PerformanceLogging.phase("repository_detail.needs_triage_jobs", repository_id: repository.id) { needs_triage_jobs_json(repository) },
