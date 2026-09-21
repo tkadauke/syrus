@@ -75,6 +75,7 @@ function repositoryDetailPayload(overrides: Partial<RepositoryDetailPayload> = {
       agent_provider_label: "Claude",
       provider_circuit: { provider: "claude", open: false, reason: null, retry_after: null, failure_count: 0, job_count: 0, signature: null }
     },
+    can_edit: true,
     can_release_triage_jobs: false,
     needs_triage_count: 0,
     needs_triage_jobs: [],
