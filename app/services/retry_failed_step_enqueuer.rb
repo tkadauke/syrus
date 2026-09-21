@@ -210,11 +210,7 @@ class RetryFailedStepEnqueuer
       step.save!
     elsif step.cancelled? && step.runs.none?
       step.update_columns(
-        state: "queued",
-        started_at: nil,
-        finished_at: nil,
-        cancellation_reason: nil,
-        updated_at: Time.current
+        revived_cancelled_step_attributes(step)
       )
     else
       raise AASM::InvalidTransition, "Step #{step.id} cannot be reopened from #{step.state}"
@@ -410,14 +406,33 @@ class RetryFailedStepEnqueuer
     while cursor
       if cursor.cancelled? && cursor.runs.none?
         cursor.update_columns(
-          state: "queued",
-          started_at: nil,
-          finished_at: nil,
-          updated_at: Time.current
+          revived_cancelled_step_attributes(cursor)
         )
       end
       cursor = cursor.next_step
     end
+  end
+
+  CANCELLATION_DETAIL_KEYS = %w[
+    cancelled_by
+    cancelled_reason
+    cancelled_workflow_id
+    cancelled_workflow_state
+    cancelled_source_step_id
+    cancelled_source_step_kind
+    manual_grade_loop_restart_loop_id
+    superseded_active_work_cancelled_at
+  ].freeze
+
+  def revived_cancelled_step_attributes(step)
+    {
+      state: "queued",
+      started_at: nil,
+      finished_at: nil,
+      cancellation_reason: nil,
+      details: step.details.to_h.except(*CANCELLATION_DETAIL_KEYS),
+      updated_at: Time.current
+    }
   end
 
   # A grader Step's own `next_step` pointer is topology-dependent: under the
@@ -448,13 +463,10 @@ class RetryFailedStepEnqueuer
     return unless failed_step.kind == "grader"
 
     collect = collect_step_for(failed_step)
-    return unless collect&.failed?
+    return unless collect&.failed? || (collect&.cancelled? && collect.runs.none?)
 
     collect.update_columns(
-      state: "queued",
-      started_at: nil,
-      finished_at: nil,
-      updated_at: Time.current
+      revived_cancelled_step_attributes(collect)
     )
   end
 

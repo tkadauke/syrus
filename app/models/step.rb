@@ -160,6 +160,11 @@ class Step < ApplicationRecord
     details.to_h[RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY] == true
   end
 
+  def superseded_retry_until_failure?
+    retry_until_barrier_superseded? ||
+      details.to_h["superseded_by_manual_grade_loop_restart"] == true
+  end
+
   def state_projection(runs: nil)
     Steps::StateProjection.for(self, runs: runs)
   end

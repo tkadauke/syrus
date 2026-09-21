@@ -837,6 +837,28 @@ module WorkEngine
         next unless older_than?(step.created_at, ORPHAN_RUN_GRACE_PERIOD)
         next if step.runs.exists?
 
+        if (barrier = cancelled_retry_until_barrier_blocking(step))
+          next issue(
+            kind: :cancelled_retry_until_barrier_blocking_tail,
+            severity: :error,
+            affected_ids: ids_for(step).merge(step_ids: [ barrier.id, step.id ]),
+            safe_to_auto_repair: true,
+            recommended_repair_action: "reopen_cancelled_retry_until_barrier",
+            evidence: workflow_evidence(workflow).merge(
+              step_id: step.id,
+              step_kind: step.kind,
+              step_position: step.position,
+              barrier_step_id: barrier.id,
+              barrier_step_kind: barrier.kind,
+              barrier_step_state: barrier.state,
+              barrier_loop_id: barrier.loop_id,
+              barrier_iteration: barrier.iteration,
+              age_seconds: seconds_since(step.created_at)
+            ),
+            explanation: "Step ##{step.id} is queued behind a cancelled retry-until barrier ##{barrier.id}; reopen the barrier so the loop can finish or fail explicitly."
+          )
+        end
+
         previous = step.previous_step
         next unless previous&.succeeded?
 
@@ -858,6 +880,28 @@ module WorkEngine
           explanation: "Step ##{step.id} is queued behind succeeded Step ##{previous.id}, but no Run was created for it."
         )
       end
+    end
+
+    def cancelled_retry_until_barrier_blocking(step)
+      return nil if step.loop_id.present?
+
+      barrier_dependencies_for_step(step).filter_map do |dependency|
+        next unless retry_until_barrier_step_for_reconciliation?(dependency)
+
+        latest_retry_until_barrier_for_step(step, dependency.loop_id)
+      end.find { |barrier| barrier&.cancelled? && barrier.runs.none? }
+    end
+
+    def barrier_dependencies_for_step(step)
+      step.depends_on_step_ids.any? ? step.depends_on_steps : Array(step.previous_step)
+    end
+
+    def latest_retry_until_barrier_for_step(step, loop_id)
+      step.workflow.steps
+        .where(loop_id: loop_id)
+        .where("position < ?", step.position)
+        .reorder(position: :desc, id: :desc)
+        .detect { |candidate| retry_until_barrier_step_for_reconciliation?(candidate) && !candidate.retry_until_barrier_superseded? }
     end
 
     def classify_terminal_workflows_with_active_descendants
@@ -2586,6 +2630,7 @@ module WorkEngine
         next if run.job&.closed?
         next unless latest_workflow_run?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
+        next if run.step&.superseded_retry_until_failure?
         next if retry_until_failure_superseded_by_later_success?(run.step)
         next if try_branch_failure_superseded_by_recovery?(run)
         next if recoverable_branch_divergence?(run)
@@ -2953,7 +2998,7 @@ module WorkEngine
     end
 
     def orphaned_failed_step(workflow)
-      failed_steps = workflow.steps.select(&:failed?)
+      failed_steps = workflow.steps.select(&:failed?).reject(&:superseded_retry_until_failure?)
       return nil if failed_steps.empty?
       return nil if workflow.live_descendants?
 

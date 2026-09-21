@@ -486,8 +486,27 @@ RSpec.describe RetryFailedStepEnqueuer do
     respond.update!(next_step_id: summarize.id)
     summarize.update!(next_step_id: push.id)
     respond.update_columns(state: "failed", started_at: 9.minutes.ago, finished_at: 8.minutes.ago)
-    summarize.update_columns(state: "cancelled", started_at: 8.minutes.ago, finished_at: 8.minutes.ago)
-    push.update_columns(state: "cancelled", started_at: 8.minutes.ago, finished_at: 8.minutes.ago)
+    cancellation_details = {
+      "cancelled_by" => "terminal_workflow_cleanup",
+      "cancelled_reason" => "cancel_terminal_workflow_active_descendants",
+      "cancelled_workflow_id" => workflow.id,
+      "cancelled_source_step_id" => respond.id,
+      "kept_context" => "preserve me"
+    }
+    summarize.update_columns(
+      state: "cancelled",
+      started_at: 8.minutes.ago,
+      finished_at: 8.minutes.ago,
+      cancellation_reason: "cancel_terminal_workflow_active_descendants",
+      details: cancellation_details
+    )
+    push.update_columns(
+      state: "cancelled",
+      started_at: 8.minutes.ago,
+      finished_at: 8.minutes.ago,
+      cancellation_reason: "cancel_terminal_workflow_active_descendants",
+      details: cancellation_details
+    )
 
     result = described_class.call(workflow: workflow)
 
@@ -496,6 +515,10 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(respond.reload).to be_queued
     expect(summarize.reload).to be_queued
     expect(push.reload).to be_queued
+    expect(summarize.cancellation_reason).to be_nil
+    expect(summarize.details).to eq("kept_context" => "preserve me")
+    expect(push.cancellation_reason).to be_nil
+    expect(push.details).to eq("kept_context" => "preserve me")
     expect(result.run.step).to eq(respond)
   end
 

@@ -1,0 +1,91 @@
+name: cancelled retry until barrier blocks tail
+features:
+  distributed_workflow_dag: true
+repository:
+  owner: simulation
+  name: cancelled-retry-until-barrier-blocks-tail
+  distributed_workflow_dag_enabled: true
+jobs:
+  job:
+    title: Cancelled retry-until barrier blocks tail
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: running
+      steps:
+        - key: old_fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+        - key: old_grader
+          kind: grader
+          state: failed
+          iteration: 1
+          loop_id: grade-loop
+          details:
+            name: lint
+        - key: old_collect
+          kind: grader_collect
+          state: failed
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - old_grader
+        - key: repair
+          kind: implement
+          state: succeeded
+          iteration: 2
+          loop_id: grade-loop
+        - key: fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 2
+          loop_id: grade-loop
+          depends_on:
+            - repair
+        - key: lint
+          kind: grader
+          state: succeeded
+          iteration: 2
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          details:
+            name: lint
+        - key: collect
+          kind: grader_collect
+          state: cancelled
+          iteration: 2
+          loop_id: grade-loop
+          depends_on:
+            - lint
+          details:
+            cancelled_by: terminal_workflow_cleanup
+            cancelled_reason: cancel_terminal_workflow_active_descendants
+            kept_context: preserve me
+        - key: summarize
+          kind: summarize
+          state: queued
+          created_at: "2026-01-01 00:00:00 UTC"
+          depends_on:
+            - old_collect
+        - key: pr_open
+          kind: pr_open
+          state: queued
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+  events:
+    - cancelled_retry_until_barrier_blocking_tail
+    - reopened cancelled retry-until barrier
+    - grader_collect -> success
+    - summarize -> success
+    - pr_open -> success

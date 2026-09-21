@@ -8,16 +8,18 @@ jobs:
     state: failed
     workflow:
       kind: initial
-      state: failed
+      state: cancelled
       work_unit:
-        state: failed
+        state: cancelled
       steps:
         - kind: implement
-          state: failed
+          state: cancelled
           run:
-            state: failed
+            state: cancelled
         - kind: summarize
-          state: queued
+          state: running
+          run:
+            state: running
 outcomes:
   default: success
 success_states:

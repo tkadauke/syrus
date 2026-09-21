@@ -670,6 +670,50 @@ module WorkEngine
         end
       end
 
+      class ReopenCancelledRetryUntilBarrier < Base
+        CANCELLATION_DETAIL_KEYS = %w[
+          cancelled_by
+          cancelled_reason
+          cancelled_workflow_id
+          cancelled_workflow_state
+          cancelled_source_step_id
+          cancelled_source_step_kind
+        ].freeze
+
+        def perform
+          step = target_step
+          return skipped("Barrier Step no longer exists") unless step
+          return skipped("Barrier Step is #{step.state}, not cancelled") unless step.cancelled?
+          return skipped("Barrier Step already has Runs") if step.runs.exists?
+          return skipped("Step is not a retry-until barrier") unless retry_until_barrier?(step)
+
+          workflow = step.workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not running") unless workflow.running?
+          return skipped("Barrier dependencies are not settled") unless step.dependencies_settled?
+
+          step.update_columns(
+            state: "queued",
+            started_at: nil,
+            finished_at: nil,
+            cancellation_reason: nil,
+            details: step.details.to_h.except(*CANCELLATION_DETAIL_KEYS),
+            updated_at: Time.current
+          )
+
+          run = StepDispatcher.create_run_and_enqueue(step.reload, workflow)
+          run ? success("reopened cancelled retry-until barrier #{step_label(step)} with #{run_label(run)}") : skipped("retry-until barrier remained deferred")
+        end
+
+        private
+
+        def retry_until_barrier?(step)
+          step.loop_id.present? && Step::Kind.fetch(step.kind).fail_policy == :loop_iteration
+        rescue ArgumentError
+          false
+        end
+      end
+
       class ResumeReviewLoopRepair < Base
         def perform
           step = target_step
@@ -907,7 +951,7 @@ module WorkEngine
         def orphaned_workflow_outcome(workflow)
           return :failed if workflow.uncleared_retry_until_barrier?
 
-          terminal_positions = workflow.steps.pluck(:state, :position)
+          terminal_positions = workflow.steps.reject(&:superseded_retry_until_failure?).map { |step| [ step.state, step.position ] }
           last_succeeded = terminal_positions.filter_map { |state, position| position if state == "succeeded" }.max
           last_failed = terminal_positions.filter_map { |state, position| position if state == "failed" }.max
 
@@ -925,7 +969,7 @@ module WorkEngine
           return skipped("Workflow is #{workflow.state}, not queued/running") unless workflow.queued? || workflow.running?
           return skipped("Workflow still has running descendants") if workflow.live_descendants?
 
-          failed_step = workflow.steps.where(state: "failed").order(position: :desc, id: :desc).first
+          failed_step = workflow.steps.where(state: "failed").order(position: :desc, id: :desc).detect { |step| !step.superseded_retry_until_failure? }
           return skipped("Workflow has no failed Step") unless failed_step
           return skipped("Workflow cannot transition to failed") unless workflow.may_fail?
 

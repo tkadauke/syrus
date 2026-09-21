@@ -3509,6 +3509,77 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("marked #{workflow.slug} failed from failed #{step.slug}")
   end
 
+  it "does not fail a manually restarted grade loop because of superseded loop failures" do
+    old_loop_id = SecureRandom.uuid
+    new_loop_id = SecureRandom.uuid
+    workflow.update!(
+      chain_template: [
+        {
+          "type" => "retry_until",
+          "max_iterations" => 2,
+          "repair" => %w[ implement ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => false
+        },
+        { "type" => "step", "kind" => "summarize" }
+      ]
+    )
+
+    old_fanout = step
+    old_fanout.update!(
+      kind: "grader_fanout",
+      position: 1,
+      iteration: 1,
+      loop_id: old_loop_id,
+      details: {
+        "superseded_by_manual_grade_loop_restart" => true,
+        Step::RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY => true
+      }
+    )
+    old_collect = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 2,
+      state: "failed",
+      iteration: 1,
+      loop_id: old_loop_id,
+      details: {
+        "superseded_by_manual_grade_loop_restart" => true,
+        Step::RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY => true
+      }
+    )
+    new_fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 3, state: "queued", iteration: 1, loop_id: new_loop_id)
+    new_collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 4, state: "queued", iteration: 1, loop_id: new_loop_id)
+    summarize = Step.create!(workflow: workflow, kind: "summarize", position: 5, state: "queued")
+    old_fanout.update!(next_step: old_collect)
+    old_collect.update!(next_step: new_fanout)
+    new_fanout.update!(next_step: new_collect)
+    new_collect.update!(next_step: summarize)
+
+    job.update_columns(state: "running", started_at: 30.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 30.minutes.ago, finished_at: nil)
+    old_fanout.update_columns(state: "failed", started_at: 25.minutes.ago, finished_at: 20.minutes.ago)
+    run.update_columns(state: "failed", started_at: 25.minutes.ago, finished_at: 20.minutes.ago)
+    old_collect.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "failed",
+      started_at: 20.minutes.ago,
+      finished_at: 15.minutes.ago
+    )
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :running_workflow_with_failed_step)).to be_nil
+    expect(plan(result, :fail_workflow_from_failed_step)).to be_nil
+    expect(workflow.reload).to be_running
+    expect(job.reload).to be_running
+    expect(new_fanout.reload).to be_queued
+    expect(new_collect.reload).to be_queued
+  end
+
   it "continues a failed grader_collect loop iteration when retry budget remains" do
     retry_workflow = Workflow.create!(
       job: job,

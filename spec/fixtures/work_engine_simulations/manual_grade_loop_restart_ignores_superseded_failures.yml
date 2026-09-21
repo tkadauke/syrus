@@ -1,0 +1,85 @@
+name: manual grade loop restart ignores superseded failures
+repository:
+  owner: simulation
+  name: manual-grade-loop-restart-ignores-superseded-failures
+jobs:
+  job:
+    title: Manual grade loop restart ignores superseded failures
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: running
+      chain_template:
+        - type: retry_until
+          max_iterations: 2
+          repair:
+            - implement
+          check:
+            - grader_fanout
+            - grader_collect
+          repair_first: false
+        - type: step
+          kind: summarize
+        - type: step
+          kind: pr_open
+      steps:
+        - key: old_fanout
+          kind: grader_fanout
+          state: failed
+          iteration: 1
+          loop_id: old-loop
+          details:
+            retry_until_barrier_superseded: true
+            superseded_by_manual_grade_loop_restart: true
+          run:
+            state: failed
+        - key: old_collect
+          kind: grader_collect
+          state: failed
+          iteration: 1
+          loop_id: old-loop
+          details:
+            retry_until_barrier_superseded: true
+            superseded_by_manual_grade_loop_restart: true
+          run:
+            state: failed
+        - key: fanout
+          kind: grader_fanout
+          state: queued
+          iteration: 1
+          loop_id: new-loop
+          run:
+            state: queued
+        - key: collect
+          kind: grader_collect
+          state: queued
+          iteration: 1
+          loop_id: new-loop
+          depends_on:
+            - fanout
+        - key: summarize
+          kind: summarize
+          state: queued
+        - key: pr_open
+          kind: pr_open
+          state: queued
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+  events:
+    - grader_fanout -> success
+    - grader_collect -> success
+    - summarize -> success
+    - pr_open -> success
+  absent_events:
+    - running_workflow_with_failed_step
+    - fail_workflow_from_failed_step
+    - nonretryable_semantic_git_failure
+    - operator_review_nonretryable_failure

@@ -424,6 +424,24 @@ module WorkEngine
         end
       end
 
+      class CancelledRetryUntilBarrierBlockingTail < Base
+        def plan
+          automatic_plan(
+            "reopen_cancelled_retry_until_barrier",
+            Step.find_by(id: issue.evidence["barrier_step_id"]) || primary_step,
+            "The workflow tail is queued behind a cancelled retry-until barrier; rerun the barrier so the loop reaches an explicit pass/fail outcome.",
+            execution_steps: [ "StepDispatcher.create_run_and_enqueue" ],
+            preconditions: {
+              workflow_state: "running",
+              barrier_step_id: issue.evidence["barrier_step_id"],
+              barrier_step_state: "cancelled",
+              barrier_has_no_runs: true,
+              blocked_step_id: issue.evidence["step_id"]
+            }
+          )
+        end
+      end
+
       class SucceededReviewLoopNeedsWorkWithoutRepair < Base
         def plan
           automatic_plan(
