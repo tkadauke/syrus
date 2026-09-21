@@ -186,6 +186,34 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(workflow.steps.where(kind: "grader").count).to eq(1)
   end
 
+  it "does not publish grader steps when the execution is terminalized before materialization" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    terminalized = false
+    allow(handler).to receive(:heartbeat!).and_wrap_original do |original, *args|
+      unless terminalized
+        terminalized = true
+        now = Time.current
+        run.update_columns(state: "failed", finished_at: now)
+        step.update_columns(state: "failed", finished_at: now)
+        workflow.update_columns(state: "failed", finished_at: now)
+      end
+
+      original.call(*args)
+    end
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader")).to be_empty
+    expect(collect_step.reload.position).to eq(102)
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+      "[grader_fanout] materialization skipped because execution is already terminal"
+    )
+  end
+
   it "keeps materialized grader Steps pinned and detail-compatible when the distributed gate is off" do
     job.repository.update!(distributed_workflow_dag_enabled: true)
     write_config(<<~YAML)

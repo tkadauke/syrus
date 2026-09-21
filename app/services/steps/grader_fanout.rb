@@ -101,8 +101,9 @@ module Steps
         return
       end
 
-      materialize_grader_steps!(active_graders)
-      log("[grader_fanout] materialized #{active_graders.size} grader Step(s)")
+      if materialize_grader_steps!(active_graders)
+        log("[grader_fanout] materialized #{active_graders.size} grader Step(s)")
+      end
     end
 
     private
@@ -426,10 +427,18 @@ module Steps
       insertion_position = step.position + 1
       offset = graders.size
       source_snapshot = nil
+      materialized = false
+
+      return false unless continue_side_effects?("[grader_fanout] materialization")
 
       with_materialization_lock_retries do
         heartbeat!
         Step.transaction do
+          unless continue_side_effects?("[grader_fanout] materialization")
+            source_snapshot = nil
+            next
+          end
+
           source_snapshot = current_source_snapshot_for_projection
           heartbeat!
 
@@ -463,16 +472,21 @@ module Steps
           # plus a per-kind waits_for_terminal_step_kind rule.
           new_steps.each { |grader| grader.update!(depends_on_ids: [ step.id ]) }
           continuation&.update!(depends_on_ids: new_steps.map(&:id))
+          materialized = true
         end
       end
 
       if source_snapshot
+        return true unless continue_side_effects?("[grader_fanout] source snapshot publication")
+
         heartbeat!
         archived = publish_prepared_workspace_archive!(source_snapshot)
         heartbeat!
         publish_source_snapshot_ref!(source_snapshot.source_sha, source_snapshot.source_ref) unless archived
         heartbeat!
       end
+
+      materialized
     end
 
     def with_materialization_lock_retries

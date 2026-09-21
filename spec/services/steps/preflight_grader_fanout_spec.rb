@@ -122,6 +122,34 @@ RSpec.describe Steps::PreflightGraderFanout do
     expect(workflow.steps.where(kind: "preflight_grader").count).to eq(1)
   end
 
+  it "does not publish grader steps when the execution is terminalized before materialization" do
+    write_grade_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    terminalized = false
+    allow(handler).to receive(:heartbeat!).and_wrap_original do |original, *args|
+      unless terminalized
+        terminalized = true
+        now = Time.current
+        run.update_columns(state: "failed", finished_at: now)
+        step.update_columns(state: "failed", finished_at: now)
+        workflow.update_columns(state: "failed", finished_at: now)
+      end
+
+      original.call(*args)
+    end
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "preflight_grader")).to be_empty
+    expect(collect_step.reload.position).to eq(102)
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+      "[preflight_grader_fanout] materialization skipped because execution is already terminal"
+    )
+  end
+
   it "materializes preflight_grader (not grader) steps to avoid loop collisions" do
     write_grade_config(<<~YAML)
       grade:

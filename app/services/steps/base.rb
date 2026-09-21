@@ -229,6 +229,21 @@ module Steps
       RunHeartbeat.touch(run, force: true)
     end
 
+    def execution_terminalized?
+      run.reload.terminal? || step.reload.terminal? || workflow.reload.terminal?
+    end
+
+    def continue_side_effects?(context)
+      return true unless execution_terminalized?
+
+      log(
+        "#{context} skipped because execution is already terminal " \
+        "(run=#{run.state}, step=#{step.state}, workflow=#{workflow.state})",
+        kind: "system"
+      )
+      false
+    end
+
     # Returns [sink, flush] — a buffering wrapper around #log. The sink
     # lambda accumulates chunks and flushes to one JobLog row when either
     # LOG_FLUSH_BYTES or LOG_FLUSH_INTERVAL elapses, but never more often
