@@ -1,4 +1,5 @@
 require "rails_helper"
+require "rexml/document"
 
 RSpec.describe Ruby::RspecGraderType do
   it "registers the rspec type name" do
@@ -130,6 +131,60 @@ RSpec.describe Ruby::RspecGraderType do
 
     expect { RubyVM::InstructionSequence.compile(script) }.not_to raise_error
     expect(script).to include("exit 0 unless base\nscope =")
+  end
+
+  it "keeps the parallel JUnit merge script valid Ruby after being squished twice" do
+    steps = described_class.grade_steps(
+      config: {
+        "parallel_rspec" => {
+          "enabled" => true,
+          "rspec_modes" => [ "full" ],
+          "exec_args" => "bin/rspec-worker"
+        }
+      },
+      default_failures: "strict"
+    )
+    command = steps.first.run
+    start_marker = "ruby -rrexml/document -e "
+    end_marker = "; exit \"$parallel_status\""
+    start_index = command.index(start_marker) + start_marker.length
+    end_index = command.index(end_marker, start_index)
+    script, shard_junit_dir, junit = Shellwords.split(command[start_index...end_index])
+
+    expect { RubyVM::InstructionSequence.compile(script) }.not_to raise_error
+    expect(shard_junit_dir).to eq(".syrus/grade-output/parallel-rspec-junit")
+    expect(junit).to eq(".syrus/grade-output/rspec-junit.xml")
+  end
+
+  it "merges per-shard JUnit XML into one aggregate file, skipping unparsable shards" do
+    Dir.mktmpdir do |dir|
+      shard_dir = File.join(dir, "shards")
+      FileUtils.mkdir_p(shard_dir)
+      File.write(File.join(shard_dir, "rspec-junit-1.xml"), <<~XML)
+        <testsuite tests="2" failures="1" errors="0" skipped="0" time="0.15">
+          <testcase name="a"/>
+          <testcase name="b"><failure message="boom"/></testcase>
+        </testsuite>
+      XML
+      File.write(File.join(shard_dir, "rspec-junit-2.xml"), <<~XML)
+        <testsuite tests="3" failures="0" errors="0" skipped="1" time="0.42">
+          <testcase name="c"/>
+        </testsuite>
+      XML
+      File.write(File.join(shard_dir, "rspec-junit-broken.xml"), "not xml at all")
+      merged_path = File.join(dir, "merged.xml")
+
+      command = described_class.new(config: {}, default_failures: "strict").send(
+        :merge_junit_command, shard_dir, merged_path
+      )
+      system(command, exception: true)
+
+      merged = REXML::Document.new(File.read(merged_path))
+      expect(merged.root.attributes["tests"]).to eq("5")
+      expect(merged.root.attributes["failures"]).to eq("1")
+      expect(merged.root.attributes["skipped"]).to eq("1")
+      expect(merged.root.elements.to_a("testsuite").length).to eq(2)
+    end
   end
 
   it "uses configured parallel_rspec for fast and focused modes" do

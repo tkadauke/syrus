@@ -364,36 +364,35 @@ module Ruby
       "set +e; #{serial}; serial_status=\"$?\";"
     end
 
+    # The merged command text is squished (here and again when interpolated
+    # into parallel_rspec_command's own squished heredoc), which collapses
+    # newlines to spaces. A `ruby -e` script that relies on newlines as
+    # statement separators breaks silently under that -- semicolons keep it
+    # on one logical line so squishing is a no-op for it.
+    MERGE_JUNIT_RUBY_SCRIPT = (
+      "dir, out = ARGV; " \
+      "files = Dir[File.join(dir, \"*.xml\")].sort; " \
+      "exit if files.empty?; " \
+      "merged = REXML::Document.new(\"<testsuites/>\"); " \
+      "totals = Hash.new(0); " \
+      "files.each { |path| " \
+        "doc = (REXML::Document.new(File.read(path)) rescue nil); " \
+        "next unless doc&.root; " \
+        "suites = doc.root.name == \"testsuites\" ? doc.root.elements.to_a(\"testsuite\") : [ doc.root ]; " \
+        "suites.each { |suite| " \
+          "%w[tests failures errors skipped].each { |k| totals[k] += suite.attributes[k].to_i }; " \
+          "totals[\"time\"] += suite.attributes[\"time\"].to_f; " \
+          "merged.root.add_element(suite.deep_clone); " \
+        "}; " \
+      "}; " \
+      "exit if merged.root.elements.empty?; " \
+      "%w[tests failures errors skipped].each { |k| merged.root.add_attribute(k, totals[k].to_s) }; " \
+      "merged.root.add_attribute(\"time\", format(\"%.6f\", totals[\"time\"])); " \
+      "File.write(out, merged.to_s)"
+    ).freeze
+
     def merge_junit_command(shard_junit_dir, junit)
-      <<~'BASH'.squish
-        ruby -rrexml/document -e '
-          dir, out = ARGV
-          files = Dir[File.join(dir, "*.xml")].sort
-          exit if files.empty?
-          merged = REXML::Document.new("<testsuites/>")
-          totals = Hash.new(0)
-          files.each do |path|
-            doc = begin
-              REXML::Document.new(File.read(path))
-            rescue StandardError
-              next
-            end
-            next unless doc.root
-            suites = doc.root.name == "testsuites" ? doc.root.elements.to_a("testsuite") : [ doc.root ]
-            suites.each do |suite|
-              %w[tests failures errors skipped].each { |k| totals[k] += suite.attributes[k].to_i }
-              totals["time"] += suite.attributes["time"].to_f
-              merged.root.add_element(suite.deep_clone)
-            end
-          end
-          exit if merged.root.elements.empty?
-          %w[tests failures errors skipped].each { |k| merged.root.add_attribute(k, totals[k].to_s) }
-          merged.root.add_attribute("time", format("%.6f", totals["time"]))
-          File.write(out, merged.to_s)
-        ' __SHARD_JUNIT_DIR__ __JUNIT__
-      BASH
-        .sub("__SHARD_JUNIT_DIR__", shard_junit_dir)
-        .sub("__JUNIT__", junit)
+      "ruby -rrexml/document -e #{Shellwords.escape(MERGE_JUNIT_RUBY_SCRIPT)} #{shard_junit_dir} #{junit}"
     end
 
     def database_prepare_command
