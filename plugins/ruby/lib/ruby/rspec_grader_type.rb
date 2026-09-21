@@ -192,12 +192,19 @@ module Ruby
     end
 
     def focused_command
-      <<~BASH.squish
-        #{setup_prefix} &&
-        ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/rspec-focused-files &&
-        if [ ! -s .syrus/rspec-focused-files ]; then echo "No focused RSpec files matched changed Ruby files"; exit 0; fi &&
-        #{rspec_command(junit_output: junit_output(focused_name), json_output: json_output(focused_name), coverage: false, args: [ "--tag", "~ci_only", "$(cat .syrus/rspec-focused-files)" ], shell_expand_args: true, skip_setup: true)}
-      BASH
+      # NOTE: the ruby -e argument below is pre-escaped via Shellwords.escape and
+      # carries literal backslash-newline sequences the shell needs intact to
+      # reconstruct the multi-line selector script. Join with `.squish`ed
+      # siblings via Array#join instead of wrapping the whole thing in another
+      # `.squish` call -- squish collapses ALL whitespace (including those
+      # backslash-newlines) into single spaces and corrupts the embedded script
+      # into one unparsable line.
+      [
+        "#{setup_prefix} &&",
+        "ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/rspec-focused-files &&",
+        'if [ ! -s .syrus/rspec-focused-files ]; then echo "No focused RSpec files matched changed Ruby files"; exit 0; fi &&',
+        rspec_command(junit_output: junit_output(focused_name), json_output: json_output(focused_name), coverage: false, args: [ "--tag", "~ci_only", "$(cat .syrus/rspec-focused-files)" ], shell_expand_args: true, skip_setup: true)
+      ].join(" ")
     end
 
     def rspec_command(junit_output:, json_output:, coverage:, env: {}, args: [], shell_expand_args: false, skip_setup: false)

@@ -215,12 +215,19 @@ module JavaScript
     end
 
     def focused_command
-      <<~BASH.squish
-        #{setup_prefix} &&
-        ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/vitest-focused-files &&
-        if [ ! -s .syrus/vitest-focused-files ]; then echo "No focused Vitest files matched changed JavaScript/TypeScript files"; exit 0; fi &&
-        #{vitest_command(junit_output: junit_output(focused_name), coverage: false, include_typecheck: false, args: [ "related", "--run", "--passWithNoTests", "$(cat .syrus/vitest-focused-files)" ], shell_expand_args: true, skip_setup: true)}
-      BASH
+      # NOTE: the ruby -e argument below is pre-escaped via Shellwords.escape and
+      # carries literal backslash-newline sequences the shell needs intact to
+      # reconstruct the multi-line selector script. Join with `.squish`ed
+      # siblings via Array#join instead of wrapping the whole thing in another
+      # `.squish` call -- squish collapses ALL whitespace (including those
+      # backslash-newlines) into single spaces and corrupts the embedded script
+      # into one unparsable line.
+      [
+        "#{setup_prefix} &&",
+        "ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/vitest-focused-files &&",
+        'if [ ! -s .syrus/vitest-focused-files ]; then echo "No focused Vitest files matched changed JavaScript/TypeScript files"; exit 0; fi &&',
+        vitest_command(junit_output: junit_output(focused_name), coverage: false, include_typecheck: false, args: [ "related", "--run", "--passWithNoTests", "$(cat .syrus/vitest-focused-files)" ], shell_expand_args: true, skip_setup: true)
+      ].join(" ")
     end
 
     def vitest_command(junit_output:, coverage:, include_typecheck:, args:, shell_expand_args: false, skip_setup: false)
