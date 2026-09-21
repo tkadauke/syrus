@@ -1,0 +1,129 @@
+package server
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/tkadauke/syrus/runtime-manager/internal/manager"
+	"github.com/tkadauke/syrus/runtime-manager/internal/policy"
+	"github.com/tkadauke/syrus/runtime-manager/internal/spec"
+)
+
+const token = "0123456789abcdef0123456789abcdef"
+
+type stubManager struct {
+	ensured bool
+	purged  *bool
+	state   string
+	err     error
+}
+
+func (s *stubManager) Ensure(_ context.Context, name string, _ spec.Service) (manager.Status, error) {
+	s.ensured = true
+	return manager.Status{Service: name, State: s.state}, s.err
+}
+func (s *stubManager) Status(_ context.Context, name string) (manager.Status, error) {
+	return manager.Status{Service: name, State: manager.StateRunning}, nil
+}
+func (s *stubManager) Remove(_ context.Context, _ string, purge bool) error {
+	s.purged = &purge
+	return nil
+}
+func (s *stubManager) List(context.Context) ([]manager.Status, error) { return nil, nil }
+
+const body = `{"plugin":"git_mirror","image":"ghcr.io/tkadauke/x:1","internal_port":8080}`
+
+func do(h http.Handler, method, path, auth, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	if auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+// Anything on the project network can reach the manager, including agents
+// running in the worker. Every route that can change or reveal state needs
+// the token.
+func TestEveryV1RouteRequiresTheToken(t *testing.T) {
+	m := &stubManager{state: manager.StateRunning}
+	h := New(m, token, Info{})
+	routes := []struct{ method, path string }{
+		{"GET", "/v1/services"},
+		{"GET", "/v1/services/git-mirror"},
+		{"PUT", "/v1/services/git-mirror"},
+		{"DELETE", "/v1/services/git-mirror"},
+	}
+	for _, r := range routes {
+		for _, auth := range []string{"", "Bearer wrong", token, "Basic " + token} {
+			if rec := do(h, r.method, r.path, auth, body); rec.Code != http.StatusUnauthorized {
+				t.Errorf("%s %s with %q: code %d, want 401", r.method, r.path, auth, rec.Code)
+			}
+		}
+	}
+	if m.ensured || m.purged != nil {
+		t.Fatal("an unauthenticated request reached the manager")
+	}
+}
+
+func TestHealthzIsOpenAndReportsWhereTheManagerAttached(t *testing.T) {
+	rec := do(New(&stubManager{}, token, Info{Project: "syrus", Network: "syrus_default"}), "GET", "/healthz", "", "")
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "syrus_default") {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// Asking for something the manager does not model must fail loudly, not be
+// silently dropped -- the caller should learn it cannot have it.
+func TestUnknownFieldsAreRefused(t *testing.T) {
+	m := &stubManager{state: manager.StateRunning}
+	h := New(m, token, Info{})
+	for _, extra := range []string{`"privileged":true`, `"devices":["/dev/sda"]`, `"binds":["/:/host"]`, `"network_mode":"host"`} {
+		payload := strings.Replace(body, "{", "{"+extra+",", 1)
+		if rec := do(h, "PUT", "/v1/services/git-mirror", "Bearer "+token, payload); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: code %d, want 400", extra, rec.Code)
+		}
+	}
+	if m.ensured {
+		t.Fatal("a request with a forbidden field reached the manager")
+	}
+}
+
+func TestPolicyRefusalIs422AndDaemonFailureIs502(t *testing.T) {
+	refusing := New(&stubManager{err: policyError()}, token, Info{})
+	if rec := do(refusing, "PUT", "/v1/services/git-mirror", "Bearer "+token, body); rec.Code != http.StatusUnprocessableEntity {
+		t.Errorf("policy refusal: code %d, want 422", rec.Code)
+	}
+	failing := New(&stubManager{err: context.DeadlineExceeded}, token, Info{})
+	if rec := do(failing, "PUT", "/v1/services/git-mirror", "Bearer "+token, body); rec.Code != http.StatusBadGateway {
+		t.Errorf("daemon failure: code %d, want 502", rec.Code)
+	}
+}
+
+func TestEnsureReturns202WhilePulling(t *testing.T) {
+	h := New(&stubManager{state: manager.StatePulling}, token, Info{})
+	if rec := do(h, "PUT", "/v1/services/git-mirror", "Bearer "+token, body); rec.Code != http.StatusAccepted {
+		t.Fatalf("code %d, want 202", rec.Code)
+	}
+}
+
+func TestDeletePurgesOnlyWhenAsked(t *testing.T) {
+	m := &stubManager{}
+	h := New(m, token, Info{})
+	do(h, "DELETE", "/v1/services/git-mirror", "Bearer "+token, "")
+	if m.purged == nil || *m.purged {
+		t.Fatal("a plain DELETE must keep volumes")
+	}
+	do(h, "DELETE", "/v1/services/git-mirror?purge=true", "Bearer "+token, "")
+	if !*m.purged {
+		t.Fatal("purge=true must remove volumes")
+	}
+}
+
+func policyError() error {
+	return policy.New(nil).Validate("svc", spec.Service{Plugin: "p", Image: "ghcr.io/x/y:1", InternalPort: 1})
+}

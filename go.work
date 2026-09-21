@@ -19,3 +19,8 @@ use ./plugins/k8s_cluster/cli
 use ./plugins/global_search/cli
 use ./plugins/design_docs/cli
 use ./plugins/spending_insights/cli
+
+// Not part of the CLI: the plugin runtime manager, a standalone service image
+// for Docker Compose installs. Listed here so the repo-wide
+// `go test $(go list -m -f '{{.Dir}}/...')` covers it too.
+use ./runtime-manager
