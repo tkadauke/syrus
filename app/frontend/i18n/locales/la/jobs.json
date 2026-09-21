@@ -454,6 +454,7 @@
   "review_version_label": "Versio",
   "review_versions_empty": "Nullae versiones diff adhuc.",
   "review_version_all_changes": "Omnes mutationes",
+  "review_version_all_changes_disambiguated": "Omnes mutationes ({{sha}})",
   "review_version_prefix": "v{{version}}",
   "review_version_latest_prefix": "v{{version}} novissima",
   "review_version_default_reason": "Recensio diff",

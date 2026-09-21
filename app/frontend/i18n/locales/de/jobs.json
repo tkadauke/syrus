@@ -458,6 +458,7 @@
   "review_version_label": "Version",
   "review_versions_empty": "Noch keine Diff-Versionen.",
   "review_version_all_changes": "Alle Änderungen",
+  "review_version_all_changes_disambiguated": "Alle Änderungen ({{sha}})",
   "review_version_prefix": "v{{version}}",
   "review_version_latest_prefix": "v{{version}} neueste",
   "review_version_default_reason": "Diff-Review",

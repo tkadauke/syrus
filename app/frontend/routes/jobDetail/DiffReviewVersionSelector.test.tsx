@@ -1,7 +1,7 @@
 import { useState } from "react"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { canonicalReviewVersions, DiffReviewVersionSelector, duplicateRunIds } from "./DiffReviewVersionSelector"
+import { canonicalReviewVersions, DiffReviewVersionSelector, duplicateAllChangesIds, duplicateRunIds } from "./DiffReviewVersionSelector"
 import type { DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
 import type { DiffReviewVersion } from "../../api/jobs"
 
@@ -82,13 +82,17 @@ function allChangesVersion(overrides: Partial<DiffReviewVersion>): DiffReviewVer
 }
 
 describe("canonicalReviewVersions", () => {
-  it("collapses two source_diff versions (a legacy duplicate) into the most recent single All changes entry", () => {
+  it("keeps two distinct non-empty All changes versions instead of collapsing them", () => {
+    // Each "All changes" recomputation now persists its own immutable row
+    // (JobSourceDiffPayload#resolve_diff_review_version no longer mutates a
+    // shared row in place), so two real rows are genuine history, not a
+    // legacy duplicate to collapse.
     const older = allChangesVersion({ id: 1, version_index: 1, head_sha: "claude-head" })
     const newer = allChangesVersion({ id: 2, version_index: 2, head_sha: "codex-head" })
 
     const canonical = canonicalReviewVersions([ older, newer ])
 
-    expect(canonical).toEqual([ newer ])
+    expect(canonical).toEqual([ older, newer ])
   })
 
   it("leaves a single All changes version untouched" , () => {
@@ -158,10 +162,26 @@ describe("duplicateRunIds", () => {
   })
 })
 
+describe("duplicateAllChangesIds", () => {
+  it("flags every All changes version's id when more than one is present", () => {
+    const older = allChangesVersion({ id: 1, version_index: 1, head_sha: "aaaaaaa1111111" })
+    const newer = allChangesVersion({ id: 2, version_index: 2, head_sha: "bbbbbbb2222222" })
+    const runVersion = rangeVersion({ id: 3, run_id: 200 })
+
+    expect(duplicateAllChangesIds([ older, newer, runVersion ])).toEqual(new Set([ 1, 2 ]))
+  })
+
+  it("returns an empty set when only one All changes version is present", () => {
+    const version = allChangesVersion({ id: 1 })
+
+    expect(duplicateAllChangesIds([ version ])).toEqual(new Set())
+  })
+})
+
 describe("DiffReviewVersionSelector", () => {
-  it("renders only one All changes option in the dropdown when the payload carries a legacy duplicate", () => {
+  it("drops an empty legacy All changes option from the dropdown once a real one exists", () => {
     const versions = [
-      allChangesVersion({ id: 1, version_index: 1, head_sha: "claude-head" }),
+      allChangesVersion({ id: 1, version_index: 1, base_sha: "main", head_sha: "main", files_count: 0 }),
       allChangesVersion({ id: 2, version_index: 2, head_sha: "codex-head" })
     ]
 
@@ -175,6 +195,34 @@ describe("DiffReviewVersionSelector", () => {
     )
 
     expect(screen.getAllByText("All changes")).toHaveLength(1)
+  })
+
+  it("gives two distinct All changes versions disambiguated dropdown row labels instead of showing the same text twice", () => {
+    // Regression: each "All changes" recomputation now persists its own
+    // immutable row (see JobSourceDiffPayload#resolve_diff_review_version),
+    // so a Job with two historical "All changes" reads must render them as
+    // distinguishable rows, not two identical "All changes" entries -- the
+    // exact duplicate-looking-rows symptom this Epic was filed to fix.
+    const older = allChangesVersion({ id: 1, version_index: 1, head_sha: "aaaaaaa1111111" })
+    const newer = allChangesVersion({ id: 2, version_index: 2, head_sha: "bbbbbbb2222222" })
+
+    render(
+      <DiffReviewVersionSelector
+        latestVersionId={2}
+        onChange={() => {}}
+        selectedVersionId={2}
+        versions={[ older, newer ]}
+      />
+    )
+
+    expect(screen.getByText("All changes (bbbbbbb)")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /Version/ }))
+    const listbox = screen.getByRole("listbox", { name: "Version" })
+
+    expect(screen.queryAllByText("All changes")).toHaveLength(0)
+    expect(within(listbox).getByText("All changes (aaaaaaa)")).toBeInTheDocument()
+    expect(within(listbox).getByText("All changes (bbbbbbb)")).toBeInTheDocument()
   })
 
   it("gives a resumed Run's two versions distinguishable dropdown row labels instead of showing the same Run identifier twice", () => {

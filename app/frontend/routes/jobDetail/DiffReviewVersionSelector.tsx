@@ -39,6 +39,11 @@ export function DiffReviewVersionSelector({
   // keeps both as genuinely distinct history, so the label must disambiguate
   // them here instead of showing "RUN-<id>" twice.
   const ambiguousRunIds = useMemo(() => duplicateRunIds(ordered), [ordered])
+  // Every "All changes" recomputation now persists its own immutable row
+  // (see JobSourceDiffPayload#resolve_diff_review_version) instead of
+  // mutating a single shared one, so more than one can legitimately appear
+  // in the same list. Disambiguate them the same way ambiguous run rows are.
+  const ambiguousAllChangesIds = useMemo(() => duplicateAllChangesIds(ordered), [ordered])
   const payloadSelected = versions.find((version) => version.id === selectedVersionId) || null
   const selected =
     ordered.find((version) => version.id === selectedVersionId) ||
@@ -65,7 +70,7 @@ export function DiffReviewVersionSelector({
   const resolvedSingleVersion = selected || (selectedRange ? findMatchingVersion(ordered, rangeBaseSha, rangeHeadSha) : null)
   const highlightedFromVersion = selectedRange ? (resolvedSingleVersion || fromEndpointVersion) : selected
   const highlightedToVersion = selectedRange ? (resolvedSingleVersion || toEndpointVersion) : selected
-  const displayLabel = selectedRange ? selectedRangeLabel(t, ordered, rangeBaseSha, rangeHeadSha, ambiguousRunIds) : selected ? collapsedLabel(t, selected, ambiguousRunIds) : t("review_version_label")
+  const displayLabel = selectedRange ? selectedRangeLabel(t, ordered, rangeBaseSha, rangeHeadSha, ambiguousRunIds, ambiguousAllChangesIds) : selected ? collapsedLabel(t, selected, ambiguousRunIds, ambiguousAllChangesIds) : t("review_version_label")
   const selectedIndex = Math.max(0, ordered.findIndex((version) => version.id === selected?.id || version.base_sha === rangeBaseSha || version.head_sha === rangeHeadSha))
   const [activeIndex, setActiveIndex] = useState(selectedIndex)
 
@@ -192,7 +197,7 @@ export function DiffReviewVersionSelector({
             const allChanges = isAllChangesVersion(version)
             return (
               <div
-                aria-label={optionAccessibleName(t, version, ambiguousRunIds)}
+                aria-label={optionAccessibleName(t, version, ambiguousRunIds, ambiguousAllChangesIds)}
                 aria-selected={selectedOption}
                 className={`block w-full rounded px-2.5 py-2 text-left text-sm focus:outline-none focus:ring-2 focus:ring-brand/40 ${selectedOption ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900"} ${allChanges ? "border border-brand/30 bg-brand/5 font-medium" : ""}`}
                 id={`${listboxId}-option-${version.id}`}
@@ -204,7 +209,7 @@ export function DiffReviewVersionSelector({
                 tabIndex={activeIndex === index ? 0 : -1}
               >
                 {allChanges ? (
-                  <AllChangesRow selected={selectedOption} t={t} version={version} />
+                  <AllChangesRow ambiguousAllChangesIds={ambiguousAllChangesIds} selected={selectedOption} t={t} version={version} />
                 ) : (
                   <RangeRow
                     ambiguousRunIds={ambiguousRunIds}
@@ -231,10 +236,10 @@ export function DiffReviewVersionSelector({
   )
 }
 
-function AllChangesRow({ selected, t, version }: { selected: boolean; t: TFunction<"jobs">; version: DiffReviewVersion }) {
+function AllChangesRow({ ambiguousAllChangesIds, selected, t, version }: { ambiguousAllChangesIds?: Set<number>; selected: boolean; t: TFunction<"jobs">; version: DiffReviewVersion }) {
   return (
     <span className="flex min-w-0 items-center justify-between">
-      <span className="truncate">{t("review_version_all_changes")}</span>
+      <span className="truncate">{allChangesLabel(t, version, ambiguousAllChangesIds)}</span>
       {selected ? <span aria-hidden="true" className="h-2 w-2 rounded-full bg-brand" /> : null}
     </span>
   )
@@ -249,20 +254,19 @@ function compareVersions(a: DiffReviewVersion, b: DiffReviewVersion) {
 export function canonicalReviewVersions(versions: DiffReviewVersion[]) {
   const canonicalByRunRange = new Map<string, DiffReviewVersion>()
   const canonical = new Set<DiffReviewVersion>()
-  let canonicalAllChanges: DiffReviewVersion | null = null
   const hasNonEmptyVersion = versions.some((version) => version.files_count > 0)
   for (const version of versions) {
-    // "All changes" is a singleton per Job on the backend, but a synthetic
-    // version has no run_id (runRangeKey returns null), so a legacy
-    // duplicate row must still be collapsed here defensively.
+    // Each "All changes" recomputation now persists its own immutable row
+    // instead of mutating a single shared one (see
+    // JobSourceDiffPayload#resolve_diff_review_version), so more than one
+    // real row is expected history, not a duplicate to collapse -- keep
+    // every one of them. A pre-migration row that was mutated down to zero
+    // files and never touched again is still dropped once real content
+    // exists, the same way an empty legacy row is dropped today.
     if (isAllChangesVersion(version)) {
       if (hasNonEmptyVersion && version.files_count === 0) continue
 
-      if (!canonicalAllChanges || version.id > canonicalAllChanges.id) {
-        if (canonicalAllChanges) canonical.delete(canonicalAllChanges)
-        canonicalAllChanges = version
-        canonical.add(version)
-      }
+      canonical.add(version)
       continue
     }
 
@@ -408,17 +412,31 @@ function runLabel(runId: number, headSha: string, ambiguous: boolean) {
   return ambiguous ? `RUN-${runId} (${shortSha(headSha)})` : `RUN-${runId}`
 }
 
-export function collapsedLabel(t: TFunction<"jobs">, version: DiffReviewVersion, ambiguousRunIds?: Set<number>) {
-  if (isAllChangesVersion(version)) return t("review_version_all_changes")
+// Mirrors duplicateRunIds: an "All changes" row is only ambiguous when more
+// than one appears in the same list -- the common case (one current row)
+// keeps the plain "All changes" label.
+export function duplicateAllChangesIds(versions: DiffReviewVersion[]) {
+  const allChanges = versions.filter(isAllChangesVersion)
+  return allChanges.length > 1 ? new Set(allChanges.map((version) => version.id)) : new Set<number>()
+}
+
+function allChangesLabel(t: TFunction<"jobs">, version: DiffReviewVersion, ambiguousAllChangesIds?: Set<number>) {
+  return ambiguousAllChangesIds?.has(version.id)
+    ? t("review_version_all_changes_disambiguated", { sha: shortSha(version.head_sha) })
+    : t("review_version_all_changes")
+}
+
+export function collapsedLabel(t: TFunction<"jobs">, version: DiffReviewVersion, ambiguousRunIds?: Set<number>, ambiguousAllChangesIds?: Set<number>) {
+  if (isAllChangesVersion(version)) return allChangesLabel(t, version, ambiguousAllChangesIds)
   if (version.run_id && ambiguousRunIds?.has(version.run_id)) return runLabel(version.run_id, version.head_sha, true)
   if (version.label) return version.label
   if (version.run_id) return runLabel(version.run_id, version.head_sha, false)
   return t("review_version_prefix", { version: version.version_index })
 }
 
-function selectedRangeLabel(t: TFunction<"jobs">, versions: DiffReviewVersion[], baseSha: string, headSha: string, ambiguousRunIds?: Set<number>) {
+function selectedRangeLabel(t: TFunction<"jobs">, versions: DiffReviewVersion[], baseSha: string, headSha: string, ambiguousRunIds?: Set<number>, ambiguousAllChangesIds?: Set<number>) {
   const matching = findMatchingVersion(versions, baseSha, headSha)
-  if (matching) return collapsedLabel(t, matching, ambiguousRunIds)
+  if (matching) return collapsedLabel(t, matching, ambiguousRunIds, ambiguousAllChangesIds)
 
   const fromVersion = versions.find((version) => version.base_sha === baseSha)
   const toVersion = versions.find((version) => version.head_sha === headSha)
@@ -481,9 +499,9 @@ function versionMetadata(t: TFunction<"jobs">, version: DiffReviewVersion, lates
   ].join(t("review_version_separator"))
 }
 
-function optionAccessibleName(t: TFunction<"jobs">, version: DiffReviewVersion, ambiguousRunIds?: Set<number>) {
+function optionAccessibleName(t: TFunction<"jobs">, version: DiffReviewVersion, ambiguousRunIds?: Set<number>, ambiguousAllChangesIds?: Set<number>) {
   return [
-    collapsedLabel(t, version, ambiguousRunIds),
+    collapsedLabel(t, version, ambiguousRunIds, ambiguousAllChangesIds),
     t("review_version_range", { base: endpointLabel(version.base_ref, version.base_sha), head: endpointLabel(version.head_ref, version.head_sha) }),
     metadataSummary(t, version)
   ].filter(Boolean).join(t("review_version_separator"))
