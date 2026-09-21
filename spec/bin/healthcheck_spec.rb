@@ -1,6 +1,7 @@
 require "rails_helper"
 require "open3"
 require "rbconfig"
+require "tmpdir"
 
 # The healthcheck script runs as a fresh process from K8s liveness, not
 # inside the Rails worker. Bundler isn't pre-activated there, so the
@@ -59,5 +60,30 @@ RSpec.describe "bin/healthcheck", :ci_only do
     expect(stderr).not_to include("cannot load such file")
     expect(stderr).to include("missing required env var SYRUS_DATABASE_PASSWORD")
     expect(status.exitstatus).to eq(2), "expected exit 2 from env-check, got #{status.exitstatus}: stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+  end
+
+  it "does not fail liveness when the queue DB is temporarily unreachable" do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "mysql2.rb"), <<~RUBY)
+        module Mysql2
+          class Error < StandardError; end
+          class Client
+            def initialize(*)
+              raise Error, "simulated connection outage"
+            end
+          end
+        end
+      RUBY
+
+      stdout, stderr, status = spawn_clean(
+        "HOME" => ENV.fetch("HOME"),
+        "PATH" => ENV.fetch("PATH"),
+        "RUBYLIB" => dir,
+        "SYRUS_DATABASE_PASSWORD" => "secret"
+      )
+
+      expect(status).to be_success, "expected DB outage to keep liveness green, got #{status.exitstatus}: stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(stderr).to include("DB error: Mysql2::Error: simulated connection outage")
+    end
   end
 end

@@ -262,8 +262,7 @@ class RunJob < ApplicationJob
     @workflow.reload
     return true if @run.terminal? || @step.terminal? || @workflow.terminal?
 
-    @run.succeed!
-    @run.save!
+    succeed_run!(@run)
     @step.succeed!
     @step.save!
     log("step #{@step.kind} done (#{@workflow.slug})")
@@ -336,8 +335,7 @@ class RunJob < ApplicationJob
       return
     end
 
-    @run.succeed!
-    @run.save!
+    succeed_run!(@run)
     @step.succeed!
     @step.save!
     log("step #{@step.kind} done (#{@workflow.slug})")
@@ -396,6 +394,12 @@ class RunJob < ApplicationJob
       log("run abandoned — worker died mid-execution; use Retry to try again")
     end
     true
+  end
+
+  def succeed_run!(run)
+    run.agent_outcome = nil if run.agent_outcome == "worker_died"
+    run.succeed!
+    run.save!
   end
 
   def acquire_run_execution!
@@ -718,8 +722,7 @@ class RunJob < ApplicationJob
         "marking #{@workflow.slug} succeeded and closing job")
     cancel_downstream_steps!(reason: "pull request already merged")
 
-    @run.succeed!
-    @run.save!
+    succeed_run!(@run)
     @step.succeed!
     @step.save!
 

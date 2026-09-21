@@ -49,6 +49,16 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
     expect(s_implement.state).to eq("succeeded")
   end
 
+  it "clears stale worker_died outcome when the run later completes successfully" do
+    run = StepDispatcher.start_workflow(workflow)
+    run.update!(agent_outcome: "worker_died")
+
+    described_class.perform_now(run.id)
+
+    expect(run.reload).to be_succeeded
+    expect(run.agent_outcome).to be_nil
+  end
+
   it "captures and clears the Solid Queue role on workflow activity events" do
     run = StepDispatcher.start_workflow(workflow)
 

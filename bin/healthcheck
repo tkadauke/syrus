@@ -2,7 +2,8 @@
 # K8s liveness probe target for the worker pod.
 #
 # Exits 0 if at least one SolidQueue process has heartbeated within
-# HEALTHCHECK_FRESHNESS_SECONDS (default 180). Exits 1 otherwise.
+# HEALTHCHECK_FRESHNESS_SECONDS (default 180). Exits 1 when the queue DB is
+# reachable and no recent worker heartbeat exists.
 #
 # Why a standalone script: K8s liveness runs in the container as a
 # new process. Booting Rails for a heartbeat check would cost ~5-10s
@@ -10,10 +11,15 @@
 # this connects to MySQL directly via mysql2 and runs one query.
 #
 # Why we check SolidQueue::Process and not just `is pid 1 alive`:
-# today's incident had every SolidQueue process alive but unable to
+# one incident had every SolidQueue process alive but unable to
 # heartbeat (DB pool wedged on a lock-wait cascade). The pod looked
 # healthy to anyone counting PIDs; it was deeply broken to anyone
 # checking forward progress. This script catches that.
+#
+# A transient queue DB connection failure is different: killing every worker
+# cannot repair MySQL, and it turns a short DB outage into active Run loss.
+# Treat DB-unreachable as live for liveness; readiness/queue admission should
+# carry the degraded signal while existing processes wait for DB to recover.
 
 # Bundler activates the gems in the Gemfile.lock onto $LOAD_PATH.
 # In a deployment install (`bundle install --deployment` or its
@@ -62,9 +68,7 @@ begin
   exit 0
 rescue Mysql2::Error => e
   warn "[healthcheck] DB error: #{e.class}: #{e.message}"
-  # If we can't reach the queue DB, the worker can't be doing useful
-  # work anyway — fail loud so K8s restarts.
-  exit 1
+  exit 0
 rescue StandardError => e
   warn "[healthcheck] unexpected error: #{e.class}: #{e.message}"
   exit 1
