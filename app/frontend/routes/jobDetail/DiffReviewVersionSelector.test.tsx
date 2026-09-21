@@ -82,13 +82,24 @@ function allChangesVersion(overrides: Partial<DiffReviewVersion>): DiffReviewVer
 }
 
 describe("canonicalReviewVersions", () => {
-  it("collapses two source_diff versions (a legacy duplicate) into the most recent single All changes entry", () => {
-    const older = allChangesVersion({ id: 1, version_index: 1, head_sha: "claude-head" })
-    const newer = allChangesVersion({ id: 2, version_index: 2, head_sha: "codex-head" })
+  it("collapses two All changes rows sharing the exact same base/head SHA (a legacy duplicate) into one", () => {
+    const older = allChangesVersion({ id: 1, version_index: 1 })
+    const newer = allChangesVersion({ id: 2, version_index: 2 })
 
     const canonical = canonicalReviewVersions([ older, newer ])
 
     expect(canonical).toEqual([ newer ])
+  })
+
+  it("keeps two All changes rows with different head SHAs as distinct entries instead of collapsing to the latest", () => {
+    // App::JobSourceDiffPayload#resolve_diff_review_version only reuses an
+    // existing row on an exact base/head match; a later "current" diff with
+    // a different head SHA now gets its own immutable row rather than
+    // overwriting the earlier one in place, so both must stay selectable.
+    const first = allChangesVersion({ id: 1, version_index: 1, head_sha: "claude-head" })
+    const second = allChangesVersion({ id: 2, version_index: 2, head_sha: "codex-head" })
+
+    expect(canonicalReviewVersions([ first, second ])).toEqual([ first, second ])
   })
 
   it("leaves a single All changes version untouched" , () => {
@@ -161,8 +172,8 @@ describe("duplicateRunIds", () => {
 describe("DiffReviewVersionSelector", () => {
   it("renders only one All changes option in the dropdown when the payload carries a legacy duplicate", () => {
     const versions = [
-      allChangesVersion({ id: 1, version_index: 1, head_sha: "claude-head" }),
-      allChangesVersion({ id: 2, version_index: 2, head_sha: "codex-head" })
+      allChangesVersion({ id: 1, version_index: 1 }),
+      allChangesVersion({ id: 2, version_index: 2 })
     ]
 
     render(

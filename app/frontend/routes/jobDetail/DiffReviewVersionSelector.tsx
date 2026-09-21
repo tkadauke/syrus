@@ -249,18 +249,24 @@ function compareVersions(a: DiffReviewVersion, b: DiffReviewVersion) {
 export function canonicalReviewVersions(versions: DiffReviewVersion[]) {
   const canonicalByRunRange = new Map<string, DiffReviewVersion>()
   const canonical = new Set<DiffReviewVersion>()
-  let canonicalAllChanges: DiffReviewVersion | null = null
   const hasNonEmptyVersion = versions.some((version) => version.files_count > 0)
   for (const version of versions) {
-    // "All changes" is a singleton per Job on the backend, but a synthetic
-    // version has no run_id (runRangeKey returns null), so a legacy
-    // duplicate row must still be collapsed here defensively.
+    // "All changes" is no longer a singleton per Job on the backend --
+    // App::JobSourceDiffPayload#resolve_diff_review_version only reuses an
+    // existing row on an exact base_sha/head_sha match and otherwise
+    // persists each "current" computation as its own immutable version, so
+    // two All-changes rows with different base/head are genuinely distinct
+    // history, not duplicates. A literal duplicate (identical base_sha AND
+    // head_sha) can still exist from legacy data and is collapsed here
+    // defensively, keyed the same way run-scoped rows are.
     if (isAllChangesVersion(version)) {
       if (hasNonEmptyVersion && version.files_count === 0) continue
 
-      if (!canonicalAllChanges || version.id > canonicalAllChanges.id) {
-        if (canonicalAllChanges) canonical.delete(canonicalAllChanges)
-        canonicalAllChanges = version
+      const key = allChangesRangeKey(version)
+      const existing = canonicalByRunRange.get(key)
+      if (!existing || version.id > existing.id) {
+        if (existing) canonical.delete(existing)
+        canonicalByRunRange.set(key, version)
         canonical.add(version)
       }
       continue
@@ -280,6 +286,10 @@ export function canonicalReviewVersions(versions: DiffReviewVersion[]) {
     }
   }
   return [...canonical]
+}
+
+function allChangesRangeKey(version: DiffReviewVersion) {
+  return ["all_changes", version.base_sha, version.head_sha].join(":")
 }
 
 function runRangeKey(version: DiffReviewVersion) {
