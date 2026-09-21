@@ -1,5 +1,7 @@
 module <%= module_name %>
   class AdminPages
+    include Syrus::Plugin::AdminPage
+
     def self.admin_pages
       [
         {
