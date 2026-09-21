@@ -87,14 +87,11 @@ RSpec.describe Metrics::ResilienceSampler do
 
     it "distinguishes a usage-limit open state from an ordinary open state" do
       run = failed_agent_run(provider: "codex", outcome: "provider_usage_limit")
+      # RunDiagnostic's after_commit callback (see RunDiagnostic#refresh_failure_classification!)
+      # already runs this message through RunFailureClassifier and persists a
+      # provider_usage_limit classification -- a second explicit
+      # create_run_failure_classification! here would collide with it.
       RunDiagnostic.create!(run: run, error_class: "Steps::Base::StepFailed", error_message: "Codex API error: model gpt-5.5 weekly usage limit exhausted; check billing")
-      run.create_run_failure_classification!(
-        classification: "provider_usage_limit",
-        confidence: 0.95,
-        retryable: false,
-        reason: "usage exhausted",
-        classified_at: Time.current
-      )
 
       described_class.sample!
       described_class.refresh_gauges!
