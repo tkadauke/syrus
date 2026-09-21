@@ -28,8 +28,14 @@ function context(toolName: string, overrides: Partial<ToolCardContext> = {}): To
 }
 
 function expandToolGroup(label: string) {
-  const summary = screen.getByText(label).closest("summary")
-  expect(summary).not.toBeNull()
+  // The header summary and the per-call label can render identical text
+  // (zero-arg calls omit the parenthesized detail), so resolve the click
+  // through the enclosing <summary> instead of assuming uniqueness.
+  const summary = screen
+    .getAllByText(label)
+    .map((element) => element.closest("summary"))
+    .find((element): element is HTMLElement => element !== null)
+  expect(summary).not.toBeUndefined()
   if (!summary) throw new Error(`missing summary for ${label}`)
   fireEvent.click(summary)
 }
@@ -206,7 +212,9 @@ describe("Runtime tool cards", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.getByText("Runtime launch: succeeded at /settings")).toBeInTheDocument()
+    // Single ownership: the registered card owns the expanded view, so the
+    // summary lives only in the header's detail + summary subtitle.
+    expect(screen.getByText("options: path /settings · Runtime launch: succeeded at /settings")).toBeInTheDocument()
     expect(screen.queryByText("Runtime launch: succeeded at Navigated to http://127.0.0.1:3001/settings")).not.toBeInTheDocument()
   })
 
