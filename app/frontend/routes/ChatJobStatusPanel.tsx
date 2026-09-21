@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState, type KeyboardEvent } from "react"
 import { useNavigate } from "react-router-dom"
-import type { ChatJobStatusBlocker, ChatJobStatusEpicItem, ChatJobStatusItem, ChatJobStatusJobItem } from "../api/chats"
+import type { ChatJobStatusBlocker, ChatJobStatusEpicItem, ChatJobStatusItem, ChatJobStatusJobItem, ChatJobStatusPendingProposal } from "../api/chats"
 import { fetchChatJobStatus } from "../api/chats"
 import { useT } from "../hooks/useT"
 import { CopyableSlug } from "../components/CopyableSlug"
+import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { SlugHoverCard } from "../components/SlugHoverCard"
 import { StatusPill } from "../components/StatusPill"
 
@@ -164,7 +165,60 @@ function EpicSection({ epic, hideClosedJobs, onJobClick }: { epic: ChatJobStatus
   )
 }
 
-export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
+function proposalKindLabel(proposal: ChatJobStatusPendingProposal, t: (key: string) => string): string {
+  if (proposal.kind === "epic") return t("job_status_proposal_kind_epic")
+  if (proposal.kind === "syrus_issue") return t("job_status_proposal_kind_syrus_issue")
+
+  return t("job_status_proposal_kind_job")
+}
+
+function ProposedProposalsSection({ proposals, onSelectMessage }: { proposals: ChatJobStatusPendingProposal[]; onSelectMessage?: (messageId: number) => void }) {
+  const { t } = useT("chat")
+
+  if (proposals.length === 0) return null
+
+  return (
+    <div aria-label={t("job_status_proposed_title")} className="space-y-1.5">
+      <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
+        {t("job_status_proposed_title")}
+      </p>
+      <div className="divide-y divide-border rounded border border-border">
+        {proposals.map((proposal) => {
+          const clickable = Boolean(onSelectMessage && proposal.anchor_message_id)
+          const handleClick = clickable ? () => onSelectMessage?.(proposal.anchor_message_id as number) : undefined
+
+          return (
+            <div
+              className={`w-full bg-surface px-3 py-2.5 text-left ${clickable ? "cursor-pointer transition hover:bg-surface-raised" : ""}`}
+              key={`${proposal.kind}-${proposal.id}`}
+              onClick={handleClick}
+              onKeyDown={clickable ? (event) => activateOnEnterOrSpace(event, () => handleClick?.()) : undefined}
+              role={clickable ? "button" : undefined}
+              tabIndex={clickable ? 0 : undefined}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">
+                  {proposal.title}
+                </p>
+                <RelativeTimestamp className="shrink-0 text-xs text-text-muted" value={proposal.created_at} />
+              </div>
+              <div className="mt-0.5 flex items-center gap-2 text-xs text-text-muted">
+                <span className="rounded-full bg-surface-subtle px-2 py-0.5 font-medium text-text-secondary">
+                  {proposalKindLabel(proposal, t)}
+                </span>
+                {proposal.kind === "epic" && proposal.active_children_count != null ? (
+                  <span>{t("job_status_proposal_child_count", { count: proposal.active_children_count })}</span>
+                ) : null}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string | number; onSelectMessage?: (messageId: number) => void }) {
   const queryClient = useQueryClient()
   const { t } = useT("chat")
   const navigate = useNavigate()
@@ -197,9 +251,10 @@ export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
     return <p className="text-sm text-red-600 dark:text-red-400">{t("job_status_error")}</p>
   }
 
-  const items: ChatJobStatusItem[] = Array.isArray(data) ? data : []
+  const pendingProposals = data?.pending_proposals ?? []
+  const items: ChatJobStatusItem[] = data?.items ?? []
 
-  if (items.length === 0) {
+  if (items.length === 0 && pendingProposals.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">{t("job_status_empty")}</p>
   }
 
@@ -224,6 +279,7 @@ export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
 
   return (
     <div className="space-y-3">
+      <ProposedProposalsSection onSelectMessage={onSelectMessage} proposals={pendingProposals} />
       {hasClosedItems ? (
         <div className="flex justify-end">
           <button
