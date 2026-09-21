@@ -15,6 +15,7 @@ single web-serving convention worth modeling as its own plugin.
 | `:review_criteria_provider` | Seeds a default adversarial-review checklist item — "Flag swallowed errors (`_ = err`)" — when `go.mod` is present (same signal as `:prepare_detector`). |
 | `:autofix_command` | `Go::GofmtAutofix` runs `gofmt -w .` whenever `go.mod` is present. `gofmt` has no configuration surface to gate on the way rubocop/eslint/ruff do, so presence of a Go module is the only signal needed. |
 | `:dependency_audit_command` | Runs `govulncheck ./...` when `go.sum` is present. `go.sum` is the lockfile signal — `go.mod` is the manifest `:prepare_detector` keys off, but by itself doesn't reflect a resolved dependency version an audit tool can check. |
+| `:grader_type` | `Go::TestGraderType` (`type_name: "go-test"`) synthesizes a `.syrus.yml` grade step that runs `mise exec go@1.26.5 -- go test ./...` (or, for a sub-module `path`/`paths`, a `cd <module> && go test ./...` wrapper). Defaults: `timeout_minutes: 5` (capped at 90), `when_files_changed` scoped to `**/*.go`, `go.mod`, `go.sum`, `Makefile` (prefixed by the module path when set), and `required: true` unless overridden. |
 
 ## Self-suggestion
 
