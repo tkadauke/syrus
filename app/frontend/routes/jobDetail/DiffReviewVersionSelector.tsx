@@ -252,9 +252,13 @@ export function canonicalReviewVersions(versions: DiffReviewVersion[]) {
   let canonicalAllChanges: DiffReviewVersion | null = null
   const hasNonEmptyVersion = versions.some((version) => version.files_count > 0)
   for (const version of versions) {
-    // "All changes" is a singleton per Job on the backend, but a synthetic
-    // version has no run_id (runRangeKey returns null), so a legacy
-    // duplicate row must still be collapsed here defensively.
+    // "All changes" is no longer a mutable per-Job singleton on the backend:
+    // JobSourceDiffPayload never overwrites a previously persisted version in
+    // place, so each distinct live base/head SHA pair gets its own immutable
+    // row over time (see JobSourceDiffPayload#resolve_diff_review_version).
+    // A synthetic version also has no run_id (runRangeKey returns null), so
+    // these genuinely distinct rows must still be collapsed here to just the
+    // newest one for display.
     if (isAllChangesVersion(version)) {
       if (hasNonEmptyVersion && version.files_count === 0) continue
 
