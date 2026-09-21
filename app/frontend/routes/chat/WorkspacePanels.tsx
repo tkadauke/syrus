@@ -1417,6 +1417,14 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
     retry: codingQueryRetry
   })
 
+  // The checkout relay is genuinely not up yet (not cloned/prepared, or the
+  // worker briefly dropped) rather than a real failure -- recordRelayUnavailable
+  // already schedules a background refresh and pauses refetch, so this state
+  // just needs a "still on it" message instead of the hard error text.
+  const fileTreeNotReady = fileTree.isError && isCodingRelayUnavailable(fileTree.error)
+  const fileContentNotReady = fileContent.isError && isCodingRelayUnavailable(fileContent.error)
+  const diffResultNotReady = diffResult.isError && isCodingRelayUnavailable(diffResult.error)
+
   function toggleDir(path: string) {
     setOpenDirs((prev) => {
       const next = new Set(prev)
@@ -1582,8 +1590,8 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
         <div className="flex min-h-0 flex-1">
           {treeCollapsed ? null : (
             <div className="shrink-0 overflow-y-auto py-1" style={{ width: `${treeWidth}px` }}>
-              {fileTree.isPending ? (
-                <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t("files_loading")}</p>
+              {fileTree.isPending || fileTreeNotReady ? (
+                <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t(fileTreeNotReady ? "coding_checkout_not_ready" : "files_loading")}</p>
               ) : fileTree.isError ? (
                 <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">{t("files_error")}</p>
               ) : treeNodes.length === 0 ? (
@@ -1622,8 +1630,8 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
           <div className="min-w-0 flex-1 overflow-y-auto">
             {!selectedFile ? (
               <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_empty")}</p>
-            ) : fileContent.isPending ? (
-              <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_loading")}</p>
+            ) : fileContent.isPending || fileContentNotReady ? (
+              <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t(fileContentNotReady ? "coding_checkout_not_ready" : "file_content_loading")}</p>
             ) : fileContent.isError ? (
               <p className="px-4 py-3 text-xs text-red-600 dark:text-red-400">{t("file_content_error")}</p>
             ) : fileContent.data?.binary ? (
@@ -1637,8 +1645,8 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
         </div>
       ) : (
         <div className="min-h-0 flex-1">
-          {diffResult.isPending ? (
-            <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("diff_loading")}</p>
+          {diffResult.isPending || diffResultNotReady ? (
+            <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t(diffResultNotReady ? "coding_checkout_not_ready" : "diff_loading")}</p>
           ) : diffResult.isError ? (
             <p className="px-4 py-3 text-xs text-red-600 dark:text-red-400">{t("diff_error")}</p>
           ) : !diffResult.data?.diff ? (
