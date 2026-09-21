@@ -339,8 +339,17 @@ class RetryFailedStepEnqueuer
 
   def reopen_workflow_for_retry!
     workflow.reopen!
+    clear_workflow_failure_reason!
     workflow.save!
     workflow.sync_work_unit_running! if workflow.running? && workflow.work_unit && !workflow.work_unit.running?
+  end
+
+  def clear_workflow_failure_reason!
+    workflow.failure_reason = nil if workflow.respond_to?(:failure_reason=)
+    artifacts = workflow.artifacts.to_h
+    return unless artifacts.key?("failure_reason")
+
+    workflow.artifacts = artifacts.except("failure_reason")
   end
 
   def placement_policy_for(kind)

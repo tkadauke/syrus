@@ -64,7 +64,13 @@ RSpec.describe RetryFailedStepEnqueuer do
   it "retries the whole grade loop from fanout when collect fails" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "retry", chain_template: grade_retry_chain_template)
-    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    workflow.update_columns(
+      state: "failed",
+      started_at: 10.minutes.ago,
+      finished_at: 1.minute.ago,
+      failure_reason: "loop_exhausted_after_grader_failure",
+      artifacts: { "failure_reason" => "loop_exhausted_after_grader_failure" }
+    )
 
     fanout = Step.create!(
       workflow: workflow,
@@ -111,6 +117,8 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(collect.reload).to be_failed
     expect(collect).to be_retry_until_barrier_superseded
     expect(result.run.step).to eq(new_fanout)
+    expect(workflow.reload.failure_reason).to be_nil
+    expect(workflow.artifact("failure_reason")).to be_nil
 
     new_collect.update!(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
     expect(workflow.reload).not_to be_uncleared_retry_until_barrier
