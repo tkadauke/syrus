@@ -6,7 +6,11 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
   let(:chat_session) { ChatSession.create!(user: user) }
 
   def parse_body
-    JSON.parse(response.body)
+    JSON.parse(response.body).fetch("items")
+  end
+
+  def parse_pending_proposals
+    JSON.parse(response.body).fetch("pending_proposals")
   end
 
   it "returns 401 when not signed in" do
@@ -502,6 +506,47 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
         expect(items.first["kind"]).to eq("job")
         expect(items.first["slug"]).to eq(standalone.slug)
         expect(items.last["kind"]).to eq("epic")
+      end
+    end
+
+    describe "pending proposals" do
+      it "includes pending Job and Epic proposals for the current chat" do
+        ChatProposal.create!(
+          chat_session: chat_session, slug: "pending-job", kind: "job",
+          title: "A pending job", body: "Not yet filed.", state: "proposed"
+        )
+        ChatProposal.create!(
+          chat_session: chat_session, slug: "pending-epic", kind: "epic",
+          title: "A pending epic", body: "Not yet filed.", state: "proposed"
+        )
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        expect(response).to have_http_status(:ok)
+        kinds = parse_pending_proposals.map { |p| p["kind"] }
+        expect(kinds).to contain_exactly("job", "epic")
+      end
+
+      it "excludes confirmed, rejected, and withdrawn proposals" do
+        ChatProposal.create!(chat_session: chat_session, slug: "confirmed", kind: "job", title: "Confirmed", body: "Body.", state: "confirmed")
+        ChatProposal.create!(chat_session: chat_session, slug: "rejected", kind: "job", title: "Rejected", body: "Body.", state: "rejected")
+        ChatProposal.create!(chat_session: chat_session, slug: "withdrawn", kind: "job", title: "Withdrawn", body: "Body.", state: "withdrawn")
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        expect(parse_pending_proposals).to eq([])
+      end
+
+      it "does not include pending proposals from a different chat session accessible to the same user" do
+        other_chat = ChatSession.create!(user: user)
+        ChatProposal.create!(
+          chat_session: other_chat, slug: "other-chat-job", kind: "job",
+          title: "Another chat's job", body: "Not for this chat.", state: "proposed"
+        )
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        expect(parse_pending_proposals).to eq([])
       end
     end
   end
