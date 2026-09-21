@@ -127,8 +127,23 @@ func TestLocalCableOriginKeepsNonDefaultPort(t *testing.T) {
 // resolveLocalPath (boundary enforcement)
 // ---------------------------------------------------------------------------
 
+// canonicalTempDir returns t.TempDir() with symlinks resolved. resolveLocalPath
+// returns canonical paths -- it has to, to catch a symlink that escapes the
+// repo -- so expectations built from the raw temp dir only hold where temp
+// dirs are not themselves behind a symlink. On macOS /var is a symlink to
+// /private/var, and comparing against the raw path failed there while passing
+// on Linux CI.
+func canonicalTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("resolve temp dir: %v", err)
+	}
+	return dir
+}
+
 func TestResolveLocalPathAllowsRelativePaths(t *testing.T) {
-	root := t.TempDir()
+	root := canonicalTempDir(t)
 	got, err := resolveLocalPath(root, "src/main.go")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -139,7 +154,7 @@ func TestResolveLocalPathAllowsRelativePaths(t *testing.T) {
 }
 
 func TestResolveLocalPathAllowsRepoRoot(t *testing.T) {
-	root := t.TempDir()
+	root := canonicalTempDir(t)
 	got, err := resolveLocalPath(root, ".")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -183,7 +198,7 @@ func TestResolveLocalPathRejectsSymlinkEscape(t *testing.T) {
 }
 
 func TestResolveLocalPathAllowsAbsolutePathInsideRoot(t *testing.T) {
-	root := t.TempDir()
+	root := canonicalTempDir(t)
 	target := filepath.Join(root, "sub", "file.txt")
 	got, err := resolveLocalPath(root, target)
 	if err != nil {
