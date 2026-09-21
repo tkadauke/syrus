@@ -215,12 +215,22 @@ module JavaScript
     end
 
     def focused_command
-      <<~BASH.squish
+      # Shellwords.escape keeps a literal newline inside the string it
+      # returns (wrapping each source line in its own pair of single quotes)
+      # so a multi-line script still parses as a single shell word. The
+      # surrounding heredoc below is squished into one line before it ships;
+      # squish collapses those literal newlines into plain spaces, which
+      # splits the escaped script into several separate `ruby -e` arguments
+      # instead of one. Substitute the escaped script in via a placeholder
+      # *after* squishing so squish never sees its embedded newlines.
+      placeholder = "__SYRUS_FOCUSED_SELECTOR_RUBY__"
+      command = <<~BASH.squish
         #{setup_prefix} &&
-        ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/vitest-focused-files &&
+        ruby -e #{placeholder} > .syrus/vitest-focused-files &&
         if [ ! -s .syrus/vitest-focused-files ]; then echo "No focused Vitest files matched changed JavaScript/TypeScript files"; exit 0; fi &&
         #{vitest_command(junit_output: junit_output(focused_name), coverage: false, include_typecheck: false, args: [ "related", "--run", "--passWithNoTests", "$(cat .syrus/vitest-focused-files)" ], shell_expand_args: true, skip_setup: true)}
       BASH
+      command.sub(placeholder) { Shellwords.escape(focused_selector_ruby) }
     end
 
     def vitest_command(junit_output:, coverage:, include_typecheck:, args:, shell_expand_args: false, skip_setup: false)

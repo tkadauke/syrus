@@ -1,8 +1,27 @@
 require "rails_helper"
+require "shellwords"
 
 RSpec.describe Ruby::RspecGraderType do
   it "registers the rspec type name" do
     expect(described_class.type_name).to eq("rspec")
+  end
+
+  it "produces a focused command whose ruby -e script survives squish as one shell word" do
+    step = described_class.grade_steps(config: {}, default_failures: "strict").second
+    tokens = Shellwords.split(step.run)
+
+    e_index = tokens.index("-e")
+    expect(e_index).not_to be_nil
+
+    script_arg = tokens[e_index + 1]
+    expect(script_arg).to start_with("base = ")
+    expect(script_arg).to include("puts specs.uniq.sort.select")
+    # A regression in how the multi-line selector script is escaped before
+    # `.squish` runs on the surrounding heredoc would split it into several
+    # separate `ruby -e` arguments instead of one -- assert there's exactly
+    # one token immediately after -e that is a full, valid Ruby program.
+    expect(tokens[e_index + 2]).to eq(">")
+    expect { RubyVM::InstructionSequence.compile(script_arg) }.not_to raise_error
   end
 
   it "expands to typed focused review, full landing, and ci graders" do
