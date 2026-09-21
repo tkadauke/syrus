@@ -36,7 +36,19 @@ module Steps
       failed_required = grader_steps.select do |g|
         g.details && g.details["required"] && g.state == "failed"
       end
+      cancelled_required = grader_steps.select do |g|
+        g.details && g.details["required"] && g.state == "cancelled"
+      end
       record_grader_loop_metrics!(grader_steps, failed_required: failed_required)
+
+      if cancelled_required.any?
+        names = grader_names(cancelled_required)
+        log("[grader_collect] required graders were cancelled: #{names.join(', ')}")
+        mark_transient_only_failure!
+        fail_with!(:worker_died, "required graders were cancelled: #{names.join(', ')}",
+                   evidence: { grader_names: names, states: cancelled_required.to_h { |grader| [ grader.id, grader.state ] } })
+      end
+
       infrastructure_failed_required = failed_required.select { |g| infrastructure_failed_step?(g) }
       real_failed_required = failed_required - infrastructure_failed_required
       if infrastructure_failed_required.empty?

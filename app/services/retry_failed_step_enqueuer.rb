@@ -11,6 +11,9 @@ class RetryFailedStepEnqueuer
 
   def self.call(...) = new(...).call
   def self.failed_step_for(workflow)
+    cancelled_loop = cancelled_grade_loop_restart_step_for(workflow)
+    return cancelled_loop if cancelled_loop
+
     step = workflow.steps.where(state: "failed").reorder(position: :desc, id: :desc).detect { |candidate| !candidate.retry_until_barrier_superseded? } ||
       cancelled_publication_step_for(workflow)
     step = grade_loop_restart_step_for(step) if grade_loop_failure?(step)
@@ -33,7 +36,38 @@ class RetryFailedStepEnqueuer
       .reorder(position: :asc, id: :asc)
       .first || step
   end
-  private_class_method :grade_loop_failure?, :grade_loop_restart_step_for
+
+  def self.cancelled_grade_loop_restart_step_for(workflow)
+    collectors = workflow.steps
+      .where(kind: "grader_collect")
+      .where.not(loop_id: nil)
+      .reorder(position: :desc, id: :desc)
+    inspected_loop_ids = {}
+
+    collectors.each do |collector|
+      next if inspected_loop_ids[collector.loop_id]
+
+      inspected_loop_ids[collector.loop_id] = true
+      next if collector.retry_until_barrier_superseded?
+
+      iteration_steps = workflow.steps
+        .where(loop_id: collector.loop_id, iteration: collector.iteration)
+        .reorder(:position, :id)
+        .to_a
+      next unless iteration_steps.any? { |candidate| candidate.runs.any? || candidate.failed? || candidate.succeeded? }
+
+      cancelled_required = iteration_steps.any? do |candidate|
+        candidate.cancelled? && (candidate.kind != "grader" || candidate.details.to_h.fetch("required", true))
+      end
+      next unless cancelled_required
+
+      fanout = iteration_steps.find { |candidate| candidate.kind == "grader_fanout" }
+      return fanout if fanout
+    end
+
+    nil
+  end
+  private_class_method :grade_loop_failure?, :grade_loop_restart_step_for, :cancelled_grade_loop_restart_step_for
 
   # A fanout batch can fail more than one required grader at once; retrying
   # only the single Step returned by failed_step_for left every sibling

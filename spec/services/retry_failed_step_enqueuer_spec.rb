@@ -124,6 +124,70 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(workflow.reload).not_to be_uncleared_retry_until_barrier
   end
 
+  it "restarts a cancelled grade loop before retrying a downstream failure" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", chain_template: grade_retry_chain_template)
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+
+    fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 4, state: "succeeded", iteration: 1, loop_id: "grade-loop")
+    passed_grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 5,
+      state: "succeeded",
+      iteration: 1,
+      loop_id: "grade-loop",
+      details: { "name" => "tests", "required" => true }
+    )
+    cancelled_grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 6,
+      state: "cancelled",
+      iteration: 1,
+      loop_id: "grade-loop",
+      details: { "name" => "lint", "required" => true }
+    )
+    collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 7, state: "succeeded", iteration: 1, loop_id: "grade-loop")
+    downstream = Step.create!(workflow: workflow, kind: "coverage_analyze", position: 8, state: "failed")
+    fanout.update!(next_step: passed_grader)
+    passed_grader.update!(next_step: collect, depends_on_ids: [ fanout.id ])
+    cancelled_grader.update!(next_step: collect, depends_on_ids: [ fanout.id ])
+    collect.update!(next_step: downstream, depends_on_ids: [ passed_grader.id, cancelled_grader.id ])
+    fanout.runs.create!(job: job, trigger_kind: "initial", state: "succeeded")
+    passed_grader.runs.create!(job: job, trigger_kind: "initial", state: "succeeded")
+    collect.runs.create!(job: job, trigger_kind: "initial", state: "succeeded")
+    downstream.runs.create!(job: job, trigger_kind: "initial", state: "failed")
+
+    expect(described_class.failed_step_for(workflow)).to eq(fanout)
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(result.step).to have_attributes(kind: "grader_fanout", iteration: 1, state: "queued")
+    expect(result.step.loop_id).not_to eq("grade-loop")
+    expect(downstream.reload).to be_failed
+  end
+
+  it "ignores cancelled graders from an earlier iteration when the latest iteration completed" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", chain_template: grade_retry_chain_template)
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+
+    old_fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 4, state: "succeeded", iteration: 1, loop_id: "grade-loop")
+    Step.create!(workflow: workflow, kind: "grader", position: 5, state: "cancelled", iteration: 1, loop_id: "grade-loop", details: { "required" => true })
+    Step.create!(workflow: workflow, kind: "grader_collect", position: 6, state: "failed", iteration: 1, loop_id: "grade-loop")
+    new_fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 7, state: "succeeded", iteration: 2, loop_id: "grade-loop")
+    Step.create!(workflow: workflow, kind: "grader", position: 8, state: "succeeded", iteration: 2, loop_id: "grade-loop", details: { "required" => true })
+    Step.create!(workflow: workflow, kind: "grader_collect", position: 9, state: "succeeded", iteration: 2, loop_id: "grade-loop")
+    downstream = Step.create!(workflow: workflow, kind: "coverage_analyze", position: 10, state: "failed")
+    old_fanout.runs.create!(job: job, trigger_kind: "initial", state: "succeeded")
+    new_fanout.runs.create!(job: job, trigger_kind: "initial", state: "succeeded")
+    downstream.runs.create!(job: job, trigger_kind: "initial", state: "failed")
+
+    expect(described_class.failed_step_for(workflow)).to eq(downstream)
+  end
+
   it "resets every grader in the batch under distributed-projection wiring" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "retry", chain_template: grade_retry_chain_template)

@@ -190,6 +190,25 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "fails collection when a required grader was cancelled" do
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "cancelled",
+      details: { "name" => "rspec", "required" => true, "command" => "bundle exec rspec" }
+    )
+
+    expect { handler.call }.to raise_error(
+      Steps::Base::StepFailed,
+      "required graders were cancelled: rspec"
+    )
+
+    expect(step.reload.details).to include(
+      Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true
+    )
+    expect(workflow.reload.artifact("iterations").first).to include(
+      include("name" => "rspec", "required" => true, "status" => "failed")
+    )
+  end
+
   # Rung 0 records what it decided even when nothing acts on it, so the
   # escalations-per-landing metric has something to count.
   it "records the rung-0 verdict alongside the failure" do

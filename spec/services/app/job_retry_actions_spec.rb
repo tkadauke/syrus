@@ -122,6 +122,51 @@ RSpec.describe App::JobRetryActions do
         step_kind: "grader_fanout"
       )
     end
+
+    it "offers a grade-loop restart when required graders were cancelled before a downstream failure" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        agent_provider: job.agent_provider,
+        state: "failed",
+        chain_template: [
+          {
+            "type" => "retry_until",
+            "max_iterations" => 2,
+            "repair" => [ "implement" ],
+            "check" => [ "grader_fanout", "grader_collect" ],
+            "repair_first" => false
+          }
+        ],
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      fanout = workflow.steps.create!(kind: "grader_fanout", position: 1, state: "succeeded", loop_id: "grade-loop")
+      grader = workflow.steps.create!(
+        kind: "grader",
+        position: 2,
+        state: "cancelled",
+        loop_id: "grade-loop",
+        details: { "name" => "tests", "required" => true }
+      )
+      collect = workflow.steps.create!(kind: "grader_collect", position: 3, state: "succeeded", loop_id: "grade-loop")
+      downstream = workflow.steps.create!(kind: "coverage_analyze", position: 4, state: "failed")
+      fanout.update!(next_step: grader)
+      grader.update!(next_step: collect, depends_on_ids: [ fanout.id ])
+      collect.update!(next_step: downstream, depends_on_ids: [ grader.id ])
+      fanout.runs.create!(job: job, trigger_kind: "initial", state: "succeeded")
+      collect.runs.create!(job: job, trigger_kind: "initial", state: "succeeded")
+      downstream.runs.create!(job: job, trigger_kind: "initial", state: "failed")
+
+      actions = actions_for(job)
+
+      expect(actions[:failed_step]).to include(
+        key: "retry_failed_step",
+        label: "Restart grade loop",
+        step_kind: "grader_fanout"
+      )
+    end
   end
 
   describe "when an implementation-shaped step fails with a git_state_corrupt workspace" do
