@@ -26,8 +26,7 @@ import { Notice, Page, Section, Surface, Text } from "../components/ui"
 import { SyrusTour } from "../components/SyrusTour"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { useTour } from "../hooks/useTour"
-import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChromeWithMeta, fetchDashboardRowsWithMeta, fetchEpicsGraph, fetchJobsGraph, mergeDashboardPayload, recordDashboardFilterUsage, requestDashboardMainBranchRepair, updateDashboardPreferences, type DashboardHealthBlockedRepository, type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardPendingProposal, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
-import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChromeWithMeta, fetchDashboardRowsWithMeta, fetchEpicsGraph, fetchJobsGraph, mergeDashboardPayload, recordDashboardFilterUsage, requestDashboardMainBranchRepair, updateDashboardPreferences, type DashboardHealthBlockedRepository, type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
 import type { JsonResponseMeta } from "../api/client"
 import { TopoDepGraph } from "../components/TopoDepGraph"
 import { errorMessage } from "../lib/errorMessage"
@@ -186,7 +185,6 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
         {isDesktop ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} isDesktop={isDesktop} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </Page.Header>
-      <PendingProposalsSection className="mx-4 sm:mx-0" prefix={prefix} proposals={payload.pending_proposals ?? []} />
       <ReadinessPanel className="mx-4 sm:mx-0" prefix={prefix} readiness={readiness} />
       <RepositoryHealthBanners className="mx-4 sm:mx-0" prefix={prefix} repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []} />
 
@@ -241,37 +239,6 @@ export function DashboardTour() {
   return <SyrusTour run={run} steps={steps} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
-export function PendingProposalsSection({ className = "", prefix, proposals }: { className?: string; prefix: string; proposals: DashboardPendingProposal[] }) {
-  const { t } = useT("dashboard")
-
-  if (proposals.length === 0) return null
-
-  return (
-    <Section.Root aria-label={t("pending_proposals_title")} className={className}>
-      <Text as="h2" variant="heading-sm">{t("pending_proposals_title")}</Text>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {proposals.map((proposal) => (
-          <Link
-            className="block rounded-[var(--radius-panel)] border border-border bg-surface-inset p-3 hover:bg-surface-raised"
-            key={proposal.id}
-            to={withRoutePrefix(pendingProposalChatPath(proposal), prefix)}
-          >
-            <Text as="p" className="truncate" variant="heading-sm">{proposal.title}</Text>
-            <div className="mt-1 flex items-center justify-between gap-2 text-xs">
-              {proposal.chat_title ? <Text as="span" className="truncate" muted>{proposal.chat_title}</Text> : null}
-              <RelativeTimestamp className="shrink-0 text-text-muted" value={proposal.created_at} />
-            </div>
-          </Link>
-        ))}
-      </div>
-    </Section.Root>
-  )
-}
-
-function pendingProposalChatPath(proposal: DashboardPendingProposal): string {
-  const base = `/chats/${proposal.chat_session_id}`
-  return proposal.anchor_message_id ? `${base}#message-${proposal.anchor_message_id}` : base
-}
 
 export function ReadinessPanel({ className = "", prefix, readiness }: { className?: string; prefix: string; readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]> }) {
   const { t } = useT("dashboard")

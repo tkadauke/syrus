@@ -163,7 +163,6 @@
   "untagged_issues_repo_count_one": "in {{count}} Repository",
   "untagged_issues_repo_count_other": "in {{count}} Repositories",
   "untagged_issues_dismiss": "Ausblenden",
-  "pending_proposals_title": "Vorgeschlagen",
   "needs_attention_aria": "Benötigt Aufmerksamkeit",
   "delivery_status": {
     "waiting_for_local_approval": "Wartet auf lokale Freigabe",
