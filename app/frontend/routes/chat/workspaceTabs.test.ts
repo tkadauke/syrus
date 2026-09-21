@@ -157,6 +157,18 @@ describe("availableWorkspaceTabs", () => {
     expect(availableWorkspaceTabs(payload)).toContain("jobs")
   })
 
+  it("includes the jobs tab once there is a pending proposal, even with nothing confirmed or linked yet", () => {
+    const payload = makePayload()
+    payload.pending_proposal_count = 1
+    expect(availableWorkspaceTabs(payload)).toContain("jobs")
+  })
+
+  it("falls back to chat.pending_proposal_count when the top-level count is absent", () => {
+    const payload = makePayload()
+    payload.chat.pending_proposal_count = 1
+    expect(availableWorkspaceTabs(payload)).toContain("jobs")
+  })
+
   it("includes a read-only files tab for a planning-mode chat with an attached repository", () => {
     const payload = makePayload()
     payload.chat.mode = "planning"
