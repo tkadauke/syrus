@@ -316,6 +316,27 @@ describe("ChatWorkspacePanel coding files", () => {
     expect(fetchCodingFileTree).toHaveBeenCalledTimes(1)
   })
 
+  it("shows a not-ready message instead of a scary error while the checkout is still being prepared", async () => {
+    vi.mocked(fetchCodingFileTree).mockRejectedValue(new ApiError("Coding checkout relay is unavailable; refresh is queued.", {
+      status: 503,
+      code: "relay_unavailable",
+      retryAfter: 30
+    }))
+
+    renderWorkspacePanel(makeCodingPayload())
+
+    expect(await screen.findByText("Source checkout is still being prepared — hang tight…")).toBeInTheDocument()
+    expect(screen.queryByText("Could not load file tree.")).not.toBeInTheDocument()
+  })
+
+  it("still shows the file tree error message for a genuine failure", async () => {
+    vi.mocked(fetchCodingFileTree).mockRejectedValue(new Error("boom"))
+
+    renderWorkspacePanel(makeCodingPayload())
+
+    expect(await screen.findByText("Could not load file tree.", {}, { timeout: 15_000 })).toBeInTheDocument()
+  }, 20_000)
+
   it("renders file content with highlighted spans and line numbers", async () => {
     vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["app/example.ts"] })
     vi.mocked(fetchCodingFileContent).mockResolvedValue({

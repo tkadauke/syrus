@@ -1584,6 +1584,8 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
             <div className="shrink-0 overflow-y-auto py-1" style={{ width: `${treeWidth}px` }}>
               {fileTree.isPending ? (
                 <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t("files_loading")}</p>
+              ) : fileTree.isError && isCodingRelayUnavailable(fileTree.error) ? (
+                <p className="px-3 py-2 text-xs text-warning-text">{t("files_not_ready")}</p>
               ) : fileTree.isError ? (
                 <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">{t("files_error")}</p>
               ) : treeNodes.length === 0 ? (
@@ -1624,6 +1626,8 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
               <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_empty")}</p>
             ) : fileContent.isPending ? (
               <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_loading")}</p>
+            ) : fileContent.isError && isCodingRelayUnavailable(fileContent.error) ? (
+              <p className="px-4 py-3 text-xs text-warning-text">{t("file_content_not_ready")}</p>
             ) : fileContent.isError ? (
               <p className="px-4 py-3 text-xs text-red-600 dark:text-red-400">{t("file_content_error")}</p>
             ) : fileContent.data?.binary ? (
@@ -1639,6 +1643,8 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
         <div className="min-h-0 flex-1">
           {diffResult.isPending ? (
             <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("diff_loading")}</p>
+          ) : diffResult.isError && isCodingRelayUnavailable(diffResult.error) ? (
+            <p className="px-4 py-3 text-xs text-warning-text">{t("diff_not_ready")}</p>
           ) : diffResult.isError ? (
             <p className="px-4 py-3 text-xs text-red-600 dark:text-red-400">{t("diff_error")}</p>
           ) : !diffResult.data?.diff ? (
