@@ -1176,12 +1176,17 @@ requiring a page refresh. Operators can **Disconnect** any linked account at
 any time.
 
 Platform buttons show as **Not yet available** when the instance administrator
-has not yet configured that platform integration. For Telegram, administrators
-set the bot handle and bot token in the admin settings page. The bot token is
-stored encrypted in the database and is used by the `PollTelegramUpdatesJob`
-long-polling worker. The polling worker can be started from the same settings
-page via the **Start polling** button, or it starts automatically on application
-boot when `SYRUS_ROLE` is set.
+has not yet configured that platform integration. Administrators set each
+platform's bot token in the admin settings page (Telegram and Discord each
+have their own section there). Every configured platform's connector job
+(`PollTelegramUpdatesJob`, `Discord::GatewayConnectionJob`, etc.) can be
+started from its own section's **Start polling** button, or it starts
+automatically on application boot when `SYRUS_ROLE` is set. Under the hood
+each button calls the same shared admin API (below), which re-primes every
+configured connector in one request; each section only reports the outcome
+for its own platform, so clicking Telegram's button and seeing Discord's
+Gateway listener also get re-enqueued in the background doesn't show up as a
+Telegram-flavored message.
 
 **Inbound message routing** — When a platform polling handler receives a
 message from an external user, `InboundMessageRouter` looks up the sender's

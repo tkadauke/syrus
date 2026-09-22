@@ -227,4 +227,98 @@ describe("AdminSettings Discord section", () => {
     await discordSection()
     expect(screen.queryByText("Discord bot token")).not.toBeInTheDocument()
   })
+
+  it("disables Discord's Start polling button until a bot token is set", async () => {
+    renderRoute()
+
+    const section = await discordSection()
+    expect(section.getByRole("button", { name: "Start polling" })).toBeDisabled()
+  })
+})
+
+describe("AdminSettings platform polling controls", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  function bothTokensSetPayload() {
+    return adminPayload({
+      settings: {
+        ...adminPayload().settings,
+        clearable_secrets: [
+          { key: "gemini_api_key", label: "Gemini API key", set: true },
+          { key: "telegram_bot_token", label: "Telegram bot token", set: true },
+          { key: "discord_bot_token", label: "Discord bot token", set: true }
+        ]
+      }
+    })
+  }
+
+  async function telegramSection() {
+    const heading = await screen.findByRole("heading", { name: "Telegram" })
+    const section = heading.closest("section")
+    if (!section) throw new Error("Telegram section not found")
+    return within(section)
+  }
+
+  async function discordSection() {
+    const heading = await screen.findByRole("heading", { name: "Discord" })
+    const section = heading.closest("section")
+    if (!section) throw new Error("Discord section not found")
+    return within(section)
+  }
+
+  function mockStartPolling() {
+    return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === "/api/v1/app/admin/platform_polling/start" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          started: ["Discord::GatewayConnectionJob"],
+          connectors: [
+            { name: "PollTelegramUpdatesJob", status: "already_running", platform: "telegram" },
+            { name: "Discord::GatewayConnectionJob", status: "started", platform: "discord" }
+          ]
+        }))
+      }
+      return Promise.resolve(jsonResponse(bothTokensSetPayload()))
+    })
+  }
+
+  it("enables both sections' Start polling buttons once each platform has a token", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(bothTokensSetPayload()))
+    renderRoute()
+
+    const telegram = await telegramSection()
+    const discord = await discordSection()
+    expect(telegram.getByRole("button", { name: "Start polling" })).not.toBeDisabled()
+    expect(discord.getByRole("button", { name: "Start polling" })).not.toBeDisabled()
+  })
+
+  it("shows only Telegram's own resolved status after clicking Telegram's button, even though the shared call also started Discord", async () => {
+    mockStartPolling()
+    renderRoute()
+
+    const telegram = await telegramSection()
+    fireEvent.click(telegram.getByRole("button", { name: "Start polling" }))
+
+    await waitFor(() => {
+      expect(telegram.getByText("Telegram polling is already running.")).toBeInTheDocument()
+    })
+
+    const discord = await discordSection()
+    expect(discord.queryByText(/Discord polling/)).not.toBeInTheDocument()
+  })
+
+  it("shows only Discord's own resolved status after clicking Discord's button", async () => {
+    mockStartPolling()
+    renderRoute()
+
+    const discord = await discordSection()
+    fireEvent.click(discord.getByRole("button", { name: "Start polling" }))
+
+    await waitFor(() => {
+      expect(discord.getByText("Discord polling started.")).toBeInTheDocument()
+    })
+
+    const telegram = await telegramSection()
+    expect(telegram.queryByText(/Telegram polling/)).not.toBeInTheDocument()
+  })
 })
