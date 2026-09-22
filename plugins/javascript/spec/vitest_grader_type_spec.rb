@@ -1,8 +1,37 @@
 require "rails_helper"
+require "open3"
+require "tmpdir"
+require "fileutils"
 
 RSpec.describe JavaScript::VitestGraderType do
   it "registers the vitest type name" do
     expect(described_class.type_name).to eq("vitest")
+  end
+
+  it "generates a focused command whose embedded ruby selector survives .squish intact" do
+    Dir.mktmpdir do |dir|
+      run_git = ->(*args) { Open3.capture3("git", "-C", dir, *args) }
+      run_git.call("init", "-q", "-b", "main")
+      run_git.call("config", "user.email", "test@example.com")
+      run_git.call("config", "user.name", "Test")
+      run_git.call("config", "commit.gpgsign", "false")
+      File.write(File.join(dir, "README.md"), "base\n")
+      run_git.call("add", "-A")
+      run_git.call("commit", "-q", "-m", "base")
+      run_git.call("checkout", "-q", "-b", "feature")
+      FileUtils.mkdir_p(File.join(dir, "app/frontend/components"))
+      File.write(File.join(dir, "app/frontend/components/Widget.tsx"), "export const Widget = () => null;\n")
+      run_git.call("add", "-A")
+      run_git.call("commit", "-q", "-m", "feature")
+
+      command = described_class.grade_steps(config: {}, default_failures: "strict").second.run
+      selector = command[command.index("ruby -e ")...command.index(" > .syrus/vitest-focused-files")]
+
+      stdout, stderr, status = Open3.capture3("bash", "-c", selector, chdir: dir)
+
+      expect(status).to be_success, "expected the focused-file selector to run without a shell/ruby syntax error, got:\n#{stderr}"
+      expect(stdout).to include("app/frontend/components/Widget.tsx")
+    end
   end
 
   it "expands to typed focused review, full landing, and ci graders" do
@@ -127,5 +156,14 @@ RSpec.describe JavaScript::VitestGraderType do
       { "artifact" => "coverage/lcov.info", "format" => "lcov" }
     ])
     expect(step.metadata.dig("filter_capabilities", "typecheck")).to be(false)
+  end
+
+  it "embeds a focused-file selector script that survives shell parsing as valid Ruby" do
+    focused_step = described_class.grade_steps(config: {}, default_failures: "strict").second
+
+    argv = Shellwords.split(focused_step.run)
+    selector_script = argv[argv.index("-e") + 1]
+
+    expect { RubyVM::InstructionSequence.compile(selector_script) }.not_to raise_error
   end
 end

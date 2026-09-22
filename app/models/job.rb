@@ -1528,7 +1528,7 @@ class Job < ApplicationRecord
     PollPullRequestJob.perform_later(id)
   end
 
-  # Story 8 (docs/plans/delivery-tracks-and-promotion.md): "B approves
+  # Story 8 (docs/plans/complete/delivery-tracks-and-promotion.md): "B approves
   # locally -> Syrus opens/updates a PR to A." Fires on every transition
   # into `approved`, not just the first — `UpstreamExportDispatcher` is the
   # one that actually decides whether a new workflow is warranted (it's a
@@ -1996,7 +1996,7 @@ class Job < ApplicationRecord
     return unless epic
     return unless repository
 
-    # Per docs/plans/delivery-tracks-and-promotion.md's "Current
+    # Per docs/plans/complete/delivery-tracks-and-promotion.md's "Current
     # Implementation Debt": new work should stop routing Jobs into
     # fork-review mode once a repository has opted into the upstream-export
     # workflow. Leave `in_fork_review_mode?`/`ForkReviewApprover`/

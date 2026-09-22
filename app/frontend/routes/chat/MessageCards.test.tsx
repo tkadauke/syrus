@@ -456,8 +456,14 @@ describe("chat workspace source links", () => {
 
 describe("tool result rendering", () => {
   function expandToolGroup(label: string) {
-    const summary = screen.getByText(label).closest("summary")
-    expect(summary).not.toBeNull()
+    // The header summary and the per-call label can render identical text
+    // (zero-arg calls omit the parenthesized detail), so resolve the click
+    // through the enclosing <summary> instead of assuming uniqueness.
+    const summary = screen
+      .getAllByText(label)
+      .map((element) => element.closest("summary"))
+      .find((element): element is HTMLElement => element !== null)
+    expect(summary).not.toBeUndefined()
     if (!summary) throw new Error(`missing summary for ${label}`)
     fireEvent.click(summary)
   }
@@ -695,7 +701,10 @@ describe("tool result rendering", () => {
 
     expandToolGroup("List chat media")
 
+    // Single ownership: the framework's standalone summary line is gone — the
+    // two matches are the header subtitle and the card gallery's own heading.
     expect(screen.getAllByText("2 media items")).toHaveLength(2)
+    expect(screen.queryByText("2 media items", { selector: "div.mt-1.font-mono" })).not.toBeInTheDocument()
     expect(screen.getByText("7 whiteboard elements")).toBeInTheDocument()
 
     const imageTile = screen.getByRole("button", { name: "Open desktop.png" })
@@ -793,6 +802,82 @@ describe("tool result rendering", () => {
     expect(screen.getByText("No media in this chat yet.")).toBeInTheDocument()
   })
 
+  it("omits the zero-argument sentinel from the header subtitle and the expanded label", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Unknown tool",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "totally_unknown_tool",
+          raw_name: "totally_unknown_tool",
+          detail: "No arguments",
+          display_label: "Unknown tool",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: "plain text result",
+          result_error: false,
+          result_kind: "text",
+          result_summary: "custom summary"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    // No registered card, so the collapsed header and the generic per-call
+    // line both show the summary.
+    expect(screen.getAllByText("custom summary")).toHaveLength(2)
+    expect(screen.queryByText("No arguments")).not.toBeInTheDocument()
+
+    expandToolGroup("Unknown tool")
+
+    expect(screen.queryByText("No arguments")).not.toBeInTheDocument()
+    // The expanded label renders bare, with no parenthesized sentinel.
+    expect(screen.getAllByText("Unknown tool")).toHaveLength(2)
+    // No registered card, so the generic body keeps its summary line.
+    expect(screen.getAllByText("custom summary")).toHaveLength(2)
+  })
+
+  it("shows a registered card's summary once in the header and its empty state once when expanded", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Git status",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "git_status",
+          raw_name: "git_status",
+          detail: "No arguments",
+          display_label: "Git status",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: JSON.stringify({ status: "" }),
+          result_json: { status: "" },
+          result_error: false,
+          result_kind: "record",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.queryByText("No arguments")).not.toBeInTheDocument()
+    expect(screen.getAllByText("Working tree clean")).toHaveLength(1)
+
+    expandToolGroup("Git status")
+
+    // No intermediate duplicate line: the header keeps the only bare
+    // "Working tree clean", and the card's EmptyState renders once.
+    expect(screen.getAllByText("Working tree clean")).toHaveLength(1)
+    expect(screen.getAllByText("Working tree clean.")).toHaveLength(1)
+    expect(screen.queryByText("No arguments")).not.toBeInTheDocument()
+    expect(screen.getByText("Raw details")).toBeInTheDocument()
+  })
+
   it("renders plugin card bodies for settled Browser calls with empty result content", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
@@ -821,7 +906,9 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     expect(screen.getByText("Done")).toBeInTheDocument()
-    expect(screen.getByText("Resize 390x844 · success")).toBeInTheDocument()
+    // Single ownership: the summary lives only in the header's
+    // detail + summary subtitle; the registered card body doesn't repeat it.
+    expect(screen.getByText("390x844 · Resize 390x844 · success")).toBeInTheDocument()
 
     expandToolGroup("Browser resize")
 
@@ -859,7 +946,8 @@ describe("tool result rendering", () => {
 
     expect(screen.getByText("Done")).toBeInTheDocument()
     expect(screen.queryByText("Running")).not.toBeInTheDocument()
-    expect(screen.getByText("Screenshot Hero panel · Browser screenshot · success")).toBeInTheDocument()
+    // Single ownership: the summary lives only in the header subtitle.
+    expect(screen.getByText("Hero panel · Screenshot Hero panel · Browser screenshot · success")).toBeInTheDocument()
   })
 
   it("renders typed success and record outputs instead of raw JSON", () => {
@@ -899,8 +987,9 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.getByText("1 bookmark")).toBeInTheDocument()
-    expect(screen.getByText("1 Job")).toBeInTheDocument()
+    // Single ownership: both calls have registered cards, so their summaries
+    // live only in the joined header subtitle, not as separate per-call lines.
+    expect(screen.getByText("Launch notes · 1 bookmark, 4048 · 1 Job")).toBeInTheDocument()
     expect(screen.queryByText("topic")).not.toBeInTheDocument()
     expect(screen.queryByText("Typed renderers")).not.toBeInTheDocument()
 
@@ -1180,7 +1269,8 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.getByText("1 design doc")).toBeInTheDocument()
+    // The registered card owns the expanded view, so the summary lives only
+    // in the header subtitle (joined with the redacted detail).
     expect(screen.getByText(/\[redacted\] · 1 design doc/)).toBeInTheDocument()
     expect(screen.queryByText(/plugin-input-secret/)).not.toBeInTheDocument()
     expect(screen.queryByText(/plugin-title-secret/)).not.toBeInTheDocument()
@@ -1268,7 +1358,9 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     expect(screen.getByText("Failed")).toBeInTheDocument()
-    expect(screen.getByText("ActiveRecord::RecordInvalid: Validation failed: proposal is already confirmed")).toBeInTheDocument()
+    // Single ownership: the registered card owns the expanded view, so the
+    // summary lives only in the header's detail + summary subtitle.
+    expect(screen.getByText("proposal-42 · ActiveRecord::RecordInvalid: Validation failed: proposal is already confirmed")).toBeInTheDocument()
     expect(screen.queryByText("Affected entities")).not.toBeInTheDocument()
 
     expandToolGroup("Delete proposal")

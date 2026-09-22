@@ -46,12 +46,13 @@ new chat scoped to the Job's repository, seeds an opening "I would like to
 chat about JOB-<id>." user turn so the agent responds immediately,
 permanently attaches the Job to it (visible in that chat's Jobs list), and
 the Job page then links to that chat going forward.
-The Jobs dashboard also shows a "Proposed" section above the readiness and
-health banners with up to 5 of the operator's most recent pending chat
+A chat's right-sidebar Jobs tab shows a "Proposed" section above its
+confirmed Job/Epic status cards, listing that chat's own pending Job and Epic
 proposals; each card links straight to the message where the proposal was
 posted, and the section updates live as proposals are created, confirmed,
 rejected, or withdrawn, so a proposal that scrolled out of view in a long
-chat is never effectively lost.
+chat is never effectively lost. The tab itself appears as soon as a chat has
+a pending proposal, even before anything is confirmed.
 If an agent provider hits a current user's usage or quota limit, Jobs that use
 that provider show an additive red triangle warning in dashboards, lists, and
 the Job header until usage is restored or the Job is retried/switched with
@@ -241,7 +242,9 @@ it is not queued to repair the grader failure.
 
 ## Local Mode
 
-Local Mode is on by default (`local_mode` feature flag). It lets a chat agent
+Local Mode is off by default for fresh installs (`local_mode` feature flag) —
+it opens an exec bridge onto the operator's own machine, so it's an explicit
+opt-in rather than a Labs-default-on toggle. It lets a chat agent
 read and write files, run commands, and inspect git state directly on an
 operator's own machine over a reverse WebSocket tunnel, instead of a
 server-side clone. Switch a chat to Local mode from the chat mode selector,
@@ -250,15 +253,14 @@ then run the paired `syrus local --chat <chat_session_id> --token
 repository checkout. Once paired, the daemon can read/write files, run
 commands, and inspect git status/diff against that checkout on the operator's
 own machine; a session that drops past its heartbeat timeout needs a fresh
-pairing command from the chat UI to reconnect. An admin can turn it off
+pairing command from the chat UI to reconnect. An admin can turn it on
 instance-wide from Admin → Features.
 
 ## Visual Review
 
-Visual Review is on by default (`visual_review` feature flag). When enabled,
-Syrus adds a headless-browser QA pass to the implementation loop. After the
-agent implements a change, an independent reviewer agent boots its own
-preview of the running app, decides
+Visual Review is on by default. Syrus adds a headless-browser QA pass to the
+implementation loop. After the agent implements a change, an independent
+reviewer agent boots its own preview of the running app, decides
 for itself whether the change is even visually testable (skipping invisible or
 backend-only diffs), and — if so — drives a real browser against it: clicking
 through the actual feature, not just loading the homepage. It captures
@@ -272,12 +274,10 @@ Operators can also trigger a visual review pass on demand from the Job detail
 page's "Run visual review" action — useful for a fresh look after
 implementation, or to cover a pass that was skipped or never configured.
 
-An admin can turn the flag off instance-wide from Admin → Features. A
-repository's `.syrus.yml` can override the instance-wide default per repo,
-bound how many review rounds run, restrict visual review to specific changed
-files, and record seed notes (demo login, a record to look for) so the
-reviewer can reach an authenticated or populated view of the app instead of a
-blank one.
+A repository's `.syrus.yml` can opt a repository out, bound how many review
+rounds run, restrict visual review to specific changed files, and record seed
+notes (demo login, a record to look for) so the reviewer can reach an
+authenticated or populated view of the app instead of a blank one.
 
 ## Review Plan
 
@@ -640,15 +640,18 @@ screenshots captured in Coding Mode — has an **Attach to message** action,
 available both on the thumbnail and in its full-size preview, that pulls the
 image into the composer through the same attachment mechanism as a pasted
 screenshot; further discussion or markup happens in chat once it's attached.
-Once at least one proposal in the current chat session has been confirmed, a
-Jobs tab appears in the workspace panel. It groups confirmed proposals into
-their respective Epics (collapsible, with a done/total progress pill) and
-shows remaining standalone Jobs as a flat list. Each card displays the Job
-state, the active workflow step or PR link, and a red blocker banner when
-operator action is required (awaiting review, landing failed, or a failed
-dependency). Clicking a card navigates to the Job detail page. The feed
-updates in real time when any Job originating from this chat session changes. PDFs are passed to the agent
-without an inline preview.
+Once the current chat session has a pending or confirmed proposal, or a Job
+directly linked to it, a Jobs tab appears in the workspace panel. A "Proposed"
+section at the top lists this chat's own pending Job and Epic proposals, each
+linking back to the message where it was posted. Below that, confirmed
+proposals are grouped into their respective Epics (collapsible, with a
+done/total progress pill), with remaining standalone Jobs shown as a flat
+list. Each confirmed-Job card displays the Job state, the active workflow
+step or PR link, and a red blocker banner when operator action is required
+(awaiting review, landing failed, or a failed dependency). Clicking a card
+navigates to the Job detail page. The feed updates in real time when any
+proposal or Job originating from this chat session changes. PDFs are passed
+to the agent without an inline preview.
 Clearing a non-empty canvas automatically saves the previous scene first.
 
 Chats do not silently materialize work just because the assistant suggested
@@ -1176,12 +1179,17 @@ requiring a page refresh. Operators can **Disconnect** any linked account at
 any time.
 
 Platform buttons show as **Not yet available** when the instance administrator
-has not yet configured that platform integration. For Telegram, administrators
-set the bot handle and bot token in the admin settings page. The bot token is
-stored encrypted in the database and is used by the `PollTelegramUpdatesJob`
-long-polling worker. The polling worker can be started from the same settings
-page via the **Start polling** button, or it starts automatically on application
-boot when `SYRUS_ROLE` is set.
+has not yet configured that platform integration. Administrators set each
+platform's bot token in the admin settings page (Telegram and Discord each
+have their own section there). Every configured platform's connector job
+(`PollTelegramUpdatesJob`, `Discord::GatewayConnectionJob`, etc.) can be
+started from its own section's **Start polling** button, or it starts
+automatically on application boot when `SYRUS_ROLE` is set. Under the hood
+each button calls the same shared admin API (below), which re-primes every
+configured connector in one request; each section only reports the outcome
+for its own platform, so clicking Telegram's button and seeing Discord's
+Gateway listener also get re-enqueued in the background doesn't show up as a
+Telegram-flavored message.
 
 **Inbound message routing** — When a platform polling handler receives a
 message from an external user, `InboundMessageRouter` looks up the sender's
@@ -1210,13 +1218,29 @@ after each poll cycle. On application boot, registered workers are started
 automatically when `SYRUS_ROLE` is set — core connectors and plugin-provided
 connectors both start automatically, but a plugin's connector only starts
 while its plugin is enabled. Administrators can also trigger a manual start
-of core connectors via the admin API:
+of core *and* plugin connectors (e.g. Discord's Gateway listener) via the
+admin API:
 
 ```
 POST /api/v1/app/admin/platform_polling/start
 ```
 
-This enqueues any registered platform polling job that is not already running.
+This enqueues any registered platform polling job, core or plugin, that is
+not already running, and reports each connector's status (`started`,
+`already_running`, or `not_configured`) in the response so an administrator
+can see whether a specific connector actually restarted.
+
+The self-reschedule that keeps a connector alive only runs if its worker
+process reaches the end of its poll cycle. A worker that gets killed or
+pruned mid-cycle (an OOMKill, a deploy, an infrastructure hiccup) can drop a
+configured connector out of the queue with no visible error — it looks
+identical to "nothing has happened yet." A background watchdog job checks
+every few minutes for exactly this and automatically re-enqueues any
+configured connector that has gone missing, logging a warning so the gap is
+visible in the logs even if no administrator happens to hit the manual
+restart button. Every listener discussed here — Telegram's long-poller and
+Discord's Gateway connection alike — runs in-process inside a Solid Queue
+worker pod; there is no separate bot daemon to restart.
 
 
 Credentials are stored with Active Record Encryption in the Syrus database,

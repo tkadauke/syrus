@@ -1,5 +1,5 @@
 module Metrics
-  # The "Fleet" metric group from docs/plans/prometheus-dashboard.md: what is
+  # The "Fleet" metric group from docs/plans/complete/prometheus-dashboard.md: what is
   # actually running right now, across pods and subprocesses. Both metrics
   # here are plain GLOBAL gauges -- no counter/histogram half like
   # Metrics::WorkerSampler needs, so no cursor bookkeeping is required.

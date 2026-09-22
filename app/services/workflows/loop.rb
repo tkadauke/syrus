@@ -26,6 +26,13 @@ module Workflows
   # step when materializing that final iteration; `steps` always stores the
   # full [agent_step, review_step] pair so `loop_step_kinds` and friends can
   # keep treating it as the canonical shape.
+  #
+  # Nested Loop/RetryUntil steps are rejected at construction time (matching
+  # RetryUntil#normalize_steps), not just by Workflows::Base.validate_control_node!.
+  # That keeps the invalid state unconstructable no matter which DSL path builds
+  # the chain -- the `steps(*kinds)` class-body DSL routes through
+  # validate_control_node!, but chains built via `steps_for` (Initial, Retry,
+  # CodingHandoff, AutoMerge, MergeTrain, etc.) never do.
   class Loop
     attr_reader :max_iterations, :steps
 
@@ -33,9 +40,11 @@ module Workflows
       steps_array = Array(steps)
       raise ArgumentError, "loop steps required" if steps_array.empty?
       raise ArgumentError, "loop requires exactly 2 steps: [agent_step, review_step]" if steps_array.size != 2
+      if steps_array.any? { |s| s.is_a?(Workflows::Loop) || s.is_a?(Workflows::RetryUntil) }
+        raise ArgumentError, "nested workflow control nodes are not supported"
+      end
 
-      @nested = steps_array.any? { |s| s.is_a?(Workflows::Loop) || s.is_a?(Workflows::RetryUntil) }
-      @steps = (@nested ? steps_array : steps_array.map(&:to_s)).freeze
+      @steps = steps_array.map(&:to_s).freeze
       @max_iterations = max_iterations
     end
 

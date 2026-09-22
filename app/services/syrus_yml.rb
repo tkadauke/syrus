@@ -88,7 +88,7 @@ class SyrusYml
   # duration string, matching `timeout_minutes`/`hitmap_ttl_days` elsewhere
   # in this file.
   DeployConfig = Data.define(:mode, :run, :allow_unapproved, :min_interval_minutes)
-  # Modeled on docs/plans/delivery-tracks-and-promotion.md. `delivery:` is
+  # Modeled on docs/plans/complete/delivery-tracks-and-promotion.md. `delivery:` is
   # optional the same way `deploy:`/`formatters:`/`generated:` are: absence
   # means "current behavior," never a parse error.
   #
@@ -115,7 +115,7 @@ class SyrusYml
   DeliveryRefEndpoint = Data.define(:kind, :name)
   DeliveryRefMovementAction = Data.define(:name, :enabled, :source, :target, :mode, :grade_phases)
   DeliveryConfig = Data.define(:tracks, :promotion, :hotfix_sync, :upstream_export, :ref_movement_actions)
-  # Modeled on docs/plans/delivery-tracks-and-promotion.md Story 7 (owner +
+  # Modeled on docs/plans/complete/delivery-tracks-and-promotion.md Story 7 (owner +
   # peer local approval, optional promotion maintainer approval). Unlike
   # `Config#delivery`, `Config#approval` is left nil when the `approval:` key
   # is absent -- there is no normalized always-present shape here, because
@@ -128,7 +128,7 @@ class SyrusYml
   ApprovalConfig = Data.define(:job, :promotion)
   ApprovalJobConfig = Data.define(:owner_required, :peer_count)
   ApprovalPromotionConfig = Data.define(:maintainer_count)
-  # Modeled on docs/plans/delivery-tracks-and-promotion.md Story 10 (PR
+  # Modeled on docs/plans/complete/delivery-tracks-and-promotion.md Story 10 (PR
   # ingestion classification). Like `Config#approval`, `Config#external_prs`
   # is left nil when the `external_prs:` key is absent — absence means
   # "classify nothing; every ingested PR stays `external_unknown`," the exact
@@ -357,8 +357,8 @@ class SyrusYml
     )
   end
 
-  # Visual review is off by default at the instance level (Feature.visual_review_enabled?);
-  # a repository opts in (or explicitly opts out) per repo via this block.
+  # Visual review is on by default at the instance level;
+  # a repository opts out (or overrides rounds/files/seed notes) per repo via this block.
   def parse_visual_review(raw)
     return nil if raw.nil?
     raise ParseError, "visual_review: must be a mapping" unless raw.is_a?(Hash)
@@ -372,7 +372,7 @@ class SyrusYml
     VisualReviewConfig.new(
       # No `|| false` here on purpose: nil (the `enabled` key omitted, or
       # explicitly set to `null`/blank) must stay nil so callers can
-      # distinguish "not specified — defer to Feature.visual_review_enabled?"
+      # distinguish "not specified — defer to the always-on instance default"
       # from an explicit `enabled: false` repo override. Any other present
       # value is cast to a real boolean by ActiveModel::Type::Boolean (only
       # its recognized false-spellings — "false", "0", "f", etc. — cast to

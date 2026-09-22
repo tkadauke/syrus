@@ -22,8 +22,9 @@ After setup, the common local commands are:
 ```sh
 bin/dev          # Rails web, worker, and Tailwind watcher
 bin/test         # Ruby, legacy JavaScript, React, and TypeScript checks
-bin/rspec        # RSpec suite
+bin/rspec        # RSpec suite, run serially (slow; see bin/rspec-fast below)
 npm run test:react # React/Vitest suite and TypeScript typecheck
+bin/test-e2e     # Playwright E2E suite (e2e/ plus every plugin's own e2e/)
 ```
 
 ## Tests
@@ -42,7 +43,70 @@ Every pull request should include tests for the behavior it changes:
 
 Run the narrowest useful test while developing, then run the relevant broader
 suite before opening the PR. For frontend-only work, `npm run test:react` is
-usually enough. For backend or cross-cutting work, run `bin/rspec` or `bin/test`.
+usually enough. For backend or cross-cutting work, run `bin/rspec-fast` (see
+below) or `bin/test`.
+
+### `bin/rspec` vs. `bin/rspec-fast`
+
+`bin/rspec` runs the whole suite serially through plain `rspec` — correct, but
+slow enough that it isn't the normal local or CI loop. `bin/rspec-fast` is what
+you actually want day to day: it shards the suite across parallel workers via
+`parallel_tests`, writing merged JSON/JUnit output as it goes. CI itself runs
+`bin/rspec-ci`, which wraps `bin/rspec-fast` and then runs the `:ci_only`
+examples (see below) afterward in an isolated serial pass.
+
+```sh
+bin/rspec-fast                          # full suite, parallelized
+bin/rspec-fast spec/jobs/run_job_spec.rb # a single file, still parallelized
+RSPEC_PROCESSES=4 bin/rspec-fast        # override worker count
+```
+
+Only one `bin/rspec-fast` (or `bin/rspec-ci`) run can be active in a checkout
+at a time — it holds a lock file because parallel workers share SQLite test
+databases that a second concurrent run would corrupt.
+
+### The `:ci_only` tag
+
+Some specs are too slow, too environmental, or too broad for the normal
+parallel grade loop, but still worth running in GitHub Actions — for example
+specs that mutate schema in-process (migration reversibility checks) and are
+not safe to interleave with unrelated specs inside a shared parallel worker.
+Tag those `:ci_only`; `bin/rspec-fast` excludes them, and `bin/rspec-ci` runs
+them afterward in their own serial pass. Reach for `:ci_only` sparingly — first
+try to make a slow spec fast with fakes, dependency injection, or a narrower
+assertion before tagging it out of the normal loop.
+
+### E2E suite
+
+`bin/test-e2e` runs the Playwright suite in `e2e/` (plus each plugin's own
+`e2e/` directory) against a real Rails dev-environment server with seeded
+fixtures. It provisions its own Chromium build and demo database state, so it
+can be run locally with no extra setup. It is not part of `bin/test` or the
+default `.syrus.yml` grade loop; CI runs it in a separate, longer-running
+workflow (`.github/workflows/e2e-ci.yml`) scoped to paths likely to affect
+app behavior.
+
+```sh
+bin/test-e2e                     # core + every plugin's E2E specs
+bin/test-e2e --project=core      # just e2e/
+bin/test-e2e --project=browser   # just the browser plugin's e2e/
+```
+
+### Known gotchas
+
+A few footguns have bitten real contributors before; see `CLAUDE.md` for the
+full list, but two are common enough to call out here:
+
+- **Non-idempotent migrations hang deploys.** Guard every `add_column`,
+  `remove_column`, `add_reference`, and `add_index` with an `unless
+  column_exists?`/`index_exists?` check — a migration that isn't safe to
+  re-run against a partially-migrated database will crash a retried deploy
+  indefinitely. See CLAUDE.md's "Migrations are idempotent" note.
+- **`ApplicationJob` subclasses must declare a consumed queue.** SolidQueue's
+  `default` queue has no worker listening on it (see `config/queue.yml`), so a
+  job enqueued there silently never runs. Set `queue_as` to one of the
+  consumed queues and see `spec/config/queue_partitioning_spec.rb`, which
+  fails CI if a job class drifts onto an unconsumed queue.
 
 ## Pull request process
 
@@ -64,12 +128,9 @@ mechanics, but maintainers are still responsible for deciding what lands.
 
 ## Code of conduct
 
-This project follows the spirit of the
-[Contributor Covenant](https://www.contributor-covenant.org/): be respectful,
-assume good intent, and keep discussion focused on the work. Harassment,
-personal attacks, and intentionally disruptive behavior are not welcome.
-
-Maintainers may remove comments, close issues, or block contributors whose
+This project is governed by our [Code of Conduct](CODE_OF_CONDUCT.md), adapted
+from the Contributor Covenant. By participating, you are expected to uphold
+it. Maintainers may remove comments, close issues, or block contributors whose
 behavior makes collaboration worse for others.
 
 ## Reporting bugs

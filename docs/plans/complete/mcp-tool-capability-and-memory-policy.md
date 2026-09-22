@@ -2,6 +2,14 @@
 
 Captured July 18, 2026.
 
+_Status check 2026-09-19: complete. `AgentRole` (`app/services/agent_role.rb`),
+`McpToolPolicy`/`McpToolContext`, the `agent_insight` trigger kind and
+`plugins/agent_insights` (`Suggestion` model, `submit_insight`/`list_insights`/
+`read_insight`/`update_insight`/`retire_insight` tools), and the memory system
+evolved into `plugins/agent_memory`'s `AgentMemory::Entry` with capability-gated
+read/write/search/list/publish/unpublish/delete tools all shipped. Retained as
+design history._
+
 ## Goal
 
 Make Syrus deliberate about what an agent is allowed to know, remember,

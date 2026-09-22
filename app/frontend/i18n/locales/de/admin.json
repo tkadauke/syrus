@@ -413,10 +413,6 @@
         "name": "Landing-Validierungs-Prefetch",
         "description": "Führt spekulativ Landing-Grader für den nächsten geeigneten Job desselben Repositorys aus, nachdem die aktuellen Landing-Grader bestanden haben. Der eigentliche Merge bleibt serialisiert."
       },
-      "visual_review": {
-        "name": "Visuelle Überprüfung",
-        "description": "Aktiviert den visual_review-Schritt: Ein unabhängiger Agent steuert einen Headless-Browser gegen die eigene Vorschau des Workers im aktuellen Schritt, um sichtbare Fehler zu erkennen und Screenshot-Artefakte zu erfassen, bevor die Grader laufen. Die .syrus.yml eines Repositorys kann diesen instanzweiten Standardwert pro Repository überschreiben."
-      },
       "epicless_job_bundling": {
         "name": "Job-Bündelung ohne Epic",
         "description": "Ermöglicht das gemeinsame Landen mehrerer genehmigter epicloser Jobs als ein atomares Bündel, so wie die Kinder eines Epics bereits gemeinsam über den Merge-Train landen."
@@ -607,16 +603,17 @@
     "telegram_token_placeholder": "Bot-Token eingeben…",
     "telegram_token_clear_confirm": "Telegram-Bot-Token löschen?",
     "telegram_save_token": "Token speichern",
-    "telegram_start_polling": "Polling starten",
-    "telegram_polling_starting": "Wird gestartet…",
-    "telegram_polling_started": "Telegram-Polling gestartet.",
-    "telegram_polling_already_running": "Telegram-Polling läuft bereits.",
-    "telegram_polling_error": "Telegram-Polling konnte nicht gestartet werden.",
     "discord_heading": "Discord",
     "discord_token_label": "Discord-Bot-Token",
     "discord_token_placeholder": "Bot-Token eingeben…",
     "discord_token_clear_confirm": "Discord-Bot-Token löschen?",
     "discord_save_token": "Token speichern",
+    "polling_start": "Polling starten",
+    "polling_starting": "Wird gestartet…",
+    "polling_started": "{{platform}}-Polling gestartet.",
+    "polling_already_running": "{{platform}}-Polling läuft bereits.",
+    "polling_not_configured": "{{platform}} ist noch nicht konfiguriert.",
+    "polling_error": "{{platform}}-Polling konnte nicht gestartet werden.",
     "show_work_unit_debug_label": "WorkIntent- und WorkUnit-Debugbereiche in Job-Workflow-Tabs anzeigen",
     "show_work_unit_debug_help": "Wenn deaktiviert, bleiben WorkIntent- und WorkUnit-Interna auf normalen Job-Seiten verborgen. Admin Work Units bleibt für Diagnosen verfügbar."
   },

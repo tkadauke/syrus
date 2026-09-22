@@ -12,6 +12,10 @@ RSpec.describe Mcp::Tools::SubmitReportTool do
   end
   let(:run) { job.workflows.last.first_step.runs.first }
 
+  before do
+    run.step.update_columns(kind: "submit_report")
+  end
+
   def call(title: "Dashboard slowness", narrative: "It's slow because of an N+1 query.", findings: nil, references: nil)
     described_class.call(title: title, narrative: narrative, findings: findings, references: references, server_context: { run: run })
   end
@@ -126,5 +130,15 @@ RSpec.describe Mcp::Tools::SubmitReportTool do
     expect(described_class.tool_name).to eq("submit_report")
     schema = described_class.input_schema_value.to_h
     expect(schema[:required]).to eq(%w[title narrative])
+  end
+
+  it "rejects calls from a step other than submit_report through registry authorization" do
+    run.step.update_columns(kind: "implement")
+
+    response = call
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("not_authorized")
+    expect(run.workflow.reload.artifact("investigation_report")).to be_nil
   end
 end

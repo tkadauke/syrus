@@ -413,10 +413,6 @@
         "name": "Praecaptura validationis descensus",
         "description": "Gradatores descensus pro proximo opere idoneo eiusdem repositorii speculative exsequitur postquam gradatores operis praesentis successerunt. Coniunctio ipsa serialis manet."
       },
-      "visual_review": {
-        "name": "Recognitio visualis",
-        "description": "Gradum visual_review activat: agens independens navigatorem sine capite contra ipsam praevisionem operarii in gradu dirigit ut vitia visibilia deprehendat et documenta screenshot capiat antequam gradatores currunt. Fasciculus .syrus.yml repositorii hunc valorem praedefinitum totius instantiae per repositorium mutare potest."
-      },
       "epicless_job_bundling": {
         "name": "Fasciculatio operum sine Epica",
         "description": "Permittit pluribus operibus probatis sine Epica simul in unum fasciculum atomicum descendere, sicut liberi Epicae iam simul per agmen fusionale descendunt."
@@ -607,16 +603,17 @@
     "telegram_token_placeholder": "Tesseram automati inserere…",
     "telegram_token_clear_confirm": "Tesseram automati Telegram delere?",
     "telegram_save_token": "Tesseram servare",
-    "telegram_start_polling": "Scrutationem incipere",
-    "telegram_polling_starting": "Incipiens…",
-    "telegram_polling_started": "Scrutatio Telegram incoepta.",
-    "telegram_polling_already_running": "Scrutatio Telegram iam currit.",
-    "telegram_polling_error": "Scrutatio Telegram incipere non potuit.",
     "discord_heading": "Discord",
     "discord_token_label": "Tessera automati Discord",
     "discord_token_placeholder": "Tesseram automati inserere…",
     "discord_token_clear_confirm": "Tesseram automati Discord delere?",
     "discord_save_token": "Tesseram servare",
+    "polling_start": "Scrutationem incipere",
+    "polling_starting": "Incipiens…",
+    "polling_started": "Scrutatio {{platform}} incoepta.",
+    "polling_already_running": "Scrutatio {{platform}} iam currit.",
+    "polling_not_configured": "{{platform}} nondum ordinata est.",
+    "polling_error": "Scrutatio {{platform}} incipere non potuit.",
     "show_work_unit_debug_label": "Tabulas debug WorkIntent et WorkUnit in tabulis cursus operis ostende",
     "show_work_unit_debug_help": "Cum clausum est, interna WorkIntent et WorkUnit a paginis operum ordinariis celantur. Admin Work Units ad diagnosin manet."
   },

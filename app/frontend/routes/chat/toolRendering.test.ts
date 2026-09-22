@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { fullResultBody, normalizedToolCardParsedResult, shortenWorkspacePaths, toolDetail, toolLabel, toolPresentation, toolResultPresentation, typedToolResult } from "./toolRendering"
+import { NO_ARGUMENTS_SENTINEL, fullResultBody, normalizedToolCardParsedResult, shortenWorkspacePaths, toolDetail, toolLabel, toolPresentation, toolResultPresentation, typedToolResult } from "./toolRendering"
 
 describe("tool result rendering", () => {
   it("caps large tool result previews before the browser renders them", () => {
@@ -35,6 +35,11 @@ describe("toolDetail", () => {
 
   it("renders empty arguments as a concise label", () => {
     expect(toolDetail("syrus-chat-sidecar.list_chat_media", {})).toBe("No arguments")
+  })
+
+  it("exposes the zero-argument sentinel renderers filter out of subtitles and labels", () => {
+    expect(NO_ARGUMENTS_SENTINEL).toBe("No arguments")
+    expect(toolDetail("syrus-chat-sidecar.list_chat_media", {})).toBe(NO_ARGUMENTS_SENTINEL)
   })
 
   it("summarizes ask_user_question arguments without dumping raw JSON", () => {

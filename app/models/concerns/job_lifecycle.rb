@@ -3,8 +3,8 @@ module JobLifecycle
 
   def mark_valid_and_queue!
     transaction do
+      reopen! if may_reopen?
       update!(
-        state: closed? ? "triaging" : state,
         closure_reason: nil,
         finished_at: nil,
         validity: "valid",

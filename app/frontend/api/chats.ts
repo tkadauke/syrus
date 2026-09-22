@@ -599,10 +599,14 @@ export type CreateChatInput = {
   repositoryId?: string
   text: string
   attachments?: ChatMessageAttachmentInput[]
+  chatProvider?: string | null
 }
 
 export type NewChatPayload = {
   default_repository_id: number | null
+  effective_chat_provider?: string | null
+  effective_chat_provider_label?: string | null
+  chat_provider_options?: ChatProviderOption[]
 }
 
 export type ChatMessageAttachmentInput = {
@@ -1056,13 +1060,17 @@ export async function patchChatWhiteboard(path: string, input: ChatWhiteboardSce
 export function createChat(values: CreateChatInput) {
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", {
     ...(values.repositoryId ? { repository_id: values.repositoryId } : {}),
+    ...(values.chatProvider ? { chat_provider: values.chatProvider } : {}),
     ...chatMessagePayload(values.text, values.attachments || [])
   })
 }
 
-export function createEmptyChat(repositoryId?: number | string | null) {
-  const payload = repositoryId == null || repositoryId === "" ? undefined : { repository_id: repositoryId }
-  return postJson<ChatCreatedPayload>("/api/v1/app/chats", payload)
+export function createEmptyChat(repositoryId?: number | string | null, chatProvider?: string | null) {
+  const payload = {
+    ...(repositoryId == null || repositoryId === "" ? {} : { repository_id: repositoryId }),
+    ...(chatProvider ? { chat_provider: chatProvider } : {})
+  }
+  return postJson<ChatCreatedPayload>("/api/v1/app/chats", Object.keys(payload).length === 0 ? undefined : payload)
 }
 
 export type InvitableUser = {
@@ -1487,9 +1495,29 @@ export type ChatJobStatusEpicItem = {
 
 export type ChatJobStatusItem = ChatJobStatusEpicItem | ChatJobStatusJobItem
 
-export async function fetchChatJobStatus(chatId: string | number) {
-  const payload = await getJson<unknown>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/job_status`)
-  return Array.isArray(payload) ? (payload as ChatJobStatusItem[]) : []
+export type ChatJobStatusPendingProposal = {
+  id: number
+  kind: "job" | "syrus_issue" | "epic"
+  title: string | null
+  state: string
+  anchor_message_id: number | null
+  active_children_count: number | null
+  created_at: string | null
+}
+
+export type ChatJobStatusPayload = {
+  pending_proposals: ChatJobStatusPendingProposal[]
+  items: ChatJobStatusItem[]
+}
+
+export async function fetchChatJobStatus(chatId: string | number): Promise<ChatJobStatusPayload> {
+  const payload = await getJson<Partial<ChatJobStatusPayload> | ChatJobStatusItem[]>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/job_status`)
+  if (Array.isArray(payload)) return { pending_proposals: [], items: payload }
+
+  return {
+    pending_proposals: Array.isArray(payload?.pending_proposals) ? payload.pending_proposals : [],
+    items: Array.isArray(payload?.items) ? payload.items : []
+  }
 }
 
 // DOC-17 Runtime Sessions (Coding Mode right-sidebar Runtime panel).

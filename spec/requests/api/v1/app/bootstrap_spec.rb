@@ -135,8 +135,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body["unread_notifications_count"]).to eq(0)
     expect(body["feature_flags"]).to include(
       "coding_mode" => false,
-      "local_mode" => false,
-      "visual_review" => false
+      "local_mode" => false
     )
   end
 

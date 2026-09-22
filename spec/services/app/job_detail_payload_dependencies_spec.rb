@@ -179,36 +179,27 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
 
     it "is false when .syrus.yml explicitly disables visual_review" do
-      allow(Feature).to receive(:visual_review_enabled?).and_return(true)
       stub_syrus_yml("visual_review:\n  enabled: false\n")
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
 
-    it "falls back to the instance-wide default when .syrus.yml has a visual_review block without an enabled key" do
+    it "falls back to the always-on default when .syrus.yml has a visual_review block without an enabled key" do
       stub_syrus_yml("visual_review:\n  rounds: 2\n")
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
-      allow(Feature).to receive(:visual_review_enabled?).and_return(true)
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(true)
-
-      allow(Feature).to receive(:visual_review_enabled?).and_return(false)
-      expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
 
-    it "falls back to the instance-wide default when .syrus.yml has no visual_review block" do
+    it "falls back to the always-on default when .syrus.yml has no visual_review block" do
       stub_syrus_yml(nil)
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
-      allow(Feature).to receive(:visual_review_enabled?).and_return(true)
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(true)
-
-      allow(Feature).to receive(:visual_review_enabled?).and_return(false)
-      expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
 
-    it "falls back to the instance-wide default when GitHub credentials are unavailable -- the web-pod scenario this bug covers" do
+    it "falls back to the always-on default when GitHub credentials are unavailable -- the web-pod scenario this bug covers" do
       # No $SYRUS_DATA_ROOT clone exists in this process at all, and this
       # job's user has no GitHub credentials either, so the only possible
       # source of an answer (GithubClient) is unreachable. The old
@@ -218,7 +209,6 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       credentialless_repo = Factories.repository(user: credentialless_user)
       job = Factories.job_record(user: credentialless_user, repository: credentialless_repo, state: "implemented")
 
-      allow(Feature).to receive(:visual_review_enabled?).and_return(true)
       expect(described_class.build(job: job, user: credentialless_user).dig(:actions, :can_run_visual_review)).to be(true)
     end
 
@@ -231,8 +221,6 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
     it "does not read visual review config for jobs that cannot run visual actions" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
-
-      expect(Feature).not_to receive(:visual_review_enabled?)
 
       payload = payload_for(job)
 
