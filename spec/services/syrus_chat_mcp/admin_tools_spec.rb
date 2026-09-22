@@ -1276,6 +1276,24 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(user_row).to include(email: "user@example.com", admin: false, scheduling_paused: true, job_count: 0)
   end
 
+  it "respects an explicit limit parameter" do
+    3.times { |i| Factories.user(email_address: "extra-#{i}@example.com") }
+
+    response = call_tool(admin_session, "admin_list_users", { limit: 1 })
+
+    expect(payload_for(response).fetch(:users).size).to eq(1)
+  end
+
+  it "defaults and caps its limit consistently with admin_list_processes/admin_list_runs" do
+    expect(Mcp::Tools::AdminListUsersTool::DEFAULT_LIMIT).to eq(Mcp::Tools::AdminListProcessesTool::DEFAULT_LIMIT)
+    expect(Mcp::Tools::AdminListUsersTool::MAX_LIMIT).to eq(Mcp::Tools::AdminListProcessesTool::MAX_LIMIT)
+    expect(Mcp::Tools::AdminListUsersTool::DEFAULT_LIMIT).to eq(Mcp::Tools::AdminListRunsTool::DEFAULT_LIMIT)
+    expect(Mcp::Tools::AdminListUsersTool::MAX_LIMIT).to eq(Mcp::Tools::AdminListRunsTool::MAX_LIMIT)
+
+    expect(Mcp::Tools::AdminListUsersTool.send(:normalize_limit, nil)).to eq(1)
+    expect(Mcp::Tools::AdminListUsersTool.send(:normalize_limit, 1_000)).to eq(Mcp::Tools::AdminListUsersTool::MAX_LIMIT)
+  end
+
   it "returns live instance versions" do
     instance = InstanceVersion.create!(
       hostname: "syrus-worker-a",
