@@ -2529,6 +2529,7 @@ API) after. Errors decide what happens next:
 | `RepositoryContent::NotFound` | the revision is known and the path is not in it | stops; final answer |
 | `RepositoryContent::UnknownRevision` | this provider does not know the ref or revision | next provider |
 | `RepositoryContent::Unsupported` | this provider cannot do that operation | next provider |
+| `RepositoryContent::Truncated` | an `Unsupported` carrying a partial answer (`#partial`) | next provider; display code may show the partial answer, flagged |
 | `RepositoryContent::Unavailable` | could not ask: rate limit, outage, credentials | next provider |
 | any other exception | treated as `Unavailable` | next provider |
 

@@ -81,7 +81,9 @@ to register repositories.
 ## Limits
 
 - Serves git only. Mercurial and Subversion mirrors would be separate plugins.
-- Does not serve diff patches; those come from the host.
+- Diffs come with per-file line counts and, when asked, hunks. Binary files
+  have neither, and a single file's patch over 256 KiB is omitted, as GitHub
+  does.
 - After the service restarts it serves everything on its volume but holds no
   credentials. It does not fetch repositories Syrus has not re-registered
   (so a private repository does not fail every background sync), and a read
