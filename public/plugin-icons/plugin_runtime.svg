@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Plugin Runtime">
+  <rect width="24" height="24" rx="5" fill="#1e3a8a"/>
+  <rect x="5" y="6" width="14" height="5" rx="1.2" fill="none" stroke="#bfdbfe" stroke-width="1.4"/>
+  <rect x="5" y="13" width="14" height="5" rx="1.2" fill="none" stroke="#bfdbfe" stroke-width="1.4"/>
+  <circle cx="8" cy="8.5" r="1" fill="#93c5fd"/>
+  <circle cx="8" cy="15.5" r="1" fill="#93c5fd"/>
+  <path d="M11 8.5h5M11 15.5h5" stroke="#93c5fd" stroke-width="1.2" stroke-linecap="round"/>
+</svg>
