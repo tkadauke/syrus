@@ -88,9 +88,36 @@ None.
 
 ## Operational notes
 
-This plugin depends on external Discord connectivity, a live Gateway
-session, and a valid bot token — monitor it like any other long-lived
-platform integration. A revoked or invalid `discord_bot_token` shows up as
-`Discord::PlatformConfig#configured?` returning false (linking instructions
-disappear) and `GatewayConnectionJob` logging connection errors on every
-reconnect attempt.
+The Discord listener is in-process Ruby running inside a Solid Queue worker
+pod, not an external daemon: `Discord::GatewayConnectionJob` holds the live
+Gateway WebSocket for as long as one `#poll_once` call lasts, and there is no
+separate bot process to restart. This plugin depends on external Discord
+connectivity, a live Gateway session, and a valid bot token — monitor it like
+any other long-lived platform integration. A revoked or invalid
+`discord_bot_token` shows up as `Discord::PlatformConfig#configured?`
+returning false (linking instructions disappear) and `GatewayConnectionJob`
+logging connection errors on every reconnect attempt.
+
+Because the job re-enqueues itself in an `ensure` block after each Gateway
+session ends, it normally survives worker restarts and reconnects on its
+own. That self-healing breaks if the Solid Queue process running it is
+pruned or killed before it reaches `ensure` (`SolidQueue::Processes::
+ProcessPrunedError`, an OOMKilled worker, a deploy's SIGKILL) — the job
+simply vanishes, and the listener goes silently deaf with no error anywhere
+and no `PlatformIdentity`/chat activity from `/link` DMs. Two things recover
+from that without a deploy:
+
+- `PlatformConnectorWatchdogJob` (`config/recurring.yml`'s
+  `watch_platform_connectors`, every 5 minutes) re-primes any configured
+  connector, including this one, that is missing from the queue, and logs a
+  `[PlatformConnectorWatchdogJob]` warning when it does.
+- An operator can re-prime immediately via `POST
+  /api/v1/app/admin/platform_polling/start` (admin-only), which starts both
+  core pollers and plugin connectors like this one and reports each
+  connector's `started`/`already_running`/`not_configured` status.
+
+Both rely on `Discord::GatewayConnectionJob`'s inherited dedup check (an
+unfinished `SolidQueue::Job` row for the class), so re-priming an already
+healthy listener is a no-op rather than a second Gateway session. See
+`config/syrus_docs/external_platforms.md` for the shared connector-recovery
+design across all platform-delivery connectors.
