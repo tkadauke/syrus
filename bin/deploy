@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Build the current HEAD as two linux/amd64 images — `syrus` (web pod,
 # Dockerfile target=app) and `syrus-worker-dev` (worker pod, target=
-# worker-dev with mise + multi-language tooling) — push both to GHCR
+# worker-dev with mise + multi-language tooling) — push both to GHCR, along
+# with the plugin service images (plugins/*/container),
 # with :<sha> and :latest tags, and rollout-restart staging +
 # production K3s deployments. Uses plain `docker build` + `docker push`
 # instead of buildx registry exporters because buildx has hung after
@@ -26,6 +27,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 REGISTRY="ghcr.io/tkadauke/syrus"
 WORKER_DEV_REGISTRY="ghcr.io/tkadauke/syrus-worker-dev"
+# Service images of container-backed plugins (plugins/*/container), built,
+# pushed, and pinned to the same SHA as the backend. Any workload running one --
+# a git-mirror Deployment an operator added, say -- is found by image, so this
+# script never needs to know what the cluster calls it.
+PLUGIN_BUILD_DIRS=()
+PLUGIN_REGISTRIES=()
 GHCR_USER="${GHCR_USER:-tkadauke}"
 TOKEN_FILE="${HOME}/.config/syrus/ghcr-token"
 
@@ -89,6 +96,11 @@ if [ "$SKIP_BUILD" = false ] && [ -x bin/check-eager-load ]; then
   bin/check-eager-load --quiet
 fi
 
+while read -r plugin_dir plugin_registry; do
+  PLUGIN_BUILD_DIRS+=("$plugin_dir")
+  PLUGIN_REGISTRIES+=("$plugin_registry")
+done < <(syrus_plugin_images ghcr.io/tkadauke)
+
 # --- auth ------------------------------------------------------------
 GHCR_TOKEN="$(syrus_read_ghcr_token "$TOKEN_FILE")"
 syrus_disable_buildx_attestations
@@ -143,12 +155,28 @@ if [ "$SKIP_BUILD" = false ]; then
   verify_pushed "${WORKER_DEV_REGISTRY}" "${SHA}"
   verify_pushed "${WORKER_DEV_REGISTRY}" "latest"
 
-  syrus_docker_prune_old_repo_tags "$SHA" "$REGISTRY" "$WORKER_DEV_REGISTRY"
+  for i in ${PLUGIN_REGISTRIES[@]+"${!PLUGIN_REGISTRIES[@]}"}; do
+    plugin_registry="${PLUGIN_REGISTRIES[$i]}"
+    echo "→ ${plugin_registry}:${SHA} build (linux/amd64)"
+    docker build --platform linux/amd64 --provenance=false --sbom=false \
+      -t "${plugin_registry}:${SHA}" -t "${plugin_registry}:latest" \
+      "${PLUGIN_BUILD_DIRS[$i]}"
+    echo "→ ${plugin_registry}:${SHA} push"
+    docker push "${plugin_registry}:${SHA}"
+    docker push "${plugin_registry}:latest"
+    verify_pushed "${plugin_registry}" "${SHA}"
+    verify_pushed "${plugin_registry}" "latest"
+  done
+
+  syrus_docker_prune_old_repo_tags "$SHA" "$REGISTRY" "$WORKER_DEV_REGISTRY" ${PLUGIN_REGISTRIES[@]+"${PLUGIN_REGISTRIES[@]}"}
   syrus_docker_prune_build_cache_since "$BUILD_STARTED_AT"
 else
   echo "→ skipping build/push (--skip-build); verifying existing tags in registry"
   verify_pushed "${REGISTRY}"            "${SHA}"
   verify_pushed "${WORKER_DEV_REGISTRY}" "${SHA}"
+  for plugin_registry in ${PLUGIN_REGISTRIES[@]+"${PLUGIN_REGISTRIES[@]}"}; do
+    verify_pushed "${plugin_registry}" "${SHA}"
+  done
 fi
 
 if [ "$BUILD_ONLY" = true ]; then
@@ -240,6 +268,10 @@ rollout() {
   KUBECONFIG="$kubeconfig" kubectl rollout restart -n "$namespace" "${targets[@]}"
   for dep in "${targets[@]}"; do
     echo "→ ${label}: waiting for ${dep}"
+    wait_for_rollout_target "$label" "$kubeconfig" "$namespace" "$dep"
+  done
+  for dep in "${PINNED_PLUGIN_WORKLOADS[@]+"${PINNED_PLUGIN_WORKLOADS[@]}"}"; do
+    echo "→ ${label}: waiting for plugin workload ${dep}"
     wait_for_rollout_target "$label" "$kubeconfig" "$namespace" "$dep"
   done
   verify_sha "$label" "$kubeconfig" "$namespace"
@@ -367,6 +399,45 @@ pin_live_images() {
   set_images_if_present "$label" "$kubeconfig" "$namespace" "deployment/syrus-preview" \
     "syrus-preview=${WORKER_DEV_REGISTRY}:${SHA}" \
     "seed-mise=${WORKER_DEV_REGISTRY}:${SHA}"
+  pin_plugin_images "$label" "$kubeconfig" "$namespace"
+}
+
+# Plugin service workloads are the operator's, named however the cluster
+# chooses. Find every container running a plugin image and pin it to ${SHA};
+# the image change rolls the workload by itself. Records what it pinned in
+# PINNED_PLUGIN_WORKLOADS so the rollout can wait for them.
+PINNED_PLUGIN_WORKLOADS=()
+pin_plugin_images() {
+  local label="$1" kubeconfig="$2" namespace="$3"
+  PINNED_PLUGIN_WORKLOADS=()
+  [ "${#PLUGIN_REGISTRIES[@]}" -gt 0 ] || return 0
+
+  local target container repository
+  while read -r target container repository; do
+    [ -n "$target" ] || continue
+    echo "→ ${label}: pinning ${target} (${container}) to ${repository}:${SHA}"
+    KUBECONFIG="$kubeconfig" kubectl set image -n "$namespace" "$target" "${container}=${repository}:${SHA}" >/dev/null
+    PINNED_PLUGIN_WORKLOADS+=("$target")
+  done < <(plugin_image_containers "$kubeconfig" "$namespace")
+}
+
+# "<kind>/<name> <container> <repository>" for every container (init
+# containers included) of a Deployment, DaemonSet, or StatefulSet whose image
+# is one of PLUGIN_REGISTRIES, at any tag or digest.
+plugin_image_containers() {
+  local kubeconfig="$1" namespace="$2"
+  KUBECONFIG="$kubeconfig" kubectl get deploy,ds,sts -n "$namespace" -o json |
+    PLUGIN_REGISTRIES="${PLUGIN_REGISTRIES[*]:-}" ruby -rjson -e '
+      wanted = ENV.fetch("PLUGIN_REGISTRIES").split
+      JSON.parse(STDIN.read).fetch("items").each do |item|
+        target = "#{item.fetch("kind").downcase}/#{item.dig("metadata", "name")}"
+        spec = item.dig("spec", "template", "spec") || {}
+        (Array(spec["containers"]) + Array(spec["initContainers"])).each do |container|
+          repository = container["image"].to_s.sub(/@.*\z/, "").sub(%r{:[^/:]+\z}, "")
+          puts [target, container["name"], repository].join(" ") if wanted.include?(repository)
+        end
+      end
+    '
 }
 
 set_images_if_present() {
@@ -672,12 +743,13 @@ flux_desired_images_patch() {
   local kubeconfig="$1"
   KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
     get kustomization "$FLUX_KUSTOMIZATION" -o json |
-    SHA="$SHA" REGISTRY="$REGISTRY" WORKER_DEV_REGISTRY="$WORKER_DEV_REGISTRY" ruby -rjson -e '
+    SHA="$SHA" REGISTRY="$REGISTRY" WORKER_DEV_REGISTRY="$WORKER_DEV_REGISTRY" PLUGIN_REGISTRIES="${PLUGIN_REGISTRIES[*]:-}" ruby -rjson -e '
       doc = JSON.parse(STDIN.read)
-      wanted = [
-        { "name" => ENV.fetch("REGISTRY"), "newTag" => ENV.fetch("SHA") },
-        { "name" => ENV.fetch("WORKER_DEV_REGISTRY"), "newTag" => ENV.fetch("SHA") }
-      ]
+      # Plugin images too, or Flux would put a pinned plugin workload back on
+      # whatever tag its source names. An override for an image no resource
+      # uses is inert.
+      wanted = ([ ENV.fetch("REGISTRY"), ENV.fetch("WORKER_DEV_REGISTRY") ] + ENV.fetch("PLUGIN_REGISTRIES").split)
+        .map { |name| { "name" => name, "newTag" => ENV.fetch("SHA") } }
       wanted_names = wanted.map { |image| image.fetch("name") }
       existing = Array(doc.dig("spec", "images")).reject do |image|
         wanted_names.include?(image["name"])
@@ -695,13 +767,11 @@ verify_flux_desired_images() {
 
   missing="$(KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
     get kustomization "$FLUX_KUSTOMIZATION" -o json |
-    SHA="$SHA" REGISTRY="$REGISTRY" WORKER_DEV_REGISTRY="$WORKER_DEV_REGISTRY" ruby -rjson -e '
+    SHA="$SHA" REGISTRY="$REGISTRY" WORKER_DEV_REGISTRY="$WORKER_DEV_REGISTRY" PLUGIN_REGISTRIES="${PLUGIN_REGISTRIES[*]:-}" ruby -rjson -e '
       doc = JSON.parse(STDIN.read)
       images = Array(doc.dig("spec", "images"))
-      expected = {
-        ENV.fetch("REGISTRY") => ENV.fetch("SHA"),
-        ENV.fetch("WORKER_DEV_REGISTRY") => ENV.fetch("SHA")
-      }
+      expected = ([ ENV.fetch("REGISTRY"), ENV.fetch("WORKER_DEV_REGISTRY") ] + ENV.fetch("PLUGIN_REGISTRIES").split)
+        .to_h { |name| [ name, ENV.fetch("SHA") ] }
       by_name = images.to_h { |image| [image["name"], image["newTag"]] }
       missing = expected.filter_map do |name, tag|
         "#{name}:#{tag}" unless by_name[name] == tag

@@ -1629,7 +1629,11 @@ Reads the GHCR PAT from `$GHCR_TOKEN` or
 `~/.config/syrus/ghcr-token` (chmod 600). Builds the configured image
 platform, pushes the configured image repository tags, runs
 `kubectl rollout restart` on `syrus-web` and `syrus-worker`, and waits
-for rollout status. Configure kubeconfigs, namespaces, registry, and
+for rollout status. It also builds and pushes every plugin service image
+(`plugins/*/container`, named by `syrus_plugin_images` in
+`bin/docker-image-lib`) at the same SHA, pins any workload running one --
+found by image, whatever the cluster names it -- plus the matching Flux image
+overrides, and waits for those rollouts too. Configure kubeconfigs, namespaces, registry, and
 image repository for your own environment before relying on this script.
 
 ## Deploy target

@@ -37,6 +37,9 @@ and set, on both the mirror and the Syrus web and worker pods:
 | `SYRUS_PLUGIN_SERVICE_GIT_MIRROR_URL` | Syrus | e.g. `http://git-mirror:8080` |
 
 The mirror needs outbound HTTPS to your git host; it needs no route to Syrus.
+If you deploy with `bin/deploy`, any workload running
+`ghcr.io/tkadauke/syrus-plugin-git-mirror` is pinned to the deploy's SHA along
+with Syrus itself, so the mirror and Syrus stay on the same commit.
 
 Optional on the mirror: `GIT_MIRROR_SYNC_INTERVAL` (default `30s`) and
 `GIT_MIRROR_FETCH_TIMEOUT` (default `10m`). On Syrus, `SYRUS_GIT_MIRROR_IMAGE`

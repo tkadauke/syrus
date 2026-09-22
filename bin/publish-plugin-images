@@ -53,13 +53,6 @@ if [ "$SKIP_LATEST" = 1 ] && [ -z "$VERSION" ]; then
   exit 2
 fi
 
-# plugins/git_mirror -> syrus-plugin-git-mirror; a leading "plugin_" is not
-# repeated (plugin_runtime -> syrus-plugin-runtime).
-plugin_image_name() {
-  local name="${1#plugin_}"
-  echo "syrus-plugin-${name//_/-}"
-}
-
 syrus_require_docker_daemon
 syrus_disable_buildx_attestations
 
@@ -68,11 +61,8 @@ if [ "$NO_PUSH" = 0 ] && [ "$NO_LOGIN" = 0 ]; then
 fi
 
 published=()
-for dockerfile in plugins/*/container/Dockerfile; do
-  [ -f "$dockerfile" ] || continue
-  dir="$(dirname "$dockerfile")"
+while read -r dir image; do
   plugin="$(basename "$(dirname "$dir")")"
-  image="$REGISTRY/$(plugin_image_name "$plugin")"
 
   tag_args=()
   tags=()
@@ -89,7 +79,7 @@ for dockerfile in plugins/*/container/Dockerfile; do
       published+=("$image:$tag")
     done
   fi
-done
+done < <(syrus_plugin_images "$REGISTRY")
 
 if [ "$NO_PUSH" = 1 ]; then
   echo "== --no-push: plugin images built, nothing pushed =="

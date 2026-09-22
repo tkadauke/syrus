@@ -365,3 +365,19 @@ syrus_build_local_backend_image() {
     --build-arg BASE_IMAGE=syrus-backend-base:latest \
     -t "$final_tag" .
 }
+
+# The service images of container-backed plugins: one "<build dir> <repository>"
+# line per plugins/<name>/container with a Dockerfile. plugins/git_mirror ->
+# <registry>/syrus-plugin-git-mirror; a leading "plugin_" is not repeated
+# (plugin_runtime -> syrus-plugin-runtime). The one place that naming lives:
+# bin/publish-plugin-images, bin/deploy, and release.yml all use it.
+syrus_plugin_images() {
+  local registry="${1:-ghcr.io/tkadauke}" dockerfile dir plugin name
+  for dockerfile in plugins/*/container/Dockerfile; do
+    [ -f "$dockerfile" ] || continue
+    dir="$(dirname "$dockerfile")"
+    plugin="$(basename "$(dirname "$dir")")"
+    name="${plugin#plugin_}"
+    printf '%s %s/syrus-plugin-%s\n' "$dir" "$registry" "${name//_/-}"
+  done
+}

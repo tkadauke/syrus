@@ -86,6 +86,12 @@ Every `plugins/<name>/container` is published by `bin/publish-plugin-images`
 tags as the backend image, for linux/amd64 and linux/arm64. A plugin asks for
 the image tagged with the running `SYRUS_VERSION`, or `latest` without one.
 
+`bin/deploy` (Kubernetes) builds and pushes the same images as linux/amd64 at
+the deploy's SHA, then pins every Deployment, DaemonSet, or StatefulSet
+container running one of them -- found by image, so an operator can name the
+workload anything -- and the Flux image overrides to that SHA, so a plugin
+service always runs the same commit as the Syrus talking to it.
+
 ### Kubernetes and everything else: external
 
 Without the manager's address and token, Syrus manages nothing. Deploy each

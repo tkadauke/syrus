@@ -326,14 +326,12 @@ jobs:
         run: |
           set -euo pipefail
           : > "$RUNNER_TEMP/plugin-latest-before"
-          for dockerfile in plugins/*/container/Dockerfile; do
-            plugin="$(basename "$(dirname "$(dirname "$dockerfile")")")"
-            name="${plugin#plugin_}"
-            IMAGE="ghcr.io/tkadauke/syrus-plugin-${name//_/-}"
+          . bin/docker-image-lib
+          while read -r _dir IMAGE; do
             OLD="$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
             echo "$IMAGE $OLD" >> "$RUNNER_TEMP/plugin-latest-before"
             docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
-          done
+          done < <(syrus_plugin_images ghcr.io/tkadauke)
 
       # THE go-live: flip the fully-built draft to published. One tiny API call,
       # the last irreversible action. Everything above is now proven good.
