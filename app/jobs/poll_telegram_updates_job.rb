@@ -1,4 +1,13 @@
 class PollTelegramUpdatesJob < PlatformPollingJob
+  class << self
+    # Lets PlatformPollingJob.start_one_with_status report a `platform` field
+    # for this core connector the same way PlatformDelivery::Registry does
+    # for plugin connectors (Discord, etc.), so callers like the admin
+    # restart endpoint can key connector status off a normalized platform
+    # name instead of the Ruby class name.
+    def platform_key = "telegram"
+  end
+
   private
 
   def configured?
