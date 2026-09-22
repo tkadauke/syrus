@@ -326,6 +326,8 @@
   "grade_error_other": "{{count}} error",
   "step_metadata_iteration": "iteration {{n}}",
   "step_latest": "latest",
+  "step_execution_details_toggle": "Execution details",
+  "run_execution_details_toggle": "Execution details",
   "run_number": "Run #{{id}}",
   "run_rate_limited": "rate limited",
   "run_started_at": "Started",
