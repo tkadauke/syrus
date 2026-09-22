@@ -18,6 +18,12 @@ RSpec.describe Workflows::CodingHandoff do
   describe ".steps_for" do
     let(:job) { Factories.job_record(user: user, repository: repository, state: "implemented") }
 
+    before do
+      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
+        RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "no .syrus.yml")
+      )
+    end
+
     it "includes prepare, grader retry loop, summarize, test_plan, pr_open" do
       kinds = described_class.steps_for(job)
       expect(kinds.first).to eq("prepare")

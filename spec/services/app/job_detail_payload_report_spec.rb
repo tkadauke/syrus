@@ -31,6 +31,7 @@ RSpec.describe "investigation report in job detail payload" do
   it "exposes the submitted report, resolving references against typed_artifacts" do
     job = investigation_job
     run = job.workflows.last.first_step.runs.first
+    run.step.update_columns(kind: "submit_report")
     run.workflow.set_typed_artifact!(type: "dashboard_screenshot", title: "Dashboard screenshot", payload: { image_url: "https://example.com/shot.png" }, renderer_type: :image_diff)
 
     Mcp::Tools::SubmitReportTool.call(

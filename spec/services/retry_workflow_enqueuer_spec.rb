@@ -327,6 +327,9 @@ RSpec.describe RetryWorkflowEnqueuer do
     allow(client).to receive(:fetch_issue)
       .with(repository.slug, job.issue_number)
       .and_return(github_issue_with_labels("syrus", Workflows::SKIP_PREPARE_LABEL))
+    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
+      RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "no .syrus.yml")
+    )
 
     result = described_class.call(job: job)
 

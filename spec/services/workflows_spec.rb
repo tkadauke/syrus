@@ -8,6 +8,10 @@ RSpec.describe Workflows do
     grade_loop_plan = RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
     allow(RepoGradeLoopPlan).to receive(:for_job).and_return(grade_loop_plan)
     allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(grade_loop_plan)
+
+    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
+      RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "no .syrus.yml")
+    )
   end
 
   describe ".for(trigger_kind:)" do
