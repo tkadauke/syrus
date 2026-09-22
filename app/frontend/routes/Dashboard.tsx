@@ -239,7 +239,6 @@ export function DashboardTour() {
   return <SyrusTour run={run} steps={steps} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
-
 export function ReadinessPanel({ className = "", prefix, readiness }: { className?: string; prefix: string; readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]> }) {
   const { t } = useT("dashboard")
   // While the desktop shell's backend update has the containers down,
