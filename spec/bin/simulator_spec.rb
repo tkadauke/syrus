@@ -9,9 +9,14 @@ RSpec.describe "bin/simulator", :ci_only do
   let(:script) { File.join(root, "bin/simulator") }
 
   def run_simulator(*args, env: {})
+    # Clear TEST_ENV_NUMBER unless an example sets one: under parallel_rspec
+    # it holds this worker's number, and the simulator would then run
+    # against the worker's own test<N>.sqlite3 instead of its stable
+    # "_simulator" database.
     env = {
       "COVERAGE" => "false",
-      "RAILS_ENV" => "test"
+      "RAILS_ENV" => "test",
+      "TEST_ENV_NUMBER" => nil
     }.merge(env)
     Open3.capture3(env, script, *args, chdir: root)
   end
