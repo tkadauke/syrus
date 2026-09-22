@@ -133,12 +133,14 @@ class RetryFailedStepEnqueuer
       .first
   end
 
-  def initialize(workflow:, parent_session_id: nil, prompt: nil, agent_provider: nil, disable_session_resume: false)
+  def initialize(workflow:, parent_session_id: nil, prompt: nil, agent_provider: nil, disable_session_resume: false,
+                 restart_grade_loop: true)
     @workflow = workflow
     @parent_session_id = parent_session_id
     @prompt = prompt
     @agent_provider = agent_provider.to_s.presence
     @disable_session_resume = disable_session_resume
+    @restart_grade_loop = restart_grade_loop
   end
 
   def call
@@ -168,6 +170,12 @@ class RetryFailedStepEnqueuer
       return Result.new(run: run, workflow: workflow, step: restart_step, error: nil)
     end
 
+    if grade_loop_failure?(failed_step)
+      recover_grade_loop_iteration!(failed_step)
+      run = create_run_for!(failed_step)
+      return Result.new(run: run, workflow: workflow, step: failed_step, error: nil)
+    end
+
     sibling_graders = self.class.failed_grader_siblings(failed_step)
 
     reopen_step!(failed_step)
@@ -190,7 +198,8 @@ class RetryFailedStepEnqueuer
 
   private
 
-  attr_reader :workflow, :parent_session_id, :prompt, :agent_provider, :disable_session_resume
+  attr_reader :workflow, :parent_session_id, :prompt, :agent_provider, :disable_session_resume,
+    :restart_grade_loop
 
   def retry_parent_session_id
     return Steps::Base::DISABLE_AGENT_RESUME if disable_session_resume
@@ -252,7 +261,27 @@ class RetryFailedStepEnqueuer
   end
 
   def grade_loop_restart_retry?(step)
+    restart_grade_loop && grade_loop_failure?(step)
+  end
+
+  def grade_loop_failure?(step)
     self.class.send(:grade_loop_failure?, step)
+  end
+
+  # Infrastructure recovery must stay inside the current retry-until loop.
+  # Reopen the failed fanout and the materialized children that terminal
+  # workflow cleanup cancelled; the fanout is idempotent and will reuse that
+  # iteration's grader graph. Only an explicit operator retry may append a
+  # fresh loop with a new loop_id and reset iteration count.
+  def recover_grade_loop_iteration!(fanout)
+    reopen_step!(fanout)
+    workflow.steps
+      .where(loop_id: fanout.loop_id, iteration: fanout.iteration, state: "cancelled")
+      .where(kind: %w[grader grader_collect])
+      .find_each do |step|
+        step.update_columns(revived_cancelled_step_attributes(step))
+      end
+    revive_cancelled_downstream_steps!(fanout)
   end
 
   def restart_grade_loop!(fanout)

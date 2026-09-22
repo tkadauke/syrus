@@ -1744,7 +1744,7 @@ module WorkEngine
           workflow = target_workflow
           return skipped("Workflow no longer exists") unless workflow
 
-          result = RetryFailedStepEnqueuer.call(workflow: workflow)
+          result = RetryFailedStepEnqueuer.call(workflow: workflow, restart_grade_loop: false)
           result.success? ? success("started merge-train rebuild with #{run_label(result.run)}") : skipped(result.error)
         end
       end

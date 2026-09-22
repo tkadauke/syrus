@@ -153,6 +153,17 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(result.events.join("\n")).to include("repair_merge_train_member_reconciliation")
   end
 
+  it "recovers an automatic grader-fanout worker loss inside the same grade loop" do
+    result = run_scenario("grader_fanout_worker_loss_stays_in_loop")
+
+    expect(result).to be_success
+    workflow = Job.find(result.job_ids.first).workflows.find_by!(trigger_kind: "initial")
+    grade_steps = workflow.steps.where(kind: %w[grader_fanout grader grader_collect])
+    expect(grade_steps.distinct.pluck(:loop_id)).to eq([ "grade-loop" ])
+    expect(grade_steps.distinct.pluck(:iteration)).to eq([ 2 ])
+    expect(workflow.artifact("manual_grade_loop_restarts")).to be_nil
+  end
+
   it "rebuilds a terminal bundle train even when the poisoned workflow still owns runtime" do
     result = run_scenario("terminal_bundle_train_final_fix_rebuilds")
 

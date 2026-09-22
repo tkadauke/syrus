@@ -236,7 +236,8 @@ RSpec.describe AutoRetryJob do
     expect(RetryFailedStepEnqueuer).to have_received(:call).with(
       workflow: workflow,
       agent_provider: "codex",
-      disable_session_resume: false
+      disable_session_resume: false,
+      restart_grade_loop: false
     )
     expect(attempt.reload.performed_at).to be_present
   end

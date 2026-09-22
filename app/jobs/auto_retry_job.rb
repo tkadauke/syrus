@@ -288,7 +288,8 @@ class AutoRetryJob < ApplicationJob
       RetryFailedStepEnqueuer.call(
         workflow: attempt.workflow,
         agent_provider: attempt.agent_provider,
-        disable_session_resume: attempt.failure_classification == "agent_resume_unavailable"
+        disable_session_resume: attempt.failure_classification == "agent_resume_unavailable",
+        restart_grade_loop: false
       )
     else
       retry_workflow(attempt)
@@ -315,7 +316,8 @@ class AutoRetryJob < ApplicationJob
       workflow: attempt.workflow,
       parent_session_id: session.session_id,
       prompt: Prompts::Resume.new.to_s,
-      agent_provider: session.provider.presence || attempt.agent_provider
+      agent_provider: session.provider.presence || attempt.agent_provider,
+      restart_grade_loop: false
     )
   end
 

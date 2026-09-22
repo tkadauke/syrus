@@ -1,0 +1,89 @@
+name: grader fanout worker loss stays in loop
+features:
+  distributed_workflow_dag: true
+repository:
+  owner: simulation
+  name: grader-fanout-worker-loss-stays-in-loop
+  distributed_workflow_dag_enabled: true
+jobs:
+  job:
+    title: Recover grader fanout without restarting its loop
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      chain_template:
+        - type: retry_until
+          max_iterations: 3
+          repair_first: false
+          repair:
+            - implement
+          check:
+            - grader_fanout
+            - grader_collect
+        - type: step
+          kind: summarize
+        - type: step
+          kind: pr_open
+      work_unit:
+        state: running
+      steps:
+        - key: fanout
+          kind: grader_fanout
+          state: queued
+          iteration: 2
+          loop_id: grade-loop
+          run:
+            state: queued
+        - key: tests
+          kind: grader
+          state: queued
+          iteration: 2
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          next_step: collect
+          details:
+            name: tests
+            required: true
+        - key: collect
+          kind: grader_collect
+          state: queued
+          iteration: 2
+          loop_id: grade-loop
+          depends_on:
+            - tests
+        - key: summarize
+          kind: summarize
+          state: queued
+          depends_on:
+            - collect
+        - key: pr_open
+          kind: pr_open
+          state: queued
+outcomes:
+  default: success
+  steps:
+    grader_fanout:
+      - worker_died
+      - success
+success_states:
+  job:
+    - implemented
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - grader_fanout -> worker_died
+    - retryable_run_failure
+    - grader_fanout -> success
+    - grader -> success
+    - grader_collect -> success
+    - summarize -> success
+    - pr_open -> success
+  absent_events:
+    - stuck
