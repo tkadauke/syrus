@@ -78,6 +78,11 @@ module Syrus
         reasons << "participates in dependency cycle: #{cycle.join(' -> ')}"
       end
 
+      # Unmet dependencies and conflicts only matter for a plugin that is on: a
+      # disabled one is inert already, and calling it degraded filled boot logs
+      # and the Plugins page with alarms about plugins nobody switched on.
+      return Status.new(name: manifest.name, state: state, reasons: reasons) unless @enabled_names.include?(manifest.name)
+
       Array(manifest.depends_on).each do |dependency|
         if !@by_name.key?(dependency)
           state = :degraded if state == :ok

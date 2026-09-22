@@ -36,6 +36,26 @@ RSpec.describe Syrus::PluginHealth do
     expect(subject.status("rails").reasons).to include("requires ruby, which is disabled")
   end
 
+  it "leaves a disabled plugin ok when its own dependency is disabled too" do
+    manifests = [ manifest("plugin_runtime"), manifest("git_mirror", depends_on: [ "plugin_runtime" ]) ]
+    subject = health(manifests, enabled: [])
+
+    expect(subject.status("git_mirror").state).to eq(:ok)
+    expect(subject.unhealthy).to eq([])
+  end
+
+  it "leaves a disabled plugin ok when it conflicts with an enabled one" do
+    subject = health([ manifest("a", conflicts_with: [ "b" ]), manifest("b") ], enabled: [ "b" ])
+
+    expect(subject.status("a").state).to eq(:ok)
+  end
+
+  it "still reports a cycle among disabled plugins" do
+    manifests = [ manifest("a", depends_on: [ "b" ]), manifest("b", depends_on: [ "a" ]) ]
+
+    expect(health(manifests, enabled: []).status("a").state).to eq(:cycle)
+  end
+
   it "leaves a plugin ok when only an optional dependency is missing" do
     subject = health([ manifest("chat", optionally_depends_on: [ "design_docs" ]) ])
 
