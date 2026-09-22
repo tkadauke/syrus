@@ -342,6 +342,44 @@ steps.
    in this release, and project-scoped deployment workflows remain an open
    design area.
 
+### Declare the shared code nested projects build on
+
+Every legacy target gains an implicit dependency on the root target (`//:repo`),
+but that target has no source scope, and a dependency with an empty scope never
+marks anything affected — otherwise that one universal edge would select the
+whole repository on every change. So a nested project's graders are selected by
+its own sources and its sibling dependencies, and by nothing in the root
+project.
+
+That is a false negative whenever nested projects are built on shared root code:
+change the interface they implement, leave their directories untouched, and none
+of their graders run. Declare that shared code as an explicit `library` target
+and depend on it from each nested project:
+
+```yaml
+# root .syrus.yml
+targets:
+  - name: plugin-api
+    kind: library
+    sources:
+      - "lib/syrus/plugin/*.rb"
+      - "lib/syrus/plugin/**/*.rb"
+```
+
+```yaml
+# plugins/<name>/.syrus.yml
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
+```
+
+Keep the scope to the contract surface. Widening it toward all of the root
+project's code runs every nested project's graders on nearly every change,
+which is the cost the selection algorithm exists to avoid. Note that
+`dir/**/*.rb` does not match files directly in `dir` — pair it with
+`dir/*.rb`, the way compiled project scopes do.
+
 Before:
 
 ```yaml

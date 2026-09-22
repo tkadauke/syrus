@@ -55,6 +55,32 @@ targets:
     sources:
       - ".github/workflows/deploy-website.yml"
 
+  # The core Ruby surface every bundled plugin builds on: the manifest DSL,
+  # the extension-point contracts, and the registry that resolves them. Each
+  # plugin's rspec grader depends on this, so changing a contract here selects
+  # the plugins that implement it. Without it a plugin grader's only edges are
+  # `//:repo` (no source scope, deliberately ignored by TargetGraph#affected)
+  # and its sibling plugins, so a core-only change -- editing the very
+  # extension point a plugin implements -- selected no plugin grader at all.
+  #
+  # Keep this narrow. It is the contract surface, not all of core: widening it
+  # toward `app/**` would run every plugin's specs on nearly every PR.
+  - name: plugin-api
+    kind: library
+    sources:
+      - "lib/syrus/plugin.rb"
+      - "lib/syrus/plugin_api.rb"
+      - "lib/syrus/plugin/*.rb"
+      - "lib/syrus/plugin/**/*.rb"
+      - "lib/syrus/plugin_*.rb"
+      - "lib/syrus/effect_scope.rb"
+      - "lib/syrus/events.rb"
+      - "lib/syrus/domain_event.rb"
+      - "lib/syrus/kind_registry.rb"
+      - "lib/syrus/metrics.rb"
+      - "lib/syrus/metrics/*.rb"
+      - "lib/syrus/metrics/**/*.rb"
+
 preview:
   setup: *syrus_prepare
   start: bin/syrus-preview-dev

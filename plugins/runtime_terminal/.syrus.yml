@@ -7,3 +7,4 @@ grade:
   - type: rspec
     deps:
       - "//plugins/terminal:grade/rspec"
+      - "//:plugin-api"

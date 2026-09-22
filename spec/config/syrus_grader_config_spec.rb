@@ -280,6 +280,32 @@ RSpec.describe "Syrus grader configuration" do
     )
   end
 
+  # A plugin grader's only other edges are its sibling plugins and `//:repo`,
+  # whose empty source scope TargetGraph#affected ignores on purpose. So
+  # without this one, editing the very extension point a plugin implements
+  # selected no plugin grader at all, and a broken plugin landed green.
+  it "selects every plugin's specs when the core plugin API changes" do
+    graph = TargetGraph::Compiler.compile(Rails.root)
+    plugin_rspec_labels = Dir[Rails.root.join("plugins/*/.syrus.yml")].map do |path|
+      "//plugins/#{File.basename(File.dirname(path))}:grade/rspec"
+    end
+
+    expect(plugin_rspec_labels.size).to be >= 40
+    [ "lib/syrus/plugin/test_evidence.rb", "lib/syrus/plugin_registry.rb", "lib/syrus/plugin/manifest.rb" ].each do |file|
+      expect(graph.affected("//plugins/test_insights:grade/rspec", changed_files: [ file ])).to have_attributes(
+        affected: true,
+        reason: "dependency //:plugin-api source scope matched a changed file"
+      )
+    end
+    plugin_rspec_labels.each do |label|
+      expect(graph.affected(label, changed_files: [ "lib/syrus/plugin/manifest.rb" ]).affected).to be(true), label
+    end
+
+    # Narrow on purpose: ordinary core code is not the plugin contract, and
+    # putting it in scope would run every plugin's specs on nearly every PR.
+    expect(graph.affected("//plugins/test_insights:grade/rspec", changed_files: [ "app/models/job.rb" ]).affected).to be(false)
+  end
+
   it "scopes the website build grader to website and website deploy changes" do
     config = SyrusYml.new(Rails.root.join("website/.syrus.yml").read, project_path: "website").parse
     graph = TargetGraph::Compiler.compile(Rails.root)

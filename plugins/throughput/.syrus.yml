@@ -7,4 +7,5 @@ grade:
   - type: rspec
     deps:
       - "//plugins/metrics_dashboard:grade/rspec"
+      - "//:plugin-api"
   - type: vitest

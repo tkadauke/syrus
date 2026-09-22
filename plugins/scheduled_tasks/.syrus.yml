@@ -8,6 +8,7 @@ grade:
     deps:
       - "//plugins/video_walkthroughs:grade/rspec"
       - "//plugins/metrics_dashboard:grade/rspec"
+      - "//:plugin-api"
   - type: vitest
   - type: go-test
     path: cli

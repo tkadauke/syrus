@@ -5,4 +5,6 @@ project:
 
 grade:
   - type: rspec
+    deps:
+      - "//:plugin-api"
   - type: vitest

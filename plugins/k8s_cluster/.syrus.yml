@@ -5,6 +5,8 @@ project:
 
 grade:
   - type: rspec
+    deps:
+      - "//:plugin-api"
   - type: vitest
   - type: go-test
     path: cli
