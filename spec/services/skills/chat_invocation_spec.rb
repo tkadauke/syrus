@@ -4,7 +4,6 @@ RSpec.describe Skills::ChatInvocation do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
   let(:chat) { ChatSession.create!(repository: repository, user: user) }
-  let(:client) { instance_double(GithubClient) }
 
   def enable_coding_mode!(enabled: true)
     feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
@@ -29,11 +28,11 @@ RSpec.describe Skills::ChatInvocation do
   end
 
   before do
-    allow(client).to receive(:file_content_at).and_return(nil)
+    stub_repository_content(repository, files: {})
   end
 
   def resolve(text:)
-    described_class.resolve(chat_session: chat, text: text, client: client)
+    described_class.resolve(chat_session: chat, text: text)
   end
 
   describe "#resolve" do
@@ -46,7 +45,7 @@ RSpec.describe Skills::ChatInvocation do
     it "returns not_a_command when the chat has no attached repository" do
       unattached_chat = ChatSession.create!(user: user)
 
-      result = described_class.resolve(chat_session: unattached_chat, text: "/investigate question=why?", client: client)
+      result = described_class.resolve(chat_session: unattached_chat, text: "/investigate question=why?")
 
       expect(result.status).to eq(:not_a_command)
     end
@@ -74,9 +73,7 @@ RSpec.describe Skills::ChatInvocation do
     it "resolves to the repo-local skill, shadowing a built-in of the same name" do
       enable_coding_mode!
       chat.update!(mode: "coding")
-      allow(client).to receive(:file_content_at)
-        .with("acme/widgets", ".syrus/skills/investigate/SKILL.md", "main")
-        .and_return(content: skill_md(name: "investigate", description: "Repo override."), size: 40)
+      stub_repository_content(repository, files: { ".syrus/skills/investigate/SKILL.md" => skill_md(name: "investigate", description: "Repo override.") })
 
       result = resolve(text: "/investigate question=why?")
 

@@ -7,15 +7,12 @@ RSpec.describe "App API job source image", type: :request do
 
   before { sign_in_as(user) }
 
-  it "streams raw image bytes with the correct content type" do
-    github = instance_double(GithubClient)
-    png_bytes = "\x89PNG\r\n\x1A\n".b
-    allow(GithubClient).to receive(:for).with(repository: repo, user: user).and_return(github)
-    allow(github).to receive(:binary_file_content_at)
-      .with("acme/widgets", "app/assets/images/logo.png", "deadbeef12345678")
-      .and_return(content: png_bytes, size: png_bytes.bytesize)
+  let(:png_bytes) { "\x89PNG\r\n\x1A\n".b }
 
-    get "/api/v1/app/jobs/#{job.id}/source_image", params: { path: "app/assets/images/logo.png", ref: "deadbeef12345678" }
+  it "streams raw image bytes with the correct content type" do
+    stub_repository_content(repo, ref: "syrus/issue-42", files: { "app/assets/images/logo.png" => png_bytes })
+
+    get "/api/v1/app/jobs/#{job.id}/source_image", params: { path: "app/assets/images/logo.png", ref: "syrus/issue-42" }
 
     expect(response).to have_http_status(:ok)
     expect(response.content_type).to eq("image/png")
@@ -23,15 +20,28 @@ RSpec.describe "App API job source image", type: :request do
   end
 
   it "returns 404 when the file does not exist at that ref" do
-    github = instance_double(GithubClient)
-    allow(GithubClient).to receive(:for).with(repository: repo, user: user).and_return(github)
-    allow(github).to receive(:binary_file_content_at)
-      .with("acme/widgets", "app/assets/images/missing.png", "deadbeef12345678")
-      .and_return(nil)
+    stub_repository_content(repo, ref: "syrus/issue-42", files: {})
 
-    get "/api/v1/app/jobs/#{job.id}/source_image", params: { path: "app/assets/images/missing.png", ref: "deadbeef12345678" }
+    get "/api/v1/app/jobs/#{job.id}/source_image", params: { path: "app/assets/images/missing.png", ref: "syrus/issue-42" }
 
     expect(response).to have_http_status(:not_found)
+  end
+
+  it "returns 404 for a ref the repository does not have" do
+    stub_repository_content(repo, files: {})
+
+    get "/api/v1/app/jobs/#{job.id}/source_image", params: { path: "logo.png", ref: "no-such-branch" }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it "returns 503 rather than raising when the repository cannot be read" do
+    stub_repository_content_failure(repo, RepositoryContent::Unavailable.new("rate limited"))
+
+    get "/api/v1/app/jobs/#{job.id}/source_image", params: { path: "logo.png", ref: "main" }
+
+    expect(response).to have_http_status(:service_unavailable)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("source_unavailable")
   end
 
   it "requires both path and ref" do

@@ -14,14 +14,13 @@ module Skills
   class ChatInvocation
     Result = Data.define(:status, :resolution, :args, :message)
 
-    def self.resolve(chat_session:, text:, client: nil)
-      new(chat_session: chat_session, text: text, client: client).resolve
+    def self.resolve(chat_session:, text:)
+      new(chat_session: chat_session, text: text).resolve
     end
 
-    def initialize(chat_session:, text:, client: nil)
+    def initialize(chat_session:, text:)
       @chat_session = chat_session
       @text = text
-      @client = client
     end
 
     def resolve
@@ -49,7 +48,7 @@ module Skills
     private
 
     def resolve_skill(repository, name)
-      Skills.for(repository: repository, name: name, user: @chat_session.user, client: @client)
+      Skills.for(repository: repository, name: name, user: @chat_session.user)
     rescue Skills::NotFoundError, ArgumentError
       nil
     end

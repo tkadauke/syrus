@@ -44,19 +44,11 @@ RSpec.describe "App API job source browser", type: :request do
         ],
         merge_base_sha: "aabbccdd1234567"
       )
-    allow(github).to receive(:file_tree_at)
-      .with("acme/widgets", commit_sha)
-      .and_return(
-        items: [
-          { path: "app/models/user.rb", size: 512 },
-          { path: "app/frontend/routes/Chat.tsx", size: 256 },
-          { path: "README.md", size: 128 }
-        ],
-        truncated: false
-      )
-    allow(github).to receive(:file_content_at)
-      .with("acme/widgets", "app/models/user.rb", commit_sha)
-      .and_return(content: "class User\nend\n", size: 15)
+    stub_repository_content(repo, ref: commit_sha, files: {
+      "app/models/user.rb" => "class User\nend\n",
+      "app/frontend/routes/Chat.tsx" => "x" * 256,
+      "README.md" => "x" * 128
+    })
 
     get "/api/v1/app/jobs/#{job.id}/source", params: { path: "app/models/user.rb" }
 
@@ -71,7 +63,7 @@ RSpec.describe "App API job source browser", type: :request do
       "date" => "2026-05-01T12:00:00Z"
     ))
     expect(body["tree_items"]).to contain_exactly(
-      include("path" => "app/models/user.rb", "name" => "user.rb", "language" => "ruby", "size" => 512),
+      include("path" => "app/models/user.rb", "name" => "user.rb", "language" => "ruby", "size" => 15),
       include("path" => "app/frontend/routes/Chat.tsx", "name" => "Chat.tsx", "language" => "typescript", "size" => 256),
       include("path" => "README.md", "name" => "README.md", "language" => "markdown", "size" => 128)
     )
@@ -83,8 +75,31 @@ RSpec.describe "App API job source browser", type: :request do
       "name" => "user.rb",
       "language" => "ruby",
       "content" => "class User\nend\n",
-      "size" => 15
+      "size" => 15,
+      "truncated" => false
     )
+  end
+
+  it "reports a missing file without failing the tree" do
+    user.update!(github_token: "ghp_test_token")
+    job.update!(branch_name: nil)
+    stub_repository_content(repo, files: { "README.md" => "hi" })
+
+    get "/api/v1/app/jobs/#{job.id}/source", params: { path: "gone.rb" }
+
+    body = parse_body
+    expect(body["tree_items"].map { |item| item["path"] }).to eq([ "README.md" ])
+    expect(body["file_error"]).to eq("File not found.")
+  end
+
+  it "shows a source error when the repository cannot be read" do
+    user.update!(github_token: "ghp_test_token")
+    job.update!(branch_name: nil)
+    stub_repository_content_failure(repo, RepositoryContent::Unavailable.new("rate limited"))
+
+    get "/api/v1/app/jobs/#{job.id}/source"
+
+    expect(parse_body["source_error"]).to eq("Could not load file tree: rate limited")
   end
 
   it "uses the default branch without comparing when the job has no branch" do
@@ -94,16 +109,13 @@ RSpec.describe "App API job source browser", type: :request do
 
     allow(GithubClient).to receive(:for).with(repository: repo, user: user).and_return(github)
     expect(github).not_to receive(:compare_commits)
-    allow(github).to receive(:file_tree_at)
-      .with("acme/widgets", "main")
-      .and_return(items: [ { path: "README.md", size: 64 } ], truncated: true)
+    stub_repository_content(repo, files: { "README.md" => "x" * 64 })
 
     get "/api/v1/app/jobs/#{job.id}/source"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["selected_ref"]).to eq("main")
-    expect(body["tree_truncated"]).to eq(true)
     expect(body["tree_items"]).to contain_exactly(include("path" => "README.md", "language" => "markdown"))
   end
 

@@ -3,38 +3,25 @@ require "rails_helper"
 RSpec.describe RepoDefaultBranchSyrusYml do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
-  let(:client) { instance_double(GithubClient) }
+  def resolve = described_class.new(repository: repository, user: user).resolve
 
-  it "is unavailable without touching GitHub when credentials are unavailable" do
-    user.update!(github_token: nil)
-    expect(GithubClient).not_to receive(:for)
+  it "is unavailable when no content provider serves the repository" do
+    RepositoryContent.provider_classes_override = []
 
-    result = described_class.new(repository: repository, user: user).resolve
+    result = resolve
 
     expect(result.config).to be_nil
     expect(result.source).to eq("none")
-    expect(result.note).to eq("no GitHub credentials")
+    expect(result.note).to match(/no repository content provider/)
     expect(result.outcome).to eq(:unavailable)
     expect(result).not_to be_determined
   end
 
-  it "is unavailable when the GitHub client is not a GithubClient instance" do
-    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
-    expect(client).not_to receive(:file_content_at)
-
-    result = described_class.new(repository: repository, user: user).resolve
-
-    expect(result.config).to be_nil
-    expect(result.source).to eq("none")
-    expect(result.note).to eq("GitHub client unavailable")
-    expect(result.outcome).to eq(:unavailable)
-  end
-
-  # The one real absence: GitHub answered, and there is no such file.
+  # The one real absence: a provider answered, and there is no such file.
   it "is absent, and determined, when .syrus.yml does not exist" do
-    allow(client).to receive(:file_content_at).and_return(nil)
+    stub_repository_content(repository, files: { "README.md" => "hi" })
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
+    result = resolve
 
     expect(result.config).to be_nil
     expect(result.source).to eq("none")
@@ -43,15 +30,14 @@ RSpec.describe RepoDefaultBranchSyrusYml do
     expect(result).to be_determined
   end
 
-  it "exposes the parsed SyrusYml::Config on success" do
-    allow(client).to receive(:file_content_at)
-      .with("acme/widgets", ".syrus.yml", "main")
-      .and_return(content: <<~YAML, size: 40)
-        adversarial_review:
-          rounds: 2
-      YAML
+  it "exposes the parsed SyrusYml::Config from the default branch on success" do
+    stub_repository_content(repository, ref: "release", files: { ".syrus.yml" => "adversarial_review:\n  rounds: 5\n" })
+    stub_repository_content(repository, ref: "main", files: { ".syrus.yml" => <<~YAML })
+      adversarial_review:
+        rounds: 2
+    YAML
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
+    result = resolve
 
     expect(result.config).to be_a(SyrusYml::Config)
     expect(result.config.adversarial_review.rounds).to eq(2)
@@ -62,9 +48,9 @@ RSpec.describe RepoDefaultBranchSyrusYml do
   end
 
   it "is invalid, and undetermined, when the config does not parse" do
-    allow(client).to receive(:file_content_at).and_return(content: "adversarial_review:\n  rounds: many\n", size: 35)
+    stub_repository_content(repository, files: { ".syrus.yml" => "adversarial_review:\n  rounds: many\n" })
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
+    result = resolve
 
     expect(result.config).to be_nil
     expect(result.source).to eq(".syrus.yml")
@@ -77,23 +63,21 @@ RSpec.describe RepoDefaultBranchSyrusYml do
   # like the absent case above, so a rate limit at workflow creation built a
   # workflow with no grade loop.
   it "is unavailable, not absent, when the config cannot be fetched" do
-    allow(client).to receive(:file_content_at).and_raise(StandardError, "network unavailable")
+    stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("rate limited"))
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
+    result = resolve
 
     expect(result.config).to be_nil
     expect(result.source).to eq("none")
-    expect(result.note).to eq("network unavailable")
+    expect(result.note).to eq("rate limited")
     expect(result.outcome).to eq(:unavailable)
     expect(result).not_to be_determined
   end
 
-  it "reads a rate limit as unavailable rather than as a missing file" do
-    allow(client).to receive(:file_content_at).and_raise(Octokit::TooManyRequests)
+  it "is unavailable, not absent, when the default branch cannot be resolved" do
+    stub_repository_content(repository, ref: "some-other-branch", files: {})
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
-
-    expect(result.outcome).to eq(:unavailable)
+    expect(resolve.outcome).to eq(:unavailable)
   end
 
   # Existing constructions pass only config/source/note. Their meaning must
@@ -105,13 +89,10 @@ RSpec.describe RepoDefaultBranchSyrusYml do
 
   describe ".for_job" do
     it "resolves from the job's repository and user" do
-      user.update!(github_token: nil)
+      stub_repository_content(repository, files: { ".syrus.yml" => "review_plan: true\n" })
       job = instance_double(Job, repository: repository, user: user)
 
-      result = described_class.for_job(job)
-
-      expect(result.config).to be_nil
-      expect(result.note).to eq("no GitHub credentials")
+      expect(described_class.for_job(job).outcome).to eq(:loaded)
     end
   end
 end

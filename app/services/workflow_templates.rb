@@ -59,27 +59,25 @@ module WorkflowTemplates
   # Provenance is recorded either way, which is the half that costs nothing:
   # every Workflow says which template it ran, so a future override can never
   # be a silent one.
-  def self.for(key:, built_in_graph:, repository: nil, user: nil, client: nil, resolve_overrides: false)
+  def self.for(key:, built_in_graph:, repository: nil, user: nil, resolve_overrides: false)
     key = key.to_s
     raise ArgumentError, "invalid template key=#{key.inspect}" unless key.match?(KEY_PATTERN)
 
     if resolve_overrides && repository
-      override = resolve_repo_local(key: key, repository: repository, user: user, client: client, built_in_graph: built_in_graph)
+      override = resolve_repo_local(key: key, repository: repository, user: user, built_in_graph: built_in_graph)
       return override if override
     end
 
     Resolution.new(source: "built_in", path: nil, graph: built_in_graph, key: key)
   end
 
-  def self.resolve_repo_local(key:, repository:, user:, client:, built_in_graph:)
-    github_client = client || resolved_github_client(repository: repository, user: user)
-    return nil unless github_client
-
+  def self.resolve_repo_local(key:, repository:, user:, built_in_graph:)
     path = "#{REPO_LOCAL_DIR}/#{key}.yml"
-    content = github_client.file_content_at(repository.slug, path, repository.default_branch)
-    return nil if content.blank?
+    content = RepositoryContent.for(repository, user: user)
+    blob = content.read_if_present(content.resolve(repository.default_branch), path)
+    return nil if blob.nil? || blob.bytes.blank?
 
-    graph = parse(content)
+    graph = parse(blob.text)
     validate_additive!(graph: graph, built_in_graph: built_in_graph, path: path)
 
     Resolution.new(source: "repo", path: path, graph: graph, key: key)
@@ -134,11 +132,5 @@ module WorkflowTemplates
     when Hash then Array(node["kind"]).map(&:to_s) + node.values.flat_map { |value| step_kinds_in(value) }
     else []
     end
-  end
-
-  def self.resolved_github_client(repository:, user:)
-    GithubClient.for(repository: repository, user: user || repository.user)
-  rescue StandardError
-    nil
   end
 end

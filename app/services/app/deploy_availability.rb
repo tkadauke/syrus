@@ -3,7 +3,7 @@ module App
   # used by JobDetailPayload's can_deploy action flag, JobDeployController's
   # approval gate, and DeployContinuousTrigger's continuous-deploy check.
   # Reads `.syrus.yml`'s `deploy:` block from the repository's default
-  # branch through GitHub (RepoDefaultBranchSyrusYml) rather than shelling
+  # branch through RepositoryContent (RepoDefaultBranchSyrusYml) rather than shelling
   # out against the local bare clone: several of these call sites run on the
   # web tier, and web pods don't mount $SYRUS_DATA_ROOT (see "Deploy target"
   # in CLAUDE.md — "Web pods don't need this volume"). A local bare clone
@@ -13,16 +13,16 @@ module App
   # RepositoryFeatureRecommendations already applied for its own
   # local-bare-clone reads.
   class DeployAvailability
-    def self.configured?(repository, user: nil, client: nil)
-      deploy_config(repository, user: user, client: client).present?
+    def self.configured?(repository, user: nil)
+      deploy_config(repository, user: user).present?
     end
 
-    def self.allow_unapproved?(repository, user: nil, client: nil)
-      deploy_config(repository, user: user, client: client)&.allow_unapproved || false
+    def self.allow_unapproved?(repository, user: nil)
+      deploy_config(repository, user: user)&.allow_unapproved || false
     end
 
-    def self.deploy_config(repository, user: nil, client: nil)
-      RepoDefaultBranchSyrusYml.new(repository: repository, user: user || repository.user, client: client).resolve.config&.deploy
+    def self.deploy_config(repository, user: nil)
+      RepoDefaultBranchSyrusYml.new(repository: repository, user: user || repository.user).resolve.config&.deploy
     end
   end
 end

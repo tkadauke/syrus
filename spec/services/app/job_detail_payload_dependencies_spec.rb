@@ -153,14 +153,13 @@ RSpec.describe App::JobDetailPayload, :ci_only do
   end
 
   describe "#actions_json can_run_visual_review" do
-    # `.syrus.yml` is read through GitHub (RepoDefaultBranchSyrusYml) rather
+    # `.syrus.yml` is read through RepositoryContent (RepoDefaultBranchSyrusYml) rather
     # than the local bare clone: job-detail payloads are built on the web
     # tier, and web pods don't mount the worker's on-disk bare clone (see
     # "Deploy target" in CLAUDE.md — "Web pods don't need this volume"). No
     # $SYRUS_DATA_ROOT clone is created anywhere in this describe block,
-    # simulating that environment; the `client:` seam injects a double
-    # directly instead of stubbing `GithubClient.for`, since `instance_double`
-    # isn't `is_a?(GithubClient)`.
+    # simulating that environment; `.syrus.yml` comes from the fake content
+    # provider.
     let(:user) { Factories.user(github_token: "ghp_test") }
     let(:client) { instance_double(GithubClient) }
 
@@ -169,10 +168,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
 
     def stub_syrus_yml(content)
-      result = content ? { content: content, size: content.bytesize } : nil
-      allow(client).to receive(:file_content_at)
-        .with(repo.slug, SyrusYml::CONFIG_FILE, repo.default_branch)
-        .and_return(result)
+      stub_repository_content(repo, files: content ? { SyrusYml::CONFIG_FILE => content } : {})
     end
 
     it "is true for an implemented job when .syrus.yml enables visual_review" do
@@ -252,7 +248,8 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
 
-    it "reuses one GitHub .syrus.yml fetch for deploy and visual-review action gates" do
+    it "reuses one .syrus.yml load for deploy and visual-review action gates" do
+      allow(RepoDefaultBranchSyrusYml).to receive(:new).and_call_original
       stub_syrus_yml(<<~YAML)
         deploy:
           run: bin/deploy
@@ -267,19 +264,18 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         can_deploy: true,
         can_run_visual_review: true
       )
-      expect(client).to have_received(:file_content_at).once
+      expect(RepoDefaultBranchSyrusYml).to have_received(:new).once
     end
   end
 
   describe "#actions_json can_deploy and #deploy" do
-    # `.syrus.yml` is read through GitHub (RepoDefaultBranchSyrusYml) rather
+    # `.syrus.yml` is read through RepositoryContent (RepoDefaultBranchSyrusYml) rather
     # than the local bare clone: job-detail payloads are built on the web
     # tier, and web pods don't mount the worker's on-disk bare clone (see
     # "Deploy target" in CLAUDE.md — "Web pods don't need this volume"). No
     # $SYRUS_DATA_ROOT clone is created anywhere in this describe block,
-    # simulating that environment; the `client:` seam injects a double
-    # directly instead of stubbing `GithubClient.for`, since `instance_double`
-    # isn't `is_a?(GithubClient)`.
+    # simulating that environment; `.syrus.yml` comes from the fake content
+    # provider.
     let(:user) { Factories.user(github_token: "ghp_test") }
     let(:client) { instance_double(GithubClient) }
 
@@ -288,10 +284,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
 
     def stub_syrus_yml(content)
-      result = content ? { content: content, size: content.bytesize } : nil
-      allow(client).to receive(:file_content_at)
-        .with(repo.slug, SyrusYml::CONFIG_FILE, repo.default_branch)
-        .and_return(result)
+      stub_repository_content(repo, files: content ? { SyrusYml::CONFIG_FILE => content } : {})
     end
 
     it "is true for an implemented job when .syrus.yml configures deploy" do

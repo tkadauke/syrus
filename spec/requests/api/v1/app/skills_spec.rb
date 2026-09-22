@@ -8,23 +8,18 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/skills", type: :req
     JSON.parse(response.body)
   end
 
-  def stub_repo_local_tree(paths)
-    client = instance_double(GithubClient)
-    allow(GithubClient).to receive(:for).and_return(client)
-    allow(client).to receive(:file_tree_at)
-      .with("acme/widgets", "main")
-      .and_return(items: paths.map { |path| { path: path, size: 10 } }, truncated: false)
-    allow(client).to receive(:file_content_at).and_return(nil)
-    client
+  before do
+    Skills.remove_instance_variable(:@all_for_cache) if Skills.instance_variable_defined?(:@all_for_cache)
   end
 
-  # Skills.all_for's GithubClient.for fallback path (repo-local
-  # discovery) is covered end-to-end at the unit level in
-  # spec/services/skills_spec.rb via an injected `client:` — real
-  # GithubClient objects can't be faked here (repo_local resolution
-  # guards on `client.is_a?(GithubClient)`, which an RSpec double never
-  # satisfies). These request specs stub Skills.all_for directly to
-  # verify the controller serializes shadowing/provenance correctly.
+  def stub_repo_local_tree(paths)
+    stub_repository_content(repository, files: paths.index_with(""))
+  end
+
+  # Repo-local discovery is covered at the unit level in
+  # spec/services/skills_spec.rb. These request specs stub Skills.all_for
+  # directly to verify the controller serializes shadowing/provenance
+  # correctly.
   def resolution(name:, source:, path: nil, klass: nil, description: "Does a thing.", parameters: [])
     definition = Skills::Definition.new(name: name, description: description, parameters: Skills::ParameterSchema.normalize(parameters), instructions: "do it")
     Skills::Resolution.new(source: source, path: path, klass: klass, definition: definition)

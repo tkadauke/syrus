@@ -3,36 +3,30 @@ require "rails_helper"
 RSpec.describe App::RepositoryFeatureRecommendations do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, ci_health: "unknown", grader_health: "unknown") }
-  let(:client) { instance_double(GithubClient) }
+  let(:snapshot) { {} }
 
   before do
     allow(App::PreviewAvailability).to receive(:configured?).and_return(false)
     allow(Feature).to receive(:visual_review_enabled?).and_return(false)
-    allow(client).to receive(:file_content_at).and_return(nil)
-    allow(client).to receive(:file_tree_at).and_return(items: [], truncated: false)
+    stub_repository_content(repository, files: snapshot)
   end
 
-  # `.syrus.yml` and the repo file tree are read over the GitHub API (see
-  # RepositoryFeatureRecommendations#syrus_yml_content / #repo_files), not
-  # from the local bare clone — this service is called from the web tier,
-  # which doesn't share the worker's on-disk clone. The `client:` seam
-  # (mirroring RepoVisualReviewPlan's own spec) injects a double directly
-  # instead of stubbing `GithubClient.for`, since `instance_double` isn't
-  # `is_a?(GithubClient)`.
+  # `.syrus.yml` and the repo file tree are read through RepositoryContent
+  # (see RepositoryFeatureRecommendations#syrus_yml / #repo_files), not from
+  # the local bare clone — this service is called from the web tier, which
+  # doesn't share the worker's on-disk clone.
   def recommendations
-    described_class.new(repository: repository, user: user, client: client).recommendations
+    described_class.new(repository: repository, user: user).recommendations
   end
 
   def stub_syrus_yml(content)
-    allow(client).to receive(:file_content_at)
-      .with(repository.slug, SyrusYml::CONFIG_FILE, repository.default_branch)
-      .and_return(content: content, size: content.to_s.bytesize)
+    snapshot[SyrusYml::CONFIG_FILE] = content
+    stub_repository_content(repository, files: snapshot)
   end
 
   def stub_repo_files(paths)
-    allow(client).to receive(:file_tree_at)
-      .with(repository.slug, repository.default_branch)
-      .and_return(items: paths.map { |path| { path: path, size: 0 } }, truncated: false)
+    paths.each { |path| snapshot[path] ||= "" }
+    stub_repository_content(repository, files: snapshot)
   end
 
   it "recommends visual review for browser apps without explicit visual review" do
@@ -63,6 +57,17 @@ RSpec.describe App::RepositoryFeatureRecommendations do
     recommendation = recommendations.find { |entry| entry.fetch(:id) == "syrus_prepare" }
 
     expect(recommendation).to include(cta: include(kind: "toggle", action_id: "enable_prepare"))
+  end
+
+  it "recommends pinning prepare commands when the repository has no .syrus.yml" do
+    expect(recommendations.map { |entry| entry.fetch(:id) }).to include("syrus_prepare")
+  end
+
+  # A rate limit is not evidence the repository lacks a config.
+  it "does not recommend pinning prepare commands when .syrus.yml could not be read" do
+    stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("rate limited"))
+
+    expect(recommendations.map { |entry| entry.fetch(:id) }).not_to include("syrus_prepare")
   end
 
   it "does not recommend pinning prepare commands when they are already configured" do

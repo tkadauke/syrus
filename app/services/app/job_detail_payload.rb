@@ -1453,7 +1453,7 @@ module App
     def local_syrus_yml_config
       return @local_syrus_yml_config if defined?(@local_syrus_yml_config)
 
-      @local_syrus_yml_config = RepoDefaultBranchSyrusYml.new(repository: @job.repository, user: @user || @job.user, client: @client).resolve.config
+      @local_syrus_yml_config = RepoDefaultBranchSyrusYml.new(repository: @job.repository, user: @user || @job.user).resolve.config
     end
   end
 end

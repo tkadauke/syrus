@@ -258,9 +258,7 @@ RSpec.describe ChatTurnJob, :ci_only do
     let(:user_message) { chat.messages.create!(role: "user", content: { text: "/investigate question=why?" }) }
 
     before do
-      allow(GithubClient).to receive(:for)
-        .with(repository: repository, user: user)
-        .and_return(instance_double(GithubClient, file_content_at: nil))
+      stub_repository_content(repository, files: {})
     end
 
     it "persists the coding_mode_required guidance with a structured skill_invocation marker and does not invoke the agent" do

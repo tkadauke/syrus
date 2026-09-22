@@ -865,43 +865,6 @@ class GithubClient
     raise
   end
 
-  # Returns { items: [...], truncated: bool } for all blob paths under `ref`.
-  # Each item has :path and :size. Items are sorted alphabetically by path.
-  # Fetches the commit's tree SHA first, then walks the tree recursively.
-  def file_tree_at(repo_slug, ref)
-    commit = track_rate_limits { @client.commit(repo_slug, ref) }
-    tree   = track_rate_limits { @client.tree(repo_slug, commit.commit.tree.sha, recursive: 1) }
-    # `sha` (the blob's content address) and `commit_sha` are passed through
-    # so callers can key caches on exactly the content they depend on and
-    # read files at the same commit the tree came from, rather than at a
-    # branch name that may have moved between the two calls.
-    items  = Array(tree.tree)
-               .select { |item| item.type == "blob" }
-               .map    { |item| { path: item.path, size: item.size.to_i, sha: item.sha } }
-               .sort_by { |item| item[:path] }
-    { items: items, truncated: tree.truncated == true, commit_sha: commit.sha }
-  rescue Octokit::TooManyRequests => e
-    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}@#{ref} tree: #{e.message}")
-    raise
-  end
-
-  # Returns { content: "...", size: N } for the file at `path` at `ref`.
-  # Returns nil if the path is not a blob (it's a directory or not found).
-  # Content is decoded from base64 and transcoded to UTF-8; binary files
-  # may contain replacement characters.
-  def file_content_at(repo_slug, path, ref)
-    result = track_rate_limits { @client.contents(repo_slug, path: path, ref: ref) }
-    return nil unless result.respond_to?(:type) && result.type == "file"
-    raw = Base64.decode64(result.content.to_s)
-    { content: raw.encode("UTF-8", invalid: :replace, undef: :replace, replace: "�"),
-      size:    result.size.to_i }
-  rescue Octokit::NotFound
-    nil
-  rescue Octokit::TooManyRequests => e
-    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}:#{path}@#{ref}: #{e.message}")
-    raise
-  end
-
   # The commit SHA `ref` (a branch, tag, or SHA) points at. Raises
   # Octokit::NotFound when GitHub does not know the ref -- unlike most readers
   # here, absence is not folded into nil, because callers must tell an unknown
@@ -964,24 +927,6 @@ class GithubClient
       }
     end
     { files: files, truncated: files.size >= 300 }
-  end
-
-  # Returns { content: "...", size: N } for the file at `path` at `ref`,
-  # like #file_content_at but without the UTF-8 transcode step -- callers
-  # that need the raw decoded bytes (e.g. streaming an image) must use this
-  # instead, since #file_content_at's `.encode("UTF-8", ...)` mangles binary
-  # content. Returns nil if the path is not a blob (it's a directory or not
-  # found).
-  def binary_file_content_at(repo_slug, path, ref)
-    result = track_rate_limits { @client.contents(repo_slug, path: path, ref: ref) }
-    return nil unless result.respond_to?(:type) && result.type == "file"
-
-    { content: Base64.decode64(result.content.to_s), size: result.size.to_i }
-  rescue Octokit::NotFound
-    nil
-  rescue Octokit::TooManyRequests => e
-    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}:#{path}@#{ref}: #{e.message}")
-    raise
   end
 
   private

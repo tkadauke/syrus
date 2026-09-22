@@ -150,16 +150,20 @@ module Api
             return
           end
 
-          client = GithubClient.for(repository: job.repository, user: Current.user)
-          file = client.binary_file_content_at(job.repository.slug, path, ref)
-          unless file
+          content = RepositoryContent.for(job.repository, user: Current.user)
+          blob = content.read_if_present(content.resolve(ref), path)
+          unless blob
             render_error("not_found", "File not found at that ref.", status: :not_found)
             return
           end
 
-          send_data file[:content], type: Marcel::MimeType.for(name: path), disposition: "inline"
-        rescue ArgumentError
+          send_data blob.bytes, type: Marcel::MimeType.for(name: path), disposition: "inline"
+        rescue RepositoryContent::NoProvider
           render_error("no_github_token", "GitHub token not configured. Add one in Settings to browse source.", status: :unprocessable_content)
+        rescue RepositoryContent::UnknownRevision
+          render_error("not_found", "No such ref.", status: :not_found)
+        rescue RepositoryContent::Error => e
+          render_error("source_unavailable", "Could not read the repository right now: #{e.message}", status: :service_unavailable)
         end
 
         def timeline

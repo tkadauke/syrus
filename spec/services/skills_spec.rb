@@ -3,7 +3,6 @@ require "rails_helper"
 RSpec.describe Skills do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
-  let(:client) { instance_double(GithubClient) }
 
   def skill_md(name:, description: "Does a thing.")
     <<~MARKDOWN
@@ -36,11 +35,9 @@ RSpec.describe Skills do
 
     context "when a repo-local skill exists" do
       it "resolves to :repo_override with the resolved path and parsed definition" do
-        allow(client).to receive(:file_content_at)
-          .with("acme/widgets", ".syrus/skills/audit/SKILL.md", "main")
-          .and_return(content: skill_md(name: "audit"), size: 50)
+        stub_repository_content(repository, files: { ".syrus/skills/audit/SKILL.md" => skill_md(name: "audit") })
 
-        resolution = described_class.for(repository: repository, name: "audit", client: client)
+        resolution = described_class.for(repository: repository, name: "audit")
 
         expect(resolution.source).to eq(:repo_override)
         expect(resolution.path).to eq(".syrus/skills/audit/SKILL.md")
@@ -50,32 +47,28 @@ RSpec.describe Skills do
       end
 
       it "shadows a built-in skill of the same name" do
-        allow(client).to receive(:file_content_at)
-          .with("acme/widgets", ".syrus/skills/investigate/SKILL.md", "main")
-          .and_return(content: skill_md(name: "investigate", description: "Repo override of investigate."), size: 60)
+        stub_repository_content(repository, files: { ".syrus/skills/investigate/SKILL.md" => skill_md(name: "investigate", description: "Repo override of investigate.") })
 
-        resolution = described_class.for(repository: repository, name: "investigate", client: client)
+        resolution = described_class.for(repository: repository, name: "investigate")
 
         expect(resolution.source).to eq(:repo_override)
         expect(resolution.definition.description).to eq("Repo override of investigate.")
       end
 
       it "propagates a parse error instead of silently falling back to a built-in" do
-        allow(client).to receive(:file_content_at)
-          .with("acme/widgets", ".syrus/skills/investigate/SKILL.md", "main")
-          .and_return(content: "not a valid skill file", size: 20)
+        stub_repository_content(repository, files: { ".syrus/skills/investigate/SKILL.md" => "not a valid skill file" })
 
         expect {
-          described_class.for(repository: repository, name: "investigate", client: client)
+          described_class.for(repository: repository, name: "investigate")
         }.to raise_error(Skills::SkillMarkdown::ParseError)
       end
     end
 
     context "when no repo-local skill exists" do
       it "falls back to the built-in registry" do
-        allow(client).to receive(:file_content_at).and_return(nil)
+        stub_repository_content(repository, files: {})
 
-        resolution = described_class.for(repository: repository, name: "investigate", client: client)
+        resolution = described_class.for(repository: repository, name: "investigate")
 
         expect(resolution.source).to eq(:built_in)
         expect(resolution.path).to be_nil
@@ -84,23 +77,32 @@ RSpec.describe Skills do
       end
 
       it "raises Skills::NotFoundError when the name is unknown to both tiers" do
-        allow(client).to receive(:file_content_at).and_return(nil)
+        stub_repository_content(repository, files: {})
 
         expect {
-          described_class.for(repository: repository, name: "does-not-exist", client: client)
+          described_class.for(repository: repository, name: "does-not-exist")
         }.to raise_error(Skills::NotFoundError, /does-not-exist/)
       end
     end
 
-    context "when GitHub credentials are unavailable" do
-      it "skips the repo-local lookup entirely and resolves the built-in" do
-        user.update!(github_token: nil)
-        expect(GithubClient).not_to receive(:for)
+    context "when no content provider serves the repository (no credentials)" do
+      it "resolves the built-in" do
+        RepositoryContent.provider_classes_override = []
 
         resolution = described_class.for(repository: repository, name: "investigate", user: user)
 
         expect(resolution.source).to eq(:built_in)
       end
+    end
+
+    # A repo-local skill may shadow the built-in; running the built-in
+    # because GitHub was briefly unreachable would silently run the wrong
+    # instructions.
+    it "raises instead of falling back to a built-in when the repository cannot be read" do
+      stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("rate limited"))
+
+      expect { described_class.for(repository: repository, name: "investigate") }
+        .to raise_error(RepositoryContent::Unavailable)
     end
   end
 
@@ -109,8 +111,8 @@ RSpec.describe Skills do
       described_class.remove_instance_variable(:@all_for_cache) if described_class.instance_variable_defined?(:@all_for_cache)
     end
 
-    def tree(*paths)
-      { items: paths.map { |path| { path: path, size: 10 } }, truncated: false }
+    def stub_skills(files)
+      stub_repository_content(repository, files: files)
     end
 
     it "raises ArgumentError without a repository" do
@@ -120,27 +122,18 @@ RSpec.describe Skills do
     end
 
     it "lists only built-in skills when the repo has no .syrus/skills directory" do
-      allow(client).to receive(:file_content_at).and_return(nil)
-      allow(client).to receive(:file_tree_at)
-        .with("acme/widgets", "main")
-        .and_return(tree("README.md", ".syrus.yml"))
+      stub_skills("README.md" => "hi", ".syrus.yml" => "")
 
-      resolutions = described_class.all_for(repository: repository, client: client)
+      resolutions = described_class.all_for(repository: repository)
 
       expect(resolutions.map { |r| r.definition.name }).to eq([ "add-ci-workflow", "changelog-generate", "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "init-docs", "investigate", "investigate-and-report", "license-audit", "onboard-to-syrus", "rebase-conflict-resolver", "security-review" ])
       expect(resolutions.first.source).to eq(:built_in)
     end
 
     it "includes a repo-local skill alongside built-ins, unshadowed" do
-      allow(client).to receive(:file_content_at).and_return(nil)
-      allow(client).to receive(:file_tree_at)
-        .with("acme/widgets", "main")
-        .and_return(tree(".syrus/skills/audit/SKILL.md"))
-      allow(client).to receive(:file_content_at)
-        .with("acme/widgets", ".syrus/skills/audit/SKILL.md", "main")
-        .and_return(content: skill_md(name: "audit"), size: 50)
+      stub_skills(".syrus/skills/audit/SKILL.md" => skill_md(name: "audit"))
 
-      resolutions = described_class.all_for(repository: repository, client: client)
+      resolutions = described_class.all_for(repository: repository)
 
       by_name = resolutions.index_by { |r| r.definition.name }
       expect(by_name.keys.sort).to eq([ "add-ci-workflow", "audit", "changelog-generate", "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "init-docs", "investigate", "investigate-and-report", "license-audit", "onboard-to-syrus", "rebase-conflict-resolver", "security-review" ])
@@ -150,14 +143,9 @@ RSpec.describe Skills do
     end
 
     it "reports a repo-local skill that shadows a built-in as :repo_override" do
-      allow(client).to receive(:file_tree_at)
-        .with("acme/widgets", "main")
-        .and_return(tree(".syrus/skills/investigate/SKILL.md"))
-      allow(client).to receive(:file_content_at)
-        .with("acme/widgets", ".syrus/skills/investigate/SKILL.md", "main")
-        .and_return(content: skill_md(name: "investigate", description: "Repo override of investigate."), size: 60)
+      stub_skills(".syrus/skills/investigate/SKILL.md" => skill_md(name: "investigate", description: "Repo override of investigate."))
 
-      resolutions = described_class.all_for(repository: repository, client: client)
+      resolutions = described_class.all_for(repository: repository)
 
       expect(resolutions.map { |r| r.definition.name }).to eq([ "add-ci-workflow", "changelog-generate", "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "init-docs", "investigate", "investigate-and-report", "license-audit", "onboard-to-syrus", "rebase-conflict-resolver", "security-review" ])
       investigate = resolutions.find { |r| r.definition.name == "investigate" }
@@ -166,29 +154,22 @@ RSpec.describe Skills do
     end
 
     it "omits a repo-local skill whose SKILL.md fails to parse instead of raising" do
-      allow(client).to receive(:file_content_at).and_return(nil)
-      allow(client).to receive(:file_tree_at)
-        .with("acme/widgets", "main")
-        .and_return(tree(".syrus/skills/broken/SKILL.md"))
-      allow(client).to receive(:file_content_at)
-        .with("acme/widgets", ".syrus/skills/broken/SKILL.md", "main")
-        .and_return(content: "not a valid skill file", size: 20)
+      stub_skills(".syrus/skills/broken/SKILL.md" => "not a valid skill file")
 
-      resolutions = described_class.all_for(repository: repository, client: client)
+      resolutions = described_class.all_for(repository: repository)
 
       expect(resolutions.map { |r| r.definition.name }).to eq([ "add-ci-workflow", "changelog-generate", "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "init-docs", "investigate", "investigate-and-report", "license-audit", "onboard-to-syrus", "rebase-conflict-resolver", "security-review" ])
     end
 
-    it "skips the repo-local tree lookup entirely when credentials are unavailable" do
-      user.update!(github_token: nil)
-      expect(GithubClient).not_to receive(:for)
+    it "lists only built-ins when no content provider serves the repository" do
+      RepositoryContent.provider_classes_override = []
 
       resolutions = described_class.all_for(repository: repository, user: user)
 
       expect(resolutions.map { |r| r.definition.name }).to eq([ "add-ci-workflow", "changelog-generate", "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "init-docs", "investigate", "investigate-and-report", "license-audit", "onboard-to-syrus", "rebase-conflict-resolver", "security-review" ])
     end
 
-    it "caches repository skill listings briefly when no client is injected" do
+    it "caches repository skill listings briefly" do
       first = [ Skills::Resolution.new(source: :built_in, path: nil, klass: Skills::Investigate, definition: Skills::Investigate.definition) ]
       second = [ Skills::Resolution.new(source: :built_in, path: nil, klass: Skills::Debug, definition: Skills::Debug.definition) ]
       now = 1_000.0
@@ -201,19 +182,6 @@ RSpec.describe Skills do
       expect(described_class.all_for(repository: repository, user: user)).to eq(second)
 
       expect(described_class).to have_received(:uncached_all_for).twice
-    end
-
-    it "bypasses the listing cache when a client is injected" do
-      allow(client).to receive(:file_content_at).and_return(nil)
-      allow(client).to receive(:file_tree_at)
-        .with("acme/widgets", "main")
-        .and_return(tree("README.md"), tree(".syrus/skills/audit/SKILL.md"))
-      allow(client).to receive(:file_content_at)
-        .with("acme/widgets", ".syrus/skills/audit/SKILL.md", "main")
-        .and_return(content: skill_md(name: "audit"), size: 50)
-
-      expect(described_class.all_for(repository: repository, client: client).map { |r| r.definition.name }).not_to include("audit")
-      expect(described_class.all_for(repository: repository, client: client).map { |r| r.definition.name }).to include("audit")
     end
   end
 end

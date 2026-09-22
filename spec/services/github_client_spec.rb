@@ -354,37 +354,6 @@ RSpec.describe GithubClient do
     end
   end
 
-  describe "#file_tree_at" do
-    # Callers cache on the blob SHAs and read files at the tree's commit, so
-    # both have to survive the mapping. Dropping them is what forced a caller
-    # to refetch every file on every request to find out whether any changed.
-    it "keeps each blob's SHA and the commit the tree came from" do
-      client = described_class.new(user)
-      octokit = double(
-        "octokit",
-        last_response: nil,
-        commit: OpenStruct.new(sha: "commit123", commit: OpenStruct.new(tree: OpenStruct.new(sha: "tree456"))),
-        tree: OpenStruct.new(
-          truncated: false,
-          tree: [
-            OpenStruct.new(type: "blob", path: "b/.syrus.yml", size: 10, sha: "blob-b"),
-            OpenStruct.new(type: "tree", path: "b", size: 0, sha: "dir-b"),
-            OpenStruct.new(type: "blob", path: ".syrus.yml", size: 20, sha: "blob-root")
-          ]
-        )
-      )
-      client.instance_variable_set(:@client, octokit)
-
-      result = client.file_tree_at("acme/widgets", "main")
-
-      expect(result[:commit_sha]).to eq("commit123")
-      expect(result[:items]).to eq([
-        { path: ".syrus.yml", size: 20, sha: "blob-root" },
-        { path: "b/.syrus.yml", size: 10, sha: "blob-b" }
-      ])
-    end
-  end
-
   describe "#main_branch_check_runs_summary_for" do
     def github_actions_check(name:, status:, conclusion:, run_id:)
       OpenStruct.new(
@@ -720,51 +689,6 @@ RSpec.describe GithubClient do
         truncated: false
       )
       expect(stub).to have_been_requested
-    end
-  end
-
-  describe "#binary_file_content_at" do
-    let(:client) { GithubClient.for(repository: repository, user: user) }
-
-    it "decodes base64 content without transcoding to UTF-8" do
-      png_bytes = "\x89PNG\r\n\x1A\n\x00\x01".b
-      stub_request(:get, "https://api.github.com/repos/acme/widgets/contents/app/assets/images/logo.png")
-        .with(query: hash_including("ref" => "deadbeef"))
-        .to_return(
-          status: 200,
-          headers: { "Content-Type" => "application/json" },
-          body: {
-            type: "file",
-            encoding: "base64",
-            size: png_bytes.bytesize,
-            content: Base64.encode64(png_bytes)
-          }.to_json
-        )
-
-      result = client.binary_file_content_at("acme/widgets", "app/assets/images/logo.png", "deadbeef")
-
-      expect(result[:content].b).to eq(png_bytes)
-      expect(result[:size]).to eq(png_bytes.bytesize)
-    end
-
-    it "returns nil when the path is a directory, not a file" do
-      stub_request(:get, "https://api.github.com/repos/acme/widgets/contents/app")
-        .with(query: hash_including("ref" => "deadbeef"))
-        .to_return(
-          status: 200,
-          headers: { "Content-Type" => "application/json" },
-          body: [ { type: "file", name: "user.rb" } ].to_json
-        )
-
-      expect(client.binary_file_content_at("acme/widgets", "app", "deadbeef")).to be_nil
-    end
-
-    it "returns nil when the file does not exist at that ref" do
-      stub_request(:get, "https://api.github.com/repos/acme/widgets/contents/missing.png")
-        .with(query: hash_including("ref" => "deadbeef"))
-        .to_return(status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json)
-
-      expect(client.binary_file_content_at("acme/widgets", "missing.png", "deadbeef")).to be_nil
     end
   end
 

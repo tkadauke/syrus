@@ -54,14 +54,14 @@ module Skills
   # fetch (see Skills::ExplainFailingCi) — also currently only supplied
   # by Steps::RunSkill. `repository` is always forwarded (it's already a
   # required argument here) so such a skill can scope any lookups to it.
-  def self.for(repository:, name:, user: nil, client: nil, workspace_path: nil, args: {})
+  def self.for(repository:, name:, user: nil, workspace_path: nil, args: {})
     raise ArgumentError, "repository is required" if repository.nil?
 
     name = name.to_s.strip
     raise ArgumentError, "name is required" if name.empty?
     raise ArgumentError, "invalid skill name=#{name.inspect}" unless name.match?(NAME_PATTERN)
 
-    resolve_repo_local(repository: repository, user: user, client: client, name: name) ||
+    resolve_repo_local(repository: repository, user: user, name: name) ||
       resolve_built_in(name: name, workspace_path: workspace_path, args: args, repository: repository)
   end
 
@@ -74,19 +74,18 @@ module Skills
   # rather than blowing up the whole listing (unlike `.for`, which
   # raises for a single explicit lookup) — one broken skill shouldn't
   # make every other skill unlaunchable from the picker.
-  def self.all_for(repository:, user: nil, client: nil)
+  def self.all_for(repository:, user: nil)
     raise ArgumentError, "repository is required" if repository.nil?
-    return uncached_all_for(repository: repository, user: user, client: client) if client
 
     cached_all_for(repository: repository, user: user)
   end
 
-  def self.uncached_all_for(repository:, user: nil, client: nil)
-    repo_local_names = repo_local_skill_names(repository: repository, user: user, client: client)
+  def self.uncached_all_for(repository:, user: nil)
+    repo_local_names = repo_local_skill_names(repository: repository, user: user)
 
     (Registry.values + repo_local_names).uniq.sort.filter_map do |name|
       resolve_for_listing(
-        repository: repository, user: user, client: client, name: name,
+        repository: repository, user: user, name: name,
         known_repo_local: repo_local_names.include?(name)
       )
     end
@@ -145,30 +144,28 @@ module Skills
   end
   private_class_method :prune_all_for_cache
 
-  def self.repo_local_skill_names(repository:, user:, client:)
-    return [] unless credentials_available?(repository: repository, user: user)
+  SKILL_GLOB = "#{REPO_LOCAL_DIR}/*/SKILL.md".freeze
 
-    github_client = client || resolved_github_client(repository: repository, user: user)
-    return [] unless github_client
-
-    tree = github_client.file_tree_at(repository.slug, repository.default_branch)
-    Array(tree[:items])
-      .filter_map { |item| item[:path][%r{\A#{Regexp.escape(REPO_LOCAL_DIR)}/([^/]+)/SKILL\.md\z}, 1] }
+  def self.repo_local_skill_names(repository:, user:)
+    content = repository_content(repository: repository, user: user)
+    content.tree(content.resolve(repository.default_branch), glob: SKILL_GLOB)
+      .filter_map { |entry| entry.path[%r{\A#{Regexp.escape(REPO_LOCAL_DIR)}/([^/]+)/SKILL\.md\z}, 1] }
       .select { |name| name.match?(NAME_PATTERN) }
-  rescue Octokit::Error => e
+  rescue RepositoryContent::NoProvider
+    []
+  rescue RepositoryContent::Error => e
     Rails.logger.warn("[Skills.all_for] failed to list repo-local skills for #{repository.slug}: #{e.class}: #{e.message}")
     []
   end
   private_class_method :repo_local_skill_names
 
-  # Skips the repo-local file_content_at round-trip entirely for a name
-  # the tree walk (repo_local_skill_names) already proved has no
-  # override — avoids one GitHub API call per built-in skill on every
-  # listing as the built-in registry grows.
-  def self.resolve_for_listing(repository:, user:, client:, name:, known_repo_local:)
+  # Skips the repo-local read entirely for a name the tree walk
+  # (repo_local_skill_names) already proved has no override — avoids one
+  # read per built-in skill on every listing as the built-in registry grows.
+  def self.resolve_for_listing(repository:, user:, name:, known_repo_local:)
     return resolve_built_in(name: name) unless known_repo_local
 
-    resolve_repo_local(repository: repository, user: user, client: client, name: name) ||
+    resolve_repo_local(repository: repository, user: user, name: name) ||
       resolve_built_in(name: name)
   rescue Skills::SkillMarkdown::ParseError, Skills::ParameterSchema::ParseError => e
     Rails.logger.warn("[Skills.all_for] skill=#{name.inspect} failed to parse for #{repository.slug}: #{e.class}: #{e.message}")
@@ -176,30 +173,28 @@ module Skills
   end
   private_class_method :resolve_for_listing
 
-  def self.resolve_repo_local(repository:, user:, client:, name:)
-    return nil unless credentials_available?(repository: repository, user: user)
-
-    github_client = client || resolved_github_client(repository: repository, user: user)
-    return nil unless github_client
-
+  # A repository nothing can read (no content provider serves it -- e.g. no
+  # GitHub credentials) has no repo-local skills; the built-ins apply. Any
+  # other failure to read raises: silently running a built-in that a
+  # repo-local skill shadows is exactly the trap provenance exists to
+  # prevent.
+  def self.resolve_repo_local(repository:, user:, name:)
     path = "#{REPO_LOCAL_DIR}/#{name}/SKILL.md"
-    file = github_client.file_content_at(repository.slug, path, repository.default_branch)
-    return nil unless file
+    content = repository_content(repository: repository, user: user)
+    blob = content.read_if_present(content.resolve(repository.default_branch), path)
+    return nil unless blob
 
-    definition = SkillMarkdown.parse(file.fetch(:content), name: name)
+    definition = SkillMarkdown.parse(blob.text, name: name)
     Resolution.new(source: :repo_override, path: path, klass: nil, definition: definition)
+  rescue RepositoryContent::NoProvider
+    nil
   end
   private_class_method :resolve_repo_local
 
-  # `GithubClient.for` can fall back to auth sources that don't return a
-  # usable GithubClient; guard here the same way RepoCoveragePlanReader
-  # does. Only applies when we actually called GithubClient.for — an
-  # injected test `client:` is used as-is.
-  def self.resolved_github_client(repository:, user:)
-    client = GithubClient.for(repository: repository, user: user || repository.user)
-    client if client.is_a?(GithubClient)
+  def self.repository_content(repository:, user:)
+    RepositoryContent.for(repository, user: user || repository.user)
   end
-  private_class_method :resolved_github_client
+  private_class_method :repository_content
 
   def self.resolve_built_in(name:, workspace_path: nil, args: {}, repository: nil)
     klass = Registry.class_for(name)
@@ -211,9 +206,4 @@ module Skills
     )
   end
   private_class_method :resolve_built_in
-
-  def self.credentials_available?(repository:, user:)
-    repository.installation&.active? || (user || repository.user)&.github_token.present?
-  end
-  private_class_method :credentials_available?
 end

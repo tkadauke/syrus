@@ -4,13 +4,9 @@ RSpec.describe WorkflowTemplates do
   let(:repo) { Factories.repository }
   let(:built_in) { [ { "kind" => "implement" }, { "kind" => "pr_open" } ] }
 
-  def with_repo_file(content)
-    client = instance_double(GithubClient)
-    allow(client).to receive(:file_content_at).and_return(content)
-    described_class.for(
-      key: "initial", built_in_graph: built_in, repository: repo,
-      client: client, resolve_overrides: true
-    )
+  def with_repo_file(content, graph: built_in)
+    stub_repository_content(repo, files: { ".syrus/workflows/initial.yml" => content })
+    described_class.for(key: "initial", built_in_graph: graph, repository: repo, resolve_overrides: true)
   end
 
   it "returns the built-in graph and records its provenance" do
@@ -24,10 +20,11 @@ RSpec.describe WorkflowTemplates do
   # Every workflow instantiation is a hot path; it should not grow a
   # synchronous network call for a file that almost never exists.
   it "does not look for a repo-local template unless asked" do
-    client = instance_double(GithubClient)
-    expect(client).not_to receive(:file_content_at)
+    stub_repository_content(repo, files: {})
 
-    described_class.for(key: "initial", built_in_graph: built_in, repository: repo, client: client)
+    described_class.for(key: "initial", built_in_graph: built_in, repository: repo)
+
+    expect(FakeRepositoryContentProvider.calls).to be_empty
   end
 
   it "prefers a repo-local template and records where it came from" do
@@ -51,11 +48,7 @@ RSpec.describe WorkflowTemplates do
 
     # A repository cannot grant itself a landing step by writing a file.
     it "refuses one that introduces a publication step the built-in lacked" do
-      resolution = described_class.for(
-        key: "initial", built_in_graph: [ { "kind" => "implement" } ], repository: repo,
-        client: instance_double(GithubClient, file_content_at: "- kind: implement\n- kind: auto_merge\n"),
-        resolve_overrides: true
-      )
+      resolution = with_repo_file("- kind: implement\n- kind: auto_merge\n", graph: [ { "kind" => "implement" } ])
 
       expect(resolution).to be_built_in
     end
@@ -76,13 +69,17 @@ RSpec.describe WorkflowTemplates do
   # A GitHub outage means "we do not know what this repository wants", which is
   # the built-in, not a guess.
   it "falls back to the built-in when the repository cannot be read" do
-    client = instance_double(GithubClient)
-    allow(client).to receive(:file_content_at).and_raise(Octokit::ServiceUnavailable)
+    stub_repository_content_failure(repo, RepositoryContent::Unavailable.new("503"))
 
-    resolution = described_class.for(
-      key: "initial", built_in_graph: built_in, repository: repo,
-      client: client, resolve_overrides: true
-    )
+    resolution = described_class.for(key: "initial", built_in_graph: built_in, repository: repo, resolve_overrides: true)
+
+    expect(resolution).to be_built_in
+  end
+
+  it "uses the built-in when the repository has no template for the key" do
+    stub_repository_content(repo, files: { ".syrus/workflows/retry.yml" => "- kind: implement\n" })
+
+    resolution = described_class.for(key: "initial", built_in_graph: built_in, repository: repo, resolve_overrides: true)
 
     expect(resolution).to be_built_in
   end

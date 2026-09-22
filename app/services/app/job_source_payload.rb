@@ -62,12 +62,12 @@ module App
       end
 
       selected_ref = @params[:ref].presence || branch_commits.first&.fetch(:sha) || merge_base_sha || @repository.default_branch
-      tree_result = load_tree(github, selected_ref)
+      tree_result = load_tree(selected_ref)
       selected_path = @params[:path].presence
 
       base_payload(selected_ref: selected_ref, selected_path: selected_path, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
         .merge(tree_result)
-        .merge(file_result(github, selected_path, selected_ref, tree_result[:source_error]))
+        .merge(file_result(selected_path, tree_result[:source_error]))
     rescue => e
       base_payload(selected_ref: @params[:ref].presence || @repository.default_branch, selected_path: @params[:path].presence)
         .merge(tree_items: [], tree_truncated: false, file: nil, source_error: e.message, file_error: nil)
@@ -90,11 +90,18 @@ module App
         )
     end
 
-    def load_tree(github, selected_ref)
-      result = github.file_tree_at(@repository.slug, selected_ref)
+    # Files larger than this are shown truncated; the payload says so.
+    MAX_FILE_BYTES = 1.megabyte
+
+    def content
+      @content ||= RepositoryContent.for(@repository, user: @user)
+    end
+
+    def load_tree(selected_ref)
+      @selected_revision = content.resolve(selected_ref)
       {
-        tree_items: Array(result[:items]).map { |item| tree_item_json(item) },
-        tree_truncated: result[:truncated] == true,
+        tree_items: content.tree(@selected_revision).select(&:file?).sort_by(&:path).map { |entry| tree_item_json(entry) },
+        tree_truncated: false,
         source_error: nil
       }
     rescue => e
@@ -105,19 +112,20 @@ module App
       }
     end
 
-    def file_result(github, selected_path, selected_ref, source_error)
+    def file_result(selected_path, source_error)
       return { file: nil, file_error: nil } if selected_path.blank? || source_error.present?
 
-      file = github.file_content_at(@repository.slug, selected_path, selected_ref)
-      return { file: nil, file_error: "File not found." } unless file
+      blob = content.read_if_present(@selected_revision, selected_path, max_bytes: MAX_FILE_BYTES)
+      return { file: nil, file_error: "File not found." } unless blob
 
       {
         file: {
           path: selected_path,
           name: File.basename(selected_path),
-          size: file[:size].to_i,
+          size: blob.size.to_i,
           language: language_for(selected_path),
-          content: file[:content].to_s
+          content: blob.text,
+          truncated: blob.truncated
         },
         file_error: nil
       }
@@ -148,12 +156,12 @@ module App
       }
     end
 
-    def tree_item_json(item)
-      path = item[:path].to_s
+    def tree_item_json(entry)
+      path = entry.path
       {
         path: path,
         name: File.basename(path),
-        size: item[:size].to_i,
+        size: entry.size.to_i,
         language: language_for(path)
       }
     end

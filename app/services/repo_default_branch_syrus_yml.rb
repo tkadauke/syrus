@@ -1,7 +1,6 @@
-# Shared loader for the repository's default-branch `.syrus.yml`, fetched
-# through GitHub at workflow-instantiation time (before the workflow
-# workspace is cloned). Centralizes the credentials check, GithubClient
-# construction, `file_content_at` call, and SyrusYml parse that
+# Shared loader for the repository's default-branch `.syrus.yml`, read
+# through RepositoryContent at workflow-instantiation time (before the
+# workflow workspace is cloned). Centralizes the read and SyrusYml parse that
 # RepoAdversarialReviewPlan, RepoVisualReviewPlan, RepoGradeLoopPlan,
 # RepoReviewPlanPlan, and RepoCoveragePlanReader each used to duplicate --
 # each doing its own independent GitHub round-trip for the identical file at
@@ -21,7 +20,8 @@ class RepoDefaultBranchSyrusYml
   #   :absent       the file genuinely does not exist
   #   :invalid      the file exists but did not parse
   #   :unavailable  we could not read it -- no credentials, a rate limit, a
-  #                 5xx, a timeout
+  #                 5xx, a timeout, no content provider, an unknown default
+  #                 branch
   #
   # Every non-loaded outcome used to look identical (config: nil), so a
   # rate-limited read at workflow creation was indistinguishable from a repo
@@ -49,24 +49,19 @@ class RepoDefaultBranchSyrusYml
     new(repository: job.repository, user: job.user).resolve
   end
 
-  def initialize(repository:, user:, client: nil)
+  def initialize(repository:, user:)
     @repository = repository
     @user = user
-    @client = client
   end
 
   def resolve
-    return unavailable(note: "no GitHub credentials") unless credentials_available?
+    content = RepositoryContent.for(repository, user: user)
+    blob = content.read_if_present(content.resolve(repository.default_branch), CONFIG_FILE)
+    # nil is a provider answering "no such file at this revision" -- the one
+    # case that is a real absence rather than a failure to look.
+    return Result.new(config: nil, source: "none", note: "no .syrus.yml", outcome: :absent) unless blob
 
-    client = github_client
-    return unavailable(note: "GitHub client unavailable") unless client
-
-    file = client.file_content_at(repository.slug, CONFIG_FILE, repository.default_branch)
-    # nil is GitHub answering "no such file" -- the one case that is a real
-    # absence rather than a failure to look.
-    return Result.new(config: nil, source: "none", note: "no .syrus.yml", outcome: :absent) unless file
-
-    config = SyrusYml.new(file.fetch(:content)).parse
+    config = SyrusYml.new(blob.text).parse
     Result.new(config: config, source: ".syrus.yml", note: nil, outcome: :loaded)
   rescue SyrusYml::ParseError => e
     Result.new(config: nil, source: ".syrus.yml", note: e.message, outcome: :invalid)
@@ -78,17 +73,6 @@ class RepoDefaultBranchSyrusYml
   private
 
   attr_reader :repository, :user
-
-  def github_client
-    return @client if @client
-
-    client = GithubClient.for(repository: repository, user: user)
-    client if client.is_a?(GithubClient)
-  end
-
-  def credentials_available?
-    repository.installation&.active? || user.github_token.present?
-  end
 
   def unavailable(note:)
     Result.new(config: nil, source: "none", note: note, outcome: :unavailable)

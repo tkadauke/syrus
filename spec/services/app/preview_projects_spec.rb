@@ -4,40 +4,35 @@ RSpec.describe App::PreviewProjects do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, default_branch: "main") }
   let(:job) { Factories.job_record(repository: repository, user: user, branch_name: "feature", state: "implemented") }
-  let(:client) { instance_double(GithubClient) }
+  let(:main_files) { {} }
 
   # The default-branch TargetGraph and the Job branch diff are both read
-  # through the GitHub API (GithubClient) rather than the repository's local
-  # bare clone (`RepositoryBareClone`): PreviewProjects is read from web-tier
-  # request paths (JobPreviewController, TargetGraphsController), and web
-  # pods don't mount the worker's on-disk bare clone (see "Deploy target" in
-  # CLAUDE.md — "Web pods don't need this volume"). No $SYRUS_DATA_ROOT
-  # clone is created anywhere in this spec, simulating that environment; the
-  # `client:` seam injects a double directly instead of stubbing
-  # `GithubClient.for`, since `instance_double` isn't `is_a?(GithubClient)`.
+  # through RepositoryContent rather than the repository's local bare clone
+  # (`RepositoryBareClone`): PreviewProjects is read from web-tier request
+  # paths (JobPreviewController, TargetGraphsController), and web pods don't
+  # mount the worker's on-disk bare clone (see "Deploy target" in CLAUDE.md
+  # — "Web pods don't need this volume"). No $SYRUS_DATA_ROOT clone is
+  # created anywhere in this spec, simulating that environment.
   def described(job)
-    described_class.new(job, client: client)
+    described_class.new(job)
   end
 
   def stub_tree(paths)
-    allow(client).to receive(:file_tree_at)
-      .with(repository.slug, repository.default_branch)
-      .and_return(items: paths.map { |path| { path: path, size: 0 } }, truncated: false)
+    paths.each { |path| main_files[path] ||= "" }
+    stub_repository_content(repository, files: main_files)
   end
 
   def stub_syrus_yml(path, content)
-    allow(client).to receive(:file_content_at)
-      .with(repository.slug, path, repository.default_branch)
-      .and_return(content: content, size: content.bytesize)
+    main_files[path] = content
+    stub_repository_content(repository, files: main_files)
   end
 
   def stub_changed_files(paths)
-    allow(client).to receive(:compare_files)
-      .with(repository.slug, job.effective_base_branch, job.branch_name)
-      .and_return(
-        files: paths.map { |path| { path: path, status: "modified", additions: 1, deletions: 1, patch: nil } },
-        truncated: false
-      )
+    stub_repository_changes(repository, head: job.branch_name, paths: paths)
+  end
+
+  def reads
+    FakeRepositoryContentProvider.calls.select { |call| call.first == :read }
   end
 
   it "returns the one affected nested preview project" do
@@ -107,15 +102,23 @@ RSpec.describe App::PreviewProjects do
     expect(result.choices.map(&:id)).to match_array(%w[repo desktop])
   end
 
-  it "falls back to legacy root behavior when GitHub credentials are unavailable" do
-    unauthenticated_user = Factories.user
-    unauthenticated_repository = Factories.repository(user: unauthenticated_user, default_branch: "main")
-    unauthenticated_job = Factories.job_record(repository: unauthenticated_repository, user: unauthenticated_user, branch_name: "feature", state: "implemented")
+  it "falls back to legacy root behavior when repository content cannot be read" do
+    stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("rate limited"))
     allow(Syrus::Plugin::PreviewProvider).to receive(:configured?).and_return(true)
 
-    result = described_class.for_job(unauthenticated_job)
+    result = described_class.for_job(job)
 
     expect(result.choices.map(&:id)).to eq([ "repo" ])
+  end
+
+  it "offers every preview project when the branch diff cannot be read" do
+    stub_tree(%w[apps/web/.syrus.yml apps/api/.syrus.yml])
+    stub_syrus_yml("apps/web/.syrus.yml", "project:\n  id: web\npreview:\n  start: npm run dev\n")
+    stub_syrus_yml("apps/api/.syrus.yml", "project:\n  id: api\npreview:\n  start: bin/server\n")
+
+    result = described(job).for_job
+
+    expect(result.choices.map(&:id)).to match_array(%w[web api])
   end
 
   describe "caching the default-branch graph" do
@@ -131,87 +134,73 @@ RSpec.describe App::PreviewProjects do
 
     let(:web_yml) { "project:\n  id: web\n  label: Web\npreview:\n  start: npm run dev\n" }
 
-    def stub_tree_with_shas(entries, commit_sha: "c0ffee")
-      allow(client).to receive(:file_tree_at)
-        .with(repository.slug, repository.default_branch)
-        .and_return(
-          items: entries.map { |path, sha| { path: path, size: 0, sha: sha } },
-          truncated: false,
-          commit_sha: commit_sha
-        )
-    end
-
-    def stub_syrus_yml_at(path, content, ref)
-      allow(client).to receive(:file_content_at)
-        .with(repository.slug, path, ref)
-        .and_return(content: content, size: content.bytesize)
-    end
-
     # The Job detail page polls, and every poll used to fetch each
     # `.syrus.yml` in the repository one at a time -- 43 serial GitHub calls
     # for a repo shaped like Syrus's own, ~12k requests an hour from one open
     # tab, enough to push the App into rate limiting.
     it "compiles once and serves repeat requests without refetching the configs" do
-      stub_tree_with_shas([ [ "apps/web/.syrus.yml", "aaa" ], [ "apps/web/index.tsx", "bbb" ] ])
-      stub_syrus_yml_at("apps/web/.syrus.yml", web_yml, "c0ffee")
+      stub_syrus_yml("apps/web/.syrus.yml", web_yml)
+      stub_tree(%w[apps/web/index.tsx])
       stub_changed_files(%w[apps/web/index.tsx])
+      allow(TargetGraph::Compiler).to receive(:compile).and_call_original
 
       3.times { expect(described(job).for_job.choices.map(&:id)).to eq([ "web" ]) }
 
-      expect(client).to have_received(:file_content_at).once
+      expect(reads.size).to eq(1)
+      expect(TargetGraph::Compiler).to have_received(:compile).once
     end
 
-    # Keyed on the configs' blob SHAs, so a changed `.syrus.yml` is a new key
-    # and is recompiled immediately -- never served stale until a TTL runs out.
+    # Keyed on the configs' content ids, so a changed `.syrus.yml` is a new
+    # key and is recompiled as soon as the default branch is re-resolved --
+    # never served stale until a TTL runs out.
     it "recompiles as soon as a .syrus.yml changes" do
-      stub_tree_with_shas([ [ "apps/web/.syrus.yml", "aaa" ] ])
-      stub_syrus_yml_at("apps/web/.syrus.yml", web_yml, "c0ffee")
+      stub_syrus_yml("apps/web/.syrus.yml", web_yml)
       stub_changed_files(%w[apps/web/index.tsx])
       expect(described(job).for_job.choices.map(&:label)).to eq([ "Web" ])
 
-      stub_tree_with_shas([ [ "apps/web/.syrus.yml", "changed" ] ], commit_sha: "beef")
-      stub_syrus_yml_at("apps/web/.syrus.yml", web_yml.sub("label: Web", "label: Web App"), "beef")
+      stub_syrus_yml("apps/web/.syrus.yml", web_yml.sub("label: Web", "label: Web App"))
 
-      expect(described(job).for_job.choices.map(&:label)).to eq([ "Web App" ])
+      travel(RepositoryContent::DEFAULT_MAX_AGE.seconds + 1.second) do
+        expect(described(job).for_job.choices.map(&:label)).to eq([ "Web App" ])
+      end
     end
 
     # A commit that touches no `.syrus.yml` moves main but changes nothing the
     # graph depends on -- which is nearly every commit.
     it "keeps serving the cached graph across commits that touch no config" do
-      stub_tree_with_shas([ [ "apps/web/.syrus.yml", "aaa" ], [ "apps/web/index.tsx", "v1" ] ])
-      stub_syrus_yml_at("apps/web/.syrus.yml", web_yml, "c0ffee")
-      stub_changed_files(%w[apps/web/index.tsx])
-      described(job).for_job
-
-      stub_tree_with_shas([ [ "apps/web/.syrus.yml", "aaa" ], [ "apps/web/index.tsx", "v2" ] ], commit_sha: "newer")
-      described(job).for_job
-
-      expect(client).to have_received(:file_content_at).once
-    end
-
-    # The cache key describes the files at the tree's commit, so they must be
-    # read there too. Reading the moving branch name could store content from
-    # a later commit under a key that describes the earlier one.
-    it "reads configs at the commit the tree came from, not the branch name" do
-      stub_tree_with_shas([ [ "apps/web/.syrus.yml", "aaa" ] ], commit_sha: "pinned")
-      stub_syrus_yml_at("apps/web/.syrus.yml", web_yml, "pinned")
-      stub_changed_files(%w[apps/web/index.tsx])
-
-      described(job).for_job
-
-      expect(client).to have_received(:file_content_at).with(repository.slug, "apps/web/.syrus.yml", "pinned")
-    end
-
-    # With no SHA there is no exact key. Caching under a guessed one would
-    # keep serving the old graph after a config change.
-    it "does not cache when the tree carries no blob SHAs" do
-      stub_tree(%w[apps/web/.syrus.yml apps/web/index.tsx])
       stub_syrus_yml("apps/web/.syrus.yml", web_yml)
+      stub_tree(%w[apps/web/index.tsx])
       stub_changed_files(%w[apps/web/index.tsx])
+      described(job).for_job
+
+      main_files["apps/web/index.tsx"] = "v2"
+      stub_repository_content(repository, files: main_files)
+      travel(RepositoryContent::DEFAULT_MAX_AGE.seconds + 1.second) { described(job).for_job }
+
+      expect(reads.size).to eq(1)
+    end
+
+    # The cache key describes the files at the tree's revision, so they must
+    # be read there too -- never at a branch name that may have moved.
+    it "reads configs at the revision the tree came from" do
+      revision = stub_syrus_yml("apps/web/.syrus.yml", web_yml)
+      stub_changed_files(%w[apps/web/index.tsx])
+
+      described(job).for_job
+
+      expect(reads).to eq([ [ :read, revision.id, "apps/web/.syrus.yml" ] ])
+    end
+
+    # With no content id there is no exact key. Caching under a guessed one
+    # would keep serving the old graph after a config change.
+    it "does not cache the graph when tree entries carry no content id" do
+      stub_repository_content(repository, files: { "apps/web/.syrus.yml" => web_yml }, content_ids: false)
+      stub_changed_files(%w[apps/web/index.tsx])
+      allow(TargetGraph::Compiler).to receive(:compile).and_call_original
 
       2.times { described(job).for_job }
 
-      expect(client).to have_received(:file_content_at).twice
+      expect(TargetGraph::Compiler).to have_received(:compile).twice
     end
   end
 end

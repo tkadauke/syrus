@@ -3,14 +3,11 @@ require "rails_helper"
 RSpec.describe "API: repository recommendations", type: :request do
   let!(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", ci_health: "not_configured") }
-  let(:client) { instance_double(GithubClient) }
 
   before do
     allow(App::PreviewAvailability).to receive(:configured?).and_return(false)
     allow(Feature).to receive(:visual_review_enabled?).and_return(false)
-    allow(GithubClient).to receive(:for).and_return(client)
-    allow(client).to receive(:file_content_at).and_return(nil)
-    allow(client).to receive(:file_tree_at).and_return(items: [], truncated: false)
+    stub_repository_content(repository, files: {})
   end
 
   def parse_body
@@ -21,13 +18,11 @@ RSpec.describe "API: repository recommendations", type: :request do
     { "Authorization" => "Bearer #{user.generate_api_token!}" }
   end
 
-  # `.syrus.yml` and the repo file tree are read over the GitHub API, not the
-  # repository's local bare clone — the web tier that serves this request
-  # doesn't share the worker's on-disk clone.
+  # `.syrus.yml` and the repo file tree are read through RepositoryContent,
+  # not the repository's local bare clone — the web tier that serves this
+  # request doesn't share the worker's on-disk clone.
   def stub_repo_files(paths)
-    allow(client).to receive(:file_tree_at)
-      .with(repository.slug, repository.default_branch)
-      .and_return(items: paths.map { |path| { path: path, size: 0 } }, truncated: false)
+    stub_repository_content(repository, files: paths.index_with(""))
   end
 
   it "includes recommended actions in the repository detail payload" do

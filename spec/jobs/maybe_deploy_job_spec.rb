@@ -8,18 +8,12 @@ RSpec.describe MaybeDeployJob do
   let(:github_client) { instance_double(GithubClient) }
   let(:sha) { "abc123def456" }
 
-  # `.syrus.yml` is read through GitHub (App::DeployAvailability ->
-  # RepoDefaultBranchSyrusYml) rather than the repository's local bare
-  # clone -- see "Deploy target" in CLAUDE.md ("Web pods don't need this
-  # volume"). No $SYRUS_DATA_ROOT clone is created anywhere in this spec.
-  # `is_a?(GithubClient)` is stubbed true since RepoDefaultBranchSyrusYml
-  # gates the fetched client on that check and an `instance_double`
-  # otherwise fails it.
+  # `.syrus.yml` is read through RepositoryContent (RepoDefaultBranchSyrusYml),
+  # never the repository's local bare clone -- web pods don't mount the
+  # worker's on-disk clones (see "Deploy target" in CLAUDE.md). The fake
+  # content provider stands in for whichever provider plugin serves the repo.
   def stub_syrus_yml(content)
-    result = content ? { content: content, size: content.bytesize } : nil
-    allow(github_client).to receive(:file_content_at)
-      .with(repository.slug, SyrusYml::CONFIG_FILE, repository.default_branch)
-      .and_return(result)
+    stub_repository_content(repository, files: content ? { SyrusYml::CONFIG_FILE => content } : {})
   end
 
   def configure_continuous_deploy!(min_interval_minutes: nil)
@@ -31,7 +25,6 @@ RSpec.describe MaybeDeployJob do
   before do
     allow(StepDispatcher).to receive(:start_workflow)
     allow(GithubClient).to receive(:for).and_return(github_client)
-    allow(github_client).to receive(:is_a?).with(GithubClient).and_return(true)
     allow(github_client).to receive(:branch_head_sha).and_return(sha)
   end
 
