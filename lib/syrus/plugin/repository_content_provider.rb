@@ -37,6 +37,14 @@ module Syrus
     #                                    repository, or nil when it cannot serve
     #                                    it right now (e.g. no credentials).
     #
+    # Class method (upstreams only, optional):
+    #
+    #   upstream_source(repository:, user:)
+    #                                 -> RepositoryContent::Source, or nil. Where
+    #                                    the repository lives and a credential to
+    #                                    fetch it, so a replica can stay in sync
+    #                                    without knowing anything about the host.
+    #
     # Instance methods:
     #
     #   resolve(ref, max_age:)        -> RepositoryContent::Revision. `max_age`

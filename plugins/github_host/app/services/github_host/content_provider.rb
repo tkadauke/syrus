@@ -52,7 +52,32 @@ module GithubHost
         new(repository: repository, user: user)
       end
 
+      # The clone URL plus the same credential API calls use: the App
+      # installation's token (an hour, refreshed by Installation#fresh_token)
+      # or else the owner's PAT. GitHub accepts either as the password for
+      # the `x-access-token` user over HTTPS.
+      def upstream_source(repository:, user:)
+        installation = GithubClient.active_installation_for(repository: repository, user: user)
+        if installation
+          token = installation.fresh_token
+          return source_for(repository, token, installation.cached_token_expires_at)
+        end
+
+        token = (user || repository.user)&.github_token
+        source_for(repository, token, nil) if token.present?
+      end
+
       private
+
+      def source_for(repository, token, expires_at)
+        RepositoryContent::Source.new(
+          vcs: "git",
+          url: "https://github.com/#{repository.slug}.git",
+          username: "x-access-token",
+          password: token,
+          expires_at: expires_at
+        )
+      end
 
       def credentials?(repository, user)
         GithubClient.active_installation_for(repository: repository, user: user).present? ||

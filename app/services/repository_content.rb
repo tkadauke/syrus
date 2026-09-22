@@ -61,6 +61,22 @@ module RepositoryContent
       end
     end
 
+    # Where to fetch the repository from, asked of each upstream that serves
+    # it in registry order: the first Source wins. nil when no upstream can
+    # say (no credentials, or no upstream serves it). Replicas use this to
+    # stay in sync; they never talk to a hosting platform directly.
+    def upstream_source_for(repository, user: nil)
+      provider_classes_for(repository).each do |klass|
+        next unless klass.role == :upstream && klass.respond_to?(:upstream_source)
+
+        source = klass.upstream_source(repository: repository, user: user || repository.user)
+        return source if source
+      rescue StandardError => e
+        Rails.logger.warn("[RepositoryContent] #{klass.name} could not give an upstream source for #{repository.slug}: #{e.class}: #{e.message}")
+      end
+      nil
+    end
+
     # Providers that claim the repository, replicas before upstreams, in
     # registry order within a role.
     def provider_classes_for(repository)

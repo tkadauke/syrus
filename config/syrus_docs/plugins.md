@@ -2546,6 +2546,14 @@ returns an instance or nil. Instances implement `resolve(ref, max_age:)`,
 `changes(base_id, head_id, patch:)` (three-dot: what `head` introduced since
 its merge base with `base`).
 
+Upstream providers may also answer `upstream_source(repository:, user:)` with a
+`RepositoryContent::Source` (`vcs`, `url`, `username`, `password`,
+`expires_at`): where the repository lives and a credential to fetch it. Core
+exposes it as `RepositoryContent.upstream_source_for(repository)`, which is how
+a replica stays in sync without knowing which host it mirrors. The credential
+is a secret: `Source#inspect` filters it, and it must never be logged,
+persisted, or embedded in a URL.
+
 Glob patterns passed to `RepositoryContent::Reader#tree`/`#files` use one core
 dialect regardless of provider (`RepositoryContent::Glob`): `*` within a
 segment including dotfiles, `**/` for any depth, `dir/**` for everything

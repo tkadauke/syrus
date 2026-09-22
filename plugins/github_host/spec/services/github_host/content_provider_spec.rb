@@ -18,6 +18,31 @@ RSpec.describe GithubHost::ContentProvider do
     end
   end
 
+  describe ".upstream_source" do
+    it "hands out the clone URL with the owner's PAT, which does not expire" do
+      source = described_class.upstream_source(repository: repository, user: user)
+
+      expect(source).to have_attributes(vcs: "git", url: "https://github.com/acme/widgets.git",
+                                        username: "x-access-token", password: "ghp_test_token", expires_at: nil)
+      expect(source.inspect).not_to include("ghp_test_token")
+    end
+
+    it "prefers the App installation token and says when it expires" do
+      expires_at = 50.minutes.from_now
+      installation = instance_double(Installation, fresh_token: "ghs_installation", cached_token_expires_at: expires_at)
+      allow(GithubClient).to receive(:active_installation_for).with(repository: repository, user: user).and_return(installation)
+
+      expect(described_class.upstream_source(repository: repository, user: user))
+        .to have_attributes(password: "ghs_installation", expires_at: expires_at)
+    end
+
+    it "has nothing to offer without credentials" do
+      tokenless = Factories.user
+
+      expect(described_class.upstream_source(repository: Factories.repository(user: tokenless), user: tokenless)).to be_nil
+    end
+  end
+
   it "registers as an upstream for git repositories" do
     expect(described_class.role).to eq(:upstream)
     expect(described_class.available_for?(repository)).to be(true)

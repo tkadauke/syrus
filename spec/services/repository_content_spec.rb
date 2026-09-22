@@ -260,6 +260,35 @@ RSpec.describe RepositoryContent do
     end
   end
 
+  describe ".upstream_source_for" do
+    def source(url) = RepositoryContent::Source.new(vcs: "git", url: url, password: "secret")
+
+    it "asks upstreams in order and skips replicas, failures, and those with nothing to say" do
+      replica = provider_class(:mirror, role: :replica)
+      replica.define_singleton_method(:upstream_source) { |**| raise "replicas are never asked" }
+      silent = provider_class(:silent)
+      silent.define_singleton_method(:upstream_source) { |**| nil }
+      broken = provider_class(:broken)
+      broken.define_singleton_method(:upstream_source) { |**| raise Octokit::BadGateway }
+      github = provider_class(:github)
+      answer = source("https://example.test/#{repository.id}.git")
+      github.define_singleton_method(:upstream_source) { |repository:, user:| answer }
+      described_class.provider_classes_override = [ replica, silent, broken, github ]
+
+      expect(described_class.upstream_source_for(repository).url).to eq("https://example.test/#{repository.id}.git")
+    end
+
+    it "is nil when no upstream can say" do
+      described_class.provider_classes_override = [ provider_class(:github) ]
+
+      expect(described_class.upstream_source_for(repository)).to be_nil
+    end
+
+    it "never shows the credential when inspected" do
+      expect(source("https://example.test/a.git").inspect).not_to include("secret")
+    end
+  end
+
   describe RepositoryContent::Blob do
     it "holds binary bytes and decodes text leniently" do
       value = described_class.new(path: "a.txt", bytes: "caf\xC3\xA9 \xFF")

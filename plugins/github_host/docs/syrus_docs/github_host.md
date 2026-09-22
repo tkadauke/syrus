@@ -34,6 +34,13 @@ Errors map onto the content contract: a missing file is `NotFound`, an unknown
 ref or commit is `UnknownRevision`, and rate limits, 5xx responses,
 authentication failures, and timeouts are `Unavailable`.
 
+## Upstream source for mirrors
+
+GitHub Host also answers `upstream_source`: the repository's HTTPS clone URL
+and a credential to fetch it -- the App installation token (with its expiry)
+or else the owner's PAT, as the password for the `x-access-token` user. A
+mirror plugin uses this to keep its copy in sync.
+
 ## Disabling
 
 Disabling is blocked while any active repository would be left with no other
