@@ -1022,11 +1022,37 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         agent_diff_present: true,
         agent_diff_bytes: 1024,
         step_agent_diff_present: true,
-        step_agent_diff_bytes: 2048
+        step_agent_diff_bytes: 2048,
+        step_diff_matches_diff: false
       )
 
       run_selects = queries.select { |sql| sql.match?(/FROM [`"]?runs[`"]?/i) }
       expect(run_selects.grep(/SELECT\s+[`"]?runs[`"]?\.\*/i)).to be_empty
+    end
+
+    it "flags step_diff_matches_diff on a first implement run, where the step diff and full diff cover the same commits" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      same_diff = "diff --git a/app/models/job.rb b/app/models/job.rb\n" \
+        "--- a/app/models/job.rb\n+++ b/app/models/job.rb\n@@ -1 +1 @@\n-old\n+new"
+      Run.create!(
+        job: job,
+        step: step,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "succeeded",
+        agent_diff: same_diff,
+        step_agent_diff: same_diff
+      )
+
+      run_payload = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0)
+
+      expect(run_payload).to include(
+        agent_diff_present: true,
+        step_agent_diff_present: true,
+        step_diff_matches_diff: true
+      )
     end
 
     it "loads log counts and rate-limit markers with one grouped job log query" do
