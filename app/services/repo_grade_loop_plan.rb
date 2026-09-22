@@ -22,7 +22,20 @@ class RepoGradeLoopPlan
     from_syrus_yml(RepoDefaultBranchSyrusYml.for_job(job))
   end
 
+  # Only a confirmed absence drops the loop. When the config could not be
+  # read before cloning -- a rate limit, a 5xx, a timeout, a parse error --
+  # the loop is included and the workspace decides: grader_fanout, format and
+  # generate each re-read `.syrus.yml` from the cloned repository at run time
+  # and pass through when it configures nothing. Unknown therefore costs a
+  # few no-op steps.
+  #
+  # The alternative is what this used to do: read every failure as "no
+  # graders" and build the workflow without a grade loop, so a GitHub blip at
+  # the wrong moment let a change through ungraded. The pre-clone read is an
+  # optimization for leaving out steps that would do nothing; it must never
+  # be the thing that decides whether checks run.
   def self.from_syrus_yml(loaded)
+    return undetermined(loaded) unless loaded.determined?
     return unconfigured(source: loaded.source, note: loaded.note) unless loaded.config
 
     config = loaded.config
@@ -37,5 +50,13 @@ class RepoGradeLoopPlan
 
   def self.unconfigured(source:, note:)
     Result.new(format_configured: false, generate_configured: false, graders_configured: false, source: source, note: note)
+  end
+
+  def self.undetermined(loaded)
+    note = "could not read .syrus.yml before cloning (#{loaded.outcome}: #{loaded.note}); " \
+           "including the check loop so the workspace's own .syrus.yml decides at run time"
+    Rails.logger.warn("[RepoGradeLoopPlan] #{note}")
+    Result.new(format_configured: true, generate_configured: true, graders_configured: true,
+               source: loaded.source, note: note)
   end
 end

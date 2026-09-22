@@ -10,6 +10,34 @@ RSpec.describe RepoGradeLoopPlan do
   end
 
   describe ".from_syrus_yml" do
+    # A failed read used to be treated as "no graders", which built the
+    # workflow without a grade loop and let a change through unchecked. Now an
+    # unreadable config keeps the loop, and the cloned workspace's own
+    # .syrus.yml decides at run time -- grader_fanout passes through when it
+    # finds nothing configured.
+    it "keeps the whole check loop when the config could not be read" do
+      unreadable = RepoDefaultBranchSyrusYml::Result.new(config: nil, source: "none", note: "rate limited", outcome: :unavailable)
+
+      result = described_class.from_syrus_yml(unreadable)
+
+      expect(result.format_configured).to eq(true)
+      expect(result.generate_configured).to eq(true)
+      expect(result.graders_configured).to eq(true)
+      expect(result.note).to include("could not read .syrus.yml", "rate limited", "workspace")
+    end
+
+    it "keeps the check loop when the config exists but does not parse" do
+      broken = RepoDefaultBranchSyrusYml::Result.new(config: nil, source: ".syrus.yml", note: "bad yaml", outcome: :invalid)
+
+      expect(described_class.from_syrus_yml(broken)).to be_any_configured
+    end
+
+    it "drops the loop only for a confirmed absence" do
+      absent = RepoDefaultBranchSyrusYml::Result.new(config: nil, source: "none", note: "no .syrus.yml", outcome: :absent)
+
+      expect(described_class.from_syrus_yml(absent)).not_to be_any_configured
+    end
+
     it "is unconfigured when the shared loader has no config" do
       result = described_class.from_syrus_yml(loaded(note: "no GitHub credentials"))
 

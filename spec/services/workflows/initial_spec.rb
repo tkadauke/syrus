@@ -279,4 +279,33 @@ RSpec.describe Workflows::Initial do
 
     expect(workflow.reload.agent_provider).to eq("claude")
   end
+
+  # End to end through the real RepoGradeLoopPlan: what the workflow's steps
+  # actually are when the default-branch config could not be read at creation.
+  # This used to build the workflow with no grade loop at all.
+  describe "when .syrus.yml cannot be read before cloning" do
+    before { allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_call_original }
+
+    def loader_returns(outcome)
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(config: nil, source: "none", note: "stubbed #{outcome}", outcome: outcome)
+      )
+    end
+
+    it "still builds the grade loop, so a GitHub blip cannot skip the checks" do
+      loader_returns(:unavailable)
+
+      kinds = described_class.instantiate(job: job).steps.order(:position).pluck(:kind)
+
+      expect(kinds).to include("format", "generate", "grader_fanout", "grader_collect")
+    end
+
+    it "leaves the grade loop out when the repository confirmably has no .syrus.yml" do
+      loader_returns(:absent)
+
+      kinds = described_class.instantiate(job: job).steps.order(:position).pluck(:kind)
+
+      expect(kinds).not_to include("grader_fanout", "grader_collect")
+    end
+  end
 end
