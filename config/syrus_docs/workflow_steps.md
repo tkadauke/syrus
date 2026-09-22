@@ -736,6 +736,10 @@ they select every configured grader target and bypass both target-health reuse
 and successful full-plan `GraderConclusion` reuse so the broad sweep can catch
 missed dependency edges or undercoverage that prior affected-target selection
 would have skipped.
+Landing and validation workflows continue to honor the target graph's
+unaffected verdict when no reusable health row exists. Missing historical
+health is not evidence that an unrelated target became affected; broad health
+coverage belongs to the baseline main-branch sweep instead of each landing.
 
 For PR-facing repair workflows, landing workflows, validation children, and
 `main_grader`, fanout also records `grader_target_selections`, one entry per

@@ -17,6 +17,7 @@ module Steps
   # is snapshotted onto its Step#details — immutable for that Step,
   # immune to `.syrus.yml` evolution.
   class GraderFanout < Base
+    CarryForwardResult = Data.define(:reason, :fingerprints, :record_refs)
     # Written every fanout call (including early-return paths) so
     # Steps::GraderCollect always sees a value scoped to *this* iteration,
     # never a stale entry left over from an earlier one.
@@ -61,12 +62,17 @@ module Steps
       record_target_selection_inputs!(selections) if workflow.work_definition.record_grader_target_selection_inputs?
       active_graders = enforce_required_target_health_for_unaffected_graders(active_graders, selections) if enforce_required_target_health_for_unaffected_graders?
 
-      if plan.rerun_only_failed? && step.iteration > 1
+      if (plan.rerun_only_failed? || retrying_transient_only_failure?) && step.iteration > 1
         passed_steps_by_name = previous_iteration_passed_steps_by_name
-        active_graders, carried_forward = partition_rerun_only_failed_graders(active_graders, passed_steps_by_name)
+        active_graders, carried_forward = if retrying_transient_only_failure?
+          partition_transient_retry_graders(active_graders, passed_steps_by_name)
+        else
+          partition_rerun_only_failed_graders(active_graders, passed_steps_by_name)
+        end
         if carried_forward.any?
           carried_forward.each do |grader, result|
-            log("[grader_fanout] skipping #{grader.name} (passed iteration #{step.iteration - 1}; rerun_only_failed; #{result.reason}) [#{target_label_for(grader)}]")
+            reason = retrying_transient_only_failure? ? "infrastructure-only retry; unchanged inputs" : "rerun_only_failed; #{result.reason}"
+            log("[grader_fanout] skipping #{grader.name} (passed iteration #{step.iteration - 1}; #{reason}) [#{target_label_for(grader)}]")
           end
           record_carried_forward_graders!(carried_forward, passed_steps_by_name)
         end
@@ -245,6 +251,45 @@ module Steps
       end
 
       [ remaining, carried_forward ]
+    end
+
+    # An infrastructure-only iteration has no repair step, so the checkout and
+    # target inputs are unchanged. Preserve successful sibling results and
+    # rerun only checks whose outcome was inconclusive. This is unconditional:
+    # `grade.rerun_only_failed` controls retries after code repair, not whether
+    # a database outage should launch every successful grader again.
+    def partition_transient_retry_graders(active_graders, passed_steps_by_name)
+      carried_forward = []
+      remaining = active_graders.reject do |grader|
+        prior = passed_steps_by_name[grader.name]
+        next false unless prior && grader.required
+
+        fingerprints = target_fingerprints_for(grader)
+        next false unless prior.details.to_h["target_fingerprints"] == fingerprints.to_h.deep_stringify_keys
+
+        result = CarryForwardResult.new(
+          "passed before infrastructure-only retry",
+          fingerprints,
+          []
+        )
+        carried_forward << [ grader, result ]
+        true
+      end
+
+      [ remaining, carried_forward ]
+    end
+
+    def retrying_transient_only_failure?
+      return @retrying_transient_only_failure if defined?(@retrying_transient_only_failure)
+      return @retrying_transient_only_failure = false if step.loop_id.blank? || step.iteration <= 1
+
+      prior_collect = workflow.steps.find_by(
+        kind: "grader_collect",
+        loop_id: step.loop_id,
+        iteration: step.iteration - 1
+      )
+      @retrying_transient_only_failure =
+        prior_collect&.details.to_h[Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY] == true
     end
 
     def carry_forward_blocked_reason(grader, result)

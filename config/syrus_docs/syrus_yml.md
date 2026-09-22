@@ -466,6 +466,12 @@ grade:
 
 Opt-in boolean, defaults to `false`. Only available in the mapping form of `grade:` (the bare array shorthand always behaves as if this is `false`).
 
+Infrastructure-only retries are narrower regardless of this setting. Because
+no repair step changed the checkout, Syrus carries forward successful required
+graders whose target fingerprints are unchanged and reruns only graders with
+failed or inconclusive infrastructure outcomes. This avoids turning one lost
+worker or database interruption into another full grader burst.
+
 When `true`, the **first** grading iteration always runs every active grader (the same as today), but from the **second** iteration onward a repair loop can carry forward a grader that passed on the *immediately preceding* iteration. Carry-forward is allowed only for required graders whose current target-health fingerprints still match known-passing health for the grader target and its executable dependencies. If the current inputs, dependency closure, command, environment, or policy no longer prove that pass, Syrus forces a fresh rerun and records the reason in `target_health_forced_targets`.
 
 Optional graders are never carried forward by this setting; they run again when active. A grader whose `when_files_changed` glob starts matching only on a later iteration is also still run then, regardless of this setting — `rerun_only_failed` only narrows within graders that were already active, it never overrides file-glob activation.

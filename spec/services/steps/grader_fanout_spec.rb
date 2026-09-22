@@ -524,7 +524,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(chunks).to include("selected rspec (own source scope matched a changed file) [//:grade/rspec]")
   end
 
-  it "forces unaffected required landing targets when reusable target health is missing" do
+  it "keeps unaffected required landing targets skipped when target health is missing" do
     workflow.update!(trigger_kind: "auto_merge")
     job.update!(mergeability_base_sha: "current-base-sha")
     write_config(<<~YAML)
@@ -541,52 +541,44 @@ RSpec.describe Steps::GraderFanout, :ci_only do
             - docs/**
     YAML
     stub_changed_files("app/models/job.rb")
-
-    handler.call
-
-    grader_steps = workflow.steps.where(kind: "grader").order(:position)
-    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[app-tests docs-tests])
-    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_FORCED_ARTIFACT_KEY)).to include(
-      include("name" => "docs-tests", "target_label" => "//:grade/docs-tests", "reason" => "target health is unknown")
-    )
-    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-    expect(chunks).to include("skipped docs-tests (no matching files changed) [//:grade/docs-tests]")
-    expect(chunks).to include("forced validation for docs-tests (target health is unknown) [//:grade/docs-tests]")
-  end
-
-  it "keeps unaffected required landing targets skipped when reusable target health passes" do
-    workflow.update!(trigger_kind: "auto_merge")
-    job.update!(mergeability_base_sha: "current-base-sha")
-    write_config(<<~YAML)
-      grade:
-        - name: app-tests
-          run: bin/rspec spec/app
-          required: true
-          when_files_changed:
-            - app/**
-        - name: docs-tests
-          run: bin/check-docs
-          required: true
-          when_files_changed:
-            - docs/**
-    YAML
-    stub_changed_files("app/models/job.rb")
-    health = record_target_health("//:grade/docs-tests", status: "passed")
 
     handler.call
 
     grader_steps = workflow.steps.where(kind: "grader").order(:position)
     expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[app-tests])
-    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY)).to include(
-      include(
-        "name" => "docs-tests",
-        "target_label" => "//:grade/docs-tests",
-        "target_health_record_id" => health.id
-      )
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_FORCED_ARTIFACT_KEY)).not_to include(
+      include("name" => "docs-tests")
     )
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("skipped docs-tests (no matching files changed) [//:grade/docs-tests]")
-    expect(chunks).to include("skipped docs-tests (latest target health record passed from previou) [//:grade/docs-tests]")
+  end
+
+  it "does not consult target health for an unaffected required landing target" do
+    workflow.update!(trigger_kind: "auto_merge")
+    job.update!(mergeability_base_sha: "current-base-sha")
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/app
+          required: true
+          when_files_changed:
+            - app/**
+        - name: docs-tests
+          run: bin/check-docs
+          required: true
+          when_files_changed:
+            - docs/**
+    YAML
+    stub_changed_files("app/models/job.rb")
+    record_target_health("//:grade/docs-tests", status: "passed")
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[app-tests])
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY)).to eq([])
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("skipped docs-tests (no matching files changed) [//:grade/docs-tests]")
   end
 
   it "computes merge-train affected targets from the built integration base" do
@@ -1644,6 +1636,37 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       build_iteration_two_handler.call
 
       expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to match_array(%w[tests lint])
+    end
+
+    it "reruns only inconclusive graders after an infrastructure-only iteration" do
+      write_config(<<~YAML)
+        grade:
+          steps:
+            - name: tests
+              run: bin/rspec
+            - name: lint
+              run: bin/rubocop
+      YAML
+
+      handler.call
+      prior_graders = workflow.steps.where(kind: "grader", iteration: 1).index_by { |grader| grader.details["name"] }
+      tests = prior_graders.fetch("tests")
+      lint = prior_graders.fetch("lint")
+      tests.update_columns(state: "failed")
+      lint.update_columns(state: "succeeded")
+      collect_step.update_columns(
+        state: "failed",
+        details: { Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true }
+      )
+
+      build_iteration_two_handler.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).pluck(:details)).to contain_exactly(
+        include("name" => "tests")
+      )
+      expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to contain_exactly(
+        include("name" => "lint", "reason" => "passed before infrastructure-only retry")
+      )
     end
 
     it "carries forward a previously passing required grader only when target health still proves the current fingerprints" do

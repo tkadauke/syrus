@@ -84,7 +84,10 @@ production:
     # RAILS_MAX_THREADS. Multi-process Solid Queue workers each create their own
     # primary/cache/queue/cable pools, so tying every pool to a generic thread
     # count can reserve far more idle MySQL sessions than the server allows.
-    pool: <%= ENV.fetch("DB_POOL") { ENV.fetch("RAILS_MAX_THREADS") { 10 } } %>
+    # The busiest Solid Queue process has five threads. Two spare connections
+    # cover framework/heartbeat work without multiplying ten idle sessions
+    # across every queue process and worker pod.
+    pool: <%= ENV.fetch("DB_POOL", 7) %>
     host: <%= ENV.fetch("DB_HOST") { "127.0.0.1" } %>
     database: syrus_production
     username: syrus
@@ -140,7 +143,7 @@ production:
       transaction_isolation: "READ-COMMITTED"
   search:
     adapter: sqlite3
-    pool: <%= ENV.fetch("DB_POOL") { ENV.fetch("RAILS_MAX_THREADS") { 10 } } %>
+    pool: <%= ENV.fetch("DB_POOL", 7) %>
     timeout: 5000
     database: <%= ENV.fetch("SEARCH_DATABASE_PATH", File.join(ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")), "search.sqlite3")) %>
     migrations_paths: db/search_migrate

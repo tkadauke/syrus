@@ -31,7 +31,6 @@ module WorkDefinitions
 
   module LandingValidationChild
     def landing_validation_child? = true
-    def enforce_required_target_health_for_unaffected_graders?(_workflow) = true
   end
 
   module RecordsGraderTargetSelectionInputs
@@ -39,8 +38,6 @@ module WorkDefinitions
   end
 
   module CurrentLandingBaseTargetSelection
-    def enforce_required_target_health_for_unaffected_graders?(_workflow) = true
-
     def grader_fanout_changed_files_base_ref(workflow:, default_base_ref:)
       current_landing_base_ref(workflow).presence || default_base_ref
     end
