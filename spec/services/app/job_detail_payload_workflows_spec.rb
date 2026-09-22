@@ -542,6 +542,19 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       )
     end
 
+    it "exposes whether a step is agentic, mirroring Step#agentic?" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      agentic_step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      non_agentic_step = Step.create!(workflow: workflow, kind: "prepare", position: 2, state: "succeeded")
+
+      payload = workflows_payload_for(job)
+      steps_by_id = payload.fetch(:workflows).first.fetch(:steps).index_by { |step| step.fetch(:id) }
+
+      expect(steps_by_id.fetch(agentic_step.id)).to include(agentic: true)
+      expect(steps_by_id.fetch(non_agentic_step.id)).to include(agentic: false)
+    end
+
     it "exposes distributed Step placement, target, worker, admission, source snapshot, command span, and barrier progress" do
       Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
         feature.category = "Operations"

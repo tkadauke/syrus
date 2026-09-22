@@ -16,7 +16,7 @@ import { pluginIconSrc } from "../../lib/pluginIcon"
 import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type RunTestFailureSummary, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
-import { booleanValue, debugOnlyDetails, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, softCommandFailures, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
+import { booleanValue, debugOnlyDetails, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, isDiagnosticRelevantRun, isDiagnosticRelevantStep, isRedundantRunStatus, isRedundantRunTiming, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, softCommandFailures, sortedRunsNewestFirst, stepAgentic, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
 import { diffReviewFeedbackAllowed, useDiffReviewFeedback } from "./DiffReviewFeedback"
@@ -833,6 +833,8 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
   const displayStatus = activeRun ? activeRun.state : step.display_status
   const prepareFailure = prepareFailureDetails(step)
   const cancellationNotice = stepCancellationNotice(step)
+  const agentic = stepAgentic(step)
+  const diagnosticRelevant = Boolean(activeRun) || isDiagnosticRelevantStep(step)
 
   const artifacts = workflowArtifacts ?? {}
   const summaryArtifact = (step.kind === "summarize" || step.kind === "summarize_amend")
@@ -875,7 +877,7 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
             {step.finished_at ? <span>{formatDuration(step.started_at, step.finished_at)}</span> : null}
           </div>
           {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
-          <StepPlacementPanel jobId={payload.job.id} prefix={prefix} step={step} workflowId={workflowId} />
+          <StepPlacementPanel defaultOpen={diagnosticRelevant} jobId={payload.job.id} prefix={prefix} step={step} workflowId={workflowId} />
           {cancellationNotice ? <CancellationNotice message={cancellationNotice} /> : null}
           {prepareFailure ? <PrepareFailurePanel failure={prepareFailure} /> : null}
           {pendingWarnings(step).map((warning) => (
@@ -892,10 +894,13 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
               {runs.map((run, idx) => (
                 <RunRow
                   active={activeRun?.id === run.id}
+                  agentic={agentic}
                   command={command}
                   key={run.id}
                   payload={payload}
                   prefix={prefix}
+                  redundantStatus={isRedundantRunStatus(step, run)}
+                  redundantTiming={isRedundantRunTiming(step, run)}
                   run={run}
                   stepAdversarialReviewArtifact={idx === 0 ? adversarialReviewArtifact : null}
                   stepSummaryArtifact={idx === 0 ? summaryArtifact : null}
@@ -940,7 +945,13 @@ function stepCancellationNotice(step: JobStep) {
   return "parent workflow ended before this step could run."
 }
 
-function StepPlacementPanel({ step, jobId, prefix, workflowId }: { step: JobStep; jobId: number; prefix: string; workflowId: number }) {
+// PLACEMENT/WORKER/STORAGE/source-ref/cache/dependency rows are execution
+// locality trivia, not outcome — compressed into one collapsible cluster
+// instead of a prominent always-visible panel. `defaultOpen` keeps it
+// expanded for steps where that trivia is actually diagnostic (active,
+// failed, retried, or otherwise flagged relevant by the caller).
+function StepPlacementPanel({ step, jobId, prefix, workflowId, defaultOpen }: { step: JobStep; jobId: number; prefix: string; workflowId: number; defaultOpen: boolean }) {
+  const { t } = useT("jobs")
   const placement = step.placement
   const dependencies = step.dependencies
   if (!placement && !dependencies) return null
@@ -964,15 +975,18 @@ function StepPlacementPanel({ step, jobId, prefix, workflowId }: { step: JobStep
   if (dependencies?.barrier_progress) rows.push(["Barrier", `${dependencies.barrier_progress.completed}/${dependencies.barrier_progress.total} dependencies complete`])
 
   return (
-    <Surface className="mt-2" padding="sm" variant="panel">
-      <DescriptionList.Root density="compact">
-        {rows.map(([label, value]) => (
-          <DescriptionList.Item descriptionClassName="break-words text-xs" key={label} label={label}>
-            {value}
-          </DescriptionList.Item>
-        ))}
-      </DescriptionList.Root>
-    </Surface>
+    <details className="mt-2" open={defaultOpen}>
+      <summary className="cursor-pointer select-none text-xs text-text-muted hover:text-text-primary">{t("step_execution_details_toggle")}</summary>
+      <Surface className="mt-2" padding="sm" variant="panel">
+        <DescriptionList.Root density="compact">
+          {rows.map(([label, value]) => (
+            <DescriptionList.Item descriptionClassName="break-words text-xs" key={label} label={label}>
+              {value}
+            </DescriptionList.Item>
+          ))}
+        </DescriptionList.Root>
+      </Surface>
+    </details>
   )
 }
 
@@ -1191,8 +1205,24 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
   )
 }
 
-function RunRow({ run, payload, command, prefix, active = false, stepSummaryArtifact = null, stepTestPlanArtifact = null, stepAdversarialReviewArtifact = null, stepVisualReviewArtifact = null, targetLabel = null, workflowId }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; active?: boolean; stepSummaryArtifact?: string | null; stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null; stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null; stepVisualReviewArtifact?: JobVisualReviewIteration[] | null; targetLabel?: string | null; workflowId: number }) {
+function RunRow({ run, payload, command, prefix, active = false, agentic = true, redundantStatus = false, redundantTiming = false, stepSummaryArtifact = null, stepTestPlanArtifact = null, stepAdversarialReviewArtifact = null, stepVisualReviewArtifact = null, targetLabel = null, workflowId }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; active?: boolean; agentic?: boolean; redundantStatus?: boolean; redundantTiming?: boolean; stepSummaryArtifact?: string | null; stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null; stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null; stepVisualReviewArtifact?: JobVisualReviewIteration[] | null; targetLabel?: string | null; workflowId: number }) {
   const { t } = useT("jobs")
+  const diagnosticRun = isDiagnosticRelevantRun(run)
+  const hasMeaningfulArtifact = Boolean(
+    stepSummaryArtifact || stepTestPlanArtifact || stepAdversarialReviewArtifact || stepVisualReviewArtifact
+      || run.agent_diff_present || run.step_agent_diff_present || run.test_failure_summary
+  )
+  // Non-agentic happy-path runs (prepare, format, grader, pr_open, ...) have
+  // nothing to inspect but a log stream — fold the Transcript action into
+  // the same collapsed execution-details cluster as the agent metadata line
+  // instead of giving it equal billing with real artifact buttons.
+  const deemphasizeTranscript = !agentic && !diagnosticRun && !hasMeaningfulArtifact && run.job_log_count > 0
+  const showAgentMetadataInline = agentic || diagnosticRun
+  const agentMetadataLine = (
+    <>
+      {run.agent_provider || t("run_agent_fallback")} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count} {t("run_log_line", { count: run.job_log_count })} · {formatCurrency(run.cost_usd || 0)}
+    </>
+  )
   const [gradeLogOpen, setGradeLogOpen] = useState(false)
   const [artifactView, setArtifactView] = useState<"transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | "visual_review" | null>(null)
   const isRunArtifactView = artifactView === "transcript" || artifactView === "diff" || artifactView === "step_diff"
@@ -1238,30 +1268,44 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-text-primary">{t("run_number", { id: run.id })}</span>
-            <StatusPill state={run.state} />
+            {redundantStatus && !diagnosticRun ? null : <StatusPill state={run.state} />}
             {run.rate_limited ? <SmallPill>{t("run_rate_limited")}</SmallPill> : null}
           </div>
-          <p className="mt-1 text-xs text-text-muted">
-            {run.agent_provider || t("run_agent_fallback")} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count} {t("run_log_line", { count: run.job_log_count })} · {formatCurrency(run.cost_usd || 0)}
-          </p>
-          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-text-muted">
-            {run.started_at ? (
-              <>
-                <span>{t("run_started_at")}</span>
-                <RelativeTimestamp value={run.started_at} />
-              </>
-            ) : (
-              <span>{t("run_not_started")}</span>
-            )}
-            {run.finished_at ? (
-              <>
-                <span>·</span>
-                <span>{t("run_finished_at")}</span>
-                <RelativeTimestamp value={run.finished_at} />
-                <span>({formatDuration(run.started_at, run.finished_at)})</span>
-              </>
-            ) : null}
-          </p>
+          {showAgentMetadataInline ? (
+            <p className="mt-1 text-xs text-text-muted">{agentMetadataLine}</p>
+          ) : (
+            <details className="mt-1 text-xs text-text-muted">
+              <summary className="cursor-pointer select-none hover:text-text-primary">{t("run_execution_details_toggle")}</summary>
+              <div className="mt-2 space-y-2">
+                <p>{agentMetadataLine}</p>
+                {deemphasizeTranscript ? (
+                  <Button disabled={artifactsLoading} onClick={() => showArtifacts("transcript")} variant="secondary">
+                    {artifactsLoading && artifactView === "transcript" ? t("run_loading") : t("run_transcript")}
+                  </Button>
+                ) : null}
+              </div>
+            </details>
+          )}
+          {redundantTiming && !diagnosticRun ? null : (
+            <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-text-muted">
+              {run.started_at ? (
+                <>
+                  <span>{t("run_started_at")}</span>
+                  <RelativeTimestamp value={run.started_at} />
+                </>
+              ) : (
+                <span>{t("run_not_started")}</span>
+              )}
+              {run.finished_at ? (
+                <>
+                  <span>·</span>
+                  <span>{t("run_finished_at")}</span>
+                  <RelativeTimestamp value={run.finished_at} />
+                  <span>({formatDuration(run.started_at, run.finished_at)})</span>
+                </>
+              ) : null}
+            </p>
+          )}
           {run.agent_summary ? <Markdown className="chat-prose mt-2 text-sm text-text-muted" text={run.agent_summary} /> : null}
           {run.skill_source ? (
             <p className="mt-1 text-xs text-text-muted">
@@ -1288,7 +1332,7 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
           ) : null}
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          {run.job_log_count > 0 ? (
+          {run.job_log_count > 0 && !deemphasizeTranscript ? (
             <Button disabled={artifactsLoading} onClick={() => showArtifacts("transcript")} variant="secondary">
               {artifactsLoading && artifactView === "transcript" ? t("run_loading") : t("run_transcript")}
             </Button>
