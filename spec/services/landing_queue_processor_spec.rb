@@ -710,11 +710,14 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       issue_number: 3,
       state: "queued"
     )
+    # Dependencies first: saving one rechecks the Job's start blocks, which
+    # would start an existing queued workflow itself (both are already
+    # approved). This example is about the landing queue doing it.
+    Factories.legacy_job_dependency(job: queued, depends_on_job: first)
+    Factories.legacy_job_dependency(job: queued, depends_on_job: second)
     workflow = Workflows::Initial.instantiate(job: queued)
     attach_work_unit(workflow, state: "queued")
     first_step = workflow.first_step
-    Factories.legacy_job_dependency(job: queued, depends_on_job: first)
-    Factories.legacy_job_dependency(job: queued, depends_on_job: second)
 
     expect(first_step.runs.count).to eq(0)
 

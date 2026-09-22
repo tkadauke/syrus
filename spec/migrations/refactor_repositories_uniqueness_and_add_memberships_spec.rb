@@ -5,8 +5,14 @@ RSpec.describe RefactorRepositoriesUniquenessAndAddMemberships, :ci_only do
   let(:conn) { ActiveRecord::Base.connection }
   let(:migration) { described_class.new }
 
-  # Ensure the migration is always left applied so subsequent specs see a clean schema.
-  after { migration.up }
+  # Ensure the migration is always left applied so subsequent specs see a clean
+  # schema -- and reset the column info Repository cached while the migration
+  # was down, or later specs in this process load repositories without
+  # upstream_repository_id (MissingAttributeError).
+  after do
+    migration.up
+    [ Repository, RepositoryMembership ].each(&:reset_column_information)
+  end
 
   it "collapses duplicate [owner, name] repository rows before adding the unique index" do
     user1 = Factories.user
