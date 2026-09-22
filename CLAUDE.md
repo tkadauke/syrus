@@ -74,6 +74,22 @@ presentation/diagnostic fallbacks, not in the launch funnel.
 first. Admin surface: `/admin/work_units`, with normal Job-page WorkUnit
 internals gated by `AppSetting.show_work_unit_debug?`.
 
+**Repository content** (`app/services/repository_content.rb`) is how Syrus
+reads a repository without cloning it: the pre-workflow `.syrus.yml` read,
+preview projects, skills, the Job source browser and diff viewer, `read_pr`.
+`RepositoryContent.for(repository).resolve(ref)` gives an immutable revision;
+`tree`/`read`/`changes` read at it and are cached. Answers come from
+`repository_content_provider` plugins, replicas before upstreams:
+`git_mirror` (a local mirror service run through `plugin_runtime`) first,
+`github_host` (the GitHub API) after. `NotFound` is a final answer;
+`Unavailable`/`Unsupported`/`UnknownRevision` fall through to the next
+provider, and `Truncated` carries a partial answer only display code may use.
+Never read content through `GithubClient` directly --
+`spec/architecture/repository_content_reads_spec.rb` enforces it -- and never
+treat `Unavailable` as "the file does not exist". Core specs read through a
+fake provider by default (`spec/support/repository_content.rb`,
+`stub_repository_content`).
+
 ### Trigger kinds
 
 `Workflow#trigger_kind` distinguishes what an attempt is *for*:
