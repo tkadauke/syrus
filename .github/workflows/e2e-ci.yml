@@ -1,0 +1,93 @@
+# Playwright E2E checks (see e2e/ and bin/test-e2e). This suite boots a full
+# Rails app (dev-env server, seeded fixtures) plus Chromium per spec file, so
+# it runs noticeably slower than ci.yml's rspec/react jobs; kept as its own
+# path-scoped workflow (mirrors desktop-ci.yml) instead of folding it into
+# ci.yml's budget.
+name: E2E
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - "config/**"
+      - "db/**"
+      - "lib/**"
+      - "e2e/**"
+      - "plugins/**"
+      - "bin/test-e2e"
+      - "bin/syrus-preview-dev"
+      - "playwright.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "Gemfile"
+      - "Gemfile.lock"
+      - ".github/workflows/e2e-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "config/**"
+      - "db/**"
+      - "lib/**"
+      - "e2e/**"
+      - "plugins/**"
+      - "bin/test-e2e"
+      - "bin/syrus-preview-dev"
+      - "playwright.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "Gemfile"
+      - "Gemfile.lock"
+      - ".github/workflows/e2e-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install native image libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y libvips42t64 ||
+            sudo apt-get install --no-install-recommends -y libvips42 ||
+            sudo apt-get install --no-install-recommends -y libvips
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      # bin/test-e2e installs the browser binaries themselves (idempotent,
+      # skipped once present), but not the OS-level shared libraries Chromium
+      # needs -- the worker image's Dockerfile gets those via `--with-deps`,
+      # a plain ubuntu-latest runner does not.
+      - name: Install Playwright OS dependencies
+        run: npx playwright install-deps chromium
+
+      - name: Run Playwright E2E suite
+        run: bin/test-e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
