@@ -23,6 +23,17 @@ module PluginRuntime
     # The reconcile loop. PluginTickSchedulerJob only ticks enabled plugins, so
     # disabling this plugin stops it touching containers at all.
     tick_interval 1.minute
-    provides callbacks: "PluginRuntime::Callbacks"
+    provides callbacks: "PluginRuntime::Callbacks",
+             admin_page: "PluginRuntime::AdminPages"
+
+    # Admin -> Plugin Services: every plugin container, with stop, start,
+    # restart, and logs.
+    route :get, "/api/v1/app/admin/plugin_services", to: "api/v1/app/admin/plugin_services#index"
+    route :post, "/api/v1/app/admin/plugin_services/:name/stop", to: "api/v1/app/admin/plugin_services#stop"
+    route :post, "/api/v1/app/admin/plugin_services/:name/start", to: "api/v1/app/admin/plugin_services#start"
+    route :post, "/api/v1/app/admin/plugin_services/:name/restart", to: "api/v1/app/admin/plugin_services#restart"
+    route :get, "/api/v1/app/admin/plugin_services/:name/logs", to: "api/v1/app/admin/plugin_services#logs"
+    frontend routes: { "plugin_runtime/AdminPluginServices" => "app/frontend/routes/AdminPluginServices.tsx" },
+             i18n: [ "app/frontend/i18n/locales/*/plugin_runtime.json" ]
   end
 end

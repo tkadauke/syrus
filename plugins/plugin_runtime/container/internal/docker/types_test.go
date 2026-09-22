@@ -1,7 +1,9 @@
 package docker
 
 import (
+	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -32,5 +34,26 @@ func TestHostConfigCannotSerializePrivilegedSettings(t *testing.T) {
 		if _, present := fields[forbidden]; present {
 			t.Errorf("HostConfig must not be able to express %s", forbidden)
 		}
+	}
+}
+
+func TestDemuxLogsStripsFrameHeaders(t *testing.T) {
+	frame := func(stream byte, text string) []byte {
+		header := []byte{stream, 0, 0, 0, 0, 0, 0, byte(len(text))}
+		return append(header, text...)
+	}
+	stream := append(frame(1, "out line\n"), frame(2, "err line\n")...)
+
+	got, err := DemuxLogs(bytes.NewReader(stream))
+	if err != nil || got != "out line\nerr line\n" {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	// Cut short by the byte limit mid-frame: keep what arrived.
+	if got, _ := DemuxLogs(bytes.NewReader(stream[:12])); got != "out " {
+		t.Fatalf("truncated: %q", got)
+	}
+	// A TTY container's log has no frames.
+	if got, _ := DemuxLogs(strings.NewReader("plain text\n")); got != "plain text\n" {
+		t.Fatalf("plain: %q", got)
 	}
 }

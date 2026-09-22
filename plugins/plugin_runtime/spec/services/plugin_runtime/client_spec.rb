@@ -57,4 +57,31 @@ RSpec.describe PluginRuntime::Client do
 
     expect(stub).to have_been_requested
   end
+
+  describe "operator actions" do
+    it "posts stop, start, and restart and returns the status" do
+      %w[stop start restart].each do |action|
+        stub_request(:post, "http://plugin-runtime:8080/v1/services/git-mirror/#{action}")
+          .with(headers: { "Authorization" => "Bearer secret-token" })
+          .to_return(status: 200, body: { service: "git-mirror", state: action == "stop" ? "stopped" : "running" }.to_json)
+      end
+
+      expect(client.stop("git-mirror")).to include("state" => "stopped")
+      expect(client.start("git-mirror")).to include("state" => "running")
+      expect(client.restart("git-mirror")).to include("state" => "running")
+    end
+
+    it "raises NotFound for a service without a container" do
+      stub_request(:post, %r{/stop}).to_return(status: 404, body: { error: "service has no container" }.to_json)
+
+      expect { client.stop("git-mirror") }.to raise_error(described_class::NotFound)
+    end
+
+    it "fetches logs as text with a tail" do
+      stub_request(:get, "http://plugin-runtime:8080/v1/services/git-mirror/logs?tail=50")
+        .to_return(status: 200, body: "2026-09-22T01:00:00Z GET /v1/repositories 200\n", headers: { "Content-Type" => "text/plain" })
+
+      expect(client.logs("git-mirror", tail: 50)).to eq("2026-09-22T01:00:00Z GET /v1/repositories 200\n")
+    end
+  end
 end

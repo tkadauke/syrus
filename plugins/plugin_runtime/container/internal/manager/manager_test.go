@@ -360,3 +360,44 @@ func TestStopAllRemovesThisProjectsContainersAndKeepsVolumes(t *testing.T) {
 		t.Fatalf("ensure after stop: containers=%d err=%v", d.containerCount(), err)
 	}
 }
+
+func TestOperatorActionsStopStartAndRestartTheContainer(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	m := newManager(d)
+	if _, err := m.Ensure(context.Background(), "git-mirror", service()); err != nil {
+		t.Fatal(err)
+	}
+
+	if st, err := m.Stop(context.Background(), "git-mirror"); err != nil || st.State != StateStopped {
+		t.Fatalf("stop: %+v %v", st, err)
+	}
+	if d.containerCount() != 1 || d.volumeCount() != 1 {
+		t.Fatalf("stop removed something: containers=%d volumes=%d", d.containerCount(), d.volumeCount())
+	}
+	if st, err := m.Start(context.Background(), "git-mirror"); err != nil || st.State == StateStopped {
+		t.Fatalf("start: %+v %v", st, err)
+	}
+	if _, err := m.Restart(context.Background(), "git-mirror"); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range d.containers {
+		if c.restarts != 1 {
+			t.Fatalf("restarts = %d, want 1", c.restarts)
+		}
+	}
+	logs, err := m.Logs(context.Background(), "git-mirror", 50)
+	if err != nil || logs != "last 50 lines of syrus-plugin-git-mirror\n" {
+		t.Fatalf("logs = %q, %v", logs, err)
+	}
+}
+
+func TestOperatorActionsOnAMissingServiceAreNotFound(t *testing.T) {
+	m := newManager(newFakeDocker())
+	if _, err := m.Stop(context.Background(), "git-mirror"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("stop: %v", err)
+	}
+	if _, err := m.Logs(context.Background(), "git-mirror", 10); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("logs: %v", err)
+	}
+}

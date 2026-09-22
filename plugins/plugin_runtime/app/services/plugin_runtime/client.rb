@@ -17,6 +17,8 @@ module PluginRuntime
     class Error < StandardError; end
     class Refused < Error; end
     class Unavailable < Error; end
+    # The service has no container to act on (never created, still pulling).
+    class NotFound < Error; end
 
     OPEN_TIMEOUT = 2
     # Ensure answers once the manager has asked the daemon; a pull runs in the
@@ -52,13 +54,23 @@ module PluginRuntime
       nil
     end
 
+    # Operator actions. Each answers the service's status afterwards.
+    def stop(name) = request(Net::HTTP::Post, "#{service_path(name)}/stop")
+    def start(name) = request(Net::HTTP::Post, "#{service_path(name)}/start")
+    def restart(name) = request(Net::HTTP::Post, "#{service_path(name)}/restart")
+
+    # The last `tail` lines of the container's stdout and stderr, as text.
+    def logs(name, tail: 200)
+      request(Net::HTTP::Get, "#{service_path(name)}/logs", query: URI.encode_www_form(tail: tail), text: true)
+    end
+
     private
 
     def service_path(name)
       "/v1/services/#{ERB::Util.url_encode(name.to_s)}"
     end
 
-    def request(klass, path, body: nil, query: nil)
+    def request(klass, path, body: nil, query: nil, text: false)
       uri = @base.dup
       uri.path = path
       uri.query = query
@@ -75,7 +87,7 @@ module PluginRuntime
                                  open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT) do |http|
         http.request(req)
       end
-      parse(response)
+      text && response.is_a?(Net::HTTPSuccess) ? response.body.to_s.force_encoding(Encoding::UTF_8).scrub : parse(response)
     rescue *NETWORK_ERRORS => e
       raise Unavailable, "runtime manager unreachable: #{e.class}: #{e.message}"
     end
@@ -90,6 +102,7 @@ module PluginRuntime
       # for `privileged`, say. Like 422 it is the contributor's mistake, not
       # something that heals on retry.
       when 400, 422 then raise Refused, payload["error"].to_s
+      when 404 then raise NotFound, payload["error"].to_s
       else raise Unavailable, "runtime manager returned #{code}: #{payload['error']}"
       end
     rescue JSON::ParserError

@@ -6,8 +6,10 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/manager"
@@ -23,7 +25,16 @@ type Manager interface {
 	Status(ctx context.Context, name string) (manager.Status, error)
 	Remove(ctx context.Context, name string, purge bool) error
 	List(ctx context.Context) ([]manager.Status, error)
+	Stop(ctx context.Context, name string) (manager.Status, error)
+	Start(ctx context.Context, name string) (manager.Status, error)
+	Restart(ctx context.Context, name string) (manager.Status, error)
+	Logs(ctx context.Context, name string, tail int) (string, error)
 }
+
+const (
+	defaultLogTail = 200
+	maxLogTail     = 5000
+)
 
 // Info is reported by /healthz so an operator can see which project and
 // network the manager attached itself to.
@@ -46,6 +57,11 @@ func New(m Manager, token string, info Info) http.Handler {
 	mux.Handle("GET /v1/services/{name}", auth(token, http.HandlerFunc(s.status)))
 	mux.Handle("PUT /v1/services/{name}", auth(token, http.HandlerFunc(s.ensure)))
 	mux.Handle("DELETE /v1/services/{name}", auth(token, http.HandlerFunc(s.remove)))
+	// Operator actions from Syrus's admin page.
+	mux.Handle("POST /v1/services/{name}/stop", auth(token, s.action(s.manager.Stop)))
+	mux.Handle("POST /v1/services/{name}/start", auth(token, s.action(s.manager.Start)))
+	mux.Handle("POST /v1/services/{name}/restart", auth(token, s.action(s.manager.Restart)))
+	mux.Handle("GET /v1/services/{name}/logs", auth(token, http.HandlerFunc(s.logs)))
 	return mux
 }
 
@@ -121,7 +137,44 @@ func (h *handlers) remove(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *handlers) action(do func(context.Context, string) (manager.Status, error)) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		st, err := do(r.Context(), r.PathValue("name"))
+		if err != nil {
+			h.fail(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, st)
+	})
+}
+
+// logs answers text/plain: the last `tail` lines (default 200, at most 5000)
+// of the container's stdout and stderr, timestamped.
+func (h *handlers) logs(w http.ResponseWriter, r *http.Request) {
+	tail := defaultLogTail
+	if raw := r.URL.Query().Get("tail"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 {
+			writeError(w, http.StatusBadRequest, "tail must be a positive integer")
+			return
+		}
+		tail = min(n, maxLogTail)
+	}
+	text, err := h.manager.Logs(r.Context(), r.PathValue("name"), tail)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.WriteString(w, text)
+}
+
 func (h *handlers) fail(w http.ResponseWriter, err error) {
+	if errors.Is(err, manager.ErrNotFound) {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
 	var refused *policy.Error
 	if errors.As(err, &refused) {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())

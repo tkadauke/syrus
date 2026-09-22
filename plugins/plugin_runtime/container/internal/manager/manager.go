@@ -61,6 +61,8 @@ type Docker interface {
 	CreateContainer(ctx context.Context, name string, req docker.CreateContainerRequest) (string, error)
 	StartContainer(ctx context.Context, id string) error
 	StopContainer(ctx context.Context, id string, timeout time.Duration) error
+	RestartContainer(ctx context.Context, id string, timeout time.Duration) error
+	ContainerLogs(ctx context.Context, id string, tail int, maxBytes int64) (string, error)
 	RemoveContainer(ctx context.Context, id string) error
 	CreateVolume(ctx context.Context, name string, labels map[string]string) error
 	ListVolumes(ctx context.Context, labels map[string]string) ([]docker.VolumeSummary, error)
@@ -221,6 +223,59 @@ func (m *Manager) Remove(ctx context.Context, name string, purge bool) error {
 }
 
 // Status reports one service's state, probing its health endpoint if it has one.
+// ErrNotFound is returned by operator actions on a service that has no
+// container -- never created, still pulling, or removed.
+var ErrNotFound = errors.New("service has no container")
+
+// MaxLogBytes bounds how much of a container's log one request returns.
+const MaxLogBytes = 2 << 20
+
+// Stop stops the service's container without removing it or its volumes.
+// Syrus remembers that an operator stopped it and stops reconciling it, so
+// the next Ensure does not start it again behind their back.
+func (m *Manager) Stop(ctx context.Context, name string) (Status, error) {
+	return m.act(ctx, name, func(id string) error { return m.docker.StopContainer(ctx, id, 10*time.Second) })
+}
+
+// Start starts a stopped container with its existing spec.
+func (m *Manager) Start(ctx context.Context, name string) (Status, error) {
+	return m.act(ctx, name, func(id string) error { return m.docker.StartContainer(ctx, id) })
+}
+
+// Restart stops and starts the service's container.
+func (m *Manager) Restart(ctx context.Context, name string) (Status, error) {
+	return m.act(ctx, name, func(id string) error { return m.docker.RestartContainer(ctx, id, 10*time.Second) })
+}
+
+// Logs returns the last tail lines of the service's stdout and stderr.
+func (m *Manager) Logs(ctx context.Context, name string, tail int) (string, error) {
+	existing, err := m.find(ctx, name)
+	if err != nil {
+		return "", err
+	}
+	if existing == nil {
+		return "", ErrNotFound
+	}
+	return m.docker.ContainerLogs(ctx, existing.ID, tail, MaxLogBytes)
+}
+
+func (m *Manager) act(ctx context.Context, name string, action func(id string) error) (Status, error) {
+	lock := m.lockFor(name)
+	lock.Lock()
+	existing, err := m.find(ctx, name)
+	if err == nil && existing == nil {
+		err = ErrNotFound
+	}
+	if err == nil {
+		err = action(existing.ID)
+	}
+	lock.Unlock()
+	if err != nil {
+		return Status{}, err
+	}
+	return m.Status(ctx, name)
+}
+
 // StopAll removes every container this manager runs for its project, keeping
 // their volumes, and forgets pulls in progress. The manager calls it when it
 // shuts down: the containers are not Compose's, so without this they would

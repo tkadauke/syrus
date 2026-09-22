@@ -217,6 +217,8 @@ bin/compose-up                       # restart / pick up changes
   Docker socket, runs only images published by Syrus, and takes its plugin
   containers down with it when the stack stops. If its image can't be pulled
   during an install, Syrus starts without it and those plugins stay off.
+  **Admin → Plugin Services** lists those containers and lets an admin stop,
+  start, or restart them and read their logs.
 - **syrus-data volume** — `/home/rails/.syrus`, holding the primary **SQLite
   databases** (`db/production*.sqlite3`) and the **clone cache / workflow
   workspaces**.

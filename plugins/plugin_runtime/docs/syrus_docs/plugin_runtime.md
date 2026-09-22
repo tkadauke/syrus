@@ -100,6 +100,35 @@ The variable is `SYRUS_PLUGIN_SERVICE_<NAME>_URL`, with the service name
 upper-cased and dashes turned into underscores. Syrus still health-checks the
 address every minute, and hands it out only while it answers.
 
+## Admin -> Plugin Services
+
+`/admin/plugin_services` lists every plugin service: its owning plugin, live
+state (asked of the runtime manager on each load, or the last reconcile's view
+if the manager is unreachable), image, and endpoint, plus managed containers no
+enabled plugin wants any more, which the next reconcile removes.
+
+On a managed (Compose) install an admin can:
+
+- **Stop** a service. The container is stopped, not removed, and the service
+  is *held*: reconciling leaves it alone instead of starting it again. Holds
+  are stored on this plugin's record (`config["held_services"]`), so they
+  survive restarts; a hold on a service no enabled plugin wants is dropped.
+  While stopped, the owning plugin carries on without it, the same as while
+  it starts.
+- **Start** a stopped service, or **Restart** a running one. Both release the
+  hold and act immediately rather than on the next tick; a service with no
+  container yet is ensured instead.
+- **Read its logs**: the last 100-2000 lines of stdout and stderr,
+  timestamped, optionally refreshed every few seconds.
+
+On an external (Kubernetes) install the page is read-only: it shows the last
+health checks, and actions answer `not_managed`. The API behind the page is
+`GET /api/v1/app/admin/plugin_services`, `POST
+/api/v1/app/admin/plugin_services/:name/{stop,start,restart}`, and `GET
+/api/v1/app/admin/plugin_services/:name/logs?tail=N`, admin only; it talks to
+the manager's `POST /v1/services/{name}/{stop,start,restart}` and `GET
+/v1/services/{name}/logs?tail=N` (text, at most 5000 lines, 2 MiB).
+
 ## What the runtime manager refuses
 
 The worker holds the manager's token and runs agents, so the token has to be

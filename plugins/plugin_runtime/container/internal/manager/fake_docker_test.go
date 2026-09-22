@@ -28,11 +28,12 @@ type fakeDocker struct {
 }
 
 type fakeContainer struct {
-	id      string
-	name    string
-	req     docker.CreateContainerRequest
-	running bool
-	started time.Time
+	id       string
+	name     string
+	req      docker.CreateContainerRequest
+	running  bool
+	started  time.Time
+	restarts int
 }
 
 func newFakeDocker() *fakeDocker {
@@ -155,6 +156,28 @@ func (f *fakeDocker) StopContainer(_ context.Context, id string, _ time.Duration
 		return nil
 	}
 	return &docker.APIError{Status: 404}
+}
+
+func (f *fakeDocker) RestartContainer(_ context.Context, id string, _ time.Duration) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c := f.containers[id]
+	if c == nil {
+		return &docker.APIError{Status: 404}
+	}
+	c.running = true
+	c.started = time.Now()
+	c.restarts++
+	return nil
+}
+
+func (f *fakeDocker) ContainerLogs(_ context.Context, id string, tail int, _ int64) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.containers[id] == nil {
+		return "", &docker.APIError{Status: 404}
+	}
+	return fmt.Sprintf("last %d lines of %s\n", tail, f.containers[id].name), nil
 }
 
 func (f *fakeDocker) RemoveContainer(_ context.Context, id string) error {

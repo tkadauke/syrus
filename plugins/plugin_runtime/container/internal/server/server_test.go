@@ -19,6 +19,8 @@ type stubManager struct {
 	purged  *bool
 	state   string
 	err     error
+	acted   []string
+	tail    int
 }
 
 func (s *stubManager) Ensure(_ context.Context, name string, _ spec.Service) (manager.Status, error) {
@@ -33,6 +35,22 @@ func (s *stubManager) Remove(_ context.Context, _ string, purge bool) error {
 	return nil
 }
 func (s *stubManager) List(context.Context) ([]manager.Status, error) { return nil, nil }
+func (s *stubManager) Stop(_ context.Context, name string) (manager.Status, error) {
+	s.acted = append(s.acted, "stop "+name)
+	return manager.Status{Service: name, State: manager.StateStopped}, s.err
+}
+func (s *stubManager) Start(_ context.Context, name string) (manager.Status, error) {
+	s.acted = append(s.acted, "start "+name)
+	return manager.Status{Service: name, State: manager.StateRunning}, s.err
+}
+func (s *stubManager) Restart(_ context.Context, name string) (manager.Status, error) {
+	s.acted = append(s.acted, "restart "+name)
+	return manager.Status{Service: name, State: manager.StateRunning}, s.err
+}
+func (s *stubManager) Logs(_ context.Context, name string, tail int) (string, error) {
+	s.tail = tail
+	return "2026-09-22T01:00:00Z GET /v1/repositories 200\n", s.err
+}
 
 const body = `{"plugin":"git_mirror","image":"ghcr.io/tkadauke/x:1","internal_port":8080}`
 
@@ -57,6 +75,10 @@ func TestEveryV1RouteRequiresTheToken(t *testing.T) {
 		{"GET", "/v1/services/git-mirror"},
 		{"PUT", "/v1/services/git-mirror"},
 		{"DELETE", "/v1/services/git-mirror"},
+		{"POST", "/v1/services/git-mirror/stop"},
+		{"POST", "/v1/services/git-mirror/start"},
+		{"POST", "/v1/services/git-mirror/restart"},
+		{"GET", "/v1/services/git-mirror/logs"},
 	}
 	for _, r := range routes {
 		for _, auth := range []string{"", "Bearer wrong", token, "Basic " + token} {
@@ -65,7 +87,7 @@ func TestEveryV1RouteRequiresTheToken(t *testing.T) {
 			}
 		}
 	}
-	if m.ensured || m.purged != nil {
+	if m.ensured || m.purged != nil || len(m.acted) > 0 || m.tail != 0 {
 		t.Fatal("an unauthenticated request reached the manager")
 	}
 }
@@ -126,4 +148,44 @@ func TestDeletePurgesOnlyWhenAsked(t *testing.T) {
 
 func policyError() error {
 	return policy.New(nil).Validate("svc", spec.Service{Plugin: "p", Image: "ghcr.io/x/y:1", InternalPort: 1})
+}
+
+func TestOperatorActionsReachTheManager(t *testing.T) {
+	m := &stubManager{}
+	h := New(m, token, Info{})
+	for _, action := range []string{"stop", "start", "restart"} {
+		if rec := do(h, "POST", "/v1/services/git-mirror/"+action, "Bearer "+token, ""); rec.Code != http.StatusOK {
+			t.Fatalf("%s: code %d: %s", action, rec.Code, rec.Body)
+		}
+	}
+	if strings.Join(m.acted, ",") != "stop git-mirror,start git-mirror,restart git-mirror" {
+		t.Fatalf("acted = %v", m.acted)
+	}
+}
+
+func TestActionsOnAServiceWithoutAContainerAre404(t *testing.T) {
+	h := New(&stubManager{err: manager.ErrNotFound}, token, Info{})
+	if rec := do(h, "POST", "/v1/services/git-mirror/stop", "Bearer "+token, ""); rec.Code != http.StatusNotFound {
+		t.Fatalf("code %d, want 404", rec.Code)
+	}
+}
+
+func TestLogsArePlainTextWithABoundedTail(t *testing.T) {
+	m := &stubManager{}
+	h := New(m, token, Info{})
+
+	rec := do(h, "GET", "/v1/services/git-mirror/logs", "Bearer "+token, "")
+	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/plain") || !strings.Contains(rec.Body.String(), "GET /v1/repositories") {
+		t.Fatalf("got %d %q %q", rec.Code, rec.Header().Get("Content-Type"), rec.Body)
+	}
+	if m.tail != 200 {
+		t.Fatalf("default tail = %d, want 200", m.tail)
+	}
+	do(h, "GET", "/v1/services/git-mirror/logs?tail=999999", "Bearer "+token, "")
+	if m.tail != 5000 {
+		t.Fatalf("tail was not capped: %d", m.tail)
+	}
+	if rec := do(h, "GET", "/v1/services/git-mirror/logs?tail=zero", "Bearer "+token, ""); rec.Code != http.StatusBadRequest {
+		t.Fatalf("bad tail: %d", rec.Code)
+	}
 }

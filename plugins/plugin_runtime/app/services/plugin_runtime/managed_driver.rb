@@ -13,8 +13,15 @@ module PluginRuntime
     # If the manager cannot be reached, nothing is removed. Acting on a partial
     # view is how a monitoring blip turns into every plugin's container being
     # torn down; waiting a minute for the next tick costs nothing.
+    #
+    # A service an operator stopped (Holds) is not ensured -- that would start
+    # it again -- only re-read, so its cached status stays current.
     def reconcile(desired)
-      desired.each { |entry| StatusCache.write(ensure_one(entry)) }
+      Holds.prune!(desired.map(&:name))
+      held = Holds.all
+      desired.each do |entry|
+        StatusCache.write(held.include?(entry.name) ? read_one(entry) : ensure_one(entry))
+      end
       remove_unwanted(desired)
     rescue Client::Unavailable => e
       desired.each do |entry|
@@ -23,7 +30,21 @@ module PluginRuntime
       end
     end
 
+    # Ensures one service right away and records its status -- what the admin
+    # page's Start and Restart use instead of waiting for the next tick.
+    def ensure_now(entry)
+      StatusCache.write(ensure_one(entry))
+    end
+
     private
+
+    def read_one(entry)
+      ServiceStatus.from_manager(@client.status(entry.name), plugin: entry.plugin)
+    rescue Client::Unavailable
+      raise
+    rescue Client::Error => e
+      ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode, state: "error", error: e.message)
+    end
 
     def ensure_one(entry)
       spec = request_for(entry)

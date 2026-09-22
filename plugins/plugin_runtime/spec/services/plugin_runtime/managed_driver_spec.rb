@@ -31,6 +31,10 @@ RSpec.describe PluginRuntime::ManagedDriver do
       def remove(name, purge: false)
         @removed << [ name, purge ]
       end
+
+      def status(name)
+        { "service" => name, "state" => "stopped", "image" => "ghcr.io/tkadauke/x:1" }
+      end
     end.new
   end
 
@@ -129,5 +133,29 @@ RSpec.describe PluginRuntime::ManagedDriver do
     driver.reconcile([ entry("broken") { raise "boom" }, entry("git-mirror") ])
 
     expect(client.ensured.map(&:first)).to eq([ "git-mirror" ])
+  end
+
+  describe "services an operator stopped" do
+    before { PluginRecord.find_or_create_by!(name: "plugin_runtime") }
+
+    # Ensure starts a stopped container, so ensuring a held service would undo
+    # the operator's Stop within a minute.
+    it "does not ensure a held service, but keeps its status current" do
+      PluginRuntime::Holds.hold!("git-mirror")
+
+      driver.reconcile([ entry("git-mirror"), entry("search", plugin: "global_search") ])
+
+      expect(client.ensured.map(&:first)).to eq([ "search" ])
+      expect(PluginRuntime::StatusCache.read("git-mirror").state).to eq("stopped")
+      expect(client.removed).to be_empty
+    end
+
+    it "forgets the hold once no plugin wants the service" do
+      PluginRuntime::Holds.hold!("git-mirror")
+
+      driver.reconcile([ entry("search", plugin: "global_search") ])
+
+      expect(PluginRuntime::Holds.all).to be_empty
+    end
   end
 end

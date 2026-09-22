@@ -8,6 +8,7 @@ package docker
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -218,6 +219,58 @@ func (c *Client) StartContainer(ctx context.Context, id string) error {
 func (c *Client) StopContainer(ctx context.Context, id string, timeout time.Duration) error {
 	query := url.Values{"t": {fmt.Sprint(int(timeout.Seconds()))}}
 	return c.do(ctx, http.MethodPost, "/containers/"+url.PathEscape(id)+"/stop", query, nil, nil)
+}
+
+// RestartContainer restarts a container, giving it timeout to exit cleanly.
+func (c *Client) RestartContainer(ctx context.Context, id string, timeout time.Duration) error {
+	query := url.Values{"t": {fmt.Sprint(int(timeout.Seconds()))}}
+	return c.do(ctx, http.MethodPost, "/containers/"+url.PathEscape(id)+"/restart", query, nil, nil)
+}
+
+// ContainerLogs returns the last `tail` lines of a container's stdout and
+// stderr, each prefixed with its timestamp, reading at most maxBytes.
+//
+// Managed containers run without a TTY, so the daemon multiplexes the two
+// streams into frames: an 8-byte header (stream type, three zero bytes, a
+// big-endian payload length) followed by the payload. DemuxLogs strips them.
+func (c *Client) ContainerLogs(ctx context.Context, id string, tail int, maxBytes int64) (string, error) {
+	query := url.Values{
+		"stdout":     {"1"},
+		"stderr":     {"1"},
+		"timestamps": {"1"},
+		"tail":       {fmt.Sprint(tail)},
+	}
+	resp, err := c.send(ctx, http.MethodGet, "/containers/"+url.PathEscape(id)+"/logs", query, nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	return DemuxLogs(io.LimitReader(resp.Body, maxBytes))
+}
+
+// DemuxLogs turns the daemon's multiplexed log stream into plain text. A
+// stream that does not start with a frame header (a TTY container) is
+// returned as is.
+func DemuxLogs(r io.Reader) (string, error) {
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		return "", err
+	}
+	if len(raw) < 8 || raw[0] > 2 || raw[1] != 0 || raw[2] != 0 || raw[3] != 0 {
+		return string(raw), nil
+	}
+	var out bytes.Buffer
+	for len(raw) >= 8 {
+		size := int(binary.BigEndian.Uint32(raw[4:8]))
+		raw = raw[8:]
+		if size > len(raw) {
+			// Cut off by the byte limit: keep what arrived.
+			size = len(raw)
+		}
+		out.Write(raw[:size])
+		raw = raw[size:]
+	}
+	return out.String(), nil
 }
 
 // RemoveContainer force-removes a container. Its named volumes are kept.
