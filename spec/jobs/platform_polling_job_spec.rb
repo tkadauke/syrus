@@ -201,4 +201,29 @@ RSpec.describe PlatformPollingJob do
       end
     end
   end
+
+  describe ".start_one_with_status" do
+    before { ensure_solid_queue_test_tables! }
+    after  { clear_solid_queue_test_tables! }
+
+    context "when the subclass declares its own .platform_key" do
+      before { concrete_class.define_singleton_method(:platform_key) { "carrier_pigeon" } }
+
+      it "includes the platform in every status outcome" do
+        expect(described_class.start_one_with_status(concrete_class)).to include(status: :started, platform: "carrier_pigeon")
+
+        SolidQueue::Job.create!(class_name: concrete_class.name, queue_name: "default", priority: 0, arguments: "{}")
+        expect(described_class.start_one_with_status(concrete_class)).to include(status: :already_running, platform: "carrier_pigeon")
+
+        concrete_class.configured_flag = false
+        expect(described_class.start_one_with_status(concrete_class)).to include(status: :not_configured, platform: "carrier_pigeon")
+      end
+    end
+
+    it "omits platform when the subclass does not declare .platform_key" do
+      result = described_class.start_one_with_status(concrete_class)
+      expect(result).to include(status: :started)
+      expect(result).not_to have_key(:platform)
+    end
+  end
 end

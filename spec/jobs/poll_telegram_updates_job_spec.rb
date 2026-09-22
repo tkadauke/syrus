@@ -15,6 +15,12 @@ RSpec.describe PollTelegramUpdatesJob do
 
   after { clear_enqueued_jobs }
 
+  describe ".platform_key" do
+    it "identifies this connector as telegram for PlatformPollingJob.start_one_with_status" do
+      expect(described_class.platform_key).to eq("telegram")
+    end
+  end
+
   describe "#configured?" do
     it "returns true when telegram_bot_token is set" do
       job = described_class.new
