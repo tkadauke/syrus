@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
@@ -93,8 +93,8 @@ describe("WorkflowsTab", () => {
     expect(screen.getByRole("button", { name: "Copy code" })).toBeInTheDocument()
   })
 
-  it("renders run artifact diffs through reviewable comments when anchor context is available", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+  it("renders run artifact diffs read-only, without diff comment feedback UI", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/jobs/42/runs/51/artifacts") {
         return Promise.resolve(new Response(JSON.stringify({
@@ -118,15 +118,12 @@ describe("WorkflowsTab", () => {
           logs: []
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path.startsWith("/api/v1/app/jobs/42/diff_review_comments") && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ job_id: 42, comments: [], by_path: {} }), { status: 201, headers: { "Content-Type": "application/json" } }))
-      }
-      if (path.startsWith("/api/v1/app/jobs/42/diff_review_comments")) {
-        return Promise.resolve(new Response(JSON.stringify({ job_id: 42, comments: [], by_path: {} }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
+    // "implemented" is one of the job states where the Review Workspace and
+    // Source tabs allow diff-comment feedback -- the workflow tab must stay
+    // read-only regardless of job state.
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter>
@@ -137,33 +134,53 @@ describe("WorkflowsTab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
     fireEvent.click(screen.getByRole("button", { name: "Diff" }))
-    fireEvent.click(await screen.findByRole("button", { name: "Comment on app/models/job.rb:new:1" }))
-    fireEvent.change(screen.getByLabelText("Comment"), { target: { value: "Please tighten this line." } })
-    fireEvent.click(screen.getByRole("button", { name: "Create comment" }))
 
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/diff_review_comments",
-        expect.objectContaining({
-          method: "POST",
-          body: expect.stringContaining("\"surface\":\"run_agent_diff\"")
-        })
-      )
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/diff_review_comments",
-        expect.objectContaining({
-          method: "POST",
-          body: expect.stringContaining("\"run_id\":51")
-        })
-      )
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/diff_review_comments",
-        expect.objectContaining({
-          method: "POST",
-          body: expect.stringContaining("\"diff_review_version_id\":100")
-        })
-      )
-    })
+    expect(await screen.findByText("app/models/job.rb")).toBeInTheDocument()
+    expect(document.querySelector('[data-diff-file="app/models/job.rb"]')).toBeInTheDocument()
+    expect(screen.queryByText("Diff comments")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Submit feedback" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Comment on/ })).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("/diff_review_comments"), expect.anything())
+  })
+
+  it("hides Step diff when it duplicates the full diff, as on a first implement run", () => {
+    const workflow = workflowWithDiffRun()
+    workflow.steps[0].runs[0].step_agent_diff_present = true
+    workflow.steps[0].runs[0].step_agent_diff_bytes = 120
+    workflow.steps[0].runs[0].step_diff_matches_diff = true
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ workflows: [workflow] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    expect(screen.getByRole("button", { name: "Diff" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Step diff" })).not.toBeInTheDocument()
+  })
+
+  it("shows both Diff and Step diff when the step diff differs from the full diff", () => {
+    const workflow = workflowWithDiffRun()
+    workflow.steps[0].runs[0].step_agent_diff_present = true
+    workflow.steps[0].runs[0].step_agent_diff_bytes = 40
+    workflow.steps[0].runs[0].step_diff_matches_diff = false
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ workflows: [workflow] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    expect(screen.getByRole("button", { name: "Diff" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Step diff" })).toBeInTheDocument()
   })
 
   it("keeps grade log surfaces as the mobile flex child with an internal scroll region", async () => {
@@ -1107,6 +1124,7 @@ describe("WorkflowsTab", () => {
                   agent_diff_bytes: 0,
                   step_agent_diff_present: false,
                   step_agent_diff_bytes: 0,
+                  step_diff_matches_diff: false,
                   job_log_count: 20,
                   rate_limited: false,
                   run_diagnostic: null,
@@ -1193,6 +1211,7 @@ describe("WorkflowsTab", () => {
                   agent_diff_bytes: 0,
                   step_agent_diff_present: false,
                   step_agent_diff_bytes: 0,
+                  step_diff_matches_diff: false,
                   job_log_count: 5,
                   rate_limited: false,
                   run_diagnostic: null,
@@ -1272,6 +1291,7 @@ describe("WorkflowsTab", () => {
                   agent_diff_bytes: 0,
                   step_agent_diff_present: false,
                   step_agent_diff_bytes: 0,
+                  step_diff_matches_diff: false,
                   job_log_count: 0,
                   rate_limited: false,
                   run_diagnostic: null,
@@ -1427,6 +1447,7 @@ function workflowWithDiffRun() {
         agent_diff_bytes: 120,
         step_agent_diff_present: false,
         step_agent_diff_bytes: 0,
+        step_diff_matches_diff: false,
         job_log_count: 0,
         rate_limited: false,
         run_diagnostic: null,
@@ -1473,6 +1494,7 @@ function workflowWithVisualReviews() {
     agent_diff_bytes: 0,
     step_agent_diff_present: false,
     step_agent_diff_bytes: 0,
+    step_diff_matches_diff: false,
     job_log_count: 0,
     rate_limited: false,
     run_diagnostic: null,
@@ -1570,6 +1592,7 @@ function distributedGradeWorkflow() {
     agent_diff_bytes: 0,
     step_agent_diff_present: false,
     step_agent_diff_bytes: 0,
+    step_diff_matches_diff: false,
     job_log_count: 0,
     rate_limited: false,
     run_diagnostic: null,
