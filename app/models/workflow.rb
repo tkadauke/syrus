@@ -370,7 +370,9 @@ class Workflow < ApplicationRecord
       end
 
       active_steps.each do |step|
-        if step.may_cancel?
+        step.with_lock do
+          next unless step.may_cancel?
+
           step.cancellation_reason = reason
           step.details = step.details.to_h.merge(cancellation_details)
           step.cancel!

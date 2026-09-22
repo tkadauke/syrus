@@ -151,6 +151,35 @@ RSpec.describe Workflow, :ci_only do
       expect(step.reload).to be_running
       expect(workflow.projected_active_step_ids).to be_empty
     end
+
+    it "preserves metadata written after terminal cleanup selected an active Step" do
+      workflow = described_class.create!(job: job, trigger_kind: "initial", state: "failed")
+      step = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 0,
+        state: "queued",
+        loop_id: "old-loop",
+        details: { "selected_by_cleanup" => true }
+      )
+      stale_step = Step.find(step.id)
+      allow(workflow).to receive(:projected_active_steps).and_return([ stale_step ])
+      step.update!(details: step.details.merge(
+        Step::RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY => true,
+        "superseded_by_manual_grade_loop_restart" => true
+      ))
+
+      workflow.cancel_active_descendants!(reason: "cancel_terminal_workflow_active_descendants")
+
+      expect(step.reload).to be_cancelled
+      expect(step.details).to include(
+        "selected_by_cleanup" => true,
+        Step::RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY => true,
+        "superseded_by_manual_grade_loop_restart" => true,
+        "cancelled_by" => "terminal_workflow_cleanup"
+      )
+      expect(workflow).not_to be_uncleared_retry_until_barrier
+    end
   end
 
   describe "Job lifecycle propagation" do
