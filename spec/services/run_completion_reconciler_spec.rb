@@ -55,6 +55,25 @@ RSpec.describe RunCompletionReconciler do
       expect(StepDispatcher).to have_received(:advance_from).with(step)
     end
 
+    it "does not rewrite a failed grader after its collector has started" do
+      workflow.steps.destroy_all
+      loop_id = SecureRandom.uuid
+      step = Step.create!(workflow: workflow, kind: "grader", position: 1, loop_id: loop_id, iteration: 2)
+      collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 2, loop_id: loop_id, iteration: 2)
+      run = step.runs.create!(job: job, trigger_kind: "initial", agent_provider: job.agent_provider)
+      workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+      step.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+      run.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+      collect.update_columns(state: "running", started_at: 30.seconds.ago)
+
+      result = described_class.call(run, allow_terminal_recovery: true)
+
+      expect(result).not_to be_reconciled
+      expect(result.reason).to eq("grader is not eligible for terminal recovery")
+      expect(run.reload).to be_failed
+      expect(step.reload).to be_failed
+    end
+
     it "does not recover non-deterministic terminal races after the workflow has already failed" do
       workflow.steps.destroy_all
       step = Step.create!(workflow: workflow, kind: "implement", position: 1)

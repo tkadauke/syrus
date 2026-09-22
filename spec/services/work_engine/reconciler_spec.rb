@@ -2796,6 +2796,34 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(run.reload.state).to eq("running")
   end
 
+  it "does not fail a stale-heartbeat grader while its SolidQueue worker still owns the execution" do
+    ensure_solid_queue_test_tables!
+    started_at = (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago
+    process = SolidQueue::Process.create!(
+      hostname: "worker-live",
+      kind: "worker",
+      last_heartbeat_at: Time.current,
+      metadata: {},
+      name: "worker-live:1",
+      pid: 123,
+      created_at: started_at
+    )
+    solid_queue_run_job(run, claimed: true, process_id: process.id, created_at: started_at)
+    run.update_columns(state: "running", started_at: started_at, last_heartbeat_at: started_at)
+    step.update_columns(kind: "grader", state: "running", started_at: started_at)
+    workflow.update_columns(state: "running", started_at: started_at)
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :running_run_without_live_worker_evidence)).to have_attributes(
+      severity: "warning",
+      safe_to_auto_repair: false,
+      recommended_repair_action: "capture_diagnostics"
+    )
+    expect(result.repair_plans.map(&:action)).not_to include("mark_worker_died")
+    expect(run.reload).to be_running
+  end
+
   it "auto-repairs a detached running Run after the short worker-evidence grace" do
     ensure_solid_queue_test_tables!
     heartbeat_at = 4.minutes.ago
@@ -3109,7 +3137,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(issue.evidence).to include("detached_worker_evidence" => false)
   end
 
-  it "auto-repairs a non-agentic running Run with an active queue claim but no live child process after a short grace" do
+  it "does not auto-repair a non-agentic Run while a live worker still owns its queue claim" do
     ensure_solid_queue_test_tables!
     heartbeat_at = 4.minutes.ago
     solid_queue_run_job(run, claimed: true, created_at: 30.seconds.ago)
@@ -3127,20 +3155,17 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     issue = kind(result, :running_run_without_live_worker_evidence)
 
     expect(issue).to have_attributes(
-      severity: "critical",
-      safe_to_auto_repair: true,
-      recommended_repair_action: "fail_run_as_worker_died",
-      check_after: nil
+      severity: "warning",
+      safe_to_auto_repair: false,
+      recommended_repair_action: "capture_diagnostics"
     )
     expect(issue.evidence).to include(
       "detached_worker_evidence" => false,
       "non_agentic_without_live_process" => true,
-      "non_agentic_no_process_grace_seconds" => 180
+      "non_agentic_no_process_grace_seconds" => 180,
+      "solid_queue_execution_live" => true
     )
-    expect(plan(result, :mark_worker_died_and_retry_failed_step)).to have_attributes(
-      auto_executable: true,
-      target_id: run.id
-    )
+    expect(plan(result, :mark_worker_died_and_retry_failed_step)).to be_nil
   end
 
   it "cancels a stale running Run left behind under an already-cancelled Workflow" do

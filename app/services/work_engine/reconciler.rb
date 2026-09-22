@@ -719,12 +719,16 @@ module WorkEngine
         terminal_orphan_process = orphaned_terminal_process(terminal_process)
         terminal_orphan_ready = terminal_orphan_process_ready?(terminal_orphan_process)
         heartbeat_stale = run_stale?(run)
+        queue_execution_live = solid_queue_execution_live?(run)
         last_activity_at = run.last_heartbeat_at || run.started_at
         detached = detached_running_run?(sq, live_process)
         detached_ready = detached && older_than?(last_activity_at, DETACHED_WORKER_EVIDENCE_GRACE)
         non_agentic_no_process = non_agentic_run_without_live_process?(run, live_process)
         non_agentic_no_process_ready = non_agentic_no_process && older_than?(last_activity_at, NON_AGENTIC_NO_PROCESS_GRACE)
-        repair_ready = terminal_orphan_ready || (heartbeat_stale && !live_process) || detached_ready || non_agentic_no_process_ready
+        repair_ready = terminal_orphan_ready ||
+          (heartbeat_stale && !live_process && !queue_execution_live) ||
+          detached_ready ||
+          (non_agentic_no_process_ready && !queue_execution_live)
         next if !repair_ready && !detached && !terminal_orphan_process && !non_agentic_no_process && (fresh_activity?(run.last_heartbeat_at) || live_process)
 
         related_spawned_process_ids = spawned_process_ids_for([ run.id ], [ run.workflow_id ].compact)
@@ -745,6 +749,7 @@ module WorkEngine
           ),
           evidence: run_evidence(run).merge(
             solid_queue: sq,
+            solid_queue_execution_live: queue_execution_live,
             detached_worker_evidence: detached,
             detached_worker_evidence_grace_seconds: DETACHED_WORKER_EVIDENCE_GRACE.to_i,
             non_agentic_without_live_process: non_agentic_no_process,
@@ -2887,6 +2892,12 @@ module WorkEngine
       return nil unless solid_queue[:available]
 
       solid_queue_jobs_for_run(run).first
+    end
+
+    def solid_queue_execution_live?(run)
+      solid_queue_jobs_for_run(run).any? do |sq|
+        sq[:claimed] && !sq[:failed] && solid_queue_process_live?(sq[:process_id])
+      end
     end
 
     def solid_queue_jobs_for_run(run)

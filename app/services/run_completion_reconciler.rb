@@ -61,9 +61,20 @@ class RunCompletionReconciler
   end
 
   def successful_handler_terminal_recovery_step?
+    return false if grader_result_already_collected?
+
     Step::Kind.fetch(step.kind).deterministic_idempotent_repair?
   rescue ArgumentError
     false
+  end
+
+  def grader_result_already_collected?
+    return false unless step&.kind == "grader"
+
+    workflow.steps
+            .where(kind: "grader_collect", loop_id: step.loop_id, iteration: step.iteration)
+            .where.not(started_at: nil)
+            .exists?
   end
 
   def reconcile_successful_handler_return
