@@ -1,0 +1,13 @@
+{
+  "details": {
+    "repositories": "Repositoria",
+    "mirror_size": "Magnitudo speculorum",
+    "disk_free": "Spatium liberum",
+    "disk_total": "Magnitudo voluminis",
+    "col_repository": "Repositorium",
+    "col_size": "Magnitudo",
+    "col_last_fetch": "Ultima arcessitio",
+    "col_last_maintenance": "Ultima purgatio",
+    "col_error": "Ultimus error"
+  }
+}

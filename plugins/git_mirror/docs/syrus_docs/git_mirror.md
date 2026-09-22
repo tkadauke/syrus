@@ -75,8 +75,15 @@ to register repositories.
   `GET /v1/repositories/7/blob?revision=…&path=README 200 13B 2ms`, and every
   fetch failure. Health checks and credentials are never logged.
   (`docker logs syrus-plugin-git-mirror` on Compose.)
-- **What is mirrored:** each registered repository is a directory under
-  `/data/repos`.
+- **What is mirrored, and how big:** Admin -> Plugin Services -> Details on
+  `git-mirror` shows the repository count, the mirrors' size, the volume's free
+  and total space, and each repository's size, last fetch, last gc, and last
+  error. The same numbers are gauges: `syrus_git_mirror_repositories`,
+  `syrus_git_mirror_mirror_bytes`, `syrus_git_mirror_disk_free_bytes`, and
+  `syrus_git_mirror_disk_total_bytes` (alert on free space).
+- **Housekeeping:** after a successful fetch, a repository gets
+  `git gc --auto` at most once a day, which does nothing until loose objects
+  or packs pile up. Branches deleted upstream are pruned on every fetch.
 
 ## Limits
 

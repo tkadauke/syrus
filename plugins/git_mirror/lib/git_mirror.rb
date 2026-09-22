@@ -12,6 +12,21 @@ module GitMirror
     disableable true
     depends_on [ "plugin_runtime" ]
     tick_interval 1.minute
+    metrics do
+      gauge :repositories, comment: "Repositories the git mirror holds" do
+        GitMirror::Stats.repository_count
+      end
+      gauge :mirror_bytes, comment: "Bytes the git mirrors take up on the mirror's volume" do
+        GitMirror::Stats.disk("mirror_bytes")
+      end
+      gauge :disk_free_bytes, comment: "Free bytes on the git mirror's data volume" do
+        GitMirror::Stats.disk("free_bytes")
+      end
+      gauge :disk_total_bytes, comment: "Size of the git mirror's data volume in bytes" do
+        GitMirror::Stats.disk("total_bytes")
+      end
+    end
+    frontend i18n: [ "app/frontend/i18n/locales/*/git_mirror.json" ]
     provides repository_content_provider: "GitMirror::ContentProvider",
              callbacks: "GitMirror::Callbacks",
              "plugin_runtime:service" => "GitMirror::RuntimeService"

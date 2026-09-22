@@ -83,7 +83,23 @@ type Status struct {
 	LastFetchAt   *time.Time `json:"last_fetch_at,omitempty"`
 	LastError     string     `json:"last_error,omitempty"`
 	HasCredential bool       `json:"has_credential"`
+	// SizeBytes is the mirror's size on disk, measured after each fetch.
+	SizeBytes int64 `json:"size_bytes"`
+	// LastMaintenanceAt is when `git gc --auto` last ran.
+	LastMaintenanceAt *time.Time `json:"last_maintenance_at,omitempty"`
 }
+
+// Disk is the data volume's capacity and what the mirrors take up of it.
+type Disk struct {
+	TotalBytes  uint64 `json:"total_bytes"`
+	FreeBytes   uint64 `json:"free_bytes"`
+	MirrorBytes int64  `json:"mirror_bytes"`
+}
+
+// MaintenanceInterval is how often a repository gets `git gc --auto` after
+// a successful fetch. --auto does nothing unless loose objects or packs
+// have piled up, so this bounds disk growth at almost no cost.
+const MaintenanceInterval = 24 * time.Hour
 
 // Entry is one path in a tree.
 type Entry struct {
@@ -128,13 +144,15 @@ type repo struct {
 	id  string
 	dir string
 
-	mu          sync.Mutex
-	url         string
-	cred        *gitexec.Credential
-	expiresAt   *time.Time
-	lastFetchAt *time.Time
-	lastError   string
-	inflight    *fetchCall
+	mu                sync.Mutex
+	url               string
+	cred              *gitexec.Credential
+	expiresAt         *time.Time
+	lastFetchAt       *time.Time
+	lastError         string
+	inflight          *fetchCall
+	sizeBytes         int64
+	lastMaintenanceAt *time.Time
 	// registered is set once Syrus sends the repository's URL and credential
 	// in this process. Repositories loaded from disk after a restart serve
 	// what they have but are not fetched until then.
@@ -178,6 +196,7 @@ func Open(cfg Config) (*Store, error) {
 		if res, err := s.git(context.Background(), r.dir, nil, s.cfg.ReadTimeout, "config", "--get", "remote.origin.url"); err == nil {
 			r.url = strings.TrimSpace(string(res.Stdout))
 		}
+		r.sizeBytes = dirSize(r.dir)
 		s.repos[id] = r
 	}
 	return s, nil
@@ -250,7 +269,8 @@ func (s *Store) List() []Status {
 	out := make([]Status, 0, len(repos))
 	for _, r := range repos {
 		r.mu.Lock()
-		out = append(out, Status{ID: r.id, URL: r.url, LastFetchAt: r.lastFetchAt, LastError: r.lastError, HasCredential: r.cred != nil})
+		out = append(out, Status{ID: r.id, URL: r.url, LastFetchAt: r.lastFetchAt, LastError: r.lastError, HasCredential: r.cred != nil,
+			SizeBytes: r.sizeBytes, LastMaintenanceAt: r.lastMaintenanceAt})
 		r.mu.Unlock()
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
@@ -606,12 +626,22 @@ func (s *Store) fetch(ctx context.Context, r *repo) error {
 	r.mu.Unlock()
 
 	call.err = s.runFetch(r, url, cred, expiresAt)
+	var maintainedAt *time.Time
+	var size int64
+	if call.err == nil {
+		maintainedAt = s.maintain(r)
+		size = dirSize(r.dir)
+	}
 
 	r.mu.Lock()
 	if call.err == nil {
 		now := s.cfg.Now()
 		r.lastFetchAt = &now
 		r.lastError = ""
+		r.sizeBytes = size
+		if maintainedAt != nil {
+			r.lastMaintenanceAt = maintainedAt
+		}
 	} else {
 		r.lastError = call.err.Error()
 	}
@@ -634,6 +664,47 @@ func (s *Store) runFetch(r *repo, url string, cred *gitexec.Credential, expiresA
 		"fetch", "--prune", "--no-tags", "--quiet", url,
 		"+refs/heads/*:refs/heads/*", "+refs/tags/*:refs/tags/*")
 	return err
+}
+
+// maintain runs `git gc --auto` when the repository has not had it for
+// MaintenanceInterval, returning when it ran (nil when it did not). A gc
+// failure is logged and retried next interval; it never fails the fetch.
+func (s *Store) maintain(r *repo) *time.Time {
+	r.mu.Lock()
+	last := r.lastMaintenanceAt
+	r.mu.Unlock()
+	now := s.cfg.Now()
+	if last != nil && now.Sub(*last) < MaintenanceInterval {
+		return nil
+	}
+	if _, err := s.git(context.Background(), r.dir, nil, s.cfg.FetchTimeout, "gc", "--auto", "--quiet"); err != nil {
+		log.Printf("git-mirror: gc %s: %v", r.id, err)
+	}
+	return &now
+}
+
+// Disk reports the data volume's capacity and the mirrors' share of it.
+func (s *Store) Disk() Disk {
+	disk := Disk{}
+	for _, status := range s.List() {
+		disk.MirrorBytes += status.SizeBytes
+	}
+	disk.TotalBytes, disk.FreeBytes = volumeSpace(s.cfg.DataDir)
+	return disk
+}
+
+func dirSize(dir string) int64 {
+	var total int64
+	_ = filepath.WalkDir(dir, func(_ string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return nil
+		}
+		if info, err := entry.Info(); err == nil {
+			total += info.Size()
+		}
+		return nil
+	})
+	return total
 }
 
 func (s *Store) ensureRepository(ctx context.Context, r *repo, url string) error {

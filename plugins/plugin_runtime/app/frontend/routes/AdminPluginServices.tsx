@@ -7,9 +7,11 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import {
   deletePluginServiceVolume,
+  fetchPluginServiceDetails,
   fetchPluginServiceLogs,
   fetchPluginServices,
   runPluginServiceAction,
+  type DetailFormat,
   type PluginService,
   type PluginServiceVolume
 } from "../api/pluginServices"
@@ -34,6 +36,7 @@ export function AdminPluginServices() {
   const { t } = useT("plugin_runtime")
   usePageTitle(t("heading"))
   const [logsFor, setLogsFor] = useState<string | null>(null)
+  const [detailsFor, setDetailsFor] = useState<string | null>(null)
   const services = useQuery({
     queryKey: QUERY_KEY,
     queryFn: fetchPluginServices,
@@ -64,10 +67,11 @@ export function AdminPluginServices() {
             {payload.services.length === 0 ? (
               <Text tone="muted">{t("empty")}</Text>
             ) : (
-              <ServicesTable services={payload.services} onShowLogs={setLogsFor} logsFor={logsFor} />
+              <ServicesTable services={payload.services} onShowLogs={setLogsFor} logsFor={logsFor} onShowDetails={setDetailsFor} detailsFor={detailsFor} />
             )}
           </Section.Root>
 
+          {detailsFor ? <DetailsPanel name={detailsFor} onClose={() => setDetailsFor(null)} /> : null}
           {logsFor ? <LogsPanel name={logsFor} onClose={() => setLogsFor(null)} /> : null}
 
           {payload.volumes.length > 0 ? <VolumesSection volumes={payload.volumes} /> : null}
@@ -77,7 +81,14 @@ export function AdminPluginServices() {
   )
 }
 
-function ServicesTable({ services, onShowLogs, logsFor }: { services: PluginService[]; onShowLogs: (name: string) => void; logsFor: string | null }) {
+type PanelProps = {
+  onShowLogs: (name: string) => void
+  logsFor: string | null
+  onShowDetails: (name: string) => void
+  detailsFor: string | null
+}
+
+function ServicesTable({ services, ...panels }: { services: PluginService[] } & PanelProps) {
   const { t } = useT("plugin_runtime")
 
   return (
@@ -108,7 +119,7 @@ function ServicesTable({ services, onShowLogs, logsFor }: { services: PluginServ
             <DataTable.Cell className="break-all font-mono text-xs">{service.image ?? "-"}</DataTable.Cell>
             <DataTable.Cell className="font-mono text-xs">{service.endpoint ?? "-"}</DataTable.Cell>
             <DataTable.Cell align="right">
-              <ServiceActions service={service} onShowLogs={onShowLogs} logsOpen={logsFor === service.service} />
+              <ServiceActions service={service} {...panels} />
             </DataTable.Cell>
           </DataTable.Row>
         ))}
@@ -117,7 +128,7 @@ function ServicesTable({ services, onShowLogs, logsFor }: { services: PluginServ
   )
 }
 
-function ServiceActions({ service, onShowLogs, logsOpen }: { service: PluginService; onShowLogs: (name: string) => void; logsOpen: boolean }) {
+function ServiceActions({ service, onShowLogs, logsFor, onShowDetails, detailsFor }: { service: PluginService } & PanelProps) {
   const { t } = useT("plugin_runtime")
   const queryClient = useQueryClient()
   const { confirm, dialog } = useConfirm()
@@ -153,8 +164,11 @@ function ServiceActions({ service, onShowLogs, logsOpen }: { service: PluginServ
         {service.actions.includes("stop") ? (
           <Button disabled={action.isPending} onClick={() => void run("stop")} size="sm" variant="danger">{t("stop")}</Button>
         ) : null}
+        {service.actions.includes("details") ? (
+          <Button aria-pressed={detailsFor === service.service} onClick={() => onShowDetails(service.service)} size="sm" variant="secondary">{t("details")}</Button>
+        ) : null}
         {service.actions.includes("logs") ? (
-          <Button aria-pressed={logsOpen} onClick={() => onShowLogs(service.service)} size="sm" variant="secondary">{t("logs")}</Button>
+          <Button aria-pressed={logsFor === service.service} onClick={() => onShowLogs(service.service)} size="sm" variant="secondary">{t("logs")}</Button>
         ) : null}
       </Toolbar>
       {action.isError ? <Text variant="caption" tone="danger">{action.error instanceof Error ? action.error.message : t("action_failed")}</Text> : null}
@@ -201,6 +215,73 @@ function LogsPanel({ name, onClose }: { name: string; onClose: () => void }) {
       >
         {logs.isPending ? t("loading") : logs.data?.logs || t("logs_empty")}
       </pre>
+    </Section.Root>
+  )
+}
+
+function formatValue(value: string | number | null | undefined, format: DetailFormat) {
+  if (value === null || value === undefined || value === "") return "-"
+  if (format === "bytes" && typeof value === "number") return formatBytes(value)
+  if (format === "number" && typeof value === "number") return value.toLocaleString()
+  if (format === "time") return new Date(String(value)).toLocaleString()
+  return String(value)
+}
+
+// What the service says about itself (PluginRuntime::Service
+// service_details): a few headline numbers and, optionally, a table. Labels
+// are i18n keys in the owning plugin's namespace.
+function DetailsPanel({ name, onClose }: { name: string; onClose: () => void }) {
+  const { t } = useT("plugin_runtime")
+  const details = useQuery({
+    queryKey: ["admin", "plugin_services_details", name],
+    queryFn: () => fetchPluginServiceDetails(name),
+    refetchInterval: 30_000
+  })
+  const data = details.data?.details
+
+  return (
+    <Section.Root aria-label={t("details_heading", { service: name })}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <SectionHeading>{t("details_heading", { service: name })}</SectionHeading>
+        <Toolbar>
+          <Button disabled={details.isFetching} onClick={() => void details.refetch()} size="sm" variant="secondary">{t("refresh")}</Button>
+          <Button onClick={onClose} size="sm" variant="secondary">{t("close_logs")}</Button>
+        </Toolbar>
+      </div>
+      {details.isPending ? <Text tone="muted">{t("loading")}</Text> : null}
+      {details.isError ? <Notice tone="danger">{details.error instanceof Error ? details.error.message : t("details_error")}</Notice> : null}
+      {data ? (
+        <div className="space-y-4">
+          <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {data.summary.map((item) => (
+              <div className="rounded border border-border bg-surface px-3 py-2" key={item.label_key}>
+                <dt className="text-xs text-text-secondary">{t(item.label_key)}</dt>
+                <dd className="mt-1 text-lg font-semibold text-text-primary">{formatValue(item.value, item.format)}</dd>
+              </div>
+            ))}
+          </dl>
+          {data.table && data.table.rows.length > 0 ? (
+            <DataTable.Root>
+              <DataTable.Header>
+                <DataTable.Row>
+                  {data.table.columns.map((column) => <DataTable.HeadCell key={column.key}>{t(column.label_key)}</DataTable.HeadCell>)}
+                </DataTable.Row>
+              </DataTable.Header>
+              <DataTable.Body>
+                {data.table.rows.map((row, index) => (
+                  <DataTable.Row key={index}>
+                    {data.table?.columns.map((column) => (
+                      <DataTable.Cell className={column.format === "text" ? "break-words" : "whitespace-nowrap"} key={column.key}>
+                        {formatValue(row[column.key], column.format)}
+                      </DataTable.Cell>
+                    ))}
+                  </DataTable.Row>
+                ))}
+              </DataTable.Body>
+            </DataTable.Root>
+          ) : null}
+        </div>
+      ) : null}
     </Section.Root>
   )
 }

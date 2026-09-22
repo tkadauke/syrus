@@ -1,6 +1,6 @@
 import { deleteJson, getJson, postJson } from "@app/api/client"
 
-export type PluginServiceAction = "stop" | "start" | "restart" | "logs"
+export type PluginServiceAction = "stop" | "start" | "restart" | "logs" | "details"
 
 export type PluginService = {
   service: string
@@ -38,7 +38,7 @@ export function fetchPluginServices() {
   return getJson<PluginServicesPayload>(BASE)
 }
 
-export function runPluginServiceAction(name: string, action: Exclude<PluginServiceAction, "logs">) {
+export function runPluginServiceAction(name: string, action: "stop" | "start" | "restart") {
   return postJson<{ service: PluginService }>(`${BASE}/${encodeURIComponent(name)}/${action}`)
 }
 
@@ -48,4 +48,18 @@ export function fetchPluginServiceLogs(name: string, tail: number) {
 
 export function deletePluginServiceVolume(name: string) {
   return deleteJson<void>(`${BASE}/volumes/${encodeURIComponent(name)}`)
+}
+
+export type DetailFormat = "number" | "bytes" | "time" | "text"
+
+export type PluginServiceDetails = {
+  summary: { label_key: string; value: string | number | null; format: DetailFormat }[]
+  table?: {
+    columns: { key: string; label_key: string; format: DetailFormat }[]
+    rows: Record<string, string | number | null>[]
+  }
+}
+
+export function fetchPluginServiceDetails(name: string) {
+  return getJson<{ service: string; details: PluginServiceDetails }>(`${BASE}/${encodeURIComponent(name)}/details`)
 }

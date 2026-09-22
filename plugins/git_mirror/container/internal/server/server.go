@@ -36,6 +36,7 @@ type Store interface {
 	Register(ctx context.Context, id string, reg mirror.Registration) error
 	Remove(id string) error
 	List() []mirror.Status
+	Disk() mirror.Disk
 	Resolve(ctx context.Context, id, ref string, maxAge time.Duration) (string, time.Time, error)
 	Tree(ctx context.Context, id, revision string) ([]mirror.Entry, error)
 	Read(ctx context.Context, id, revision, path string) (mirror.Blob, error)
@@ -125,7 +126,7 @@ func (s *server) auth(next http.HandlerFunc) http.Handler {
 }
 
 func (s *server) list(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"repositories": s.store.List()})
+	writeJSON(w, http.StatusOK, map[string]any{"repositories": s.store.List(), "disk": s.store.Disk()})
 }
 
 func (s *server) register(w http.ResponseWriter, r *http.Request) {

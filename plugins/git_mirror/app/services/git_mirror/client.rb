@@ -43,7 +43,13 @@ module GitMirror
     end
 
     def list
-      json(request(Net::HTTP::Get, "/v1/repositories")).fetch("repositories")
+      stats.fetch("repositories")
+    end
+
+    # Every mirrored repository with its size and fetch state, plus the data
+    # volume's capacity: { "repositories" => [...], "disk" => {...} }.
+    def stats
+      json(request(Net::HTTP::Get, "/v1/repositories"))
     end
 
     def resolve(id, ref, max_age:)

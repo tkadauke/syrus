@@ -30,6 +30,9 @@ func (f *fakeStore) Register(_ context.Context, id string, reg mirror.Registrati
 }
 func (f *fakeStore) Remove(string) error   { return mirror.ErrUnknownRepository }
 func (f *fakeStore) List() []mirror.Status { return []mirror.Status{{ID: "1", HasCredential: true}} }
+func (f *fakeStore) Disk() mirror.Disk {
+	return mirror.Disk{TotalBytes: 100, FreeBytes: 40, MirrorBytes: 10}
+}
 func (f *fakeStore) Resolve(_ context.Context, _, _ string, maxAge time.Duration) (string, time.Time, error) {
 	f.maxAge = maxAge
 	return "abc", time.Unix(0, 0), f.resolveErr
@@ -169,5 +172,12 @@ func TestRequestLogRecordsReadsButNotHealthChecksOrCredentials(t *testing.T) {
 	}
 	if strings.Contains(buf.String(), "ghs_secret") || strings.Contains(buf.String(), "healthz") {
 		t.Errorf("log leaked a credential or a health check:\n%s", buf.String())
+	}
+}
+
+func TestListReportsDisk(t *testing.T) {
+	rec := do(New(&fakeStore{}, token), "GET", "/v1/repositories", "", true)
+	if !strings.Contains(rec.Body.String(), `"disk":{"total_bytes":100,"free_bytes":40,"mirror_bytes":10}`) {
+		t.Fatalf("body = %s", rec.Body)
 	}
 }

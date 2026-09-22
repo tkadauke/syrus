@@ -22,6 +22,21 @@ module Api
             render_control_error(e)
           end
 
+          # The service's own description of itself (PluginRuntime::Service
+          # service_details), for the page's Details panel.
+          def details
+            entry = ::PluginRuntime::DesiredServices.all.find { |candidate| candidate.name == params[:name] }
+            unless entry&.provider.respond_to?(:service_details)
+              return render_error("not_found", "#{params[:name]} has no details", status: :not_found)
+            end
+
+            endpoint = ::PluginRuntime::Services.endpoint_for(entry.name)
+            details = endpoint && entry.provider.service_details(endpoint: endpoint)
+            return render_error("runtime_unavailable", "#{entry.name} is not answering", status: :service_unavailable) unless details
+
+            render json: { service: entry.name, details: details }
+          end
+
           def remove_volume
             controls.remove_volume!(params[:name])
             head :no_content

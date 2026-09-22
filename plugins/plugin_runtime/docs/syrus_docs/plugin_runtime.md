@@ -127,6 +127,11 @@ On a managed (Compose) install an admin can:
 - **Read its logs**: the last 100-2000 lines of stdout and stderr,
   timestamped, optionally refreshed every few seconds.
 
+**Details** appears for a running service whose class implements the optional
+`service_details(endpoint:)` (see `PluginRuntime::Service`): headline numbers
+and a table the service reports about itself -- for the git mirror, its
+repositories and disk use.
+
 **Stored data** lists the volumes plugin services keep (owner, size where
 Docker reports it, and whether its service has a container). Disabling a plugin
 keeps its volume so re-enabling does not start from scratch; a volume whose

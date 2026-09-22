@@ -19,12 +19,13 @@ module PluginRuntime
 
       services = desired.map do |entry|
         status = live[entry.name] || cached(entry)
-        row(status, plugin: entry.plugin, desired: true, held: held.include?(entry.name))
+        row(status, plugin: entry.plugin, desired: true, held: held.include?(entry.name),
+            details: entry.provider.respond_to?(:service_details))
       end
       # Managed containers no enabled plugin wants: removed on the next
       # reconcile, but visible until then.
       (live.keys - desired.map(&:name)).each do |name|
-        services << row(live[name], plugin: live[name][:plugin], desired: false, held: false)
+        services << row(live[name], plugin: live[name][:plugin], desired: false, held: false, details: false)
       end
 
       {
@@ -67,13 +68,11 @@ module PluginRuntime
       status.to_h.slice(:service, :state, :endpoint, :image, :error, :pull, :checked_at)
     end
 
-    def row(status, plugin:, desired:, held:)
-      status.merge(
-        plugin: plugin,
-        desired: desired,
-        held: held,
-        actions: actions_for(status, desired: desired)
-      )
+    def row(status, plugin:, desired:, held:, details:)
+      actions = actions_for(status, desired: desired)
+      # Details come from the service itself, so only while it answers.
+      actions += [ "details" ] if details && status[:state] == "running"
+      status.merge(plugin: plugin, desired: desired, held: held, actions: actions)
     end
 
     def actions_for(status, desired:)

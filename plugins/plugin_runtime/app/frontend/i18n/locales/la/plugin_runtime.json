@@ -38,6 +38,9 @@
   "volume_unused": "Non in usu",
   "delete_volume": "Data dele",
   "confirm_delete_volume": "{{volume}} delere? Omnia quae {{plugin}} ibi servavit in perpetuum pereunt; iterum activatum ab initio incipit.",
+  "details": "Singula",
+  "details_heading": "Singula: {{service}}",
+  "details_error": "Singula onerari non potuerunt.",
   "state": {
     "running": "Currit",
     "starting": "Incipit",

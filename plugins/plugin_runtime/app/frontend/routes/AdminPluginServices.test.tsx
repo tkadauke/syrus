@@ -166,4 +166,31 @@ describe("AdminPluginServices", () => {
     ))
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
   })
+
+  it("shows what a service says about itself under Details", async () => {
+    mockApi(payload({ services: [ { ...payload().services[0], actions: [ "stop", "restart", "details", "logs" ] } ] }), (path) =>
+      path === "/api/v1/app/admin/plugin_services/git-mirror/details"
+        ? jsonResponse({
+          service: "git-mirror",
+          details: {
+            summary: [ { label_key: "git_mirror:details.repositories", value: 2, format: "number" },
+              { label_key: "git_mirror:details.mirror_size", value: 5_242_880, format: "bytes" } ],
+            table: {
+              columns: [ { key: "repository", label_key: "git_mirror:details.col_repository", format: "text" },
+                { key: "size", label_key: "git_mirror:details.col_size", format: "bytes" } ],
+              rows: [ { repository: "acme/widgets", size: 4_194_304 } ]
+            }
+          }
+        })
+        : undefined)
+
+    renderRoute(<AdminPluginServices />)
+    fireEvent.click(await screen.findByRole("button", { name: "Details" }))
+
+    const panel = await screen.findByRole("region", { name: "Details: git-mirror" })
+    expect(await within(panel).findByText("Mirror size")).toBeInTheDocument()
+    expect(within(panel).getByText("5.0 MB")).toBeInTheDocument()
+    expect(within(panel).getByText("acme/widgets")).toBeInTheDocument()
+    expect(within(panel).getByText("4.0 MB")).toBeInTheDocument()
+  })
 })

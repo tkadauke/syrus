@@ -399,3 +399,39 @@ func TestChangesCarryLineCountsAndPatches(t *testing.T) {
 		t.Fatalf("binary file should have no counts or patch: %+v", binary)
 	}
 }
+
+func TestFetchMeasuresSizeAndRunsMaintenanceDaily(t *testing.T) {
+	u := newUpstream(t)
+	u.commit(map[string]string{"a.txt": strings.Repeat("x", 10_000)}, "first")
+	c := &clock{now: time.Now()}
+	s := newStore(t, c)
+	register(t, s, "42", u)
+
+	status := s.List()[0]
+	if status.SizeBytes <= 0 || status.LastMaintenanceAt == nil {
+		t.Fatalf("after first fetch: %+v", status)
+	}
+	first := *status.LastMaintenanceAt
+
+	c.now = c.now.Add(time.Hour)
+	r, _ := s.get("42")
+	if err := s.fetch(context.Background(), r); err != nil {
+		t.Fatal(err)
+	}
+	if got := *s.List()[0].LastMaintenanceAt; !got.Equal(first) {
+		t.Fatalf("maintenance ran again within the interval: %v", got)
+	}
+
+	c.now = c.now.Add(MaintenanceInterval)
+	if err := s.fetch(context.Background(), r); err != nil {
+		t.Fatal(err)
+	}
+	if got := *s.List()[0].LastMaintenanceAt; !got.After(first) {
+		t.Fatalf("maintenance did not run after the interval: %v", got)
+	}
+
+	disk := s.Disk()
+	if disk.TotalBytes == 0 || disk.FreeBytes == 0 || disk.MirrorBytes != s.List()[0].SizeBytes {
+		t.Fatalf("disk = %+v", disk)
+	}
+}

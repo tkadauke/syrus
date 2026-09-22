@@ -37,6 +37,23 @@ module PluginRuntime
   # A service is an accelerator or an extra, never something the rest of Syrus
   # stops working without.
   #
+  # Optionally, the class can describe the running service for the Plugin
+  # Services admin page's Details panel:
+  #
+  #   def self.service_details(endpoint:)
+  #     {
+  #       summary: [ { label_key: "my_plugin:details.items", value: 3, format: "number" } ],
+  #       table: {
+  #         columns: [ { key: "name", label_key: "my_plugin:details.col_name", format: "text" } ],
+  #         rows: [ { name: "..." } ]
+  #       }
+  #     }
+  #   end
+  #
+  # `format` is number, bytes, time, or text; labels are i18n keys in the
+  # plugin's own frontend namespace. Return nil when the service cannot say
+  # (unreachable). Called only when an admin opens the panel.
+  #
   # The spec is validated by the runtime manager, not here: the manager is what
   # holds the Docker socket, so it is the only place a check actually binds.
   # See plugins/plugin_runtime/container/internal/policy for what it refuses.

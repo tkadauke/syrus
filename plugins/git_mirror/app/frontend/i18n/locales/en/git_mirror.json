@@ -1,0 +1,13 @@
+{
+  "details": {
+    "repositories": "Repositories",
+    "mirror_size": "Mirror size",
+    "disk_free": "Free disk",
+    "disk_total": "Volume size",
+    "col_repository": "Repository",
+    "col_size": "Size",
+    "col_last_fetch": "Last fetch",
+    "col_last_maintenance": "Last gc",
+    "col_error": "Last error"
+  }
+}

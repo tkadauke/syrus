@@ -8,6 +8,7 @@ RSpec.describe "API: admin plugin services", type: :request do
     Class.new do
       def self.service_name = "git-mirror"
       def self.service_spec = { image: "ghcr.io/tkadauke/syrus-plugin-git-mirror:1", internal_port: 8080 }
+      def self.service_details(endpoint:) = { summary: [ { label_key: "git_mirror:details.repositories", value: 1, format: "number" } ], endpoint: endpoint }
     end
   end
 
@@ -35,7 +36,7 @@ RSpec.describe "API: admin plugin services", type: :request do
     expect(json).to include("mode" => "managed", "manageable" => true, "manager_error" => nil)
     mirror, leftover = json["services"]
     expect(mirror).to include("service" => "git-mirror", "state" => "running", "desired" => true, "held" => false,
-                              "actions" => %w[stop restart logs])
+                              "actions" => %w[stop restart logs details])
     expect(leftover).to include("service" => "leftover", "desired" => false, "actions" => [])
   end
 
@@ -111,6 +112,26 @@ RSpec.describe "API: admin plugin services", type: :request do
     delete "/api/v1/app/admin/plugin_services/volumes/syrus_plugin_git-mirror_data"
     expect(response).to have_http_status(:conflict)
     expect(json.dig("error", "code")).to eq("volume_in_use")
+  end
+
+  it "returns what a running service says about itself" do
+    allow(PluginRuntime::Services).to receive(:endpoint_for).with("git-mirror").and_return("http://git-mirror:8080")
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/plugin_services/git-mirror/details"
+
+    expect(response).to have_http_status(:ok)
+    expect(json.dig("details", "summary", 0, "value")).to eq(1)
+    expect(json.dig("details", "endpoint")).to eq("http://git-mirror:8080")
+  end
+
+  it "answers 503 for details while the service is not answering" do
+    allow(PluginRuntime::Services).to receive(:endpoint_for).with("git-mirror").and_return(nil)
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/plugin_services/git-mirror/details"
+
+    expect(response).to have_http_status(:service_unavailable)
   end
 
   it "is admin-only" do

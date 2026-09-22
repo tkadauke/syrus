@@ -38,6 +38,9 @@
   "volume_unused": "Not in use",
   "delete_volume": "Delete data",
   "confirm_delete_volume": "Delete {{volume}}? Everything {{plugin}} stored there is gone for good; re-enabling it starts from scratch.",
+  "details": "Details",
+  "details_heading": "Details: {{service}}",
+  "details_error": "Could not load details.",
   "state": {
     "running": "Running",
     "starting": "Starting",

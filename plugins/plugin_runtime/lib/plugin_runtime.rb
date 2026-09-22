@@ -34,6 +34,7 @@ module PluginRuntime
     route :post, "/api/v1/app/admin/plugin_services/:name/start", to: "api/v1/app/admin/plugin_services#start"
     route :post, "/api/v1/app/admin/plugin_services/:name/restart", to: "api/v1/app/admin/plugin_services#restart"
     route :get, "/api/v1/app/admin/plugin_services/:name/logs", to: "api/v1/app/admin/plugin_services#logs"
+    route :get, "/api/v1/app/admin/plugin_services/:name/details", to: "api/v1/app/admin/plugin_services#details"
     route :delete, "/api/v1/app/admin/plugin_services/volumes/:name", to: "api/v1/app/admin/plugin_services#remove_volume"
     frontend routes: { "plugin_runtime/AdminPluginServices" => "app/frontend/routes/AdminPluginServices.tsx" },
              i18n: [ "app/frontend/i18n/locales/*/plugin_runtime.json" ]
