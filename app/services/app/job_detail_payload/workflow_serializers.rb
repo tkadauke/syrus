@@ -16,6 +16,9 @@ module App
       MAX_COMMAND_SPANS_PER_RUN = [ Integer(ENV["SYRUS_JOB_DETAIL_MAX_COMMAND_SPANS_PER_RUN"], exception: false) || 50, 1 ].max
       ACTIVE_RUN_STATES = %w[queued running].freeze
       ACTIVE_STEP_STATES = %w[queued running].freeze
+      # Common grader-name segments whose title-cased form reads wrong
+      # ("Rspec", "Ci") -- everything else falls back to plain capitalization.
+      GRADER_NAME_WORD_OVERRIDES = { "rspec" => "RSpec", "ci" => "CI", "api" => "API", "db" => "DB" }.freeze
 
       def workflows_json
         PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
@@ -447,11 +450,35 @@ module App
       end
 
       def step_display_name(step, workflow: step.workflow)
-        return step.details["name"].presence || step.details["command"].presence || "grader" if step.kind == "grader"
+        return grader_display_name(step) if step.kind == "grader" || step.kind == "preflight_grader"
         return merge_train_land_label(workflow, after_rebase: false) if step.kind == "merge_train_land"
         return merge_train_land_label(workflow, after_rebase: true) if step.kind == "merge_train_land_after_rebase"
 
         Step::Kind.label_for(step.kind)
+      end
+
+      # Humanizes a materialized grader Step's title from its machine id
+      # (e.g. "plugins-rails-rspec-focused") into an operator-facing label
+      # (e.g. "plugins/rails: RSpec Focused"). Prefers `target_label`
+      # (`//package:grade/name`, always present on graders resolved through
+      # TargetGraph::GradePlan or RepoGradePlan's synthesized fallback) since
+      # it cleanly separates the owning package from the grader's own name --
+      # the flattened `name` id has already dash-joined the two and can't be
+      # split back apart. The exact `name`/`target_label` stay available
+      # verbatim in the step's details for anyone who needs the machine id.
+      def grader_display_name(step)
+        details = step.details || {}
+        match = details["target_label"].to_s.match(%r{\A//(?<package>[^:]*):(?<name>.+)\z})
+        local_name = match && match[:name].delete_prefix("grade/")
+        humanized = humanize_grader_segment(local_name.presence || details["name"] || details["command"])
+        return "grader" if humanized.blank?
+
+        package = match && match[:package].presence
+        package ? "#{package}: #{humanized}" : humanized
+      end
+
+      def humanize_grader_segment(segment)
+        segment.to_s.tr("-_", " ").split.map { |word| GRADER_NAME_WORD_OVERRIDES[word.downcase] || word.capitalize }.join(" ")
       end
 
       def merge_train_land_label(workflow, after_rebase:)

@@ -1304,7 +1304,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       get "/api/v1/app/jobs/#{job.id}/workflows"
 
       step_payload = serialized_steps(parse_body).find { |payload| payload["id"] == grade_step.id }
-      expect(step_payload).to include("display_name" => "tests", "display_status" => "failed")
+      expect(step_payload).to include("display_name" => "Tests", "display_status" => "failed")
       run_payload = step_payload["runs"].find { |payload| payload["id"] == grade_run.id }
       expect(run_payload["app_grade_log_path"]).to include("/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", "name=tests")
       expect(run_payload).not_to have_key("grade_log_path")
