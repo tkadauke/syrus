@@ -37,6 +37,8 @@
     "spawned_processes": "Processus geniti, per genus",
     "provider_circuit_state": "Status circuli praebitoris, per praebitorem",
     "github_rate_limit": "Limes GitHub relictus, per modum crederum",
+    "github_app_rate_limit_percent": "Limes rationis GitHub App reliquus",
+    "github_app_api_blocked": "Institutiones GitHub App ab API interclusae",
     "main_branch_broken_count": "Repositoria ramo principali fracto",
     "recurring_job_last_success": "Tempus post ultimum successum operis recurrentis, per opus",
     "provider_sessions_bytes": "Spatium sessionum praebitoris",

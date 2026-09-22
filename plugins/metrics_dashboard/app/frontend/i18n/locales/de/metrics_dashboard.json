@@ -37,6 +37,8 @@
     "spawned_processes": "Gestartete Prozesse, nach Art",
     "provider_circuit_state": "Provider-Schaltkreisstatus, nach Provider",
     "github_rate_limit": "Verbleibendes GitHub-Ratenlimit, nach Anmeldemodus",
+    "github_app_rate_limit_percent": "Verbleibendes GitHub-App-Ratenlimit",
+    "github_app_api_blocked": "Für die API gesperrte GitHub-App-Installationen",
     "main_branch_broken_count": "Repositories mit defektem Hauptbranch",
     "recurring_job_last_success": "Zeit seit letztem Erfolg wiederkehrender Jobs, nach Job",
     "provider_sessions_bytes": "Provider-Sitzungsspeicher",
