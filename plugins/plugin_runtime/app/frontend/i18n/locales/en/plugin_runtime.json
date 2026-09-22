@@ -41,6 +41,7 @@
   "details": "Details",
   "details_heading": "Details: {{service}}",
   "details_error": "Could not load details.",
+  "copy_logs": "Copy logs",
   "state": {
     "running": "Running",
     "starting": "Starting",

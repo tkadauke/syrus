@@ -14,8 +14,10 @@ or a framework preset — broader linting is a separate concern.
 
 ## Enforcement
 
-`npx eslint app/frontend plugins/*/app/frontend` (`npm run lint`) fails when
-any rule reports beyond its baseline. Two things actually run it:
+`npx eslint --no-error-on-unmatched-pattern app/frontend plugins/*/app/frontend`
+(`npm run lint`) fails when any rule reports beyond its baseline. The flag
+lets a plugin whose `app/frontend` holds only locale files (nothing to lint)
+through instead of failing the whole run. Two things actually run it:
 
 - The `frontend-lint` grader in `.syrus.yml` (`phases: [review, landing,
   ci]`), so a Syrus-implemented PR fails review/landing/CI the same as any

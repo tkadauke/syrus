@@ -41,6 +41,7 @@
   "details": "Details",
   "details_heading": "Details: {{service}}",
   "details_error": "Details konnten nicht geladen werden.",
+  "copy_logs": "Logs kopieren",
   "state": {
     "running": "Läuft",
     "starting": "Startet",

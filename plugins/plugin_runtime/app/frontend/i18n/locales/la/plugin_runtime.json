@@ -41,6 +41,7 @@
   "details": "Singula",
   "details_heading": "Singula: {{service}}",
   "details_error": "Singula onerari non potuerunt.",
+  "copy_logs": "Acta exscribe",
   "state": {
     "running": "Currit",
     "starting": "Incipit",

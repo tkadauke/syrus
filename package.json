@@ -7,7 +7,7 @@
     "desktop:dev": "npm --prefix desktop run dev",
     "typecheck": "tsc --noEmit",
     "test:react": "vitest run && npm run typecheck",
-    "lint": "eslint app/frontend plugins/*/app/frontend",
+    "lint": "eslint --no-error-on-unmatched-pattern app/frontend plugins/*/app/frontend",
     "format:frontend": "prettier --write app/frontend plugins/*/app/frontend eslint-rules package.json package-lock.json tsconfig.json vite.config.ts",
     "format:frontend:changed": "git diff --name-only origin/main...HEAD -- app/frontend 'plugins/*/app/frontend/**' eslint-rules package.json package-lock.json tsconfig.json vite.config.ts | xargs -r prettier --write --ignore-unknown"
   },
