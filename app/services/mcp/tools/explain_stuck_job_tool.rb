@@ -24,23 +24,19 @@ module Mcp::Tools
         job_id = Integer(job_id, exception: false)
         return Mcp::Tools.invalid("job_id is required") unless job_id
 
-        job = job_scope.includes(
-          :repository,
-          :user,
-          :parent_job,
-          :epic,
-          { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :dependencies ] } ] },
-          { workflows: { steps: { runs: [ :run_diagnostic, :run_failure_classification ] } } }
-        ).find_by(id: job_id)
-        return Mcp::Tools.unauthorized("Admin access required") unless job
+        job = find_job!(
+          job_id,
+          includes: [
+            :repository,
+            :user,
+            :parent_job,
+            :epic,
+            { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :dependencies ] } ] },
+            { workflows: { steps: { runs: [ :run_diagnostic, :run_failure_classification ] } } }
+          ]
+        )
 
         Mcp::Tools.success(Admin::StuckJobExplainer.call(job))
-      end
-
-      private
-
-      def job_scope
-        admin? ? Job.all : current_user.jobs
       end
     end
   end
