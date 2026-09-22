@@ -75,7 +75,11 @@ done
 cd "$(git rev-parse --show-toplevel)"
 
 # --- preflight: clean tree, sane HEAD --------------------------------
-if ! git diff-index --quiet HEAD --; then
+# `diff-index` trusts cached stat information and can report a false positive
+# after a file was touched and restored byte-for-byte; an interactive
+# `git status` then appears to "fix" the deploy by refreshing the index.
+# Porcelain status performs that refresh and also catches untracked files.
+if [ -n "$(git status --porcelain=v1 --untracked-files=normal)" ]; then
   echo "✗ uncommitted changes — commit or stash first" >&2
   exit 1
 fi
