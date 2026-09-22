@@ -2,58 +2,13 @@
 # fire and populate PendingActions::REGISTRY. In production, eager_load
 # handles this automatically; this initializer covers development/test
 # where eager_load is disabled.
+#
+# Every file in app/services/pending_actions/ is loaded rather than a
+# hand-kept list: a list missed archive_epic, approve_job, unapprove_job,
+# and run_visual_review, so confirming one of those found no handler
+# outside production. Plugin-owned handlers load through their plugin.
 Rails.application.config.to_prepare do
-  [
-    "pending_actions/base",
-    "pending_actions/cancel_job",
-    "pending_actions/close_job_successfully",
-    "pending_actions/retry_job",
-    "pending_actions/rebase_job",
-    "pending_actions/force_rebase",
-    "pending_actions/restack_epic",
-    "pending_actions/reopen_job",
-    "pending_actions/force_fail_job",
-    "pending_actions/create_repo_document",
-    "pending_actions/delete_repo_document",
-    "pending_actions/poll_job_feedback",
-    "pending_actions/check_job_mergeability",
-    "pending_actions/delegate_issue",
-    "pending_actions/pause_landing_queue",
-    "pending_actions/resume_landing_queue",
-    "pending_actions/submit_coding_changes",
-    "pending_actions/submit_chat_feedback",
-    "pending_actions/complete_implement_step",
-    "pending_actions/submit_coding_changes",
-    "pending_actions/emergency_land",
-    "pending_actions/reopen_epic_and_attach_job",
-    "pending_actions/admin_kill_process",
-    "pending_actions/admin_reap_stale_runs",
-    "pending_actions/admin_pause_polling",
-    "pending_actions/admin_unpause_polling",
-    "pending_actions/admin_pause_runs",
-    "pending_actions/admin_unpause_runs",
-    "pending_actions/admin_clear_github_cache",
-    "pending_actions/admin_maintenance_task",
-    "pending_actions/admin_pause_user_scheduling",
-    "pending_actions/admin_unpause_user_scheduling",
-    "pending_actions/admin_retry_step",
-    "pending_actions/admin_cleanup_workspace",
-    "pending_actions/admin_refresh_installations",
-    "pending_actions/reconcile_job_state",
-    "pending_actions/force_state_transition",
-    "pending_actions/cancel_stale_work",
-    "pending_actions/reenqueue_work",
-    "pending_actions/force_landing_recheck",
-    "pending_actions/manual_agentic_run",
-    "pending_actions/adopt_current_pr_head",
-    "pending_actions/replace_pr_branch_with_workflow_output",
-    "pending_actions/retry_from_current_pr_branch",
-    "pending_actions/rerun_ci_repair",
-    "pending_actions/mark_ci_repair_noop",
-    "pending_actions/override_landing_blocker_once",
-    "pending_actions/wake_landing_queue",
-    "pending_actions/repair_provider_circuit_evidence",
-    "pending_actions/clear_provider_circuit",
-    "pending_actions/wake_provider_admission"
-  ].each { |path| require_dependency path }
+  directory = Rails.root.join("app/services/pending_actions")
+  paths = Dir[directory.join("*.rb")].map { |path| "pending_actions/#{File.basename(path, ".rb")}" }.sort
+  ([ "pending_actions/base" ] | paths).each { |path| require_dependency path }
 end

@@ -154,7 +154,8 @@ RSpec.describe ChatPendingAction, :ci_only do
     )
 
     expect(action).not_to be_valid
-    expect(action.errors[:payload]).to include("closure_reason must be one of pr_merged, external_pr_merged, pr_approved, no_changes, promotion_landed, hotfix_sync_landed")
+    expect(action.errors[:payload]).to include("closure_reason must be one of #{Job::SUCCESSFUL_CLOSURE_REASONS.join(", ")}")
+    expect(Job::SUCCESSFUL_CLOSURE_REASONS).not_to include("cancelled")
   end
 
   it "ignores scalar JSON tool results when looking for pending action ids" do
@@ -814,15 +815,6 @@ RSpec.describe ChatPendingAction, :ci_only do
     end
 
     it "covers every ACTIONS entry and every ACTION_TYPES entry" do
-      # Force auto-load of handlers that are only referenced by string key
-      # in ChatPendingAction::ACTIONS, so their action_key registrations run.
-      # Includes plugin-provided handlers (scheduled_tasks), which aren't
-      # covered by config/initializers/pending_actions.rb's core-only list.
-      PendingActions::CompleteImplementStep
-      PendingActions::SubmitCodingChanges
-      PendingActions::RunVisualReview
-      PendingActions::ApproveJob
-      PendingActions::UnapproveJob
       # ACTIONS/ACTION_TYPES still name actions that plugins own, so the set
       # core can assert on is what remains once a disabled plugin's are
       # subtracted. Handlers under plugins/ are the plugin's to guarantee --
