@@ -11,6 +11,16 @@ class PluginTickSchedulerJob < ApplicationJob
 
   queue_as :control_plane
 
+  # This job runs once a minute (config/recurring.yml), and never at exactly
+  # the same offset: a run that starts a few hundred milliseconds earlier than
+  # the last one found only 59.6s elapsed, missed a strict `interval` cutoff,
+  # and left the plugin for another full minute. Every 1-minute tick in fact
+  # fired every other minute -- ~90s on average, which the metrics dashboard
+  # had measured and sized its buckets around. A claim therefore needs only
+  # `interval - SLACK` to have passed (at most half the interval, so a short
+  # interval can never tick twice in one of its own periods).
+  SLACK = 10.seconds
+
   def perform
     Syrus::PluginRegistry.all_plugins.each do |manifest|
       interval = manifest.tick_interval
@@ -29,7 +39,7 @@ class PluginTickSchedulerJob < ApplicationJob
   # different workers cannot both fire the same interval.
   def enqueue_tick(manifest, interval)
     now = Time.current
-    cutoff = now - interval
+    cutoff = now - interval + [ SLACK, interval / 2 ].min
 
     claimed = PluginRecord
       .where(name: manifest.name)

@@ -52,6 +52,25 @@ RSpec.describe PluginTickSchedulerJob, :reset_plugin_registry do
     expect { described_class.perform_now }.not_to have_enqueued_job(PluginTickJob)
   end
 
+  # The scheduler's own runs drift by fractions of a second. A strict cutoff
+  # turned every 1-minute tick into a 2-minute one whenever a run landed just
+  # under a minute after the last tick.
+  it "ticks a 1-minute plugin on a run that lands just under a minute later" do
+    register(tick_interval: 1.minute)
+    described_class.perform_now
+    PluginRecord.find_by(name: "ticking_plugin").update!(last_ticked_at: 59.6.seconds.ago)
+
+    expect { described_class.perform_now }.to have_enqueued_job(PluginTickJob)
+  end
+
+  it "still does not tick a 1-minute plugin twice in the same minute" do
+    register(tick_interval: 1.minute)
+    described_class.perform_now
+    PluginRecord.find_by(name: "ticking_plugin").update!(last_ticked_at: 45.seconds.ago)
+
+    expect { described_class.perform_now }.not_to have_enqueued_job(PluginTickJob)
+  end
+
   it "ticks again once the interval has elapsed" do
     register(tick_interval: 30.seconds)
     described_class.perform_now
