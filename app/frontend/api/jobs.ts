@@ -766,6 +766,19 @@ export type JobRun = {
   app_diagnose_path: string
   app_resume_path: string
   app_grade_log_path: string | null
+  test_failure_summary?: RunTestFailureSummary | null
+}
+
+export type RunTestFailureSummary = {
+  grader_name: string
+  failed_count: number
+  omitted_count: number
+  failures: Array<{
+    suite_name?: string | null
+    name?: string | null
+    file_path?: string | null
+    failure_message?: string | null
+  }>
 }
 
 export type JobRunActiveProcess = {

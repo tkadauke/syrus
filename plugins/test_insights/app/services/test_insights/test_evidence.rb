@@ -10,6 +10,7 @@ module TestInsights
     include Syrus::Plugin::TestEvidence
 
     FAILURE_STATUSES = %w[failed error].freeze
+    FAILURE_MESSAGE_SNIPPET_BYTES = 300
 
     def self.test_case_count(run:, grader_name:)
       return 0 if run.nil?
@@ -35,17 +36,27 @@ module TestInsights
 
       TestCase.joins(:test_run)
               .where(test_insight_runs: { run_id: run.id, grader_name: grader_name }, status: FAILURE_STATUSES)
-              .select(:suite_name, :name, :file_path)
+              .select(:suite_name, :name, :file_path, :failure_message)
               .map do |test_case|
                 {
                   "suite_name" => test_case.suite_name,
                   "name" => test_case.name,
                   "file_path" => test_case.file_path,
-                  "identity" => [ test_case.suite_name, test_case.name ].join(0.chr)
+                  "identity" => [ test_case.suite_name, test_case.name ].join(0.chr),
+                  "failure_message" => failure_message_snippet(test_case.failure_message)
                 }
               end
               .uniq
               .sort_by { |test_case| test_case.fetch("identity") }
+    end
+
+    # First line only, byte-bounded -- this rides inline in the job detail
+    # payload, not behind a click like the full grade log, so it must stay
+    # short regardless of how verbose the underlying matcher failure was.
+    def self.failure_message_snippet(message)
+      return nil if message.blank?
+
+      message.to_s.lines.first.to_s.strip.safe_byteslice(0, FAILURE_MESSAGE_SNIPPET_BYTES)
     end
 
     # Backs Adjudicators::KnownFlakyFailure. Delegates entirely to
