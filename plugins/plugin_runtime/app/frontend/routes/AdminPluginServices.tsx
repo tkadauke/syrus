@@ -6,10 +6,12 @@ import { useConfirm } from "@app/hooks/useConfirm"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import {
+  deletePluginServiceVolume,
   fetchPluginServiceLogs,
   fetchPluginServices,
   runPluginServiceAction,
-  type PluginService
+  type PluginService,
+  type PluginServiceVolume
 } from "../api/pluginServices"
 
 const QUERY_KEY = ["admin", "plugin_services"]
@@ -67,6 +69,8 @@ export function AdminPluginServices() {
           </Section.Root>
 
           {logsFor ? <LogsPanel name={logsFor} onClose={() => setLogsFor(null)} /> : null}
+
+          {payload.volumes.length > 0 ? <VolumesSection volumes={payload.volumes} /> : null}
         </>
       ) : null}
     </Page.Root>
@@ -198,6 +202,79 @@ function LogsPanel({ name, onClose }: { name: string; onClose: () => void }) {
         {logs.isPending ? t("loading") : logs.data?.logs || t("logs_empty")}
       </pre>
     </Section.Root>
+  )
+}
+
+function formatBytes(bytes: number) {
+  const units = ["B", "KB", "MB", "GB", "TB"]
+  let value = bytes
+  let unit = 0
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024
+    unit += 1
+  }
+  return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
+}
+
+// Stored data: the volumes plugin services keep. One whose service has no
+// container belongs to a disabled or removed plugin and can be deleted here.
+function VolumesSection({ volumes }: { volumes: PluginServiceVolume[] }) {
+  const { t } = useT("plugin_runtime")
+
+  return (
+    <Section.Root aria-label={t("volumes_heading")}>
+      <SectionHeading>{t("volumes_heading")}</SectionHeading>
+      <Text className="mb-3" tone="muted">{t("volumes_description")}</Text>
+      <DataTable.Root>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("col_volume")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_plugin")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_size")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_state")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("col_actions")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
+          {volumes.map((volume) => (
+            <DataTable.Row key={volume.name}>
+              <DataTable.Cell className="font-mono text-xs">{volume.name}</DataTable.Cell>
+              <DataTable.Cell>{volume.plugin ?? "-"}</DataTable.Cell>
+              <DataTable.Cell>{typeof volume.size_bytes === "number" ? formatBytes(volume.size_bytes) : "-"}</DataTable.Cell>
+              <DataTable.Cell>
+                <Pill tone={volume.in_use ? "success" : "neutral"}>{volume.in_use ? t("volume_in_use") : t("volume_unused")}</Pill>
+              </DataTable.Cell>
+              <DataTable.Cell align="right">
+                {volume.in_use ? null : <DeleteVolumeButton volume={volume} />}
+              </DataTable.Cell>
+            </DataTable.Row>
+          ))}
+        </DataTable.Body>
+      </DataTable.Root>
+    </Section.Root>
+  )
+}
+
+function DeleteVolumeButton({ volume }: { volume: PluginServiceVolume }) {
+  const { t } = useT("plugin_runtime")
+  const queryClient = useQueryClient()
+  const { confirm, dialog } = useConfirm()
+  const remove = useMutation({
+    mutationFn: () => deletePluginServiceVolume(volume.name),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+  })
+
+  async function onDelete() {
+    const confirmed = await confirm({ message: t("confirm_delete_volume", { volume: volume.name, plugin: volume.plugin ?? "" }), destructive: true })
+    if (confirmed) remove.mutate()
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      {dialog}
+      <Button disabled={remove.isPending} onClick={() => void onDelete()} size="sm" variant="danger">{t("delete_volume")}</Button>
+      {remove.isError ? <Text variant="caption" tone="danger">{remove.error instanceof Error ? remove.error.message : t("action_failed")}</Text> : null}
+    </div>
   )
 }
 

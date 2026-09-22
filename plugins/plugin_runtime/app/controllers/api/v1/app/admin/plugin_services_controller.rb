@@ -22,6 +22,13 @@ module Api
             render_control_error(e)
           end
 
+          def remove_volume
+            controls.remove_volume!(params[:name])
+            head :no_content
+          rescue ::PluginRuntime::Controls::Error, ::PluginRuntime::Client::Error => e
+            render_control_error(e)
+          end
+
           private
 
           def act(action)
@@ -36,6 +43,7 @@ module Api
             when ::PluginRuntime::Controls::NotManaged then [ "not_managed", :unprocessable_content ]
             when ::PluginRuntime::Controls::UnknownService, ::PluginRuntime::Client::NotFound then [ "not_found", :not_found ]
             when ::PluginRuntime::Client::Refused then [ "refused", :unprocessable_content ]
+            when ::PluginRuntime::Client::Conflict then [ "volume_in_use", :conflict ]
             else [ "runtime_unavailable", :service_unavailable ]
             end
             render_error(code, error.message, status: status)

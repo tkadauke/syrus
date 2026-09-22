@@ -29,6 +29,9 @@ type Manager interface {
 	Start(ctx context.Context, name string) (manager.Status, error)
 	Restart(ctx context.Context, name string) (manager.Status, error)
 	Logs(ctx context.Context, name string, tail int) (string, error)
+	Volumes(ctx context.Context) ([]manager.VolumeStatus, error)
+	RemoveVolume(ctx context.Context, name string) error
+	PurgePlugin(ctx context.Context, plugin string) ([]string, error)
 }
 
 const (
@@ -62,6 +65,10 @@ func New(m Manager, token string, info Info) http.Handler {
 	mux.Handle("POST /v1/services/{name}/start", auth(token, s.action(s.manager.Start)))
 	mux.Handle("POST /v1/services/{name}/restart", auth(token, s.action(s.manager.Restart)))
 	mux.Handle("GET /v1/services/{name}/logs", auth(token, http.HandlerFunc(s.logs)))
+	// Stored data: plugin services' volumes.
+	mux.Handle("GET /v1/volumes", auth(token, http.HandlerFunc(s.volumes)))
+	mux.Handle("DELETE /v1/volumes/{name}", auth(token, http.HandlerFunc(s.removeVolume)))
+	mux.Handle("DELETE /v1/plugins/{plugin}", auth(token, http.HandlerFunc(s.purgePlugin)))
 	return mux
 }
 
@@ -170,9 +177,39 @@ func (h *handlers) logs(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(w, text)
 }
 
+func (h *handlers) volumes(w http.ResponseWriter, r *http.Request) {
+	volumes, err := h.manager.Volumes(r.Context())
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"volumes": volumes})
+}
+
+func (h *handlers) removeVolume(w http.ResponseWriter, r *http.Request) {
+	if err := h.manager.RemoveVolume(r.Context(), r.PathValue("name")); err != nil {
+		h.fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *handlers) purgePlugin(w http.ResponseWriter, r *http.Request) {
+	removed, err := h.manager.PurgePlugin(r.Context(), r.PathValue("plugin"))
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"removed_volumes": removed})
+}
+
 func (h *handlers) fail(w http.ResponseWriter, err error) {
 	if errors.Is(err, manager.ErrNotFound) {
 		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if errors.Is(err, manager.ErrVolumeInUse) {
+		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 	var refused *policy.Error

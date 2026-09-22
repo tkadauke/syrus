@@ -146,6 +146,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:build_system_graph_provider)
     end
 
+    it "includes :purge_contributor" do
+      expect(described_class::EXTENSION_POINTS).to include(:purge_contributor)
+    end
+
     it "includes :repository_content_provider" do
       expect(described_class::EXTENSION_POINTS).to include(:repository_content_provider)
     end

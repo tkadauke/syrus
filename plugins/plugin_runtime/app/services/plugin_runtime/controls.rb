@@ -43,6 +43,15 @@ module PluginRuntime
       driver.ensure_now(entry)
     end
 
+    # Deletes a plugin service's stored data. The manager refuses while the
+    # volume's service still has a container (Client::Conflict), so this only
+    # ever removes data a disabled or removed plugin left behind.
+    def remove_volume!(name)
+      raise NotManaged, "plugin services are managed outside Syrus in this deployment" unless @configuration.managed?
+
+      client.remove_volume(name)
+    end
+
     def logs(name, tail: DEFAULT_LOG_TAIL)
       entry = entry_for(name)
       client.logs(entry.name, tail: tail.to_i.clamp(1, 5000))

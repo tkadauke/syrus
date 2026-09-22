@@ -67,6 +67,7 @@ type Docker interface {
 	CreateVolume(ctx context.Context, name string, labels map[string]string) error
 	ListVolumes(ctx context.Context, labels map[string]string) ([]docker.VolumeSummary, error)
 	RemoveVolume(ctx context.Context, name string) error
+	VolumeSizes(ctx context.Context) (map[string]int64, error)
 }
 
 // Status describes one service.
@@ -223,6 +224,97 @@ func (m *Manager) Remove(ctx context.Context, name string, purge bool) error {
 }
 
 // Status reports one service's state, probing its health endpoint if it has one.
+// ErrVolumeInUse refuses to delete a volume whose service still has a
+// container: stop the plugin first.
+var ErrVolumeInUse = errors.New("volume belongs to a service that still has a container")
+
+// VolumeStatus is one managed volume -- a plugin service's stored data.
+type VolumeStatus struct {
+	Name    string `json:"name"`
+	Service string `json:"service"`
+	Plugin  string `json:"plugin"`
+	// InUse is true while the volume's service has a container.
+	InUse bool `json:"in_use"`
+	// SizeBytes is nil when the daemon could not size it.
+	SizeBytes *int64 `json:"size_bytes,omitempty"`
+}
+
+// Volumes lists this project's managed volumes.
+func (m *Manager) Volumes(ctx context.Context) ([]VolumeStatus, error) {
+	volumes, err := m.docker.ListVolumes(ctx, m.projectLabels())
+	if err != nil {
+		return nil, err
+	}
+	containers, err := m.docker.ListContainers(ctx, m.projectLabels())
+	if err != nil {
+		return nil, err
+	}
+	running := map[string]bool{}
+	for _, c := range containers {
+		running[c.Labels[LabelService]] = true
+	}
+	sizes, _ := m.docker.VolumeSizes(ctx) // best-effort
+	out := make([]VolumeStatus, 0, len(volumes))
+	for _, v := range volumes {
+		st := VolumeStatus{Name: v.Name, Service: v.Labels[LabelService], Plugin: v.Labels[LabelPlugin], InUse: running[v.Labels[LabelService]]}
+		if size, ok := sizes[v.Name]; ok {
+			st.SizeBytes = &size
+		}
+		out = append(out, st)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+// RemoveVolume deletes one of this project's managed volumes, refusing while
+// its service has a container. Anything not labelled as ours is not found:
+// this can never delete a volume the manager did not create.
+func (m *Manager) RemoveVolume(ctx context.Context, name string) error {
+	volumes, err := m.Volumes(ctx)
+	if err != nil {
+		return err
+	}
+	for _, v := range volumes {
+		if v.Name != name {
+			continue
+		}
+		if v.InUse {
+			return ErrVolumeInUse
+		}
+		return m.docker.RemoveVolume(ctx, name)
+	}
+	return ErrNotFound
+}
+
+// PurgePlugin removes every container and volume this project runs for a
+// plugin -- what purging an uninstalled plugin's data means for its
+// services. Returns the volumes removed.
+func (m *Manager) PurgePlugin(ctx context.Context, plugin string) ([]string, error) {
+	labels := m.projectLabels()
+	labels[LabelPlugin] = plugin
+	containers, err := m.docker.ListContainers(ctx, labels)
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range containers {
+		if err := m.removeContainer(ctx, c.ID); err != nil {
+			return nil, err
+		}
+	}
+	volumes, err := m.docker.ListVolumes(ctx, labels)
+	if err != nil {
+		return nil, err
+	}
+	removed := []string{}
+	for _, v := range volumes {
+		if err := m.docker.RemoveVolume(ctx, v.Name); err != nil && !docker.IsNotFound(err) {
+			return removed, err
+		}
+		removed = append(removed, v.Name)
+	}
+	return removed, nil
+}
+
 // ErrNotFound is returned by operator actions on a service that has no
 // container -- never created, still pulling, or removed.
 var ErrNotFound = errors.New("service has no container")

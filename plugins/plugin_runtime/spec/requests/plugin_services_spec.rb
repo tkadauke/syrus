@@ -17,6 +17,7 @@ RSpec.describe "API: admin plugin services", type: :request do
     allow(PluginRuntime::Configuration).to receive(:current).and_return(configuration)
     allow(PluginRuntime::DesiredServices).to receive(:all)
       .and_return([ PluginRuntime::DesiredServices::Entry.new(name: "git-mirror", plugin: "git_mirror", provider: provider) ])
+    stub_request(:get, "#{manager}/v1/volumes").to_return(status: 200, body: { volumes: [] }.to_json)
   end
 
   def json = JSON.parse(response.body)
@@ -89,6 +90,27 @@ RSpec.describe "API: admin plugin services", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(json.dig("error", "code")).to eq("not_managed")
+  end
+
+  it "lists stored data and deletes what no running service uses" do
+    stub_request(:get, "#{manager}/v1/services").to_return(status: 200, body: { services: [] }.to_json)
+    stub_request(:get, "#{manager}/v1/volumes").to_return(status: 200, body: { volumes: [
+      { name: "syrus_plugin_old_data", service: "old", plugin: "old_plugin", in_use: false, size_bytes: 4096 }
+    ] }.to_json)
+    remove = stub_request(:delete, "#{manager}/v1/volumes/syrus_plugin_old_data").to_return(status: 204, body: "")
+    stub_request(:delete, "#{manager}/v1/volumes/syrus_plugin_git-mirror_data").to_return(status: 409, body: { error: "in use" }.to_json)
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/plugin_services"
+    expect(json["volumes"].sole).to include("name" => "syrus_plugin_old_data", "in_use" => false, "size_bytes" => 4096)
+
+    delete "/api/v1/app/admin/plugin_services/volumes/syrus_plugin_old_data"
+    expect(response).to have_http_status(:no_content)
+    expect(remove).to have_been_requested
+
+    delete "/api/v1/app/admin/plugin_services/volumes/syrus_plugin_git-mirror_data"
+    expect(response).to have_http_status(:conflict)
+    expect(json.dig("error", "code")).to eq("volume_in_use")
   end
 
   it "is admin-only" do

@@ -84,4 +84,24 @@ RSpec.describe PluginRuntime::Client do
       expect(client.logs("git-mirror", tail: 50)).to eq("2026-09-22T01:00:00Z GET /v1/repositories 200\n")
     end
   end
+
+  describe "stored data" do
+    it "lists, deletes, and purges volumes" do
+      stub_request(:get, "http://plugin-runtime:8080/v1/volumes")
+        .to_return(status: 200, body: { volumes: [ { name: "v", plugin: "git_mirror", in_use: false } ] }.to_json)
+      remove = stub_request(:delete, "http://plugin-runtime:8080/v1/volumes/v").to_return(status: 204, body: "")
+      stub_request(:delete, "http://plugin-runtime:8080/v1/plugins/git_mirror").to_return(status: 200, body: { removed_volumes: [ "v" ] }.to_json)
+
+      expect(client.volumes.sole).to include("name" => "v")
+      client.remove_volume("v")
+      expect(remove).to have_been_requested
+      expect(client.purge_plugin("git_mirror")).to eq([ "v" ])
+    end
+
+    it "raises Conflict for a volume still in use" do
+      stub_request(:delete, %r{/v1/volumes/v}).to_return(status: 409, body: { error: "in use" }.to_json)
+
+      expect { client.remove_volume("v") }.to raise_error(described_class::Conflict)
+    end
+  end
 end

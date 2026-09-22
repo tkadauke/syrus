@@ -10,7 +10,7 @@
 #     VERIFIED by re-listing afterwards; anything left behind is reported
 #     honestly (step status `failed`) and the script exits 3
 #   - images whose repository BASENAME is exactly `syrus-backend` or
-#     `syrus-local` (any registry/namespace — the same exact-segment
+#     `syrus-local`, or starts with `syrus-plugin-` (any registry/namespace — the same exact-segment
 #     semantics as desktop/electron/installer/imageCleanup.ts, so a user's
 #     unrelated `my-syrus-backend` never matches). Removal is a plain
 #     `docker rmi <repo:tag>` per tag, never -f: -f would untag EVERY tag
@@ -270,10 +270,12 @@ canonical_path() { # physical (symlink-resolved) path of an existing file; fails
 }
 
 list_syrus_containers() { # every container the compose project or its plugin runtime created, by ID
+  # Deduplicated in first-seen order (not sorted): the compose stack's own
+  # containers come first, as they always did.
   {
     docker ps -aq --filter "$COMPOSE_LABEL_FILTER" 2>/dev/null || true
     docker ps -aq --filter "$PLUGIN_LABEL_FILTER" 2>/dev/null || true
-  } | sort -u | sed '/^$/d'
+  } | sed '/^$/d' | awk '!seen[$0]++'
 }
 
 list_syrus_volumes() { # label-discovered volumes PLUS the known names, deduped
@@ -340,7 +342,7 @@ if [ "$docker_ready" = "1" ]; then
     info "        compose label; known names $KNOWN_VOLUMES"
     info "        as a fallback) — verified by re-listing after teardown"
   fi
-  info "Docker images: syrus-backend and syrus-local images (exact repository"
+  info "Docker images: syrus-backend, syrus-local, and syrus-plugin-* images (exact repository"
   info "               basename, any registry) — plain docker rmi per tag, never -f"
 else
   info "Docker: not reachable — container/volume/image removal will be SKIPPED."
@@ -492,7 +494,10 @@ if [ "$docker_ready" = "1" ]; then
     # Exact repository BASENAME match (mirrors desktop/electron/installer/
     # imageCleanup.ts): a user's unrelated `my-syrus-backend` never matches.
     case "${repo##*/}" in
-      syrus-backend|syrus-local)
+      syrus-backend|syrus-local|syrus-plugin-*)
+        # syrus-plugin-* are the plugin service images Plugin Runtime pulls
+        # (git mirror, ...); they carry the backend's tags, so the same
+        # channel filter applies.
         # Only retire THIS channel's image tags (mirrors the tagChannel filter
         # in desktop/electron/installer/imageCleanup.ts): release tags are
         # semver/latest, test tags are test-<sha> / <X.Y.Z-test.N>. Both

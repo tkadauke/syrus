@@ -78,7 +78,7 @@ RSpec.describe "uninstall scripts", :ci_only do
         ps) cat "#{containers}" 2>/dev/null; exit 0 ;;
         rm) : > "#{containers}"; exit 0 ;;
         images)
-          printf 'ghcr.io/tkadauke/syrus-backend 0.1.2\\nghcr.io/someone/syrus-local dev-abc\\nregistry.example.com:5000/fork/syrus-backend latest\\nmy-syrus-backend latest\\nnginx latest\\n'
+          printf 'ghcr.io/tkadauke/syrus-backend 0.1.2\\nghcr.io/someone/syrus-local dev-abc\\nregistry.example.com:5000/fork/syrus-backend latest\\nmy-syrus-backend latest\\nnginx latest\\nghcr.io/tkadauke/syrus-plugin-git-mirror 0.1.2\\nmy-syrus-plugin-thing latest\\n'
           exit 0 ;;
         rmi) exit #{rmi_fails ? 1 : 0} ;;
         volume)
@@ -217,6 +217,13 @@ RSpec.describe "uninstall scripts", :ci_only do
           expect(calls).to include("rmi registry.example.com:5000/fork/syrus-backend:latest")
           expect(calls.grep(/\Armi -f/)).to be_empty
           expect(calls.grep(/\Armi /).grep(/my-syrus-backend|nginx/)).to be_empty
+          # Plugin service images go too; a lookalike basename does not.
+          expect(calls).to include("rmi ghcr.io/tkadauke/syrus-plugin-git-mirror:0.1.2")
+          expect(calls.grep(/\Armi /).grep(/my-syrus-plugin-thing/)).to be_empty
+          # Plugin service containers and volumes are found by the runtime
+          # manager's label, since Compose did not create them.
+          expect(calls).to include(a_string_matching(/ps -aq --filter label=dev\.syrus\.runtime\.project=/))
+          expect(calls).to include(a_string_matching(/volume ls -q --filter label=dev\.syrus\.runtime\.project=/))
 
           expect(Dir.exist?(File.join(home, ".syrus"))).to be(false)
           expect(File.exist?(File.join(home, ".local", "bin", "syrus"))).to be(false)
@@ -370,7 +377,7 @@ RSpec.describe "uninstall scripts", :ci_only do
           events = parse_events(out)
           images_step = events.find { |e| e["event"] == "step" && e["id"] == "docker_images" && e["status"] == "ok" }
           expect(images_step).not_to be_nil
-          expect(images_step["detail"]).to eq("0 removed, 3 left in place")
+          expect(images_step["detail"]).to eq("0 removed, 4 left in place")
           expect(events).to include(
             hash_including("event" => "log", "stream" => "docker",
               "line" => "left image ghcr.io/tkadauke/syrus-backend:0.1.2 in place (still referenced, or removal failed)")
@@ -605,7 +612,8 @@ RSpec.describe "uninstall scripts", :ci_only do
       end
       # Image matching is by exact repository basename (the documented
       # imageCleanup.ts semantics): a suffix glob would eat my-syrus-backend.
-      expect(script_text).to include("syrus-backend|syrus-local)")
+      expect(script_text).to include("syrus-backend|syrus-local|syrus-plugin-*)")
+      expect(ps1).to include('-not $repoBasename.StartsWith("syrus-plugin-")')
       expect(ps1).to include('-ne "syrus-backend"')
       expect(ps1).to include('-ne "syrus-local"')
       expect(script_text).not_to include("*syrus-backend")

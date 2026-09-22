@@ -32,6 +32,7 @@ function payload(overrides: Partial<PluginServicesPayload> = {}): PluginServices
         actions: ["stop", "restart", "logs"]
       }
     ],
+    volumes: [],
     ...overrides
   }
 }
@@ -138,5 +139,31 @@ describe("AdminPluginServices", () => {
 
     expect(await screen.findByText(/managed outside Syrus/)).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument()
+  })
+
+  it("lists stored data and deletes only what no running service uses, after asking", async () => {
+    const confirm = mockUseConfirm(true)
+    const fetchSpy = mockApi(payload({
+      volumes: [
+        { name: "syrus_plugin_git-mirror_data", service: "git-mirror", plugin: "git_mirror", in_use: true, size_bytes: 1_288_490_189 },
+        { name: "syrus_plugin_old-service_data", service: "old-service", plugin: "old_plugin", in_use: false, size_bytes: 2048 }
+      ]
+    }), (path, method) =>
+      method === "DELETE" ? new Response(null, { status: 204 }) : undefined)
+
+    renderRoute(<AdminPluginServices />)
+
+    const inUse = (await screen.findByText("syrus_plugin_git-mirror_data")).closest("tr") as HTMLElement
+    expect(within(inUse).getByText("1.2 GB")).toBeInTheDocument()
+    expect(within(inUse).queryByRole("button", { name: "Delete data" })).not.toBeInTheDocument()
+
+    const unused = screen.getByText("syrus_plugin_old-service_data").closest("tr") as HTMLElement
+    fireEvent.click(within(unused).getByRole("button", { name: "Delete data" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/admin/plugin_services/volumes/syrus_plugin_old-service_data",
+      expect.objectContaining({ method: "DELETE" })
+    ))
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
   })
 })

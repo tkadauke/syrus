@@ -293,6 +293,30 @@ func (c *Client) ListVolumes(ctx context.Context, labels map[string]string) ([]V
 	return out.Volumes, err
 }
 
+// VolumeSizes reports each volume's disk usage in bytes, as far as the daemon
+// knows it (/system/df). Best-effort: sizing can be slow or unsupported, and
+// callers show a size only when one came back.
+func (c *Client) VolumeSizes(ctx context.Context) (map[string]int64, error) {
+	var out struct {
+		Volumes []struct {
+			Name      string `json:"Name"`
+			UsageData *struct {
+				Size int64 `json:"Size"`
+			} `json:"UsageData"`
+		} `json:"Volumes"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/system/df", url.Values{"type": {"volume"}}, nil, &out); err != nil {
+		return nil, err
+	}
+	sizes := make(map[string]int64, len(out.Volumes))
+	for _, v := range out.Volumes {
+		if v.UsageData != nil && v.UsageData.Size >= 0 {
+			sizes[v.Name] = v.UsageData.Size
+		}
+	}
+	return sizes, nil
+}
+
 // RemoveVolume deletes a named volume.
 func (c *Client) RemoveVolume(ctx context.Context, name string) error {
 	return c.do(ctx, http.MethodDelete, "/volumes/"+url.PathEscape(name), nil, nil, nil)

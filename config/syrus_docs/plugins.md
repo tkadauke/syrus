@@ -29,6 +29,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `workspace_tab`
 - `retention_policy`
 - `repository_content_provider`
+- `purge_contributor`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The index page is the scan-and-filter inventory: each card
@@ -2581,7 +2582,11 @@ Disable never mutates schema, so an operator can turn a plugin off and back on
 without losing anything. That is why uninstalling does not drop tables either:
 removing a gem to try something is not a statement about the data.
 
-Purge is the explicit third step:
+Purge is the explicit third step. Besides the plugin's tables it removes what
+other plugins hold for it outside the database: any enabled plugin providing
+`purge_contributor` (class methods `purge_report(plugin_name)` -> lines to show
+and `purge!(plugin_name)` -> what was removed) is asked, so purging a
+container-backed plugin also removes its volumes through Plugin Runtime.
 
 ```sh
 bin/rails 'plugin:data[build_cache]'    # what a purge would remove

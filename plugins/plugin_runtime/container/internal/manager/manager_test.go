@@ -401,3 +401,57 @@ func TestOperatorActionsOnAMissingServiceAreNotFound(t *testing.T) {
 		t.Fatalf("logs: %v", err)
 	}
 }
+
+func TestVolumesListStoredDataAndRefuseToDeleteWhatIsInUse(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	d.volumes["staging_plugin_git-mirror_data"] = map[string]string{LabelManaged: "true", LabelProject: "staging", LabelService: "git-mirror", LabelPlugin: "git_mirror"}
+	d.volumes["someone-elses"] = map[string]string{}
+	m := newManager(d)
+	if _, err := m.Ensure(context.Background(), "git-mirror", service()); err != nil {
+		t.Fatal(err)
+	}
+
+	volumes, err := m.Volumes(context.Background())
+	if err != nil || len(volumes) != 1 {
+		t.Fatalf("volumes = %+v, %v (want only this project's)", volumes, err)
+	}
+	v := volumes[0]
+	if v.Name != "syrus_plugin_git-mirror_data" || v.Plugin != "git_mirror" || !v.InUse || v.SizeBytes == nil {
+		t.Fatalf("volume = %+v", v)
+	}
+	if err := m.RemoveVolume(context.Background(), v.Name); !errors.Is(err, ErrVolumeInUse) {
+		t.Fatalf("remove in use: %v", err)
+	}
+	if err := m.RemoveVolume(context.Background(), "someone-elses"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("remove foreign: %v", err)
+	}
+
+	if err := m.Remove(context.Background(), "git-mirror", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RemoveVolume(context.Background(), v.Name); err != nil {
+		t.Fatalf("remove after the service is gone: %v", err)
+	}
+	if d.volumes["someone-elses"] == nil || d.volumes["staging_plugin_git-mirror_data"] == nil {
+		t.Fatal("removed a volume the manager does not own for this project")
+	}
+}
+
+func TestPurgePluginRemovesItsContainersAndVolumesOnly(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	d.volumes["syrus_plugin_other_data"] = map[string]string{LabelManaged: "true", LabelProject: "syrus", LabelService: "other", LabelPlugin: "other_plugin"}
+	m := newManager(d)
+	if _, err := m.Ensure(context.Background(), "git-mirror", service()); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := m.PurgePlugin(context.Background(), "git_mirror")
+	if err != nil || len(removed) != 1 || removed[0] != "syrus_plugin_git-mirror_data" {
+		t.Fatalf("removed = %v, %v", removed, err)
+	}
+	if d.containerCount() != 0 || d.volumes["syrus_plugin_other_data"] == nil {
+		t.Fatalf("containers=%d, other plugin's volume kept=%v", d.containerCount(), d.volumes["syrus_plugin_other_data"] != nil)
+	}
+}

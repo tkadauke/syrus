@@ -11,8 +11,14 @@ module Syrus
   # prefix. Nothing here guesses from table names alone, so a core table can
   # never be dropped by purging a plugin.
   class PluginPurge
-    Report = Data.define(:plugin_name, :tables, :row_counts) do
-      def empty? = tables.empty?
+    # `other_data` lists what purge contributors hold for the plugin outside
+    # the database, such as a container-backed plugin's volumes.
+    Report = Data.define(:plugin_name, :tables, :row_counts, :other_data) do
+      def initialize(plugin_name:, tables:, row_counts:, other_data: [])
+        super
+      end
+
+      def empty? = tables.empty? && other_data.empty?
       def total_rows = row_counts.values.sum
     end
 
@@ -25,7 +31,7 @@ module Syrus
 
     # What a purge would remove. Safe to call at any time.
     def report
-      Report.new(plugin_name: @plugin_name, tables: tables, row_counts: row_counts)
+      Report.new(plugin_name: @plugin_name, tables: tables, row_counts: row_counts, other_data: other_data)
     end
 
     # Drops the plugin's tables. Refuses while the plugin is still registered:
@@ -47,8 +53,26 @@ module Syrus
         dropped << table
       end
 
+      removed = contributors.flat_map { |contributor| Array(contributor.purge!(@plugin_name)) }
+
       PluginRecord.where(name: @plugin_name).delete_all
-      dropped
+      dropped + removed
+    end
+
+    # What enabled purge contributors hold for this plugin. A contributor that
+    # cannot answer says so rather than hiding data from the report.
+    def other_data
+      contributors.flat_map do |contributor|
+        Array(contributor.purge_report(@plugin_name))
+      rescue StandardError => e
+        [ "#{contributor}: could not report (#{e.class}: #{e.message})" ]
+      end
+    end
+
+    def contributors
+      Syrus::PluginRegistry.providers_for(:purge_contributor).map do |provider|
+        provider.is_a?(String) ? provider.constantize : provider
+      end
     end
 
     # Tables declared by models that live in the plugin's own directory. Reads

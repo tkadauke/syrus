@@ -9,7 +9,7 @@
 #     VERIFIED by re-listing afterwards; anything left behind is reported
 #     honestly (step status `failed`) and the script exits 3
 #   - images whose repository BASENAME is exactly `syrus-backend` or
-#     `syrus-local` (any registry/namespace - the same exact-segment
+#     `syrus-local`, or starts with `syrus-plugin-` (any registry/namespace - the same exact-segment
 #     semantics as desktop/electron/installer/imageCleanup.ts, so a user's
 #     unrelated `my-syrus-backend` never matches). Removal is a plain
 #     `docker rmi <repo:tag>` per tag, never -f: -f would untag EVERY tag
@@ -471,7 +471,7 @@ if ($dockerReady) {
     Write-Info ("        compose label; known names " + ($script:KnownVolumes -join ", "))
     Write-Info "        as a fallback) - verified by re-listing after teardown"
   }
-  Write-Info "Docker images: syrus-backend and syrus-local images (exact repository"
+  Write-Info "Docker images: syrus-backend, syrus-local, and syrus-plugin-* images (exact repository"
   Write-Info "               basename, any registry) - plain docker rmi per tag, never -f"
 } else {
   Write-Info "Docker: not reachable - container/volume/image removal will be SKIPPED."
@@ -603,7 +603,9 @@ if ($dockerReady) {
     # Exact repository BASENAME match (mirrors desktop/electron/installer/
     # imageCleanup.ts): a user's unrelated my-syrus-backend never matches.
     $repoBasename = ($repo -split "/")[-1]
-    if ($repoBasename -ne "syrus-backend" -and $repoBasename -ne "syrus-local") { continue }
+    # syrus-plugin-* are the plugin service images Plugin Runtime pulls; they
+    # carry the backend's tags, so the same channel filter applies.
+    if ($repoBasename -ne "syrus-backend" -and $repoBasename -ne "syrus-local" -and -not $repoBasename.StartsWith("syrus-plugin-")) { continue }
     # Only retire THIS channel's image tags (mirrors channel.ts tagChannel and
     # uninstall.sh): both channels share the syrus-backend repo, so an unscoped
     # rmi on the test channel would delete the production image.

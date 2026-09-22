@@ -1,4 +1,4 @@
-import { getJson, postJson } from "@app/api/client"
+import { deleteJson, getJson, postJson } from "@app/api/client"
 
 export type PluginServiceAction = "stop" | "start" | "restart" | "logs"
 
@@ -16,11 +16,20 @@ export type PluginService = {
   actions: PluginServiceAction[]
 }
 
+export type PluginServiceVolume = {
+  name: string
+  service: string | null
+  plugin: string | null
+  in_use: boolean
+  size_bytes?: number | null
+}
+
 export type PluginServicesPayload = {
   mode: "managed" | "external"
   manageable: boolean
   manager_error: string | null
   services: PluginService[]
+  volumes: PluginServiceVolume[]
 }
 
 const BASE = "/api/v1/app/admin/plugin_services"
@@ -35,4 +44,8 @@ export function runPluginServiceAction(name: string, action: Exclude<PluginServi
 
 export function fetchPluginServiceLogs(name: string, tail: number) {
   return getJson<{ service: string; logs: string }>(`${BASE}/${encodeURIComponent(name)}/logs?tail=${tail}`)
+}
+
+export function deletePluginServiceVolume(name: string) {
+  return deleteJson<void>(`${BASE}/volumes/${encodeURIComponent(name)}`)
 }

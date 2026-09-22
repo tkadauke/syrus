@@ -95,6 +95,6 @@ to register repositories.
 
 Disabling removes the service (on Compose) and every read goes to the host
 again. The mirrors' volume is kept, so re-enabling does not re-clone
-everything; to reclaim the space, remove it by hand
-(`docker volume rm <project>_plugin_git-mirror_data`, `syrus_plugin_git-mirror_data`
-on a default install).
+everything. To reclaim the space, delete it under Admin -> Plugin Services ->
+Stored data, or run `bin/rails 'plugin:purge[git_mirror]'` after uninstalling
+the plugin.

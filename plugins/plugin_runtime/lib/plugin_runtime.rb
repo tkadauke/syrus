@@ -24,7 +24,8 @@ module PluginRuntime
     # disabling this plugin stops it touching containers at all.
     tick_interval 1.minute
     provides callbacks: "PluginRuntime::Callbacks",
-             admin_page: "PluginRuntime::AdminPages"
+             admin_page: "PluginRuntime::AdminPages",
+             purge_contributor: "PluginRuntime::PurgeContributor"
 
     # Admin -> Plugin Services: every plugin container, with stop, start,
     # restart, and logs.
@@ -33,6 +34,7 @@ module PluginRuntime
     route :post, "/api/v1/app/admin/plugin_services/:name/start", to: "api/v1/app/admin/plugin_services#start"
     route :post, "/api/v1/app/admin/plugin_services/:name/restart", to: "api/v1/app/admin/plugin_services#restart"
     route :get, "/api/v1/app/admin/plugin_services/:name/logs", to: "api/v1/app/admin/plugin_services#logs"
+    route :delete, "/api/v1/app/admin/plugin_services/volumes/:name", to: "api/v1/app/admin/plugin_services#remove_volume"
     frontend routes: { "plugin_runtime/AdminPluginServices" => "app/frontend/routes/AdminPluginServices.tsx" },
              i18n: [ "app/frontend/i18n/locales/*/plugin_runtime.json" ]
   end

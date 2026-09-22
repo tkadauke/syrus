@@ -19,6 +19,8 @@ module PluginRuntime
     class Unavailable < Error; end
     # The service has no container to act on (never created, still pulling).
     class NotFound < Error; end
+    # The volume's service still has a container.
+    class Conflict < Error; end
 
     OPEN_TIMEOUT = 2
     # Ensure answers once the manager has asked the daemon; a pull runs in the
@@ -58,6 +60,15 @@ module PluginRuntime
     def stop(name) = request(Net::HTTP::Post, "#{service_path(name)}/stop")
     def start(name) = request(Net::HTTP::Post, "#{service_path(name)}/start")
     def restart(name) = request(Net::HTTP::Post, "#{service_path(name)}/restart")
+
+    # Stored data: plugin services' volumes.
+    def volumes = Array(request(Net::HTTP::Get, "/v1/volumes")["volumes"])
+    def remove_volume(name) = request(Net::HTTP::Delete, "/v1/volumes/#{ERB::Util.url_encode(name.to_s)}")
+
+    # Removes every container and volume the manager runs for a plugin.
+    def purge_plugin(plugin)
+      Array(request(Net::HTTP::Delete, "/v1/plugins/#{ERB::Util.url_encode(plugin.to_s)}")["removed_volumes"])
+    end
 
     # The last `tail` lines of the container's stdout and stderr, as text.
     def logs(name, tail: 200)
@@ -103,6 +114,7 @@ module PluginRuntime
       # something that heals on retry.
       when 400, 422 then raise Refused, payload["error"].to_s
       when 404 then raise NotFound, payload["error"].to_s
+      when 409 then raise Conflict, payload["error"].to_s
       else raise Unavailable, "runtime manager returned #{code}: #{payload['error']}"
       end
     rescue JSON::ParserError

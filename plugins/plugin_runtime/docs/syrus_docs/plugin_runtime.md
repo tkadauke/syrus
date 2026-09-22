@@ -127,6 +127,14 @@ On a managed (Compose) install an admin can:
 - **Read its logs**: the last 100-2000 lines of stdout and stderr,
   timestamped, optionally refreshed every few seconds.
 
+**Stored data** lists the volumes plugin services keep (owner, size where
+Docker reports it, and whether its service has a container). Disabling a plugin
+keeps its volume so re-enabling does not start from scratch; a volume whose
+service has no container can be deleted here. The manager refuses to delete one
+still in use, and only ever deletes volumes it created for this project.
+`plugin:purge[name]` removes a purged plugin's volumes too (Plugin Runtime is a
+`purge_contributor`).
+
 On an external (Kubernetes) install the page is read-only: it shows the last
 health checks, and actions answer `not_managed`. The API behind the page is
 `GET /api/v1/app/admin/plugin_services`, `POST

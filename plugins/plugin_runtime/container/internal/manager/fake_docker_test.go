@@ -222,6 +222,16 @@ func (f *fakeDocker) RemoveVolume(_ context.Context, name string) error {
 	return nil
 }
 
+func (f *fakeDocker) VolumeSizes(context.Context) (map[string]int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	sizes := map[string]int64{}
+	for name := range f.volumes {
+		sizes[name] = 4096
+	}
+	return sizes, nil
+}
+
 func (f *fakeDocker) containerCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()

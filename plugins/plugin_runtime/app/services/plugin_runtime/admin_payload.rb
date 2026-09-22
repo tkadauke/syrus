@@ -31,7 +31,8 @@ module PluginRuntime
         mode: @configuration.managed? ? "managed" : "external",
         manageable: @configuration.managed?,
         manager_error: manager_error,
-        services: services.sort_by { |service| service[:service] }
+        services: services.sort_by { |service| service[:service] },
+        volumes: volumes
       }
     end
 
@@ -46,6 +47,17 @@ module PluginRuntime
       [ statuses, nil ]
     rescue Client::Error => e
       [ {}, e.message ]
+    end
+
+    # Stored data (managed installs only). A volume whose service has no
+    # container is left over from a disabled or removed plugin and can be
+    # deleted from the page.
+    def volumes
+      return [] unless @configuration.managed?
+
+      client.volumes.map { |volume| volume.symbolize_keys.slice(:name, :service, :plugin, :in_use, :size_bytes) }
+    rescue Client::Error
+      []
     end
 
     def cached(entry)

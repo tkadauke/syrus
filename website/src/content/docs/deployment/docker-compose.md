@@ -218,7 +218,8 @@ bin/compose-up                       # restart / pick up changes
   containers down with it when the stack stops. If its image can't be pulled
   during an install, Syrus starts without it and those plugins stay off.
   **Admin → Plugin Services** lists those containers and lets an admin stop,
-  start, or restart them and read their logs.
+  start, or restart them and read their logs, and delete the stored data a
+  disabled plugin left behind.
 - **syrus-data volume** — `/home/rails/.syrus`, holding the primary **SQLite
   databases** (`db/production*.sqlite3`) and the **clone cache / workflow
   workspaces**.
@@ -324,8 +325,8 @@ What it removes:
 - The Compose stack (project `syrus`) and — unless `--keep-data` — its
   volumes (`syrus_syrus-data`, `syrus_syrus-search`), plus any plugin service
   containers and their volumes (such as Git Mirror's mirrors).
-- Every `*syrus-backend` image (any registry/tag) and `ghcr.io/*/syrus-local`
-  dev images.
+- Every `*syrus-backend` image (any registry/tag), `ghcr.io/*/syrus-local`
+  dev images, and `syrus-plugin-*` plugin service images.
 - `~/.syrus/local` — **its `.env` holds the database encryption keys;
   removing it together with the data volume destroys the local Syrus data
   permanently** (skipped by `--keep-data`).

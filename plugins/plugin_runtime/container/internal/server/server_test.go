@@ -47,6 +47,17 @@ func (s *stubManager) Restart(_ context.Context, name string) (manager.Status, e
 	s.acted = append(s.acted, "restart "+name)
 	return manager.Status{Service: name, State: manager.StateRunning}, s.err
 }
+func (s *stubManager) Volumes(context.Context) ([]manager.VolumeStatus, error) {
+	return []manager.VolumeStatus{{Name: "syrus_plugin_git-mirror_data", Service: "git-mirror", Plugin: "git_mirror"}}, s.err
+}
+func (s *stubManager) RemoveVolume(_ context.Context, name string) error {
+	s.acted = append(s.acted, "remove-volume "+name)
+	return s.err
+}
+func (s *stubManager) PurgePlugin(_ context.Context, plugin string) ([]string, error) {
+	s.acted = append(s.acted, "purge "+plugin)
+	return []string{"syrus_plugin_git-mirror_data"}, s.err
+}
 func (s *stubManager) Logs(_ context.Context, name string, tail int) (string, error) {
 	s.tail = tail
 	return "2026-09-22T01:00:00Z GET /v1/repositories 200\n", s.err
@@ -79,6 +90,9 @@ func TestEveryV1RouteRequiresTheToken(t *testing.T) {
 		{"POST", "/v1/services/git-mirror/start"},
 		{"POST", "/v1/services/git-mirror/restart"},
 		{"GET", "/v1/services/git-mirror/logs"},
+		{"GET", "/v1/volumes"},
+		{"DELETE", "/v1/volumes/syrus_plugin_git-mirror_data"},
+		{"DELETE", "/v1/plugins/git_mirror"},
 	}
 	for _, r := range routes {
 		for _, auth := range []string{"", "Bearer wrong", token, "Basic " + token} {
@@ -187,5 +201,25 @@ func TestLogsArePlainTextWithABoundedTail(t *testing.T) {
 	}
 	if rec := do(h, "GET", "/v1/services/git-mirror/logs?tail=zero", "Bearer "+token, ""); rec.Code != http.StatusBadRequest {
 		t.Fatalf("bad tail: %d", rec.Code)
+	}
+}
+
+func TestVolumeRoutes(t *testing.T) {
+	m := &stubManager{}
+	h := New(m, token, Info{})
+	if rec := do(h, "GET", "/v1/volumes", "Bearer "+token, ""); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "git-mirror") {
+		t.Fatalf("list: %d %s", rec.Code, rec.Body)
+	}
+	if rec := do(h, "DELETE", "/v1/volumes/syrus_plugin_git-mirror_data", "Bearer "+token, ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("remove: %d", rec.Code)
+	}
+	if rec := do(h, "DELETE", "/v1/plugins/git_mirror", "Bearer "+token, ""); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "removed_volumes") {
+		t.Fatalf("purge: %d %s", rec.Code, rec.Body)
+	}
+	if strings.Join(m.acted, ",") != "remove-volume syrus_plugin_git-mirror_data,purge git_mirror" {
+		t.Fatalf("acted = %v", m.acted)
+	}
+	if rec := do(New(&stubManager{err: manager.ErrVolumeInUse}, token, Info{}), "DELETE", "/v1/volumes/x", "Bearer "+token, ""); rec.Code != http.StatusConflict {
+		t.Fatalf("in use: %d, want 409", rec.Code)
 	}
 }
