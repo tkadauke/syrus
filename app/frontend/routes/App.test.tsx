@@ -10928,7 +10928,7 @@ describe("App", () => {
 
     // Expanding a grader shows the compact details (no raw JSON).
     fireEvent.click(screen.getByRole("button", { name: /rspec/i }))
-    expect(screen.getByText("required")).toBeInTheDocument()
+    expect(screen.getByText("Required to pass")).toBeInTheDocument()
     expect(screen.getByText("Full RSpec suite.")).toBeInTheDocument()
     expect(screen.getByText("bin/rspec")).toBeInTheDocument()
     expect(screen.queryByText(/"log_bytes"/)).not.toBeInTheDocument()
@@ -10957,7 +10957,7 @@ describe("App", () => {
               step({
                 id: 72,
                 kind: "preflight_grader",
-                display_name: "Preflight grader",
+                display_name: "Migration Collisions",
                 display_status: "succeeded",
                 position: 1,
                 state: "succeeded",
@@ -10966,7 +10966,7 @@ describe("App", () => {
               step({
                 id: 73,
                 kind: "preflight_grader",
-                display_name: "Preflight grader",
+                display_name: "RSpec",
                 display_status: "failed",
                 position: 2,
                 state: "failed",
@@ -10996,19 +10996,19 @@ describe("App", () => {
     // Internal step names are hidden while collapsed
     expect(screen.queryByText("Plan preflight graders")).not.toBeInTheDocument()
     expect(screen.queryByText("Preflight grader check")).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /migration-collisions/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Migration Collisions/i })).not.toBeInTheDocument()
 
     fireEvent.click(preflightGroup)
 
-    // Setup and Result phases are shown; individual graders use their names
+    // Setup and Result phases are shown; individual graders use their humanized names
     expect(screen.getByRole("button", { name: /Setup/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Result/i })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /migration-collisions/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Migration Collisions/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /rspec/i })).toBeInTheDocument()
 
     // Expanding a preflight grader shows the compact GraderDetails, not raw JSON
     fireEvent.click(screen.getByRole("button", { name: /rspec/i }))
-    expect(screen.getByText("required")).toBeInTheDocument()
+    expect(screen.getByText("Required to pass")).toBeInTheDocument()
     expect(screen.getByText("Full RSpec suite.")).toBeInTheDocument()
     expect(screen.getByText("bin/rspec")).toBeInTheDocument()
     expect(screen.queryByText(/"log_bytes"/)).not.toBeInTheDocument()
