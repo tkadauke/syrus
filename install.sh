@@ -704,10 +704,16 @@ run_docker() {
   runtime_up_args=""
   if compose config --services 2>/dev/null | grep -qx plugin-runtime; then
     if ! run_logged pull compose pull plugin-runtime; then
-      info "Note: couldn't pull the Plugin Runtime image ($SYRUS_PLUGIN_RUNTIME_IMAGE)."
-      info "      Starting without it; plugins that run their own service stay off until a later update."
-      emit_log pull "plugin-runtime image unavailable; starting without it"
-      runtime_up_args="--scale plugin-runtime=0"
+      if docker image inspect "$SYRUS_PLUGIN_RUNTIME_IMAGE" >/dev/null 2>&1; then
+        # Same as the backend: a locally built copy works (fork/dev iteration).
+        info "Pull failed, but $SYRUS_PLUGIN_RUNTIME_IMAGE exists locally — using the local copy."
+        emit_log pull "plugin-runtime pull failed; using the local image copy"
+      else
+        info "Note: couldn't pull the Plugin Runtime image ($SYRUS_PLUGIN_RUNTIME_IMAGE)."
+        info "      Starting without it; plugins that run their own service stay off until a later update."
+        emit_log pull "plugin-runtime image unavailable; starting without it"
+        runtime_up_args="--scale plugin-runtime=0"
+      fi
     fi
   fi
   run_logged up compose up -d $runtime_up_args || die "docker compose up failed" 40
