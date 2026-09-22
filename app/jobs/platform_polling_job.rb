@@ -19,21 +19,36 @@ class PlatformPollingJob < ApplicationJob
     # .connector_job_class -- those start via PlatformDelivery::Registry
     # .start_connectors! instead, which respects PluginRecord enable/disable.
     def start_all!
-      registry.reject { |klass| plugin_managed_connector?(klass) }.filter_map { |klass| start_one(klass) }
+      start_all_with_status!.select { |result| result[:status] == :started }.map { |result| result[:name] }
+    end
+
+    # Same as start_all! but returns every registry entry's outcome, not just
+    # the ones newly started -- callers that need to show/log why a connector
+    # did or didn't start (admin restart endpoint, the connector watchdog)
+    # use this instead of the name-only array.
+    def start_all_with_status!
+      registry.reject { |klass| plugin_managed_connector?(klass) }.map { |klass| start_one_with_status(klass) }
     rescue ActiveRecord::StatementInvalid, ActiveRecord::NoDatabaseError => e
       Rails.logger.warn("PlatformPollingJob.start_all! skipped: #{e.message}")
       []
     end
 
     def start_one(klass)
-      return unless klass.new.send(:configured?)
-      return if SolidQueue::Job.where(class_name: klass.name, finished_at: nil).exists?
+      result = start_one_with_status(klass)
+      result[:name] if result[:status] == :started
+    end
+
+    # { name:, status: } where status is :started, :already_running,
+    # :not_configured, or :error.
+    def start_one_with_status(klass)
+      return { name: klass.name, status: :not_configured } unless klass.new.send(:configured?)
+      return { name: klass.name, status: :already_running } if SolidQueue::Job.where(class_name: klass.name, finished_at: nil).exists?
 
       klass.perform_later
-      klass.name
+      { name: klass.name, status: :started }
     rescue ActiveRecord::StatementInvalid, ActiveRecord::NoDatabaseError => e
       Rails.logger.warn("PlatformPollingJob.start_one skipped for #{klass.name}: #{e.message}")
-      nil
+      { name: klass.name, status: :error }
     end
 
     private
