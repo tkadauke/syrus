@@ -42,9 +42,12 @@ export function AdminPluginServices() {
   return (
     <Page.Root aria-label={t("heading")} size="wide">
       <Page.Header className="border-b border-border pb-4">
-        <Text className="font-medium uppercase" variant="caption" tone="muted">{t("admin:section_label")}</Text>
-        <PageHeading>{t("heading")}</PageHeading>
-        <Page.Description className="max-w-3xl">{t("description")}</Page.Description>
+        <Page.HeadingGroup>
+          <Text className="font-medium uppercase" variant="caption" tone="muted">{t("admin:section_label")}</Text>
+          <PageHeading>{t("heading")}</PageHeading>
+          <Page.Description className="max-w-3xl">{t("description")}</Page.Description>
+        </Page.HeadingGroup>
+        <Button disabled={services.isFetching} onClick={() => void services.refetch()} size="sm" variant="secondary">{t("refresh")}</Button>
       </Page.Header>
 
       {services.isPending ? <Text tone="muted">{t("loading")}</Text> : null}

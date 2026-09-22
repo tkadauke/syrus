@@ -68,6 +68,20 @@ describe("AdminPluginServices", () => {
     expect(within(row).queryByRole("button", { name: "Start" })).not.toBeInTheDocument()
   })
 
+  // Page.Header lays its children out in a row; the label, title, and
+  // description belong in one group so they stack.
+  it("stacks the page title with its label and description", async () => {
+    mockApi(payload())
+
+    renderRoute(<AdminPluginServices />)
+
+    const heading = await screen.findByRole("heading", { name: "Plugin Services", level: 1 })
+    const group = heading.parentElement as HTMLElement
+    expect(group.tagName).not.toBe("HEADER")
+    expect(within(group).getByText("Admin")).toBeInTheDocument()
+    expect(within(group).getByText(/Containers that plugins run/)).toBeInTheDocument()
+  })
+
   it("asks before stopping, then stops the service", async () => {
     const confirm = mockUseConfirm(true)
     const fetchSpy = mockApi(payload(), (path, method) =>
