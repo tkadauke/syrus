@@ -652,6 +652,7 @@ module App
           agent_diff_bytes: agent_diff_bytes,
           step_agent_diff_present: step_agent_diff_bytes.positive?,
           step_agent_diff_bytes: step_agent_diff_bytes,
+          step_diff_matches_diff: step_diff_matches_diff?(run),
           job_log_count: job_log_stats.fetch(run.id, EMPTY_JOB_LOG_STATS)[:count],
           rate_limited: job_log_stats.fetch(run.id, EMPTY_JOB_LOG_STATS)[:rate_limited],
           failure_classification: failure_classification_json(run.run_failure_classification),
@@ -853,7 +854,8 @@ module App
               :cache_creation_input_tokens,
               :cache_read_input_tokens,
               Arel.sql("LENGTH(runs.agent_diff) AS agent_diff_byte_size"),
-              Arel.sql("LENGTH(runs.step_agent_diff) AS step_agent_diff_byte_size")
+              Arel.sql("LENGTH(runs.step_agent_diff) AS step_agent_diff_byte_size"),
+              Arel.sql("(runs.step_agent_diff = runs.agent_diff) AS step_diff_matches_diff")
             )
             .includes(:run_diagnostic, :run_failure_classification)
             .order(:step_id, :created_at, :id)
@@ -1141,6 +1143,17 @@ module App
         value.to_i
       rescue ActiveModel::MissingAttributeError
         run.public_send(column)&.bytesize || 0
+      end
+
+      # Computed in SQL (see runs_by_step_id) so the full diff text never has
+      # to be loaded into memory just to tell the UI whether "Step diff"
+      # would be a duplicate of "Diff" -- true on a first implement run,
+      # where the step diff and the whole-branch diff cover the same commits.
+      def step_diff_matches_diff?(run)
+        value = run.read_attribute(:step_diff_matches_diff)
+        ActiveModel::Type::Boolean.new.cast(value)
+      rescue ActiveModel::MissingAttributeError
+        run.agent_diff.present? && run.agent_diff == run.step_agent_diff
       end
 
       def failure_classification_json(classification)

@@ -3849,6 +3849,7 @@ function run(overrides: Partial<JobRun>): JobRun {
     agent_diff_bytes: 0,
     step_agent_diff_present: false,
     step_agent_diff_bytes: 0,
+    step_diff_matches_diff: false,
     job_log_count: 0,
     rate_limited: false,
     failure_classification: null,

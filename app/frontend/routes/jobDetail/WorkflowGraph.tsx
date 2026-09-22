@@ -19,7 +19,6 @@ import { CommandButton, useJobCommand } from "./command"
 import { booleanValue, debugOnlyDetails, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, isDiagnosticRelevantRun, isDiagnosticRelevantStep, isRedundantRunStatus, isRedundantRunTiming, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, softCommandFailures, sortedRunsNewestFirst, stepAgentic, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
-import { diffReviewFeedbackAllowed, useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import type { BranchDivergence, BranchDivergenceCommitList, BranchDivergenceComparison } from "./branchDivergence"
@@ -1366,7 +1365,7 @@ function RunRow({ run, payload, command, prefix, active = false, agentic = true,
               {artifactsLoading && artifactView === "diff" ? t("run_loading") : t("run_diff")}
             </Button>
           ) : null}
-          {run.step_agent_diff_present ? (
+          {run.step_agent_diff_present && !(run.agent_diff_present && run.step_diff_matches_diff) ? (
             <Button disabled={artifactsLoading} onClick={() => showArtifacts("step_diff")} variant="secondary">
               {artifactsLoading && artifactView === "step_diff" ? t("run_loading") : t("run_step_diff")}
             </Button>
@@ -1382,7 +1381,7 @@ function RunRow({ run, payload, command, prefix, active = false, agentic = true,
         </div>
       </div>
       {artifacts.isError ? <Text className="mt-3 text-xs" tone="danger">{errorMessage(artifacts.error, t("run_artifacts_error"))}</Text> : null}
-      {isRunArtifactView && artifacts.data ? <RunArtifactsPanel canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)} onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView as "transcript" | "diff" | "step_diff"} /> : null}
+      {isRunArtifactView && artifacts.data ? <RunArtifactsPanel onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView as "transcript" | "diff" | "step_diff"} /> : null}
       {artifactView === "summary" && stepSummaryArtifact ? (
         <StepSummaryPanel onClose={() => setArtifactView(null)} summary={stepSummaryArtifact} />
       ) : null}
@@ -1423,50 +1422,21 @@ function TestFailureSummary({ summary }: { summary: RunTestFailureSummary }) {
   )
 }
 
-function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canReviewDiff: boolean; payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff" | "step_diff"; onClose: () => void }) {
+// Diffs in the workflow tab are read-only inspection artifacts, not a review
+// surface -- comment threads and "Submit feedback" belong to the Review
+// Workspace and Source tabs (see DiffReviewFeedback.tsx), so this panel never
+// wires up useDiffReviewFeedback.
+function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff" | "step_diff"; onClose: () => void }) {
   const { t } = useT("jobs")
-  const surface = view === "step_diff" ? "run_step_agent_diff" : "run_agent_diff"
-  const feedbackEnabled = canReviewDiff && view !== "transcript" && Boolean(payload.base_ref && payload.head_ref && payload.workflow_id && payload.run_id && payload.diff_review_version_id)
-  const feedback = useDiffReviewFeedback({
-    baseRef: payload.base_ref,
-    buildContext: (selection) => ({
-      diff_kind: view,
-      source_surface: "run_artifact",
-      file_status: selection.file.status || null
-    }),
-    diffReviewVersionId: payload.diff_review_version_id,
-    enabled: feedbackEnabled,
-    headRef: payload.head_ref,
-    jobId: payload.job_id,
-    runId: payload.run_id,
-    surface,
-    workflowId: payload.workflow_id
-  })
 
   if (view === "diff") {
     return (
       <section className={artifactPanelClass()}>
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_diff")}</ArtifactPanelHeader>
-        {feedback.panel}
         {payload.agent_diff ? (
           <AgentDiff
-            comments={feedback.diffThreads}
-            composingBody={feedback.composingBody}
-            composingError={feedback.composingError}
-            composingPending={feedback.composingPending}
-            composingSelection={feedback.composingSelection}
             diff={payload.agent_diff}
-            editingThreadBody={feedback.editingThreadBody}
-            editingThreadId={feedback.editingThreadId}
-            onCancelComposing={feedback.onCancelComposing}
-            onCancelEditThread={feedback.onCancelEditThread}
-            onChangeComposingBody={feedback.onChangeComposingBody}
-            onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
-            onCommentLine={feedback.onCommentLine}
             onLoadFileContext={payload.head_ref ? (file) => fetchJobSourceFileContent(payload.job_id, payload.head_ref!, file.path) : undefined}
-            onSaveComposing={feedback.onSaveComposing}
-            onSaveEditThread={feedback.onSaveEditThread}
-            onStartEditThread={feedback.onStartEditThread}
             showFileHeaders
           />
         ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
@@ -1478,26 +1448,10 @@ function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canRevie
     return (
       <section className={artifactPanelClass()}>
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_step_diff")}</ArtifactPanelHeader>
-        {feedback.panel}
         {payload.step_agent_diff ? (
           <AgentDiff
-            comments={feedback.diffThreads}
-            composingBody={feedback.composingBody}
-            composingError={feedback.composingError}
-            composingPending={feedback.composingPending}
-            composingSelection={feedback.composingSelection}
             diff={payload.step_agent_diff}
-            editingThreadBody={feedback.editingThreadBody}
-            editingThreadId={feedback.editingThreadId}
-            onCancelComposing={feedback.onCancelComposing}
-            onCancelEditThread={feedback.onCancelEditThread}
-            onChangeComposingBody={feedback.onChangeComposingBody}
-            onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
-            onCommentLine={feedback.onCommentLine}
             onLoadFileContext={payload.head_ref ? (file) => fetchJobSourceFileContent(payload.job_id, payload.head_ref!, file.path) : undefined}
-            onSaveComposing={feedback.onSaveComposing}
-            onSaveEditThread={feedback.onSaveEditThread}
-            onStartEditThread={feedback.onStartEditThread}
             showFileHeaders
           />
         ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}

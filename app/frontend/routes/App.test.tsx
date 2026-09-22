@@ -10793,6 +10793,7 @@ describe("App", () => {
       agent_diff_bytes: 0,
       step_agent_diff_present: false,
       step_agent_diff_bytes: 0,
+      step_diff_matches_diff: false,
       failure_classification: {
         id: 17,
         classification: "application_error",
@@ -16548,6 +16549,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
                 agent_diff_bytes: 2048,
                 step_agent_diff_present: false,
                 step_agent_diff_bytes: 0,
+                step_diff_matches_diff: false,
                 job_log_count: 12,
                 rate_limited: false,
                 run_diagnostic: null,

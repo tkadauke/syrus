@@ -751,6 +751,7 @@ export type JobRun = {
   agent_diff_bytes: number
   step_agent_diff_present: boolean
   step_agent_diff_bytes: number
+  step_diff_matches_diff: boolean
   job_log_count: number
   rate_limited: boolean
   failure_classification?: RunFailureClassification | null
