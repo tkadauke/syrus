@@ -243,6 +243,11 @@ describe("WorkflowsTab", () => {
     expect(summary).toHaveTextContent("does b")
     expect(summary).toHaveTextContent("+2 more failed tests")
 
+    // The run card's left column must be able to shrink (min-w-0) so the
+    // truncate utility on failed-test rows constrains width instead of
+    // overflowing the card on narrow viewports.
+    expect(summary.parentElement?.className).toContain("min-w-0")
+
     fireEvent.click(screen.getByRole("button", { name: "Grade log" }))
     const stream = await screen.findByTestId("run-grade-log-stream")
     expect(stream).toBeInTheDocument()
