@@ -202,6 +202,70 @@ describe("WorkflowsTab", () => {
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/runs/51/grade_log", expect.anything())
   })
 
+  it("shows a bounded failed-test summary inline on a failed grader run, alongside the Grade log button", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/jobs/42/runs/51/grade_log") {
+        return Promise.resolve(new Response(JSON.stringify({
+          name: "rspec",
+          run_id: 51,
+          contents: "raw rspec output"
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+    const workflow = workflowWithDiffRun()
+    workflow.steps[0].runs[0].state = "failed"
+    workflow.steps[0].runs[0].app_grade_log_path = "/api/v1/app/jobs/42/runs/51/grade_log"
+    workflow.steps[0].runs[0].test_failure_summary = {
+      grader_name: "rspec",
+      failed_count: 7,
+      omitted_count: 2,
+      failures: [
+        { suite_name: "spec/a_spec.rb", name: "does a", file_path: "spec/a_spec.rb" },
+        { suite_name: "spec/b_spec.rb", name: "does b", file_path: "spec/b_spec.rb" }
+      ]
+    }
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"], workflows: [workflow] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    const summary = screen.getByTestId("run-test-failure-summary")
+    expect(summary).toHaveTextContent("7 failed tests")
+    expect(summary).toHaveTextContent("does a")
+    expect(summary).toHaveTextContent("does b")
+    expect(summary).toHaveTextContent("+2 more failed tests")
+
+    fireEvent.click(screen.getByRole("button", { name: "Grade log" }))
+    const stream = await screen.findByTestId("run-grade-log-stream")
+    expect(stream).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/runs/51/grade_log", expect.anything())
+  })
+
+  it("does not show a failed-test summary when the run has none", () => {
+    const workflow = workflowWithDiffRun()
+    workflow.steps[0].runs[0].state = "failed"
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ workflows: [workflow] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    expect(screen.queryByTestId("run-test-failure-summary")).not.toBeInTheDocument()
+  })
+
   it("shows desired work for a waiting intent even when no WorkUnit or Workflow exists yet", () => {
     render(
       <MemoryRouter>

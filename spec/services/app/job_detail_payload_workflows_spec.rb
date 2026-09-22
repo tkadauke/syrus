@@ -1256,6 +1256,94 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(per_workflow_work_unit_queries).to be_empty
     end
 
+    describe "test_failure_summary" do
+      def fake_test_evidence_provider(failed_test_cases:)
+        Module.new do
+          define_singleton_method(:failed_test_cases) { |run:, grader_name:| failed_test_cases }
+        end
+      end
+
+      def stub_test_evidence_provider(provider)
+        allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+        allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
+      end
+
+      def failed_grader_run(job)
+        workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+        step = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "failed", details: { "name" => "rspec" })
+        Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude", state: "failed")
+      end
+
+      it "includes a bounded failed-test summary for a failed grader run" do
+        job = Factories.job_record(repository: repo)
+        failed_grader_run(job)
+        stub_test_evidence_provider(fake_test_evidence_provider(failed_test_cases: [
+          { "suite_name" => "spec/a_spec.rb", "name" => "does a", "file_path" => "spec/a_spec.rb", "identity" => "1" },
+          { "suite_name" => "spec/b_spec.rb", "name" => "does b", "file_path" => "spec/b_spec.rb", "identity" => "2" }
+        ]))
+
+        summary = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :test_failure_summary)
+
+        expect(summary).to include(
+          "grader_name" => "rspec",
+          "failed_count" => 2,
+          "omitted_count" => 0
+        )
+        expect(summary["failures"].map { |failure| failure["name"] }).to eq([ "does a", "does b" ])
+      end
+
+      it "truncates the failure list and reports how many were omitted" do
+        job = Factories.job_record(repository: repo)
+        failed_grader_run(job)
+        failures = (1..7).map { |n| { "suite_name" => "spec/s_spec.rb", "name" => "case #{n}", "identity" => n.to_s } }
+        stub_test_evidence_provider(fake_test_evidence_provider(failed_test_cases: failures))
+
+        summary = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :test_failure_summary)
+
+        expect(summary["failed_count"]).to eq(7)
+        expect(summary["failures"].size).to eq(5)
+        expect(summary["omitted_count"]).to eq(2)
+      end
+
+      it "is nil when no test_evidence provider has data for the run" do
+        job = Factories.job_record(repository: repo)
+        failed_grader_run(job)
+        stub_test_evidence_provider(fake_test_evidence_provider(failed_test_cases: []))
+
+        summary = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :test_failure_summary)
+
+        expect(summary).to be_nil
+      end
+
+      it "is nil for a succeeded grader run even when failure data exists" do
+        job = Factories.job_record(repository: repo)
+        workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded")
+        step = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "succeeded", details: { "name" => "rspec" })
+        Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
+        stub_test_evidence_provider(fake_test_evidence_provider(failed_test_cases: [
+          { "suite_name" => "spec/a_spec.rb", "name" => "does a", "identity" => "1" }
+        ]))
+
+        summary = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :test_failure_summary)
+
+        expect(summary).to be_nil
+      end
+
+      it "is nil for a failed non-grader step" do
+        job = Factories.job_record(repository: repo)
+        workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+        step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "failed")
+        Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude", state: "failed")
+        stub_test_evidence_provider(fake_test_evidence_provider(failed_test_cases: [
+          { "suite_name" => "spec/a_spec.rb", "name" => "does a", "identity" => "1" }
+        ]))
+
+        summary = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :test_failure_summary)
+
+        expect(summary).to be_nil
+      end
+    end
+
     describe "run can_resume" do
       def failed_run_with_session(job, workflow)
         step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "failed")

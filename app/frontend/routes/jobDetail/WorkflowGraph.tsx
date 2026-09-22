@@ -13,7 +13,7 @@ import { workflowSlug } from "../../lib/slugs"
 import { Button, buttonClasses } from "../../components/Button"
 import { CodeSurface, DescriptionList, Notice, Section, Surface, surfaceClasses, Text } from "../../components/ui"
 import { pluginIconSrc } from "../../lib/pluginIcon"
-import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type WorkflowWarning } from "../../api/jobs"
+import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type RunTestFailureSummary, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
 import { booleanValue, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
@@ -1231,6 +1231,7 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
             </p>
           ) : null}
           {run.run_diagnostic?.present ? <p className="mt-1 text-xs text-warning-text">{t("run_diagnostic_captured")} <RelativeTimestamp value={run.run_diagnostic.created_at} />{run.run_diagnostic.error_message ? `: ${run.run_diagnostic.error_message}` : ""}</p> : null}
+          {run.test_failure_summary ? <TestFailureSummary summary={run.test_failure_summary} /> : null}
           {run.command_spans_truncated ? (
             <p className="mt-1 text-xs text-warning-text">
               {t("run_command_spans_truncated", { displayed: run.command_spans_displayed || run.command_spans?.length || 0, total: run.command_spans_total || run.command_spans?.length || 0 })}
@@ -1302,6 +1303,26 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
         <RunGradeLogPanel onClose={() => setGradeLogOpen(false)} payload={gradeLog.data} />
       ) : null}
     </Surface>
+  )
+}
+
+function TestFailureSummary({ summary }: { summary: RunTestFailureSummary }) {
+  const { t } = useT("jobs")
+  return (
+    <div className="mt-2 rounded border border-danger-border bg-danger-surface p-2 text-xs text-danger-text" data-testid="run-test-failure-summary">
+      <p className="font-semibold">{t("run_test_failure_count", { count: summary.failed_count })}</p>
+      <ul className="mt-1 space-y-0.5">
+        {summary.failures.map((failure, index) => (
+          <li className="truncate" key={index}>
+            {failure.file_path || failure.suite_name ? <span className="font-mono">{failure.file_path || failure.suite_name}</span> : null}
+            {failure.name ? <span>{failure.file_path || failure.suite_name ? " — " : ""}{failure.name}</span> : null}
+          </li>
+        ))}
+      </ul>
+      {summary.omitted_count > 0 ? (
+        <p className="mt-1">{t("run_test_failure_more", { count: summary.omitted_count })}</p>
+      ) : null}
+    </div>
   )
 }
 

@@ -16,7 +16,8 @@ module Syrus
     # Two further capabilities are optional (checked with `respond_to?` by
     # callers, so a provider that predates them still works):
     #
-    #   .failed_test_cases(run:, grader_name:) => Array<Hash> ("suite_name", "name", "file_path", "identity")
+    #   .failed_test_cases(run:, grader_name:) => Array<Hash> ("suite_name", "name", "file_path", "identity",
+    #                                                          "failure_message" [optional, short/bounded])
     #   .flakiness_score(repository:, suite_name:, name:) => Hash (:score, :failed_count, :total_count, :flaky) or nil
     #
     # `flakiness_score` backs Adjudicators::KnownFlakyFailure: a rung-0 check

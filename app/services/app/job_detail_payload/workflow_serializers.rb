@@ -645,7 +645,8 @@ module App
           app_stop_path: "/api/v1/app/jobs/#{run.job_id || @job.id}/runs/#{run.id}/stop",
           app_diagnose_path: "/api/v1/app/jobs/#{run.job_id || @job.id}/runs/#{run.id}/diagnose",
           app_resume_path: "/api/v1/app/jobs/#{run.job_id || @job.id}/resume",
-          app_grade_log_path: app_grade_log_path(run, workflow: workflow, step: step)
+          app_grade_log_path: app_grade_log_path(run, workflow: workflow, step: step),
+          test_failure_summary: test_failure_summary_json(run, step)
         }
       end
 
@@ -1216,14 +1217,31 @@ module App
 
       def app_grade_log_path(run, workflow:, step: nil)
         step ||= run.step
-        return unless step&.kind.in?(%w[grade grader])
-
-        name = step.details.is_a?(Hash) ? step.details["name"] : nil
+        name = grader_output_name(step)
         return if name.blank?
 
         query = { name: name, workflow_id: workflow.id }.compact.to_query
         path = "/api/v1/app/jobs/#{run.job_id || @job.id}/runs/#{run.id}/grade_log"
         query.present? ? "#{path}?#{query}" : path
+      end
+
+      # Bounded failed-test summary for the run card, sourced from whichever
+      # :test_evidence provider is registered (Test Insights, when enabled) --
+      # nil for a passing run, a non-grader step, or a grader whose output
+      # wasn't test-shaped (nothing to summarize rather than a guess).
+      def test_failure_summary_json(run, step)
+        return nil unless run.state == "failed"
+
+        name = grader_output_name(step)
+        return nil if name.blank?
+
+        TestEvidenceLookup.failed_test_summary_for(run, name)
+      end
+
+      def grader_output_name(step)
+        return nil unless step&.kind.in?(%w[grade grader])
+
+        step.details.is_a?(Hash) ? step.details["name"] : nil
       end
     end
   end
