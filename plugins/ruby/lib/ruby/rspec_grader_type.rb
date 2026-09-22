@@ -307,7 +307,14 @@ module Ruby
         %(exit "$parallel_status")
       end
 
-      command = <<~BASH.squish
+      # merge_junit_command embeds a multi-line `ruby -e '...'` script whose
+      # newlines are its only statement separators; squishing this whole
+      # command (as one heredoc) would collapse those newlines into spaces
+      # and corrupt the script into an unparsable one-liner (the same bug
+      # class .squish caused for the focused-grader selector scripts). Build
+      # the wrapper via squish as before, but splice the unsquished merge
+      # command in afterward so its internal structure survives.
+      wrapper = <<~BASH.squish
         mkdir -p #{junit_dir} #{json_dir} #{shard_junit_dir} &&
         rm -f #{junit} #{json} #{shard_junit_dir}/#{junit_prefix}-*.xml #{json_dir}/#{output_prefix}-*.json &&
         #{database_prepare_command}
@@ -317,9 +324,8 @@ module Ruby
         parallel_status="$?";
         #{extra_serial_command}
         set -e;
-        #{merge_junit_command(shard_junit_dir, junit)};
-        #{status_checks}
       BASH
+      command = "#{wrapper} #{merge_junit_command(shard_junit_dir, junit)}; #{status_checks}"
       skip_setup ? command : "#{setup_prefix} && #{command}"
     end
 
@@ -365,7 +371,12 @@ module Ruby
     end
 
     def merge_junit_command(shard_junit_dir, junit)
-      <<~'BASH'.squish
+      # Deliberately not .squish'd -- the embedded ruby -e script relies on
+      # real newlines as statement separators inside the single-quoted
+      # heredoc; squishing would flatten them into spaces and corrupt the
+      # script into an unparsable one-liner. See the caller for how this is
+      # kept out of the surrounding command's own squish.
+      <<~'BASH'.strip
         ruby -rrexml/document -e '
           dir, out = ARGV
           files = Dir[File.join(dir, "*.xml")].sort

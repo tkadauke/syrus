@@ -290,4 +290,21 @@ RSpec.describe Ruby::RspecGraderType do
 
     expect { RubyVM::InstructionSequence.compile(selector_script) }.not_to raise_error
   end
+
+  it "embeds a parallel_rspec JUnit-merge script whose newlines survive command assembly as valid Ruby" do
+    step = described_class.grade_steps(
+      config: { "parallel_rspec" => { "enabled" => true, "rspec_modes" => [ "full" ] } },
+      default_failures: "strict"
+    ).first
+
+    match = step.run.match(/ruby -rrexml\/document -e '(?<script>.+?)' \S+ \S+;/m)
+    expect(match).not_to be_nil, "expected a ruby -rrexml/document -e '...' JUnit-merge invocation in:\n#{step.run}"
+
+    # A regression here (e.g. wrapping the whole parallel_rspec_command in
+    # .squish, the way the focused-grader selector scripts once were) would
+    # flatten this script's newline statement separators into spaces and
+    # break it into an unparsable one-liner, failing the rspec grader
+    # regardless of whether the actual test run passed.
+    expect { RubyVM::InstructionSequence.compile(match[:script]) }.not_to raise_error
+  end
 end
