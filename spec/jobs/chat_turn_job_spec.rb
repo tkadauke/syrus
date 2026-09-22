@@ -127,6 +127,11 @@ RSpec.describe ChatTurnJob, :ci_only do
     release_first_call = Queue.new
     first_call_created = Queue.new
     second_call_entered = Queue.new
+    # Creating the chat (in `before`) already made its Agent. The race is
+    # about a chat that has none yet: left in place, the first invocation's
+    # create! collides, returns the existing row through the rescue without
+    # signalling first_call_created, and the second invocation waits forever.
+    Agent.where(resumable: chat).delete_all
     original_create = Agent.method(:create!)
     create_calls = Queue.new
 

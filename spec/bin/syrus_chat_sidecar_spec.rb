@@ -76,6 +76,9 @@ RSpec.describe "bin/syrus-chat-sidecar", :ci_only do
 
   def with_sidecar_process(server_config)
     env = server_config.fetch("env").merge("SYRUS_DATA_ROOT" => data_root)
+    # Under parallel_rspec the chat lives in this worker's test<N> database;
+    # without the number the sidecar opens the default one and exits.
+    env["TEST_ENV_NUMBER"] = ENV["TEST_ENV_NUMBER"] if ENV["TEST_ENV_NUMBER"]
     args = Array(server_config["args"])
     stderr_text = +""
 

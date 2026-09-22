@@ -271,7 +271,10 @@ RSpec.describe Run, :ci_only do
         error_message: "grader rspec failed (exit 1)"
       )
 
-      expect(StepDispatcher).to receive(:fail_from) do |failed_step|
+      # The step fails twice over -- its after_update_commit and the Run's own
+      # cascade both call fail_from, which is idempotent. What matters is that
+      # the classification is already there on every call.
+      expect(StepDispatcher).to receive(:fail_from).at_least(:once) do |failed_step|
         expect(failed_step).to eq(step)
         expect(run.reload.run_failure_classification&.classification).to eq("grader_failure")
       end

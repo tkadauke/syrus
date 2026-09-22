@@ -502,7 +502,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
   it "returns the new repository form payload" do
     sign_in_as(user)
-    user.update!(agent_provider: "codex")
+    user.update!(agent_provider: "codex", claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
     PluginRecord.find_by!(name: "linear_source").update!(enabled: true)
 
     get "/api/v1/app/repositories/new"
@@ -633,6 +633,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
   end
 
   it "returns the repository detail payload" do
+    RepositoryContent.provider_classes_override = []  # nothing can read the repository
     sign_in_as(user)
     AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
     repository = Factories.repository(
@@ -718,7 +719,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
     expect(body["syrus_yml"]).to include(
       "present" => false,
-      "note" => "no GitHub credentials",
+      "note" => "no repository content provider serves acme/widgets",
       "prepare_commands_count" => 0,
       "graders_count" => 0
     )

@@ -36,7 +36,8 @@ RSpec.describe App::ProviderAvailability do
     RunDiagnostic.create!(run: run, error_class: "ProviderError", error_message: message)
     classification ||= outcome if outcome == "provider_usage_limit"
     if classification
-      replace_failure_classification!(run, 
+      replace_failure_classification!(
+        run,
         classification: classification,
         confidence: 0.95,
         retryable: false,

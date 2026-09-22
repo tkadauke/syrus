@@ -1,10 +1,10 @@
 class CreateChatTurnAutoRetryAttempts < ActiveRecord::Migration[8.1]
   def up
     create_table :chat_turn_auto_retry_attempts, if_not_exists: true do |t|
-      t.references :chat_session, null: false
-      t.references :root_user_message, null: false
-      t.references :user_message, null: false
-      t.references :retry_message, null: true
+      t.references :chat_session, null: false, foreign_key: false
+      t.references :root_user_message, null: false, foreign_key: false
+      t.references :user_message, null: false, foreign_key: false
+      t.references :retry_message, null: true, foreign_key: false
       t.integer :attempt_number, null: false
       t.datetime :scheduled_at, null: false
       t.datetime :performed_at

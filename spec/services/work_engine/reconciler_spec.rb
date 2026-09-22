@@ -5285,8 +5285,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       error_class: "GitRunner::GitError",
       error_message: "fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree."
     )
-    RunFailureClassification.create!(
-      run: run,
+    replace_failure_classification!(
+      run,
       classification: "rate_limited",
       retryable: true,
       confidence: 0.9,
@@ -5347,8 +5347,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       error_class: "Steps::Base::StepFailed",
       error_message: "You're out of extra usage · resets 7am (America/New_York)"
     )
-    RunFailureClassification.create!(
-      run: run,
+    replace_failure_classification!(
+      run,
       classification: "provider_usage_limit",
       retryable: false,
       confidence: 0.95,
@@ -5715,8 +5715,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       error_class: "Steps::Base::StepFailed",
       error_message: "You're out of extra usage · resets 7am (America/New_York)"
     )
-    RunFailureClassification.create!(
-      run: run,
+    replace_failure_classification!(
+      run,
       classification: "provider_usage_limit",
       retryable: false,
       confidence: 0.95,
@@ -5750,8 +5750,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       error_class: "Steps::Base::StepFailed",
       error_message: "You're out of extra usage - resets 7am (America/New_York)"
     )
-    RunFailureClassification.create!(
-      run: run,
+    replace_failure_classification!(
+      run,
       classification: "provider_usage_limit",
       retryable: false,
       confidence: 0.95,
@@ -6104,8 +6104,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       error_class: "Octokit::UnprocessableEntity",
       error_message: "POST https://api.github.com/repos/tkadauke/syrus/pulls: 422 - Validation Failed: No commits between main and syrus/direct-872"
     )
-    RunFailureClassification.create!(
-      run: run,
+    replace_failure_classification!(
+      run,
       classification: "validation_or_user_error",
       retryable: false,
       confidence: 0.75,
