@@ -284,6 +284,55 @@ export function isActiveState(state: string) {
   return state === "queued" || state === "running"
 }
 
+// Step#agentic? mirror. Missing (older cached payload, or a test fixture
+// built before this field existed) is treated as agentic — the conservative
+// default that keeps showing agent metadata rather than hiding something
+// that might matter.
+export function stepAgentic(step: JobStep) {
+  return step.agentic ?? true
+}
+
+// A run worth surfacing diagnostic metadata for by default: active, failed,
+// carrying a captured failure/diagnostic record, or reporting non-healthy
+// worker health. Everything else is a happy-path outcome where provider,
+// turn count, and cost are debug trivia rather than the story.
+export function isDiagnosticRelevantRun(run: JobRun) {
+  if (isActiveState(run.state)) return true
+  if (run.state === "failed" || run.state === "cancelled") return true
+  if (run.failure_classification) return true
+  if (run.run_diagnostic?.present) return true
+  const health = run.health_snapshots.at(-1)?.health_status
+  if (health && health !== "healthy") return true
+  return false
+}
+
+// A step worth keeping diagnostic metadata expanded for: it failed/was
+// cancelled, it was retried (more than one run), or any of its runs are
+// individually diagnostic-relevant.
+export function isDiagnosticRelevantStep(step: JobStep) {
+  if (step.state === "failed" || step.state === "cancelled") return true
+  if (step.runs.length > 1) return true
+  return step.runs.some(isDiagnosticRelevantRun)
+}
+
+// True only when the run's status/timing genuinely duplicates what the step
+// header already shows — a single-run step whose own started_at/finished_at
+// match the run's. Comparing exact values (rather than just "single run and
+// succeeded") avoids hiding real information for steps whose Step and Run
+// timestamps happen to diverge.
+export function isRedundantRunStatus(step: JobStep, run: JobRun) {
+  return step.runs.length === 1 && step.display_status === run.state
+}
+
+// Only redundant once the run has actually started: when both are unset,
+// the step header falls back to rendering step.created_at (not a "not
+// started yet" message), so hiding the run's own placeholder there would
+// silently drop the only place that message appears.
+export function isRedundantRunTiming(step: JobStep, run: JobRun) {
+  if (step.runs.length !== 1 || !run.started_at) return false
+  return step.started_at === run.started_at && step.finished_at === run.finished_at
+}
+
 export function formatElapsed(seconds: number) {
   const total = Math.max(0, Math.floor(seconds))
   if (total < 60) return `${total}s`

@@ -419,6 +419,7 @@ module App
           {
             id: step.id,
             kind: step.kind,
+            agentic: step.agentic?,
             display_name: step_display_name(step, workflow: workflow),
             display_status: step_display_status(step, projection: projection),
             position: step.position,

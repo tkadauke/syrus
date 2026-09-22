@@ -320,6 +320,8 @@
   "grade_error_other": "{{count}} Fehler",
   "step_metadata_iteration": "Iteration {{n}}",
   "step_latest": "neueste",
+  "step_execution_details_toggle": "Ausführungsdetails",
+  "run_execution_details_toggle": "Ausführungsdetails",
   "run_number": "Lauf #{{id}}",
   "run_rate_limited": "rate-limitiert",
   "run_started_at": "Gestartet",

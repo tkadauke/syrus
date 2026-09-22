@@ -640,6 +640,10 @@ export type JobWorkIntent = {
 export type JobStep = {
   id: number
   kind: string
+  // Mirrors Step#agentic? (Step::Kind). Optional for backward/test-fixture
+  // compatibility — callers should treat a missing value as agentic (the
+  // conservative default: show agent metadata rather than hide it).
+  agentic?: boolean
   display_name: string
   display_status: string | null
   position: number

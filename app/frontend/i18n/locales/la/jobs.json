@@ -316,6 +316,8 @@
   "grade_error_other": "{{count}} vitia",
   "step_metadata_iteration": "iteratio {{n}}",
   "step_latest": "novissimum",
+  "step_execution_details_toggle": "Particularia executionis",
+  "run_execution_details_toggle": "Particularia executionis",
   "run_number": "Executio #{{id}}",
   "run_rate_limited": "limite ratæ affectum",
   "run_started_at": "Incepta",
