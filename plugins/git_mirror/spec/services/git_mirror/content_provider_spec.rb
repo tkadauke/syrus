@@ -107,6 +107,29 @@ RSpec.describe GitMirror::ContentProvider do
     end
   end
 
+  describe "after the mirror restarts" do
+    let(:source) { RepositoryContent::Source.new(vcs: "git", url: "https://example.test/r.git", password: "short-lived") }
+
+    # It serves from disk but has no credential until the next sync tick;
+    # the first read re-registers the repository instead of waiting.
+    it "registers the repository on the spot and asks again" do
+      allow(RepositoryContent).to receive(:upstream_source_for).with(repository).and_return(source)
+      register = stub_request(:put, base).to_return(status: 200, body: "{}")
+      stub_mirror("resolve", { ref: "main", max_age: "60" }, status: 503, body: error("unregistered"))
+        .then.to_return(status: 200, body: { id: sha, observed_at: "2026-09-22T02:30:00Z" }.to_json)
+
+      expect(provider.resolve("main", max_age: 60).id).to eq(sha)
+      expect(register).to have_been_requested.once
+    end
+
+    it "falls through to the host when there is nothing to register with" do
+      allow(RepositoryContent).to receive(:upstream_source_for).and_return(nil)
+      stub_mirror("tree", { revision: sha }, status: 503, body: error("unregistered"))
+
+      expect { provider.tree(sha) }.to raise_error(RepositoryContent::Unavailable)
+    end
+  end
+
   # Replicas first: with the mirror answering, the host is never asked; when
   # the mirror cannot answer, the host is.
   it "sits in front of the upstream in the content chain" do

@@ -12,7 +12,9 @@
 //
 // Errors are {"error":{"code","message"}} with codes the Syrus plugin maps
 // onto the content contract: unknown_repository, unknown_revision, not_found,
-// unavailable, unsupported, bad_request, unauthorized.
+// unavailable, unsupported, bad_request, unauthorized, and unregistered (a
+// repository on disk that Syrus has not registered since the mirror started;
+// Syrus registers it and retries).
 package server
 
 import (
@@ -218,6 +220,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "unknown_revision", err.Error())
 	case errors.Is(err, mirror.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, mirror.ErrUnregistered):
+		writeError(w, http.StatusServiceUnavailable, "unregistered", err.Error())
 	case errors.Is(err, mirror.ErrBadRequest):
 		writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 	case errors.Is(err, mirror.ErrUnsupported):

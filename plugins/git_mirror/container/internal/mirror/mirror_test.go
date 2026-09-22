@@ -324,3 +324,36 @@ func TestRefValidationRejectsOptionsAndExpressions(t *testing.T) {
 		}
 	}
 }
+
+// After a restart the mirror still serves what is on disk, but has no
+// credential: it must neither fetch (every sync would fail against a private
+// repository) nor pretend its refs are fresh.
+func TestAfterARestartRepositoriesServeFromDiskButWaitForRegistration(t *testing.T) {
+	u := newUpstream(t)
+	sha := u.commit(map[string]string{"a.txt": "1"}, "first")
+	dir := t.TempDir()
+	s, _ := Open(Config{DataDir: dir, AllowFileURLs: true})
+	register(t, s, "42", u)
+
+	restarted, _ := Open(Config{DataDir: dir, AllowFileURLs: true})
+	ctx := context.Background()
+
+	if blob, err := restarted.Read(ctx, "42", sha, "a.txt"); err != nil || string(blob.Bytes) != "1" {
+		t.Fatalf("read from disk = %q, %v", blob.Bytes, err)
+	}
+	if _, _, err := restarted.Resolve(ctx, "42", "main", time.Minute); !errors.Is(err, ErrUnregistered) {
+		t.Fatalf("resolve before registration: %v, want ErrUnregistered", err)
+	}
+	if _, err := restarted.Read(ctx, "42", strings.Repeat("1", 40), "a.txt"); !errors.Is(err, ErrUnregistered) {
+		t.Fatalf("unknown commit before registration: %v, want ErrUnregistered", err)
+	}
+	restarted.SyncAll(ctx)
+	if status := restarted.List()[0]; status.LastError != "" {
+		t.Fatalf("background sync tried to fetch an unregistered repository: %q", status.LastError)
+	}
+
+	register(t, restarted, "42", u)
+	if got, _, err := restarted.Resolve(ctx, "42", "main", time.Minute); err != nil || got != sha {
+		t.Fatalf("resolve after registration = %s, %v", got, err)
+	}
+}

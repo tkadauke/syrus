@@ -5,6 +5,11 @@ module GitMirror
   # repository content contract's errors, so the provider can pass them
   # straight to the chain.
   class Client
+    # The mirror has the repository on disk but no credential since it last
+    # started. An Unavailable, so anything that does not handle it falls
+    # through to the host as before; ContentProvider registers and retries.
+    class Unregistered < RepositoryContent::Unavailable; end
+
     OPEN_TIMEOUT = 2
     READ_TIMEOUT = 30
     # A resolve past max_age waits on a fetch.
@@ -87,6 +92,7 @@ module GitMirror
       when "not_found" then raise RepositoryContent::NotFound, message
       when "unknown_revision" then raise RepositoryContent::UnknownRevision, message
       when "unsupported" then raise RepositoryContent::Unsupported, message
+      when "unregistered" then raise Unregistered, message
       # A repository the mirror has not been told about yet (it is registered
       # on the next tick) is not something it can answer; let the host.
       else raise RepositoryContent::Unavailable, message

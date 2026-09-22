@@ -155,7 +155,7 @@ module RepositoryContent
 
       last_error = nil
       chain.each do |provider|
-        key = provider.class.provider_key
+        key = metric_label(provider)
         begin
           result = yield(provider)
           record(key, operation, "answered")
@@ -216,6 +216,14 @@ module RepositoryContent
     # query rather than an inference: a read the mirror answered shows as
     # provider="git_mirror" outcome="answered"; one it could not, as its
     # fall-through outcome followed by the upstream's answer.
+    # A provider's key names it on the counter. Counting must never be what
+    # fails a read, so one without a key (a test double, a half-written
+    # plugin) is labelled by class instead.
+    def metric_label(provider)
+      klass = provider.class
+      klass.respond_to?(:provider_key) ? klass.provider_key : klass.name.to_s.demodulize.underscore.presence || "unknown"
+    end
+
     def record(provider, operation, outcome)
       Syrus::Metrics.counter(:syrus_repository_content_reads_total)
         .increment(tags: { provider: provider.to_s, kind: operation.to_s, outcome: outcome })

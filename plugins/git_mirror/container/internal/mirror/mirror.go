@@ -40,6 +40,10 @@ var (
 	ErrUnavailable       = errors.New("unavailable")
 	ErrUnsupported       = errors.New("unsupported")
 	ErrBadRequest        = errors.New("bad request")
+	// ErrUnregistered: the repository is on disk (from before a restart) but
+	// Syrus has not sent its URL and credential since, so it cannot be
+	// fetched. Syrus answers by registering it and asking again.
+	ErrUnregistered = errors.New("repository not registered since the mirror started")
 )
 
 var (
@@ -120,6 +124,10 @@ type repo struct {
 	lastFetchAt *time.Time
 	lastError   string
 	inflight    *fetchCall
+	// registered is set once Syrus sends the repository's URL and credential
+	// in this process. Repositories loaded from disk after a restart serve
+	// what they have but are not fetched until then.
+	registered bool
 }
 
 type fetchCall struct {
@@ -198,6 +206,7 @@ func (s *Store) Register(ctx context.Context, id string, reg Registration) error
 		r.cred = &gitexec.Credential{Username: reg.Username, Password: reg.Password}
 	}
 	r.expiresAt = reg.ExpiresAt
+	r.registered = true
 	if r.lastFetchAt == nil && r.inflight == nil {
 		go func() { _ = s.fetch(context.Background(), r) }()
 	}
@@ -250,6 +259,12 @@ func (s *Store) SyncAll(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
+		r.mu.Lock()
+		registered := r.registered
+		r.mu.Unlock()
+		if !registered {
+			continue
+		}
 		if err := s.fetch(ctx, r); err != nil {
 			log.Printf("git-mirror: sync %s: %v", r.id, err)
 		}
@@ -285,7 +300,12 @@ func (s *Store) Resolve(ctx context.Context, id, ref string, maxAge time.Duratio
 	if shaPattern.MatchString(ref) {
 		// A commit SHA names itself; freshness does not apply. One fetch may
 		// bring in a commit pushed since the last sync.
-		if s.hasCommit(ctx, r, ref) || (s.fetchIfStale(ctx, r, time.Second) == nil && s.hasCommit(ctx, r, ref)) {
+		if s.hasCommit(ctx, r, ref) {
+			return ref, s.lastFetch(r), nil
+		}
+		if err := s.fetchIfStale(ctx, r, time.Second); errors.Is(err, ErrUnregistered) {
+			return "", time.Time{}, ErrUnregistered
+		} else if err == nil && s.hasCommit(ctx, r, ref) {
 			return ref, s.lastFetch(r), nil
 		}
 		return "", time.Time{}, ErrUnknownRevision
@@ -293,6 +313,9 @@ func (s *Store) Resolve(ctx context.Context, id, ref string, maxAge time.Duratio
 
 	if age, known := s.age(r); !known || age > maxAge {
 		if err := s.fetch(ctx, r); err != nil {
+			if errors.Is(err, ErrUnregistered) {
+				return "", time.Time{}, ErrUnregistered
+			}
 			return "", time.Time{}, fmt.Errorf("%w: could not refresh within max_age: %v", ErrUnavailable, err)
 		}
 	}
@@ -447,7 +470,9 @@ func (s *Store) revisionRepo(ctx context.Context, id, revision string) (*repo, e
 	if s.hasCommit(ctx, r, revision) {
 		return r, nil
 	}
-	if s.fetchIfStale(ctx, r, time.Second) == nil && s.hasCommit(ctx, r, revision) {
+	if err := s.fetchIfStale(ctx, r, time.Second); errors.Is(err, ErrUnregistered) {
+		return nil, ErrUnregistered
+	} else if err == nil && s.hasCommit(ctx, r, revision) {
 		return r, nil
 	}
 	return nil, ErrUnknownRevision
@@ -495,6 +520,10 @@ func (s *Store) fetch(ctx context.Context, r *repo) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	}
+	if !r.registered {
+		r.mu.Unlock()
+		return ErrUnregistered
 	}
 	call := &fetchCall{done: make(chan struct{})}
 	r.inflight = call

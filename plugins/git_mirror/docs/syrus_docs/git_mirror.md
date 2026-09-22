@@ -79,8 +79,12 @@ to register repositories.
 
 - Serves git only. Mercurial and Subversion mirrors would be separate plugins.
 - Does not serve diff patches; those come from the host.
-- After the service restarts it serves everything on its volume but cannot
-  fetch until the next tick sends credentials, at most a minute later.
+- After the service restarts it serves everything on its volume but holds no
+  credentials. It does not fetch repositories Syrus has not re-registered
+  (so a private repository does not fail every background sync), and a read
+  that needs a fetch answers `unregistered`; Syrus then registers that
+  repository on the spot and retries, so the first such read heals it rather
+  than waiting for the next tick.
 
 ## Disabling
 
