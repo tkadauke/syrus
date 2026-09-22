@@ -52,6 +52,8 @@ RSpec.describe "App API job source image", type: :request do
 
   it "reports missing GitHub credentials instead of raising" do
     user.update!(github_token: nil)
+    # Without credentials no content provider serves the repository.
+    RepositoryContent.provider_classes_override = []
 
     get "/api/v1/app/jobs/#{job.id}/source_image", params: { path: "app/assets/images/logo.png", ref: "deadbeef12345678" }
 

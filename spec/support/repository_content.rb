@@ -9,7 +9,8 @@
 #   stub_repository_changes(repository, head: "feature", paths: %w[app/a.rb])
 #
 # Re-stubbing a ref points it at a new revision; the old revision stays
-# readable, as a real commit would.
+# readable, as a real commit would. A repository nothing has stubbed reads as
+# empty. Once a repository has any stubbed ref, other refs are unknown.
 class FakeRepositoryContentProvider
   include Syrus::Plugin::RepositoryContentProvider
 
@@ -18,8 +19,12 @@ class FakeRepositoryContentProvider
     def display_name = "Fake content"
     def role = :upstream
 
-    def available_for?(repository)
-      snapshots.key?(repository.id) || failures.key?(repository.id)
+    # Serves every repository. One nothing has stubbed is empty -- no
+    # .syrus.yml, no files -- which is what specs assumed before content
+    # reads went through providers. A spec that wants "no provider serves
+    # it" sets RepositoryContent.provider_classes_override = [].
+    def available_for?(_repository)
+      true
     end
 
     def build(repository:, user:)
@@ -74,6 +79,7 @@ class FakeRepositoryContentProvider
   def resolve(ref, max_age:)
     record(:resolve, ref)
     id = self.class.revisions.key?(ref) ? ref : snapshots.dig(ref, :id)
+    id ||= empty_revision_for(ref) unless self.class.snapshots.key?(@repository.id)
     raise RepositoryContent::UnknownRevision, "unknown ref #{ref}" unless id
 
     RepositoryContent::Revision.new(id: id, ref: ref, observed_at: Time.current)
@@ -134,6 +140,13 @@ class FakeRepositoryContentProvider
 
   def snapshots
     self.class.snapshots.fetch(@repository.id, {})
+  end
+
+  # A repository nothing has stubbed has one empty revision per ref.
+  def empty_revision_for(ref)
+    id = Digest::SHA1.hexdigest([ @repository.id, ref, "empty" ].inspect)
+    self.class.revisions[id] ||= { files: {}, content_ids: true }
+    id
   end
 
   def revision_for(revision_id)

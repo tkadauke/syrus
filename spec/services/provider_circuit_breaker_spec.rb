@@ -91,7 +91,7 @@ RSpec.describe ProviderCircuitBreaker do
     run.run_diagnostic.update!(
       error_message: "Codex API error: model gpt-5.5 weekly usage limit exhausted; check billing"
     )
-    run.create_run_failure_classification!(
+    replace_failure_classification!(run, 
       classification: "provider_usage_limit",
       confidence: 0.95,
       retryable: false,
@@ -139,7 +139,7 @@ RSpec.describe ProviderCircuitBreaker do
       outcome: "provider_usage_limit",
       message: "Codex API error: model gpt-5.5 weekly usage limit exhausted"
     )
-    classification = run.create_run_failure_classification!(
+    classification = replace_failure_classification!(run, 
       classification: "provider_usage_limit",
       confidence: 0.95,
       retryable: false,
@@ -186,7 +186,7 @@ RSpec.describe ProviderCircuitBreaker do
       outcome: "provider_usage_limit",
       message: "Codex API error: model gpt-5.5 weekly usage limit exhausted"
     )
-    run.create_run_failure_classification!(
+    replace_failure_classification!(run, 
       classification: "provider_usage_limit",
       confidence: 0.95,
       retryable: false,
@@ -261,7 +261,7 @@ RSpec.describe ProviderCircuitBreaker do
       outcome: "turn_failed",
       message: "failed to refresh available models: failed to decode models response: unknown variant `max`, expected one of none/minimal/low/medium/high/xhigh"
     )
-    run.create_run_failure_classification!(
+    replace_failure_classification!(run, 
       classification: "provider_usage_limit",
       confidence: 0.95,
       retryable: false,
@@ -329,7 +329,7 @@ RSpec.describe ProviderCircuitBreaker do
       outcome: "provider_usage_limit",
       message: "Codex API error: model gpt-5.5 weekly usage limit exhausted"
     )
-    run.create_run_failure_classification!(
+    replace_failure_classification!(run, 
       classification: "provider_usage_limit",
       confidence: 0.95,
       retryable: false,
@@ -357,7 +357,7 @@ RSpec.describe ProviderCircuitBreaker do
       message: "You're out of extra usage · resets 7am (America/New_York)"
     )
     run.update!(finished_at: Time.zone.parse("2026-08-01 08:30:00 UTC"))
-    run.create_run_failure_classification!(
+    replace_failure_classification!(run, 
       classification: "provider_usage_limit",
       confidence: 0.95,
       retryable: false,
@@ -388,7 +388,7 @@ RSpec.describe ProviderCircuitBreaker do
     )
     RunDiagnostic.create!(run: run, error_class: "Steps::Base::StepFailed", error_message: "grader react-tests failed (exit 2)")
     JobLog.append!(run: run, chunk: "shows a red usage-limit warning in the job detail header", kind: "grade_log")
-    run.create_run_failure_classification!(
+    replace_failure_classification!(run, 
       classification: "provider_usage_limit",
       confidence: 0.95,
       retryable: false,
@@ -441,7 +441,7 @@ RSpec.describe ProviderCircuitBreaker do
       )
       RunDiagnostic.create!(run: run, error_class: "Steps::Base::StepFailed", error_message: "grader rspec failed (exit 1): ActiveRecord::PendingMigrationError")
       JobLog.append!(run: run, chunk: "work_engine action=schedule_retry_after_rate_limit", kind: "system")
-      run.create_run_failure_classification!(
+      replace_failure_classification!(run, 
         classification: "rate_limited",
         confidence: 0.9,
         retryable: true,

@@ -40,10 +40,11 @@ RSpec.describe "Syrus grader configuration" do
           ]
         ],
         [
-          "gofmt -w cli plugins/*/cli",
+          "gofmt -w cli plugins/*/cli plugins/*/container",
           [
             "cli/**/*.go",
-            "plugins/*/cli/**/*.go"
+            "plugins/*/cli/**/*.go",
+            "plugins/*/container/**/*.go"
           ]
         ]
       ]
@@ -245,13 +246,16 @@ RSpec.describe "Syrus grader configuration" do
         expect(vitest).to be_nil
       end
 
+      # A plugin's Go lives in its CLI module (cli/) or, for a
+      # container-backed plugin, its service container (container/).
       go_tests = graph.target("//plugins/#{project.id}:grade/go-tests")
-      if Rails.root.join("plugins/#{project.id}/cli/go.mod").exist?
+      go_dir = %w[cli container].find { |dir| Rails.root.join("plugins/#{project.id}/#{dir}/go.mod").exist? }
+      if go_dir
         expect(go_tests).not_to be_nil
-        expect(go_tests.command).to include("cd plugins/#{project.id}/cli && go test ./...")
+        expect(go_tests.command).to include("cd plugins/#{project.id}/#{go_dir} && go test ./...")
         expect(go_tests.source_scope).to include(
-          "plugins/#{project.id}/cli/**/*.go",
-          "plugins/#{project.id}/cli/go.mod"
+          "plugins/#{project.id}/#{go_dir}/**/*.go",
+          "plugins/#{project.id}/#{go_dir}/go.mod"
         )
       else
         expect(go_tests).to be_nil

@@ -29,6 +29,7 @@ module PluginRuntime
 
     # Admin -> Plugin Services: every plugin container, with stop, start,
     # restart, and logs.
+    route :get, "/admin/plugin_services", to: "spa#show"
     route :get, "/api/v1/app/admin/plugin_services", to: "api/v1/app/admin/plugin_services#index"
     route :post, "/api/v1/app/admin/plugin_services/:name/stop", to: "api/v1/app/admin/plugin_services#stop"
     route :post, "/api/v1/app/admin/plugin_services/:name/start", to: "api/v1/app/admin/plugin_services#start"

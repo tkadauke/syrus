@@ -8,7 +8,8 @@ require "tmpdir"
 RSpec.describe "website release metadata sync" do
   let(:repo_root) { File.expand_path("../..", __dir__) }
   let(:script_path) { File.join(repo_root, "website/scripts/sync-release.mjs") }
-  let(:syrus_yml) { File.read(File.join(repo_root, ".syrus.yml")) }
+  # The website's graders live in its own nested project file.
+  let(:syrus_yml) { File.read(File.join(repo_root, "website", ".syrus.yml")) }
 
   it "lets the website-build grader validate committed release metadata without rewriting drift" do
     Dir.mktmpdir("syrus-release-sync") do |dir|
