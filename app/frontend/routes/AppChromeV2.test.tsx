@@ -895,7 +895,7 @@ describe("AppChromeV2", () => {
     expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7, "claude")
   })
 
-  it("asks for a chat provider when multiple configured providers are available", async () => {
+  it("creates an empty chat with the effective provider directly when multiple configured providers are available, without showing a provider modal", async () => {
     vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({
       default_repository_id: 7,
       effective_chat_provider: "codex",
@@ -908,7 +908,7 @@ describe("AppChromeV2", () => {
     vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
       message: "Chat created.",
       redirect_to: "/chats/14",
-      chat: chatNav({ id: 14, title: null, title_pending: false, chat_path: "/chats/14", last_message_at: null, chat_provider: "claude" }) as chatsApi.ChatRecord
+      chat: chatNav({ id: 14, title: null, title_pending: false, chat_path: "/chats/14", last_message_at: null, chat_provider: "codex" }) as chatsApi.ChatRecord
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData(["chats", "recent"], chatsIndexPayload())
@@ -921,15 +921,10 @@ describe("AppChromeV2", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
 
-    const selector = await screen.findByRole("combobox", { name: "Chat provider" })
-    expect(selector).toHaveValue("codex")
-    expect(chatsApi.createEmptyChat).not.toHaveBeenCalled()
-
-    fireEvent.change(selector, { target: { value: "claude" } })
-    fireEvent.click(screen.getByRole("button", { name: "Start chat" }))
-
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14"))
-    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7, "claude")
+    expect(screen.queryByRole("combobox", { name: "Chat provider" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7, "codex")
   })
 
   it("shows a notice when creating an empty chat fails", async () => {
