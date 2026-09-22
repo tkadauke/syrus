@@ -359,6 +359,15 @@ Core keeps four things:
   implements against its own `TestInsights::IsolatedReproAttempt` table. With
   the plugin disabled there is no provider, so it always declines with
   `no_isolated_repro_evidence`.
+- **`App::JobDetailPayload`**, which asks `:test_evidence` providers for a
+  bounded failed-test summary (count, first-N names/locations/short
+  messages) on each failed `grade`/`grader` Run, rendered inline on the
+  workflows-tab run card (`WorkflowGraph.tsx`'s `TestFailureSummary`) so an
+  operator can see what broke without opening the raw grade log. With the
+  plugin disabled, or when a grader's output wasn't test-shaped (no ingested
+  `TestCase` rows for that run/grader pair -- e.g. the run crashed before
+  producing output), the summary is nil and the run card falls back to its
+  existing `Grade log`/`Transcript` buttons.
 
 Disabling the plugin stops ingestion and hides the UI; recorded history stays.
 
