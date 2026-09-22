@@ -338,6 +338,73 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       )
     end
 
+    it "humanizes a monorepo grader Step's title from its target label while preserving the exact target id" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 1,
+        state: "succeeded",
+        details: {
+          "name" => "plugins-rails-rspec-focused",
+          "target_label" => "//plugins/rails:grade/rspec-focused",
+          "command" => "bin/rspec --tag focus",
+          "required" => true
+        }
+      )
+
+      step_payload = workflows_payload_for(job).fetch(:workflows).first.fetch(:steps).first
+
+      expect(step_payload.fetch(:display_name)).to eq("plugins/rails: RSpec Focused")
+      expect(step_payload.fetch(:details)).to include(
+        "name" => "plugins-rails-rspec-focused",
+        "target_label" => "//plugins/rails:grade/rspec-focused"
+      )
+    end
+
+    it "humanizes a root-level grader Step's title without a package prefix" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 1,
+        state: "succeeded",
+        details: { "name" => "migration-collisions", "target_label" => "//:grade/migration-collisions" }
+      )
+
+      step_payload = workflows_payload_for(job).fetch(:workflows).first.fetch(:steps).first
+
+      expect(step_payload.fetch(:display_name)).to eq("Migration Collisions")
+    end
+
+    it "humanizes a preflight grader Step's title the same way as a regular grader Step" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+      Step.create!(
+        workflow: workflow,
+        kind: "preflight_grader",
+        position: 1,
+        state: "succeeded",
+        details: { "name" => "plugins-rails-rspec-focused", "target_label" => "//plugins/rails:grade/rspec-focused" }
+      )
+
+      step_payload = workflows_payload_for(job).fetch(:workflows).first.fetch(:steps).first
+
+      expect(step_payload.fetch(:display_name)).to eq("plugins/rails: RSpec Focused")
+    end
+
+    it "falls back to the flattened grader name when target_label is missing" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(workflow: workflow, kind: "grader", position: 1, state: "succeeded", details: { "name" => "legacy-grader" })
+
+      step_payload = workflows_payload_for(job).fetch(:workflows).first.fetch(:steps).first
+
+      expect(step_payload.fetch(:display_name)).to eq("Legacy Grader")
+    end
+
     it "keeps Epic wording for Epic merge train landing steps" do
       epic = Factories.epic(user: user, repository: repo)
       job = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 101)

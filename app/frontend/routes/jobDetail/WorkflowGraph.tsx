@@ -16,7 +16,7 @@ import { pluginIconSrc } from "../../lib/pluginIcon"
 import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type RunTestFailureSummary, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
-import { booleanValue, debugOnlyDetails, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, isDiagnosticRelevantRun, isDiagnosticRelevantStep, isRedundantRunStatus, isRedundantRunTiming, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, softCommandFailures, sortedRunsNewestFirst, stepAgentic, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
+import { booleanValue, debugOnlyDetails, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, graderFanoutSelections, humanize, humanizeGraderName, isActiveState, isDiagnosticRelevantRun, isDiagnosticRelevantStep, isRedundantRunStatus, isRedundantRunTiming, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, softCommandFailures, sortedRunsNewestFirst, stepAgentic, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
@@ -728,23 +728,37 @@ function GradeSummaryPills({ summaries }: { summaries: GradeSummary[] }) {
 
 const GRADER_DESCRIPTION_LIMIT = 220
 
-// Compact, human-friendly view of a grader Step's details: whether it's
-// required, its description (collapsed with "Read more" when long), and the
-// command. The raw fields (output, log_path, exit_code, duration_s,
-// log_bytes, timeout_minutes) are intentionally hidden — the grade log
-// button on the run exposes the output.
-function GraderDetails({ details }: { details: Record<string, unknown> }) {
+// Consolidated, human-friendly view of a grader Step's identity and
+// gating behavior: exact target id, required/gating status, description
+// (collapsed with "Read more" when long), and command — one metadata panel
+// instead of scattering target identity, requirement, description, and
+// command across separate zones. The raw fields (output, log_path,
+// exit_code, duration_s, log_bytes, timeout_minutes) are intentionally
+// hidden — the grade log button on the run exposes the output.
+function GraderDetails({ details, jobId, prefix, workflowId }: { details: Record<string, unknown>; jobId: number; prefix: string; workflowId: number }) {
   const { t } = useT("jobs")
   const [expanded, setExpanded] = useState(false)
   const description = (stringValue(details.description) || "").replace(/\s+/g, " ").trim()
   const command = (stringValue(details.command) || "").trim()
   const required = booleanValue(details.required)
+  const targetLabel = stringValue(details.target_label)
   const isLong = description.length > GRADER_DESCRIPTION_LIMIT
   const shownDescription = expanded || !isLong ? description : `${description.slice(0, GRADER_DESCRIPTION_LIMIT).trimEnd()}…`
 
   return (
-    <div className="mt-2 space-y-2 text-xs">
-      <SmallPill>{required === false ? t("grader_optional") : t("grader_required")}</SmallPill>
+    <Surface className="mt-2 space-y-2 text-xs" padding="sm" variant="panel">
+      <DescriptionList.Root density="compact">
+        {targetLabel ? (
+          <DescriptionList.Item descriptionClassName="break-words" label={t("grader_target_label")}>
+            <TargetGraphLink jobId={jobId} prefix={prefix} targetLabel={targetLabel} workflowId={workflowId}>
+              <code className="font-mono">{targetLabel}</code>
+            </TargetGraphLink>
+          </DescriptionList.Item>
+        ) : null}
+        <DescriptionList.Item label={t("grader_status_label")}>
+          <SmallPill>{required === false ? t("grader_optional") : t("grader_required")}</SmallPill>
+        </DescriptionList.Item>
+      </DescriptionList.Root>
       {description ? (
         <p className="text-gray-700 dark:text-gray-300">
           {shownDescription}
@@ -767,19 +781,69 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
           <CodeSurface code={command} maxHeightClassName="max-h-32" mode="command" />
         </div>
       ) : null}
+    </Surface>
+  )
+}
+
+// Semantic summary for a grader_fanout/preflight_grader_fanout Step: how
+// many graders this iteration selected vs. skipped, with the skip reason for
+// each skipped grader (a skipped grader never gets its own child Step, so
+// this is the only place that explains it). Selected graders aren't listed
+// again here — the materialized grader child Steps already show them as
+// siblings in the same grade group.
+function GraderFanoutSummary({ step }: { step: JobStep }) {
+  const { t } = useT("jobs")
+  const selections = graderFanoutSelections(step)
+  const debugDetails = debugOnlyDetails(step)
+
+  if (!selections || selections.length === 0) {
+    return debugDetails ? <RawStepDetailsDisclosure details={debugDetails} /> : null
+  }
+
+  const selectedCount = selections.filter((selection) => selection.affected).length
+  const skipped = selections.filter((selection) => !selection.affected)
+
+  return (
+    <div className="mt-2 space-y-2 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        {selectedCount > 0 ? <SmallPill>{t("grader_fanout_selected_count", { count: selectedCount })}</SmallPill> : null}
+        {skipped.length > 0 ? <SmallPill>{t("grader_fanout_skipped_count", { count: skipped.length })}</SmallPill> : null}
+      </div>
+      {skipped.length > 0 ? (
+        <ul className="list-disc space-y-0.5 pl-4 text-text-muted">
+          {skipped.map((selection, index) => (
+            <li key={selection.targetLabel || selection.name || index}>
+              <span className="font-medium text-text-primary">{selection.name ? humanizeGraderName(selection.name) : t("grader_unknown_name")}</span>
+              {selection.reason ? <> — {selection.reason}</> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {debugDetails ? <RawStepDetailsDisclosure details={debugDetails} /> : null}
     </div>
   )
 }
 
 // Typed/semantic rendering path for `step.details`, replacing an
-// unconditional raw JSON dump. Grader steps keep their existing dedicated
-// renderer; every other kind gets its known soft-failure entries rendered as
-// readable notices, with anything left over (cancellation metadata, fanout
-// planner output, and any other payload with no semantic renderer yet)
-// tucked behind an explicit debug affordance instead of shown by default.
-function StepDetailsSection({ step }: { step: JobStep }) {
+// unconditional raw JSON dump. Grader steps keep their consolidated
+// GraderDetails panel; grader_fanout/preflight_grader_fanout get a
+// selected/skipped summary instead of the raw target-selection JSON;
+// grader_collect/preflight_grader_collect render nothing — their own
+// details are internal bookkeeping, and the result is already visible on
+// their sibling grader child Steps. Every other kind gets its known
+// soft-failure entries rendered as readable notices, with anything left
+// over (cancellation metadata, target-health planner output, and any other
+// payload with no semantic renderer yet) tucked behind an explicit debug
+// affordance instead of shown by default.
+function StepDetailsSection({ step, jobId, prefix, workflowId }: { step: JobStep; jobId: number; prefix: string; workflowId: number }) {
   if (step.kind === "grader" || step.kind === "preflight_grader") {
-    return <GraderDetails details={objectDetails(step.details)} />
+    return <GraderDetails details={objectDetails(step.details)} jobId={jobId} prefix={prefix} workflowId={workflowId} />
+  }
+  if (step.kind === "grader_collect" || step.kind === "preflight_grader_collect") {
+    return null
+  }
+  if (step.kind === "grader_fanout" || step.kind === "preflight_grader_fanout") {
+    return <GraderFanoutSummary step={step} />
   }
 
   const softFailures = softCommandFailures(step)
@@ -882,7 +946,7 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
           {pendingWarnings(step).map((warning) => (
             <WarningPanel command={command} jobId={payload.job.id} key={warning.id} warning={warning} />
           ))}
-          {step.details ? <StepDetailsSection step={step} /> : null}
+          {step.details ? <StepDetailsSection jobId={payload.job.id} prefix={prefix} step={step} workflowId={workflowId} /> : null}
           {step.runs_truncated ? (
             <Notice className="mt-3 px-2 py-1 text-xs" tone="warning">
               {t("step_runs_truncated", { displayed: step.runs_displayed || runs.length, total: step.runs_total || runs.length })}

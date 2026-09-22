@@ -876,8 +876,51 @@ describe("WorkflowsTab", () => {
           payload={payload({
             workflows: [workflowWithStepDetails({
               id: 30,
+              kind: "unspecified_future_step",
+              display_name: "Mystery step",
+              display_status: "succeeded",
+              position: 1,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: null,
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: {
+                some_future_planner_output: [ { name: "unclaimed", reason: "no semantic renderer yet" } ]
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Mystery step/ }))
+
+    const toggle = screen.getByText("Debug details")
+    const rawPayload = screen.getByText(/some_future_planner_output/)
+    expect(toggle).toBeVisible()
+    expect(rawPayload).not.toBeVisible()
+
+    fireEvent.click(toggle)
+    expect(screen.getByText(/some_future_planner_output/)).toBeVisible()
+  })
+
+  it("summarizes grader_fanout target selection instead of dumping grader_target_selections JSON", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 30,
               kind: "grader_fanout",
-              display_name: "Grade setup",
+              display_name: "Plan graders",
               display_status: "succeeded",
               position: 1,
               iteration: null,
@@ -889,7 +932,8 @@ describe("WorkflowsTab", () => {
               updated_at: "2026-08-25T12:01:00Z",
               details: {
                 grader_target_selections: [
-                  { name: "rspec", target_label: "//:grade/rspec", reason: "affected by diff" }
+                  { name: "rspec", target_label: "//:grade/rspec", required: true, affected: true, reason: "own source scope matched a changed file" },
+                  { name: "plugins-rails-eslint", target_label: "//plugins/rails:grade/eslint", required: false, affected: false, reason: "no matching files changed" }
                 ]
               },
               warnings: [],
@@ -905,13 +949,97 @@ describe("WorkflowsTab", () => {
     fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
     fireEvent.click(screen.getByRole("button", { name: /Setup/ }))
 
-    const toggle = screen.getByText("Debug details")
-    const rawPayload = screen.getByText(/grader_target_selections/)
-    expect(toggle).toBeVisible()
-    expect(rawPayload).not.toBeVisible()
+    expect(screen.getByText("1 grader selected")).toBeInTheDocument()
+    expect(screen.getByText("1 grader skipped")).toBeInTheDocument()
+    expect(screen.getByText("Plugins Rails Eslint")).toBeInTheDocument()
+    expect(screen.getByText(/no matching files changed/)).toBeInTheDocument()
+    // The selected grader already has its own sibling grader Step in the
+    // group, so it's not re-listed here — only the skipped one is.
+    expect(screen.getAllByRole("listitem")).toHaveLength(1)
+    expect(screen.queryByText(/grader_target_selections/)).not.toBeInTheDocument()
+  })
 
-    fireEvent.click(toggle)
-    expect(screen.getByText(/grader_target_selections/)).toBeVisible()
+  it("omits body for grader_collect since the result is already shown on the sibling grader Steps", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 30,
+              kind: "grader_collect",
+              display_name: "Aggregate graders",
+              display_status: "succeeded",
+              position: 1,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: null,
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: { transient_only_required_grader_failure: true },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Result/ }))
+
+    expect(screen.queryByText("Debug details")).not.toBeInTheDocument()
+    expect(screen.queryByText(/transient_only_required_grader_failure/)).not.toBeInTheDocument()
+  })
+
+  it("consolidates grader target id, gating status, description, and command into one metadata panel", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 30,
+              kind: "grader",
+              display_name: "plugins/rails: RSpec Focused",
+              display_status: "succeeded",
+              position: 1,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: null,
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: {
+                name: "plugins-rails-rspec-focused",
+                target_label: "//plugins/rails:grade/rspec-focused",
+                description: "Runs the focused RSpec suite for plugins/rails.",
+                command: "bin/rspec --tag focus",
+                required: true
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+    fireEvent.click(screen.getByRole("button", { name: /RSpec Focused/ }))
+
+    const targetLink = screen.getByRole("link", { name: "//plugins/rails:grade/rspec-focused" })
+    const statusPanel = targetLink.closest("dl")!.closest("div")!
+    expect(statusPanel).toHaveTextContent("Required to pass")
+    expect(statusPanel).toHaveTextContent("Runs the focused RSpec suite for plugins/rails.")
+    expect(statusPanel).toHaveTextContent("bin/rspec --tag focus")
   })
 
   it("renders format/generate soft command failures as a readable notice instead of raw JSON", () => {

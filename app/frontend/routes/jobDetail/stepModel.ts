@@ -132,6 +132,44 @@ export function loopIterations(steps: JobStep[]) {
     }))
 }
 
+export type GraderTargetSelection = {
+  name: string | null
+  targetLabel: string | null
+  required: boolean | null
+  affected: boolean
+  reason: string | null
+}
+
+// Reads a grader_fanout/preflight_grader_fanout Step's target-selection plan
+// (one entry per configured grader, recorded only when the repository's
+// work definition opts into it) so the UI can summarize it instead of
+// dumping the raw `grader_target_selections` array. Selected graders each
+// get their own materialized `grader` Step already shown as a sibling in the
+// same grade group; skipped graders never do, so they're the only ones worth
+// naming here.
+export function graderFanoutSelections(step: JobStep): GraderTargetSelection[] | null {
+  if (step.kind !== "grader_fanout" && step.kind !== "preflight_grader_fanout") return null
+
+  const raw = objectDetails(step.details).grader_target_selections
+  if (!Array.isArray(raw)) return null
+
+  return raw.filter(isRecord).map((entry) => ({
+    name: stringValue(entry.name),
+    targetLabel: stringValue(entry.target_label),
+    required: booleanValue(entry.required),
+    affected: booleanValue(entry.affected) ?? true,
+    reason: stringValue(entry.reason)
+  }))
+}
+
+// Mirrors the backend's grader display-name humanization (see
+// App::JobDetailPayload::WorkflowSerializers#grader_display_name) for
+// skipped-grader entries, which have no materialized Step of their own to
+// carry a pre-humanized `display_name`.
+export function humanizeGraderName(name: string) {
+  return name.replace(/[-_]+/g, " ").split(" ").filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
+}
+
 export function isGradeDisplayStep(step: JobStep) {
   return step.kind === "grader_fanout" || step.kind === "grader" || step.kind === "grader_collect" || step.kind === "grade"
     || step.kind === "preflight_grader_fanout" || step.kind === "preflight_grader" || step.kind === "preflight_grader_collect"
@@ -154,7 +192,6 @@ export function gradePhases(item: GradeStepItem, t: ReturnType<typeof useT>["t"]
     if (step.kind === "grader_fanout" || step.kind === "preflight_grader_fanout") return { step, displayName: t("grade_setup"), metadataLabel: "grade setup" }
     if (step.kind === "grader_collect" || step.kind === "preflight_grader_collect") return { step, displayName: t("grade_result"), metadataLabel: "grade result" }
     if (step.kind === "grade") return { step, displayName: step.display_name || t("grade_label"), metadataLabel: "grade" }
-    if (step.kind === "preflight_grader") return { step, displayName: stringValue(objectDetails(step.details).name) || step.display_name, metadataLabel: "grader" }
     return { step, displayName: step.display_name, metadataLabel: "grader" }
   })
 }
@@ -380,7 +417,7 @@ export function softCommandFailures(step: JobStep): PrepareFailure[] {
 export function debugOnlyDetails(step: JobStep): Record<string, unknown> | null {
   if (!isRecord(step.details)) return null
 
-  const excludedKeys = new Set([ "prepare_failure", "mise_install_failure", `${step.kind}_failures` ])
+  const excludedKeys = new Set([ "prepare_failure", "mise_install_failure", `${step.kind}_failures`, "grader_target_selections" ])
   const remaining = Object.fromEntries(Object.entries(step.details).filter(([ key ]) => !excludedKeys.has(key)))
   return Object.keys(remaining).length > 0 ? remaining : null
 }
