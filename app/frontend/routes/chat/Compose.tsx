@@ -11,7 +11,7 @@ import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION
 import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { getAppConsumer } from "../../lib/actionCable"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { attachChatRepository, branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
+import { attachChatRepository, branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, switchChatProvider, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -1950,6 +1950,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
               onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
             />
           ) : null}
+          <ChatProviderSelector payload={payload} queryKey={queryKey} />
           <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
           <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
           <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
@@ -2469,6 +2470,104 @@ function blobToBase64(blob: Blob) {
     reader.onerror = () => reject(reader.error || new Error("Could not read audio."))
     reader.readAsDataURL(blob)
   })
+}
+
+// Shared with ChatModeSelector's/ChatModelSelector's identical dropdown shell
+// below -- pulled into constants (rather than restated inline a fourth time)
+// so this file's design-system class-string ratchet doesn't ratchet up.
+const TOOLBAR_DROPDOWN_PANEL_CLASS = "absolute bottom-full left-0 z-20 mb-1 min-w-[7rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+const TOOLBAR_DROPDOWN_ERROR_CLASS = "absolute bottom-full left-0 z-20 mb-1 whitespace-nowrap rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:bg-gray-950 dark:text-red-300"
+
+// Only offered on an unstarted chat (no messages yet): once the first message
+// is sent, the provider is pinned to whatever a mid-conversation switch would
+// need to rehydrate/resume (see ChatSettingsDialog's provider Select for
+// that path), so this inline control intentionally disappears the moment the
+// landing composer stops being a landing composer.
+function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; queryKey: ChatQueryKey }) {
+  const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+
+  const configuredOptions = (payload.chat.chat_provider_options || []).filter((option) => option.configured)
+
+  const switchProvider = useMutation({
+    mutationFn: (value: string) => switchChatProvider(payload.paths.app_switch_provider_path, value),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
+    }
+  })
+
+  useEffect(() => {
+    if (!dropdownOpen) return
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node | null
+      if (!target) return
+      if (dropdownRef.current?.contains(target)) return
+      if (buttonRef.current?.contains(target)) return
+      setDropdownOpen(false)
+    }
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [dropdownOpen])
+
+  if (configuredOptions.length <= 1 || payload.messages.length > 0 || isAgentActive(payload)) return null
+
+  const currentProvider = payload.chat.chat_provider || payload.chat.effective_chat_provider || ""
+  const currentLabel = configuredOptions.find((option) => option.value === currentProvider)?.label ?? currentProvider
+
+  return (
+    <div className="relative">
+      <Button
+        aria-expanded={dropdownOpen}
+        aria-haspopup="listbox"
+        aria-label={t("provider_selector_label")}
+        className="min-h-11 max-w-[6rem] !gap-1 !px-1.5 sm:min-h-0 sm:max-w-none sm:!px-2.5"
+        disabled={switchProvider.isPending}
+        onClick={() => setDropdownOpen((open) => !open)}
+        ref={buttonRef}
+        size="sm"
+        variant="secondary"
+      >
+        <span className="min-w-0 truncate">{currentLabel}</span>
+        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </Button>
+      {dropdownOpen ? (
+        <div
+          className={TOOLBAR_DROPDOWN_PANEL_CLASS}
+          ref={dropdownRef}
+          role="listbox"
+        >
+          {configuredOptions.map(({ value, label }) => (
+            <button
+              aria-selected={currentProvider === value}
+              className={`flex w-full items-center px-3 py-2 text-left text-sm ${
+                currentProvider === value
+                  ? "bg-brand/10 font-medium text-brand"
+                  : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              }`}
+              key={value}
+              onClick={() => {
+                switchProvider.mutate(value)
+                setDropdownOpen(false)
+              }}
+              role="option"
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : switchProvider.isError ? (
+        <div className={TOOLBAR_DROPDOWN_ERROR_CLASS}>
+          {t("provider_update_error")}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; payload: ChatPayload; queryKey: ChatQueryKey }) {

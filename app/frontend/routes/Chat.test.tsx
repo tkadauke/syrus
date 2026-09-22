@@ -6501,6 +6501,98 @@ describe("chat mode selector in toolbar", () => {
   })
 })
 
+describe("chat provider selector in toolbar", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  function providerOptions() {
+    return [
+      { value: "claude", label: "Claude", configured: true, effective_provider: "claude", effective_label: "Claude" },
+      { value: "codex", label: "Codex", configured: true, effective_provider: "codex", effective_label: "Codex" }
+    ]
+  }
+
+  function landingPayload(chatOverrides: Record<string, unknown> = {}) {
+    const base = chatPayload({
+      messages: [],
+      chat: { chat_provider: "claude", chat_provider_options: providerOptions(), ...chatOverrides }
+    })
+    return { ...base, paths: { ...base.paths, app_switch_provider_path: "/api/v1/app/chats/8/switch_provider" } }
+  }
+
+  it("does not render the provider selector when only one chat provider is configured", async () => {
+    mockChatRouteFetch(landingPayload({
+      chat_provider_options: [
+        { value: "claude", label: "Claude", configured: true, effective_provider: "claude", effective_label: "Claude" },
+        { value: "codex", label: "Codex", configured: false, effective_provider: "codex", effective_label: "Codex" }
+      ]
+    }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("button", { name: "Change provider" })).not.toBeInTheDocument()
+  })
+
+  it("does not render the provider selector once the chat has messages", async () => {
+    const base = chatPayload({ chat: { chat_provider: "claude", chat_provider_options: providerOptions() } })
+    const payload = { ...base, paths: { ...base.paths, app_switch_provider_path: "/api/v1/app/chats/8/switch_provider" } }
+    mockChatRouteFetch(payload)
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("button", { name: "Change provider" })).not.toBeInTheDocument()
+  })
+
+  it("renders the provider selector on an unstarted chat, showing the current provider's label", async () => {
+    mockChatRouteFetch(landingPayload())
+    renderRoute()
+
+    const button = await screen.findByRole("button", { name: "Change provider" })
+    expect(button).toHaveTextContent("Claude")
+  })
+
+  it("opens a listbox with only the configured provider options on click", async () => {
+    mockChatRouteFetch(landingPayload())
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Change provider" }))
+
+    const listbox = screen.getByRole("listbox")
+    expect(within(listbox).getByRole("option", { name: "Claude" })).toBeInTheDocument()
+    expect(within(listbox).getByRole("option", { name: "Codex" })).toBeInTheDocument()
+  })
+
+  it("calls the switch_provider endpoint with the selected provider and closes the dropdown", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/switch_provider" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse({ message: "Switching to codex." }))
+      }
+      return Promise.resolve(jsonResponse(landingPayload()))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Change provider" }))
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Codex" }))
+
+    await waitFor(() => {
+      const switchCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+        String(call[0]) === "/api/v1/app/chats/8/switch_provider" && (call[1] as RequestInit)?.method === "POST"
+      )
+      expect(switchCalls).toHaveLength(1)
+      expect(JSON.parse((switchCalls[0][1] as RequestInit).body as string)).toMatchObject({ provider: "codex" })
+    })
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+  })
+})
+
 describe("LocalDaemonBanner", () => {
   beforeEach(() => {
     window.localStorage.clear()
