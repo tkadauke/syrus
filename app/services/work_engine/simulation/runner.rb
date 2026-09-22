@@ -848,6 +848,8 @@ module WorkEngine
         train = MergeTrain.find_by(id: run.workflow.artifact("merge_train_id"))
         return :failed unless train
 
+        train.update!(integration_sha: simulated_sha_for("merge-train-integration", train.id)) if train.integration_sha.blank?
+
         configured = Array(simulated_outcome_field(outcome, "unverified_members")).map(&:to_s)
         members = if configured.empty?
           train.members.to_a
@@ -860,10 +862,31 @@ module WorkEngine
 
         slugs = members.filter_map { |member| member.job&.slug }
         reason = simulated_outcome_field(outcome, "error_message").presence ||
-          "merge_train: landed integration #{train.integration_sha.to_s.first(9)} but could not verify #{slugs.size}/#{train.members.size} member(s): #{slugs.join(', ')}; needs re-landing"
-        members.each { |member| member.update!(state: "failed", reason: reason.truncate(500)) }
-        train.update!(state: "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
-        :failed
+          "merge_train: landed integration #{train.integration_sha.to_s.first(9)} but could not verify #{slugs.size}/#{train.members.size} member(s): #{slugs.join(', ')}; landing succeeded and unresolved members remain open for reconciliation"
+        members.each_with_index do |member, index|
+          # The real merge-train build records each member's rebased commits.
+          # Preserve that evidence in the simulation so the post-land
+          # reconciler can repair bookkeeping without publishing the already
+          # merged integration a second time.
+          LandedCommit.find_or_create_by!(
+            landable: member.job,
+            sha: simulated_sha_for("merge-train-member", "#{train.id}-#{member.job_id}"),
+            kind: "implementation"
+          ) { |commit| commit.position = index }
+          member.update!(state: "failed", reason: reason.truncate(500))
+          LandingFailureHandler.call(job: member.job, reason: reason, run: run) if member.job.landing?
+        end
+        train.update!(state: "succeeded", failure_reason: nil, finished_at: Time.current)
+        run.workflow.set_artifact!(
+          Steps::MergeTrainLand::MEMBER_RECONCILIATION_ARTIFACT,
+          {
+            "status" => "partial",
+            "integration_sha" => train.integration_sha,
+            "member_count" => train.members.size,
+            "unresolved_job_ids" => members.map(&:job_id)
+          }
+        )
+        nil
       end
 
       def close_job_if_possible!(job, reason)

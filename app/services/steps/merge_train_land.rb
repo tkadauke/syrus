@@ -10,6 +10,7 @@ module Steps
     BASE_SHA_ARTIFACT = "merge_train_base_sha"
     STALE_BASE_ARTIFACT = "merge_train_stale_base"
     INTEGRATION_PR_ARTIFACT = "merge_train_pr_number"
+    MEMBER_RECONCILIATION_ARTIFACT = "merge_train_member_reconciliation"
     STALE_BASE_FAILURE_PREFIX = "merge_train: base moved"
     MISSING_BASE_FAILURE_PREFIX = "merge_train: missing built base SHA"
     INTEGRATION_CONFLICT_FAILURE_PREFIX = "merge_train: integration PR has merge conflicts"
@@ -53,10 +54,8 @@ module Steps
       integration_sha = merge.respond_to?(:sha) ? merge.sha : merge[:sha]
       record_integration_merge_commit!(train, integration_sha)
       delete_branch_after_landing(client, train.integration_branch)
-      unverified_members = reconcile_members!(train, client, pr, integration_sha: integration_sha)
-      return mark_member_reconciliation_incomplete!(train, integration_sha, unverified_members) if unverified_members.any?
-
-      train.update!(state: "succeeded", finished_at: Time.current)
+      unverified_members = reconcile_members_after_landing!(train, client, pr, integration_sha: integration_sha)
+      finish_landed_train!(train, integration_sha, unverified_members)
       log(
         "merge_train: landed #{train.label} (#{train.members.size} PR(s)) via integration PR ##{pr.number}; " \
         "integration #{integration_sha.to_s.first(9)} merged onto #{train.base_branch}@#{pre_merge_base_sha.to_s.first(9)}"
@@ -172,10 +171,8 @@ module Steps
       )
       train.update!(integration_sha: base_sha, state: "landing")
       delete_branch_after_landing(client, train.integration_branch)
-      unverified_members = reconcile_members!(train, client, nil, integration_sha: base_sha)
-      return mark_member_reconciliation_incomplete!(train, base_sha, unverified_members) if unverified_members.any?
-
-      train.update!(state: "succeeded", finished_at: Time.current)
+      unverified_members = reconcile_members_after_landing!(train, client, nil, integration_sha: base_sha)
+      finish_landed_train!(train, base_sha, unverified_members)
     end
 
     def push_integration_branch(train, client)
@@ -368,6 +365,30 @@ module Steps
       unverified_members
     end
 
+    # GitHub merging the integration PR is the publication commit point. A
+    # later API, git, or bookkeeping error cannot undo it, so it must not turn
+    # this workflow into a failed landing that republishes the same train.
+    # Preserve every member not already reconciled as unresolved and let the
+    # normal post-land reconciler finish the bookkeeping from recorded commit
+    # evidence.
+    def reconcile_members_after_landing!(train, client, integration_pr, integration_sha:)
+      reconcile_members!(train, client, integration_pr, integration_sha: integration_sha)
+    rescue StandardError => e
+      reason = "merge_train: integration #{integration_sha.to_s.first(9)} merged, but member reconciliation " \
+               "stopped after #{e.class}: #{e.message.to_s.lines.first.to_s.strip}"
+      log(reason, kind: "system")
+      train.members.includes(:job).reject { |member| member.state == "merged" }.each do |member|
+        member.update_columns(state: "failed", reason: reason.truncate(500), updated_at: Time.current)
+        LandingFailureHandler.call(job: member.job, reason: reason, run: run) if member.job&.landing?
+      rescue StandardError => member_error
+        log(
+          "merge_train: could not record unresolved member #{member.job_id}: " \
+          "#{member_error.class}: #{member_error.message}",
+          kind: "system"
+        )
+      end
+    end
+
     # After GitHub merges the integration PR via the API, the resulting merge
     # commit (and, for a workspace that never had them, the member commits
     # newly reachable through it) exists on GitHub but not yet in this
@@ -528,13 +549,30 @@ module Steps
       LandingFailureHandler.call(job: member_job, reason: reason, run: run) if member_job.landing?
     end
 
-    def mark_member_reconciliation_incomplete!(train, integration_sha, unverified_members)
+    # Once the integration commit is on the base branch, landing is complete
+    # and must never be retried as though publication failed. Member
+    # reconciliation is conservative bookkeeping after that irreversible
+    # boundary: verified members close normally, while unresolved members
+    # remain open and failed on this train so the reconciler can inspect and
+    # repair them independently.
+    def finish_landed_train!(train, integration_sha, unverified_members)
       slugs = unverified_members.map { |member| member.job&.slug }.compact
+      train.update!(state: "succeeded", failure_reason: nil, finished_at: Time.current)
+      return if unverified_members.empty?
+
       reason = "merge_train: landed integration #{integration_sha.to_s.first(9)} but could not verify " \
-               "#{slugs.size}/#{train.members.size} member(s): #{slugs.join(', ')}; needs re-landing"
-      train.update!(state: "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
+               "#{slugs.size}/#{train.members.size} member(s): #{slugs.join(', ')}; " \
+               "landing succeeded and unresolved members remain open for reconciliation"
+      workflow.set_artifact!(
+        MEMBER_RECONCILIATION_ARTIFACT,
+        {
+          "status" => "partial",
+          "integration_sha" => integration_sha,
+          "member_count" => train.members.size,
+          "unresolved_job_ids" => unverified_members.map(&:job_id)
+        }
+      )
       log(reason, kind: "system")
-      fail_with!(:merge_train_rebuild_required, reason)
     end
 
     def reconcile_member_pull_request_after_landing(client, member_job, integration_pr)

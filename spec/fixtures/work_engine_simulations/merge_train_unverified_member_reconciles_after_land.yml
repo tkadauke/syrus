@@ -1,16 +1,16 @@
-name: merge train unverified member fails land step
+name: merge train unverified member reconciles after land
 app_settings:
   merge_train_enabled: true
 repository:
   owner: simulation
-  name: merge-train-unverified-member-fails-land-step
+  name: merge-train-unverified-member-reconciles-after-land
   auto_merge_enabled: true
 epics:
   feature:
     title: Feature with unverifiable train member
 jobs:
   member:
-    title: Member whose integration cannot be reconciled
+    title: Member whose landed integration needs reconciliation
     epic: feature
     state: approved
     branch_name: syrus/direct-member
@@ -23,10 +23,6 @@ outcomes:
       - status: success
         unverified_members:
           - all
-        failure_code: merge_train_rebuild_required
-        error_class: Steps::Base::StepFailed
-        error_message: "merge_train: landed integration sim but could not verify 1/1 member(s): JOB-member; needs re-landing"
-      - success
 expect:
   jobs:
     member:
@@ -36,8 +32,8 @@ expect:
     active_work_units: empty
   events:
     - merge_train_land -> {"status" => "success", "unverified_members" => ["all"]
-    - nonretryable_semantic_git_failure
-    - repair rebuild_merge_train -> applied
-    - merge_train_land -> success
+    - repair repair_merge_train_member_reconciliation -> applied
   absent_events:
+    - nonretryable_semantic_git_failure
+    - rebuild_merge_train
     - stuck
