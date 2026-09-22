@@ -72,17 +72,31 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
+	stopped := make(chan struct{})
 	go func() {
+		defer close(stopped)
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
+		// Take the plugin containers down with the manager, keeping their
+		// volumes, so `docker compose down` can remove the project network.
+		// The Compose file gives the manager a stop grace period long enough
+		// for this.
+		stopping, cancelStop := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancelStop()
+		if err := mgr.StopAll(stopping); err != nil {
+			log.Printf("runtime-manager: stopping plugin services: %v", err)
+		}
 	}()
 
 	log.Printf("runtime-manager: project=%s network=%s allowed=%v listening on %s", project, network, pol.Allowed(), listen)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+	// ListenAndServe returns as soon as shutdown begins; wait for the plugin
+	// containers to be taken down before exiting.
+	<-stopped
 	return nil
 }
 

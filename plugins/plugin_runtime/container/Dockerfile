@@ -4,11 +4,14 @@
 # that is given the Docker socket. It is built small and static on purpose --
 # the less there is in it, the less there is to trust.
 
-FROM docker.io/library/golang:1.25-alpine AS build
+# The Go build runs on the build host and cross-compiles, so a multi-arch
+# build never compiles under QEMU emulation.
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.25-alpine AS build
+ARG TARGETOS TARGETARCH
 WORKDIR /src
 COPY go.mod ./
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-manager .
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /runtime-manager .
 
 # distroless/static: no shell, no package manager, no curl. It runs as root so
 # it can open the Docker socket, which is root-owned on the host; the container

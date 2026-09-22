@@ -221,6 +221,32 @@ func (m *Manager) Remove(ctx context.Context, name string, purge bool) error {
 }
 
 // Status reports one service's state, probing its health endpoint if it has one.
+// StopAll removes every container this manager runs for its project, keeping
+// their volumes, and forgets pulls in progress. The manager calls it when it
+// shuts down: the containers are not Compose's, so without this they would
+// keep the project network busy and `docker compose down` could not remove
+// it. Nothing is lost -- state lives in the volumes, and the next reconcile
+// after the manager starts again recreates every service still wanted.
+func (m *Manager) StopAll(ctx context.Context) error {
+	m.mu.Lock()
+	for name := range m.pulls {
+		delete(m.pulls, name)
+	}
+	m.mu.Unlock()
+
+	containers, err := m.docker.ListContainers(ctx, m.projectLabels())
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, c := range containers {
+		if err := m.removeContainer(ctx, c.ID); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
 func (m *Manager) Status(ctx context.Context, name string) (Status, error) {
 	st := Status{Service: name}
 

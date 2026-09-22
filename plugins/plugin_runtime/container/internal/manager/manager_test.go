@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/docker"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/policy"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/spec"
 )
@@ -328,5 +329,34 @@ func TestListIncludesServicesStillPulling(t *testing.T) {
 	}
 	if len(statuses) != 1 || statuses[0].State != StatePulling {
 		t.Fatalf("statuses = %+v, want the pulling service listed", statuses)
+	}
+}
+
+// On shutdown the manager takes its containers with it so `docker compose
+// down` can remove the project network -- but never another project's, and
+// never anyone's data.
+func TestStopAllRemovesThisProjectsContainersAndKeepsVolumes(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	d.containers["foreign"] = &fakeContainer{id: "foreign", name: "staging-plugin-git-mirror", running: true,
+		req: docker.CreateContainerRequest{Labels: map[string]string{LabelManaged: "true", LabelProject: "staging", LabelService: "git-mirror"}}}
+	m := newManager(d)
+	if _, err := m.Ensure(context.Background(), "git-mirror", service()); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := m.StopAll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if d.containerCount() != 1 || d.containers["foreign"] == nil {
+		t.Fatalf("containers left = %d, want only the other project's", d.containerCount())
+	}
+	if d.volumeCount() != 1 {
+		t.Fatalf("volumes = %d, want the service's volume kept", d.volumeCount())
+	}
+	// The next reconcile brings it back.
+	if _, err := m.Ensure(context.Background(), "git-mirror", service()); err != nil || d.containerCount() != 2 {
+		t.Fatalf("ensure after stop: containers=%d err=%v", d.containerCount(), err)
 	}
 }
