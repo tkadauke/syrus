@@ -7,7 +7,6 @@ RSpec.describe App::RepositoryFeatureRecommendations do
 
   before do
     allow(App::PreviewAvailability).to receive(:configured?).and_return(false)
-    allow(Feature).to receive(:visual_review_enabled?).and_return(false)
     stub_repository_content(repository, files: snapshot)
   end
 
