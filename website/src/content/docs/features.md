@@ -1210,13 +1210,29 @@ after each poll cycle. On application boot, registered workers are started
 automatically when `SYRUS_ROLE` is set — core connectors and plugin-provided
 connectors both start automatically, but a plugin's connector only starts
 while its plugin is enabled. Administrators can also trigger a manual start
-of core connectors via the admin API:
+of core *and* plugin connectors (e.g. Discord's Gateway listener) via the
+admin API:
 
 ```
 POST /api/v1/app/admin/platform_polling/start
 ```
 
-This enqueues any registered platform polling job that is not already running.
+This enqueues any registered platform polling job, core or plugin, that is
+not already running, and reports each connector's status (`started`,
+`already_running`, or `not_configured`) in the response so an administrator
+can see whether a specific connector actually restarted.
+
+The self-reschedule that keeps a connector alive only runs if its worker
+process reaches the end of its poll cycle. A worker that gets killed or
+pruned mid-cycle (an OOMKill, a deploy, an infrastructure hiccup) can drop a
+configured connector out of the queue with no visible error — it looks
+identical to "nothing has happened yet." A background watchdog job checks
+every few minutes for exactly this and automatically re-enqueues any
+configured connector that has gone missing, logging a warning so the gap is
+visible in the logs even if no administrator happens to hit the manual
+restart button. Every listener discussed here — Telegram's long-poller and
+Discord's Gateway connection alike — runs in-process inside a Solid Queue
+worker pod; there is no separate bot daemon to restart.
 
 
 Credentials are stored with Active Record Encryption in the Syrus database,

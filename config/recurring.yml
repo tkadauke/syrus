@@ -46,6 +46,10 @@ default: &default
     class: SyncGithubPermissionsJob
     queue: polling
     schedule: every 5 minutes
+  watch_platform_connectors:
+    class: PlatformConnectorWatchdogJob
+    queue: polling
+    schedule: every 5 minutes
   process_landing_queue:
     class: LandingQueueProcessorJob
     queue: control_plane
