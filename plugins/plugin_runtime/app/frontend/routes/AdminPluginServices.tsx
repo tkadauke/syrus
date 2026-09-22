@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
-import { Button, DataTable, Notice, Page, PageHeading, Pill, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
+import { Button, Checkbox, CodeSurface, DataTable, Notice, Page, PageHeading, Pill, Section, SectionHeading, Select, Text, Toolbar } from "@app/components/ui"
 import type { SemanticTone } from "@app/components/ui"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -185,6 +185,7 @@ function LogsPanel({ name, onClose }: { name: string; onClose: () => void }) {
     queryFn: () => fetchPluginServiceLogs(name, tail),
     refetchInterval: follow ? 3_000 : false
   })
+  const logsText = logs.isPending ? t("loading") : logs.data?.logs || t("logs_empty")
 
   return (
     <Section.Root aria-label={t("logs_heading", { service: name })}>
@@ -192,29 +193,23 @@ function LogsPanel({ name, onClose }: { name: string; onClose: () => void }) {
         <SectionHeading>{t("logs_heading", { service: name })}</SectionHeading>
         <Toolbar>
           <label className="text-sm text-text-primary" htmlFor="plugin-service-log-tail">{t("lines")}</label>
-          <select
-            className="rounded border border-border bg-surface px-2 py-1 text-sm text-text-primary"
+          <Select
+            fullWidth={false}
             id="plugin-service-log-tail"
             onChange={(event) => setTail(Number(event.target.value))}
             value={tail}
           >
             {LOG_TAILS.map((value) => <option key={value} value={value}>{value}</option>)}
-          </select>
-          <label className="flex items-center gap-1.5 text-sm text-text-primary">
-            <input checked={follow} onChange={(event) => setFollow(event.target.checked)} type="checkbox" />
-            {t("follow")}
-          </label>
+          </Select>
+          <Checkbox checked={follow} label={t("follow")} onChange={(event) => setFollow(event.target.checked)} />
           <Button disabled={logs.isFetching} onClick={() => void logs.refetch()} size="sm" variant="secondary">{t("refresh")}</Button>
           <Button onClick={onClose} size="sm" variant="secondary">{t("close_logs")}</Button>
         </Toolbar>
       </div>
       {logs.isError ? <Notice tone="danger">{logs.error instanceof Error ? logs.error.message : t("logs_error")}</Notice> : null}
-      <pre
-        aria-label={t("logs_output", { service: name })}
-        className="max-h-[32rem] overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-surface px-3 py-2 font-mono text-xs text-text-primary"
-      >
-        {logs.isPending ? t("loading") : logs.data?.logs || t("logs_empty")}
-      </pre>
+      <CodeSurface aria-label={t("logs_output", { service: name })} code={logsText} maxHeightClassName="max-h-[32rem]">
+        {logsText}
+      </CodeSurface>
     </Section.Root>
   )
 }

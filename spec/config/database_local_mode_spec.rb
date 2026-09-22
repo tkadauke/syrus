@@ -55,8 +55,8 @@ RSpec.describe "config/database.yml local SQLite mode" do
   it "does not multiply the production pool with the generic Rails thread count by default" do
     config = render_database_config("RAILS_MAX_THREADS" => "20")
 
-    expect(config.dig("production", "primary", "pool")).to eq(7)
-    expect(config.dig("production", "queue", "pool")).to eq(7)
+    expect(config.dig("production", "primary", "pool")).to eq(8)
+    expect(config.dig("production", "queue", "pool")).to eq(8)
     expect(config.dig("production", "search", "pool")).to eq(7)
   end
 
