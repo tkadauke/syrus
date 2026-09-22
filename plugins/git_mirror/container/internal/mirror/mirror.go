@@ -123,6 +123,12 @@ type Change struct {
 	Patch *string `json:"patch,omitempty"`
 }
 
+type Ref struct {
+	Name       string    `json:"name"`
+	RevisionID string    `json:"revision_id"`
+	ObservedAt time.Time `json:"observed_at"`
+}
+
 // MaxPatchBytes is the largest per-file patch returned; bigger ones are
 // omitted, as GitHub does.
 const MaxPatchBytes = 256 << 10
@@ -357,6 +363,66 @@ func (s *Store) Resolve(ctx context.Context, id, ref string, maxAge time.Duratio
 		}
 	}
 	return "", time.Time{}, ErrUnknownRevision
+}
+
+// Refs lists matching tags after refreshing refs within maxAge. Git's
+// version sort makes release-like tags deterministic and newest-first.
+func (s *Store) Refs(ctx context.Context, id, pattern string, maxAge time.Duration) ([]Ref, error) {
+	r, err := s.get(id)
+	if err != nil {
+		return nil, err
+	}
+	if pattern == "" || strings.ContainsAny(pattern, "\x00\n\r") {
+		return nil, fmt.Errorf("%w: invalid pattern", ErrBadRequest)
+	}
+	if age, known := s.age(r); !known || age > maxAge {
+		if err := s.fetch(ctx, r); err != nil {
+			return nil, fmt.Errorf("%w: could not refresh within max_age: %v", ErrUnavailable, err)
+		}
+	}
+	res, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, "for-each-ref", "--sort=-version:refname", "--format=%(refname:strip=2)%00%(objectname)%00%(*objectname)%00", "refs/tags/"+pattern)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(res.Stdout)), "\n")
+	refs := make([]Ref, 0, len(lines))
+	observedAt := s.lastFetch(r)
+	for _, line := range lines {
+		fields := strings.Split(line, "\x00")
+		if len(fields) < 3 {
+			continue
+		}
+		name := fields[0]
+		if name != "" {
+			revisionID := fields[1]
+			if fields[2] != "" {
+				revisionID = fields[2]
+			}
+			refs = append(refs, Ref{Name: name, RevisionID: revisionID, ObservedAt: observedAt})
+		}
+	}
+	return refs, nil
+}
+
+// Relation describes head relative to base.
+func (s *Store) Relation(ctx context.Context, id, base, head string) (string, error) {
+	r, err := s.revisionRepo(ctx, id, base)
+	if err != nil {
+		return "", err
+	}
+	if _, err := s.revisionRepo(ctx, id, head); err != nil {
+		return "", err
+	}
+	if base == head {
+		return "identical", nil
+	}
+	if _, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, "merge-base", "--is-ancestor", base, head); err == nil {
+		return "ahead", nil
+	}
+	if _, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, "merge-base", "--is-ancestor", head, base); err == nil {
+		return "behind", nil
+	}
+	return "diverged", nil
 }
 
 // Tree lists every file, symlink, and submodule at a commit.

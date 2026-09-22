@@ -140,6 +140,20 @@ module GithubHost
       changes
     end
 
+    def refs(pattern:, max_age:)
+      translate(unknown_revision: "could not list refs") do
+        client.list_tags(slug, pattern: pattern).map do |tag|
+          RepositoryContent::Ref.new(name: tag.fetch(:name), revision_id: tag.fetch(:sha), observed_at: Time.current)
+        end
+      end
+    end
+
+    def relation(base_id, head_id)
+      translate(unknown_revision: "unknown revision #{base_id}...#{head_id}") do
+        client.compare_commits(slug, base_id, head_id).fetch(:status).to_sym
+      end
+    end
+
     private
 
     attr_reader :repository, :user

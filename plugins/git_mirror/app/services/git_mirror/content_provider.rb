@@ -69,6 +69,20 @@ module GitMirror
       end
     end
 
+    def refs(pattern:, max_age:)
+      registered { @client.refs(mirror_id, pattern: pattern, max_age: max_age) }.map do |ref|
+        RepositoryContent::Ref.new(
+          name: ref.fetch("name"),
+          revision_id: ref.fetch("revision_id"),
+          observed_at: Time.zone.parse(ref.fetch("observed_at"))
+        )
+      end
+    end
+
+    def relation(base_id, head_id)
+      registered { @client.relation(mirror_id, base_id, head_id) }.to_sym
+    end
+
     private
 
     def mirror_id = @repository.id.to_s

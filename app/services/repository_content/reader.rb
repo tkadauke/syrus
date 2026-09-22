@@ -131,6 +131,20 @@ module RepositoryContent
       result
     end
 
+    # Movable refs matching `pattern`, in provider-defined newest-first order.
+    def refs(pattern:, max_age: DEFAULT_MAX_AGE)
+      raise ArgumentError, "pattern is required" if pattern.blank?
+
+      through_chain(:refs) { |provider| provider.refs(pattern: pattern, max_age: max_age.to_i) }
+    end
+
+    # Describes head relative to base: identical, ahead, behind, or diverged.
+    def relation(base:, head:)
+      base_id = revision_id(base)
+      head_id = revision_id(head)
+      through_chain(:relation) { |provider| provider.relation(base_id, head_id) }.to_sym
+    end
+
     # The provider instances that will be asked, in order. Exposed for
     # diagnostics.
     def providers

@@ -121,6 +121,30 @@ func TestResolveTreeAndRead(t *testing.T) {
 	}
 }
 
+func TestRefsAndRevisionRelation(t *testing.T) {
+	u := newUpstream(t)
+	base := u.commit(map[string]string{"a.txt": "1"}, "base")
+	u.git("tag", "deploy-1")
+	head := u.commit(map[string]string{"a.txt": "2"}, "head")
+	u.git("tag", "-a", "deploy-2", "-m", "release")
+	s := newStore(t, nil)
+	register(t, s, "42", u)
+
+	refs, err := s.Refs(context.Background(), "42", "deploy-*", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 2 || refs[0].Name != "deploy-2" || refs[0].RevisionID != head || refs[1].RevisionID != base {
+		t.Fatalf("unexpected refs: %+v", refs)
+	}
+	if relation, err := s.Relation(context.Background(), "42", base, head); err != nil || relation != "ahead" {
+		t.Fatalf("relation = %q, %v; want ahead", relation, err)
+	}
+	if relation, err := s.Relation(context.Background(), "42", head, base); err != nil || relation != "behind" {
+		t.Fatalf("reverse relation = %q, %v; want behind", relation, err)
+	}
+}
+
 // The distinction the whole content contract rests on: a missing file in a
 // known commit is final; a commit the mirror has never seen is not.
 func TestMissingFileIsNotFoundButUnknownCommitIsUnknownRevision(t *testing.T) {

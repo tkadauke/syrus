@@ -153,6 +153,14 @@ RSpec.describe GithubHost::ContentProvider do
     end
   end
 
+  it "lists matching tags and compares revision ancestry" do
+    allow(client).to receive(:list_tags).with("acme/widgets", pattern: "deploy-*").and_return([ { name: "deploy-2", sha: sha } ])
+    allow(client).to receive(:compare_commits).with("acme/widgets", "base", sha).and_return(status: "ahead")
+
+    expect(provider.refs(pattern: "deploy-*", max_age: 0).sole).to have_attributes(name: "deploy-2", revision_id: sha)
+    expect(provider.relation("base", sha)).to eq(:ahead)
+  end
+
   it "answers through RepositoryContent end to end" do
     allow(GithubClient).to receive(:for).and_return(client)
     allow(client).to receive(:commit_sha_for).and_return(sha)

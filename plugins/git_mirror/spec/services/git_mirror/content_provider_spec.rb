@@ -82,6 +82,14 @@ RSpec.describe GitMirror::ContentProvider do
     expect(provider.changes("b" * 40, sha, patch: true).sole).to have_attributes(additions: 2, deletions: 1, patch: "@@ -1 +1,2 @@")
   end
 
+  it "lists matching refs and compares revision ancestry" do
+    stub_mirror("refs", { pattern: "deploy-*", max_age: "0" }, body: { refs: [ { name: "deploy-2", revision_id: sha, observed_at: "2026-09-22T12:00:00Z" } ] }.to_json)
+    stub_mirror("relation", { base: "b" * 40, head: sha }, body: { relation: "ahead" }.to_json)
+
+    expect(provider.refs(pattern: "deploy-*", max_age: 0).sole).to have_attributes(name: "deploy-2", revision_id: sha)
+    expect(provider.relation("b" * 40, sha)).to eq(:ahead)
+  end
+
   describe "errors" do
     it "treats a missing file in a known commit as final" do
       stub_mirror("blob", { revision: sha, path: "gone" }, status: 404, body: error("not_found"))

@@ -60,6 +60,13 @@ module Syrus
     #                                    base with `base` (three-dot intent).
     #                                    Optional: the default raises
     #                                    Unsupported.
+    #   refs(pattern:, max_age:)       -> Array<RepositoryContent::Ref>, in
+    #                                    provider-defined newest-first order.
+    #                                    Optional; patterns use File.fnmatch
+    #                                    semantics.
+    #   relation(base_id, head_id)     -> :identical, :ahead, :behind, or
+    #                                    :diverged, describing head relative
+    #                                    to base. Optional.
     #
     # Errors decide what the chain does next. Raise RepositoryContent::
     # Unavailable, Unsupported, or UnknownRevision to let the next provider
@@ -112,6 +119,14 @@ module Syrus
 
       def changes(_base_id, _head_id, patch: false)
         raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not compare revisions"
+      end
+
+      def refs(pattern:, max_age:)
+        raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not list refs"
+      end
+
+      def relation(_base_id, _head_id)
+        raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not compare revision ancestry"
       end
     end
   end

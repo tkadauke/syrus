@@ -9,6 +9,8 @@
 //	GET    /v1/repositories/{id}/tree?revision=
 //	GET    /v1/repositories/{id}/blob?revision=&path=   raw bytes
 //	GET    /v1/repositories/{id}/changes?base=&head=&patch=1
+//	GET    /v1/repositories/{id}/refs?pattern=&max_age=
+//	GET    /v1/repositories/{id}/relation?base=&head=
 //
 // Errors are {"error":{"code","message"}} with codes the Syrus plugin maps
 // onto the content contract: unknown_repository, unknown_revision, not_found,
@@ -41,6 +43,8 @@ type Store interface {
 	Tree(ctx context.Context, id, revision string) ([]mirror.Entry, error)
 	Read(ctx context.Context, id, revision, path string) (mirror.Blob, error)
 	Changes(ctx context.Context, id, base, head string, withPatch bool) ([]mirror.Change, error)
+	Refs(ctx context.Context, id, pattern string, maxAge time.Duration) ([]mirror.Ref, error)
+	Relation(ctx context.Context, id, base, head string) (string, error)
 }
 
 const maxRegistrationBytes = 64 << 10
@@ -64,6 +68,8 @@ func NewWithLogger(store Store, token string, logger *log.Logger) http.Handler {
 	mux.Handle("GET /v1/repositories/{id}/tree", s.auth(s.tree))
 	mux.Handle("GET /v1/repositories/{id}/blob", s.auth(s.blob))
 	mux.Handle("GET /v1/repositories/{id}/changes", s.auth(s.changes))
+	mux.Handle("GET /v1/repositories/{id}/refs", s.auth(s.refs))
+	mux.Handle("GET /v1/repositories/{id}/relation", s.auth(s.relation))
 	if logger == nil {
 		return mux
 	}
@@ -208,6 +214,42 @@ func (s *server) changes(w http.ResponseWriter, r *http.Request) {
 		changes = []mirror.Change{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"changes": changes})
+}
+
+func (s *server) refs(w http.ResponseWriter, r *http.Request) {
+	maxAge, ok := maxAgeFrom(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "bad_request", "max_age must be a non-negative integer")
+		return
+	}
+	refs, err := s.store.Refs(r.Context(), r.PathValue("id"), r.URL.Query().Get("pattern"), maxAge)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if refs == nil {
+		refs = []mirror.Ref{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"refs": refs})
+}
+
+func (s *server) relation(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	relation, err := s.store.Relation(r.Context(), r.PathValue("id"), query.Get("base"), query.Get("head"))
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"relation": relation})
+}
+
+func maxAgeFrom(r *http.Request) (time.Duration, bool) {
+	raw := r.URL.Query().Get("max_age")
+	if raw == "" {
+		return 60 * time.Second, true
+	}
+	seconds, err := strconv.Atoi(raw)
+	return time.Duration(seconds) * time.Second, err == nil && seconds >= 0
 }
 
 func writeStoreError(w http.ResponseWriter, err error) {

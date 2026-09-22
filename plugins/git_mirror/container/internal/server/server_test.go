@@ -45,6 +45,13 @@ func (f *fakeStore) Changes(_ context.Context, _, _, _ string, withPatch bool) (
 	f.withPatch = withPatch
 	return nil, nil
 }
+func (f *fakeStore) Refs(_ context.Context, _, _ string, maxAge time.Duration) ([]mirror.Ref, error) {
+	f.maxAge = maxAge
+	return nil, nil
+}
+func (f *fakeStore) Relation(context.Context, string, string, string) (string, error) {
+	return "ahead", nil
+}
 
 func do(h http.Handler, method, path, body string, authed bool) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))

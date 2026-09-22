@@ -1,13 +1,13 @@
 class DeploymentStageDetector
-  REACHED_COMPARE_STATUSES = %w[ahead identical].freeze
+  REACHED_RELATIONS = %i[ahead identical].freeze
 
-  def initialize(repository:, deployment_stages:, jobs:, client: nil)
+  def initialize(repository:, deployment_stages:, jobs:, content: nil)
     @repository = repository
     @deployment_stages = Array(deployment_stages)
     @jobs = Array(jobs)
-    @client = client
-    @tag_cache = nil
-    @compare_cache = {}
+    @content = content || RepositoryContent.for(repository)
+    @refs_cache = {}
+    @relation_cache = {}
   end
 
   def call
@@ -50,27 +50,25 @@ class DeploymentStageDetector
 
   def resolve_tag(stage)
     if stage.tag.present?
-      tags_by_name[stage.tag]
+      revision = content.resolve(stage.tag, max_age: 0)
+      RepositoryContent::Ref.new(name: stage.tag, revision_id: revision.id, observed_at: revision.observed_at)
     else
-      all_tags.find { |tag| File.fnmatch?(stage.tag_pattern, tag[:name], File::FNM_PATHNAME) }
+      refs_for(stage.tag_pattern).first
     end
+  rescue RepositoryContent::UnknownRevision
+    nil
   end
 
-  def tags_by_name
-    @tags_by_name ||= all_tags.index_by { |tag| tag[:name] }
-  end
-
-  def all_tags
-    @tag_cache ||= github_client.list_tags(repository.slug)
+  def refs_for(pattern)
+    @refs_cache[pattern] ||= content.refs(pattern: pattern, max_age: 0)
   end
 
   def reached_stage?(landed_sha, tag)
-    return true if tag[:sha].present? && tag[:sha] == landed_sha
+    return true if tag.revision_id == landed_sha
 
-    @compare_cache[[ landed_sha, tag[:name] ]] ||= begin
-      compare = github_client.compare_commits(repository.slug, landed_sha, tag[:name])
-      REACHED_COMPARE_STATUSES.include?(compare[:status])
-    end
+    @relation_cache[[ landed_sha, tag.revision_id ]] ||= REACHED_RELATIONS.include?(
+      content.relation(base: content.revision(landed_sha), head: content.revision(tag.revision_id))
+    )
   end
 
   def record_stage!(job, stage, tag)
@@ -78,14 +76,12 @@ class DeploymentStageDetector
       job: job,
       stage_name: stage.name,
       reached_at: Time.current,
-      tag_sha: tag[:sha]
+      tag_sha: tag.revision_id
     )
     true
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
     false
   end
 
-  def github_client
-    @client ||= GithubClient.for(repository: repository, user: repository.user)
-  end
+  attr_reader :content
 end

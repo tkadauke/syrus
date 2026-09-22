@@ -64,7 +64,8 @@ module RepositoryContent
 
   # Counts every read by who answered it. `provider` is a provider_key, or
   # "cache" for a cached answer and "none" when no provider serves the
-  # repository; `kind` is the operation (resolve, tree, read, changes);
+  # repository; `kind` is the operation (resolve, tree, read, changes, refs,
+  # relation);
   # `outcome` is answered, not_found, unknown_revision, unsupported,
   # truncated, unavailable, or error. See Reader#record.
   def self.declare_metrics!

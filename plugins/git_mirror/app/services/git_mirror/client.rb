@@ -72,6 +72,14 @@ module GitMirror
       json(request(Net::HTTP::Get, "/v1/repositories/#{id}/changes", query: query)).fetch("changes")
     end
 
+    def refs(id, pattern:, max_age:)
+      json(request(Net::HTTP::Get, "/v1/repositories/#{id}/refs", query: { pattern: pattern, max_age: max_age }, read_timeout: RESOLVE_TIMEOUT)).fetch("refs")
+    end
+
+    def relation(id, base, head)
+      json(request(Net::HTTP::Get, "/v1/repositories/#{id}/relation", query: { base: base, head: head })).fetch("relation")
+    end
+
     private
 
     def request(klass, path, query: nil, body: nil, read_timeout: READ_TIMEOUT)
