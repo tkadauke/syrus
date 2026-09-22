@@ -154,7 +154,7 @@ RSpec.describe McpToolRegistry do
         *%w[
           read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
-          read_preview_log report_main_concern record_isolated_repro submit_summary submit_test_plan submit_report submit_review_plan
+          read_preview_log report_main_concern record_isolated_repro submit_summary submit_test_plan submit_review_plan
           submit_artifact patch_workflow run_target_prepare submit_visual_artifact
           list_artifacts read_artifact
         ]
@@ -169,6 +169,19 @@ RSpec.describe McpToolRegistry do
 
       run.step.update_columns(kind: "refresh_job_metadata")
       expect(tool_names_for(McpToolContext.from_run(run.reload))).to include("submit_job_metadata")
+    end
+
+    it "exposes submit_report only for submit_report runs" do
+      run = Factories.job.initial_run
+
+      run.step.update_columns(kind: "implement")
+      expect(tool_names_for(McpToolContext.from_run(run.reload))).not_to include("submit_report")
+
+      run.step.update_columns(kind: "agent_rebase")
+      expect(tool_names_for(McpToolContext.from_run(run.reload))).not_to include("submit_report")
+
+      run.step.update_columns(kind: "submit_report")
+      expect(tool_names_for(McpToolContext.from_run(run.reload))).to include("submit_report")
     end
 
     it "keeps the adversarial reviewer tool set unchanged" do
