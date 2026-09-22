@@ -27,6 +27,16 @@ class MergeTrainFailureHandler
 
       job = member.job
 
+      # Failure handling may be delayed until after the landing queue has
+      # already placed this Job on a replacement train. The old train no
+      # longer owns the Job in that case and must not defer/fail it out from
+      # under the replacement. Its own member row is still terminalized below
+      # so cleanup remains complete.
+      if owned_by_replacement_landing_work?(job)
+        member.update!(state: "failed", reason: reason.truncate(500))
+        next
+      end
+
       # A land step can fail AFTER GitHub genuinely merged the integration
       # branch (e.g. a crash between the merge and this member's own
       # bookkeeping finishing in Steps::MergeTrainLand#reconcile_members!).
@@ -77,6 +87,11 @@ class MergeTrainFailureHandler
     LandedCommit.where(landable: job, kind: "implementation")
       .where("created_at >= ?", @workflow.created_at)
       .exists?
+  end
+
+  def owned_by_replacement_landing_work?(job)
+    active = WorkUnits::Ownership.active_landing_work_for_job(job)
+    active&.workflow&.id.present? && active.workflow.id != @workflow.id
   end
 
   def complete_landing!(member, job)

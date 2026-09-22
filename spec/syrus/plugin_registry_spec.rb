@@ -1,6 +1,13 @@
 require "rails_helper"
 
 RSpec.describe Syrus::PluginRegistry do
+  it "restores enabled bundled agent and chat providers from the boot snapshot" do
+    described_class.restore(described_class.boot_snapshot)
+
+    expect(described_class.providers_for(:agent_provider).map(&:provider_key)).to include("claude", "codex", "agy")
+    expect(described_class.providers_for(:chat_provider).map(&:provider_key)).to include("claude", "codex", "agy")
+  end
+
   before { described_class.reset! }
   after  { described_class.reset! }
 

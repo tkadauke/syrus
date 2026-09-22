@@ -14,9 +14,26 @@
 # restore still prevents those examples from leaking an empty registry into
 # teardown or process-level hooks.
 RSpec.configure do |config|
+  restore_test_provider_records = proc do
+    # Rails can load this support file before test database maintenance has
+    # replaced the schema. Enable the providers only after that maintenance
+    # finishes; doing it in an initializer creates rows that db:prepare can
+    # immediately erase, leaving every registry-backed validation disabled.
+    %w[claude_agent codex_agent agy_agent].each do |plugin_name|
+      record = PluginRecord.find_or_create_by!(name: plugin_name)
+      record.update!(enabled: true) unless record.enabled?
+    end
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+  end
+
+  config.before(:suite, &restore_test_provider_records)
+
   config.around do |example|
     snapshot = Syrus::PluginRegistry.boot_snapshot
-    Syrus::PluginRegistry.restore(snapshot) if snapshot && !example.metadata[:reset_plugin_registry]
+    unless example.metadata[:reset_plugin_registry]
+      restore_test_provider_records.call
+      Syrus::PluginRegistry.restore(snapshot) if snapshot
+    end
     example.run
   ensure
     # Local after hooks commonly reset the registry. Restore after they finish

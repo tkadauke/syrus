@@ -125,6 +125,27 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(train.members.find_by(job: a).state).to eq("failed")
     end
 
+    it "does not pull a member out of landing when replacement work already owns it" do
+      a = member_job(issue_number: 1)
+      old_train = build_train([ a ])
+      old_workflow = build_workflow(old_train, a, failure_reason: "merge_train: stale attempt failed")
+
+      replacement_train = build_train([ a ])
+      replacement_workflow = WorkUnits::Launcher.instantiate(
+        kind: "merge_train",
+        job: a,
+        artifacts: { "merge_train_id" => replacement_train.id }
+      )
+      replacement_workflow.update!(state: "running", started_at: Time.current)
+      replacement_workflow.work_unit.update!(state: "running", started_at: Time.current)
+
+      described_class.call(workflow: old_workflow)
+
+      expect(a.reload).to be_landing
+      expect(old_train.members.find_by(job: a).reload.state).to eq("failed")
+      expect(replacement_workflow.work_unit.reload).to be_running
+    end
+
     # Regression for the the relevant change incident: a land step that crashes AFTER
     # GitHub genuinely merged the integration branch (e.g. between
     # record_integration_merge_commit! and reconcile_members! finishing for
