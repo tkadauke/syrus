@@ -34,15 +34,15 @@ Starts both core `PlatformPollingJob` subclasses and plugin-provided `:platform_
 
 ```json
 {
-  "started": ["TelegramPollingJob"],
+  "started": ["PollTelegramUpdatesJob"],
   "connectors": [
-    { "name": "TelegramPollingJob", "status": "started" },
+    { "name": "PollTelegramUpdatesJob", "status": "started", "platform": "telegram" },
     { "name": "Discord::GatewayConnectionJob", "status": "already_running", "platform": "discord" }
   ]
 }
 ```
 
-`started` is the names of jobs newly enqueued by this call (backward compatible with the pre-plugin-aware response shape). `connectors` lists every connector this call considered and its outcome -- `started`, `already_running`, `not_configured` (bot token/handle missing), or `error` (SolidQueue unreachable) -- so an operator can see whether a specific connector like `Discord::GatewayConnectionJob` actually started or was already running, not just that *something* did. A disabled plugin's connector is not a `:platform_delivery` provider while disabled, so it does not appear in `connectors` at all (same exclusion boot start already relies on). Requires admin authentication.
+`started` is the names of jobs newly enqueued by this call (backward compatible with the pre-plugin-aware response shape). `connectors` lists every connector this call considered and its outcome -- `started`, `already_running`, `not_configured` (bot token/handle missing), or `error` (SolidQueue unreachable) -- so an operator can see whether a specific connector like `Discord::GatewayConnectionJob` actually started or was already running, not just that *something* did. `platform` is included whenever the connector's owning class declares one -- a core `PlatformPollingJob` subclass can implement `.platform_key` itself (see `PollTelegramUpdatesJob`), while a plugin connector gets it from its `:platform_delivery` provider's `.platform_key` instead -- so the admin Settings UI's per-platform Telegram/Discord sections can each read their own connector's status out of this one shared array without guessing at Ruby class names. A disabled plugin's connector is not a `:platform_delivery` provider while disabled, so it does not appear in `connectors` at all (same exclusion boot start already relies on). Requires admin authentication.
 
 ## Trigger policy
 

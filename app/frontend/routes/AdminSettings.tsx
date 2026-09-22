@@ -8,7 +8,8 @@ import {
   startPlatformPolling,
   updateAdminSettings,
   type AdminSettingsPayload,
-  type ClearableSecret
+  type ClearableSecret,
+  type PlatformPollingConnectorStatus
 } from "../api/adminSettings"
 import { Button } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
@@ -323,13 +324,6 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
     }
   })
 
-  const startPolling = useMutation({
-    mutationFn: startPlatformPolling,
-    onSuccess: (result) => {
-      onNotice(result.started.length > 0 ? t("settings.telegram_polling_started") : t("settings.telegram_polling_already_running"))
-    }
-  })
-
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 space-y-4">
       <SectionHeading>{t("settings.telegram_heading")}</SectionHeading>
@@ -371,18 +365,10 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
         )}
       </div>
 
-      <button
-        className="rounded bg-gray-100 dark:bg-gray-700 px-3.5 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={startPolling.isPending || !tokenSet}
-        onClick={() => { onNotice(null); startPolling.mutate() }}
-        type="button"
-      >
-        {startPolling.isPending ? t("settings.telegram_polling_starting") : t("settings.telegram_start_polling")}
-      </button>
+      <PlatformPollingControl disabled={!tokenSet} label={t("settings.telegram_heading")} platform="telegram" />
 
       {saveToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
       {clearToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
-      {startPolling.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{t("settings.telegram_polling_error")}</p> : null}
       {dialog}
     </section>
   )
@@ -455,10 +441,50 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
         )}
       </div>
 
+      <PlatformPollingControl disabled={!tokenSet} label={t("settings.discord_heading")} platform="discord" />
+
       {saveToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
       {clearToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
       {dialog}
     </section>
+  )
+}
+
+// Shared "Start polling" control for a single platform's connector. The
+// backend's POST /api/v1/app/admin/platform_polling/start call always
+// (re)primes every core and plugin connector in one request (not just this
+// platform's), so every section's button triggers the same underlying call;
+// this component only reads and renders the slice of the response that
+// belongs to its own `platform` key, so a Telegram click can never be
+// reported as a Discord result or vice versa.
+const POLLING_STATUS_MESSAGE_KEYS: Record<PlatformPollingConnectorStatus, string> = {
+  started: "polling_started",
+  already_running: "polling_already_running",
+  not_configured: "polling_not_configured",
+  error: "polling_error"
+}
+
+function PlatformPollingControl({ platform, label, disabled }: { platform: string; label: string; disabled: boolean }) {
+  const { t } = useT("admin")
+  const startPolling = useMutation({ mutationFn: startPlatformPolling })
+
+  const connector = startPolling.data?.connectors.find((c) => c.platform === platform)
+  const statusMessage = connector ? t(`settings.${POLLING_STATUS_MESSAGE_KEYS[connector.status]}`, { platform: label }) : null
+
+  return (
+    <div className="space-y-1">
+      <button
+        className="rounded bg-gray-100 dark:bg-gray-700 px-3.5 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={startPolling.isPending || disabled}
+        onClick={() => startPolling.mutate()}
+        type="button"
+      >
+        {startPolling.isPending ? t("settings.polling_starting") : t("settings.polling_start")}
+      </button>
+
+      {statusMessage ? <p className="text-xs text-gray-500 dark:text-gray-400">{statusMessage}</p> : null}
+      {startPolling.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{t("settings.polling_error", { platform: label })}</p> : null}
+    </div>
   )
 }
 

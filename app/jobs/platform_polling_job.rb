@@ -38,20 +38,30 @@ class PlatformPollingJob < ApplicationJob
       result[:name] if result[:status] == :started
     end
 
-    # { name:, status: } where status is :started, :already_running,
-    # :not_configured, or :error.
+    # { name:, status:, platform?: } where status is :started,
+    # :already_running, :not_configured, or :error. `platform` is included
+    # when the subclass declares its own .platform_key (core connectors like
+    # PollTelegramUpdatesJob do this directly); plugin connectors don't
+    # implement it here -- PlatformDelivery::Registry merges the owning
+    # provider's .platform_key in instead, since the job class itself only
+    # knows the plugin, not the platform key the plugin registered under.
     def start_one_with_status(klass)
-      return { name: klass.name, status: :not_configured } unless klass.new.send(:configured?)
-      return { name: klass.name, status: :already_running } if SolidQueue::Job.where(class_name: klass.name, finished_at: nil).exists?
+      identity = { name: klass.name }.merge(platform_fields(klass))
+      return identity.merge(status: :not_configured) unless klass.new.send(:configured?)
+      return identity.merge(status: :already_running) if SolidQueue::Job.where(class_name: klass.name, finished_at: nil).exists?
 
       klass.perform_later
-      { name: klass.name, status: :started }
+      identity.merge(status: :started)
     rescue ActiveRecord::StatementInvalid, ActiveRecord::NoDatabaseError => e
       Rails.logger.warn("PlatformPollingJob.start_one skipped for #{klass.name}: #{e.message}")
-      { name: klass.name, status: :error }
+      identity.merge(status: :error)
     end
 
     private
+
+    def platform_fields(klass)
+      klass.respond_to?(:platform_key) && klass.platform_key.present? ? { platform: klass.platform_key.to_s } : {}
+    end
 
     # True when `klass` is registered by ANY plugin (enabled or not) as its
     # platform_delivery .connector_job_class, regardless of whether Ruby's

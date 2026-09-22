@@ -77,10 +77,18 @@ Discord DM never fails the chat turn that produced the reply.
 
 ## Admin/sidebar pages
 
-None. All Discord-specific UI is the existing generic **Settings → Connected
-Platforms** page (`PlatformIdentity::PlatformConfig::Base.for` dispatches to
-`Discord::PlatformConfig` once the plugin registers itself); there is no
-Discord-specific admin page.
+No dedicated Discord admin page. Two existing surfaces cover it instead:
+account linking uses the generic **Settings → Connected Platforms** page
+(`PlatformIdentity::PlatformConfig::Base.for` dispatches to
+`Discord::PlatformConfig` once the plugin registers itself), and bot-token
+setup uses a Discord-specific section on the core **Admin → Settings** page
+(`AdminSettings.tsx`'s `DiscordSection`, next to Telegram's) with a token
+field and a **Start polling** button that re-primes
+`Discord::GatewayConnectionJob` via the shared
+`POST /api/v1/app/admin/platform_polling/start` endpoint (see
+`config/syrus_docs/external_platforms.md`) -- it reads only the `discord`
+entry out of that call's `connectors` array, so it can't be confused with
+Telegram's own button and status line right above it.
 
 ## MCP tools
 
