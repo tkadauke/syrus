@@ -85,6 +85,10 @@ RSpec.describe Admin::PluginDisableGuard, :reset_plugin_registry do
 
     let!(:repository) { Factories.repository }
 
+    # These register providers in the plugin registry; read it, not the
+    # suite's default fake.
+    before { RepositoryContent.provider_classes_override = nil }
+
     it "blocks disabling the only provider that can read an active repository" do
       register("host", provides: { repository_content_provider: content_provider("Host", serves: ->(_) { true }) })
 

@@ -9,6 +9,9 @@ RSpec.describe GithubHost::ContentProvider do
 
   def rate_limited = Octokit::TooManyRequests.new
 
+  # These specs exercise the real provider, not the suite's default fake.
+  before { RepositoryContent.provider_classes_override = nil }
+
   describe ".build" do
     it "needs GitHub credentials" do
       expect(described_class.build(repository: repository, user: user)).to be_a(described_class)
@@ -88,10 +91,11 @@ RSpec.describe GithubHost::ContentProvider do
       ])
     end
 
-    it "refuses to pass off a truncated tree as complete" do
-      allow(client).to receive(:commit_tree_entries).and_return(truncated: true, entries: [])
+    it "refuses to pass off a truncated tree as complete, but hands over what it got" do
+      allow(client).to receive(:commit_tree_entries)
+        .and_return(truncated: true, entries: [ { path: "a.rb", type: "blob", mode: "100644", size: 1, sha: "b" } ])
 
-      expect { provider.tree(sha) }.to raise_error(RepositoryContent::Unsupported)
+      expect { provider.tree(sha) }.to raise_error(RepositoryContent::Truncated) { |error| expect(error.partial.map(&:path)).to eq([ "a.rb" ]) }
     end
   end
 
@@ -140,10 +144,12 @@ RSpec.describe GithubHost::ContentProvider do
       ])
     end
 
-    it "refuses to pass off GitHub's 300-file cap as the whole change" do
-      allow(client).to receive(:compare_file_changes).and_return(truncated: true, files: [])
+    it "refuses to pass off GitHub's 300-file cap as the whole change, but hands over what it got" do
+      allow(client).to receive(:compare_file_changes)
+        .and_return(truncated: true, files: [ { path: "a.rb", status: "modified", additions: 1, deletions: 0, patch: "@@" } ])
 
-      expect { provider.changes("base", "head") }.to raise_error(RepositoryContent::Unsupported, /300/)
+      expect { provider.changes("base", "head", patch: true) }
+        .to raise_error(RepositoryContent::Truncated, /300/) { |error| expect(error.partial.map(&:patch)).to eq([ "@@" ]) }
     end
   end
 

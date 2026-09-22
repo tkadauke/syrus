@@ -74,11 +74,12 @@ RSpec.describe GitMirror::ContentProvider do
     expect(provider.read(sha, "logo.png")).to have_attributes(bytes: "\x89PNG".b, content_id: "b2", size: 4)
   end
 
-  it "lists changes, and leaves patches to the host" do
-    stub_mirror("changes", { base: "b" * 40, head: sha }, body: { changes: [ { path: "new.rb", status: "renamed", previous_path: "old.rb" } ] }.to_json)
+  it "lists changes with line counts, and patches when asked" do
+    stub_mirror("changes", { base: "b" * 40, head: sha }, body: { changes: [ { path: "new.rb", status: "renamed", previous_path: "old.rb", additions: 0, deletions: 0 } ] }.to_json)
+    stub_mirror("changes", { base: "b" * 40, head: sha, patch: "1" }, body: { changes: [ { path: "a.rb", status: "modified", additions: 2, deletions: 1, patch: "@@ -1 +1,2 @@" } ] }.to_json)
 
-    expect(provider.changes("b" * 40, sha).map(&:to_h)).to include(include(path: "new.rb", status: "renamed", previous_path: "old.rb"))
-    expect { provider.changes("b" * 40, sha, patch: true) }.to raise_error(RepositoryContent::Unsupported)
+    expect(provider.changes("b" * 40, sha).map(&:to_h)).to include(include(path: "new.rb", status: "renamed", previous_path: "old.rb", additions: 0))
+    expect(provider.changes("b" * 40, sha, patch: true).sole).to have_attributes(additions: 2, deletions: 1, patch: "@@ -1 +1,2 @@")
   end
 
   describe "errors" do
@@ -91,7 +92,7 @@ RSpec.describe GitMirror::ContentProvider do
     it "lets the host answer for commits, repositories, and operations the mirror does not have" do
       stub_mirror("blob", { revision: sha, path: "a" }, status: 404, body: error("unknown_revision"))
       stub_mirror("tree", { revision: sha }, status: 404, body: error("unknown_repository"))
-      stub_mirror("changes", { base: sha, head: sha }, status: 501, body: error("unsupported"))
+      stub_mirror("changes", { base: sha, head: sha }, status: 501, body: error("unsupported"))  # e.g. no merge base
       stub_mirror("resolve", { ref: "main", max_age: "60" }, status: 503, body: error("unavailable"))
 
       expect { provider.read(sha, "a") }.to raise_error(RepositoryContent::UnknownRevision)

@@ -20,9 +20,7 @@ RSpec.describe "App API job source diff browser", type: :request do
         ],
         merge_base_sha: "aabbccdd1234567"
       )
-    allow(github).to receive(:compare_files)
-      .with("acme/widgets", "aabbccdd1234567", "deadbeef12345678")
-      .and_return(
+    stub_repository_diff(repo, base: "aabbccdd1234567", head: "deadbeef12345678",
         files: [
           { path: "app/models/user.rb", status: "modified", additions: 4, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" },
           { path: "public/logo.png", status: "added", additions: 0, deletions: 0, patch: nil }

@@ -844,27 +844,6 @@ class GithubClient
     raise
   end
 
-  # Returns changed files for a GitHub compare. Patch may be nil for binary or
-  # very large files.
-  def compare_files(repo_slug, base, head)
-    result = track_rate_limits { @client.compare(repo_slug, base, head) }
-    files = Array(result.files).map { |file|
-      {
-        path: file.filename,
-        status: file.status,
-        additions: file.additions.to_i,
-        deletions: file.deletions.to_i,
-        patch: file.respond_to?(:patch) ? file.patch : nil
-      }
-    }
-    { files: files, truncated: Array(result.files).size >= 300 }
-  rescue Octokit::NotFound
-    { files: [], truncated: false }
-  rescue Octokit::TooManyRequests => e
-    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} compare #{base}...#{head}: #{e.message}")
-    raise
-  end
-
   # The commit SHA `ref` (a branch, tag, or SHA) points at. Raises
   # Octokit::NotFound when GitHub does not know the ref -- unlike most readers
   # here, absence is not folded into nil, because callers must tell an unknown

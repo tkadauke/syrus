@@ -21,6 +21,7 @@ type fakeStore struct {
 	resolveErr error
 	readErr    error
 	maxAge     time.Duration
+	withPatch  bool
 }
 
 func (f *fakeStore) Register(_ context.Context, id string, reg mirror.Registration) error {
@@ -37,7 +38,8 @@ func (f *fakeStore) Tree(context.Context, string, string) ([]mirror.Entry, error
 func (f *fakeStore) Read(context.Context, string, string, string) (mirror.Blob, error) {
 	return mirror.Blob{Bytes: []byte{0xff, 0x00}, ContentID: "oid"}, f.readErr
 }
-func (f *fakeStore) Changes(context.Context, string, string, string) ([]mirror.Change, error) {
+func (f *fakeStore) Changes(_ context.Context, _, _, _ string, withPatch bool) ([]mirror.Change, error) {
+	f.withPatch = withPatch
 	return nil, nil
 }
 
@@ -133,10 +135,15 @@ func TestResolvePassesMaxAge(t *testing.T) {
 	}
 }
 
-func TestPatchesAreUnsupported(t *testing.T) {
-	rec := do(New(&fakeStore{}, token), "GET", "/v1/repositories/1/changes?base=a&head=b&patch=1", "", true)
-	if rec.Code != http.StatusNotImplemented || errorCode(t, rec) != "unsupported" {
-		t.Fatalf("got %d %s", rec.Code, rec.Body)
+func TestChangesPassesThePatchFlag(t *testing.T) {
+	store := &fakeStore{}
+	h := New(store, token)
+	if rec := do(h, "GET", "/v1/repositories/1/changes?base=a&head=b&patch=1", "", true); rec.Code != http.StatusOK || !store.withPatch {
+		t.Fatalf("patch=1: %d, withPatch=%v", rec.Code, store.withPatch)
+	}
+	do(h, "GET", "/v1/repositories/1/changes?base=a&head=b", "", true)
+	if store.withPatch {
+		t.Fatal("patches returned without being asked for")
 	}
 }
 

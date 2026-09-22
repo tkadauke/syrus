@@ -100,6 +100,20 @@ RSpec.describe RepositoryContent do
         .to raise_error(RepositoryContent::Unavailable, "rate limited")
     end
 
+    # A partial answer falls through like any Unsupported, but when nobody
+    # can do better it is what the caller gets -- a display caller can show
+    # it, flagged, where an Unavailable would leave it nothing.
+    it "prefers a truncated partial answer over a later outage" do
+      partial = [ RepositoryContent::Entry.new(path: "a.rb") ]
+      described_class.provider_classes_override = [
+        provider_class(:mirror, role: :replica, tree: RepositoryContent::Unavailable.new("down")),
+        provider_class(:github, tree: RepositoryContent::Truncated.new("too big", partial: partial))
+      ]
+
+      expect { described_class.for(repository, user: user).tree(revision) }
+        .to raise_error(RepositoryContent::Truncated) { |error| expect(error.partial).to eq(partial) }
+    end
+
     it "raises NoProvider, an Unavailable, when nothing serves the repository" do
       described_class.provider_classes_override = [ provider_class(:elsewhere, available: false) ]
 

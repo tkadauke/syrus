@@ -60,8 +60,10 @@ module GitMirror
       [ response.body.to_s.b, response["X-Content-Id"] ]
     end
 
-    def changes(id, base, head)
-      json(request(Net::HTTP::Get, "/v1/repositories/#{id}/changes", query: { base: base, head: head })).fetch("changes")
+    def changes(id, base, head, patch: false)
+      query = { base: base, head: head }
+      query[:patch] = 1 if patch
+      json(request(Net::HTTP::Get, "/v1/repositories/#{id}/changes", query: query)).fetch("changes")
     end
 
     private

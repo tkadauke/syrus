@@ -98,7 +98,18 @@ type Change struct {
 	Path         string `json:"path"`
 	Status       string `json:"status"` // added, modified, deleted, renamed
 	PreviousPath string `json:"previous_path,omitempty"`
+	// Additions and Deletions are nil for binary files.
+	Additions *int `json:"additions,omitempty"`
+	Deletions *int `json:"deletions,omitempty"`
+	// Patch is the file's hunks (from the first @@), like GitHub's compare
+	// API: only when asked for, and nil for binary files and for patches over
+	// MaxPatchBytes.
+	Patch *string `json:"patch,omitempty"`
 }
+
+// MaxPatchBytes is the largest per-file patch returned; bigger ones are
+// omitted, as GitHub does.
+const MaxPatchBytes = 256 << 10
 
 // Blob is a file's content at a revision.
 type Blob struct {
@@ -400,7 +411,7 @@ func (s *Store) Read(ctx context.Context, id, revision, path string) (Blob, erro
 
 // Changes lists what head introduced since its merge base with base, the
 // three-dot comparison GitHub's "Files changed" tab shows.
-func (s *Store) Changes(ctx context.Context, id, base, head string) ([]Change, error) {
+func (s *Store) Changes(ctx context.Context, id, base, head string, withPatch bool) ([]Change, error) {
 	r, err := s.revisionRepo(ctx, id, base)
 	if err != nil {
 		return nil, err
@@ -414,26 +425,44 @@ func (s *Store) Changes(ctx context.Context, id, base, head string) ([]Change, e
 		// still have an answer.
 		return nil, fmt.Errorf("%w: %v", ErrUnsupported, err)
 	}
-	fields := strings.Split(strings.TrimRight(string(res.Stdout), "\x00"), "\x00")
+	changes := parseNameStatus(string(res.Stdout))
+
+	// numstat and the patch are separate passes with identical options, so
+	// they list files in the same order as name-status.
+	if numstat, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, "diff", "--numstat", "-z", "-M", "--end-of-options", base+"..."+head); err == nil {
+		applyNumstat(changes, string(numstat.Stdout))
+	}
+	if withPatch {
+		patch, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, "diff", "-M", "--no-color", "--no-ext-diff", "--end-of-options", base+"..."+head)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
+		}
+		applyPatches(changes, string(patch.Stdout))
+	}
+	return changes, nil
+}
+
+func parseNameStatus(out string) []Change {
+	fields := strings.Split(strings.TrimRight(out, "\x00"), "\x00")
 	var changes []Change
 	for i := 0; i < len(fields) && fields[i] != ""; {
 		code := fields[i]
 		switch code[0] {
 		case 'R':
 			if i+2 >= len(fields) {
-				return changes, nil
+				return changes
 			}
 			changes = append(changes, Change{Path: fields[i+2], PreviousPath: fields[i+1], Status: "renamed"})
 			i += 3
 		case 'C':
 			if i+2 >= len(fields) {
-				return changes, nil
+				return changes
 			}
 			changes = append(changes, Change{Path: fields[i+2], Status: "added"})
 			i += 3
 		default:
 			if i+1 >= len(fields) {
-				return changes, nil
+				return changes
 			}
 			status := map[byte]string{'A': "added", 'D': "deleted"}[code[0]]
 			if status == "" {
@@ -443,7 +472,53 @@ func (s *Store) Changes(ctx context.Context, id, base, head string) ([]Change, e
 			i += 2
 		}
 	}
-	return changes, nil
+	return changes
+}
+
+// applyNumstat fills in line counts from `git diff --numstat -z -M`: one
+// "adds\tdels\tpath\0" record per file, or "adds\tdels\t\0old\0new\0"
+// for a rename. Binary files report "-" and keep nil counts.
+func applyNumstat(changes []Change, out string) {
+	fields := strings.Split(out, "\x00")
+	i := 0
+	for n := 0; n < len(changes) && i < len(fields); n++ {
+		parts := strings.SplitN(fields[i], "\t", 3)
+		if len(parts) != 3 {
+			return
+		}
+		if a, err := strconv.Atoi(parts[0]); err == nil {
+			changes[n].Additions = &a
+		}
+		if d, err := strconv.Atoi(parts[1]); err == nil {
+			changes[n].Deletions = &d
+		}
+		if parts[2] == "" {
+			i += 3 // rename: old and new path follow
+		} else {
+			i++
+		}
+	}
+}
+
+// applyPatches splits a full `git diff` into per-file sections (each starts
+// with "diff --git ") and keeps each file's hunks from its first "@@".
+func applyPatches(changes []Change, out string) {
+	sections := strings.Split(out, "\ndiff --git ")
+	if len(sections) > 0 {
+		sections[0] = strings.TrimPrefix(sections[0], "diff --git ")
+	}
+	for n := 0; n < len(changes) && n < len(sections); n++ {
+		section := sections[n]
+		at := strings.Index(section, "\n@@")
+		if at < 0 || strings.Contains(section[:at], "\nBinary files ") {
+			continue
+		}
+		patch := strings.TrimSuffix(section[at+1:], "\n")
+		if len(patch) > MaxPatchBytes {
+			continue
+		}
+		changes[n].Patch = &patch
+	}
 }
 
 func (s *Store) get(id string) (*repo, error) {

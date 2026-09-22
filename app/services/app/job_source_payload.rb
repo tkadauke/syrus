@@ -99,9 +99,10 @@ module App
 
     def load_tree(selected_ref)
       @selected_revision = content.resolve(selected_ref)
+      entries, truncated = tree_entries(@selected_revision)
       {
-        tree_items: content.tree(@selected_revision).select(&:file?).sort_by(&:path).map { |entry| tree_item_json(entry) },
-        tree_truncated: false,
+        tree_items: entries.select(&:file?).sort_by(&:path).map { |entry| tree_item_json(entry) },
+        tree_truncated: truncated,
         source_error: nil
       }
     rescue => e
@@ -110,6 +111,14 @@ module App
         tree_truncated: false,
         source_error: "Could not load file tree: #{e.message}"
       }
+    end
+
+    # A tree too large for GitHub to list in full (and no mirror to ask) is
+    # still browsable: show what came back, flagged.
+    def tree_entries(revision)
+      [ content.tree(revision), false ]
+    rescue RepositoryContent::Truncated => e
+      [ e.partial, true ]
     end
 
     def file_result(selected_path, source_error)

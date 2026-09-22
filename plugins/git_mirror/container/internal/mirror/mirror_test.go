@@ -243,7 +243,7 @@ func TestChangesAreThreeDot(t *testing.T) {
 	s := newStore(t, nil)
 	register(t, s, "42", u)
 
-	changes, err := s.Changes(context.Background(), "42", base, head)
+	changes, err := s.Changes(context.Background(), "42", base, head, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -355,5 +355,47 @@ func TestAfterARestartRepositoriesServeFromDiskButWaitForRegistration(t *testing
 	register(t, restarted, "42", u)
 	if got, _, err := restarted.Resolve(ctx, "42", "main", time.Minute); err != nil || got != sha {
 		t.Fatalf("resolve after registration = %s, %v", got, err)
+	}
+}
+
+func TestChangesCarryLineCountsAndPatches(t *testing.T) {
+	u := newUpstream(t)
+	u.commit(map[string]string{"a.txt": "one\ntwo\n", "old.txt": strings.Repeat("rename me\n", 20), "logo.bin": "\x00\x01"}, "base")
+	base := u.git("rev-parse", "HEAD")
+	u.git("mv", "old.txt", "new.txt")
+	head := u.commit(map[string]string{"a.txt": "one\n2\nthree\n", "logo.bin": "\x00\x02"}, "change")
+	s := newStore(t, nil)
+	register(t, s, "42", u)
+
+	withoutPatch, err := s.Changes(context.Background(), "42", base, head, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range withoutPatch {
+		if c.Patch != nil {
+			t.Fatalf("%s: patch returned without being asked for", c.Path)
+		}
+	}
+
+	changes, err := s.Changes(context.Background(), "42", base, head, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPath := map[string]Change{}
+	for _, c := range changes {
+		byPath[c.Path] = c
+	}
+	text := byPath["a.txt"]
+	if text.Additions == nil || *text.Additions != 2 || text.Deletions == nil || *text.Deletions != 1 {
+		t.Fatalf("a.txt counts: %+v", text)
+	}
+	if text.Patch == nil || !strings.HasPrefix(*text.Patch, "@@ ") || !strings.Contains(*text.Patch, "+three") {
+		t.Fatalf("a.txt patch: %v", text.Patch)
+	}
+	if renamed := byPath["new.txt"]; renamed.Status != "renamed" || renamed.Additions == nil || *renamed.Additions != 0 {
+		t.Fatalf("rename: %+v", renamed)
+	}
+	if binary := byPath["logo.bin"]; binary.Additions != nil || binary.Patch != nil {
+		t.Fatalf("binary file should have no counts or patch: %+v", binary)
 	}
 }

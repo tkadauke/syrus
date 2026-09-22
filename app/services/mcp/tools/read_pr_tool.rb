@@ -24,7 +24,7 @@ module Mcp::Tools
         # a shared token, so private PR access follows the same user boundary.
         client = GithubClient.for(repository: repository, user: chat_session.user)
         pr = client.pull_request(repository.slug, pr_number)
-        diff = client.pull_request_diff(repository.slug, pr_number)
+        diff = content_diff(repository, chat_session.user, pr) || client.pull_request_diff(repository.slug, pr_number)
 
         Mcp::Tools.success(
           pr: {
@@ -40,6 +40,34 @@ module Mcp::Tools
         Mcp::Tools.invalid("pull request not found: #{pr_number}")
       rescue ArgumentError, Octokit::Error => e
         Mcp::Tools.invalid(e.message)
+      end
+
+      private
+
+      # The PR's diff from repository content -- the git mirror when it has
+      # both commits -- as unified diff text. nil when it cannot be read in
+      # full (a commit the mirror lacks, GitHub's 300-file cap), so the caller
+      # asks GitHub for the diff instead of showing part of one.
+      def content_diff(repository, user, pr)
+        base_sha = pr.respond_to?(:base) ? pr.base&.sha : nil
+        head_sha = pr.respond_to?(:head) ? pr.head&.sha : nil
+        return nil if base_sha.blank? || head_sha.blank?
+
+        content = RepositoryContent.for(repository, user: user)
+        changes = content.changes(base: content.resolve(base_sha), head: content.resolve(head_sha), patch: true)
+        changes.map { |change| unified(change) }.join
+      rescue RepositoryContent::Error
+        nil
+      end
+
+      def unified(change)
+        old_path = change.previous_path || change.path
+        header = +"diff --git a/#{old_path} b/#{change.path}\n"
+        header << "--- #{change.status == 'added' ? '/dev/null' : "a/#{old_path}"}\n"
+        header << "+++ #{change.status == 'deleted' ? '/dev/null' : "b/#{change.path}"}\n"
+        return header + "Binary files differ\n" if change.patch.nil? && change.status != "renamed"
+
+        header + change.patch.to_s + (change.patch.to_s.end_with?("\n") || change.patch.nil? ? "" : "\n")
       end
     end
   end

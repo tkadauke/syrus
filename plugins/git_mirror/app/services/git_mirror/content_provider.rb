@@ -57,10 +57,15 @@ module GitMirror
     end
 
     def changes(base_id, head_id, patch: false)
-      raise RepositoryContent::Unsupported, "the git mirror does not serve patches" if patch
-
-      registered { @client.changes(mirror_id, base_id, head_id) }.map do |change|
-        RepositoryContent::Change.new(path: change.fetch("path"), status: change.fetch("status"), previous_path: change["previous_path"])
+      registered { @client.changes(mirror_id, base_id, head_id, patch: patch) }.map do |change|
+        RepositoryContent::Change.new(
+          path: change.fetch("path"),
+          status: change.fetch("status"),
+          previous_path: change["previous_path"],
+          additions: change["additions"],
+          deletions: change["deletions"],
+          patch: patch ? change["patch"] : nil
+        )
       end
     end
 

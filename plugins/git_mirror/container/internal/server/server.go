@@ -8,7 +8,7 @@
 //	GET    /v1/repositories/{id}/resolve?ref=&max_age=
 //	GET    /v1/repositories/{id}/tree?revision=
 //	GET    /v1/repositories/{id}/blob?revision=&path=   raw bytes
-//	GET    /v1/repositories/{id}/changes?base=&head=
+//	GET    /v1/repositories/{id}/changes?base=&head=&patch=1
 //
 // Errors are {"error":{"code","message"}} with codes the Syrus plugin maps
 // onto the content contract: unknown_repository, unknown_revision, not_found,
@@ -39,7 +39,7 @@ type Store interface {
 	Resolve(ctx context.Context, id, ref string, maxAge time.Duration) (string, time.Time, error)
 	Tree(ctx context.Context, id, revision string) ([]mirror.Entry, error)
 	Read(ctx context.Context, id, revision, path string) (mirror.Blob, error)
-	Changes(ctx context.Context, id, base, head string) ([]mirror.Change, error)
+	Changes(ctx context.Context, id, base, head string, withPatch bool) ([]mirror.Change, error)
 }
 
 const maxRegistrationBytes = 64 << 10
@@ -197,11 +197,8 @@ func (s *server) blob(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) changes(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
-	if query.Get("patch") == "1" || query.Get("patch") == "true" {
-		writeError(w, http.StatusNotImplemented, "unsupported", "patches are not served by the mirror")
-		return
-	}
-	changes, err := s.store.Changes(r.Context(), r.PathValue("id"), query.Get("base"), query.Get("head"))
+	withPatch := query.Get("patch") == "1" || query.Get("patch") == "true"
+	changes, err := s.store.Changes(r.Context(), r.PathValue("id"), query.Get("base"), query.Get("head"), withPatch)
 	if err != nil {
 		writeStoreError(w, err)
 		return

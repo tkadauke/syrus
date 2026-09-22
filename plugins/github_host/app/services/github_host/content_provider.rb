@@ -104,9 +104,12 @@ module GithubHost
       result = translate(unknown_revision: "unknown revision #{revision_id}") { client.commit_tree_entries(slug, revision_id) }
       # GitHub stops listing around 100k entries. A partial tree would make
       # glob searches silently miss files, so say we cannot answer instead.
-      raise RepositoryContent::Unsupported, "GitHub truncated the tree of #{slug}@#{revision_id}" if result[:truncated]
+      entries = result[:entries].filter_map { |item| entry_for(item) }
+      if result[:truncated]
+        raise RepositoryContent::Truncated.new("GitHub truncated the tree of #{slug}@#{revision_id}", partial: entries)
+      end
 
-      result[:entries].filter_map { |item| entry_for(item) }
+      entries
     end
 
     def read(revision_id, path)
@@ -120,11 +123,7 @@ module GithubHost
       result = translate(unknown_revision: "unknown revision #{base_id}...#{head_id}") { client.compare_file_changes(slug, base_id, head_id) }
       # GitHub lists at most 300 files per comparison. Returning the first
       # 300 as if they were all would be a quiet lie.
-      if result[:truncated]
-        raise RepositoryContent::Unsupported, "GitHub lists at most #{GITHUB_COMPARE_FILE_LIMIT} changed files"
-      end
-
-      result[:files].map do |file|
+      changes = result[:files].map do |file|
         RepositoryContent::Change.new(
           path: file[:path],
           status: STATUS_FOR.fetch(file[:status], "modified"),
@@ -134,6 +133,11 @@ module GithubHost
           deletions: file[:deletions]
         )
       end
+      if result[:truncated]
+        raise RepositoryContent::Truncated.new("GitHub lists at most #{GITHUB_COMPARE_FILE_LIMIT} changed files", partial: changes)
+      end
+
+      changes
     end
 
     private

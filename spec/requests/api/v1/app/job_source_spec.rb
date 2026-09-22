@@ -92,6 +92,19 @@ RSpec.describe "App API job source browser", type: :request do
     expect(body["file_error"]).to eq("File not found.")
   end
 
+  it "shows a tree too large to list in full, flagged as truncated" do
+    user.update!(github_token: "ghp_test_token")
+    job.update!(branch_name: nil)
+    stub_repository_content(repo, files: { "README.md" => "hi" }, truncated_tree: true)
+
+    get "/api/v1/app/jobs/#{job.id}/source"
+
+    body = parse_body
+    expect(body["tree_truncated"]).to be(true)
+    expect(body["tree_items"].map { |item| item["path"] }).to eq([ "README.md" ])
+    expect(body["source_error"]).to be_nil
+  end
+
   it "shows a source error when the repository cannot be read" do
     user.update!(github_token: "ghp_test_token")
     job.update!(branch_name: nil)

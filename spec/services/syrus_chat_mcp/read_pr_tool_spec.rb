@@ -49,6 +49,42 @@ RSpec.describe Mcp::Tools::ReadPrTool do
     expect(diff_stub).to have_been_requested
   end
 
+  # Only the PR's metadata needs GitHub; the diff comes from repository
+  # content -- the git mirror when it has both commits.
+  it "builds the diff from repository content when both commits can be read" do
+    base_sha = "b" * 40
+    head_sha = "c" * 40
+    metadata = stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/8")
+      .with(headers: { "Accept" => "application/vnd.github.v3+json" })
+      .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: {
+        number: 8, title: "Rename", body: "", state: "open", html_url: "https://github.com/acme/widgets/pull/8",
+        base: { sha: base_sha }, head: { sha: head_sha }
+      }.to_json)
+    github_diff = stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/8")
+      .with(headers: { "Accept" => "application/vnd.github.v3.diff" })
+    stub_repository_diff(repository, base: base_sha, head: head_sha, files: [
+      { path: "lib/new.rb", previous_path: "lib/old.rb", status: "renamed", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" },
+      { path: "logo.png", status: "added", additions: nil, deletions: nil, patch: nil }
+    ])
+
+    text = response_payload(call_tool(pr_number: 8)).dig(:pr, :diff, :text)
+
+    expect(text).to eq(<<~DIFF)
+      diff --git a/lib/old.rb b/lib/new.rb
+      --- a/lib/old.rb
+      +++ b/lib/new.rb
+      @@ -1 +1 @@
+      -old
+      +new
+      diff --git a/logo.png b/logo.png
+      --- /dev/null
+      +++ b/logo.png
+      Binary files differ
+    DIFF
+    expect(metadata).to have_been_requested
+    expect(github_diff).not_to have_been_requested
+  end
+
   it "returns a tool error when GitHub cannot find the PR" do
     stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/404")
       .to_return(status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json)

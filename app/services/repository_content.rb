@@ -33,6 +33,24 @@ module RepositoryContent
   # This provider cannot do that operation (or not for this repository/VCS).
   class Unsupported < Error; end
 
+  # This provider could only give part of the answer -- GitHub truncates very
+  # large trees and lists at most 300 changed files. An Unsupported, so the
+  # chain asks the next provider and no caller mistakes it for the whole
+  # answer. `partial` holds what it did return, for display callers that
+  # would rather show a flagged partial list than an error:
+  #
+  #   entries = content.tree(revision)
+  # rescue RepositoryContent::Truncated => e
+  #   entries, truncated = e.partial, true
+  class Truncated < Unsupported
+    attr_reader :partial
+
+    def initialize(message = nil, partial: [])
+      super(message)
+      @partial = partial
+    end
+  end
+
   # This provider does not know the ref or revision. Another may (a replica
   # that has not fetched it yet, say).
   class UnknownRevision < Error; end
@@ -48,7 +66,7 @@ module RepositoryContent
   # "cache" for a cached answer and "none" when no provider serves the
   # repository; `kind` is the operation (resolve, tree, read, changes);
   # `outcome` is answered, not_found, unknown_revision, unsupported,
-  # unavailable, or error. See Reader#record.
+  # truncated, unavailable, or error. See Reader#record.
   def self.declare_metrics!
     Syrus::Metrics.declare do
       counter :repository_content_reads_total, tags: %i[provider kind outcome],

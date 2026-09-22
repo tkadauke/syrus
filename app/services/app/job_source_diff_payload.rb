@@ -33,18 +33,18 @@ module App
 
       base = @params[:base].presence || merge_base_sha || job_base_branch
       head = @params[:head].presence || branch_commits.first&.fetch(:sha) || merge_base_sha || @repository.default_branch
-      diff_result = github.compare_files(@repository.slug, base, head)
+      files, truncated = diff_files(base, head)
       version = resolve_diff_review_version(
         base_sha: base,
         head_sha: head,
-        files: diff_result[:files],
-        truncated: diff_result[:truncated] == true
+        files: files,
+        truncated: truncated
       )
 
       base_payload(base_ref: base, head_ref: head, base_sha: base, head_sha: head, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
         .merge(
-          files: Array(diff_result[:files]).map { |file| file_json(file) },
-          truncated: diff_result[:truncated] == true,
+          files: files.map { |file| file_json(file) },
+          truncated: truncated,
           diff_error: nil,
           version: version_json(version),
           versions: diff_versions_json
@@ -60,6 +60,31 @@ module App
     end
 
     private
+
+    # The diff UI and stored review versions use GitHub's status names; the
+    # content contract says "deleted" where GitHub says "removed".
+    UI_STATUS = { "deleted" => "removed" }.freeze
+
+    # Files changed from base to head, through RepositoryContent -- the git
+    # mirror when it can, GitHub otherwise. A truncated answer (GitHub's
+    # 300-file cap) is still shown, flagged, as it always was.
+    def diff_files(base, head)
+      content = RepositoryContent.for(@repository, user: @user)
+      changes = content.changes(base: content.resolve(base), head: content.resolve(head), patch: true)
+      [ changes.map { |change| file_hash(change) }, false ]
+    rescue RepositoryContent::Truncated => e
+      [ e.partial.map { |change| file_hash(change) }, true ]
+    end
+
+    def file_hash(change)
+      {
+        path: change.path,
+        status: UI_STATUS.fetch(change.status, change.status),
+        additions: change.additions,
+        deletions: change.deletions,
+        patch: change.patch
+      }
+    end
 
     # The Job's own PR/stack base, not the repository's default branch — an
     # Epic child Job stacked on a parent Job's branch must diff against that

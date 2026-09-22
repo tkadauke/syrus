@@ -154,6 +154,7 @@ module RepositoryContent
       end
 
       last_error = nil
+      truncated = nil
       chain.each do |provider|
         key = metric_label(provider)
         begin
@@ -164,7 +165,8 @@ module RepositoryContent
           record(key, operation, "not_found")
           raise
         rescue *FALL_THROUGH_ERRORS => e
-          record(key, operation, OUTCOME_FOR.fetch(e.class, "unavailable"))
+          record(key, operation, e.is_a?(Truncated) ? "truncated" : OUTCOME_FOR.fetch(e.class, "unavailable"))
+          truncated ||= e if e.is_a?(Truncated)
           last_error = e
         rescue StandardError => e
           record(key, operation, "error")
@@ -172,7 +174,9 @@ module RepositoryContent
           last_error = Unavailable.new("#{provider.class.display_name}: #{e.class}: #{e.message}")
         end
       end
-      raise last_error
+      # A partial answer is more use than "unavailable" to a caller that can
+      # show one, and no less of a failure to one that cannot.
+      raise truncated || last_error
     end
 
     def cached_blob(key, path)
