@@ -89,4 +89,33 @@ RSpec.describe Mcp::Tools::ExplainStuckJobTool do
     expect(Mcp::Sidecar::CHAT_DEFERRED_TOOLS).to include(described_class)
     expect(Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)).to include("explain_stuck_job")
   end
+
+  it "respects mcp_context.allowed_job_ids, rejecting a job the user owns but the context excludes" do
+    allowed_job = Factories.job_record(user: user, repository: repository, state: "implemented")
+    excluded_job = Factories.job_record(user: user, repository: repository, state: "implemented")
+
+    restricted_context = McpToolContext.new(
+      surface: :chat, role: AgentRole::CHAT_PLANNER, user: user,
+      allowed_job_ids: [ allowed_job.id ]
+    )
+    allow(McpToolContext).to receive(:from_server_context).and_return(restricted_context)
+
+    allowed_response = call_tool(job_id: allowed_job.id)
+    expect(allowed_response.dig(:result, :isError)).to be_falsey
+
+    excluded_response = call_tool(job_id: excluded_job.id)
+    excluded_payload = response_payload(excluded_response)
+    expect(excluded_response.dig(:result, :isError)).to be(true)
+    expect(excluded_payload).to eq(error: "not_authorized")
+  end
+
+  it "returns a plain not_authorized error, not an admin-required message, for an ordinary missing/unowned job id" do
+    other_job = Factories.job_record(user: Factories.user, repository: Factories.repository(user: Factories.user), state: "implemented")
+
+    response = call_tool(job_id: other_job.id)
+    payload = response_payload(response)
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(payload).to eq(error: "not_authorized")
+  end
 end
