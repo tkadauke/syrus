@@ -341,6 +341,43 @@ RSpec.describe SolidQueueCleanupJob do
     ensure
       clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
     end
+
+    it "deletes a chat relay refresh after the chat moves to another storage queue" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+      dead = "resume-old-storage"
+      allow(InstanceVersion).to receive(:worker_queue_live?).with(dead).and_return(false)
+      chat = ChatSession.create!(user: user, workspace_storage_key: "current-storage")
+      stranded = solid_queue_job(
+        class_name: "ChatCodingRelayRefreshJob", queue_name: dead,
+        arguments: { "arguments" => [ chat.id ] }, created_at: 2.hours.ago
+      )
+
+      run_only_dead_resume_sweep
+
+      expect(SolidQueue::Job.where(id: stranded.id)).to be_empty
+      expect(SolidQueue::ReadyExecution.where(job_id: stranded.id)).to be_empty
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
+
+    it "keeps a chat relay refresh while the chat still owns the dead storage queue" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+      dead = "resume-current-storage"
+      allow(InstanceVersion).to receive(:worker_queue_live?).with(dead).and_return(false)
+      chat = ChatSession.create!(user: user, workspace_storage_key: "current-storage")
+      kept = solid_queue_job(
+        class_name: "ChatCodingRelayRefreshJob", queue_name: dead,
+        arguments: { "arguments" => [ chat.id ] }, created_at: 2.hours.ago
+      )
+
+      run_only_dead_resume_sweep
+
+      expect(SolidQueue::Job.where(id: kept.id)).to be_present
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
   end
 
   it "runs frequently enough to spread cleanup work" do

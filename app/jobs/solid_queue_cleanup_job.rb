@@ -92,6 +92,9 @@ class SolidQueueCleanupJob < ApplicationJob
   # harmless: while it sits there it pins `syrus_global_queue_oldest_age_seconds`,
   # the headline "is Syrus keeping up" number, at an age that grows forever. One
   # dead row had the dashboard reporting a 31-hour backlog that did not exist.
+  # Chat relay refreshes can become equally inert after a chat moves to a new
+  # storage identity; those are safe to remove only when the queued identity
+  # no longer matches the chat's current one.
   def prune_dead_resume_ready_executions
     dead_queues = SolidQueue::ReadyExecution
                     .where("queue_name LIKE ?", "resume-%")
@@ -100,15 +103,29 @@ class SolidQueueCleanupJob < ApplicationJob
                     .reject { |queue_name| InstanceVersion.worker_queue_live?(queue_name) }
     return if dead_queues.empty?
 
-    job_ids = SolidQueue::ReadyExecution
-                .where(queue_name: dead_queues)
-                .limit(BATCH_SIZE * MAX_BATCHES)
-                .pluck(:job_id)
+    queued_jobs = SolidQueue::ReadyExecution
+                    .where(queue_name: dead_queues)
+                    .limit(BATCH_SIZE * MAX_BATCHES)
+                    .pluck(:job_id, :queue_name)
+    job_ids = queued_jobs.map(&:first)
     return if job_ids.empty?
 
-    stranded = SolidQueue::Job.where(id: job_ids, class_name: "RunJob").select do |job|
-      run_terminal?(job)
+    jobs = SolidQueue::Job.where(id: job_ids).to_a
+    stranded_runs = jobs.select do |job|
+      job.class_name == "RunJob" && run_terminal?(job)
     end
+    relay_jobs = jobs.select { |job| job.class_name == "ChatCodingRelayRefreshJob" }
+    relay_chat_ids = relay_jobs.to_h do |job|
+      [ job.id, Array(active_job_arguments(job.arguments)).first ]
+    end
+    chats_by_id = ChatSession.where(id: relay_chat_ids.values.compact).index_by(&:id)
+    queues_by_job_id = queued_jobs.to_h
+    obsolete_relay_refreshes = relay_jobs.select do |job|
+      chat = chats_by_id[relay_chat_ids[job.id]]
+      expected_queue = Workflow.resume_queue_name(chat.workspace_storage_key) if chat&.workspace_storage_key.present?
+      expected_queue != queues_by_job_id[job.id]
+    end
+    stranded = stranded_runs + obsolete_relay_refreshes
     return if stranded.empty?
 
     stranded_ids = stranded.map(&:id)
