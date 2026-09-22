@@ -377,6 +377,8 @@
   "prepare_failure_aliveness_failed": "processus evanuit",
   "prepare_failure_exit": "exitus {{code}}",
   "prepare_failure_failed": "defecit",
+  "command_failure_title": "Mandatum defecit (non fatale)",
+  "step_debug_details_toggle": "Particularia emendationis",
   "warning_edit_prompt": "Promptum muta",
   "warning_hide_prompt": "Promptum absconde",
   "warning_prompt_label": "Promptus Operis Emendationis",

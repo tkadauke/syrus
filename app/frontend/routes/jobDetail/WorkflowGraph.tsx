@@ -16,7 +16,7 @@ import { pluginIconSrc } from "../../lib/pluginIcon"
 import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type RunTestFailureSummary, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
-import { booleanValue, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
+import { booleanValue, debugOnlyDetails, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, softCommandFailures, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
 import { diffReviewFeedbackAllowed, useDiffReviewFeedback } from "./DiffReviewFeedback"
@@ -772,6 +772,59 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
   )
 }
 
+// Typed/semantic rendering path for `step.details`, replacing an
+// unconditional raw JSON dump. Grader steps keep their existing dedicated
+// renderer; every other kind gets its known soft-failure entries rendered as
+// readable notices, with anything left over (cancellation metadata, fanout
+// planner output, and any other payload with no semantic renderer yet)
+// tucked behind an explicit debug affordance instead of shown by default.
+function StepDetailsSection({ step }: { step: JobStep }) {
+  if (step.kind === "grader" || step.kind === "preflight_grader") {
+    return <GraderDetails details={objectDetails(step.details)} />
+  }
+
+  const softFailures = softCommandFailures(step)
+  const debugDetails = debugOnlyDetails(step)
+
+  return (
+    <>
+      {softFailures.map((failure, index) => <SoftCommandFailurePanel failure={failure} key={index} />)}
+      {debugDetails ? <RawStepDetailsDisclosure details={debugDetails} /> : null}
+    </>
+  )
+}
+
+// Positive semantic renderer for non-fatal command failures recorded outside
+// the dedicated prepare-failure panel (format/generate autofix commands, the
+// secondary mise install failure) — visible by default, since these are
+// meaningful outcomes ("this fixer command failed"), unlike the debug-only
+// planner output routed through RawStepDetailsDisclosure below.
+function SoftCommandFailurePanel({ failure }: { failure: PrepareFailure }) {
+  const { t } = useT("jobs")
+  const status = prepareFailureStatus(failure, t)
+
+  return (
+    <Notice className="mt-2 p-3 text-xs" tone="warning">
+      <div className="font-semibold">{t("command_failure_title")}</div>
+      <DescriptionList.Root className="mt-2" density="compact">
+        <DescriptionList.Item descriptionClassName="break-words font-mono text-xs text-warning-text" label={t("prepare_failure_command")}>{failure.command || "-"}</DescriptionList.Item>
+        <DescriptionList.Item descriptionClassName="text-xs text-warning-text" label={t("prepare_failure_status_label")}>{status}</DescriptionList.Item>
+      </DescriptionList.Root>
+      {failure.output_tail ? <CodeSurface code={failure.output_tail} className="mt-3" maxHeightClassName="max-h-64" /> : null}
+    </Notice>
+  )
+}
+
+function RawStepDetailsDisclosure({ details }: { details: Record<string, unknown> }) {
+  const { t } = useT("jobs")
+  return (
+    <details className="mt-2 text-xs text-text-muted">
+      <summary className="cursor-pointer select-none hover:text-text-primary">{t("step_debug_details_toggle")}</summary>
+      <CodeSurface code={stringify(details)} className="mt-1" maxHeightClassName="max-h-64" />
+    </details>
+  )
+}
+
 function StepCard({ step, payload, command, numberLabel, prefix, displayName, metadataLabel, workflowArtifacts, workflowId }: { step: JobStep; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; prefix: string; displayName?: string; metadataLabel?: string; workflowArtifacts?: Record<string, unknown> | null; workflowId: number }) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
@@ -828,11 +881,7 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
           {pendingWarnings(step).map((warning) => (
             <WarningPanel command={command} jobId={payload.job.id} key={warning.id} warning={warning} />
           ))}
-          {step.details && !prepareFailure ? (
-            (step.kind === "grader" || step.kind === "preflight_grader")
-              ? <GraderDetails details={objectDetails(step.details)} />
-              : <CodeSurface code={stringify(step.details)} className="mt-2" maxHeightClassName="max-h-64" />
-          ) : null}
+          {step.details && !prepareFailure ? <StepDetailsSection step={step} /> : null}
           {step.runs_truncated ? (
             <Notice className="mt-3 px-2 py-1 text-xs" tone="warning">
               {t("step_runs_truncated", { displayed: step.runs_displayed || runs.length, total: step.runs_total || runs.length })}
