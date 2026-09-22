@@ -35,14 +35,12 @@ RSpec.describe "bin/deploy plugin service images" do
     expect(deploy).to match(/--skip-build.*?for plugin_registry in .*?verify_pushed "\$\{plugin_registry\}" "\$\{SHA\}"/m)
   end
 
-  it "pins plugin workloads before restarting and waits for them afterwards" do
+  it "pins plugin workloads and waits for their image-triggered rollouts" do
     pin_at = deploy.index('pin_live_images "$label"')
-    restart_at = deploy.index("kubectl rollout restart -n")
     wait_at = deploy.index('echo "→ ${label}: waiting for plugin workload ${dep}"')
 
     expect(deploy[/^pin_live_images\(\) \{.*?\n\}/m]).to include('pin_plugin_images "$label"')
-    expect(pin_at).to be < restart_at
-    expect(wait_at).to be > restart_at
+    expect(wait_at).to be > pin_at
   end
 
   # Without a Flux override, the next reconcile puts the workload back on

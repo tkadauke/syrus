@@ -15,7 +15,7 @@
 #   bin/deploy --production          # production only
 #   bin/deploy --build-only          # build + push images, skip rollout
 #   bin/deploy --skip-build           # assume both :<sha> already pushed
-#                                       (just rollout restart)
+#                                       (just roll out pinned images)
 #
 # After a successful build+push, bin/deploy prunes stale local Syrus image tags
 # and BuildKit cache entries that were not used during this deploy. Disable with
@@ -47,8 +47,8 @@ NAMESPACE_STAGING="syrus-staging"
 NAMESPACE_PRODUCTION="syrus-production"
 # Rollout targets across the multi-worker split: web + the single home worker
 # (Deployment) + the per-node compute workers (DaemonSet). Each entry carries
-# its resource type so `kubectl rollout restart/status` works for Deployments
-# and the DaemonSet alike.
+# its resource type so `kubectl rollout status` works for Deployments and the
+# DaemonSet alike.
 DEPLOYMENTS=(deployment/syrus-web deployment/syrus-worker-home daemonset/syrus-worker-compute deployment/syrus-preview)
 WORKER_WORKLOADS=(deployment/syrus-worker-home daemonset/syrus-worker-compute)
 
@@ -262,10 +262,11 @@ rollout() {
   flux_pin_desired_images "$kubeconfig" "$label"
   suspend_mysql_backup "$kubeconfig" "$namespace" "$label"
   ensure_mise_cache "$label" "$kubeconfig" "$namespace"
-  pin_live_images "$label" "$kubeconfig" "$namespace"
   prepull_worker_image "$label" "$kubeconfig" "$namespace"
-  echo "→ ${label}: rollout restart in ${namespace}"
-  KUBECONFIG="$kubeconfig" kubectl rollout restart -n "$namespace" "${targets[@]}"
+  # Changing the image is the rollout trigger. An additional `rollout restart`
+  # creates an annotation-only ReplicaSet, and Flux removes that imperative
+  # annotation on resume, replacing every pod a second time.
+  pin_live_images "$label" "$kubeconfig" "$namespace"
   for dep in "${targets[@]}"; do
     echo "→ ${label}: waiting for ${dep}"
     wait_for_rollout_target "$label" "$kubeconfig" "$namespace" "$dep"
@@ -663,14 +664,11 @@ EOF
 )" >/dev/null
 }
 
-# Flux's apps Kustomization reconciles every 10min and re-applies
-# the manifest from Git. That re-apply strips annotations not in
-# source — including the `kubectl.kubernetes.io/restartedAt` one
-# `kubectl rollout restart` adds. If Flux fires mid-rollout, the
-# new ReplicaSet's pod template hash collapses back to the old one
-# and K8s stops replacing pods — which is exactly what bit us
-# today: 2 web replicas, only 1 got rotated, the second stayed on
-# the old image for hours.
+# Flux's apps Kustomization reconciles every 10min and re-applies the manifest
+# from Git. Suspend it while live image pins roll out so it cannot restore the
+# old image midway through replacement. The desired image overrides are
+# updated before the live workloads, so resuming Flux preserves the exact pod
+# template that just completed instead of initiating another rollout.
 #
 # Strategy: suspend the Kustomization for the duration of the
 # rollout, then resume on success. We DON'T rely on a bash trap
@@ -925,7 +923,7 @@ verify_sha() {
 
 The ${label} rollout reported success but at least one workload is
 still serving an older image. bin/deploy now pins both Flux desired
-image overrides and the live workload images before restarting, so the
+image overrides and the live workload images to trigger one rollout, so the
 surviving causes are usually pod startup problems or an unpatched
 workload:
 

@@ -8,14 +8,19 @@ RSpec.describe "bin/deploy image pre-pull" do
   # running while containerd pulled worker-dev. Serialized across the
   # DaemonSet that was ~17 minutes of a deploy spent fetching the same bytes
   # one node at a time, five nodes idle for each.
-  it "warms the image before restarting anything" do
+  it "warms the image before changing the live pod template" do
     prepull_at = deploy.index("prepull_worker_image \"$label\"")
-    restart_at = deploy.index("kubectl rollout restart -n")
+    pin_at = deploy.index('pin_live_images "$label"')
 
     expect(prepull_at).not_to be_nil
-    expect(restart_at).not_to be_nil
-    expect(prepull_at).to be < restart_at,
-      "pre-pulling after the restart would warm nodes whose pods already paid the pull"
+    expect(pin_at).not_to be_nil
+    expect(prepull_at).to be < pin_at,
+      "pre-pulling after the image pin would warm nodes whose pods already paid the pull"
+  end
+
+  it "uses the image change as the only rollout trigger" do
+    expect(deploy).not_to include("kubectl rollout restart"),
+      "Flux removes imperative restart annotations and would replace every pod again"
   end
 
   # Staging keeps the anti-master nodeAffinity from apps/syrus.py; production
