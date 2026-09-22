@@ -128,13 +128,12 @@ doing at that moment. Bucket size follows the window (1h -> 3m, 6h -> 5m,
 of the same window agree on the timestamps.
 
 **A bucket is never narrower than the recorder can sample.** The recorder
-declares `tick_interval 1.minute`, but the plugin tick scheduler adds its own
-poll latency: measured, samples land about every 89 seconds. The 1h window
-originally bucketed at one minute, so roughly one bucket in three contained no
-sample at all and every chart rendered as a comb of disconnected fragments —
-the dashboard reporting an outage that was really just jitter.
-`MetricsDashboard::SAMPLE_INTERVAL` records the real cadence and a spec holds
-every window to at least twice it.
+samples every minute (`tick_interval 1.minute`). A bucket only as wide as that
+misses whenever a tick lands a moment late, and every miss renders as a hole —
+the dashboard reporting an outage that was really jitter. (A scheduler bug once
+made ticks fire every other minute, ~89s on average, which made that worse.)
+`MetricsDashboard::SAMPLE_INTERVAL` records the cadence and a spec holds every
+window to at least twice it: the 1h window buckets at two minutes.
 
 **Gauges are drawn as values; counters are drawn as rates.** A panel's `mode`
 says which. `syrus_global_queue_ready_count` is a gauge — the chart shows the

@@ -23,14 +23,12 @@ module MetricsDashboard
   class DashboardPayload
     # Bucket sizes chosen so every window lands near 60-170 points: enough to
     # show shape, few enough that each is a visible pixel column.
-    # A bucket must be comfortably wider than the recorder's effective period or
-    # it cannot reliably contain a sample. The recorder declares
-    # `tick_interval 1.minute`, but the plugin tick scheduler adds its own poll
-    # latency on top: measured, samples actually land about every 89 seconds. A
-    # 1-minute bucket therefore missed roughly one in three, and every miss drew
-    # a hole in the line -- the chart reported an outage that was really jitter.
+    # A bucket must be comfortably wider than the recorder's period
+    # (MetricsDashboard::SAMPLE_INTERVAL) or it cannot reliably contain a sample:
+    # a bucket as wide as the period misses whenever a tick lands a moment late,
+    # and every miss draws a hole in the line -- an outage that is really jitter.
     WINDOWS = {
-      "1h" => { span: 1.hour, bucket: 3.minutes },
+      "1h" => { span: 1.hour, bucket: 2.minutes },
       "6h" => { span: 6.hours, bucket: 5.minutes },
       "24h" => { span: 24.hours, bucket: 15.minutes },
       "7d" => { span: 7.days, bucket: 1.hour }

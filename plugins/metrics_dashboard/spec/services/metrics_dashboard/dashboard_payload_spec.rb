@@ -26,7 +26,7 @@ RSpec.describe MetricsDashboard::DashboardPayload do
     end
 
     it "uses a coarser bucket for a longer window" do
-      expect(described_class.build(window: "1h")[:bucket_seconds]).to eq(3.minutes.to_i)
+      expect(described_class.build(window: "1h")[:bucket_seconds]).to eq(2.minutes.to_i)
       expect(described_class.build(window: "7d")[:bucket_seconds]).to eq(1.hour.to_i)
     end
 
