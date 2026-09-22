@@ -97,6 +97,26 @@ export const wipeBackendStack = async (): Promise<void> => {
         // Absent or still referenced — best-effort.
       }
     }
+
+    // Plugin Runtime's service containers and volumes (e.g. Git Mirror's
+    // mirrors) are the runtime manager's, not Compose's, so `down -v` leaves
+    // them. They carry the manager's project label; remove them by it.
+    const pluginLabel = `label=dev.syrus.runtime.project=${identity.project}`
+    for (const [kind, listArgs] of [
+      ["rm", ["ps", "-aq", "--filter", pluginLabel]],
+      ["volume", ["volume", "ls", "-q", "--filter", pluginLabel]]
+    ] as const) {
+      try {
+        const { stdout } = await execFileAsync(dockerBinary, [...listArgs], { env: execEnv(), timeout: 30_000 })
+        const ids = String(stdout).split(/\s+/).filter(Boolean)
+        if (ids.length > 0) {
+          const removeArgs = kind === "rm" ? ["rm", "-f", ...ids] : ["volume", "rm", "-f", ...ids]
+          await execFileAsync(dockerBinary, removeArgs, { env: execEnv(), timeout: 30_000 })
+        }
+      } catch {
+        // Best-effort, like the rest of the reset.
+      }
+    }
   }
 }
 

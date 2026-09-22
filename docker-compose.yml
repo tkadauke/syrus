@@ -92,6 +92,25 @@ services:
       - syrus-search:/home/rails/.syrus-search
     command: ["./bin/preview"]
 
+  # Plugin Runtime's manager: starts the service containers that
+  # container-backed plugins (Git Mirror, ...) need when those plugins are
+  # enabled, and removes them when they are disabled -- no restart. It is the
+  # only container given the Docker socket, and it only runs images its policy
+  # allows (see plugins/plugin_runtime/container). Idle until a plugin asks.
+  # On shutdown it takes those containers down with it (their data volumes
+  # stay), so `docker compose down` can remove the project network.
+  plugin-runtime:
+    image: ${SYRUS_PLUGIN_RUNTIME_IMAGE:-ghcr.io/tkadauke/syrus-plugin-runtime:latest}
+    environment:
+      RUNTIME_MANAGER_TOKEN: ${SYRUS_PLUGIN_RUNTIME_TOKEN:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 60s
+    restart: unless-stopped
+
 volumes:
   syrus-data:
   syrus-search:

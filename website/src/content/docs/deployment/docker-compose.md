@@ -210,6 +210,13 @@ bin/compose-up                       # restart / pick up changes
 - **setup** — a one-shot container that runs `db:prepare` and makes the data
   volume writable by the `rails` user, then exits. `web` and `worker` wait
   for it.
+- **plugin-runtime** — Plugin Runtime's manager. Idle until you enable a
+  plugin that runs a service of its own, such as **Git Mirror**; it then pulls
+  and starts that plugin's container, and removes it again when the plugin is
+  disabled, without restarting Syrus. It is the only container given the
+  Docker socket, runs only images published by Syrus, and takes its plugin
+  containers down with it when the stack stops. If its image can't be pulled
+  during an install, Syrus starts without it and those plugins stay off.
 - **syrus-data volume** — `/home/rails/.syrus`, holding the primary **SQLite
   databases** (`db/production*.sqlite3`) and the **clone cache / workflow
   workspaces**.
@@ -274,6 +281,11 @@ and fills the secrets. Notable values:
   service so terminal relay sockets advertise an address reachable by the web
   container through Docker's internal DNS. The value stays blank in `.env`.
 - `SYRUS_PORT=3000` — host port mapped to the container.
+- `SYRUS_PLUGIN_RUNTIME_URL`, `SYRUS_PLUGIN_RUNTIME_TOKEN` — how web and
+  worker reach the plugin-runtime container. The installer generates the
+  token (and adds both to an existing `.env` on update).
+- `SYRUS_PLUGIN_RUNTIME_IMAGE` — the manager image; the installer pins it to
+  the backend's release.
 - `SECRET_KEY_BASE`, `ACTIVE_RECORD_ENCRYPTION_*` — generated; keep them
   stable across restarts or stored GitHub/agent credentials can't be
   decrypted. Regenerate a key by hand with `openssl rand -hex 32`.
@@ -308,7 +320,8 @@ skipped, and an unreachable Docker daemon skips only the Docker steps.
 What it removes:
 
 - The Compose stack (project `syrus`) and — unless `--keep-data` — its
-  volumes (`syrus_syrus-data`, `syrus_syrus-search`).
+  volumes (`syrus_syrus-data`, `syrus_syrus-search`), plus any plugin service
+  containers and their volumes (such as Git Mirror's mirrors).
 - Every `*syrus-backend` image (any registry/tag) and `ghcr.io/*/syrus-local`
   dev images.
 - `~/.syrus/local` — **its `.env` holds the database encryption keys;

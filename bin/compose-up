@@ -65,9 +65,18 @@ if [ ! -f .env ]; then
     -e "s|^ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=.*|ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=$(gen 32)|" \
     -e "s|^ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=.*|ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=$(gen 32)|" \
     -e "s|^ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=.*|ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=$(gen 32)|" \
+    -e "s|^SYRUS_PLUGIN_RUNTIME_TOKEN=.*|SYRUS_PLUGIN_RUNTIME_TOKEN=$(gen 32)|" \
     compose.env.example > .env
   echo "Wrote .env (gitignored). Review it before going further if you like."
 fi
+# Plugin Runtime arrived after many .env files were written; fill in its keys
+# where missing (or still the template placeholder), touching nothing else.
+ensure_env_value() { # ensure_env_value KEY VALUE
+  if grep -qE "^$1=." .env && ! grep -qE "^$1=generate-me\$" .env; then return 0; fi
+  { grep -vE "^$1=" .env || true; printf '%s=%s\n' "$1" "$2"; } > .env.tmp && mv .env.tmp .env
+}
+ensure_env_value SYRUS_PLUGIN_RUNTIME_TOKEN "$(openssl rand -hex 32)"
+ensure_env_value SYRUS_PLUGIN_RUNTIME_URL "http://plugin-runtime:8080"
 
 # 2. Build the base worker image — the fat agent toolchain (Ruby/Node/Go via
 #    mise, Python, build tools, db clients, claude-code). The FIRST build is

@@ -21,3 +21,11 @@ services:
   worker:
     build: *build
     image: syrus-backend:latest
+  # The runtime manager builds from its source in the plugin too, so a source
+  # checkout never depends on a published manager image. Plugin service images
+  # it starts are still pulled (set SYRUS_GIT_MIRROR_IMAGE etc. to test local
+  # ones -- they must be tagged under ghcr.io/tkadauke/ to pass its policy).
+  plugin-runtime:
+    build:
+      context: plugins/plugin_runtime/container
+    image: syrus-plugin-runtime:latest

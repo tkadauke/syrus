@@ -314,6 +314,15 @@ run_docker() {
   fi
   IMAGE="${IMAGE_OVERRIDE:-${SYRUS_IMAGE:-ghcr.io/tkadauke/syrus-backend:latest}}"
   export SYRUS_IMAGE="$IMAGE"
+  # The Plugin Runtime manager comes from the same release as the backend when
+  # the backend is a released image; anything else (a dev or fork image, a
+  # digest pin) tracks :latest. Plugin images carry the backend's tags (see
+  # bin/publish-plugin-images).
+  case "$IMAGE" in
+    ghcr.io/tkadauke/syrus-backend:*) RUNTIME_IMAGE="ghcr.io/tkadauke/syrus-plugin-runtime:${IMAGE##*:}" ;;
+    *) RUNTIME_IMAGE="ghcr.io/tkadauke/syrus-plugin-runtime:latest" ;;
+  esac
+  export SYRUS_PLUGIN_RUNTIME_IMAGE="${SYRUS_PLUGIN_RUNTIME_IMAGE:-$RUNTIME_IMAGE}"
   # The Compose project name determines the volume prefix (<PROJECT>_syrus-data)
   # and overrides the compose file's `name: syrus` default. A side-by-side test
   # stack passes --project syrus-test for a fully isolated set of volumes and
@@ -417,6 +426,7 @@ run_docker() {
       -e "s|^ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=.*|ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=$(gen 32)|" \
       -e "s|^ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=.*|ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=$(gen 32)|" \
       -e "s|^ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=.*|ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=$(gen 32)|" \
+      -e "s|^SYRUS_PLUGIN_RUNTIME_TOKEN=.*|SYRUS_PLUGIN_RUNTIME_TOKEN=$(gen 32)|" \
       "$ASSETS_DIR/compose.env.example" > .env
     if [ -n "$PORT_OVERRIDE" ]; then
       sed \
@@ -459,6 +469,26 @@ run_docker() {
       printf 'SYRUS_IMAGE=%s\n' "$IMAGE_OVERRIDE" >> .env
     fi
   fi
+
+  # Plugin Runtime arrived after many installs already had a .env. Fill in
+  # its keys where missing (or still the template placeholder) without
+  # touching anything else; an operator's own values always win. The runtime
+  # image pin follows the backend pin whenever that moves.
+  ensure_env_value() { # ensure_env_value KEY VALUE
+    if grep -qE "^$1=." .env && ! grep -qE "^$1=generate-me\$" .env; then return 0; fi
+    { grep -vE "^$1=" .env || true; printf '%s=%s\n' "$1" "$2"; } > .env.tmp && mv .env.tmp .env
+  }
+  ensure_env_value SYRUS_PLUGIN_RUNTIME_TOKEN "$(openssl rand -hex 32)"
+  ensure_env_value SYRUS_PLUGIN_RUNTIME_URL "http://plugin-runtime:8080"
+  if [ -n "$IMAGE_OVERRIDE" ]; then
+    { grep -vE '^SYRUS_PLUGIN_RUNTIME_IMAGE=' .env || true; printf 'SYRUS_PLUGIN_RUNTIME_IMAGE=%s\n' "$SYRUS_PLUGIN_RUNTIME_IMAGE"; } > .env.tmp && mv .env.tmp .env
+  else
+    ensure_env_value SYRUS_PLUGIN_RUNTIME_IMAGE "$SYRUS_PLUGIN_RUNTIME_IMAGE"
+  fi
+  # .env is now the source of truth; the export above would otherwise win
+  # over an operator's own value in it.
+  SYRUS_PLUGIN_RUNTIME_IMAGE="$(grep -E '^SYRUS_PLUGIN_RUNTIME_IMAGE=' .env | tail -1 | cut -d= -f2-)"
+  export SYRUS_PLUGIN_RUNTIME_IMAGE
 
   # 4. Pull the prebuilt image. The daemon is already known reachable, so a
   #    failure here is about the image itself — surface the real error. The
@@ -534,9 +564,13 @@ run_docker() {
   # classified.
   pull_progress_flag=""
   [ "$JSON" = "1" ] && pull_progress_flag="--progress=json"
+  # The backend's services only. Plugin Runtime is pulled separately below
+  # and is optional: its image being unavailable must not fail the install.
+  # Empty (pull everything) if the service list cannot be read.
+  backend_services="$(compose config --services 2>/dev/null | grep -vx plugin-runtime | tr '\n' ' ' || true)"
   pull_once() {
     if [ -n "$pull_progress_flag" ]; then
-      if run_logged_captured "$pull_log" pull compose "$pull_progress_flag" pull; then
+      if run_logged_captured "$pull_log" pull compose "$pull_progress_flag" pull $backend_services; then
         return 0
       fi
       if ! pull_log_matches_progress_rejection "$(cat "$pull_log" 2>/dev/null || true)"; then
@@ -545,7 +579,7 @@ run_docker() {
       pull_progress_flag=""
       emit_log pull "compose does not support --progress=json; retrying the pull without it"
     fi
-    run_logged_captured "$pull_log" pull compose pull
+    run_logged_captured "$pull_log" pull compose pull $backend_services
   }
 
   pull_ok=0
@@ -664,7 +698,19 @@ run_docker() {
   # 5. Start the stack.
   step "Starting Syrus"
   emit_step stack_up start
-  run_logged up compose up -d || die "docker compose up failed" 40
+  # Plugin Runtime is optional. If its image cannot be pulled, start without
+  # it: plugins that run their own service stay unavailable (and say so)
+  # until a later update succeeds, but Syrus itself comes up.
+  runtime_up_args=""
+  if compose config --services 2>/dev/null | grep -qx plugin-runtime; then
+    if ! run_logged pull compose pull plugin-runtime; then
+      info "Note: couldn't pull the Plugin Runtime image ($SYRUS_PLUGIN_RUNTIME_IMAGE)."
+      info "      Starting without it; plugins that run their own service stay off until a later update."
+      emit_log pull "plugin-runtime image unavailable; starting without it"
+      runtime_up_args="--scale plugin-runtime=0"
+    fi
+  fi
+  run_logged up compose up -d $runtime_up_args || die "docker compose up failed" 40
   emit_step stack_up ok
 
   # `|| true`: a hand-written/adopted .env may lack SYRUS_PORT, and under

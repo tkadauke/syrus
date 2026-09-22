@@ -206,6 +206,10 @@ export COMPOSE_PROJECT_NAME="$PROJECT"
 # the reliable way to enumerate the stack regardless of container naming
 # scheme (v1 `syrus_web_1` underscores vs v2 hyphens).
 COMPOSE_LABEL_FILTER="label=com.docker.compose.project=$PROJECT"
+# Plugin Runtime's service containers and their volumes (e.g. Git Mirror's
+# mirrors) are created by the runtime manager, not Compose, so they carry the
+# manager's own project label instead.
+PLUGIN_LABEL_FILTER="label=dev.syrus.runtime.project=$PROJECT"
 KNOWN_VOLUMES="${PROJECT}_syrus-data ${PROJECT}_syrus-search ${PROJECT}_syrus-mise-cache"
 
 docker_ready=0
@@ -265,13 +269,17 @@ canonical_path() { # physical (symlink-resolved) path of an existing file; fails
   printf '%s\n' "$dir/$base"
 }
 
-list_syrus_containers() { # every container the compose project ever created, by ID
-  docker ps -aq --filter "$COMPOSE_LABEL_FILTER" 2>/dev/null || true
+list_syrus_containers() { # every container the compose project or its plugin runtime created, by ID
+  {
+    docker ps -aq --filter "$COMPOSE_LABEL_FILTER" 2>/dev/null || true
+    docker ps -aq --filter "$PLUGIN_LABEL_FILTER" 2>/dev/null || true
+  } | sort -u | sed '/^$/d'
 }
 
 list_syrus_volumes() { # label-discovered volumes PLUS the known names, deduped
   {
     docker volume ls -q --filter "$COMPOSE_LABEL_FILTER" 2>/dev/null || true
+    docker volume ls -q --filter "$PLUGIN_LABEL_FILTER" 2>/dev/null || true
     local v
     # shellcheck disable=SC2086 # KNOWN_VOLUMES is a fixed space-separated list
     for v in $KNOWN_VOLUMES; do

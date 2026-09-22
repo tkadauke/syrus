@@ -295,14 +295,24 @@ function Get-SyrusContainerIds {
   # v2 both stamp this label - it is the reliable way to enumerate the stack
   # regardless of container naming scheme (v1 syrus_web_1 underscores vs v2
   # hyphens).
-  return @(Invoke-NativeCapture "docker" @("ps", "-aq", "--filter", $script:ComposeLabelFilter))
+  # Plugin Runtime's service containers carry the runtime manager's project
+  # label instead, since the manager, not Compose, creates them.
+  $ids = New-Object System.Collections.Generic.List[string]
+  foreach ($filter in @($script:ComposeLabelFilter, $script:PluginLabelFilter)) {
+    foreach ($id in (Invoke-NativeCapture "docker" @("ps", "-aq", "--filter", $filter))) {
+      if ($id -and -not $ids.Contains($id)) { $ids.Add($id) }
+    }
+  }
+  return @($ids)
 }
 
 function Get-SyrusVolumeNames {
   # Label-discovered volumes PLUS the known names, deduped.
   $names = New-Object System.Collections.Generic.List[string]
-  foreach ($volumeName in (Invoke-NativeCapture "docker" @("volume", "ls", "-q", "--filter", $script:ComposeLabelFilter))) {
-    if ($volumeName -and -not $names.Contains($volumeName)) { $names.Add($volumeName) }
+  foreach ($filter in @($script:ComposeLabelFilter, $script:PluginLabelFilter)) {
+    foreach ($volumeName in (Invoke-NativeCapture "docker" @("volume", "ls", "-q", "--filter", $filter))) {
+      if ($volumeName -and -not $names.Contains($volumeName)) { $names.Add($volumeName) }
+    }
   }
   foreach ($volumeName in $script:KnownVolumes) {
     Invoke-NativeQuiet "docker" @("volume", "inspect", $volumeName)
@@ -444,6 +454,8 @@ $runOnceValueName = if ($script:Channel -eq "test") { "SyrusResumeSetupTest" } e
 # docker-compose v1 and odd invocation dirs.
 $env:COMPOSE_PROJECT_NAME = $project
 $script:ComposeLabelFilter = "label=com.docker.compose.project=$project"
+# Plugin Runtime's service containers and volumes (e.g. Git Mirror's mirrors).
+$script:PluginLabelFilter = "label=dev.syrus.runtime.project=$project"
 $script:KnownVolumes = @("${project}_syrus-data", "${project}_syrus-search", "${project}_syrus-mise-cache")
 
 $dockerReady = Test-DockerDaemon

@@ -63,6 +63,29 @@ The runtime manager is the one container given the Docker socket, and it is in
 the base Compose stack rather than launched on demand — it cannot start itself.
 Syrus never touches Docker directly.
 
+In `docker-compose.yml` it is the `plugin-runtime` service. `install.sh`
+generates `SYRUS_PLUGIN_RUNTIME_TOKEN`, sets `SYRUS_PLUGIN_RUNTIME_URL`
+(adding both to an existing `.env` on update), and pins
+`SYRUS_PLUGIN_RUNTIME_IMAGE` to the backend's release. The manager image is
+optional: if it cannot be pulled, the installer starts the stack without it
+(`--scale plugin-runtime=0`) and plugin services stay unavailable.
+
+When the manager stops — `docker compose down`, an update, a daemon restart —
+it removes the containers it runs, keeping their volumes, so Compose can remove
+the project network; the next reconcile after it starts again recreates every
+service still wanted. The containers and volumes carry the
+`dev.syrus.runtime.project=<project>` label, which `uninstall.sh`,
+`uninstall.ps1`, and the desktop app's test reset use to remove them.
+
+### Images
+
+Every `plugins/<name>/container` is published by `bin/publish-plugin-images`
+(called from `bin/publish-image`, and by the release workflow) as
+`ghcr.io/tkadauke/syrus-plugin-<name>` — `plugin_runtime` becomes
+`syrus-plugin-runtime`, `git_mirror` `syrus-plugin-git-mirror` — with the same
+tags as the backend image, for linux/amd64 and linux/arm64. A plugin asks for
+the image tagged with the running `SYRUS_VERSION`, or `latest` without one.
+
 ### Kubernetes and everything else: external
 
 Without the manager's address and token, Syrus manages nothing. Deploy each
