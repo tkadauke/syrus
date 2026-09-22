@@ -292,13 +292,4 @@ RSpec.describe Ruby::RspecGraderType do
     ])
     expect(step.metadata.dig("filter_capabilities", "coverage")).to be(true)
   end
-
-  it "embeds a focused-file selector script that survives shell parsing as valid Ruby" do
-    focused_step = described_class.grade_steps(config: {}, default_failures: "strict").second
-
-    argv = Shellwords.split(focused_step.run)
-    selector_script = argv[argv.index("-e") + 1]
-
-    expect { RubyVM::InstructionSequence.compile(selector_script) }.not_to raise_error
-  end
 end

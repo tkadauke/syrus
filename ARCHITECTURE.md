@@ -1027,9 +1027,10 @@ loop runs the same way
 `RepoAdversarialReviewPlan` resolves the review loop: it reads a
 `visual_review:` block from `.syrus.yml` on the default branch (`enabled`,
 `rounds`, and an optional `when_files_changed` glob pre-filter evaluated
-against the actual diff once the workspace is cloned), falling back to the
-instance-wide `visual_review` Labs feature flag (`Feature.visual_review_enabled?`)
-when the repository leaves `enabled` unset or has no config at all. Like
+against the actual diff once the workspace is cloned), falling back to
+enabled (visual_review's always-on default) when the repository leaves
+`enabled` unset or has no config at all — there is no instance-wide
+`visual_review` Feature flag. Like
 `adversarial_review`, this loop is review-first: iteration 1 is
 `visual_review` alone, reviewing whatever `implement`/`respond` step (or the
 tail of a preceding `adversarial_review` loop) already ran before it. That
