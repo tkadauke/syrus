@@ -44,6 +44,19 @@ module RepositoryContent
 
   DEFAULT_MAX_AGE = 60
 
+  # Counts every read by who answered it. `provider` is a provider_key, or
+  # "cache" for a cached answer and "none" when no provider serves the
+  # repository; `kind` is the operation (resolve, tree, read, changes);
+  # `outcome` is answered, not_found, unknown_revision, unsupported,
+  # unavailable, or error. See Reader#record.
+  def self.declare_metrics!
+    Syrus::Metrics.declare do
+      counter :repository_content_reads_total, tags: %i[provider kind outcome],
+              comment: "Repository content reads by provider asked (or cache), operation, and outcome"
+    end
+  end
+  declare_metrics!
+
   class << self
     # Test seam and escape hatch: when set, these provider classes are used
     # instead of the plugin registry's enabled providers.

@@ -20,6 +20,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -41,8 +42,13 @@ type Store interface {
 
 const maxRegistrationBytes = 64 << 10
 
-// New returns the API handler.
+// New returns the API handler, logging every request but health checks.
 func New(store Store, token string) http.Handler {
+	return NewWithLogger(store, token, log.Default())
+}
+
+// NewWithLogger is New with the request log sent to logger (nil disables it).
+func NewWithLogger(store Store, token string, logger *log.Logger) http.Handler {
 	s := &server{store: store, token: []byte(token)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -55,7 +61,49 @@ func New(store Store, token string) http.Handler {
 	mux.Handle("GET /v1/repositories/{id}/tree", s.auth(s.tree))
 	mux.Handle("GET /v1/repositories/{id}/blob", s.auth(s.blob))
 	mux.Handle("GET /v1/repositories/{id}/changes", s.auth(s.changes))
-	return mux
+	if logger == nil {
+		return mux
+	}
+	return requestLog(mux, logger)
+}
+
+// requestLog writes one line per request: method, path and query, status,
+// response size, and duration. Health checks are skipped -- Docker and the
+// runtime manager probe every few seconds. Request bodies are never logged:
+// a registration carries the fetch credential. Query strings carry only
+// refs, revisions, and paths.
+func requestLog(next http.Handler, logger *log.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		started := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+		target := r.URL.Path
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		logger.Printf("%s %s %d %dB %s", r.Method, target, rec.status, rec.bytes, time.Since(started).Round(time.Millisecond))
+	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (r *statusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	n, err := r.ResponseWriter.Write(b)
+	r.bytes += n
+	return n, err
 }
 
 type server struct {

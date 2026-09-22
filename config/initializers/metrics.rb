@@ -24,7 +24,8 @@ Rails.application.config.to_prepare do
     "Metrics::ResilienceSampler",
     "Metrics::MaintenanceSampler",
     "Metrics::AttentionSampler",
-    "WorkflowAdmissionBudget"
+    "WorkflowAdmissionBudget",
+    "RepositoryContent"
   ].each do |owner|
     owner.constantize
   rescue NameError => e

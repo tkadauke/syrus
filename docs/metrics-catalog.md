@@ -23,6 +23,8 @@ are computed at read time with `rate()`.
 | `syrus_auto_retry_attempts_total` | counter | `skip_reason` | no | Auto-retry attempts by settled outcome -- "none" means the retry was performed, any other value is a bounded AutoRetryAttempt skip-reason category (see AutoRetryAttempt.skip_reason_category) |
 | `syrus_escalations_per_landing_ratio` | gauge | — | no | Escalations opened per landing over the trailing window -- the Workflow Engine V3 "one metric," trending down (GLOBAL -- aggregate with max by, never sum). Omitted when no landings occurred in the window rather than reporting a misleading 0 or a stale prior ratio. |
 | `syrus_feature_used_total` | counter | `feature` | no | Feature invocations, counted at the request that asked for them |
+| `syrus_github_app_api_blocked_count` | gauge | — | no | Active GitHub App installations currently marked API-blocked (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_github_app_rate_limit_remaining_percent` | gauge | — | no | Lowest observed GitHub App installation rate-limit remaining percentage (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_github_rate_limit_remaining` | gauge | `credential_mode` | no | Lowest observed GitHub API rate-limit remaining, by credential mode (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_global_plugin_enabled` | gauge | `plugin` | no | 1 when an installed plugin is enabled, 0 when it is off (GLOBAL -- aggregate with max by) |
 | `syrus_global_queue_blocked_count` | gauge | — | no | Executions blocked on a concurrency limit (GLOBAL -- aggregate with max by) |
@@ -44,6 +46,7 @@ are computed at read time with `rate()`.
 | `syrus_queue_table_rows` | gauge | — | no | Total Solid Queue row count across every table, the table-level companion to syrus_global_queue_orphaned_rows (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_recurring_job_last_success_seconds` | gauge | `job` | no | Seconds since a config/recurring.yml job last completed successfully -- a job that stops succeeding grows this instead of vanishing (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_repositories_main_branch_broken_count` | gauge | — | no | Repositories whose default branch health is currently broken -- StepDispatcher pauses every workflow instance-wide, including landing, while this is nonzero (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_repository_content_reads_total` | counter | `provider`, `kind`, `outcome` | no | Repository content reads by provider asked (or cache), operation, and outcome |
 | `syrus_run_duration_seconds` | histogram | `step_kind` | no | Run wall clock by step kind |
 | `syrus_runs_total` | counter | `state`, `trigger_kind` | no | Runs by terminal state |
 | `syrus_skip_if_pending_skips_total` | counter | `job_class`, `queue`, `mode` | no | Job enqueue attempts skipped because an unfinished matching job already exists |

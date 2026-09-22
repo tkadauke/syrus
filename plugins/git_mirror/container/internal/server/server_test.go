@@ -1,8 +1,10 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -135,5 +137,30 @@ func TestPatchesAreUnsupported(t *testing.T) {
 	rec := do(New(&fakeStore{}, token), "GET", "/v1/repositories/1/changes?base=a&head=b&patch=1", "", true)
 	if rec.Code != http.StatusNotImplemented || errorCode(t, rec) != "unsupported" {
 		t.Fatalf("got %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestRequestLogRecordsReadsButNotHealthChecksOrCredentials(t *testing.T) {
+	var buf bytes.Buffer
+	store := &fakeStore{registered: map[string]mirror.Registration{}}
+	h := NewWithLogger(store, token, log.New(&buf, "", 0))
+
+	do(h, "GET", "/healthz", "", false)
+	do(h, "GET", "/v1/repositories/1/blob?revision=a&path=README", "", true)
+	do(h, "GET", "/v1/repositories/1/resolve?ref=main", "", false)
+	do(h, "PUT", "/v1/repositories/1", `{"vcs":"git","url":"https://github.com/a/b.git","password":"ghs_secret"}`, true)
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 lines, got %q", buf.String())
+	}
+	if !strings.HasPrefix(lines[0], "GET /v1/repositories/1/blob?revision=a&path=README 200 2B ") {
+		t.Errorf("read line = %q", lines[0])
+	}
+	if !strings.HasPrefix(lines[1], "GET /v1/repositories/1/resolve?ref=main 401 ") {
+		t.Errorf("unauthorized line = %q", lines[1])
+	}
+	if strings.Contains(buf.String(), "ghs_secret") || strings.Contains(buf.String(), "healthz") {
+		t.Errorf("log leaked a credential or a health check:\n%s", buf.String())
 	}
 }

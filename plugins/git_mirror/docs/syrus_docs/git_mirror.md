@@ -58,6 +58,23 @@ seen yet is fetched once on demand. Resolving a branch honours the caller's
 the host cannot be reached the mirror says so rather than returning a stale
 commit, so the read falls back to the host.
 
+## Checking that it works
+
+After enabling, expect about two minutes before the mirror serves anything:
+one Plugin Runtime tick to see the service healthy, then one Git Mirror tick
+to register repositories.
+
+- **Who answered:** `syrus_repository_content_reads_total` on `/metrics`
+  counts reads by provider. Mirror hits show as `provider="git_mirror",
+  outcome="answered"`; fall-backs as a `git_mirror` fall-through outcome
+  followed by `provider="github"`. See `metrics.md`.
+- **What the mirror did:** the service logs one line per request, e.g.
+  `GET /v1/repositories/7/blob?revision=…&path=README 200 13B 2ms`, and every
+  fetch failure. Health checks and credentials are never logged.
+  (`docker logs syrus-plugin-git-mirror` on Compose.)
+- **What is mirrored:** each registered repository is a directory under
+  `/data/repos`.
+
 ## Limits
 
 - Serves git only. Mercurial and Subversion mirrors would be separate plugins.

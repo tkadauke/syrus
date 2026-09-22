@@ -289,6 +289,63 @@ RSpec.describe RepositoryContent do
     end
   end
 
+  describe "the reads counter" do
+    around do |example|
+      original = Syrus::Metrics.registry
+      Syrus::Metrics.reset!
+      RepositoryContent.declare_metrics!
+      example.run
+    ensure
+      Syrus::Metrics.instance_variable_set(:@registry, original)
+    end
+
+    def reads
+      Syrus::Metrics.counter(:syrus_repository_content_reads_total).samples
+        .to_h { |labels, value| [ labels.values_at(:provider, :kind, :outcome).join("/"), value ] }
+    end
+
+    # The question it exists to answer: did the mirror serve this, or did the
+    # read fall through to the host?
+    it "counts each provider asked and what it said" do
+      described_class.provider_classes_override = [
+        provider_class(:git_mirror, role: :replica, read: ->(_id, path) { path == "a" ? blob("a") : RepositoryContent::UnknownRevision.new("lagging") }),
+        provider_class(:github, read: ->(_id, path) { path == "gone" ? RepositoryContent::NotFound.new(path) : blob(path) })
+      ]
+      content = described_class.for(repository, user: user)
+
+      content.read(revision, "a")
+      content.read(revision, "b")
+      content.read_if_present(revision, "gone")
+
+      expect(reads).to eq(
+        "git_mirror/read/answered" => 1,
+        "git_mirror/read/unknown_revision" => 2,
+        "github/read/answered" => 1,
+        "github/read/not_found" => 1
+      )
+    end
+
+    it "counts cache hits, outages, and repositories nothing serves" do
+      with_memory_cache
+      described_class.provider_classes_override = [
+        provider_class(:github, read: blob("a"), tree: RepositoryContent::Unavailable.new("rate limited"))
+      ]
+      content = described_class.for(repository, user: user)
+      2.times { content.read(revision, "a") }
+      expect { content.tree(revision) }.to raise_error(RepositoryContent::Unavailable)
+
+      described_class.provider_classes_override = []
+      expect { described_class.for(repository, user: user).tree(revision) }.to raise_error(RepositoryContent::NoProvider)
+
+      expect(reads).to eq(
+        "github/read/answered" => 1,
+        "cache/read/answered" => 1,
+        "github/tree/unavailable" => 1,
+        "none/tree/unavailable" => 1
+      )
+    end
+  end
+
   describe RepositoryContent::Blob do
     it "holds binary bytes and decodes text leniently" do
       value = described_class.new(path: "a.txt", bytes: "caf\xC3\xA9 \xFF")

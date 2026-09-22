@@ -15,6 +15,16 @@ module RepositoryContent
     MAX_CACHED_TREE_ENTRIES = 20_000
     DEFAULT_MAX_FILES = 200
 
+    # Metric label values for answers that did not come from a provider.
+    CACHE_PROVIDER = "cache".freeze
+    NO_PROVIDER = "none".freeze
+    OUTCOME_FOR = {
+      Unavailable => "unavailable",
+      NoProvider => "unavailable",
+      Unsupported => "unsupported",
+      UnknownRevision => "unknown_revision"
+    }.freeze
+
     attr_reader :repository, :user
 
     def initialize(repository:, user:)
@@ -30,7 +40,10 @@ module RepositoryContent
       key = cache_key("resolve", ref)
       if max_age.to_i.positive? && (cached = cache.read(key))
         observed_at = Time.zone.parse(cached["observed_at"])
-        return Revision.new(id: cached["id"], ref: ref, observed_at: observed_at) if observed_at >= max_age.to_i.seconds.ago
+        if observed_at >= max_age.to_i.seconds.ago
+          record(CACHE_PROVIDER, :resolve, "answered")
+          return Revision.new(id: cached["id"], ref: ref, observed_at: observed_at)
+        end
       end
 
       revision = through_chain(:resolve) { |provider| provider.resolve(ref, max_age: max_age.to_i) }
@@ -51,6 +64,7 @@ module RepositoryContent
       id = revision_id(revision)
       key = cache_key("tree", id)
       entries = cache.read(key)&.map { |attrs| Entry.new(**attrs.symbolize_keys) }
+      record(CACHE_PROVIDER, :tree, "answered") if entries
       unless entries
         entries = through_chain(:tree) { |provider| provider.tree(id) }
         if entries.size <= MAX_CACHED_TREE_ENTRIES
@@ -107,7 +121,10 @@ module RepositoryContent
       head_id = revision_id(head)
       key = cache_key("changes", base_id, head_id, patch ? "patch" : "names")
       cached = cache.read(key)
-      return cached.map { |attrs| Change.new(**attrs.symbolize_keys) } if cached
+      if cached
+        record(CACHE_PROVIDER, :changes, "answered")
+        return cached.map { |attrs| Change.new(**attrs.symbolize_keys) }
+      end
 
       result = through_chain(:changes) { |provider| provider.changes(base_id, head_id, patch: patch) }
       cache.write(key, result.map { |change| change.to_h.transform_keys(&:to_s) }, expires_in: CONTENT_CACHE_TTL)
@@ -132,19 +149,28 @@ module RepositoryContent
       if chain.empty?
         message = "no repository content provider serves #{repository.slug}"
         Rails.logger.error("[RepositoryContent] #{message}")
+        record(NO_PROVIDER, operation, "unavailable")
         raise NoProvider, message
       end
 
       last_error = nil
       chain.each do |provider|
-        return yield(provider)
-      rescue NotFound
-        raise
-      rescue *FALL_THROUGH_ERRORS => e
-        last_error = e
-      rescue StandardError => e
-        Rails.logger.warn("[RepositoryContent] #{provider.class.name}##{operation} failed for #{repository.slug}: #{e.class}: #{e.message}")
-        last_error = Unavailable.new("#{provider.class.display_name}: #{e.class}: #{e.message}")
+        key = provider.class.provider_key
+        begin
+          result = yield(provider)
+          record(key, operation, "answered")
+          return result
+        rescue NotFound
+          record(key, operation, "not_found")
+          raise
+        rescue *FALL_THROUGH_ERRORS => e
+          record(key, operation, OUTCOME_FOR.fetch(e.class, "unavailable"))
+          last_error = e
+        rescue StandardError => e
+          record(key, operation, "error")
+          Rails.logger.warn("[RepositoryContent] #{provider.class.name}##{operation} failed for #{repository.slug}: #{e.class}: #{e.message}")
+          last_error = Unavailable.new("#{provider.class.display_name}: #{e.class}: #{e.message}")
+        end
       end
       raise last_error
     end
@@ -152,6 +178,8 @@ module RepositoryContent
     def cached_blob(key, path)
       cached = cache.read(key)
       return unless cached
+
+      record(CACHE_PROVIDER, :read, cached["missing"] ? "not_found" : "answered")
       raise NotFound, "#{path} not found" if cached["missing"]
 
       Blob.new(path: path, bytes: cached["bytes"].unpack1("m0"), size: cached["size"], content_id: cached["content_id"])
@@ -182,6 +210,15 @@ module RepositoryContent
 
     def normalize_path(path)
       path.to_s.delete_prefix("/").tap { |normalized| raise ArgumentError, "path is required" if normalized.empty? }
+    end
+
+    # One count per provider asked and per cache hit, so "who answered?" is a
+    # query rather than an inference: a read the mirror answered shows as
+    # provider="git_mirror" outcome="answered"; one it could not, as its
+    # fall-through outcome followed by the upstream's answer.
+    def record(provider, operation, outcome)
+      Syrus::Metrics.counter(:syrus_repository_content_reads_total)
+        .increment(tags: { provider: provider.to_s, kind: operation.to_s, outcome: outcome })
     end
 
     def cache_key(*parts)

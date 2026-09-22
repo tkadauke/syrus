@@ -434,6 +434,32 @@ closed, bounded registry (see `config/syrus_docs/attention_items.md` and
 `app/models/problem/kind.rb`), not a free-form string -- the same reasoning
 that allows `skip_reason` above.
 
+### Repository content reads
+
+`syrus_repository_content_reads_total{provider, kind, outcome}` counts every
+repository read that goes through `RepositoryContent` (see `plugins.md`,
+`repository_content_provider`), once per provider asked:
+
+- `provider` — the provider's key (`git_mirror`, `github`, ...), `cache` for a
+  read answered from the content cache without asking anyone, or `none` when
+  no provider serves the repository.
+- `kind` — `resolve`, `tree`, `read`, or `changes`.
+- `outcome` — `answered`, `not_found` (a final "not in this revision"),
+  `unknown_revision`, `unsupported`, `unavailable`, or `error`.
+
+A read the mirror serves counts once as `git_mirror`/`answered`. A read it
+cannot serve counts its fall-through outcome and then the upstream's answer,
+so "how often does the mirror fall back to GitHub?" is
+
+```promql
+sum by (outcome) (rate(syrus_repository_content_reads_total{provider="git_mirror"}[5m]))
+```
+
+and "how much still reaches GitHub?" is the same with `provider="github"`.
+Like other counters, only reads made in the web role are exported today:
+source browser and Job page reads are, pre-workflow `.syrus.yml` reads on
+workers are not yet.
+
 ## Aggregating: `max by`, never `sum`
 
 Metrics prefixed `syrus_global_` are **one fact about the whole cluster**, not a
