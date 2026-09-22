@@ -8,6 +8,24 @@ RSpec.describe JobDependency do
     Job.create!(user: user, repository: repository, issue_number: number)
   end
 
+  # Separate after_save_commit and after_destroy_commit lines for the same
+  # method used to leave only the destroy one registered.
+  it "rechecks the dependent Job's start blocks when a dependency is added, changed, or removed" do
+    job = issue_job(1)
+    upstream = issue_job(2)
+    rechecks = 0
+    allow_any_instance_of(Job).to receive(:recheck_queued_workflow_start_blocks!) { rechecks += 1 }
+
+    dependency = described_class.create!(job: job, depends_on_job: upstream, source: "manual")
+    expect(rechecks).to eq(1)
+
+    dependency.update!(source: "parsed")
+    expect(rechecks).to eq(2)
+
+    dependency.destroy!
+    expect(rechecks).to eq(3)
+  end
+
   it "rejects self references" do
     job = issue_job(1)
     dependency = described_class.new(job: job, depends_on_job: job, source: "manual")

@@ -20,8 +20,10 @@ class JobDependency < ApplicationRecord
   validate :linear_chain_within_epic
 
   after_save_commit :materialize_derived_epic_dependency, if: :depends_on_job_id?
-  after_save_commit :recheck_dependent_job_start_blocks
-  after_destroy_commit :recheck_dependent_job_start_blocks
+  # One declaration: Rails keeps only the last commit callback registered
+  # under a method name, so separate save and destroy lines never rechecked
+  # on save.
+  after_commit :recheck_dependent_job_start_blocks, on: %i[create update destroy]
 
   scope :resolved, -> { where.not(depends_on_job_id: nil) }
   scope :pending, -> { where(depends_on_job_id: nil, depends_on_epic_id: nil) }

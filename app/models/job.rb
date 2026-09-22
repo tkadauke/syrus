@@ -800,7 +800,6 @@ class Job < ApplicationRecord
   before_save :assign_source_ref, if: -> { new_record? || will_save_change_to_issue_number? || will_save_change_to_external_pr_number? }
 
   after_create_commit :publish_job_created_event
-  after_create_commit :publish_job_upserted_event
   after_update_commit :publish_job_closed_event, if: :saved_change_to_closed?
   after_update_commit :publish_job_approved_event, if: :saved_change_to_approved?
   after_update_commit :publish_job_state_changed_event, if: :saved_change_to_state?
@@ -822,7 +821,10 @@ class Job < ApplicationRecord
   after_update_commit :publish_goal_implemented_event, if: :saved_change_to_implemented?
   after_update_commit :publish_goal_approved_event, if: :saved_change_to_approved?
   after_update_commit :publish_goal_closed_event, if: :saved_change_to_closed?
-  after_update_commit :publish_job_upserted_event
+  # One declaration for both: Rails keeps only the last commit callback
+  # registered under a method name, so separate create and update lines left
+  # new Jobs unannounced (and unindexed until their first update).
+  after_commit :publish_job_upserted_event, on: %i[create update]
   after_update_commit :broadcast_app_job_updated
 
   def solid_queue_priority

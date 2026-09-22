@@ -56,11 +56,12 @@ class Epic < ApplicationRecord
   after_create :resolve_pending_child_jobs
   after_create :seed_parsed_epic_dependencies
   after_create :resolve_pending_epic_dependencies_targeting_self
-  after_create_commit :publish_epic_upserted_event
   after_create_commit :broadcast_app_epic_created
   after_update_commit :sync_job_epic_titles, if: :saved_change_to_title?
   after_update_commit :record_version, if: :title_or_description_changed?
-  after_update_commit :publish_epic_upserted_event
+  # One declaration for both -- see Job: Rails keeps only the last commit
+  # callback registered under a method name.
+  after_commit :publish_epic_upserted_event, on: %i[create update]
   after_update_commit :broadcast_app_epic_updated
   after_update_commit :refresh_dependent_epic_auto_states, if: :saved_change_to_state?
   after_update_commit :publish_goal_boundary_event, if: :saved_change_to_goal_boundary?
