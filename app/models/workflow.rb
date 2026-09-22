@@ -494,6 +494,11 @@ class Workflow < ApplicationRecord
       locked.artifacts = (locked.artifacts || {}).merge(pending)
       locked.save!
       self.artifacts = locked.artifacts
+      # Already persisted through `locked`. Left dirty, this instance would
+      # skip the save inside a later `attach` (Active Storage only saves a
+      # record with no other pending changes), silently dropping e.g. the
+      # coverage hit map.
+      clear_attribute_changes([ :artifacts ])
     end
   end
 

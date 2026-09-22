@@ -1161,6 +1161,16 @@ RSpec.describe Workflow, :ci_only do
       expect(reloaded.artifact("test_plan")).to eq("steps" => [ "rspec", "lint" ], "note" => "ok")
     end
 
+    # Active Storage's attach only saves a record with no other pending
+    # changes, so a dirty instance used to drop the coverage hit map.
+    it "leaves the instance clean, so a later attach still saves" do
+      wf.set_artifact!("coverage", { "summary" => {} })
+
+      expect(wf).not_to be_changed
+      wf.attach_coverage_hit_map!("app/a.rb" => { "1" => 1 })
+      expect(described_class.find(wf.id).coverage_hit_map).to be_attached
+    end
+
     describe "#detected_plugins" do
       it "is empty before Steps::Prepare has recorded anything" do
         expect(wf.detected_plugins).to eq([])
