@@ -56,8 +56,17 @@ export type AdminSettingsUpdate = {
   discord_bot_token?: string
 }
 
+export type PlatformPollingConnectorStatus = "started" | "already_running" | "not_configured" | "error"
+
+export type PlatformPollingConnector = {
+  name: string
+  status: PlatformPollingConnectorStatus
+  platform?: string
+}
+
 export type PlatformPollingStartResult = {
   started: string[]
+  connectors: PlatformPollingConnector[]
 }
 
 export function fetchAdminSettings() {
