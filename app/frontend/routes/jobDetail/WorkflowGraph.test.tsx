@@ -847,6 +847,103 @@ describe("WorkflowsTab", () => {
 
     expect(screen.getByText("Cancelled:")).toBeInTheDocument()
     expect(screen.getByText(/parent workflow failed after grader STEP-23; cancel terminal workflow active descendants\./)).toBeInTheDocument()
+    expect(screen.getByText("Debug details")).toBeVisible()
+    expect(screen.getByText(/cancel_terminal_workflow_active_descendants/)).not.toBeVisible()
+  })
+
+  it("hides an unknown step details payload behind a debug affordance instead of dumping raw JSON", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 30,
+              kind: "grader_fanout",
+              display_name: "Grade setup",
+              display_status: "succeeded",
+              position: 1,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: null,
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: {
+                grader_target_selections: [
+                  { name: "rspec", target_label: "//:grade/rspec", reason: "affected by diff" }
+                ]
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Setup/ }))
+
+    const toggle = screen.getByText("Debug details")
+    const rawPayload = screen.getByText(/grader_target_selections/)
+    expect(toggle).toBeVisible()
+    expect(rawPayload).not.toBeVisible()
+
+    fireEvent.click(toggle)
+    expect(screen.getByText(/grader_target_selections/)).toBeVisible()
+  })
+
+  it("renders format/generate soft command failures as a readable notice instead of raw JSON", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 31,
+              kind: "format",
+              display_name: "Format",
+              display_status: "succeeded",
+              position: 2,
+              iteration: 1,
+              loop_id: null,
+              state: "succeeded",
+              started_at: null,
+              finished_at: "2026-08-25T12:02:00Z",
+              created_at: "2026-08-25T12:01:00Z",
+              updated_at: "2026-08-25T12:02:00Z",
+              details: {
+                format_failures: [{
+                  command: "rubocop -A",
+                  workdir: "/workspace",
+                  exit_status: 1,
+                  timed_out: false,
+                  duration_s: 4.2,
+                  output_tail: "offense detected",
+                  soft: true
+                }]
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Format/ }))
+
+    expect(screen.getByText("Command failed (non-fatal)")).toBeVisible()
+    expect(screen.getByText("rubocop -A")).toBeVisible()
+    expect(screen.getByText("exit 1")).toBeVisible()
+    expect(screen.getByText("offense detected")).toBeVisible()
+    expect(screen.queryByText("Debug details")).not.toBeInTheDocument()
   })
 
   it("renders distributed grader batches with placement metadata and sibling admission blocks", () => {
@@ -899,6 +996,33 @@ describe("WorkflowsTab", () => {
     )
   })
 })
+
+function workflowWithStepDetails(step: JobDetailPayload["workflows"][number]["steps"][number]) {
+  return {
+    id: 10,
+    slug: "WF-10",
+    path: "/jobs/1?tab=workflows#workflow-10",
+    trigger_kind: "initial",
+    agent_provider: "codex",
+    state: "succeeded",
+    failure_count: 0,
+    artifacts: null,
+    cleaned_up_at: null,
+    retry_available: false,
+    started_at: null,
+    finished_at: null,
+    created_at: "2026-08-25T12:00:00Z",
+    updated_at: "2026-08-25T12:00:00Z",
+    app_retry_step_path: "/retry",
+    app_push_commits_path: "/push",
+    app_force_push_branch_path: "/force",
+    app_discard_branch_output_path: "/discard",
+    steps_total: 1,
+    steps_displayed: 1,
+    steps_truncated: false,
+    steps: [step]
+  } as JobDetailPayload["workflows"][number]
+}
 
 function workflowWithDiffRun() {
   return {

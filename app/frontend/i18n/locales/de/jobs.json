@@ -381,6 +381,8 @@
   "prepare_failure_aliveness_failed": "Prozess verschwunden",
   "prepare_failure_exit": "Exit {{code}}",
   "prepare_failure_failed": "fehlgeschlagen",
+  "command_failure_title": "Befehl fehlgeschlagen (nicht kritisch)",
+  "step_debug_details_toggle": "Debug-Details",
   "warning_edit_prompt": "Prompt bearbeiten",
   "warning_hide_prompt": "Prompt verbergen",
   "warning_prompt_label": "Prompt für den Fix-Job",

@@ -308,6 +308,38 @@ export function prepareFailureStatus(failure: PrepareFailure, t: ReturnType<type
   return t("prepare_failure_failed")
 }
 
+// Soft, non-fatal command failures recorded outside the dedicated
+// `prepare_failure` panel: `format`/`generate` steps (Steps::DiffScopedAutofix)
+// append one entry per failed formatter/generator command under
+// `<step.kind>_failures`, and `prepare` records a secondary `mise_install_failure`
+// singleton alongside its primary `prepare_failure` when a mise version file's
+// install fails without blocking the run. Same failure shape as PrepareFailure —
+// callers render them the same way instead of falling through to a raw JSON dump.
+export function softCommandFailures(step: JobStep): PrepareFailure[] {
+  if (!isRecord(step.details)) return []
+
+  const arrayEntries = step.details[`${step.kind}_failures`]
+  const fromArray = Array.isArray(arrayEntries) ? arrayEntries.filter(isRecord) as PrepareFailure[] : []
+  const miseInstallFailure = step.kind === "prepare" && isRecord(step.details.mise_install_failure)
+    ? [ step.details.mise_install_failure as PrepareFailure ]
+    : []
+
+  return [ ...fromArray, ...miseInstallFailure ]
+}
+
+// Everything left in `step.details` once known semantic renderers (prepare
+// failure panel, soft command failure panel) have claimed their keys. Not
+// meant for default display — cancellation metadata (already narrated by its
+// own notice) and fanout/target-health planner output land here — but kept
+// available behind an explicit debug affordance so operators can still see it.
+export function debugOnlyDetails(step: JobStep): Record<string, unknown> | null {
+  if (!isRecord(step.details)) return null
+
+  const excludedKeys = new Set([ "prepare_failure", "mise_install_failure", `${step.kind}_failures` ])
+  const remaining = Object.fromEntries(Object.entries(step.details).filter(([ key ]) => !excludedKeys.has(key)))
+  return Object.keys(remaining).length > 0 ? remaining : null
+}
+
 // Plugin names Steps::Prepare detected in this Workflow's workspace
 // (RepoPluginDetector), e.g. ["ruby", "syrus-rails", "javascript"].
 export function workflowDetectedPlugins(workflow: JobWorkflow): string[] {
