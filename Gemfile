@@ -175,7 +175,7 @@ group :test do
   gem "simplecov"
   gem "simplecov-lcov"
 
-  gem "parallel_tests", "~> 5.7", require: false
+  gem "parallel_tests", "~> 5.8", require: false
 
   # JUnit XML formatter — feeds the rspec grader's junit_output ingestion
   # (Steps::Grader#ingest_test_output!) so TestRun/TestCase rows record
