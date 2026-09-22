@@ -14,6 +14,7 @@ module Syrus
 
         key = key_for(tags)
         @mutex.synchronize { @values[key] = (@values[key] || 0) + by }
+        record_cluster_increment(key, by) if definition.cluster
       end
 
       # Declares a series at zero without incrementing it. This is what makes
@@ -41,6 +42,17 @@ module Syrus
       def reconcile!(total, tags: {})
         key = key_for(tags)
         @mutex.synchronize { @values[key] = total if total.to_f > (@values[key] || 0).to_f }
+      end
+
+      private
+
+      # Hands the increment to the cluster sink as well. Instrumentation must
+      # never raise or block, so the sink only buffers, and any failure is
+      # swallowed here.
+      def record_cluster_increment(key, by)
+        Syrus::Metrics.cluster_sink&.record(name, key, by)
+      rescue StandardError => e
+        Rails.logger&.warn("[Syrus::Metrics] cluster counter #{name}: #{e.class}: #{e.message}") if defined?(Rails)
       end
     end
   end

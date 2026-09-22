@@ -43,7 +43,8 @@ slow at exactly the moment those tables are the problem.
 **Scope:** currently served by the **web** role only. Worker pods run several
 forked processes that share no memory, so scraping them needs a separate
 exporter with a shared store; that is a later step. Until then, counters
-incremented on workers are not yet exported -- this currently applies to
+incremented on workers are not yet exported, unless declared `cluster: true`
+(see *Counting across processes* below) -- this currently applies to
 `syrus_admission_decisions_total`, which is incremented wherever an admission
 decision is made (see *Workers and admission* below), including on workers.
 `syrus_worker_cpu_percent`/`syrus_worker_memory_percent`/`syrus_worker_disk_percent`
@@ -456,9 +457,9 @@ sum by (outcome) (rate(syrus_repository_content_reads_total{provider="git_mirror
 ```
 
 and "how much still reaches GitHub?" is the same with `provider="github"`.
-Like other counters, only reads made in the web role are exported today:
-source browser and Job page reads are, pre-workflow `.syrus.yml` reads on
-workers are not yet.
+It is a cluster counter (below): reads made on workers -- the pre-workflow
+`.syrus.yml` read, most of the volume -- are counted along with web's, and the
+series is cluster-wide, so aggregate it with `max by`, never `sum`.
 
 ## Aggregating: `max by`, never `sum`
 
@@ -601,6 +602,30 @@ on its own read path (right before rendering) for exactly this reason: so a
 plugin enabled or disabled since this process's last sync renders the correct
 metric set on the very next scrape, instead of waiting for some other
 subsystem's unrelated read to happen to trigger the sync first.
+
+### Counting across processes: `cluster: true`
+
+A counter incremented in a forked Solid Queue worker process is invisible to
+the web process that serves `/metrics`. Declaring it `cluster: true` fixes that
+for one counter at a time:
+
+```ruby
+counter :repository_content_reads_total, tags: %i[provider kind outcome], cluster: true, comment: "..."
+```
+
+Every process still counts in memory, and also hands each increment to
+`Metrics::ClusterCounters`, which buffers it and, every 10 seconds on a
+background thread, adds the deltas to `metric_counter_totals` with one atomic
+`value = value + delta` upsert per series. `Metrics::ClusterCounterSampler`
+reads that table on the metrics tick, and each scrape reconciles the counter up
+to its cluster total -- never down. Instrumentation keeps its guarantees:
+recording only touches the in-memory buffer, never raises, never blocks, and a
+failed flush keeps its deltas for the next one. Increments a process had not
+flushed when it was killed (SIGKILL, OOM) are lost; an orderly exit flushes.
+
+The totals are cluster-wide, so every web replica renders the same value: mark
+the comment GLOBAL and aggregate with `max by`, never `sum`. Only counters can
+be cluster counters.
 
 ### Sampling: the shared registry
 

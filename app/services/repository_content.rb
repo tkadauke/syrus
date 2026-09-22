@@ -69,8 +69,9 @@ module RepositoryContent
   # truncated, unavailable, or error. See Reader#record.
   def self.declare_metrics!
     Syrus::Metrics.declare do
-      counter :repository_content_reads_total, tags: %i[provider kind outcome],
-              comment: "Repository content reads by provider asked (or cache), operation, and outcome"
+      counter :repository_content_reads_total, tags: %i[provider kind outcome], cluster: true,
+              comment: "Repository content reads by provider asked (or cache), operation, and outcome, " \
+                       "from every process (GLOBAL -- aggregate with max by, never sum)"
     end
   end
   declare_metrics!

@@ -24,6 +24,12 @@ module Syrus
     class UnknownMetric < Error; end
 
     class << self
+      # Where `cluster: true` counters send each increment, besides counting
+      # it in-process: anything answering record(name, labels, by). Set at
+      # boot to Metrics::ClusterCounters; nil (tests, scripts) records
+      # nothing beyond the process.
+      attr_accessor :cluster_sink
+
       def registry
         @registry ||= Registry.new
       end

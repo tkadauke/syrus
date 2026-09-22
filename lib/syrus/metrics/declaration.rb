@@ -22,8 +22,13 @@ module Syrus
         @samplers = []
       end
 
-      def counter(name, tags: [], comment: nil, share: false)
-        add(name, :counter, tags: tags, comment: comment, share: share)
+      # `cluster: true` makes the counter count across processes: every
+      # process's increments are summed into one cluster-wide total (see
+      # Metrics::ClusterCounters) that web renders on /metrics. Use it for
+      # counters incremented on workers, which are otherwise invisible -- the
+      # forked Solid Queue processes share no memory and are not scraped.
+      def counter(name, tags: [], comment: nil, share: false, cluster: false)
+        add(name, :counter, tags: tags, comment: comment, share: share, cluster: cluster)
       end
 
       # A block turns this into a *sampled* gauge: the framework calls it on
@@ -54,7 +59,7 @@ module Syrus
 
       private
 
-      def add(name, type, tags:, comment:, share:, buckets: nil, sample_block: nil)
+      def add(name, type, tags:, comment:, share:, buckets: nil, sample_block: nil, cluster: false)
         @definitions << Definition.new(
           name: :"#{PREFIX}#{@plugin_prefix}#{name}",
           type: type,
@@ -63,7 +68,8 @@ module Syrus
           owner: @owner,
           share: share,
           buckets: buckets,
-          sample_block: sample_block
+          sample_block: sample_block,
+          cluster: cluster
         )
       end
     end

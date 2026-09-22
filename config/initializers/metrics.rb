@@ -25,12 +25,17 @@ Rails.application.config.to_prepare do
     "Metrics::MaintenanceSampler",
     "Metrics::AttentionSampler",
     "WorkflowAdmissionBudget",
-    "RepositoryContent"
+    "RepositoryContent",
+    "Metrics::ClusterCounterSampler"
   ].each do |owner|
     owner.constantize
   rescue NameError => e
     Rails.logger&.warn("[Syrus::Metrics] could not load metric owner #{owner}: #{e.message}")
   end
+
+  # `cluster: true` counters send their increments here as well, so worker
+  # processes' counts reach /metrics (see Metrics::ClusterCounters).
+  Syrus::Metrics.cluster_sink = Metrics::ClusterCounters
 
   # Publish a zero for every known feature, so an unused one reads as 0 rather
   # than as a missing series -- which is the whole point of collecting these.

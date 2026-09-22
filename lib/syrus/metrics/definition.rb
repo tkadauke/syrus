@@ -15,9 +15,9 @@ module Syrus
       # sum.
       TYPES = %i[counter gauge histogram].freeze
 
-      attr_reader :name, :type, :tags, :comment, :owner, :share, :buckets, :sample_block
+      attr_reader :name, :type, :tags, :comment, :owner, :share, :buckets, :sample_block, :cluster
 
-      def initialize(name:, type:, tags: [], comment: nil, owner: :core, share: false, buckets: nil, sample_block: nil)
+      def initialize(name:, type:, tags: [], comment: nil, owner: :core, share: false, buckets: nil, sample_block: nil, cluster: false)
         @name = name
         @type = type
         @tags = tags
@@ -26,6 +26,7 @@ module Syrus
         @share = share
         @buckets = buckets
         @sample_block = sample_block
+        @cluster = cluster
       end
 
       def sampled? = sample_block.present?
@@ -39,6 +40,9 @@ module Syrus
         end
         if type != :histogram && buckets
           raise Error, "metric #{name}: only histograms take buckets"
+        end
+        if cluster && type != :counter
+          raise Error, "metric #{name}: only a counter can count across processes (cluster: true)"
         end
         if sample_block && type != :gauge
           raise Error, "metric #{name}: only a gauge may declare a sample block " \
