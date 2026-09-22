@@ -329,6 +329,7 @@ RSpec.describe Steps::GraderCollect do
 
     artifact = workflow.reload.artifact("known_flaky_grader_failure")
     expect(artifact).to include(
+      "grader_step_ids" => [ grader_step.id ],
       "grader_names" => [ "rspec" ],
       "tests" => [
         include(
@@ -337,6 +338,9 @@ RSpec.describe Steps::GraderCollect do
           "confirmed_flaky" => true
         )
       ]
+    )
+    expect(grader_step.reload.details.fetch("accepted_failure")).to include(
+      "adjudicator" => Adjudicators::KnownFlakyFailure.name
     )
     expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("treating as known-flaky:")
   end
@@ -391,6 +395,7 @@ RSpec.describe Steps::GraderCollect do
 
     artifact = workflow.reload.artifact("isolated_repro_grader_failure")
     expect(artifact).to include(
+      "grader_step_ids" => [ grader_step.id ],
       "grader_names" => [ "rspec" ],
       "sha" => "abc123",
       "tests" => [

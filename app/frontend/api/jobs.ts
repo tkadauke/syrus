@@ -700,6 +700,7 @@ export type JobStepBarrierProgress = {
   running: number
   succeeded: number
   failed: number
+  warning?: number
   cancelled: number
   skipped: number
 }

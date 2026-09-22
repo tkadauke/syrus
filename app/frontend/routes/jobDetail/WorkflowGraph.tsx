@@ -626,6 +626,7 @@ function GradeBatchProgressPanel({ progress }: { progress: NonNullable<ReturnTyp
   const waiting = Math.max(progress.queued, 0)
   const running = Math.max(progress.running, 0)
   const failed = Math.max(progress.failed + progress.cancelled, 0)
+  const warning = Math.max(progress.warning || 0, 0)
 
   return (
     <div className="border-t border-border bg-surface-inset px-3 pt-3 text-xs text-text-muted">
@@ -635,6 +636,7 @@ function GradeBatchProgressPanel({ progress }: { progress: NonNullable<ReturnTyp
         {running > 0 ? <SmallPill>{running} running</SmallPill> : null}
         {waiting > 0 ? <SmallPill>{waiting} waiting</SmallPill> : null}
         {failed > 0 ? <SmallPill>{failed} failed</SmallPill> : null}
+        {warning > 0 ? <SmallPill>{warning} warning</SmallPill> : null}
       </div>
     </div>
   )
@@ -654,11 +656,12 @@ function gradeBatchProgress(item: GradeStepItem) {
 
   return {
     total: item.graders.length,
-    completed: item.graders.filter((grader) => ["succeeded", "failed", "cancelled", "skipped"].includes(effectiveStepStatus(grader) || grader.state)).length,
+    completed: item.graders.filter((grader) => ["succeeded", "warning", "failed", "cancelled", "skipped"].includes(effectiveStepStatus(grader) || grader.state)).length,
     queued: counts.queued || 0,
     running: counts.running || 0,
     succeeded: counts.succeeded || 0,
     failed: counts.failed || 0,
+    warning: counts.warning || 0,
     cancelled: counts.cancelled || 0,
     skipped: counts.skipped || 0
   }
@@ -721,6 +724,7 @@ function GradeSummaryPills({ summaries }: { summaries: GradeSummary[] }) {
   return (
     <span className="hidden items-center gap-1 sm:inline-flex">
       {counts.passed > 0 ? <SmallPill>{t("grade_passed", { count: counts.passed })}</SmallPill> : null}
+      {counts.warning > 0 ? <SmallPill>{counts.warning} warning</SmallPill> : null}
       {counts.failed > 0 ? <SmallPill>{t("grade_failed", { count: counts.failed })}</SmallPill> : null}
       {counts.error > 0 ? <SmallPill>{t("grade_error", { count: counts.error })}</SmallPill> : null}
     </span>

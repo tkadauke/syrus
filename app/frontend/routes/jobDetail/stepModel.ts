@@ -25,7 +25,7 @@ export type PrepareFailure = {
 
 export type GradeSummary = {
   name: string
-  status: "passed" | "failed" | "error" | "running" | "queued" | "cancelled" | "skipped" | "unknown"
+  status: "passed" | "warning" | "failed" | "error" | "running" | "queued" | "cancelled" | "skipped" | "unknown"
   required: boolean | null
   exitCode: number | null
   duration: number | null
@@ -165,6 +165,7 @@ export function gradeDisplayStatus(item: GradeStepItem) {
   if (statuses.includes("queued")) return "queued"
   if (statuses.includes("failed")) return "failed"
   if (statuses.includes("cancelled")) return "cancelled"
+  if (statuses.includes("warning")) return "warning"
   if (item.steps.length > 0 && item.steps.every((step) => {
     const status = effectiveStepStatus(step)
     return status === "succeeded" || status === "skipped"
@@ -189,6 +190,7 @@ export function gradeSummaries(item: GradeStepItem): GradeSummary[] {
 }
 
 export function gradeSummaryStatus(step: JobStep, details: Record<string, unknown>): GradeSummary["status"] {
+  if (effectiveStepStatus(step) === "warning") return "warning"
   const status = stringValue(details.status)
   if (status === "passed" || status === "failed" || status === "error" || status === "cancelled" || status === "skipped") return status
   if (step.state === "succeeded") return "passed"
@@ -203,10 +205,11 @@ export function gradeSummaryStatus(step: JobStep, details: Record<string, unknow
 export function gradeSummaryCounts(summaries: GradeSummary[]) {
   return summaries.reduce((counts, summary) => {
     if (summary.status === "passed") counts.passed += 1
+    else if (summary.status === "warning") counts.warning += 1
     else if (summary.status === "failed") counts.failed += 1
     else if (summary.status === "error") counts.error += 1
     return counts
-  }, { passed: 0, failed: 0, error: 0 })
+  }, { passed: 0, warning: 0, failed: 0, error: 0 })
 }
 
 export function loopDisplayName(item: LoopStepItem, t: ReturnType<typeof useT>["t"]) {
@@ -252,6 +255,7 @@ export function loopDisplayStatus(item: LoopStepItem) {
   if (statuses.includes("queued")) return "queued"
   if (statuses.includes("failed")) return "failed"
   if (statuses.includes("cancelled")) return "cancelled"
+  if (statuses.includes("warning")) return "warning"
   if (hasMaterializedPendingStep) return null
   if (statuses.length > 0 && statuses.every((status) => status === "succeeded" || status === "skipped")) return "succeeded"
   if (statuses.includes("skipped")) return "skipped"

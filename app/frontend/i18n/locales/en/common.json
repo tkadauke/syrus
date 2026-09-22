@@ -221,6 +221,7 @@
     "succeeded": "succeeded",
     "success": "success",
     "failed": "failed",
+    "warning": "warning",
     "no_change_needed": "no change needed",
     "cancelled": "cancelled",
     "invalid": "invalid",

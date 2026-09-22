@@ -475,8 +475,28 @@ module App
 
       def step_display_status(step, projection: step_state_projection(step))
         return nil if step.queued? && ordered_runs_for(step).empty?
+        return "warning" if accepted_grader_failure?(step)
 
         projection.visible_state
+      end
+
+      def accepted_grader_failure?(step)
+        return false unless step.kind.in?(%w[grader preflight_grader]) && step.failed?
+        return true if step.details.to_h["accepted_failure"].present?
+
+        accepted_grader_failure_artifacts(step.workflow).any? do |artifact|
+          ids = Array(artifact["grader_step_ids"])
+          names = Array(artifact["grader_names"] || artifact["failed_names"])
+          ids.include?(step.id) || (ids.empty? && names.include?(step.details.to_h["name"]))
+        end
+      end
+
+      def accepted_grader_failure_artifacts(workflow)
+        %w[
+          inherited_main_branch_grader_failure
+          known_flaky_grader_failure
+          isolated_repro_grader_failure
+        ].filter_map { |key| workflow.artifact(key) }
       end
 
       def current_projected_step(workflow)
@@ -534,7 +554,10 @@ module App
       end
 
       def barrier_progress_json(dependencies)
-        counts = dependencies.each_with_object(Hash.new(0)) { |dependency, memo| memo[dependency.visible_state] += 1 }
+        counts = dependencies.each_with_object(Hash.new(0)) do |dependency, memo|
+          state = accepted_grader_failure?(dependency) ? "warning" : dependency.visible_state
+          memo[state] += 1
+        end
         {
           total: dependencies.size,
           completed: dependencies.count(&:terminal?),
@@ -542,6 +565,7 @@ module App
           running: counts["running"],
           succeeded: counts["succeeded"],
           failed: counts["failed"],
+          warning: counts["warning"],
           cancelled: counts["cancelled"],
           skipped: counts["skipped"]
         }

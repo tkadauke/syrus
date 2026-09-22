@@ -117,6 +117,8 @@ module Steps
       workflow.set_artifact!("rung_zero_adjudication", verdict.to_h.merge("adjudicated_at" => Time.current.iso8601))
       return false unless verdict.dismiss?
 
+      mark_accepted_failures!(failed_required, verdict)
+
       case verdict.adjudicator
       when Adjudicators::InheritedGraderFailure.name
         record_inherited_main_failure!(failed_required, verdict.evidence)
@@ -126,6 +128,18 @@ module Steps
         record_isolated_repro_dismissal!(failed_required, verdict.evidence)
       end
       true
+    end
+
+    def mark_accepted_failures!(failed_required, verdict)
+      failed_required.each do |grader_step|
+        grader_step.update!(details: grader_step.details.to_h.merge(
+          "accepted_failure" => {
+            "adjudicator" => verdict.adjudicator,
+            "reason" => verdict.reason,
+            "accepted_at" => Time.current.iso8601
+          }.compact
+        ))
+      end
     end
 
     def mark_transient_only_failure!
@@ -144,6 +158,7 @@ module Steps
       main_branch_evidence = verdict_evidence[:main_branch_evidence] || verdict_evidence["main_branch_evidence"] || classified&.evidence
       classifications = verdict_evidence[:classifications] || verdict_evidence["classifications"] || classified&.classifications || []
       workflow.set_artifact!("inherited_main_branch_grader_failure", {
+        "grader_step_ids" => failed_required.map(&:id),
         "failed_names" => inherited_names,
         "evidence" => main_branch_evidence,
         "classifications" => classifications,
@@ -164,6 +179,7 @@ module Steps
       tests = (verdict_evidence[:tests] || verdict_evidence["tests"] || []).map(&:to_h)
       min_score = verdict_evidence[:min_score] || verdict_evidence["min_score"]
       workflow.set_artifact!("known_flaky_grader_failure", {
+        "grader_step_ids" => failed_required.map(&:id),
         "grader_names" => grader_names(failed_required),
         "tests" => tests,
         "min_score" => min_score,
@@ -185,6 +201,7 @@ module Steps
       tests = (verdict_evidence[:tests] || verdict_evidence["tests"] || []).map(&:to_h)
       sha = verdict_evidence[:sha] || verdict_evidence["sha"]
       workflow.set_artifact!("isolated_repro_grader_failure", {
+        "grader_step_ids" => failed_required.map(&:id),
         "grader_names" => grader_names(failed_required),
         "tests" => tests,
         "sha" => sha,
