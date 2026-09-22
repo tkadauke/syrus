@@ -177,13 +177,47 @@ jobs:
     secrets: inherit
 
   # ---------------------------------------------------------------------------
+  # Plugin service images (plugins/*/container) -- what Plugin Runtime starts
+  # for container-backed plugins -- pushed under the release version like the
+  # backend image. A running Syrus asks for the plugin image tagged with its
+  # own SYRUS_VERSION, so these must exist before the release goes live;
+  # `publish` moves their :latest alongside the backend's. The Go builds
+  # cross-compile; QEMU only runs each image's small final-stage setup.
+  # ---------------------------------------------------------------------------
+  plugin-images:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        if: needs.prepare.outputs.dry_run == 'false'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push the plugin images
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          DRY_RUN: ${{ needs.prepare.outputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ "$DRY_RUN" = "true" ]; then
+            bin/publish-plugin-images "$VERSION" --skip-latest --no-push
+          else
+            bin/publish-plugin-images "$VERSION" --skip-latest --no-login
+          fi
+
+  # ---------------------------------------------------------------------------
   # The near-atomic go-live. Only reached when the whole build spine succeeded
   # (skipped on a dry run). Builds the release as an invisible DRAFT, moves
   # :latest, then flips the draft to published as the final tiny action — and
   # rolls the whole thing back if anything fails. See the step comments.
   # ---------------------------------------------------------------------------
   publish:
-    needs: [prepare, build]
+    needs: [prepare, build, plugin-images]
     if: needs.prepare.outputs.dry_run == 'false'
     runs-on: ubuntu-latest
     steps:
@@ -283,6 +317,24 @@ jobs:
           IMAGE="ghcr.io/tkadauke/syrus-backend"
           docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
 
+      # The plugin service images follow the backend's :latest. Their previous
+      # :latest is snapshotted first so a failed publish can put it back.
+      - name: Move plugin images :latest to the released version
+        id: plugin_latest
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          : > "$RUNNER_TEMP/plugin-latest-before"
+          for dockerfile in plugins/*/container/Dockerfile; do
+            plugin="$(basename "$(dirname "$(dirname "$dockerfile")")")"
+            name="${plugin#plugin_}"
+            IMAGE="ghcr.io/tkadauke/syrus-plugin-${name//_/-}"
+            OLD="$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+            echo "$IMAGE $OLD" >> "$RUNNER_TEMP/plugin-latest-before"
+            docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
+          done
+
       # THE go-live: flip the fully-built draft to published. One tiny API call,
       # the last irreversible action. Everything above is now proven good.
       # Skipped when review_notes is set — the release stays a draft for a human
@@ -333,6 +385,11 @@ jobs:
           gh release delete "$TAG" --yes --cleanup-tag || true
           if [ -n "${OLD_LATEST:-}" ]; then
             docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE@$OLD_LATEST" || true
+          fi
+          if [ -f "$RUNNER_TEMP/plugin-latest-before" ]; then
+            while read -r plugin_image old; do
+              [ -n "$old" ] && docker buildx imagetools create -t "$plugin_image:latest" "$plugin_image@$old" || true
+            done < "$RUNNER_TEMP/plugin-latest-before"
           fi
 
   # ---------------------------------------------------------------------------

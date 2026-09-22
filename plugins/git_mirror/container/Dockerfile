@@ -4,11 +4,14 @@
 # binary, so unlike the runtime manager it cannot be distroless; it is kept to
 # Alpine plus git, and runs as an unprivileged user.
 
-FROM docker.io/library/golang:1.25-alpine AS build
+# The Go build runs on the build host and cross-compiles, so a multi-arch
+# build never compiles under QEMU emulation.
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.25-alpine AS build
+ARG TARGETOS TARGETARCH
 WORKDIR /src
 COPY go.mod ./
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /git-mirror .
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /git-mirror .
 
 FROM docker.io/library/alpine:3.22
 RUN apk add --no-cache git ca-certificates \

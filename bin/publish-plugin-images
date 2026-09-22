@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Build and publish the service images of container-backed plugins -- every
+# plugins/<name>/container with a Dockerfile -- to GHCR.
+#
+# Plugin images carry the SAME tags as the backend image (bin/publish-image):
+# :latest and :VERSION. A running Syrus asks Plugin Runtime for the plugin
+# image tagged with its own SYRUS_VERSION (or :latest), so the backend and the
+# services it starts always come from the same release.
+#
+# Naming: plugins/git_mirror -> ghcr.io/tkadauke/syrus-plugin-git-mirror,
+# plugins/plugin_runtime -> ghcr.io/tkadauke/syrus-plugin-runtime.
+#
+# The images are small static Go builds that cross-compile on the build host
+# (see each Dockerfile), so every publish is multi-arch with no QEMU cost.
+#
+# Usage:
+#   bin/publish-plugin-images [VERSION] [--skip-latest] [--no-push] [--no-login]
+#     VERSION        extra tag alongside :latest (e.g. 0.2.0)
+#     --skip-latest  push ONLY :VERSION (requires VERSION); release.yml moves
+#                    :latest itself once the whole release is good
+#     --no-push      build every image for every platform, push nothing
+#     --no-login     the caller already logged in to ghcr.io (bin/publish-image,
+#                    CI)
+#
+# Reads the GHCR token like bin/publish-image: $GHCR_TOKEN or
+# ~/.config/syrus/ghcr-token. SYRUS_PLUGIN_IMAGE_REGISTRY overrides the
+# registry namespace for fork testing (e.g. ghcr.io/<you>).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+. ./bin/docker-image-lib
+
+REGISTRY="${SYRUS_PLUGIN_IMAGE_REGISTRY:-ghcr.io/tkadauke}"
+GHCR_USER="${GHCR_USER:-tkadauke}"
+PLATFORMS="${SYRUS_PLUGIN_IMAGE_PLATFORMS:-linux/amd64,linux/arm64}"
+VERSION=""
+SKIP_LATEST=0
+NO_PUSH=0
+NO_LOGIN=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --skip-latest) SKIP_LATEST=1 ;;
+    --no-push) NO_PUSH=1 ;;
+    --no-login) NO_LOGIN=1 ;;
+    --help|-h) awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0"; exit 0 ;;
+    -*) echo "Unknown flag: $arg (try --help)" >&2; exit 2 ;;
+    *)  VERSION="$arg" ;;
+  esac
+done
+
+if [ "$SKIP_LATEST" = 1 ] && [ -z "$VERSION" ]; then
+  echo "--skip-latest requires a VERSION (there would be no tag to push)." >&2
+  exit 2
+fi
+
+# plugins/git_mirror -> syrus-plugin-git-mirror; a leading "plugin_" is not
+# repeated (plugin_runtime -> syrus-plugin-runtime).
+plugin_image_name() {
+  local name="${1#plugin_}"
+  echo "syrus-plugin-${name//_/-}"
+}
+
+syrus_require_docker_daemon
+syrus_disable_buildx_attestations
+
+if [ "$NO_PUSH" = 0 ] && [ "$NO_LOGIN" = 0 ]; then
+  syrus_ghcr_login "$GHCR_USER" "$(syrus_read_ghcr_token "$HOME/.config/syrus/ghcr-token")"
+fi
+
+published=()
+for dockerfile in plugins/*/container/Dockerfile; do
+  [ -f "$dockerfile" ] || continue
+  dir="$(dirname "$dockerfile")"
+  plugin="$(basename "$(dirname "$dir")")"
+  image="$REGISTRY/$(plugin_image_name "$plugin")"
+
+  tag_args=()
+  tags=()
+  if [ "$SKIP_LATEST" = 0 ]; then tag_args+=(-t "$image:latest"); tags+=(latest); fi
+  if [ -n "$VERSION" ]; then tag_args+=(-t "$image:$VERSION"); tags+=("$VERSION"); fi
+
+  echo "== $plugin -> $image (${tags[*]}) [$PLATFORMS] =="
+  if [ "$NO_PUSH" = 1 ]; then
+    docker buildx build --platform "$PLATFORMS" --provenance=false "${tag_args[@]}" -o type=cacheonly "$dir"
+  else
+    docker buildx build --platform "$PLATFORMS" --provenance=false "${tag_args[@]}" --push "$dir"
+    for tag in "${tags[@]}"; do
+      syrus_verify_pushed "$image" "$tag"
+      published+=("$image:$tag")
+    done
+  fi
+done
+
+if [ "$NO_PUSH" = 1 ]; then
+  echo "== --no-push: plugin images built, nothing pushed =="
+else
+  echo "Published plugin images:"
+  printf '   %s\n' "${published[@]}"
+fi

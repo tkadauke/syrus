@@ -17,16 +17,16 @@ module GitMirror
         Rails.application.key_generator.generate_key("syrus.git_mirror.token", 32).unpack1("H*")
     end
 
-    # The image matches the running Syrus build, so the service and the
-    # plugin talking to it always come from the same commit. Development
-    # builds have no published image of their own and use latest.
+    # Plugin images are published with the same tags as the backend image
+    # (bin/publish-plugin-images), so a release runs the mirror from its own
+    # release. Builds without a release version -- development, unversioned
+    # publishes -- use latest.
     def image
       ENV["SYRUS_GIT_MIRROR_IMAGE"].presence || "#{IMAGE_REPOSITORY}:#{image_tag}"
     end
 
     def image_tag
-      version = SyrusVersion.current
-      version.blank? || version == "dev" ? "latest" : version
+      ENV["SYRUS_VERSION"].presence || "latest"
     end
   end
 end

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Build and publish the single-host distribution image to GHCR.
 #
-# This is the image `install.sh --docker` pulls (ghcr.io/tkadauke/syrus-backend).
+# This is the image `install.sh --docker` pulls (ghcr.io/tkadauke/syrus-backend),
+# followed by the plugin service images (bin/publish-plugin-images) with the
+# same tags.
 # It bakes whatever is in your working tree right now. The heavy runtime layers
 # (mise: ruby/node/python/go) are cached, so a re-publish only re-copies app code
 # and rebuilds assets — a few minutes.
@@ -140,7 +142,13 @@ else
   SYRUS_IMAGE="$TEST_TAG" ./bin/test-docker
 fi
 
+plugin_args=()
+if [ -n "$VERSION" ]; then plugin_args+=("$VERSION"); fi
+if [ "$SKIP_LATEST" = 1 ]; then plugin_args+=(--skip-latest); fi
+
 if [ "$NO_PUSH" = 1 ]; then
+  # Build the plugin service images too, so a dry run proves they build.
+  ./bin/publish-plugin-images ${plugin_args[@]+"${plugin_args[@]}"} --no-push
   echo
   echo "== --no-push: image built and tested, nothing pushed =="
   exit 0
@@ -168,6 +176,13 @@ fi
 
 if [ "$SKIP_LATEST" = 0 ]; then syrus_verify_pushed "$IMAGE" "latest"; fi
 if [ -n "$VERSION" ]; then syrus_verify_pushed "$IMAGE" "$VERSION"; fi
+
+# The plugin service images Plugin Runtime starts (plugins/*/container), with
+# the same tags, so this release's backend finds its own services. Only after
+# the backend is pushed: an image nothing references yet is harmless, a
+# backend whose services are missing is not.
+echo "== Publishing plugin service images =="
+./bin/publish-plugin-images ${plugin_args[@]+"${plugin_args[@]}"} --no-login
 
 echo
 echo "Published:"

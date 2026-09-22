@@ -24,7 +24,7 @@ if the plugin were disabled.
 
 **Docker Compose.** Enable Plugin Runtime and Git Mirror. The runtime manager
 pulls `ghcr.io/tkadauke/syrus-plugin-git-mirror` at the tag matching your
-Syrus build, starts it with a `data` volume, and hands it its token. Nothing
+Syrus release, starts it with a `data` volume, and hands it its token. Nothing
 to configure.
 
 **Kubernetes.** Deploy the image yourself with a persistent volume at `/data`

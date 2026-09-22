@@ -2,10 +2,10 @@ require "rails_helper"
 
 RSpec.describe GitMirror::RuntimeService do
   around do |example|
-    original = ENV.to_h.slice("SYRUS_GIT_MIRROR_TOKEN", "SYRUS_GIT_MIRROR_IMAGE", "GIT_SHA")
+    original = ENV.to_h.slice("SYRUS_GIT_MIRROR_TOKEN", "SYRUS_GIT_MIRROR_IMAGE", "SYRUS_VERSION")
     example.run
   ensure
-    %w[SYRUS_GIT_MIRROR_TOKEN SYRUS_GIT_MIRROR_IMAGE GIT_SHA].each { |key| ENV[key] = original[key] }
+    %w[SYRUS_GIT_MIRROR_TOKEN SYRUS_GIT_MIRROR_IMAGE SYRUS_VERSION].each { |key| ENV[key] = original[key] }
   end
 
   it "declares a service Plugin Runtime can run" do
@@ -18,14 +18,14 @@ RSpec.describe GitMirror::RuntimeService do
     )
   end
 
-  it "runs the image built from the same commit as Syrus" do
-    ENV["GIT_SHA"] = "abc1234"
+  it "runs the image from the same release as Syrus" do
+    ENV["SYRUS_VERSION"] = "0.9.2"
 
-    expect(described_class.service_spec[:image]).to eq("ghcr.io/tkadauke/syrus-plugin-git-mirror:abc1234")
+    expect(described_class.service_spec[:image]).to eq("ghcr.io/tkadauke/syrus-plugin-git-mirror:0.9.2")
   end
 
-  it "uses latest for development builds and honours an explicit image" do
-    ENV["GIT_SHA"] = nil
+  it "uses latest for builds without a release version and honours an explicit image" do
+    ENV["SYRUS_VERSION"] = nil
     expect(described_class.service_spec[:image]).to end_with(":latest")
 
     ENV["SYRUS_GIT_MIRROR_IMAGE"] = "ghcr.io/tkadauke/syrus-plugin-git-mirror:pinned"
