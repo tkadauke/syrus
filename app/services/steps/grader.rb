@@ -155,7 +155,25 @@ module Steps
 
       announce_test_output!(name, definition["junit_output"]) if definition["junit_output"].present?
 
-      raise StepFailed, "grader #{name} failed (exit #{exit_code})" unless passed
+      unless passed
+        unexplained_missing_exit = runner_result && exit_code.nil? &&
+          !runner_result.stopped? && !runner_result.operator_killed? && !runner_result.silent_timed_out?
+        if unexplained_missing_exit
+          fail_with!(
+            :worker_died,
+            "grader #{name} process disappeared without an exit status",
+            evidence: {
+              "grader_name" => name,
+              "aliveness_failed" => runner_result.aliveness_failed?,
+              "stopped" => runner_result.stopped?,
+              "operator_killed" => runner_result.operator_killed?,
+              "silent_timed_out" => runner_result.silent_timed_out?
+            }
+          )
+        end
+
+        raise StepFailed, "grader #{name} failed (exit #{exit_code})"
+      end
     end
 
     private

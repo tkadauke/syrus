@@ -217,11 +217,29 @@ RSpec.describe Steps::Grader, :ci_only do
       instance_double(ProcessRunner, run: fake_result)
     end
 
-    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader tests failed/)
+    error = nil
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed) { |raised| error = raised }
 
     details = step.reload.details
     expect(details["exit_code"]).to be_nil
     expect(@ws_path.join(details["log_path"]).read).to include("[grader:tests] failed")
+    expect(error.problem.code).to eq("worker_died")
+    expect(error.problem).to be_retryable
+  end
+
+  it "treats an unexplained missing grader exit status as retryable worker loss" do
+    fake_result = ProcessRunner::Result.new(
+      exit_status: nil, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+    allow(ProcessRunner).to receive(:new).and_return(instance_double(ProcessRunner, run: fake_result))
+
+    error = nil
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed) { |raised| error = raised }
+
+    expect(error.problem.code).to eq("worker_died")
+    expect(error.problem).to be_retryable
   end
 
   it "does not record a formatter-like warning for an ordinary failing test grader" do

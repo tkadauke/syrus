@@ -1,4 +1,4 @@
-# Restore the bundled plugin registry before each example so registry-backed
+# Restore the bundled plugin registry around each example so registry-backed
 # model validations, settings payloads, and provider lookups behave the way
 # they do at runtime.
 #
@@ -9,17 +9,19 @@
 # change to this file, and an inlined manifest can never drift from the real
 # one.
 #
-# Examples tagged :reset_plugin_registry opt out so their own around/before
-# block gets a genuinely empty registry. RSpec hook ordering is around-pre →
-# before → example, so this hook would otherwise fire after the reset and
-# repopulate the registry before the example body runs.
+# Examples tagged :reset_plugin_registry opt out of the leading restore so
+# their own around/before block gets a genuinely empty registry. The ensure
+# restore still prevents those examples from leaking an empty registry into
+# teardown or process-level hooks.
 RSpec.configure do |config|
-  config.before do |example|
-    next if example.metadata[:reset_plugin_registry]
-
+  config.around do |example|
     snapshot = Syrus::PluginRegistry.boot_snapshot
-    next if snapshot.nil?
-
-    Syrus::PluginRegistry.restore(snapshot)
+    Syrus::PluginRegistry.restore(snapshot) if snapshot && !example.metadata[:reset_plugin_registry]
+    example.run
+  ensure
+    # Local after hooks commonly reset the registry. Restore after they finish
+    # as well so teardown and process-level hooks cannot observe an empty
+    # provider list between examples.
+    Syrus::PluginRegistry.restore(snapshot) if snapshot
   end
 end

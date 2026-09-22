@@ -1,4 +1,5 @@
 require "shellwords"
+require "base64"
 
 module Ruby
   class RspecGraderType
@@ -365,35 +366,33 @@ module Ruby
     end
 
     def merge_junit_command(shard_junit_dir, junit)
-      <<~'BASH'.squish
-        ruby -rrexml/document -e '
-          dir, out = ARGV
-          files = Dir[File.join(dir, "*.xml")].sort
-          exit if files.empty?
-          merged = REXML::Document.new("<testsuites/>")
-          totals = Hash.new(0)
-          files.each do |path|
-            doc = begin
-              REXML::Document.new(File.read(path))
-            rescue StandardError
-              next
-            end
-            next unless doc.root
-            suites = doc.root.name == "testsuites" ? doc.root.elements.to_a("testsuite") : [ doc.root ]
-            suites.each do |suite|
-              %w[tests failures errors skipped].each { |k| totals[k] += suite.attributes[k].to_i }
-              totals["time"] += suite.attributes["time"].to_f
-              merged.root.add_element(suite.deep_clone)
-            end
+      encoded_script = Base64.strict_encode64(<<~'RUBY')
+        dir, out = ARGV
+        files = Dir[File.join(dir, "*.xml")].sort
+        exit if files.empty?
+        merged = REXML::Document.new("<testsuites/>")
+        totals = Hash.new(0)
+        files.each do |path|
+          doc = begin
+            REXML::Document.new(File.read(path))
+          rescue StandardError
+            next
           end
-          exit if merged.root.elements.empty?
-          %w[tests failures errors skipped].each { |k| merged.root.add_attribute(k, totals[k].to_s) }
-          merged.root.add_attribute("time", format("%.6f", totals["time"]))
-          File.write(out, merged.to_s)
-        ' __SHARD_JUNIT_DIR__ __JUNIT__
-      BASH
-        .sub("__SHARD_JUNIT_DIR__", shard_junit_dir)
-        .sub("__JUNIT__", junit)
+          next unless doc.root
+          suites = doc.root.name == "testsuites" ? doc.root.elements.to_a("testsuite") : [ doc.root ]
+          suites.each do |suite|
+            %w[tests failures errors skipped].each { |k| totals[k] += suite.attributes[k].to_i }
+            totals["time"] += suite.attributes["time"].to_f
+            merged.root.add_element(suite.deep_clone)
+          end
+        end
+        exit if merged.root.elements.empty?
+        %w[tests failures errors skipped].each { |k| merged.root.add_attribute(k, totals[k].to_s) }
+        merged.root.add_attribute("time", format("%.6f", totals["time"]))
+        File.write(out, merged.to_s)
+      RUBY
+
+      "ruby -rbase64 -rrexml/document -e 'eval(Base64.strict_decode64(ARGV.shift))' #{encoded_script} #{shard_junit_dir} #{junit}"
     end
 
     def database_prepare_command
@@ -422,9 +421,9 @@ module Ruby
       raw = config["parallel_rspec"]
       return false if raw.blank?
 
-      if raw == true
-        return true
-      elsif raw.is_a?(Hash)
+      return true if raw == true
+
+      if raw.is_a?(Hash)
         enabled = raw.key?("enabled") ? ActiveModel::Type::Boolean.new.cast(raw["enabled"]) : true
         return false unless enabled
 

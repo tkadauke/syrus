@@ -198,6 +198,35 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.run.scan(/\sspec(?:;|\s)/).length).to eq(1)
   end
 
+  it "keeps the parallel JUnit merger valid after command whitespace normalization" do
+    step = described_class.grade_steps(
+      config: { "parallel_rspec" => { "enabled" => true, "rspec_modes" => [ "full" ] } },
+      default_failures: "strict"
+    ).first
+    encoded_script = step.run.match(/strict_decode64\(ARGV\.shift\)\)' (?<script>[A-Za-z0-9+\/=]+)/)[:script]
+    script = Base64.strict_decode64(encoded_script)
+
+    expect { RubyVM::InstructionSequence.compile(script) }.not_to raise_error
+    expect(script).to include("rescue StandardError\n    next")
+
+    Dir.mktmpdir("rspec-junit-merge") do |dir|
+      shard_dir = File.join(dir, "shards")
+      output = File.join(dir, "merged.xml")
+      FileUtils.mkdir_p(shard_dir)
+      File.write(File.join(shard_dir, "one.xml"), '<testsuite tests="2" failures="1" errors="0" skipped="0" time="1.25"/>')
+      File.write(File.join(shard_dir, "broken.xml"), "not xml")
+      command = step.run.match(/(?<command>ruby -rbase64 -rrexml\/document .*? #{Regexp.escape('.syrus/grade-output/rspec-junit.xml')})/)[:command]
+      command = command.sub(".syrus/grade-output/parallel-rspec-junit", Shellwords.escape(shard_dir))
+        .sub(".syrus/grade-output/rspec-junit.xml", Shellwords.escape(output))
+
+      expect(system(command)).to be(true)
+      merged = REXML::Document.new(File.read(output))
+      expect(merged.root.attributes["tests"]).to eq("2")
+      expect(merged.root.attributes["failures"]).to eq("1")
+      expect(merged.root.elements.to_a("testsuite").size).to eq(1)
+    end
+  end
+
   it "supports per-mode timeout overrides" do
     steps = described_class.grade_steps(
       config: { "timeout_minutes" => 60, "timeouts" => { "focused" => 10 } },
