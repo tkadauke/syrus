@@ -946,6 +946,66 @@ describe("WorkflowsTab", () => {
     expect(screen.queryByText("Debug details")).not.toBeInTheDocument()
   })
 
+  it("renders a secondary mise install failure alongside the primary prepare failure panel", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 32,
+              kind: "prepare",
+              display_name: "Prepare",
+              display_status: "failed",
+              position: 0,
+              iteration: null,
+              loop_id: null,
+              state: "failed",
+              started_at: null,
+              finished_at: "2026-08-25T12:00:30Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:00:30Z",
+              details: {
+                prepare_failure: {
+                  command: "bundle install",
+                  workdir: "/workspace",
+                  exit_status: 1,
+                  timed_out: false,
+                  duration_s: 12.3,
+                  output_tail: "Bundler error",
+                  soft: false
+                },
+                mise_install_failure: {
+                  command: "mise install",
+                  workdir: "/workspace",
+                  exit_status: 2,
+                  timed_out: false,
+                  duration_s: 3.1,
+                  output_tail: "mise error output",
+                  soft: true
+                }
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Prepare/ }))
+
+    expect(screen.getByText("Setup failed before the agent started")).toBeVisible()
+    expect(screen.getByText("bundle install")).toBeVisible()
+    expect(screen.getByText("Bundler error")).toBeVisible()
+
+    expect(screen.getByText("Command failed (non-fatal)")).toBeVisible()
+    expect(screen.getByText("mise install")).toBeVisible()
+    expect(screen.getByText("mise error output")).toBeVisible()
+  })
+
   it("renders distributed grader batches with placement metadata and sibling admission blocks", () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>

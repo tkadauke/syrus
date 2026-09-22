@@ -881,7 +881,7 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
           {pendingWarnings(step).map((warning) => (
             <WarningPanel command={command} jobId={payload.job.id} key={warning.id} warning={warning} />
           ))}
-          {step.details && !prepareFailure ? <StepDetailsSection step={step} /> : null}
+          {step.details ? <StepDetailsSection step={step} /> : null}
           {step.runs_truncated ? (
             <Notice className="mt-3 px-2 py-1 text-xs" tone="warning">
               {t("step_runs_truncated", { displayed: step.runs_displayed || runs.length, total: step.runs_total || runs.length })}
