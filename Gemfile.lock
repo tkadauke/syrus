@@ -79,6 +79,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/github_host
+  specs:
+    github_host (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/github_source
   specs:
     github_source (0.1.0)
@@ -839,6 +845,7 @@ DEPENDENCIES
   faraday-http-cache
   faraday-retry
   git_history!
+  github_host!
   github_source!
   global_search!
   go!
@@ -990,6 +997,7 @@ CHECKSUMS
   ffi-compiler (1.4.2) sha256=a9d69d5d9ced6f64776ddafa535867ad90e5740ad37bed7afb4de6e450da126e
   fugit (1.13.0) sha256=a4f093fce740da52f216740a5041e2a594ea763cdb89e8b2754ca4399634ab18
   git_history (0.1.0)
+  github_host (0.1.0)
   github_source (0.1.0)
   global_search (0.1.0)
   globalid (1.4.0) sha256=037f12fbf1d9d7a014d501c2d5c77356fd4ddd96d7a7991d6700bba96706f427

@@ -902,6 +902,70 @@ class GithubClient
     raise
   end
 
+  # The commit SHA `ref` (a branch, tag, or SHA) points at. Raises
+  # Octokit::NotFound when GitHub does not know the ref -- unlike most readers
+  # here, absence is not folded into nil, because callers must tell an unknown
+  # ref apart from a failure to look.
+  def commit_sha_for(repo_slug, ref)
+    track_rate_limits { @client.commit(repo_slug, ref) }.sha
+  end
+
+  # Every entry in the tree of `commit_sha`, recursively:
+  # { entries: [{ path:, type:, mode:, size:, sha: }], truncated: bool }.
+  # `type` is GitHub's: "blob" (files and symlinks, told apart by `mode`
+  # 120000), "commit" (submodules), "tree" (directories). Raises
+  # Octokit::NotFound for an unknown commit.
+  def commit_tree_entries(repo_slug, commit_sha)
+    tree_sha = commit_tree_sha(repo_slug, commit_sha)
+    tree = track_rate_limits { @client.tree(repo_slug, tree_sha, recursive: 1) }
+    entries = Array(tree.tree).map do |item|
+      { path: item.path, type: item.type, mode: item.mode, size: item[:size]&.to_i, sha: item.sha }
+    end
+    { entries: entries, truncated: tree.truncated == true }
+  end
+
+  # Raw bytes of the file at `path` at `ref`: { bytes:, size:, sha: }, or nil
+  # when the path is not a file there. Files over the contents API's 1 MB
+  # inline limit come back without content; those are fetched through the
+  # git blob API instead of being returned empty. Raises Octokit::NotFound
+  # when the ref itself is unknown (message "No commit found for the ref").
+  def file_bytes_at(repo_slug, path, ref)
+    result = begin
+      track_rate_limits { @client.contents(repo_slug, path: path, ref: ref) }
+    rescue Octokit::NotFound => e
+      raise if e.message.include?("No commit found")
+
+      return nil
+    end
+    return nil unless result.respond_to?(:type) && result.type == "file"
+
+    content = result.content.to_s
+    if result.encoding == "none" || (content.empty? && result.size.to_i.positive?)
+      content = track_rate_limits { @client.blob(repo_slug, result.sha) }.content.to_s
+    end
+    { bytes: Base64.decode64(content), size: result.size.to_i, sha: result.sha }
+  end
+
+  # Files `head` changed since its merge base with `base` (GitHub compare is
+  # three-dot): { files: [{ path:, previous_path:, status:, additions:,
+  # deletions:, patch: }], truncated: bool }. GitHub lists at most 300 files;
+  # `truncated` says the list is incomplete. Raises Octokit::NotFound for an
+  # unknown revision.
+  def compare_file_changes(repo_slug, base, head)
+    result = track_rate_limits { @client.compare(repo_slug, base, head) }
+    files = Array(result.files).map do |file|
+      {
+        path: file.filename,
+        previous_path: file.respond_to?(:previous_filename) ? file.previous_filename : nil,
+        status: file.status,
+        additions: file.additions.to_i,
+        deletions: file.deletions.to_i,
+        patch: file.respond_to?(:patch) ? file.patch : nil
+      }
+    end
+    { files: files, truncated: files.size >= 300 }
+  end
+
   # Returns { content: "...", size: N } for the file at `path` at `ref`,
   # like #file_content_at but without the UTF-8 transcode step -- callers
   # that need the raw decoded bytes (e.g. streaming an image) must use this

@@ -71,6 +71,41 @@ RSpec.describe Admin::PluginDisableGuard, :reset_plugin_registry do
     end
   end
 
+  describe "repository content providers" do
+    def content_provider(label, serves:)
+      Class.new do
+        include Syrus::Plugin::RepositoryContentProvider
+
+        define_singleton_method(:provider_key) { label.parameterize }
+        define_singleton_method(:display_name) { label }
+        define_singleton_method(:role) { :upstream }
+        define_singleton_method(:available_for?) { |repository| serves.call(repository) }
+      end
+    end
+
+    let!(:repository) { Factories.repository }
+
+    it "blocks disabling the only provider that can read an active repository" do
+      register("host", provides: { repository_content_provider: content_provider("Host", serves: ->(_) { true }) })
+
+      expect { described_class.ensure_disableable!(manifest_for("host")) }
+        .to raise_error(described_class::Blocked, /Repositories read their files only through Host/)
+    end
+
+    it "allows disabling it while another enabled provider serves the same repositories" do
+      register("host", provides: { repository_content_provider: content_provider("Host", serves: ->(_) { true }) })
+      register("mirror", provides: { repository_content_provider: content_provider("Mirror", serves: ->(_) { true }) })
+
+      expect(described_class.blockers_for(manifest_for("host"))).to eq([])
+    end
+
+    it "ignores repositories the provider never served" do
+      register("host", provides: { repository_content_provider: content_provider("Host", serves: ->(_) { false }) })
+
+      expect(described_class.blockers_for(manifest_for("host"))).to eq([])
+    end
+  end
+
   describe ".dependents_for" do
     it "returns an empty array when no plugin depends on this one" do
       register("solo_plugin")

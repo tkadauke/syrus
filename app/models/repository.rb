@@ -318,6 +318,14 @@ class Repository < ApplicationRecord
     "#{owner}/#{name}"
   end
 
+  # The version control system the repository uses. Every repository is git
+  # today; this is the seam repository content providers key on
+  # (Syrus::Plugin::RepositoryContentProvider) so Mercurial and Subversion can
+  # become a column instead of a rewrite.
+  def vcs
+    "git"
+  end
+
   def upstream_slug
     return nil if upstream_owner.blank? || upstream_name.blank?
 

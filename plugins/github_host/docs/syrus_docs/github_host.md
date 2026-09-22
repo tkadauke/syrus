@@ -1,0 +1,41 @@
+# GitHub Host
+
+GitHub Host reads repository content from GitHub without a checkout: files,
+trees, and what changed between two commits. It is the `:upstream`
+`repository_content_provider` for every git repository Syrus knows, answering
+through the GitHub API with the repository's App installation token or its
+owner's PAT.
+
+It is separate from GitHub Source on purpose. GitHub Source ingests issues and
+operates pull requests; GitHub Host only reads code. A future GitLab or
+self-hosted plugin would provide the same extension point for its repositories.
+
+## What uses it
+
+Anything in Syrus that reads a repository before or without a workspace
+clone: the pre-clone `.syrus.yml` read that decides which workflow steps to
+build, preview project discovery, skills, deploy stages, feature
+recommendations, and the Job source browser.
+
+## How it answers
+
+- A 40-character commit SHA is taken as already resolved; branches and tags
+  cost one API call, and `RepositoryContent` reuses the answer for 60 seconds.
+- Reads are keyed by commit, so repeat reads of the same file at the same
+  commit are served from the Syrus cache, not GitHub.
+- Files over the contents API's 1 MB inline limit are fetched through the git
+  blob API.
+- GitHub truncates very large trees (around 100,000 entries) and lists at most
+  300 files per comparison. Rather than return a partial answer as if it were
+  complete, GitHub Host reports these as unsupported, so a mirror plugin can
+  answer instead -- or the caller sees the gap.
+
+Errors map onto the content contract: a missing file is `NotFound`, an unknown
+ref or commit is `UnknownRevision`, and rate limits, 5xx responses,
+authentication failures, and timeouts are `Unavailable`.
+
+## Disabling
+
+Disabling is blocked while any active repository would be left with no other
+content provider -- today, that is every repository, until a mirror plugin
+serves them. See `plugins.md` (`repository_content_provider`) for the contract.

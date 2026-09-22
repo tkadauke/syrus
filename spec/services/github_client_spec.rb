@@ -768,6 +768,84 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "raising content readers" do
+    let(:client) { GithubClient.for(repository: repository, user: user) }
+    let(:json) { { "Content-Type" => "application/json" } }
+
+    def stub_contents(path, ref, status: 200, body:)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/contents/#{path}")
+        .with(query: hash_including("ref" => ref))
+        .to_return(status: status, headers: json, body: body.to_json)
+    end
+
+    describe "#file_bytes_at" do
+      it "returns raw bytes with the blob SHA" do
+        stub_contents("logo.png", "abc", body: { type: "file", encoding: "base64", size: 3, sha: "blob-sha", content: Base64.encode64("\x89PN".b) })
+
+        expect(client.file_bytes_at("acme/widgets", "logo.png", "abc")).to eq(bytes: "\x89PN".b, size: 3, sha: "blob-sha")
+      end
+
+      it "fetches files past the contents API's inline limit through the blob API instead of returning them empty" do
+        stub_contents("big.json", "abc", body: { type: "file", encoding: "none", size: 2_000_000, sha: "big-sha", content: "" })
+        stub_request(:get, "https://api.github.com/repos/acme/widgets/git/blobs/big-sha")
+          .to_return(status: 200, headers: json, body: { sha: "big-sha", encoding: "base64", content: Base64.encode64("{}") }.to_json)
+
+        expect(client.file_bytes_at("acme/widgets", "big.json", "abc")[:bytes]).to eq("{}")
+      end
+
+      it "returns nil for a path that is not in the commit" do
+        stub_contents("missing.txt", "abc", status: 404, body: { message: "Not Found" })
+
+        expect(client.file_bytes_at("acme/widgets", "missing.txt", "abc")).to be_nil
+      end
+
+      it "raises for an unknown ref, which is not the same as a missing file" do
+        stub_contents("a.txt", "nope", status: 404, body: { message: "No commit found for the ref nope" })
+
+        expect { client.file_bytes_at("acme/widgets", "a.txt", "nope") }.to raise_error(Octokit::NotFound)
+      end
+    end
+
+    describe "#commit_tree_entries" do
+      it "lists every entry with its type and mode" do
+        stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/abc")
+          .to_return(status: 200, headers: json, body: { sha: "abc", commit: { tree: { sha: "tree-sha" } } }.to_json)
+        stub_request(:get, "https://api.github.com/repos/acme/widgets/git/trees/tree-sha")
+          .with(query: hash_including("recursive" => "1"))
+          .to_return(status: 200, headers: json, body: {
+            truncated: false,
+            tree: [
+              { path: "lib", type: "tree", mode: "040000", sha: "t1" },
+              { path: "lib/a.rb", type: "blob", mode: "100644", size: 12, sha: "b1" },
+              { path: "vendor/dep", type: "commit", mode: "160000", sha: "c1" }
+            ]
+          }.to_json)
+
+        result = client.commit_tree_entries("acme/widgets", "abc")
+
+        expect(result[:truncated]).to be(false)
+        expect(result[:entries]).to include({ path: "lib/a.rb", type: "blob", mode: "100644", size: 12, sha: "b1" },
+                                            { path: "vendor/dep", type: "commit", mode: "160000", size: nil, sha: "c1" })
+      end
+    end
+
+    describe "#compare_file_changes" do
+      it "keeps the previous path of renames and raises for unknown revisions" do
+        stub_request(:get, %r{https://api.github.com/repos/acme/widgets/compare/base\.\.\.head(\?|\z)})
+          .to_return(status: 200, headers: json, body: {
+            files: [ { filename: "new.rb", previous_filename: "old.rb", status: "renamed", additions: 1, deletions: 0 } ]
+          }.to_json)
+        stub_request(:get, %r{https://api.github.com/repos/acme/widgets/compare/base\.\.\.gone(\?|\z)})
+          .to_return(status: 404, headers: json, body: { message: "Not Found" }.to_json)
+
+        result = client.compare_file_changes("acme/widgets", "base", "head")
+
+        expect(result).to eq(files: [ { path: "new.rb", previous_path: "old.rb", status: "renamed", additions: 1, deletions: 0, patch: nil } ], truncated: false)
+        expect { client.compare_file_changes("acme/widgets", "base", "gone") }.to raise_error(Octokit::NotFound)
+      end
+    end
+  end
+
   describe "#commit_tree_sha" do
     let(:client) { GithubClient.for(repository: repository, user: user) }
 

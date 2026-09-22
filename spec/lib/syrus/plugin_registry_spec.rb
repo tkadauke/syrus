@@ -146,6 +146,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:build_system_graph_provider)
     end
 
+    it "includes :repository_content_provider" do
+      expect(described_class::EXTENSION_POINTS).to include(:repository_content_provider)
+    end
+
     it "includes :workspace_tab" do
       expect(described_class::EXTENSION_POINTS).to include(:workspace_tab)
     end
@@ -215,6 +219,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "maps :build_system_graph_provider to Syrus::Plugin::BuildSystemGraphProvider" do
       expect(described_class::INTERFACE_FOR[:build_system_graph_provider].call).to eq(Syrus::Plugin::BuildSystemGraphProvider)
+    end
+
+    it "maps :repository_content_provider to Syrus::Plugin::RepositoryContentProvider" do
+      expect(described_class::INTERFACE_FOR[:repository_content_provider].call).to eq(Syrus::Plugin::RepositoryContentProvider)
     end
 
     it "gives build-system graph providers the class contract used by the registry" do

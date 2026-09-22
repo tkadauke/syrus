@@ -39,6 +39,7 @@ module Admin
         result.concat(chat_provider_blockers)
         result.concat(input_source_blockers)
         result.concat(source_control_blockers)
+        result.concat(repository_content_blockers)
         result
       end
     end
@@ -87,6 +88,22 @@ module Admin
 
         count = Repository.active.count { |repository| provider.available_for?(repository) }
         blocker(:configured_repositories, "Repositories use #{provider.display_name} source-control operations", count)
+      end
+    end
+
+    # Disabling a content provider is fine while every repository it serves
+    # has another one; it is blocked only for repositories it would leave with
+    # no way to read their files (RepositoryContent would raise NoProvider).
+    def repository_content_blockers
+      own = providers(:repository_content_provider)
+      return [] if own.empty?
+
+      others = RepositoryContent.provider_classes - own
+      own.filter_map do |provider|
+        count = Repository.active.count do |repository|
+          provider.available_for?(repository) && others.none? { |other| other.available_for?(repository) }
+        end
+        blocker(:configured_repositories, "Repositories read their files only through #{provider.display_name}", count)
       end
     end
 

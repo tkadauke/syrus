@@ -1,0 +1,7 @@
+project:
+  id: github_host
+  label: "github_host plugin"
+  kind: plugin
+
+grade:
+  - type: rspec

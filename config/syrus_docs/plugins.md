@@ -28,6 +28,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `build_system_graph_provider`
 - `workspace_tab`
 - `retention_policy`
+- `repository_content_provider`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The index page is the scan-and-filter inventory: each card
@@ -2495,6 +2496,67 @@ provider provenance and validates them with the same duplicate-label,
 missing-dependency, and cycle checks used for hand-authored targets. Repository
 config chooses error behavior per import: `failures: strict` raises, while
 `failures: warn` records the provider error in graph diagnostics and continues.
+
+## `repository_content_provider`
+
+Repository content providers answer "what does this repository contain at
+this revision?" without a workspace checkout. Core reads through
+`RepositoryContent` -- reading `.syrus.yml` before a workflow is built,
+listing skills and preview projects, rendering a Job's source -- and never
+names a provider:
+
+```ruby
+content  = RepositoryContent.for(repository, user: user)
+revision = content.resolve(repository.default_branch)   # max_age: 60 by default
+blob     = content.read_if_present(revision, ".syrus.yml")
+blob&.text
+```
+
+The contract is VCS-neutral. A *revision* is an opaque, immutable token whose
+format belongs to the VCS (a git SHA, a Mercurial changeset hash, a Subversion
+`branch@rev`); a *ref* is a movable name that `resolve` turns into one. Paths
+are relative to the snapshot root. Content is bytes; `Blob#text` decodes.
+Everything read at a revision is cached (trees, blobs up to 256 KB, and
+confirmed absences); a ref resolution is reused for `max_age` seconds, and
+`max_age: 0` always asks the authority.
+
+Every enabled provider that claims a repository forms a chain: `:replica`
+providers (local mirrors) first, `:upstream` providers (the hosting platform's
+API) after. Errors decide what happens next:
+
+| Error | Meaning | Chain |
+| --- | --- | --- |
+| `RepositoryContent::NotFound` | the revision is known and the path is not in it | stops; final answer |
+| `RepositoryContent::UnknownRevision` | this provider does not know the ref or revision | next provider |
+| `RepositoryContent::Unsupported` | this provider cannot do that operation | next provider |
+| `RepositoryContent::Unavailable` | could not ask: rate limit, outage, credentials | next provider |
+| any other exception | treated as `Unavailable` | next provider |
+
+When no provider serves a repository the chain raises
+`RepositoryContent::NoProvider`, an `Unavailable`, and logs an error. Callers
+must never read `Unavailable` as "the file does not exist" -- that mistake once
+built workflows without their grade loop during a GitHub rate limit.
+
+Implementations include `Syrus::Plugin::RepositoryContentProvider` and define
+class methods `provider_key`, `display_name`, `role` (`:upstream` or
+`:replica`), `available_for?(repository)` (cheap, no network -- the disable
+guard calls it for every repository), and `build(repository:, user:)`, which
+returns an instance or nil. Instances implement `resolve(ref, max_age:)`,
+`tree(revision_id)`, `read(revision_id, path)`, and optionally
+`changes(base_id, head_id, patch:)` (three-dot: what `head` introduced since
+its merge base with `base`).
+
+Glob patterns passed to `RepositoryContent::Reader#tree`/`#files` use one core
+dialect regardless of provider (`RepositoryContent::Glob`): `*` within a
+segment including dotfiles, `**/` for any depth, `dir/**` for everything
+below, `{a,b}` alternatives.
+
+The plugin disable guard blocks disabling a content provider only for active
+repositories it would leave with no provider at all.
+
+Core specs stub content with `stub_repository_content(repository, files: {...})`
+(`spec/support/repository_content.rb`), never through a provider plugin, so
+provider plugins stay removable.
 
 ## Plugin lifecycle: disable, uninstall, purge
 
