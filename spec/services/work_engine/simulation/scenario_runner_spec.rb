@@ -1,6 +1,12 @@
 require "rails_helper"
 
 RSpec.describe WorkEngine::Simulation::ScenarioRunner do
+  before do
+    visual_review_plan = RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
+    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
+    allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
+  end
+
   def run_scenario(name, max_ticks: 50)
     described_class.call(
       path: Rails.root.join("spec/fixtures/work_engine_simulations/#{name}.yml"),
