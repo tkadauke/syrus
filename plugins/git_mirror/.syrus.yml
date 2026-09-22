@@ -1,0 +1,9 @@
+project:
+  id: git_mirror
+  label: "git_mirror plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+  - type: go-test
+    path: container

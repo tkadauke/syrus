@@ -99,6 +99,18 @@ RSpec.describe Admin::PluginDisableGuard, :reset_plugin_registry do
       expect(described_class.blockers_for(manifest_for("host"))).to eq([])
     end
 
+    # A mirror only serves a repository while an upstream hands it
+    # credentials; it is not a replacement for the upstream it depends on.
+    it "does not count a provider that only serves the repository with this plugin's help" do
+      host = content_provider("Host", serves: ->(_) { true })
+      register("host", provides: { repository_content_provider: host })
+      mirror = content_provider("Mirror", serves: ->(_) { RepositoryContent.provider_classes.include?(host) })
+      register("mirror", provides: { repository_content_provider: mirror })
+
+      expect(described_class.blockers_for(manifest_for("host")).map(&:label)).to include(/only through Host/)
+      expect(RepositoryContent.provider_classes).to include(host)
+    end
+
     it "ignores repositories the provider never served" do
       register("host", provides: { repository_content_provider: content_provider("Host", serves: ->(_) { false }) })
 

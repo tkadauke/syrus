@@ -54,11 +54,31 @@ module RepositoryContent
     end
 
     def provider_classes
-      return Array(provider_classes_override) if provider_classes_override
-
-      Syrus::PluginRegistry.providers_for(:repository_content_provider).map do |provider|
-        provider.is_a?(String) ? provider.constantize : provider
+      classes = if provider_classes_override
+        Array(provider_classes_override)
+      else
+        Syrus::PluginRegistry.providers_for(:repository_content_provider).map do |provider|
+          provider.is_a?(String) ? provider.constantize : provider
+        end
       end
+      classes - excluded_provider_classes
+    end
+
+    # Answers everything inside the block as if `classes` were not installed.
+    # The plugin disable guard uses it to ask "who would serve this
+    # repository without this plugin?" -- which has to include providers
+    # that only serve it with this plugin's help, like a mirror that needs
+    # an upstream's credentials. Per thread, so other requests are unaffected.
+    def without_providers(classes)
+      previous = Thread.current[:repository_content_excluded]
+      Thread.current[:repository_content_excluded] = Array(previous) + Array(classes)
+      yield
+    ensure
+      Thread.current[:repository_content_excluded] = previous
+    end
+
+    def excluded_provider_classes
+      Array(Thread.current[:repository_content_excluded])
     end
 
     # Where to fetch the repository from, asked of each upstream that serves

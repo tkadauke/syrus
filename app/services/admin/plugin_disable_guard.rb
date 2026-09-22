@@ -94,14 +94,19 @@ module Admin
     # Disabling a content provider is fine while every repository it serves
     # has another one; it is blocked only for repositories it would leave with
     # no way to read their files (RepositoryContent would raise NoProvider).
+    # The others are asked with this plugin already gone, so a mirror that
+    # only works with this plugin's credentials does not count as another.
     def repository_content_blockers
       own = providers(:repository_content_provider)
       return [] if own.empty?
 
-      others = RepositoryContent.provider_classes - own
       own.filter_map do |provider|
         count = Repository.active.count do |repository|
-          provider.available_for?(repository) && others.none? { |other| other.available_for?(repository) }
+          next false unless provider.available_for?(repository)
+
+          RepositoryContent.without_providers(own) do
+            RepositoryContent.provider_classes.none? { |other| other.available_for?(repository) }
+          end
         end
         blocker(:configured_repositories, "Repositories read their files only through #{provider.display_name}", count)
       end
