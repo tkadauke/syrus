@@ -1,7 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { type GraphEdge, type GraphNode, TopoDepGraph, computeNodeLayers } from "./TopoDepGraph"
+import {
+  type GraphEdge,
+  type GraphNode,
+  TopoDepGraph,
+  computeNodeLayers,
+  computeOrderedColumns,
+} from "./TopoDepGraph"
 
 const mockNavigate = vi.fn()
 vi.mock("react-router-dom", async (importOriginal) => {
@@ -96,6 +102,72 @@ describe("computeNodeLayers", () => {
     const edges = [edge("a", "b"), edge("b", "c"), edge("c", "d"), edge("d", "e")]
     const layers = computeNodeLayers(nodes, edges)
     expect(layers.get("e")).toBe(4)
+  })
+})
+
+// --- Crossing-reduction layout ---
+
+function columnIds(columns: GraphNode[][]): string[][] {
+  return columns.map((col) => col.map((n) => n.id))
+}
+
+describe("computeOrderedColumns", () => {
+  it("keeps layer assignment behavior identical to computeNodeLayers", () => {
+    const nodes = [node("a"), node("b"), node("c"), node("d")]
+    const edges = [edge("a", "b"), edge("a", "c"), edge("b", "d"), edge("c", "d")]
+    const columns = computeOrderedColumns(nodes, edges)
+    const layers = computeNodeLayers(nodes, edges)
+
+    expect(columns).toHaveLength(3)
+    for (const [layerIdx, col] of columns.entries()) {
+      for (const n of col) expect(layers.get(n.id)).toBe(layerIdx)
+    }
+  })
+
+  it("reorders a crossing-prone two-layer graph to remove the crossing", () => {
+    // a -> d and b -> c cross when b/c/d keep raw input order.
+    const nodes = [node("a"), node("b"), node("c"), node("d")]
+    const edges = [edge("a", "d"), edge("b", "c")]
+
+    const columns = computeOrderedColumns(nodes, edges)
+
+    expect(columnIds(columns)).toEqual([["a", "b"], ["d", "c"]])
+  })
+
+  it("routes a multi-layer edge through dummy layers without distorting unrelated card order", () => {
+    // p -> m1 and p -> m2 put m1/m2 in layer 1; m1 -> q and m2 -> s put q/s in
+    // layer 2. p -> q skips layer 1 entirely and needs a dummy lane there.
+    const nodes = [node("p"), node("m1"), node("m2"), node("q"), node("s")]
+    const edges = [edge("p", "m1"), edge("p", "m2"), edge("m1", "q"), edge("m2", "s"), edge("p", "q")]
+
+    const columns = computeOrderedColumns(nodes, edges)
+
+    expect(columnIds(columns)).toEqual([["p"], ["m1", "m2"], ["q", "s"]])
+    // The dummy lane for p -> q is internal to layout only.
+    expect(columns.flat().map((n) => n.id)).toHaveLength(nodes.length)
+    expect(columns.flat().some((n) => n.id.includes("dummy"))).toBe(false)
+  })
+
+  it("produces a deterministic order when multiple layout nodes tie on barycenter score", () => {
+    // p -> z forces z into layer 1; z -> t1 / z -> t2 force t1/t2 into layer
+    // 2. p -> t1 and p -> t2 each skip layer 1 and add a dummy lane there —
+    // both dummies connect only to p, so they tie on barycenter score with
+    // each other (and with z) on the very first sweep.
+    const nodes = [node("p"), node("z"), node("t1"), node("t2")]
+    const edges = [edge("p", "z"), edge("z", "t1"), edge("z", "t2"), edge("p", "t1"), edge("p", "t2")]
+
+    const first = computeOrderedColumns(nodes, edges)
+    const second = computeOrderedColumns(
+      nodes.map((n) => ({ ...n })),
+      edges.map((e) => ({ ...e }))
+    )
+
+    expect(columnIds(first)).toEqual(columnIds(second))
+    expect(columnIds(first)).toEqual([["p"], ["z"], ["t1", "t2"]])
+  })
+
+  it("returns an empty array for an empty node list", () => {
+    expect(computeOrderedColumns([], [])).toEqual([])
   })
 })
 
