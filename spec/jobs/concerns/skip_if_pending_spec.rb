@@ -14,6 +14,8 @@ RSpec.describe SkipIfPending do
   # a bare class so referencing `.where(...)` doesn't trigger schema
   # introspection against a table that doesn't exist.
   let(:relation) { double("relation", exists?: false, limit: pending_jobs) }
+  let(:unfinished_relation) { double("unfinished relation") }
+  let(:where_chain) { double("where chain") }
   let(:pending_jobs) { [] }
   before do
     connection = double("connection", adapter_name: "SQLite")
@@ -25,7 +27,16 @@ RSpec.describe SkipIfPending do
     allow(SolidQueue::Job).to receive(:connection).and_return(connection)
     allow(SolidQueue::Job).to receive(:where)
       .with(class_name: "SkipIfPendingTestJob", finished_at: nil)
-      .and_return(relation)
+      .and_return(unfinished_relation)
+    allow(unfinished_relation).to receive(:where).and_return(where_chain)
+    allow(where_chain).to receive(:missing).with(:failed_execution).and_return(relation)
+  end
+
+  it "excludes terminal failed executions from every job class's pending scope" do
+    expect(where_chain).to receive(:missing).with(:failed_execution).and_return(relation)
+
+    expect { SkipIfPendingTestJob.perform_later }
+      .to have_enqueued_job(SkipIfPendingTestJob)
   end
 
   describe "no-arg perform_later" do

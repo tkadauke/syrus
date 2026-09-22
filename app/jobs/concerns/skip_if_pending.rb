@@ -22,7 +22,13 @@ module SkipIfPending
     private
 
     def pending_solid_queue_job_mode(args, kwargs)
-      scope = SolidQueue::Job.where(class_name: name, finished_at: nil)
+      # Solid Queue keeps failed Jobs with finished_at unset and records their
+      # terminal state in solid_queue_failed_executions. Treating every
+      # unfinished row as pending permanently poisons this dedup key after the
+      # first failure, so exclude terminal failures at the shared boundary.
+      scope = SolidQueue::Job
+        .where(class_name: name, finished_at: nil)
+        .where.missing(:failed_execution)
       return "class" if args.empty? && kwargs.empty? && scope.exists?
       return false if kwargs.any?
       return false unless simple_active_job_arguments?(args)
