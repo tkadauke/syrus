@@ -118,6 +118,7 @@ import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProvider
 import { Compose } from "./chat/Compose"
 import { ThemePreviewModal } from "./chat/ThemePreviewModal"
 import { routePrefix } from "../lib/routing"
+import { useConnectionContext } from "../lib/connectionContext"
 import type { ChatSystemCommandHandlers } from "./chat/composeTypes"
 import { chatStreamItemsSignature, maxMessageId, mergeChatMessages, mergeMessageTail, oldestMessageId, renderItemKey, replaceProposalInMessages } from "./chat/messageStreamItems"
 import { PROPOSAL_UPDATED_EVENT, type ProposalUpdatedDetail } from "../lib/appEvents"
@@ -127,8 +128,6 @@ import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage
 import { availableWorkspaceTabs, clampWorkspaceWidth, defaultWorkspaceTab, mobileChatTabLabel, storeWorkspacePreference, storedWorkspaceCollapsed, storedWorkspaceTab, storedWorkspaceWidth } from "./chat/workspaceTabs"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
-import { useChatControlsRefetchOnReconnect } from "../hooks/useChatControlsRefetchOnReconnect"
-
 const ChatWorkspacePanel = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatWorkspacePanel })))
 const ChatSettingsDialog = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatSettingsDialog })))
 
@@ -154,6 +153,7 @@ export function ChatRoute() {
   const location = useLocation()
   const id = params.id || ""
   const queryClient = useQueryClient()
+  const { isDisconnected } = useConnectionContext()
   const queryKey = chatQueryKey(id, location.search)
   const prefix = routePrefix(location.pathname)
   const viewportStyle = useChatVisualViewportStyle()
@@ -168,13 +168,11 @@ export function ChatRoute() {
       return { ...fetched, messages: mergeMessageTail(cached.messages, fetched.messages) }
     },
     enabled: id.length > 0,
-    refetchInterval: 30_000,
+    refetchInterval: () => (isDisconnected && document.visibilityState === "visible" ? 30_000 : false),
     placeholderData: (previousData, previousQuery) => (
       previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined
     )
   })
-
-  useChatControlsRefetchOnReconnect(id)
 
   usePageTitle(chat.isSuccess ? chatDisplayTitle(chat.data.chat) : undefined)
 

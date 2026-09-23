@@ -164,7 +164,7 @@ export function App() {
   }, [isDisconnected])
 
   return (
-    <ConnectionContext.Provider value={{ reconnectAt }}>
+    <ConnectionContext.Provider value={{ isDisconnected, reconnectAt }}>
       <AppShell initialBootstrap={initialBootstrap} />
       {isDisconnected && !bannerDismissed ? (
         <NoticeToast persistent onDismiss={() => setBannerDismissed(true)}>

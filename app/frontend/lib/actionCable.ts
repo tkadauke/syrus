@@ -1,6 +1,6 @@
 import { createConsumer, type Consumer, type Subscription } from "@rails/actioncable"
 import type { QueryClient } from "@tanstack/react-query"
-import { applyAppEvent, type AppEvent } from "./appEvents"
+import { applyAppEvent, recoverAppEventContinuity, type AppEvent } from "./appEvents"
 
 let sharedConsumer: Consumer | null = null
 
@@ -34,7 +34,7 @@ export function subscribeToAppEvents(
       connected() {
         const wasConnected = everConnected
         if (wasConnected) {
-          void queryClient.invalidateQueries()
+          recoverAppEventContinuity(queryClient)
           onConnectionChange?.(true)
         }
         everConnected = true
