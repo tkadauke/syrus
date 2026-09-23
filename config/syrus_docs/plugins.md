@@ -1908,8 +1908,9 @@ that a rollback undoes.
 ## `ui_slot`
 
 Admin pages, sidebar pages, and repo-page tabs each give a plugin a whole page.
-`ui_slot` gives it a section of an existing core page — a build-cache card on
-the job detail page, a test-run panel on the job detail page.
+`ui_slot` gives it a section of an existing core page — a dashboard notice, a
+build-cache card on the job detail page, a test-run panel on the job detail
+page, or an action in a workflow card.
 
 Without it, a feature that reads as part of a core page can only be extracted by
 promoting it to its own tab, which changes the product to fit the plugin
@@ -1938,12 +1939,21 @@ so a typo fails loudly instead of rendering nowhere:
 
 | Slot | Context |
 |---|---|
+| `dashboard.jobs.notice` | `{ user:, subject:, view:, active_smart_folder:, active_repositories_scope: }` |
 | `repository.detail` | `{ repository:, user: }` |
 | `job.detail` | `{ job:, user: }` |
+| `job.detail.tab` | `{ job:, user: }` |
+| `job.workflow.actions` | `{ job:, user: }` for resolution; each rendered component also receives `workflow` from the workflow card |
 
 Visibility is per record, like `repo_page_tab` and unlike `admin_page`: the
 provider is called with the host page's context and returns `[]` to render
 nothing.
+
+Most slots render panels inline in the order returned by
+`App::UiSlotsPayload`. `job.detail.tab` renders each panel as a tab, so those
+panels also need `key` and either `label` or `label_key`. `job.workflow.actions`
+renders inside every workflow card action row; keep contributions button-sized
+and rely on the rendered `workflow` prop for per-workflow behavior.
 
 Frontend components live in `plugins/<name>/app/frontend/ui_slots/*.tsx` (a
 distinct glob from `routes/` and `repo_tabs/` so component keys cannot
