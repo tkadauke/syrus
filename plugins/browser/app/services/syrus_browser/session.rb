@@ -24,9 +24,11 @@ module SyrusBrowser
   #   Playwright's bundled Chromium.
   # - `.spawn_service` -- the same server run as a container-backed Plugin
   #   Runtime service (`playwright-mcp --port`), reached over streamable
-  #   HTTP MCP via `MCP::Client::HTTP`. Not yet wired to a running service
-  #   (see SyrusBrowser::Configuration); `.spawn` is the fallback-selecting
-  #   entry point SessionRegistry actually uses.
+  #   HTTP MCP via `MCP::Client::HTTP`. Used whenever
+  #   `SyrusBrowser::Configuration.endpoint` answers an address -- a Browser
+  #   Plugin Runtime service is registered and its health check is passing
+  #   (see `PluginRuntime::Services.endpoint_for`); `.spawn` is the
+  #   fallback-selecting entry point SessionRegistry actually uses.
   class Session
     DEFAULT_COMMAND = "playwright-mcp".freeze
     DEFAULT_EXECUTABLE_PATH = "/opt/syrus-browser/chromium".freeze
