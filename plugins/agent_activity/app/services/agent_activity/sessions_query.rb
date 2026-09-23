@@ -195,7 +195,10 @@ module AgentActivity
       filter = folder.filter.presence || Filters::Ast.serialize(Filters::Ast::EMPTY)
       ast = Filters::Ast.parse(filter)
 
-      return capped_count(base_scope) if ast == Filters::Ast::EMPTY
+      if ast == Filters::Ast::EMPTY
+        count = capped_count(base_scope)
+        return { count: count, count_capped: count >= SmartFolder::COUNT_CAP }
+      end
       return exact_status_count(base_scope, ast.children.first.value) if single_status_filter?(ast)
 
       nil

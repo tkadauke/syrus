@@ -343,7 +343,7 @@ RSpec.describe AgentActivity::SessionsQuery do
       expect(result).to eq(2)
     end
 
-    it "caps the All folder's count at the shared limit" do
+    it "caps the All folder's count at the shared limit and flags it as capped" do
       stub_const("SmartFolder::COUNT_CAP", 1)
       SmartFolder.ensure_builtins_for_subject!(AgentActivity::SmartFolders::SUBJECT)
       agent_activity_job_with_run(repository: my_repository, user: operator, issue_number: 1, run_attrs: { state: "running", started_at: 1.minute.ago })
@@ -353,7 +353,18 @@ RSpec.describe AgentActivity::SessionsQuery do
 
       result = described_class.count_for_smart_folder(base_scope, folder)
 
-      expect(result).to eq(1)
+      expect(result).to eq(count: 1, count_capped: true)
+    end
+
+    it "does not flag the All folder's count as capped when it is below the shared limit" do
+      SmartFolder.ensure_builtins_for_subject!(AgentActivity::SmartFolders::SUBJECT)
+      agent_activity_job_with_run(repository: my_repository, user: operator, issue_number: 1, run_attrs: { state: "running", started_at: 1.minute.ago })
+      folder = SmartFolder.builtins(AgentActivity::SmartFolders::SUBJECT).find_by!(name: "All")
+      base_scope = described_class.visible_relation(scope: :mine, user: operator)
+
+      result = described_class.count_for_smart_folder(base_scope, folder)
+
+      expect(result).to eq(count: 1, count_capped: false)
     end
   end
 

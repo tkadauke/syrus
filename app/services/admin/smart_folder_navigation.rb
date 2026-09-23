@@ -92,11 +92,23 @@ module Admin
 
     def smart_folder_count(folder)
       provided = count_provider&.call(folder)
-      return { count: provided, count_capped: false } unless provided.nil?
+      return normalize_provided_count(provided) unless provided.nil?
 
       filter = filter_class.from_tree(folder.filter, user: user)
       count = filter.capped_count(filter.apply(base_scope))
       { count: count, count_capped: count >= SmartFolder::COUNT_CAP }
+    end
+
+    # A count_provider may return a bare count (assumed uncapped, e.g. a
+    # hand-rolled exact SQL count) or a { count:, count_capped: } Hash when
+    # it applies its own capping (e.g. AgentActivity::SessionsQuery delegating
+    # to the shared Filters::BaseFilter.capped_count) -- so a folder capped
+    # through a custom provider still renders "999+" instead of a bare,
+    # suspiciously-round number.
+    def normalize_provided_count(provided)
+      return provided if provided.is_a?(Hash)
+
+      { count: provided, count_capped: false }
     end
 
     def folder_path(folder)
