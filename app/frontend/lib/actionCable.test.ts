@@ -38,9 +38,10 @@ describe("subscribeToAppEvents", () => {
     expect(unsubscribe).toHaveBeenCalled()
   })
 
-  it("invalidates all queries on reconnect but not initial connect", () => {
+  it("runs scoped continuity recovery on reconnect but not initial connect", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const refetch = vi.spyOn(queryClient, "refetchQueries").mockResolvedValue(undefined as never)
     let connected: (() => void) | undefined
     const consumer = {
       subscriptions: {
@@ -60,10 +61,12 @@ describe("subscribeToAppEvents", () => {
 
     connected?.()
     expect(invalidate).not.toHaveBeenCalled()
+    expect(refetch).not.toHaveBeenCalled()
 
     connected?.()
-    expect(invalidate).toHaveBeenCalledTimes(1)
-    expect(invalidate).toHaveBeenCalledWith()
+    expect(refetch).toHaveBeenCalledWith({ type: "active", predicate: expect.any(Function) })
+    expect(invalidate).not.toHaveBeenCalledWith()
+    expect(invalidate).not.toHaveBeenCalled()
   })
 
   it("calls onConnectionChange(false) on disconnect after first connect, not before", () => {
