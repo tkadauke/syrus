@@ -864,8 +864,177 @@ describe("WorkflowsTab", () => {
 
     expect(screen.getByText("Cancelled:")).toBeInTheDocument()
     expect(screen.getByText(/parent workflow failed after grader STEP-23; cancel terminal workflow active descendants\./)).toBeInTheDocument()
-    expect(screen.getByText("Debug details")).toBeVisible()
-    expect(screen.getByText(/cancel_terminal_workflow_active_descendants/)).not.toBeVisible()
+    // Cancellation is narrated only by the human-readable notice above — the
+    // raw cancellation keys never reach the debug disclosure, so there's
+    // nothing left to hide behind one.
+    expect(screen.queryByText("Debug details")).not.toBeInTheDocument()
+    expect(screen.queryByText(/cancelled_workflow_state/)).not.toBeInTheDocument()
+  })
+
+  it("hides stale cancellation metadata on a succeeded step instead of showing contradictory raw JSON", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 24,
+              kind: "coverage_analyze",
+              display_name: "Analyze coverage",
+              display_status: "succeeded",
+              position: 6,
+              iteration: 1,
+              loop_id: null,
+              state: "succeeded",
+              started_at: "2026-08-25T12:00:00Z",
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: {
+                cancelled_by: "terminal_workflow_cleanup",
+                cancelled_reason: "cancel_terminal_workflow_active_descendants",
+                cancelled_workflow_state: "failed",
+                cancelled_source_step_id: 23,
+                cancelled_source_step_kind: "grader"
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Analyze coverage/ }))
+
+    expect(screen.queryByText("Cancelled:")).not.toBeInTheDocument()
+    expect(screen.queryByText("Debug details")).not.toBeInTheDocument()
+    expect(screen.queryByText(/cancel_terminal_workflow_active_descendants/)).not.toBeInTheDocument()
+  })
+
+  it("links to the opened PR on a succeeded pr_open step", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            job: { id: 42, pr_number: 123, pr_url: "https://github.com/acme/widgets/pull/123" } as JobDetailPayload["job"],
+            workflows: [workflowWithStepDetails({
+              id: 40,
+              kind: "pr_open",
+              display_name: "Open PR",
+              display_status: "succeeded",
+              position: 8,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: "2026-08-25T12:00:00Z",
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: null,
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Open PR/ }))
+
+    const link = screen.getByRole("link", { name: "Opened PR #123" })
+    expect(link).toHaveAttribute("href", "https://github.com/acme/widgets/pull/123")
+  })
+
+  it("does not show a PR outcome for a pr_open step before the PR exists", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            job: { id: 42, pr_number: null, pr_url: null } as JobDetailPayload["job"],
+            workflows: [workflowWithStepDetails({
+              id: 40,
+              kind: "pr_open",
+              display_name: "Open PR",
+              display_status: "failed",
+              position: 8,
+              iteration: null,
+              loop_id: null,
+              state: "failed",
+              started_at: "2026-08-25T12:00:00Z",
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: null,
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Open PR/ }))
+
+    expect(screen.queryByText(/Opened PR/)).not.toBeInTheDocument()
+  })
+
+  it("links to the target PR on a succeeded promotion_publish step via the pr_links registry", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            job: { id: 42 } as JobDetailPayload["job"],
+            pr_links: [{
+              id: 1,
+              role: "promotion",
+              source_repository_slug: "acme/widgets",
+              source_ref: "release/2026-09",
+              target_repository_slug: "acme/widgets",
+              target_ref: "main",
+              pr_number: 456,
+              pr_url: "https://github.com/acme/widgets/pull/456",
+              pr_state: "open",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:00:00Z"
+            }],
+            workflows: [workflowWithStepDetails({
+              id: 41,
+              kind: "promotion_publish",
+              display_name: "Publish promotion",
+              display_status: "succeeded",
+              position: 1,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: "2026-08-25T12:00:00Z",
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: null,
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Publish promotion/ }))
+
+    const link = screen.getByRole("link", { name: "Opened Promotion PR #456" })
+    expect(link).toHaveAttribute("href", "https://github.com/acme/widgets/pull/456")
   })
 
   it("hides an unknown step details payload behind a debug affordance instead of dumping raw JSON", () => {

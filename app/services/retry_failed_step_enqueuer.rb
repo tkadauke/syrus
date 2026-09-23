@@ -463,13 +463,7 @@ class RetryFailedStepEnqueuer
     end
   end
 
-  CANCELLATION_DETAIL_KEYS = %w[
-    cancelled_by
-    cancelled_reason
-    cancelled_workflow_id
-    cancelled_workflow_state
-    cancelled_source_step_id
-    cancelled_source_step_kind
+  CANCELLATION_DETAIL_KEYS = Step::CANCELLATION_DETAIL_KEYS + %w[
     manual_grade_loop_restart_loop_id
     superseded_active_work_cancelled_at
   ].freeze

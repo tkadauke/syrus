@@ -72,6 +72,20 @@ class Step < ApplicationRecord
   TERMINAL_STATES = %w[ succeeded failed cancelled skipped ].freeze
   RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY = "retry_until_barrier_superseded".freeze
 
+  # Keys `Workflow#active_descendant_cancellation_details` merges into
+  # `details` when force-cancelling a step. Any path that revives or
+  # force-succeeds a step that was previously cancelled must strip these
+  # so a step no longer in the cancelled state doesn't keep narrating why
+  # it was cancelled.
+  CANCELLATION_DETAIL_KEYS = %w[
+    cancelled_by
+    cancelled_reason
+    cancelled_workflow_id
+    cancelled_workflow_state
+    cancelled_source_step_id
+    cancelled_source_step_kind
+  ].freeze
+
   # MySQL 8 rejects defaults on JSON columns, so seed `{}` on new
   # records via after_initialize instead of a column default. Existing
   # rows were backfilled by the AddDetailsToSteps migration.
