@@ -93,4 +93,5 @@ class AppEvents
       User.where(id: user.id).pick(:app_event_sequence).to_i
     end
   end
+  private_class_method :next_sequence
 end
