@@ -42,6 +42,18 @@ RSpec.describe PreparedWorkspaceArchive do
     FileUtils.rm_rf(workspace_dir)
   end
 
+  # A directory tar can never read: -C against it fails immediately (exit
+  # 2) while the downstream compressor still emits a small valid (but
+  # empty/garbage) stream, so the upload itself "succeeds" before the
+  # producer failure is detected -- exactly the case the abort/cleanup
+  # path exists for.
+  let(:missing_path) { File.join(workspace_dir, "does-not-exist") }
+
+  def failing_archive(fixed_key: nil)
+    allow(ActiveStorage::Blob).to receive(:generate_unique_secure_token).and_return(fixed_key) if fixed_key
+    described_class.new(workflow: workflow, snapshot: snapshot, step: creator_step, path: missing_path, plan: plan)
+  end
+
   # Scoped to archive-shaped filenames rather than the whole tmpdir tree:
   # this box runs other unrelated processes that constantly churn /tmp, so
   # diffing the entire directory listing is flaky. The regression this
@@ -99,6 +111,20 @@ RSpec.describe PreparedWorkspaceArchive do
       expect(archive.publish!).to eq(false)
 
       expect(tmp_snapshot - before_tmp_files).to be_empty
+      expect(snapshot.reload.prepared_workspace_archive).not_to be_attached
+    end
+
+    it "cleans up the already-uploaded object when the tar producer fails" do
+      service = ActiveStorage::Blob.service
+      allow(service).to receive(:upload).and_call_original
+      allow(service).to receive(:delete).and_call_original
+      archive = failing_archive(fixed_key: "producer-failure-disk-key")
+
+      expect(archive.publish!).to eq(false)
+
+      expect(service).to have_received(:upload)
+      expect(service).to have_received(:delete).with("producer-failure-disk-key")
+      expect(service.exist?("producer-failure-disk-key")).to eq(false)
       expect(snapshot.reload.prepared_workspace_archive).not_to be_attached
     end
   end
@@ -167,6 +193,17 @@ RSpec.describe PreparedWorkspaceArchive do
       expect(tmp_snapshot - before_tmp_files).to be_empty
       operations = s3_client.api_requests.map { |request| request[:operation_name] }
       expect(operations).to include(:abort_multipart_upload)
+      expect(snapshot.reload.prepared_workspace_archive).not_to be_attached
+    end
+
+    it "completes the multipart upload but deletes the object once a tar producer failure is detected" do
+      archive = failing_archive(fixed_key: "producer-failure-s3-key")
+
+      expect(archive.publish!).to eq(false)
+
+      operations = s3_client.api_requests.map { |request| request[:operation_name] }
+      expect(operations).to eq(%i[create_multipart_upload upload_part complete_multipart_upload delete_object])
+      expect(s3_client.api_requests.last[:params][:key]).to eq("producer-failure-s3-key")
       expect(snapshot.reload.prepared_workspace_archive).not_to be_attached
     end
   end
