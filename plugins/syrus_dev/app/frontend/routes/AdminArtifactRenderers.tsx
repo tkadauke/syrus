@@ -224,7 +224,7 @@ export function AdminArtifactRenderers() {
   useCatalogDeepLinkScroll(deepLinkRenderer ? anchorId(deepLinkRenderer) : null, filteredEntries)
 
   return (
-    <Page.Root size="wide">
+    <Page.Root gutter="responsive" size="wide">
       <Page.Header>
         <Page.HeadingGroup>
           <Page.Title>{t("artifact_renderers.heading")}</Page.Title>
@@ -232,18 +232,20 @@ export function AdminArtifactRenderers() {
         </Page.HeadingGroup>
       </Page.Header>
 
-      <FilterBar buildLink={catalogFilterLink} filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={search} />
+      <Page.Nav className="space-y-4">
+        <FilterBar buildLink={catalogFilterLink} filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={search} />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Text muted variant="caption">{t("artifact_renderers.showing", { count: filteredEntries.length, total: allEntries.length })}</Text>
-        <CatalogViewportSwitcher
-          ariaLabel={t("artifact_renderers.viewport_switcher_aria")}
-          labelFor={(preset) => t(`artifact_renderers.viewport_${preset.id}`, { width: preset.width })}
-          pathname={location.pathname}
-          search={search}
-          selected={selectedViewport.id}
-        />
-      </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Text muted variant="caption">{t("artifact_renderers.showing", { count: filteredEntries.length, total: allEntries.length })}</Text>
+          <CatalogViewportSwitcher
+            ariaLabel={t("artifact_renderers.viewport_switcher_aria")}
+            labelFor={(preset) => t(`artifact_renderers.viewport_${preset.id}`, { width: preset.width })}
+            pathname={location.pathname}
+            search={search}
+            selected={selectedViewport.id}
+          />
+        </div>
+      </Page.Nav>
 
       {filteredEntries.length === 0 ? (
         <PanelMessage>{t("artifact_renderers.no_match")}</PanelMessage>

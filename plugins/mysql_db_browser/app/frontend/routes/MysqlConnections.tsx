@@ -6,7 +6,7 @@ import { useConfirm } from "@app/hooks/useConfirm"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { CloseIcon } from "@app/components/CloseIcon"
 import { Modal } from "@app/components/Modal"
-import { Button, DataTable, DescriptionList, Form } from "@app/components/ui"
+import { Button, DataTable, DescriptionList, Form, Page } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
   createMysqlConnection,
@@ -63,23 +63,23 @@ export function MysqlConnections() {
 
   if (browsing) {
     return (
-      <main aria-label={t("aria_page")} className="mx-auto flex h-full max-w-[96rem] flex-col gap-6 overflow-hidden p-3 sm:p-6">
+      <Page.Root aria-label={t("aria_page")} className="flex h-full flex-col overflow-hidden" gutter="responsive" size="wide">
         <SchemaBrowser connectionId={browsing.connectionId} label={browsing.label} onBack={() => setBrowsing(null)} />
-      </main>
+      </Page.Root>
     )
   }
 
   return (
-    <main aria-label={t("aria_page")} className="mx-auto flex h-full max-w-[96rem] flex-col gap-6 overflow-hidden p-3 sm:p-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("heading")}</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("description")}</p>
-        </div>
+    <Page.Root aria-label={t("aria_page")} className="flex h-full flex-col overflow-hidden" gutter="responsive" size="wide">
+      <Page.Header>
+        <Page.HeadingGroup>
+          <Page.Title>{t("heading")}</Page.Title>
+          <Page.Description>{t("description")}</Page.Description>
+        </Page.HeadingGroup>
         <Button onClick={() => setFormTarget("create")} type="button" variant="primary">
           {t("add_button")}
         </Button>
-      </header>
+      </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
@@ -101,7 +101,7 @@ export function MysqlConnections() {
           onNotice={setNotice}
         />
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 

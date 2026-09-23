@@ -24,14 +24,14 @@ export function SpendingInsightsRoute() {
 
   if (spending.isPending) {
     return (
-      <Page.Root aria-label={t("aria_insights")} size="wide">
+      <Page.Root aria-label={t("aria_insights")} gutter="responsive" size="wide">
         <Notice>{t("common:loading")}</Notice>
       </Page.Root>
     )
   }
   if (spending.isError) {
     return (
-      <Page.Root aria-label={t("aria_insights")} size="wide">
+      <Page.Root aria-label={t("aria_insights")} gutter="responsive" size="wide">
         <Notice tone="danger">{t("unable_to_load")}</Notice>
       </Page.Root>
     )
@@ -45,7 +45,7 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
   const prefix = pathname.startsWith("/app-shell") ? "/app-shell" : ""
 
   return (
-    <Page.Root aria-label={t("aria_insights")} className="space-y-5" size="wide">
+    <Page.Root aria-label={t("aria_insights")} className="space-y-5" gutter="responsive" size="wide">
       <Page.Header className="flex flex-col gap-4 border-b border-border pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <Text className="font-medium uppercase" variant="caption" tone="muted">{t("eyebrow")}</Text>
@@ -54,13 +54,15 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
         </div>
       </Page.Header>
 
-      <FilterBar
-        filter={payload.filter}
-        filterSchema={payload.controls.filter_schema}
-        legacyFilterKeys={legacyFilterKeys}
-        pathname={pathname}
-        search={search}
-      />
+      <Page.Nav>
+        <FilterBar
+          filter={payload.filter}
+          filterSchema={payload.controls.filter_schema}
+          legacyFilterKeys={legacyFilterKeys}
+          pathname={pathname}
+          search={search}
+        />
+      </Page.Nav>
 
       <section aria-label={t("totals_aria")} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Metric title={t("metric_week")} value={formatSpendingCurrency(payload.totals.week_usd)} context={t("context_workflow_runs")} />

@@ -68,7 +68,7 @@ export function MemoriesRoute() {
   })
 
   return (
-    <Page.Root aria-label={t("aria_memories")} size="wide">
+    <Page.Root aria-label={t("aria_memories")} gutter="responsive" size="wide">
       <Page.Header>
         <PageHeading>{t('heading')}</PageHeading>
         <Page.Description className="max-w-2xl">{t('description')}</Page.Description>

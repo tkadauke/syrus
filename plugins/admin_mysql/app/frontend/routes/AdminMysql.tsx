@@ -37,7 +37,7 @@ export function AdminMysql() {
   }
 
   return (
-    <Page.Root aria-label={t("aria_page")} size="wide">
+    <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide">
       {dialog}
       <Page.Header className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
         <div>
