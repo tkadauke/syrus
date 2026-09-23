@@ -150,6 +150,22 @@ RSpec.describe "Filters::Chips" do
     end
   end
 
+  describe "investigation" do
+    it "matches investigation jobs when op is is_true" do
+      investigation_job = Factories.job_record(repository: repo, issue_number: nil, kind: "direct", investigation: true)
+      Factories.job_record(repository: repo, issue_number: 1, kind: "issue")
+
+      expect(run(field: "investigation", op: "is_true", value: nil)).to contain_exactly(investigation_job)
+    end
+
+    it "excludes investigation jobs when op is is_false" do
+      Factories.job_record(repository: repo, issue_number: nil, kind: "direct", investigation: true)
+      ordinary = Factories.job_record(repository: repo, issue_number: 1, kind: "issue")
+
+      expect(run(field: "investigation", op: "is_false", value: nil)).to contain_exactly(ordinary)
+    end
+  end
+
   describe "age" do
     it "filters by created_at within the named window" do
       fresh = Factories.job(repository: repo, issue_number: 1)
@@ -695,6 +711,21 @@ RSpec.describe "Filters::Chips" do
       Factories.job_record(repository: repo, issue_number: 69, state: "closed", closure_reason: "pr_merged")
 
       expect(run(field: "attention", op: "is", value: "promotion_pending")).to be_empty
+    end
+
+    it "investigations: returns open investigation jobs, regardless of state, but excludes closed or non-investigation jobs" do
+      awaiting_review = Factories.job_record(repository: repo, issue_number: nil, kind: "direct", investigation: true, state: "implemented")
+      still_running = Factories.job_record(repository: repo, issue_number: nil, kind: "direct", investigation: true, state: "running")
+      Factories.job_record(repository: repo, issue_number: nil, kind: "direct", investigation: true, state: "closed", closure_reason: "investigation_reported")
+      Factories.job_record(repository: repo, issue_number: nil, kind: "direct", investigation: false, state: "implemented")
+
+      expect(run(field: "attention", op: "is", value: "investigations")).to contain_exactly(awaiting_review, still_running)
+    end
+
+    it "inbox: includes an open, implemented investigation job now that it no longer auto-closes" do
+      investigation_awaiting_review = Factories.job_record(repository: repo, issue_number: nil, kind: "direct", investigation: true, state: "implemented")
+
+      expect(run(field: "attention", op: "is", value: "inbox")).to contain_exactly(investigation_awaiting_review)
     end
   end
 

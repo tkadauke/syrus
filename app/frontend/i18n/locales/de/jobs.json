@@ -46,6 +46,8 @@
   "approve": "Genehmigen",
   "reapprove": "Erneut genehmigen",
   "unapprove": "Genehmigung zurücknehmen",
+  "close_investigation": "Schließen",
+  "confirm_close_investigation": "Diese Untersuchung als überprüft schließen?",
   "cancel": "Abbrechen",
   "remove_from_backlog": "Aus Backlog entfernen",
   "stop_landing": "Landung stoppen",

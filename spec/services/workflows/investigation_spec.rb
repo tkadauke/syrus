@@ -22,11 +22,11 @@ RSpec.describe Workflows::Investigation do
   end
 
   describe "chain" do
-    it "is prepare → investigate → submit_report → auto_close" do
+    it "is prepare → investigate → submit_report" do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[prepare investigate submit_report auto_close]
+        %w[prepare investigate submit_report]
       )
     end
 
@@ -35,7 +35,7 @@ RSpec.describe Workflows::Investigation do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[investigate submit_report auto_close]
+        %w[investigate submit_report]
       )
     end
   end
@@ -48,19 +48,20 @@ RSpec.describe Workflows::Investigation do
       expect(Workflow::TriggerKind.owns_job_lifecycle?(workflow.trigger_kind)).to eq(false)
     end
 
-    it "closes the Job successfully via the auto_close step, not an after_success hook" do
+    it "reaches :implemented, not :closed, once the workflow succeeds -- the same generic propagation a PR-based Job gets after pr_open" do
       job.update!(state: "running")
       workflow = described_class.instantiate(job: job)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
 
       %w[investigate submit_report].each do |kind|
         step = workflow.steps.find_by!(kind: kind)
         Run.create!(job: job, step: step, trigger_kind: "investigation", state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
       end
-      auto_close_step = workflow.steps.find_by!(kind: "auto_close")
-      Steps::AutoClose.new(Run.create!(job: job, step: auto_close_step, trigger_kind: "investigation")).call
+      workflow.artifacts["investigation_report"] = { "title" => "Findings", "narrative" => "..." }
+      workflow.save!
 
-      expect(job.reload.state).to eq("closed")
-      expect(job.closure_reason).to eq("investigation_reported")
+      expect { workflow.succeed! }.to change { job.reload.state }.from("running").to("implemented")
+      expect(job.closure_reason).to be_nil
     end
 
     it "leaves a failed investigate/submit_report step for the normal Retry path" do

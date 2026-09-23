@@ -17,7 +17,7 @@ module Filters
         PRESETS = %w[
           pinned in_progress paused backlog queued triaging inbox awaiting_approval just_failed
           stale blocked merged_this_week awaiting_epic needs_review landing_queue
-          waiting_for_upstream promotion_pending delivery_needs_attention
+          waiting_for_upstream promotion_pending delivery_needs_attention investigations
         ].freeze
 
         # How far back to look for the relevant change delivery-track candidates
@@ -105,6 +105,15 @@ module Filters
             and_node(
               chip_node("state", "is", "open"),
               chip_node("validity", "is_one_of", %w[duplicate already_implemented])
+            )
+          },
+          # Open investigation Jobs -- most usefully those in :implemented,
+          # awaiting the operator's review of the submitted report (see
+          # Workflows::Investigation, which no longer auto-closes them).
+          "investigations"     => -> {
+            and_node(
+              chip_node("state", "is", "open"),
+              chip_node("investigation", "is_true", nil)
             )
           }
         }.freeze
@@ -237,6 +246,14 @@ module Filters
 
         def apply_landing_queue
           scope.landing_queue.without_requested_changes_attention
+        end
+
+        # Open investigation Jobs. Deliberately not narrowed to :implemented
+        # here (unlike awaiting_approval) so a running or queued
+        # investigation still shows up while it's in flight -- most of the
+        # count will be :implemented Jobs awaiting review, in practice.
+        def apply_investigations
+          scope.open_threads.where(investigation: true)
         end
 
         # A Job with an open promotion or upstream-export PR (JobPrLink role

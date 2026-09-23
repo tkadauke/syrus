@@ -85,6 +85,7 @@ class SmartFolder < ApplicationRecord
     { key: "landing_queue",    name: "Landing queue",          visibility: :when_present, filter: user_job_attention_preset_filter("landing_queue") },
     { key: "just_failed",      name: "Just failed",            visibility: :when_present, filter: user_job_attention_preset_filter("just_failed") },
     { key: "blocked",          name: "Blocked",                visibility: :when_present, filter: user_job_attention_preset_filter("blocked") },
+    { key: "investigations",   name: "Investigations",         visibility: :when_present, filter: user_job_attention_preset_filter("investigations") },
 
     # Tier 2.5: the relevant change delivery-track surfaces. Only ever populated for
     # repositories that have opted into `delivery.promotion`/`hotfix_sync`/

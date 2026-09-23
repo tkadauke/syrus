@@ -450,8 +450,8 @@ class Job < ApplicationRecord
 
   # A direct Job marked investigation-only at creation time (see
   # InvestigationJobs::Creator): no PR is expected. Drives
-  # Workflows::Investigation (prepare -> investigate -> submit_report ->
-  # auto_close) instead of Workflows::Initial in #create_initial_run, so a
+  # Workflows::Investigation (prepare -> investigate -> submit_report)
+  # instead of Workflows::Initial in #create_initial_run, so a
   # blank diff never dead-ends the Job in the generic no_changes closure
   # with no narrative captured.
   def investigation_launch?
@@ -1237,15 +1237,20 @@ class Job < ApplicationRecord
   def current_run
     runs.reorder(created_at: :desc, id: :desc).first
   end
-  SUCCESSFUL_CLOSURE_REASONS = %w[
-    pr_merged
-    external_pr_merged
-    pr_approved
-    no_changes
-    promotion_landed
-    hotfix_sync_landed
-    investigation_reported
-    emergency_landed
+  # The closure reason an operator (or the close_job_successfully chat/admin
+  # tool) applies to an investigation Job after reviewing its submitted
+  # report -- see Workflows::Investigation. Investigation Jobs never close
+  # themselves; this is only ever applied by an explicit operator action.
+  INVESTIGATION_REPORTED_CLOSURE_REASON = "investigation_reported".freeze
+  SUCCESSFUL_CLOSURE_REASONS = [
+    "pr_merged",
+    "external_pr_merged",
+    "pr_approved",
+    "no_changes",
+    "promotion_landed",
+    "hotfix_sync_landed",
+    INVESTIGATION_REPORTED_CLOSURE_REASON,
+    "emergency_landed"
   ].freeze
   # --- needs_attention flag --------------------------------------------------
   # Called by RunJob after a non-rebase run fails. Increments the

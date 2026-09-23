@@ -85,6 +85,16 @@ RSpec.describe Filters::Chips::Jobs::Attention do
       )
     end
 
+    it "expands investigations as open AND investigation=true" do
+      investigations = described_class.expansion_for("investigations")
+      expect(investigations).to eq(
+        "and" => [
+          { "field" => "state", "op" => "is", "value" => "open" },
+          { "field" => "investigation", "op" => "is_true", "value" => nil }
+        ]
+      )
+    end
+
     it "returns nil for unknown values" do
       expect(described_class.expansion_for("not_a_preset")).to be_nil
     end
@@ -95,7 +105,7 @@ RSpec.describe Filters::Chips::Jobs::Attention do
       expansions = described_class.expansions
       expect(expansions.keys).to match_array(%w[
         pinned in_progress paused backlog queued inbox awaiting_approval just_failed
-        stale blocked merged_this_week awaiting_epic needs_review
+        stale blocked merged_this_week awaiting_epic needs_review investigations
       ])
     end
   end

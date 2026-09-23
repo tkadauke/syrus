@@ -56,7 +56,7 @@ prompt. `Job#investigation_launch?` (`direct? && investigation?`) is what
 `Job#create_initial_run` checks to dispatch this chain instead of
 `Workflows::Initial`.
 
-**Step chain:** `prepare → investigate → submit_report → auto_close`
+**Step chain:** `prepare → investigate → submit_report`
 
 Investigation Jobs are for read-only exploration — QA walkthroughs, audits,
 "why is X slow" questions — where no PR is ever expected and no code change
@@ -79,18 +79,41 @@ defined by a submitted report, never by a diff, so this chain always reaches
 a narrative-producing step instead of dead-ending in the generic
 `no_changes` closure with nothing captured.
 
-`auto_close` then closes the Job as part of normal step progression, the
-same non-agentic terminal step `agent_insight` uses — but with
-`closure_reason: "investigation_reported"` instead of the Job's own `kind`
-(always `"direct"` for an investigation Job, which would collapse into the
-same generic reason any other direct Job's PR-less no-op could produce).
-`investigation_reported` is a `Job::SUCCESSFUL_CLOSURE_REASONS` entry, so a
-completed investigation satisfies dependency gates and counts as a
-successful outcome like `no_changes` or `pr_merged` do. Unlike
-`agent_insight`, this trigger kind does not set `owns_job_lifecycle`: a
-failed `investigate`/`submit_report` step leaves the Job on the normal
-`:failed` → Retry path instead of always closing, since investigation Jobs
-are operator-facing, not infrastructure.
+Unlike `agent_insight` (which ends its chain in the non-agentic `auto_close`
+step and closes its anchor Job immediately), an investigation Job does NOT
+auto-close once `submit_report` succeeds. This trigger kind does not set
+`owns_job_lifecycle`, so the ordinary `Workflows::JobLifecyclePropagation`
+success/failure propagation applies the same way it does for a bare
+`implement`/`respond` chain: a successful workflow carries the Job from
+`:running` to `:implemented` — the same "done, awaiting operator review"
+state a PR-based Job reaches after `pr_open` — and a failed
+`investigate`/`submit_report` step leaves the Job on the normal `:failed` →
+Retry path. Investigation Jobs are operator-facing, not infrastructure, so a
+submitted report should surface for review, not disappear the instant it's
+written.
+
+The operator reviews the report and closes the Job explicitly once satisfied
+— either the Job detail page's **Close** header action
+(`POST /api/v1/app/jobs/:job_id/close_investigation`,
+`JobLifecycleController#close_investigation`, gated on `investigation? &&
+implemented?`) or the `close_job_successfully` chat/admin MCP tool. Both
+paths apply `closure_reason: "investigation_reported"`
+(`Job::INVESTIGATION_REPORTED_CLOSURE_REASON`) — a
+`Job::SUCCESSFUL_CLOSURE_REASONS` entry, so a completed and reviewed
+investigation satisfies dependency gates and counts as a successful outcome
+like `no_changes` or `pr_merged` do. Nothing closes an investigation Job
+automatically.
+
+**Filtering and the Investigations smart folder:** the `investigation`
+boolean filter chip (`Filters::Chips::Jobs::Investigation`) lets operators
+filter the Jobs list directly by `Job#investigation`. The `investigations`
+attention preset (`Filters::Chips::Jobs::Attention`) matches open
+investigation Jobs, and the built-in **Investigations** smart folder
+(`SmartFolder::JOB_BUILTINS`, `visibility: :when_present`) surfaces it in the
+sidebar whenever there's an investigation Job to look at — most usefully
+ones sitting in `:implemented` awaiting review. Separately, the existing
+`inbox` preset already ORs in `state == "implemented"`, so a reviewable
+investigation Job surfaces there too with no extra wiring.
 
 **Job detail rendering:** since an investigation Job never reaches `pr_open`,
 its Job detail page swaps the PR-shaped Summary tab for a **Report** tab
@@ -101,7 +124,12 @@ findings, plus any referenced artifacts/screenshots resolved against
 `Workflow#artifacts["typed_artifacts"]` and rendered with the same
 `ArtifactBody` renderer the Artifacts tab uses. The PR-only Review tab is
 hidden entirely for investigation Jobs; other tabs (Workflows, Agent
-Conversation, Timeline, Artifacts, Source, etc.) are unaffected.
+Conversation, Timeline, Artifacts, Source, etc.) are unaffected. Because an
+investigation Job's `:implemented` state is shared with the normal
+approve-and-land pipeline, `App::JobDetailPayload#actions_json` also excludes
+`investigation?` Jobs from `can_approve`/`reviewable_job` and exposes
+`can_close_investigation` instead, so the Job detail header shows **Close**
+rather than **Approve**/**Land** for a reviewable investigation Job.
 
 ## pr_comment
 
