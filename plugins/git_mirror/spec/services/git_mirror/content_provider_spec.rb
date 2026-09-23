@@ -102,6 +102,12 @@ RSpec.describe GitMirror::ContentProvider do
     expect(result.commits.sole).to have_attributes(sha: sha, message: "Implement feature", authored_at: Time.zone.parse("2026-09-22T12:00:00Z"))
   end
 
+  it "reads a commit's tree SHA" do
+    stub_mirror("tree_sha", { revision: sha }, body: { tree_sha: "t" * 40 }.to_json)
+
+    expect(provider.tree_sha(sha)).to eq("t" * 40)
+  end
+
   describe "errors" do
     it "treats a missing file in a known commit as final" do
       stub_mirror("blob", { revision: sha, path: "gone" }, status: 404, body: error("not_found"))

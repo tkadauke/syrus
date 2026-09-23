@@ -163,6 +163,22 @@ module RepositoryContent
       result
     end
 
+    # The id of a commit's root tree object -- what two revisions share when
+    # they produced identical content, immutable per revision like #tree.
+    def tree_sha(revision)
+      id = revision_id(revision)
+      key = cache_key("tree_sha", id)
+      cached = cache.read(key)
+      if cached
+        record(CACHE_PROVIDER, :tree_sha, "answered")
+        return cached
+      end
+
+      result = through_chain(:tree_sha) { |provider| provider.tree_sha(id) }
+      cache.write(key, result, expires_in: CONTENT_CACHE_TTL)
+      result
+    end
+
     # The provider instances that will be asked, in order. Exposed for
     # diagnostics.
     def providers

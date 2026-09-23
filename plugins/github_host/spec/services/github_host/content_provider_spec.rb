@@ -194,6 +194,22 @@ RSpec.describe GithubHost::ContentProvider do
     end
   end
 
+  describe "#tree_sha" do
+    it "reads the commit's root tree SHA" do
+      allow(client).to receive(:commit_tree_sha).with("acme/widgets", sha).and_return("t" * 40)
+
+      expect(provider.tree_sha(sha)).to eq("t" * 40)
+    end
+
+    it "reports an unknown revision and a rate limit distinctly" do
+      allow(client).to receive(:commit_tree_sha).with("acme/widgets", "gone").and_raise(Octokit::NotFound)
+      allow(client).to receive(:commit_tree_sha).with("acme/widgets", sha).and_raise(rate_limited)
+
+      expect { provider.tree_sha("gone") }.to raise_error(RepositoryContent::UnknownRevision)
+      expect { provider.tree_sha(sha) }.to raise_error(RepositoryContent::Unavailable)
+    end
+  end
+
   it "answers through RepositoryContent end to end" do
     allow(GithubClient).to receive(:for).and_return(client)
     allow(client).to receive(:commit_sha_for).and_return(sha)

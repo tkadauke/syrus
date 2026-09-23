@@ -74,6 +74,10 @@ module Syrus
     #                                    newest-first, plus that merge
     #                                    base's revision id. Optional: the
     #                                    default raises Unsupported.
+    #   tree_sha(revision_id)          -> String, the id of the commit's root
+    #                                    tree object -- what two revisions
+    #                                    share when they produced identical
+    #                                    content. Optional.
     #
     # Errors decide what the chain does next. Raise RepositoryContent::
     # Unavailable, Unsupported, or UnknownRevision to let the next provider
@@ -138,6 +142,10 @@ module Syrus
 
       def history(_base_id, _head_id)
         raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not list commit history"
+      end
+
+      def tree_sha(_revision_id)
+        raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not read commit tree SHAs"
       end
     end
   end

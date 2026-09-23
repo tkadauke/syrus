@@ -145,6 +145,43 @@ func TestRefsAndRevisionRelation(t *testing.T) {
 	}
 }
 
+// TreeSHA answers the question the landing path actually asks: would this
+// commit's tree be identical to another's. Two commits with the same files
+// share a tree SHA even though their commit SHAs (and history) differ; a
+// commit that changed a file does not.
+func TestTreeSHA(t *testing.T) {
+	u := newUpstream(t)
+	first := u.commit(map[string]string{"a.txt": "1"}, "first")
+	changed := u.commit(map[string]string{"a.txt": "2"}, "changed")
+	sameTree := u.commit(map[string]string{"a.txt": "1"}, "revert back to first's content")
+	s := newStore(t, nil)
+	register(t, s, "42", u)
+	ctx := context.Background()
+
+	firstTree, err := s.TreeSHA(ctx, "42", first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sameTreeTree, err := s.TreeSHA(ctx, "42", sameTree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changedTree, err := s.TreeSHA(ctx, "42", changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstTree == "" || firstTree != sameTreeTree {
+		t.Fatalf("tree SHAs for identical content differ: %q vs %q", firstTree, sameTreeTree)
+	}
+	if changedTree == firstTree {
+		t.Fatalf("tree SHA did not change for changed content: %q", changedTree)
+	}
+
+	if _, err := s.TreeSHA(ctx, "42", strings.Repeat("0", 40)); !errors.Is(err, ErrUnknownRevision) {
+		t.Fatalf("unknown commit: got %v, want ErrUnknownRevision", err)
+	}
+}
+
 // The distinction the whole content contract rests on: a missing file in a
 // known commit is final; a commit the mirror has never seen is not.
 func TestMissingFileIsNotFoundButUnknownCommitIsUnknownRevision(t *testing.T) {

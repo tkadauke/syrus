@@ -84,6 +84,10 @@ module GitMirror
       json(request(Net::HTTP::Get, "/v1/repositories/#{id}/history", query: { base: base, head: head }))
     end
 
+    def tree_sha(id, revision)
+      json(request(Net::HTTP::Get, "/v1/repositories/#{id}/tree_sha", query: { revision: revision })).fetch("tree_sha")
+    end
+
     private
 
     def request(klass, path, query: nil, body: nil, read_timeout: READ_TIMEOUT)

@@ -12,6 +12,7 @@
 //	GET    /v1/repositories/{id}/refs?pattern=&max_age=
 //	GET    /v1/repositories/{id}/relation?base=&head=
 //	GET    /v1/repositories/{id}/history?base=&head=
+//	GET    /v1/repositories/{id}/tree_sha?revision=
 //	GET    /v1/repositories/{id}/info/refs?service=git-upload-pack   smart-HTTP clone/fetch
 //	POST   /v1/repositories/{id}/git-upload-pack
 //
@@ -61,6 +62,7 @@ type Store interface {
 	Refs(ctx context.Context, id, pattern string, maxAge time.Duration) ([]mirror.Ref, error)
 	Relation(ctx context.Context, id, base, head string) (string, error)
 	History(ctx context.Context, id, base, head string) (mirror.History, error)
+	TreeSHA(ctx context.Context, id, revision string) (string, error)
 	RepoDir(id string) (string, error)
 }
 
@@ -88,6 +90,7 @@ func NewWithLogger(store Store, token string, logger *log.Logger) http.Handler {
 	mux.Handle("GET /v1/repositories/{id}/refs", s.auth(s.refs))
 	mux.Handle("GET /v1/repositories/{id}/relation", s.auth(s.relation))
 	mux.Handle("GET /v1/repositories/{id}/history", s.auth(s.history))
+	mux.Handle("GET /v1/repositories/{id}/tree_sha", s.auth(s.treeSHA))
 	mux.Handle("GET /v1/repositories/{id}/info/refs", s.auth(s.infoRefs))
 	mux.Handle("POST /v1/repositories/{id}/git-upload-pack", s.auth(s.uploadPack))
 	if logger == nil {
@@ -385,6 +388,15 @@ func readCGIResponse(r *bufio.Reader) (http.Header, int, error) {
 		}
 	}
 	return http.Header(header), status, nil
+}
+
+func (s *server) treeSHA(w http.ResponseWriter, r *http.Request) {
+	treeSHA, err := s.store.TreeSHA(r.Context(), r.PathValue("id"), r.URL.Query().Get("revision"))
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"tree_sha": treeSHA})
 }
 
 func maxAgeFrom(r *http.Request) (time.Duration, bool) {

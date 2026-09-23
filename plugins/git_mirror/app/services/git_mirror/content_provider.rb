@@ -96,6 +96,10 @@ module GitMirror
       RepositoryContent::CommitHistory.new(commits: commits, merge_base_id: result["merge_base_id"])
     end
 
+    def tree_sha(revision_id)
+      registered { @client.tree_sha(mirror_id, revision_id) }
+    end
+
     # Repository id as the mirror knows it. Public so adapters over this
     # provider (e.g. GitMirror::WorkspaceGitTransport, which builds a git URL
     # the JSON client never needs) can address the same repository without

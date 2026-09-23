@@ -57,6 +57,11 @@ class FakeRepositoryContentProvider
       @histories ||= {}
     end
 
+    # { revision_id => tree_sha }
+    def tree_shas
+      @tree_shas ||= {}
+    end
+
     # Hook for forbid_repository_changes!.
     def changes_requested; end
 
@@ -74,6 +79,7 @@ class FakeRepositoryContentProvider
       @changed_paths = {}
       @diffs = {}
       @histories = {}
+      @tree_shas = {}
       @failures = {}
       @calls = []
     end
@@ -146,6 +152,14 @@ class FakeRepositoryContentProvider
     raise RepositoryContent::Truncated.new("truncated", partial: entry[:history]) if entry[:truncated]
 
     entry[:history]
+  end
+
+  # The tree SHA stubbed for this revision with stub_repository_tree_sha, or
+  # Unsupported -- the default every real provider falls back to -- when
+  # nothing has stubbed one.
+  def tree_sha(revision_id)
+    record(:tree_sha, revision_id)
+    self.class.tree_shas.fetch(revision_id) { raise RepositoryContent::Unsupported, "no tree sha stubbed for #{revision_id}" }
   end
 
   private
@@ -238,6 +252,13 @@ module RepositoryContentHelpers
   def ensure_fake_ref(repository, ref)
     existing = FakeRepositoryContentProvider.snapshots.dig(repository.id, ref, :id)
     existing || stub_repository_content(repository, ref: ref, files: {}).id
+  end
+
+  # The tree SHA #tree_sha reports for `revision_id` -- an opaque commit id,
+  # not necessarily one stubbed via stub_repository_content.
+  def stub_repository_tree_sha(revision_id, tree_sha)
+    use_fake_repository_content!
+    FakeRepositoryContentProvider.tree_shas[revision_id] = tree_sha
   end
 
   def stub_repository_content_failure(repository, error)
