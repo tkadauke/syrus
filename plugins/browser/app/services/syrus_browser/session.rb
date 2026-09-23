@@ -1,23 +1,34 @@
 require "mcp"
 
 module SyrusBrowser
-  # Spawns and owns a single @playwright/mcp stdio subprocess for the
-  # lifetime of one owning session -- a workflow Run (visual_review) or a
-  # Coding Mode chat's RuntimeSession (see SessionContext). One browser (and
-  # one MCP::Client connection to it) is reused across every browser_* tool
-  # call for that owner, so a multi-step flow (navigate, then click, then
-  # screenshot) sees the same page Playwright left it in.
+  # Owns a single connection to @playwright/mcp for the lifetime of one
+  # owning session -- a workflow Run (visual_review) or a Coding Mode chat's
+  # RuntimeSession (see SessionContext). One browser (and one MCP::Client
+  # connection to it) is reused across every browser_* tool call for that
+  # owner, so a multi-step flow (navigate, then click, then screenshot) sees
+  # the same page Playwright left it in.
   #
-  # `@playwright/mcp` is Microsoft's own MCP server for Playwright, baked
-  # into the worker image (see Dockerfile's worker-deps stage) and bundled
-  # here as a stdio subprocess rather than hand-rolled Playwright bindings.
-  # `--isolated` gives each Run a throwaway browser profile; `--headless` is
-  # required since the worker container has no display server. The command
-  # uses the globally installed `playwright-mcp` binary from the worker image,
-  # rather than `npx @playwright/mcp`, so npm cannot silently resolve a newer
-  # schema at runtime. The executable path is explicit because @playwright/mcp
-  # otherwise defaults to the branded Chrome channel in some environments,
-  # while Syrus workers ship Playwright's bundled Chromium.
+  # `@playwright/mcp` is Microsoft's own MCP server for Playwright. Two
+  # transports reach it, both through the same MCP::Client (see
+  # docs/syrus_docs/browser.md for the full contract):
+  #
+  # - `.spawn_stdio` -- baked into the worker image (see Dockerfile's
+  #   worker-deps stage) and run as a per-owner stdio subprocess, exactly as
+  #   before. `--isolated` gives each owner a throwaway browser profile;
+  #   `--headless` is required since the worker container has no display
+  #   server. The command uses the globally installed `playwright-mcp`
+  #   binary from the worker image, rather than `npx @playwright/mcp`, so
+  #   npm cannot silently resolve a newer schema at runtime. The executable
+  #   path is explicit because @playwright/mcp otherwise defaults to the
+  #   branded Chrome channel in some environments, while Syrus workers ship
+  #   Playwright's bundled Chromium.
+  # - `.spawn_service` -- the same server run as a container-backed Plugin
+  #   Runtime service (`playwright-mcp --port`), reached over streamable
+  #   HTTP MCP via `MCP::Client::HTTP`. Used whenever
+  #   `SyrusBrowser::Configuration.endpoint` answers an address -- a Browser
+  #   Plugin Runtime service is registered and its health check is passing
+  #   (see `PluginRuntime::Services.endpoint_for`); `.spawn` is the
+  #   fallback-selecting entry point SessionRegistry actually uses.
   class Session
     DEFAULT_COMMAND = "playwright-mcp".freeze
     DEFAULT_EXECUTABLE_PATH = "/opt/syrus-browser/chromium".freeze
@@ -49,8 +60,33 @@ module SyrusBrowser
       ENV.fetch("SYRUS_BROWSER_EXECUTABLE_PATH", DEFAULT_EXECUTABLE_PATH)
     end
 
+    # Fallback-selecting entry point: SessionRegistry's default factory calls
+    # this, not .spawn_stdio/.spawn_service directly. Reaches for the Browser
+    # Plugin Runtime service when one is registered and healthy
+    # (SyrusBrowser::Configuration.endpoint), and falls back to the bundled
+    # stdio subprocess otherwise -- the service is meant as a faster,
+    # isolated path in front of the same @playwright/mcp behavior, never a
+    # hard requirement. See docs/syrus_docs/browser.md.
     def self.spawn(session_key, command: DEFAULT_COMMAND, args: default_args, env: nil)
+      endpoint = Configuration.endpoint
+      return spawn_service(session_key, endpoint: endpoint) if endpoint
+
+      spawn_stdio(session_key, command: command, args: args, env: env)
+    end
+
+    def self.spawn_stdio(session_key, command: DEFAULT_COMMAND, args: default_args, env: nil)
       new(session_key, command: command, args: args, env: default_env.merge(env.to_h))
+    end
+
+    # Connects to the Browser Plugin Runtime service instead of spawning a
+    # local subprocess. The service is the same @playwright/mcp binary run
+    # with `--port` (streamable HTTP MCP, served at `<endpoint>/mcp`), so
+    # MCP::Client::HTTP -- the same transport-agnostic MCP::Client this class
+    # already uses for stdio -- needs no protocol-specific handling in
+    # #call_tool/#close.
+    def self.spawn_service(session_key, endpoint:, headers: {})
+      url = "#{endpoint.to_s.chomp('/')}/mcp"
+      new(session_key, transport: MCP::Client::HTTP.new(url: url, headers: headers))
     end
 
     def self.default_env
@@ -60,9 +96,11 @@ module SyrusBrowser
       }
     end
 
-    def initialize(session_key, command: DEFAULT_COMMAND, args: self.class.default_args, env: nil)
+    # `transport:` lets .spawn_service inject an already-built MCP::Client::HTTP
+    # instead of the default stdio transport built from command/args/env.
+    def initialize(session_key, command: DEFAULT_COMMAND, args: self.class.default_args, env: nil, transport: nil)
       @session_key = session_key
-      @transport = MCP::Client::Stdio.new(command: command, args: args, env: env)
+      @transport = transport || MCP::Client::Stdio.new(command: command, args: args, env: env)
       @client = MCP::Client.new(transport: @transport)
       @connected = false
       @browser_state_cleared = false
