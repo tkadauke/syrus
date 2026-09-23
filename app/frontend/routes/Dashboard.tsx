@@ -22,7 +22,7 @@ import { ColumnsIcon } from "../components/ColumnsIcon"
 import { PageHeading } from "../components/Heading"
 import { TonePill } from "../components/StatusPill"
 import { FilterBar } from "../components/FilterBar"
-import { Notice, Page, Section, Surface, Text } from "../components/ui"
+import { Notice, Page, Section, Surface, Text, usePageGutterRestoreClassName } from "../components/ui"
 import { SyrusTour } from "../components/SyrusTour"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { useTour } from "../hooks/useTour"
@@ -177,16 +177,17 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   })
   const readiness = bootstrap.data?.setup_status?.readiness
   const { t } = useT("dashboard")
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
 
   return (
     <Page.Root aria-label={t("title")} className="space-y-5" gutter="responsive" size="wide">
-      <Page.Header className="items-center gap-3 px-4 sm:px-0">
+      <Page.Header className="items-center gap-3">
         <PageHeading className="flex-1">{t("title")}</PageHeading>
         {isDesktop ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} isDesktop={isDesktop} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </Page.Header>
-      <ReadinessPanel className="mx-4 sm:mx-0" prefix={prefix} readiness={readiness} />
-      <RepositoryHealthBanners className="mx-4 sm:mx-0" prefix={prefix} repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []} />
+      <ReadinessPanel className={marginGutterRestore} prefix={prefix} readiness={readiness} />
+      <RepositoryHealthBanners className={marginGutterRestore} prefix={prefix} repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []} />
 
       {isDesktop ? (
         <>
@@ -415,7 +416,7 @@ function DesktopDashboardControls({ payload, pathname, search }: { payload: Dash
 function MobileDashboardControls({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
   const { t } = useT("dashboard")
   return (
-    <div className="space-y-3 px-4 sm:px-0">
+    <Page.Nav className="space-y-3">
       <div aria-label={t("controls_label")} className="flex items-center justify-between gap-3 pb-1" role="group">
         <div className="min-w-0 flex-1 overflow-x-auto">
           <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface text-sm" pathname={pathname} payload={payload} prefix={prefix} />
@@ -433,7 +434,7 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
           <DashboardSmartFolderNav payload={payload} prefix={prefix} search={search} />
         </div>
       </details>
-    </div>
+    </Page.Nav>
   )
 }
 
@@ -450,12 +451,13 @@ export function DashboardContent({ payload, pathname, prefix, search }: { payloa
   const setupStatus = useSetupStatus()
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const { t } = useT("dashboard")
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
 
   if (payload.view === "dependencies") {
     if (!isDesktop) {
       return (
         <section className="min-w-0 space-y-4">
-          <Surface className="mx-4 sm:mx-0" padding="lg"><Text muted>{t("dependencies_mobile_unavailable")}</Text></Surface>
+          <Surface className={marginGutterRestore} padding="lg"><Text muted>{t("dependencies_mobile_unavailable")}</Text></Surface>
         </section>
       )
     }
@@ -682,6 +684,7 @@ const legacyFilterKeys = ["state", "repository_id", "kind", "trigger_kind", "job
 export function DashboardTable({ payload, pathname = "", prefix, search = "", setupStatus }: { payload: DashboardPayload; pathname?: string; prefix: string; search?: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
   const updateSort = useMutation({
     mutationFn: updateDashboardPreferences,
     onSuccess: () => {
@@ -743,7 +746,7 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
   }
 
   if (payload.rows_current_for_search === false) {
-    return <Surface className="mx-4 sm:mx-0" padding="lg"><Text muted>{t("loading")}</Text></Surface>
+    return <Surface className={marginGutterRestore} padding="lg"><Text muted>{t("loading")}</Text></Surface>
   }
 
   if (payload.view === "kanban") return <DashboardKanban payload={payload} prefix={prefix} rowsSearch={dashboardApiSearch(pathname, search)} setupStatus={setupStatus} />
@@ -763,7 +766,7 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
       )
     }
 
-    return <Surface className="mx-4 sm:mx-0" padding="lg"><Text muted>{t("no_match", { subject: subjectLabel(payload.subject, 2) })}</Text></Surface>
+    return <Surface className={marginGutterRestore} padding="lg"><Text muted>{t("no_match", { subject: subjectLabel(payload.subject, 2) })}</Text></Surface>
   }
 
   const columns = dashboardVisibleColumns(payload)
@@ -792,13 +795,14 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
 
 function Pagination({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
   const { t } = useT("dashboard")
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
   if (payload.total_pages <= 1) return null
 
   const firstItem = (payload.page - 1) * payload.per_page + 1
   const lastItem = Math.min(payload.page * payload.per_page, payload.total)
 
   return (
-    <div className="mx-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300 sm:mx-0">
+    <div className={`flex items-center justify-between text-sm text-gray-600 dark:text-gray-300 ${marginGutterRestore}`}>
       <span>{payload.total_estimated ? t("showing_pagination_estimated", { first: firstItem, last: lastItem }) : t("showing_pagination", { first: firstItem, last: lastItem, total: payload.total })}</span>
       <div className="flex gap-2">
         {payload.page > 1 ? (

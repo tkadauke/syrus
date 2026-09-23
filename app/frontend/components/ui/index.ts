@@ -39,8 +39,8 @@ export type { ModalProps } from "../Modal"
 export { Notice } from "./Notice"
 export type { NoticeProps, NoticeTone } from "./Notice"
 
-export { Page } from "./Page"
-export type { PageRootProps, PageSize } from "./Page"
+export { Page, usePageGutter, usePageGutterRestoreClassName } from "./Page"
+export type { PageGutter, PageRootProps, PageSize } from "./Page"
 
 export { PanelMessage } from "../PanelMessage"
 
