@@ -62,17 +62,20 @@ module Steps
       (BASE_ENV_FORWARD + plugin_keys).uniq.freeze
     end
 
-    # Companion to .prep_env_forward for values a plugin computes per
-    # Workflow rather than merely names to copy through from the worker
-    # pod's own ENV (see Syrus::Plugin::StepEnvironment#extra_env) -- a
-    # per-Workflow daemon port, say. Optional on the provider; most
-    # :step_environment providers only need #forwarded_env_keys.
-    def self.prep_extra_env(workflow:, workspace_path:)
+    # Companion to .prep_env_forward for values a plugin computes per scope
+    # rather than merely names to copy through from the worker pod's own ENV
+    # (see Syrus::Plugin::StepEnvironment#extra_env) -- a per-Workflow daemon
+    # port, say. `scope` is a PrepareScope: workflow Steps build one with
+    # PrepareScope.for_workflow, and non-Workflow callers like
+    # ChatWorkspacePrepareJob build one with PrepareScope.for_chat_session.
+    # Optional on the provider; most :step_environment providers only need
+    # #forwarded_env_keys.
+    def self.prep_extra_env(scope:, workspace_path:)
       Syrus::PluginRegistry.providers_for(:step_environment).each_with_object({}) do |provider, env|
         next unless provider.respond_to?(:extra_env)
 
         computed = PerformanceLogging.plugin_call(extension_point: :step_environment, provider: provider, operation: :extra_env) do
-          provider.extra_env(workflow: workflow, workspace_path: workspace_path)
+          provider.extra_env(scope: scope, workspace_path: workspace_path)
         end
         env.merge!(Hash(computed).transform_keys(&:to_s).transform_values(&:to_s)) if computed.present?
       rescue StandardError => e
@@ -374,7 +377,9 @@ module Steps
     def env
       ProcessRunner.forwarded_env(
         self.class.prep_env_forward,
-        extra: workspace_dependency_env.merge(self.class.prep_extra_env(workflow: workflow, workspace_path: workspace.path))
+        extra: workspace_dependency_env.merge(
+          self.class.prep_extra_env(scope: PrepareScope.for_workflow(workflow), workspace_path: workspace.path)
+        )
       )
     end
 

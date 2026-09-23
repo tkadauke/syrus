@@ -164,6 +164,37 @@ RSpec.describe ChatWorkspacePrepareJob do
     expect(chat_session.reload.coding_checkout_prepare_status).to eq("succeeded")
   end
 
+  it "forwards :step_environment plugin-contributed env keys into the prepare subprocess" do
+    path = make_checkout_path
+    plan = RepoPrepPlan::Result.new(commands: [ "bundle install" ], source: ".syrus.yml", note: nil)
+    allow(RepoPrepPlan).to receive(:for).and_return(plan)
+    ENV["SYRUS_TEST_STEP_ENV_KEY"] = "chat-prep-value"
+
+    fake_provider = Class.new do
+      def self.forwarded_env_keys = %w[SYRUS_TEST_STEP_ENV_KEY]
+
+      def self.extra_env(scope:, workspace_path:)
+        { "SYRUS_TEST_STEP_ENV_SCOPE" => scope.cache_key }
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:step_environment).and_return([ fake_provider ])
+
+    captured_env = nil
+    runner_double = double("ProcessRunner", run: success_result)
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      captured_env = kwargs[:env]
+      runner_double
+    end
+
+    described_class.perform_now(chat_session.id, repository.id)
+
+    expect(captured_env["SYRUS_TEST_STEP_ENV_KEY"]).to eq("chat-prep-value")
+    expect(captured_env["SYRUS_TEST_STEP_ENV_SCOPE"]).to eq("chat:#{chat_session.id}")
+  ensure
+    ENV.delete("SYRUS_TEST_STEP_ENV_KEY")
+  end
+
   it "runs all commands when each succeeds" do
     make_checkout_path
     plan = RepoPrepPlan::Result.new(commands: [ "bundle install", "npm ci" ], source: ".syrus.yml", note: nil)

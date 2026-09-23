@@ -154,7 +154,7 @@ module SyrusMcp
       def process_env(workflow)
         workspace_path = WorkflowWorkspace.path_for(workflow)
         extra = WorkspaceDependencyEnv.for(workspace_path).merge(
-          Steps::Prepare.prep_extra_env(workflow: workflow, workspace_path: workspace_path)
+          Steps::Prepare.prep_extra_env(scope: PrepareScope.for_workflow(workflow), workspace_path: workspace_path)
         )
         ProcessRunner.forwarded_env(Steps::Prepare.prep_env_forward, extra: extra)
       end

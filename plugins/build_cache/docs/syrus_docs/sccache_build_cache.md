@@ -22,7 +22,7 @@ Bucket creation and credential provisioning happen outside Syrus (no cloud/infra
 
 ## Environment variables
 
-These are forwarded into `prepare` and `grader` subprocess env by `Steps::Prepare::PREP_ENV_FORWARD` (also used by `Steps::Grader`) — see `.env.example` / `compose.env.example` for the same list with inline descriptions.
+These are forwarded into `prepare` and `grader` subprocess env by `Steps::Prepare.prep_env_forward` (also used by `Steps::Grader`, and — via `ChatWorkspaceEnv` — Coding Mode's chat workspace prepare and `!` shell commands) — see `.env.example` / `compose.env.example` for the same list with inline descriptions.
 
 | Variable | Required | Meaning |
 |---|---|---|
@@ -39,13 +39,15 @@ Verify this list against [sccache's S3 docs](https://github.com/mozilla/sccache/
 
 sccache supports normalizing away a base directory before hashing (`SCCACHE_BASEDIRS`), which lets a cache hit span builds run from different absolute paths. Syrus does **not** forward this by default — see the coverage-correctness note below. A repository can opt in to having Syrus manage this itself once its coverage build has proven it is path-remapped/safe (see "Repository opt-in: `basedirs_safe`" below) — do not hand-roll `export SCCACHE_BASEDIRS=...` inside a `.syrus.yml` grader command instead; see "Why hand-rolled `SCCACHE_BASEDIRS` in a grader command doesn't work" below for why that pattern silently fails.
 
-## Per-Workflow daemon isolation
+## Per-scope daemon isolation
 
 sccache is a client/server pair: the small CLI that masquerades as `cc`/`g++`/etc. is a *client* that talks to a long-running *server* process over a local TCP port. The server reads its entire backend and cache-key configuration — `SCCACHE_BUCKET` and friends, and `SCCACHE_BASEDIRS` — exactly once, when it starts. A client invocation's own environment only matters for the very first invocation that has to lazily spawn the server; every later invocation just reuses whatever server is already listening, regardless of that invocation's own env.
 
-Worker pods run multiple Workflows concurrently (`AppSetting.max_concurrent_agent_runs`), and by default sccache listens on one fixed port per host. That makes the daemon a de facto host-level singleton that can easily end up serving a completely different Workflow's, or even a stale/long-dead Workflow's, configuration — this was JOB-409's root cause: a grader command exported `SCCACHE_BASEDIRS`/pointed at the shared bucket, but a daemon that had already been started earlier (by `prepare`, an earlier grade iteration, or an unrelated Job on the same worker pod) was still serving requests with whatever env it had when *it* started, silently ignoring the later command's env entirely.
+Worker pods run multiple Workflows and Coding Mode chat sessions concurrently (`AppSetting.max_concurrent_agent_runs`), and by default sccache listens on one fixed port per host. That makes the daemon a de facto host-level singleton that can easily end up serving a completely different Workflow's, or even a stale/long-dead Workflow's, configuration — this was JOB-409's root cause: a grader command exported `SCCACHE_BASEDIRS`/pointed at the shared bucket, but a daemon that had already been started earlier (by `prepare`, an earlier grade iteration, or an unrelated Job on the same worker pod) was still serving requests with whatever env it had when *it* started, silently ignoring the later command's env entirely.
 
-`BuildCache::DaemonAddress.port_for(workflow)` derives a distinct `SCCACHE_SERVER_PORT` per Workflow (`20000 + workflow.id % 40000`). Both `Steps::Prepare` and `Steps::Grader` forward this via `BuildCache::StepEnvironment#extra_env` (the computed-value companion to `#forwarded_env_keys` on `Syrus::Plugin::StepEnvironment`), so every compiler invocation within one Workflow — across `prepare` and every `grader` Step — agrees on the same port, and that Workflow's first invocation (almost always during `prepare`) lazily spawns a daemon that is guaranteed to inherit *that Workflow's own, current* env: the S3 backend vars, and conditionally `SCCACHE_BASEDIRS` (see below). It is never a daemon left over from a different Workflow, and never shared with a concurrent one on the same pod. The daemon self-terminates after sccache's own idle timeout once the Workflow's compiles stop — an accepted, low resource cost for the correctness this buys.
+`BuildCache::DaemonAddress.port_for(scope)` derives a distinct `SCCACHE_SERVER_PORT` per `PrepareScope` (`app/services/prepare_scope.rb`) — hashing the scope's namespaced `cache_key` (e.g. `"workflow:42"` or `"chat:7"`) into the port range, so a Workflow and a ChatSession never derive the same port just because they happen to share a numeric id. `Steps::Prepare` and `Steps::Grader` build a `PrepareScope.for_workflow(workflow)`; `ChatWorkspacePrepareJob` and `ChatShellCommandExecutor::Coding` (via the shared `ChatWorkspaceEnv` helper) build a `PrepareScope.for_chat_session(chat_session, repository:)`. Both forward the computed port via `BuildCache::StepEnvironment#extra_env` (the computed-value companion to `#forwarded_env_keys` on `Syrus::Plugin::StepEnvironment`, gathered by `Steps::Prepare.prep_extra_env`), so every compiler invocation within one scope — across `prepare` and every `grader` Step, or across a Coding Mode chat session's prepare and its `!` shell commands — agrees on the same port, and that scope's first invocation (almost always during prepare) lazily spawns a daemon that is guaranteed to inherit *that scope's own, current* env: the S3 backend vars, and conditionally `SCCACHE_BASEDIRS` (see below). It is never a daemon left over from a different scope, and never shared with a concurrent one on the same pod. The daemon self-terminates after sccache's own idle timeout once the scope's compiles stop — an accepted, low resource cost for the correctness this buys.
+
+Coding Mode's chat workspace is a long-lived, persistent checkout (unlike a Workflow's ephemeral, never-reused clone) — but the same coverage-correctness reasoning below still holds: the checkout's absolute path doesn't change for the lifetime of the chat session, and `basedirs_safe` is a per-repository claim independent of how long a workspace at a given path lives, so no extra risk is introduced by wiring it into chat scopes too.
 
 ## Repository opt-in: `basedirs_safe`
 
@@ -56,7 +58,7 @@ GET   /api/v1/app/repositories/:id/build_cache_settings
 PATCH /api/v1/app/repositories/:id/build_cache_settings   { "basedirs_safe": true }
 ```
 
-When `basedirs_safe` is true, `BuildCache::RuntimeEnv` forwards `SCCACHE_BASEDIRS=<this Workflow's workspace path>` for that repository's `prepare`/`grader` subprocesses, for the whole Workflow — not scoped to a single grader command, since the opt-in itself is a repository-wide claim ("I have proved every coverage-relevant compile in this repo is path-remapped/stable"), and the daemon can only be configured once per Workflow regardless. Every other repository keeps sccache's default exact-path-match behavior. **Only set this after completing the two-path validation below** — an unproven repository that opts in gets exactly the `.gcno` cross-Workflow corruption risk this whole section exists to prevent.
+When `basedirs_safe` is true, `BuildCache::RuntimeEnv` forwards `SCCACHE_BASEDIRS=<this scope's workspace path>` for that repository's `prepare`/`grader` subprocesses (and, for Coding Mode, chat workspace prepare and `!` shell commands), for the whole scope — not scoped to a single grader command, since the opt-in itself is a repository-wide claim ("I have proved every coverage-relevant compile in this repo is path-remapped/stable"), and the daemon can only be configured once per scope regardless. Every other repository keeps sccache's default exact-path-match behavior. **Only set this after completing the two-path validation below** — an unproven repository that opts in gets exactly the `.gcno` cross-Workflow corruption risk this whole section exists to prevent.
 
 ### Why hand-rolled `SCCACHE_BASEDIRS` in a grader command doesn't work
 
@@ -77,8 +79,8 @@ Net effect: non-coverage C/C++ compiles get full cross-Workflow/cross-worker cac
 Syrus leaves `SCCACHE_BASEDIRS` out of the daemon env by default. A repository
 can opt in once it has proved its coverage build is path-stable, via the
 `basedirs_safe` setting described above — Syrus then manages the actual
-`SCCACHE_BASEDIRS` value itself (the Workflow's own workspace path), scoped
-safely per-Workflow (see "Per-Workflow daemon isolation" above). The
+`SCCACHE_BASEDIRS` value itself (the scope's own workspace path), scoped
+safely per-scope (see "Per-scope daemon isolation" above). The
 project-side work is unchanged: the validated `tkadauke/raytracer` approach
 below is the generic shape to copy, with project paths and thresholds replaced
 by local values.
@@ -221,12 +223,21 @@ the admin page, and the Job-detail card.
 Three core hooks make that possible. `Syrus::Plugin::StepEnvironment` lets the
 plugin contribute both the `SCCACHE_*`/`AWS_*` names `Steps::Prepare` forwards
 from the worker's own `ENV` into prepare/grader/deploy subprocesses
-(`#forwarded_env_keys`) and values it computes per Workflow --
+(`#forwarded_env_keys`) and values it computes per `PrepareScope` --
 `SCCACHE_SERVER_PORT` and conditionally `SCCACHE_BASEDIRS` -- through the
 companion `#extra_env` hook, gathered by `Steps::Prepare.prep_extra_env` and
-merged into both `Steps::Prepare#env` and `Steps::Grader#env`. The stats
-capture runs as a `domain_subscriber` on `step.command.completed`, an
-inline event published after each shell command a step runs, replacing the
+merged into `Steps::Prepare#env`, `Steps::Grader#env`, and (via the shared
+`ChatWorkspaceEnv` helper) Coding Mode's `ChatWorkspacePrepareJob` and
+`ChatShellCommandExecutor::Coding`. `PrepareScope` (core, `app/services/
+prepare_scope.rb`) is what makes the same hook usable outside a Workflow: it
+carries a namespaced id (`"workflow:<id>"` vs `"chat:<id>"`) plus the
+repository, so `BuildCache::DaemonAddress` derives collision-free ports across
+scope kinds and `BuildCache::RuntimeEnv` reads `basedirs_safe` off the right
+repository regardless of caller. The stats capture runs as a
+`domain_subscriber` on `step.command.completed`, an inline event published
+after each shell command a **workflow** step runs (Coding Mode prepare/`!`
+commands don't publish this event, so they get the env wiring above but not
+stats capture or mismatch detection yet), replacing the
 `Steps::Base#capture_sccache_stats!` call that three step classes used to make
 directly. Inline delivery is what lets the subscriber still reach the workspace
 and the command's own scrubbed environment before the workspace is torn down;
@@ -237,6 +248,6 @@ rather than a core-model association -- see `PluginDataCleanup`/
 
 Disabling the plugin stops the captures and mismatch warnings, drops the
 `SCCACHE_*` variables (both forwarded and computed) from step subprocesses (so
-sccache falls back to its local cache, unscoped per-Workflow), and removes the
+sccache falls back to its local cache, unscoped per-scope), and removes the
 admin page and the Job-detail card. The recorded artifacts, clear-request rows,
 and per-repository `basedirs_safe` settings are left alone.

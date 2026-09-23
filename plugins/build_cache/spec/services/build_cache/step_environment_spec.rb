@@ -30,23 +30,34 @@ RSpec.describe BuildCache::StepEnvironment do
   describe ".extra_env" do
     let(:job) { Factories.job }
     let(:workflow) { job.workflows.first }
+    let(:workflow_scope) { PrepareScope.for_workflow(workflow) }
 
-    it "computes a per-workflow SCCACHE_SERVER_PORT" do
-      env = described_class.extra_env(workflow: workflow, workspace_path: Pathname.new("/tmp/ws"))
+    it "computes a per-scope SCCACHE_SERVER_PORT" do
+      env = described_class.extra_env(scope: workflow_scope, workspace_path: Pathname.new("/tmp/ws"))
 
-      expect(env["SCCACHE_SERVER_PORT"]).to eq(BuildCache::DaemonAddress.port_for(workflow).to_s)
+      expect(env["SCCACHE_SERVER_PORT"]).to eq(BuildCache::DaemonAddress.port_for(workflow_scope).to_s)
     end
 
     it "reaches Steps::Prepare.prep_extra_env" do
-      extra = Steps::Prepare.prep_extra_env(workflow: workflow, workspace_path: Pathname.new("/tmp/ws"))
+      extra = Steps::Prepare.prep_extra_env(scope: workflow_scope, workspace_path: Pathname.new("/tmp/ws"))
 
-      expect(extra["SCCACHE_SERVER_PORT"]).to eq(BuildCache::DaemonAddress.port_for(workflow).to_s)
+      expect(extra["SCCACHE_SERVER_PORT"]).to eq(BuildCache::DaemonAddress.port_for(workflow_scope).to_s)
+    end
+
+    it "reaches Steps::Prepare.prep_extra_env for a chat-session scope too" do
+      chat_session = ChatSession.create!(user: job.user)
+      chat_scope = PrepareScope.for_chat_session(chat_session, repository: job.repository)
+
+      extra = Steps::Prepare.prep_extra_env(scope: chat_scope, workspace_path: Pathname.new("/tmp/ws"))
+
+      expect(extra["SCCACHE_SERVER_PORT"]).to eq(BuildCache::DaemonAddress.port_for(chat_scope).to_s)
+      expect(extra["SCCACHE_SERVER_PORT"]).not_to eq(BuildCache::DaemonAddress.port_for(workflow_scope).to_s)
     end
 
     it "is not computed when the plugin is disabled" do
       PluginRecord.find_or_create_by!(name: "build_cache").update!(enabled: false, disableable: true)
 
-      extra = Steps::Prepare.prep_extra_env(workflow: workflow, workspace_path: Pathname.new("/tmp/ws"))
+      extra = Steps::Prepare.prep_extra_env(scope: workflow_scope, workspace_path: Pathname.new("/tmp/ws"))
 
       expect(extra).not_to have_key("SCCACHE_SERVER_PORT")
     end
