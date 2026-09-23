@@ -345,6 +345,7 @@ export type DashboardSmartFolder = {
   subject_type: string
   visibility: string
   count: number | null
+  count_capped?: boolean
   blocked_count?: number | null
   active: boolean
   filter?: Record<string, unknown>
