@@ -296,9 +296,14 @@ export function FeedbackSourceBadge({ source }: { source: unknown }) {
 
 export function EpicSummaryLink({ epic, prefix }: { epic: NonNullable<JobDetailPayload["epic"]>; prefix: string }) {
   return (
-    <Link className="text-brand hover:underline" to={withRoutePrefix(epic.epic_path, prefix)}>
-      {epic.display_number} {epic.title}
-    </Link>
+    <span className="inline-flex flex-wrap items-center gap-1">
+      <SlugHoverCard id={epic.id} kind="epic">
+        <CopyableSlug slug={epic.display_number} />
+      </SlugHoverCard>
+      <Link className="text-brand hover:underline" to={withRoutePrefix(epic.epic_path, prefix)}>
+        {epic.title}
+      </Link>
+    </span>
   )
 }
 
