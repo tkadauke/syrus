@@ -83,12 +83,13 @@ export function upsertEntity<T extends Record<string, unknown>>(input: EntityInp
 
   if (current && compareRevision(incomingRevision, current.revision) < 0) return current
 
-  const nextFields = mergeFields(current?.fields, input.fields)
+  const fillOnly = current?.revision != null && incomingRevision == null
+  const nextFields = fillOnly ? fillUnknownFields(current.fields, input.fields, current.knownFields) : mergeFields(current?.fields, input.fields)
   const next: EntityRecord<T> = {
     id,
     kind,
-    revision: freshestRevision(current?.revision ?? null, incomingRevision),
-    completeness: freshestCompleteness(current?.completeness ?? "partial", input.completeness ?? "partial"),
+    revision: fillOnly ? current.revision : freshestRevision(current?.revision ?? null, incomingRevision),
+    completeness: fillOnly ? current.completeness : freshestCompleteness(current?.completeness ?? "partial", input.completeness ?? "partial"),
     fields: nextFields,
     knownFields: new Set([...Array.from(current?.knownFields ?? []), ...knownFieldNames(input.fields)]),
     sources: new Set([...Array.from(current?.sources ?? []), input.source ?? "unknown"]),
@@ -223,6 +224,14 @@ function mergeFields<T extends Record<string, unknown>>(current: T | undefined, 
   return next
 }
 
+function fillUnknownFields<T extends Record<string, unknown>>(current: T, incoming: T, knownFields: Set<string>) {
+  const next = { ...current } as T
+  Object.entries(incoming).forEach(([key, value]) => {
+    if (value !== undefined && !knownFields.has(key)) (next as Record<string, unknown>)[key] = value
+  })
+  return next
+}
+
 function knownFieldNames(fields: Record<string, unknown>) {
   return Object.entries(fields).flatMap(([key, value]) => value === undefined ? [] : [key])
 }
@@ -240,6 +249,7 @@ function freshestCompleteness(current: EntityCompleteness, incoming: EntityCompl
 }
 
 function freshestRevision(current: EntityRevision, incoming: EntityRevision) {
+  if (incoming == null) return current
   return compareRevision(incoming, current) >= 0 ? incoming : current
 }
 
