@@ -32,6 +32,7 @@
   "comment": "Commente",
   "comment_drawer_count_one": "{{count}} commentarium",
   "comment_drawer_count_other": "{{count}} commentaria",
+  "close_comment_drawer": "Commentaria claude",
   "current": "Praesens",
   "document_content": "Contentum documenti consilii",
   "edit": "Edere",

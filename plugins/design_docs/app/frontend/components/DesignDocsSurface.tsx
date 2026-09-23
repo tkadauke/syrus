@@ -5,6 +5,7 @@ import { Button, buttonClasses } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { ColumnVisibilityMenu, visibleColumnKeys } from "@app/components/ColumnVisibilityMenu"
 import { CopyableSlug } from "@app/components/CopyableSlug"
+import { DismissButton } from "@app/components/DismissButton"
 import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
 import { Select } from "@app/components/Select"
@@ -239,6 +240,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
           {detailQuery.isPending && effectiveId ? <Panel>{t("loading_doc")}</Panel> : null}
           {selectedDoc ? (
             <DesignDocEditor
+              compact={compact}
               doc={selectedDoc}
               key={selectedDoc.id}
               mode={mode}
@@ -513,7 +515,7 @@ function emptySelection(): SelectionRange {
   return { start: 0, end: 0, text: "", selectedText: "", rect: null }
 }
 
-function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; narrowView: boolean; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
+function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocChange }: { compact: boolean; doc: DesignDocDetail; mode: SurfaceMode; narrowView: boolean; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
   const { t } = useT("design_docs")
   const [draft, setDraft] = useState(doc.rendered_markdown || doc.markdown)
   const [editorMode, setEditorMode] = useState<EditorMode>("rich_text")
@@ -533,6 +535,7 @@ function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: {
   const [markdownScrollTop, setMarkdownScrollTop] = useState(0)
   const [forceEditable, setForceEditable] = useState(false)
   const [narrowDrawerOpen, setNarrowDrawerOpen] = useState(false)
+  const [narrowDrawerDismissed, setNarrowDrawerDismissed] = useState(false)
   const editingLocked = narrowView && !forceEditable
   const isArchived = doc.state === "archived"
   const canWriteCanonical = !isArchived && doc.permissions.can_write_canonical
@@ -700,8 +703,16 @@ function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: {
   function openSelectionComposer() {
     setFocusedThreadId(null)
     setFocusedSuggestionId(null)
-    if (narrowView) setNarrowDrawerOpen(true)
+    if (narrowView) {
+      setNarrowDrawerDismissed(false)
+      setNarrowDrawerOpen(true)
+    }
     window.setTimeout(() => newThreadComposerRef.current?.focus(), 0)
+  }
+
+  function dismissNarrowDrawer() {
+    setNarrowDrawerOpen(false)
+    setNarrowDrawerDismissed(true)
   }
 
   function handleAnchorMarkerClick(event: React.MouseEvent<HTMLElement>) {
@@ -856,7 +867,10 @@ function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: {
   // visible in the document flow.
   useEffect(() => {
     if (!narrowView) return
-    if (focusedThreadId != null || focusedSuggestionId != null) setNarrowDrawerOpen(true)
+    if (focusedThreadId != null || focusedSuggestionId != null) {
+      setNarrowDrawerDismissed(false)
+      setNarrowDrawerOpen(true)
+    }
   }, [narrowView, focusedThreadId, focusedSuggestionId])
 
   // Runs one commit after the effect above: threadRefs/suggestionRefs only
@@ -1030,7 +1044,7 @@ function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: {
         </Notice>
       ) : null}
       <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
-      <section className="min-w-0 space-y-4">
+      <section className={`min-w-0 space-y-4 ${narrowView && !compact && !narrowDrawerDismissed ? "pb-14" : ""}`}>
         <Section.Root className="overflow-visible p-0">
           {summaryVisible ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
@@ -1128,8 +1142,10 @@ function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: {
       <aside className="space-y-4">
           <ThreadPanel
           commentPending={commentMutation.isPending}
+          compact={compact}
           composerRef={newThreadComposerRef}
           doc={doc}
+          drawerDismissed={narrowDrawerDismissed}
           drawerOpen={narrowDrawerOpen}
           historicalVersion={historicalVersionForRail}
           historicalVersionLoading={historicalVersionLoadingForRail}
@@ -1147,6 +1163,7 @@ function DesignDocEditor({ doc, mode, narrowView, repositories, onDocChange }: {
           selection={selection}
           suggestionRefs={suggestionRefs}
           threadRefs={threadRefs}
+          onDismissDrawer={dismissNarrowDrawer}
           onDrawerOpenChange={setNarrowDrawerOpen}
           onFocus={focusThread}
           onFocusSuggestion={focusSuggestion}
@@ -1753,12 +1770,14 @@ function activeRailEntries({ doc, historicalVersion, historicalVersionLoading }:
   return { viewingHistory, entries }
 }
 
-function ThreadPanel({ canComment, canReviewSuggestions, commentPending, composerRef, doc, drawerOpen, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, narrowView, railEntries, railLayout, railContainerRef, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onDrawerOpenChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compact, composerRef, doc, drawerDismissed, drawerOpen, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, narrowView, railEntries, railLayout, railContainerRef, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onDismissDrawer, onDrawerOpenChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
   canComment: boolean
   canReviewSuggestions: boolean
   commentPending: boolean
+  compact: boolean
   composerRef: React.MutableRefObject<HTMLInputElement | null>
   doc: DesignDocDetail
+  drawerDismissed: boolean
   drawerOpen: boolean
   historicalVersion: { version: DesignDocVersion; threads: DesignDocThread[]; suggestions: DesignDocSuggestion[] } | null
   historicalVersionLoading: boolean
@@ -1775,6 +1794,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compose
   suggestionRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
   threadRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
   onComment: (body: string, onSuccess: () => void) => void
+  onDismissDrawer: () => void
   onDrawerOpenChange: (open: boolean) => void
   onFocus: (threadId: number) => void
   onFocusSuggestion: (suggestionId: number) => void
@@ -1834,32 +1854,43 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compose
   // absolute-positioned, anchor-aligned stack -- there is no adjacent
   // document column for cards to line up next to at this width.
   //
-  // `sticky`, not `fixed`: a chat workspace tab renders this inside its own
-  // `overflow-y-auto` side panel (WorkspaceDesignDocs.tsx), with no
-  // transform/filter ancestor to scope `fixed` to that panel -- a `fixed`
-  // drawer would escape to the full browser viewport and overlay the
-  // unrelated main chat conversation next to it, not just this panel.
-  // `position: sticky` resolves against the nearest actual scrolling
-  // ancestor (that panel, or the page itself on a real mobile viewport),
-  // transparently skipping every non-scrolling wrapper in between, and
-  // -- since it stays a normal-flow block instead of being pulled out of
-  // flow -- it also reserves its own space so the document body's last
-  // lines never end up hidden underneath it.
+  // `sticky` only inside `compact` (a chat workspace tab, which renders this
+  // inside its own `overflow-y-auto` side panel -- WorkspaceDesignDocs.tsx --
+  // with no transform/filter ancestor to scope `fixed` to that panel; a
+  // `fixed` drawer there would escape to the full browser viewport and
+  // overlay the unrelated main chat conversation next to it, not just this
+  // panel). On a real narrow *page* (the `/design_docs/:id` route, not
+  // embedded in chat), the drawer's own parent `<aside>` is only ever as
+  // tall as the drawer itself, so `sticky` has no room to travel and the
+  // drawer just renders in normal document flow -- appearing at the very
+  // bottom of the scrolled page instead of staying docked to the viewport
+  // while the document scrolls underneath it. `fixed` is the correct tool
+  // for that "always visible regardless of scroll position" behavior; the
+  // editor reserves matching bottom padding (see the `pb-14` class next to
+  // `narrowView && !compact` above) so the fixed bar never covers the last
+  // lines of document content.
   if (narrowView) {
+    if (drawerDismissed) return null
+
+    const positioningClass = compact ? "sticky bottom-0" : "fixed inset-x-0 bottom-0"
+
     return (
-      <div className="sticky bottom-0 z-40 border-t border-border bg-surface shadow-lg" data-testid="design-doc-comment-drawer">
-        <button
-          aria-controls="design-doc-comment-drawer-panel"
-          aria-expanded={drawerOpen}
-          className="flex w-full items-center justify-between px-4 py-2 text-sm font-medium text-text-primary"
-          onClick={() => onDrawerOpenChange(!drawerOpen)}
-          type="button"
-        >
-          <span>{t("comment_drawer_count", { count: railEntries.length })}</span>
-          <span aria-hidden="true">{drawerOpen ? "▾" : "▴"}</span>
-        </button>
+      <div className={`${positioningClass} z-40 border-t border-border bg-surface shadow-lg`} data-testid="design-doc-comment-drawer">
+        <div className="flex items-center gap-1 pr-2">
+          <button
+            aria-controls="design-doc-comment-drawer-panel"
+            aria-expanded={drawerOpen}
+            className="flex flex-1 items-center justify-between px-4 py-2 text-sm font-medium text-text-primary"
+            onClick={() => onDrawerOpenChange(!drawerOpen)}
+            type="button"
+          >
+            <span>{t("comment_drawer_count", { count: railEntries.length })}</span>
+            <span aria-hidden="true">{drawerOpen ? "▾" : "▴"}</span>
+          </button>
+          <DismissButton label={t("close_comment_drawer")} onClick={onDismissDrawer} size="sm" />
+        </div>
         {drawerOpen ? (
-          <div className="max-h-[25vh] space-y-3 overflow-y-auto border-t border-border p-3" id="design-doc-comment-drawer-panel" style={{ height: "25vh" }}>
+          <NarrowDrawerPanel>
             {selectionComposer}
             {loadingIndicator}
             {emptyState}
@@ -1891,7 +1922,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compose
                 onReview={onReview}
               />
             ))}
-          </div>
+          </NarrowDrawerPanel>
         ) : null}
       </div>
     )
@@ -1955,6 +1986,32 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentPending, compose
         </div>
       </div>
     </Panel>
+  )
+}
+
+// Mounts only while the narrow drawer is open (see ThreadPanel), so the
+// "collapsed" state genuinely removes its contents from the DOM. The
+// `entered` flip one frame after mount is the standard CSS-transition-on-
+// mount trick: starting the transform/opacity classes pre-mount and
+// switching them post-mount (rather than rendering the "entered" classes
+// immediately) gives the browser a first paint to transition from, so the
+// panel visibly slides/fades up instead of just appearing.
+function NarrowDrawerPanel({ children }: { children: ReactNode }) {
+  const [entered, setEntered] = useState(false)
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setEntered(true))
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
+
+  return (
+    <div
+      className={`max-h-[25vh] space-y-3 overflow-y-auto border-t border-border p-3 transition-all duration-200 ease-out ${entered ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`}
+      id="design-doc-comment-drawer-panel"
+      style={{ height: "25vh" }}
+    >
+      {children}
+    </div>
   )
 }
 

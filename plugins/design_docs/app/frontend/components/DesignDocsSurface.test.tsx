@@ -799,6 +799,119 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("fully hides the comment drawer, including the collapsed count bar, when its close button is clicked", async () => {
+    mockMobileViewport()
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    const toggle = await screen.findByRole("button", { name: "2 comments" })
+    fireEvent.click(toggle)
+    expect(await screen.findByText("Needs evidence")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close comments" }))
+
+    expect(screen.queryByRole("button", { name: "2 comments" })).not.toBeInTheDocument()
+    expect(screen.queryByText("Needs evidence")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("design-doc-comment-drawer")).not.toBeInTheDocument()
+  })
+
+  it("reopens a fully dismissed comment drawer when a highlighted anchor is clicked", async () => {
+    mockMobileViewport()
+    mockFetch()
+    const scrollIntoViewSpy = vi.fn()
+    HTMLElement.prototype.scrollIntoView = scrollIntoViewSpy as typeof HTMLElement.prototype.scrollIntoView
+
+    try {
+      renderSurface("/design_docs/1")
+
+      await screen.findByRole("button", { name: "2 comments" })
+      fireEvent.click(screen.getByRole("button", { name: "Close comments" }))
+      expect(screen.queryByTestId("design-doc-comment-drawer")).not.toBeInTheDocument()
+
+      const body = await screen.findByRole("region", { name: "Design doc content" })
+      const highlight = body.querySelector("mark[data-thread-id='7']")
+      expect(highlight).not.toBeNull()
+
+      fireEvent.click(highlight!)
+
+      const reopenedToggle = await screen.findByRole("button", { name: "2 comments" })
+      expect(reopenedToggle).toHaveAttribute("aria-expanded", "true")
+      expect(await screen.findByText("Needs evidence")).toBeInTheDocument()
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
+    }
+  })
+
+  it("reopens a fully dismissed comment drawer and focuses the composer when commenting on a text selection", async () => {
+    mockFetch()
+    mockMobileViewport()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("button", { name: "2 comments" })
+    fireEvent.click(screen.getByRole("button", { name: "Close comments" }))
+    expect(screen.queryByTestId("design-doc-comment-drawer")).not.toBeInTheDocument()
+
+    const body = await screen.findByRole("region", { name: "Design doc content" })
+    const textNode = body.querySelector("[data-source-start]")!.firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 0)
+    range.setEnd(textNode, 5)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+
+    fireEvent.mouseUp(body)
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+
+    const toggle = await screen.findByRole("button", { name: "2 comments" })
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    const composer = await screen.findByRole("textbox", { name: "New thread comment" })
+    await waitFor(() => expect(composer).toHaveFocus())
+  })
+
+  it("docks the comment drawer with fixed positioning on the full mobile route so it stays visible while the document scrolls", async () => {
+    mockMobileViewport()
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    const drawer = await screen.findByTestId("design-doc-comment-drawer")
+    expect(drawer.className).toContain("fixed")
+    expect(drawer.className).not.toContain("sticky")
+  })
+
+  it("keeps sticky (not fixed) positioning for the comment drawer inside the compact chat panel", async () => {
+    mockFetch()
+    renderSurface("/chats/237")
+
+    const drawer = await screen.findByTestId("design-doc-comment-drawer")
+    expect(drawer.className).toContain("sticky")
+    expect(drawer.className).not.toContain("fixed")
+  })
+
+  it("reserves bottom padding for the document body on the full mobile route while the drawer is visible, and releases it once dismissed", async () => {
+    mockMobileViewport()
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+
+    await screen.findByRole("region", { name: "Design doc content" })
+    const documentSection = container.querySelector("section.min-w-0.space-y-4")
+    expect(documentSection).not.toBeNull()
+    expect(documentSection).toHaveClass("pb-14")
+
+    fireEvent.click(screen.getByRole("button", { name: "Close comments" }))
+
+    expect(documentSection).not.toHaveClass("pb-14")
+  })
+
+  it("keeps the desktop rail visible without a bottom-docked drawer or close button", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("toolbar", { name: "Formatting toolbar" })
+    expect(screen.getByTestId("design-doc-rail-clip")).toBeInTheDocument()
+    expect(screen.queryByTestId("design-doc-comment-drawer")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Close comments" })).not.toBeInTheDocument()
+  })
+
   it("keeps the design doc detail route editable by default on a desktop-width viewport", async () => {
     mockFetch()
     renderSurface("/design_docs/1")
