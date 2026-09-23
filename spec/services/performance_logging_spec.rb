@@ -407,6 +407,100 @@ RSpec.describe PerformanceLogging do
     )
   end
 
+  it "attaches host IO pressure metadata to a slow phase when capture_host_pressure is requested" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_phase_threshold_ms).and_return(0.0)
+    allow(WorkerHostHealthSampler).to receive(:io_pressure_snapshot).and_return(
+      io_pressure_some: 12.5, data_root_used_percent: 88
+    )
+
+    described_class.phase("chat_startup.workspace_ensure", chat_session_id: 42, capture_host_pressure: true) { "done" }
+
+    event = described_class::Store.recent.first
+    expect(event).to include(
+      "phase" => "chat_startup.workspace_ensure",
+      "metadata" => {
+        "chat_session_id" => "42",
+        "io_pressure_some" => "12.5",
+        "data_root_used_percent" => "88"
+      }
+    )
+  end
+
+  it "does not read host pressure for a fast phase even when capture_host_pressure is requested" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_phase_threshold_ms).and_return(60_000.0)
+    allow(WorkerHostHealthSampler).to receive(:io_pressure_snapshot)
+
+    described_class.phase("chat_startup.workspace_ensure", capture_host_pressure: true) { "done" }
+
+    expect(described_class::Store.recent).to be_empty
+    expect(WorkerHostHealthSampler).not_to have_received(:io_pressure_snapshot)
+  end
+
+  it "does not read host pressure when capture_host_pressure is not requested" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_phase_threshold_ms).and_return(0.0)
+    allow(WorkerHostHealthSampler).to receive(:io_pressure_snapshot)
+
+    described_class.phase("chat_startup.workspace_ensure") { "done" }
+
+    expect(described_class::Store.recent).not_to be_empty
+    expect(WorkerHostHealthSampler).not_to have_received(:io_pressure_snapshot)
+  end
+
+  describe ".report_duration" do
+    it "emits a slow phase event for a pre-measured duration past the threshold" do
+      Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+      Current.reset
+      allow(described_class).to receive(:slow_phase_threshold_ms).and_return(250.0)
+
+      described_class.report_duration("chat_startup.process_spawn", 300.4, metadata: { kind: "agent" })
+
+      event = described_class::Store.recent.first
+      expect(event).to include(
+        "event" => "syrus.performance.slow_phase",
+        "phase" => "chat_startup.process_spawn",
+        "duration_ms" => 300.4,
+        "metadata" => { "kind" => "agent" }
+      )
+    end
+
+    it "does not emit for a duration under the threshold" do
+      Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+      Current.reset
+      allow(described_class).to receive(:slow_phase_threshold_ms).and_return(250.0)
+
+      described_class.report_duration("chat_startup.process_spawn", 10.0)
+
+      expect(described_class::Store.recent).to be_empty
+    end
+
+    it "does not emit when performance logging is disabled" do
+      Feature.where(slug: "performance_logging").delete_all
+      Current.reset
+
+      described_class.report_duration("chat_startup.process_spawn", 1_000.0)
+
+      expect(described_class::Store.recent).to be_empty
+    end
+
+    it "attaches host IO pressure metadata when capture_host_pressure is requested" do
+      Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+      Current.reset
+      allow(described_class).to receive(:slow_phase_threshold_ms).and_return(250.0)
+      allow(WorkerHostHealthSampler).to receive(:io_pressure_snapshot).and_return(io_pressure_full: 5.0)
+
+      described_class.report_duration("chat_startup.process_spawn", 300.0, capture_host_pressure: true)
+
+      event = described_class::Store.recent.first
+      expect(event["metadata"]).to eq("io_pressure_full" => "5.0")
+    end
+  end
+
   it "records browser trace spans" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset

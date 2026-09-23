@@ -292,6 +292,38 @@ RSpec.describe ChatProviders::Claude do
 
       expect(received[:model]).to be_nil
     end
+
+    it "reports a chat_startup.session_restore phase when performance logging is enabled" do
+      Dir.mktmpdir("syrus-chat-home") do |home|
+        saved_home = ENV["HOME"]
+        ENV["HOME"] = home
+        workspace_path = Dir.mktmpdir("syrus-chat-workspace")
+        chat.messages.create!(role: "user", content: { "text" => "hi" })
+        Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+        allow(PerformanceLogging).to receive(:slow_phase_threshold_ms).and_return(0.0)
+        PerformanceLogging::Store.clear!
+
+        runner = ->(**kwargs) { result_fixture(session_id: "chat-session-1") }
+        adapter = described_class.new(chat: chat, runner: runner)
+
+        adapter.invoke(
+          workspace_path: workspace_path,
+          prompt: "What is the plan?",
+          log_sink: ->(*, **) { },
+          mcp_config: "/tmp/mcp.json",
+          resume_session_id: "chat-session-0",
+          stop_requested: -> { false },
+          process_started: ->(_process) { }
+        )
+
+        event = PerformanceLogging::Store.recent.find { |e| e["phase"] == "chat_startup.session_restore" }
+        expect(event["metadata"]).to include("chat_session_id" => chat.id.to_s)
+      ensure
+        ENV["HOME"] = saved_home
+        PerformanceLogging::Store.clear!
+        FileUtils.rm_rf(workspace_path) if workspace_path
+      end
+    end
   end
 
   describe "#session_capture" do

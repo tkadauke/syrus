@@ -530,6 +530,20 @@ RSpec.describe ChatTurnJob, :ci_only do
     saved&.each { |key, value| ENV[key] = value }
   end
 
+  it "reports a chat_startup.mcp_config_write phase when performance logging is enabled" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    allow(PerformanceLogging).to receive(:slow_phase_threshold_ms).and_return(0.0)
+    PerformanceLogging::Store.clear!
+    ChatTurnJob.agent_runner = ->(**_) { result_fixture(session_id: "chat-session-1") }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    event = PerformanceLogging::Store.recent.find { |e| e["phase"] == "chat_startup.mcp_config_write" }
+    expect(event["metadata"]).to include("chat_session_id" => chat.id.to_s)
+  ensure
+    PerformanceLogging::Store.clear!
+  end
+
   it "backfills sidechain metadata onto ChatMessage rows created live for a subagent's nested tool calls" do
     ChatTurnJob.agent_runner = ->(**kwargs) {
       # Claude Code streams a subagent's own tool calls live today, same as

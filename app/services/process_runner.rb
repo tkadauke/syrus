@@ -164,11 +164,13 @@ class ProcessRunner
     @spawned_process = register_spawned_process
     @on_spawned_process&.call(@spawned_process) if @spawned_process
 
+    spawn_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     begin
       Open3.popen2e(@env, *@command,
                     chdir: @chdir,
                     unsetenv_others: @unsetenv_others,
                     pgroup: @pgroup) do |stdin, output, wait_thread|
+        record_chat_process_spawn_latency!(spawn_started_at)
         update_pid!(wait_thread.pid)
         write_stdin(stdin)
 
@@ -294,6 +296,25 @@ class ProcessRunner
   end
 
   private
+
+  # Only chat-attributed spawns (the "process spawn" stage of chat startup
+  # latency) report here -- workflow/grader spawns already have separate
+  # Run/CommandSpan-based worker health correlation (see
+  # read_run_worker_health) and shouldn't be double-counted under a phase
+  # name that promises chat scope.
+  def record_chat_process_spawn_latency!(spawn_started_at)
+    return unless @chat_session
+
+    duration_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - spawn_started_at) * 1000.0
+    PerformanceLogging.report_duration(
+      "chat_startup.process_spawn",
+      duration_ms,
+      metadata: { kind: @kind.to_s, chat_session_id: @chat_session.id }.compact,
+      capture_host_pressure: true
+    )
+  rescue StandardError
+    nil
+  end
 
   def register_spawned_process
     return nil unless @kind

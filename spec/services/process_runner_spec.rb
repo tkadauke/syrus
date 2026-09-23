@@ -136,6 +136,47 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(spawned_process.chat_session).to eq(chat_session)
   end
 
+  it "reports a chat_startup.process_spawn phase when a chat session is attributed and performance logging is enabled" do
+    chat_session = ChatSession.create!(user: Factories.user)
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    allow(PerformanceLogging).to receive(:slow_phase_threshold_ms).and_return(0.0)
+    PerformanceLogging::Store.clear!
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      chdir: @dir,
+      timeout: 5,
+      kind: "agent",
+      chat_session: chat_session
+    ).run
+
+    expect(result).to be_success
+    event = PerformanceLogging::Store.recent.find { |e| e["phase"] == "chat_startup.process_spawn" }
+    expect(event["metadata"]).to include("kind" => "agent", "chat_session_id" => chat_session.id.to_s)
+  ensure
+    PerformanceLogging::Store.clear!
+  end
+
+  it "does not report a chat_startup.process_spawn phase for a spawn with no chat session" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    allow(PerformanceLogging).to receive(:slow_phase_threshold_ms).and_return(0.0)
+    PerformanceLogging::Store.clear!
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      chdir: @dir,
+      timeout: 5,
+      kind: "grader"
+    ).run
+
+    expect(result).to be_success
+    expect(PerformanceLogging::Store.recent.map { |e| e["phase"] }).not_to include("chat_startup.process_spawn")
+  ensure
+    PerformanceLogging::Store.clear!
+  end
+
   it "attributes the spawned process row to an agent when given one" do
     agent = Agent.find_or_create_for!(Factories.run)
 
