@@ -132,6 +132,10 @@ function OperationalLogsTable({ revisionScope, rows }: { revisionScope: Operatio
       headerClassName: "px-4 py-2",
       header: t("operational_logs.col_message"),
       key: "message",
+      // Pin to the declared end (its natural, already-last position) --
+      // required columns default to start-pinning, which would otherwise
+      // yank the log message ahead of time/level/process/refs.
+      pin: "end",
       required: true,
       render: (row) => (
         <>

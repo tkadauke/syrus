@@ -101,7 +101,6 @@ function WorkUnitsTable({ onNavigate, payload, prefix, search }: { onNavigate: (
       headerClassName: "px-4 py-2",
       header: t("work_units.col_intent"),
       key: "kind",
-      required: true,
       sort: "kind",
       render: (intent) => <IntentSummary intent={intent} />
     },
@@ -125,6 +124,10 @@ function WorkUnitsTable({ onNavigate, payload, prefix, search }: { onNavigate: (
       headerClassName: "px-4 py-2",
       header: t("work_units.col_units"),
       key: "units",
+      // Pin to the declared end (its natural, already-last position) --
+      // required columns default to start-pinning, which would otherwise
+      // yank the actual work-unit list ahead of the intent's own identity.
+      pin: "end",
       required: true,
       render: (intent) => <UnitList units={intent.units} prefix={prefix} />
     }
