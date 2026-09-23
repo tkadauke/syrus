@@ -431,6 +431,143 @@ RSpec.describe CodexInvocation do
           'stage="mcp_startup"',
           'stage="first_agent_message"'
         )
+        mcp_event = events.find { |event| event.include?('stage="mcp_startup"') }
+        expect(mcp_event).to include('status="connected"', 'servers="syrus-chat-sidecar"')
+      end
+    end
+
+    it "does not record MCP startup success from output that arrives before any MCP lifecycle event" do
+      Dir.mktmpdir do |home|
+        events = []
+        timing = described_class::StartupTiming.new(source: "spec", sink: ->(event) { events << event })
+        invocation = described_class.new(
+          "/tmp/wkt",
+          prompt: "P",
+          api_key: "sk-test",
+          codex_home: home,
+          startup_timing: timing,
+          mcp_servers: {
+            "syrus-chat-sidecar" => {
+              command: "/app/bin/syrus-chat-sidecar",
+              args: [],
+              env: {},
+              required: true
+            }
+          }
+        )
+
+        # thread.started arrives first and is unrelated to MCP; the turn
+        # completes without ever exercising the MCP server (no
+        # mcp_tool_call item anywhere in the stream).
+        capture_popen(invocation, lines: [
+          { type: "thread.started", thread_id: "019e-test" },
+          { type: "item.completed", item: { type: "agent_message", text: "done" } },
+          { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 2 } }
+        ])
+
+        first_agent_event = events.find { |event| event.include?('stage="first_agent_event"') }
+        mcp_event = events.find { |event| event.include?('stage="mcp_startup"') }
+
+        expect(first_agent_event).to be_present
+        expect(mcp_event).to be_present
+        expect(mcp_event).not_to include('status="connected"')
+        expect(mcp_event).to include('status="pending"', 'servers="syrus-chat-sidecar"')
+      end
+    end
+
+    it "records MCP startup as failed when the turn errors before any MCP server is ever reached" do
+      Dir.mktmpdir do |home|
+        events = []
+        timing = described_class::StartupTiming.new(source: "spec", sink: ->(event) { events << event })
+        invocation = described_class.new(
+          "/tmp/wkt",
+          prompt: "P",
+          api_key: "sk-test",
+          codex_home: home,
+          startup_timing: timing,
+          mcp_servers: {
+            "syrus-chat-sidecar" => {
+              command: "/app/bin/syrus-chat-sidecar",
+              args: [],
+              env: {},
+              required: true
+            }
+          }
+        )
+
+        capture_popen(invocation, lines: [
+          { type: "thread.started", thread_id: "019e-test" },
+          { type: "turn.failed", error: "mcp server failed to start" }
+        ])
+
+        mcp_event = events.find { |event| event.include?('stage="mcp_startup"') }
+        expect(mcp_event).to include('status="failed"', 'servers="syrus-chat-sidecar"')
+      end
+    end
+
+    it "records MCP startup as missing when no MCP servers are configured" do
+      Dir.mktmpdir do |home|
+        events = []
+        timing = described_class::StartupTiming.new(source: "spec", sink: ->(event) { events << event })
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", codex_home: home, startup_timing: timing)
+
+        capture_popen(invocation)
+
+        mcp_event = events.find { |event| event.include?('stage="mcp_startup"') }
+        expect(mcp_event).to include('status="missing"')
+      end
+    end
+
+    it "reports chat_startup.* phases for filesystem-bound stages when the timer is chat-scoped" do
+      Dir.mktmpdir do |home|
+        Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+        allow(PerformanceLogging).to receive(:slow_phase_threshold_ms).and_return(0.0)
+        PerformanceLogging::Store.clear!
+        chat_session = ChatSession.create!(user: Factories.user)
+        Thread.current[:syrus_current_chat_session] = chat_session
+
+        timing = described_class::StartupTiming.new(source: "codex_chat")
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", codex_home: home, startup_timing: timing)
+        capture_popen(invocation, lines: [
+          { type: "thread.started", thread_id: "019e-test" },
+          { type: "turn.completed", usage: {} }
+        ])
+
+        phases = PerformanceLogging::Store.recent.map { |event| event["phase"] }
+        expect(phases).to include(
+          "chat_startup.codex_home_prepare", "chat_startup.config_write", "chat_startup.transcript_restore"
+        )
+        # process_spawn shows up exactly once -- from ProcessRunner, which
+        # instruments spawn latency uniformly for both providers -- not
+        # doubled by StartupTiming's own "process_spawn" stage, which is
+        # deliberately excluded from the bridge (see CHAT_STARTUP_STAGES).
+        expect(phases.count("chat_startup.process_spawn")).to eq(1)
+        # Provider round-trip stages measure waiting on the model, not local
+        # storage, so they never get bridged at all.
+        expect(phases).not_to include("chat_startup.first_agent_event", "chat_startup.mcp_startup")
+        event = PerformanceLogging::Store.recent.find { |e| e["phase"] == "chat_startup.config_write" }
+        expect(event["metadata"]).to include("provider" => "codex", "chat_session_id" => chat_session.id.to_s)
+      ensure
+        Thread.current[:syrus_current_chat_session] = nil
+        PerformanceLogging::Store.clear!
+      end
+    end
+
+    it "does not report chat_startup.* phases for the default workflow-scoped timer" do
+      Dir.mktmpdir do |home|
+        Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+        allow(PerformanceLogging).to receive(:slow_phase_threshold_ms).and_return(0.0)
+        PerformanceLogging::Store.clear!
+
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", codex_home: home)
+        capture_popen(invocation, lines: [
+          { type: "thread.started", thread_id: "019e-test" },
+          { type: "turn.completed", usage: {} }
+        ])
+
+        expect(PerformanceLogging::Store.recent).to be_empty
+      ensure
+        PerformanceLogging::Store.clear!
       end
     end
 

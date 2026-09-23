@@ -52,7 +52,8 @@ module Mcp
       end
     end
 
-    def self.chat(session_id:, current_message_id: nil, tier: :essential, server_name: nil)
+    def self.chat(session_id:, current_message_id: nil, tier: :essential, server_name: nil,
+                  process_spawned_at: nil, application_booted_at: nil)
       tier = tier.to_sym
       default_name = tier == :deferred ? CHAT_DEFERRED_SERVER : CHAT_ESSENTIAL_SERVER
       evaluator = tier == :evaluator
@@ -67,7 +68,12 @@ module Mcp
             scoped_event_id: ENV["SYRUS_CHAT_SCOPED_EVENT_ID"],
             evaluator_session_id: ENV["SYRUS_CHAT_EVALUATOR_SESSION_ID"]
           )
-        }
+        },
+        tier: tier,
+        chat_session_id: session_id,
+        chat_message_id: current_message_id,
+        process_spawned_at: process_spawned_at,
+        application_booted_at: application_booted_at
       )
     end
 
@@ -308,10 +314,17 @@ module Mcp
       }.compact
     end
 
-    def initialize(server_name:, tools:, server_context:)
+    def initialize(server_name:, tools:, server_context:, tier: nil,
+                   chat_session_id: nil, chat_message_id: nil,
+                   process_spawned_at: nil, application_booted_at: nil)
       @server_name = server_name
       @tools = tools
       @server_context = server_context
+      @tier = tier
+      @chat_session_id = chat_session_id
+      @chat_message_id = chat_message_id
+      @process_spawned_at = process_spawned_at
+      @application_booted_at = application_booted_at
     end
 
     def build_server
@@ -375,6 +388,7 @@ module Mcp
         exit 0
       end
 
+      record_startup_timing_phases!
       server = build_server
       transport = MCP::Server::Transports::StdioTransport.new(server)
 
@@ -390,6 +404,84 @@ module Mcp
 
     def tool_names(tools)
       Array(tools).map { |tool| McpToolRegistry.tool_name_for(tool) }.sort
+    end
+
+    # Records the two phases this process itself can observe directly
+    # (its own OS process starting, and Rails finishing boot) and wires up
+    # MCP::Configuration#around_request so the initialize handshake and the
+    # tools/list response -- the two protocol-level milestones no caller
+    # outside this process can see -- are recorded too. A no-op for the
+    # workflow sidecar (bin/syrus-mcp-sidecar never passes
+    # process_spawned_at), and for chat only once `.chat` has resolved
+    # concrete chat/message ids to tag the events with -- see
+    # McpStartupTiming::PHASES for the full lifecycle this feeds.
+    def record_startup_timing_phases!
+      return unless @process_spawned_at
+
+      McpStartupTiming.record!(
+        phase: "sidecar_process_spawn",
+        server_name: @server_name,
+        tier: @tier,
+        chat_session_id: @chat_session_id,
+        chat_message_id: @chat_message_id,
+        occurred_at: @process_spawned_at
+      )
+      McpStartupTiming.record!(
+        phase: "sidecar_application_boot",
+        server_name: @server_name,
+        tier: @tier,
+        chat_session_id: @chat_session_id,
+        chat_message_id: @chat_message_id,
+        occurred_at: @application_booted_at || Time.current
+      )
+      configure_mcp_startup_instrumentation!
+    rescue StandardError => e
+      Rails.logger.warn("[mcp_sidecar] startup timing setup failed server=#{@server_name} pid=#{Process.pid}: #{e.class}: #{e.message}")
+    end
+
+    # `around_request` (not the soft-deprecated `instrumentation_callback`)
+    # so start/end are the real request boundaries rather than backed out
+    # from a reported duration. Global on `MCP.configuration`, which is safe
+    # here because each stdio sidecar process serves exactly one MCP::Server
+    # for exactly one chat turn -- there is no second request stream in this
+    # process to cross-contaminate.
+    def configure_mcp_startup_instrumentation!
+      MCP.configuration.around_request = lambda do |data, &request_handler|
+        method_name = data[:method].to_s
+        started_at = Time.current
+        begin
+          request_handler.call
+        ensure
+          record_mcp_protocol_phase(method_name, started_at, Time.current)
+        end
+      end
+    end
+
+    def record_mcp_protocol_phase(method_name, started_at, ended_at)
+      case method_name
+      when MCP::Methods::INITIALIZE
+        McpStartupTiming.record!(
+          phase: "initialize_request_received",
+          server_name: @server_name, tier: @tier,
+          chat_session_id: @chat_session_id, chat_message_id: @chat_message_id,
+          occurred_at: started_at
+        )
+        McpStartupTiming.record!(
+          phase: "initialize_response_sent",
+          server_name: @server_name, tier: @tier,
+          chat_session_id: @chat_session_id, chat_message_id: @chat_message_id,
+          occurred_at: ended_at
+        )
+      when MCP::Methods::TOOLS_LIST
+        McpStartupTiming.record!(
+          phase: "tool_inventory_received",
+          server_name: @server_name, tier: @tier,
+          chat_session_id: @chat_session_id, chat_message_id: @chat_message_id,
+          occurred_at: ended_at
+        )
+      end
+    rescue StandardError => e
+      Rails.logger.warn("[mcp_sidecar] protocol phase recording failed server=#{@server_name} pid=#{Process.pid}: #{e.class}: #{e.message}")
     end
 
     def safe_server_context

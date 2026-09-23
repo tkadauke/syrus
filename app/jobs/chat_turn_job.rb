@@ -49,6 +49,8 @@ class ChatTurnJob < ApplicationJob
     @chat.clear_suggested_next_step!
     return if stop_requested?(force: true)
     @current_assistant_content = []
+    @mcp_ready_server_names = Set.new
+    @first_assistant_message_recorded = false
 
     provider = chat_provider
 
@@ -86,14 +88,16 @@ class ChatTurnJob < ApplicationJob
           mcp_config: mcp_config,
           resume_session_id: parent_session_id,
           stop_requested: method(:stop_requested?),
-          process_started: ->(_process) {
+          process_started: ->(process) {
             @last_stop_request_polled_at = nil
+            record_mcp_startup_phase!(phase: "agent_process_spawn", provider: provider.provider, metadata: { pid: process.try(:pid) })
             @chat.broadcast_controls
           }
         )
       end
     end
 
+    log_mcp_startup_stall!(result) if result
     flush_current_assistant_content!
     capture_session!(provider, result) if result
     @chat.record_turn_usage!(result) if result
@@ -445,8 +449,10 @@ class ChatTurnJob < ApplicationJob
   def with_chat_mcp_config(provider)
     decision = chat_mcp_transport_decision(provider)
     Tempfile.create([ "syrus-chat-mcp-#{@chat.id}-", ".json" ]) do |f|
-      f.write({ mcpServers: chat_mcp_servers(decision) }.to_json)
-      f.flush
+      PerformanceLogging.phase("chat_startup.mcp_config_write", chat_session_id: @chat.id, capture_host_pressure: true) do
+        f.write({ mcpServers: chat_mcp_servers(decision) }.to_json)
+        f.flush
+      end
       yield f.path
     end
   end
@@ -608,6 +614,7 @@ class ChatTurnJob < ApplicationJob
       block["signature"] = signature if signature.present?
       @current_assistant_content << block
     when "assistant_text"
+      record_first_assistant_message!
       @current_assistant_content << { "type" => "text", "text" => chunk.to_s }
     when "tool_call"
       return if tool_name.blank?
@@ -647,6 +654,7 @@ class ChatTurnJob < ApplicationJob
       )
     else
       flush_current_assistant_content!
+      record_required_server_ready!(mcp_servers) if mcp_servers.present?
       return if mcp_servers.present? &&
                 mcp_servers.all? { |server| mcp_pending?(server["status"].to_s) }
 
@@ -790,6 +798,57 @@ class ChatTurnJob < ApplicationJob
 
   def mcp_unavailable?(status)
     !mcp_available?(status) && !mcp_pending?(status)
+  end
+
+  # Records the two McpStartupTiming phases only the agent-side process can
+  # observe directly (the sidecar side records the other six -- see
+  # Mcp::Sidecar#record_startup_timing_phases!/#configure_mcp_startup_instrumentation!)
+  # plus the "the whole thing worked" first-reply milestone.
+  def record_mcp_startup_phase!(phase:, provider: @chat.effective_chat_provider, server_name: nil, tier: nil, metadata: {})
+    McpStartupTiming.record!(
+      phase: phase,
+      provider: provider,
+      server_name: server_name,
+      tier: tier,
+      chat_session_id: @chat.id,
+      chat_message_id: @user_message.id,
+      metadata: metadata
+    )
+  end
+
+  def record_first_assistant_message!
+    return if @first_assistant_message_recorded
+
+    @first_assistant_message_recorded = true
+    record_mcp_startup_phase!(phase: "first_assistant_message")
+  end
+
+  # ChatTurnJob has no separate "required tools" allowlist the way the
+  # workflow-side ClaudeInvocation#required_mcp_tools does (chat's essential
+  # tier is itself the closest analog to "required"), so this fires once per
+  # MCP server name -- essential and deferred alike, each tagged by its own
+  # server_name -- the first time it's observed connected/running/ready,
+  # rather than gating on a narrower required-tool list.
+  def record_required_server_ready!(servers)
+    Array(servers).each do |server|
+      name = server["name"].to_s
+      next if name.blank? || @mcp_ready_server_names.include?(name)
+      next unless mcp_available?(server["status"].to_s)
+
+      @mcp_ready_server_names << name
+      record_mcp_startup_phase!(phase: "required_server_ready", server_name: name)
+    end
+  end
+
+  # Unambiguous timeout/failure attribution for an MCP-related startup
+  # problem: logs the earliest McpStartupTiming::PHASES entry this turn
+  # never reached, so "the sidecar never connected" vs. "it connected but
+  # the tool inventory never arrived" vs. "everything connected but the
+  # agent never said anything" are distinguishable from the logs alone.
+  def log_mcp_startup_stall!(result)
+    return unless result.outcome.to_s == "mcp_sidecar_failed" || result.timed_out || result.silent_timed_out
+
+    McpStartupTiming.log_stalled_phase!(chat_session_id: @chat.id, chat_message_id: @user_message.id)
   end
 
   def stop_requested?(force: false)

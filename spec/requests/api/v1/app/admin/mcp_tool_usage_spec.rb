@@ -237,7 +237,9 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       expect(usage_queries).to all(match(/normalized_tool_name/i))
       expect(usage_queries).to all(match(/server_name/i))
       expect(aggregate_tool_queries).to all(match(/LIMIT/i))
-      expect_performance_budget(metrics, max_sql: 14, max_payload_bytes: 80.kilobytes)
+      # +1 vs. the McpToolUsage-only budget: startup_timing_payload's own
+      # bounded McpStartupPhaseEvent query (see Admin::McpStartupTimingPayload).
+      expect_performance_budget(metrics, max_sql: 15, max_payload_bytes: 80.kilobytes)
     end
   end
 end

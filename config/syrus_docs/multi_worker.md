@@ -82,6 +82,51 @@ HEAD to an immutable handoff branch after confirmation, and
 `coding_handoff` Workflow clones fresh from GitHub and runs safely on any
 compute pod.
 
+### Bounding background I/O on the home worker
+
+`chat` shares the home worker's process (and local disk) with `cleanup`, which
+runs `WorkflowWorkspacePruneJob`'s `chat_workspace_sweep` on a recurring
+2-hour tick. That sweep sizes and reclaims idle/over-budget Coding-Mode
+checkouts (`ChatWorkspace.reclaim_idle_coding_checkouts!` /
+`.reclaim_coding_over_budget!`) — each a multi-gigabyte tree, so sizing one
+means a `du -sk` treewalk and reclaiming one adds a git backup push plus an
+`rm -rf`. Left unbounded, a sweep touching many checkouts back-to-back can
+saturate the shared disk long enough to stall an unrelated small write
+elsewhere in the same pod (a live chat turn's agent-home config write, a
+`ChatWorkspacePrepareJob` dependency install) — the disk doesn't know or care
+which thread issued which I/O, only per-pod thread counts separate them.
+
+Two mitigations, both in `ChatWorkspace`:
+
+- **Low I/O/CPU priority.** `du_bytes` and the maintenance-triggered deletes
+  (`prune_idle!`, `reclaim_coding_checkout!`, `sweep_orphans!`) shell out
+  through `Syrus::LowPriorityIo.wrap`, which prefixes the command with
+  `ionice -c3` (idle I/O class) and `nice -n 19` when available, falling back
+  to the bare command otherwise. This never runs on a path a live chat turn
+  is synchronously waiting on (`ensure_coding_checkout!`,
+  `restore_coding_checkout!`) — only on background-sweep-triggered work, so a
+  waiting user is never the one who gets deprioritized.
+- **Bounded, paced batches.** `ChatWorkspace::MAINTENANCE_SWEEP_BATCH_LIMIT`
+  caps how many *evictions* (a git backup push plus an `rm -rf` of a
+  multi-gigabyte tree — the expensive tier) one sweep tick performs in
+  `prune_idle!`, `reclaim_idle_coding_checkouts!`, `sweep_orphans!`, and the
+  eviction loop of `reclaim_coding_over_budget!`; a no-op skip for a checkout
+  that isn't actually on this node's disk doesn't count against the cap or
+  get paced. `MAINTENANCE_SWEEP_PACE` sleeps briefly between each heavy
+  operation, including every individual `du -sk` sizing call. The sizing pass
+  in `reclaim_coding_over_budget!` (one `du` per retained checkout, needed to
+  compute an accurate total before deciding whether the node is over budget)
+  is deliberately paced but **not** count-capped — capping it could
+  under-count the total and mask a real over-budget node — so a sweep with a
+  very large number of retained checkouts still has an unbounded number of
+  (individually cheap, low-priority, paced) sizing calls in its sizing phase.
+  Anything left over on the eviction side is picked up on the next scheduled
+  tick rather than draining the whole backlog in one burst.
+  `chat_workspace_sweep` wraps the whole sweep in a
+  `PerformanceLogging.phase("chat_workspace.sweep", ...)` call so a slow
+  sweep surfaces in the same phase-drilldown diagnostics as any other
+  performance regression.
+
 ## Git History relay pinning
 
 `RepositoryBareClone#sync!` only ever runs from `PollMergeStateJob` /

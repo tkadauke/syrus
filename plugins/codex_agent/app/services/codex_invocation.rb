@@ -65,6 +65,21 @@ class CodexInvocation
   end
 
   class StartupTiming
+    # Stages that are genuinely filesystem/config-bound "chat startup" work.
+    # Deliberately excludes process_spawn (ProcessRunner instruments that
+    # uniformly across providers -- see
+    # ProcessRunner#record_chat_process_spawn_latency! -- so bridging it here
+    # too would double-count the same stage) and the post-spawn provider
+    # round-trip markers (first_agent_event, mcp_startup, first_agent_message,
+    # usage_probe), which measure waiting on the model or a network API, not
+    # local storage -- folding those into "chat_startup.*" would blur exactly
+    # the provider-vs-storage-latency distinction this instrumentation exists
+    # to draw.
+    CHAT_STARTUP_STAGES = %w[
+      codex_home_prepare config_write transcript_restore
+      auth_refresh_lock auth_prepare auth_persist
+    ].freeze
+
     def initialize(source:, sink: nil, clock: -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) })
       @source = source
       @sink = sink || ->(event) { Rails.logger.info("[codex startup] #{event}") }
@@ -88,8 +103,28 @@ class CodexInvocation
       elapsed_ms = ((now - started_at) * 1000).round(1)
       fields = { source: @source, stage: stage, elapsed_ms: elapsed_ms }.merge(metadata).compact
       @sink.call(fields.map { |key, value| "#{key}=#{value.inspect}" }.join(" "))
+      report_chat_startup_phase(stage, elapsed_ms, metadata)
     rescue StandardError => e
       Rails.logger.warn("[codex startup] timing sink failed: #{e.class}: #{e.message}")
+    end
+
+    private
+
+    # Only chat-scoped timers (source: "codex_chat", see
+    # ChatProviders::Codex#invoke) feed production observability under the
+    # shared "chat_startup.*" phase namespace -- the default workflow-side
+    # timer (source: "codex") keeps logging to Rails.logger only, unchanged.
+    def report_chat_startup_phase(stage, elapsed_ms, metadata)
+      return unless @source == "codex_chat"
+      return unless CHAT_STARTUP_STAGES.include?(stage.to_s)
+
+      chat_session = Thread.current[:syrus_current_chat_session]
+      PerformanceLogging.report_duration(
+        "chat_startup.#{stage}",
+        elapsed_ms,
+        metadata: { provider: "codex", chat_session_id: chat_session&.id }.merge(metadata).compact,
+        capture_host_pressure: true
+      )
     end
   end
 
@@ -154,20 +189,18 @@ class CodexInvocation
       },
       on_output_line: ->(line) do
         startup_timing.record("first_agent_event", started_at: output_start_requested_at, once: true)
-        if mcp_server_names.any?
-          startup_timing.record(
-            "mcp_startup",
-            started_at: output_start_requested_at,
-            once: true,
-            servers: mcp_server_names.join(",")
-          )
-        end
         update = process_event(line, log_sink)
         if update&.delete(:assistant_text_seen)
           startup_timing.record("first_agent_message", started_at: output_start_requested_at, once: true)
         end
         if update&.delete(:mcp_seen)
-          startup_timing.record("mcp_startup", started_at: output_start_requested_at, once: true, servers: mcp_server_names.join(","))
+          startup_timing.record(
+            "mcp_startup",
+            started_at: output_start_requested_at,
+            once: true,
+            status: "connected",
+            servers: mcp_server_names.join(",")
+          )
         end
         metadata.merge!(update.compact) if update
       end
@@ -178,6 +211,7 @@ class CodexInvocation
       metadata[:final_text] = metadata[:startup_output]
     end
     log_codex_resume_failure(effective_resume_session_id, runner_result, metadata, log_sink)
+    record_mcp_startup_outcome(startup_timing, mcp_server_names, metadata, output_start_requested_at)
 
     # Same cleanup-timeout guard as ClaudeInvocation: if the provider
     # already emitted a successful result, don't fail on cleanup timeouts.
@@ -199,6 +233,28 @@ class CodexInvocation
       output_tokens: metadata[:output_tokens],
       cache_creation_input_tokens: metadata[:cache_creation_input_tokens],
       cache_read_input_tokens: metadata[:cache_read_input_tokens]
+    )
+  end
+
+  # Called once the process has fully exited. `startup_timing.record`'s
+  # `once: true` guard means this is a no-op whenever the in-flight
+  # "connected" event already fired from a real `mcp_tool_call` item — it
+  # only fills in the outcome for a run that never produced that evidence,
+  # so a required-server handshake failure is never misreported as startup
+  # success just because *some* output line arrived first.
+  def record_mcp_startup_outcome(startup_timing, mcp_server_names, metadata, started_at)
+    if mcp_server_names.empty?
+      startup_timing.record("mcp_startup", started_at: started_at, once: true, status: "missing")
+      return
+    end
+
+    status = metadata[:is_error] ? "failed" : "pending"
+    startup_timing.record(
+      "mcp_startup",
+      started_at: started_at,
+      once: true,
+      status: status,
+      servers: mcp_server_names.join(",")
     )
   end
 

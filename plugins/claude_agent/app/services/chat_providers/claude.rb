@@ -212,17 +212,19 @@ module ChatProviders
     def ensure_provider_session_on_disk!(workspace_path:, session_id:)
       return if session_id.blank?
 
-      path = ProviderSession.canonical_path_for(
-        home: ENV.fetch("HOME"),
-        cwd: workspace_path,
-        session_id: session_id
-      )
-      return if File.exist?(path) && !ChatContextCompactor.enabled_for?(chat)
-      return unless chat.messages.exists?
+      PerformanceLogging.phase("chat_startup.session_restore", chat_session_id: chat.id, capture_host_pressure: true) do
+        path = ProviderSession.canonical_path_for(
+          home: ENV.fetch("HOME"),
+          cwd: workspace_path,
+          session_id: session_id
+        )
+        next if File.exist?(path) && !ChatContextCompactor.enabled_for?(chat)
+        next unless chat.messages.exists?
 
-      jsonl = ChatSessionRehydrator::Claude.new(chat, session_id: session_id, cwd: workspace_path.to_s).call
-      FileUtils.mkdir_p(File.dirname(path))
-      File.write(path, jsonl)
+        jsonl = ChatSessionRehydrator::Claude.new(chat, session_id: session_id, cwd: workspace_path.to_s).call
+        FileUtils.mkdir_p(File.dirname(path))
+        File.write(path, jsonl)
+      end
     rescue SystemCallError => e
       Rails.logger.warn("[ChatProviders::Claude] unable to rehydrate Claude session #{session_id}: #{e.class}: #{e.message}")
     end

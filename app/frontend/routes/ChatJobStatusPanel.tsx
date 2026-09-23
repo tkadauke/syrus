@@ -129,12 +129,12 @@ function EpicSection({ epic, hideClosedJobs, onJobClick }: { epic: ChatJobStatus
         tabIndex={0}
       >
         <div className="flex min-w-0 items-center gap-2">
-          <span onClick={(e) => e.stopPropagation()}>
+          <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
             <SlugHoverCard kind="epic" id={epic.epic_id}>
               <CopyableSlug slug={epic.slug} className="text-xs font-medium" />
             </SlugHoverCard>
           </span>
-          <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{epic.title}</span>
+          <span className="min-w-0 truncate text-sm font-medium text-gray-900 dark:text-gray-100">{epic.title}</span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
