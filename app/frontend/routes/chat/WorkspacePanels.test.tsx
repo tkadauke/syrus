@@ -721,6 +721,42 @@ describe("ChatWorkspacePanel coding files", () => {
     expect(diffDivider).toHaveAttribute("aria-valuenow", "220")
   })
 
+  function mockViewportMatches(matches: boolean) {
+    const original = window.matchMedia
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: vi.fn((query: string) => ({
+        matches,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }))
+    })
+    return () => {
+      Object.defineProperty(window, "matchMedia", { configurable: true, writable: true, value: original })
+    }
+  }
+
+  it("stacks the Diff file list above the diff content below the lg breakpoint, without the drag splitter", async () => {
+    mockTwoFileDiff()
+    const restoreViewport = mockViewportMatches(false)
+
+    try {
+      renderWorkspacePanel(makeCodingPayload())
+      fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+      expect(await screen.findByRole("button", { name: /app\/a\.ts/ })).toBeInTheDocument()
+      expect(screen.queryByRole("separator", { name: "Resize diff file list" })).not.toBeInTheDocument()
+    } finally {
+      restoreViewport()
+    }
+  })
+
   it("renders a commit selector and passes ref to file and diff fetches", async () => {
     const sha = "abc1234abc1234abc1234abc1234abc1234abc12"
     vi.mocked(fetchCodingCommits).mockResolvedValue({

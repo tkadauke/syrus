@@ -35,6 +35,7 @@ import type { FileTreeNode } from "./fileTree"
 import { buildFileTree } from "./fileTree"
 import { availableWorkspaceTabs, clampFilesTreeWidth, defaultWorkspaceTab, isPluginTab, isPreviewTab, pluginTabIdFromTab, previewTabId, storedDiffFilesCollapsed, storedDiffFilesWidth, storedFilesTreeCollapsed, storedFilesTreeWidth, workspaceTabLabel } from "./workspaceTabs"
 import { useResizableSplitter } from "./useResizableSplitter"
+import { useMediaQuery } from "../dashboard/components"
 import { pluginWorkspaceTabComponentFor } from "../../pluginWorkspaceTabs"
 import { parseUnifiedDiff } from "../../components/diff/diffRendering"
 import { UnifiedDiffTable } from "../../components/diff/ReviewableDiff"
@@ -1385,6 +1386,10 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
   const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null)
   const [selectedRef, setSelectedRef] = useState<string>("")
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
+  // Below lg there's no room for a resizable side-by-side split (matches the
+  // pre-splitter fixed grid, which only became two columns at lg:) -- the
+  // Diff tab's file list falls back to a stacked, non-resizable layout.
+  const isDesktopSplit = useMediaQuery("(min-width: 1024px)", true)
   const treeSplitter = useResizableSplitter({
     widthKey: CHAT_FILES_TREE_WIDTH_KEY,
     collapsedKey: CHAT_FILES_TREE_COLLAPSED_KEY,
@@ -1485,6 +1490,18 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
   const commitOptions = commits.data?.commits ?? []
   const diffFiles = diffResult.data?.diff ? parseCodingDiffFiles(diffResult.data.diff) : []
   const selectedDiff = selectedDiffFile ? diffFiles.find((file) => file.path === selectedDiffFile) || null : null
+  const diffFileButtons = diffFiles.map((file) => (
+    <button
+      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-brand/10 ${selectedDiff?.path === file.path ? "bg-brand/10 text-brand" : "text-gray-700 dark:text-gray-300"}`}
+      key={file.path}
+      onClick={() => setSelectedDiffFile(file.path)}
+      title={`${file.path} (+${file.additions} -${file.deletions})`}
+      type="button"
+    >
+      <CodingDiffStatusBadge status={file.status} />
+      <span className="min-w-0 flex-1 truncate">{file.path}</span>
+    </button>
+  ))
 
   useEffect(() => {
     if (selectedDiffFile && !diffFiles.some((file) => file.path === selectedDiffFile)) {
@@ -1617,31 +1634,34 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
           ) : !diffResult.data?.diff ? (
             <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("diff_empty")}</p>
           ) : (
-            <div className="flex h-full min-h-0">
-              {diffFilesSplitter.collapsed ? null : (
-                <div className="shrink-0 overflow-y-auto bg-gray-50 py-1 dark:bg-gray-950" style={{ width: `${diffFilesSplitter.width}px` }}>
-                  {diffFiles.map((file) => (
-                    <button
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-brand/10 ${selectedDiff?.path === file.path ? "bg-brand/10 text-brand" : "text-gray-700 dark:text-gray-300"}`}
-                      key={file.path}
-                      onClick={() => setSelectedDiffFile(file.path)}
-                      title={`${file.path} (+${file.additions} -${file.deletions})`}
-                      type="button"
-                    >
-                      <CodingDiffStatusBadge status={file.status} />
-                      <span className="min-w-0 flex-1 truncate">{file.path}</span>
-                    </button>
-                  ))}
+            <div className={isDesktopSplit ? "flex h-full min-h-0" : "flex h-full min-h-0 flex-col overflow-hidden"}>
+              {isDesktopSplit ? (
+                <>
+                  {diffFilesSplitter.collapsed ? null : (
+                    <div className="shrink-0 overflow-y-auto bg-gray-50 py-1 dark:bg-gray-950" style={{ width: `${diffFilesSplitter.width}px` }}>
+                      {diffFileButtons}
+                    </div>
+                  )}
+                  <SplitterHandle
+                    label={t("diff_files_resize")}
+                    maxWidth={CHAT_FILES_TREE_MAX_WIDTH}
+                    valueNow={diffFilesSplitter.collapsed ? 0 : Math.round(diffFilesSplitter.width)}
+                    onClick={diffFilesSplitter.toggleCollapsed}
+                    onKeyDown={diffFilesSplitter.resizeWithKeyboard}
+                    onMouseDown={diffFilesSplitter.beginResize}
+                  />
+                </>
+              ) : (
+                // Below the lg breakpoint there's no room for a side-by-side
+                // resizable split (matches the pre-splitter fixed-grid
+                // behavior, which only became two columns at lg:) -- stack the
+                // file list above the diff content instead, each scrolling
+                // independently within a shared max height so neither one can
+                // push the other off screen.
+                <div className="max-h-[40vh] shrink-0 overflow-y-auto border-b border-gray-200 bg-gray-50 py-1 dark:border-gray-700 dark:bg-gray-950">
+                  {diffFileButtons}
                 </div>
               )}
-              <SplitterHandle
-                label={t("diff_files_resize")}
-                maxWidth={CHAT_FILES_TREE_MAX_WIDTH}
-                valueNow={diffFilesSplitter.collapsed ? 0 : Math.round(diffFilesSplitter.width)}
-                onClick={diffFilesSplitter.toggleCollapsed}
-                onKeyDown={diffFilesSplitter.resizeWithKeyboard}
-                onMouseDown={diffFilesSplitter.beginResize}
-              />
               <div className="min-w-0 flex-1 overflow-auto">
                 {selectedDiff ? (
                   <>
