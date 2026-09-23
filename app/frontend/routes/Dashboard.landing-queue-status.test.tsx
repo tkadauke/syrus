@@ -237,6 +237,20 @@ describe("landing queue status column", () => {
     expect(status).not.toHaveClass("whitespace-nowrap")
   })
 
+  it("truncates long blocked-reason pills in the compact Queue column with a full-text tooltip", () => {
+    renderTable([
+      jobItem({
+        id: 2,
+        landing_queue_blocked_reason: { key: "ci_repair_no_effective_change", params: { slug: "JOB-2" } },
+        landing_queue_wait_reason: null
+      })
+    ])
+
+    const status = screen.getByText("CI repair made no effective change and checks are still failing on").closest("[data-status-pill]")
+    expect(status).toHaveClass("max-w-[14rem]", "whitespace-nowrap")
+    expect(status).toHaveAttribute("title", "CI repair made no effective change and checks are still failing on JOB-2")
+  })
+
   it("renders true landing blockers with warning styling in the same column", () => {
     renderTable([
       jobItem({

@@ -831,7 +831,7 @@ function JobCell({ job, column, navigationItems, selected, onToggleOne, prefix }
       <DataTable.Cell>
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-mono text-xs font-semibold text-gray-600 dark:text-gray-300">{job.landing_queue_position ? `#${job.landing_queue_position}` : "-"}</span>
-          <LandingQueueStatusBadges job={job} showEmpty={false} />
+          <LandingQueueStatusBadges job={job} showEmpty={false} truncate />
         </div>
       </DataTable.Cell>
     )
@@ -904,22 +904,24 @@ function MobileJobQueueStatus({ job }: { job: DashboardJobItem }) {
   return <LandingQueueStatusBadges job={job} wrapPill />
 }
 
-function LandingQueueStatusBadges({ job, showEmpty = true, wrapPill = false }: { job: DashboardJobItem; showEmpty?: boolean; wrapPill?: boolean }) {
+function LandingQueueStatusBadges({ job, showEmpty = true, wrapPill = false, truncate = false }: { job: DashboardJobItem; showEmpty?: boolean; wrapPill?: boolean; truncate?: boolean }) {
   const { t } = useT("dashboard")
 
   if (job.landing_queue_blocked_reason) {
+    const reason = translateBlockedReason(job.landing_queue_blocked_reason, t)
     return (
       <>
-        <TonePill tone={landingQueueBlockedReasonTone(job.landing_queue_blocked_reason)} wrap={wrapPill}><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_blocked_reason, t)} /></TonePill>
+        <TonePill title={truncate ? reason : undefined} tone={landingQueueBlockedReasonTone(job.landing_queue_blocked_reason)} truncate={truncate} wrap={wrapPill}><CopyableBlockedReason reason={reason} /></TonePill>
         <LandingBlockerOverrideBadge job={job} />
       </>
     )
   }
 
   if (job.landing_queue_wait_reason) {
+    const reason = translateBlockedReason(job.landing_queue_wait_reason, t)
     return (
       <>
-        <TonePill tone="gray" wrap={wrapPill}><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_wait_reason, t)} /></TonePill>
+        <TonePill title={truncate ? reason : undefined} tone="gray" truncate={truncate} wrap={wrapPill}><CopyableBlockedReason reason={reason} /></TonePill>
         <LandingBlockerOverrideBadge job={job} />
       </>
     )
