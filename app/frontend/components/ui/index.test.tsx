@@ -35,7 +35,8 @@ import {
   ToolCard,
   TonePill,
   Toolbar,
-  buttonClasses
+  buttonClasses,
+  usePageGutterRestoreClassName
 } from "@app/components/ui"
 import { MemoryRouter } from "react-router-dom"
 
@@ -343,6 +344,71 @@ describe("@app/components/ui", () => {
     // its presence is exactly the bug: two classes targeting the same
     // property with no guaranteed winner.
     expect(responsiveClasses).not.toContain("px-[var(--space-page-x)]")
+  })
+
+  it("auto-restores the mobile inset on Page.Header via the gutter it inherits from Page.Root, with no manual class needed", () => {
+    // The whole point of the context-driven primitive: a caller no longer
+    // hand-writes `px-4 sm:px-0` on Page.Header -- it reads the gutter Page.Root
+    // was given and applies (or skips) the restore class itself.
+    render(
+      <>
+        <Page.Root aria-label="Always gutter" gutter="always">
+          <Page.Header data-testid="always-header" />
+        </Page.Root>
+        <Page.Root aria-label="Responsive gutter" gutter="responsive">
+          <Page.Header data-testid="responsive-header" />
+        </Page.Root>
+      </>
+    )
+
+    const alwaysClasses = screen.getByTestId("always-header").className.split(" ")
+    const responsiveClasses = screen.getByTestId("responsive-header").className.split(" ")
+
+    expect(responsiveClasses).toContain("px-4")
+    expect(responsiveClasses).toContain("sm:px-0")
+    expect(alwaysClasses).not.toContain("px-4")
+    expect(alwaysClasses).not.toContain("sm:px-0")
+  })
+
+  it("applies the same auto gutter restore to Page.Nav, for tab/section-nav bars under the header", () => {
+    render(
+      <>
+        <Page.Root aria-label="Always gutter" gutter="always">
+          <Page.Nav data-testid="always-nav" />
+        </Page.Root>
+        <Page.Root aria-label="Responsive gutter" gutter="responsive">
+          <Page.Nav className="custom-nav" data-testid="responsive-nav" />
+        </Page.Root>
+      </>
+    )
+
+    const alwaysClasses = screen.getByTestId("always-nav").className.split(" ")
+    const responsiveClasses = screen.getByTestId("responsive-nav").className.split(" ")
+
+    expect(responsiveClasses).toContain("px-4")
+    expect(responsiveClasses).toContain("sm:px-0")
+    expect(responsiveClasses).toContain("custom-nav")
+    expect(alwaysClasses).not.toContain("px-4")
+    expect(alwaysClasses).not.toContain("sm:px-0")
+  })
+
+  it("exposes the inherited gutter to arbitrary consumers via usePageGutterRestoreClassName, defaulting to a no-op outside Page.Root", () => {
+    function MarginProbe({ testId }: { testId: string }) {
+      const restore = usePageGutterRestoreClassName("margin")
+      return <div data-testid={testId}>{restore}</div>
+    }
+
+    render(
+      <>
+        <MarginProbe testId="unwrapped-probe" />
+        <Page.Root aria-label="Responsive margin probe" gutter="responsive">
+          <MarginProbe testId="responsive-probe" />
+        </Page.Root>
+      </>
+    )
+
+    expect(screen.getByTestId("unwrapped-probe").textContent).toBe("")
+    expect(screen.getByTestId("responsive-probe").textContent).toBe("mx-4 sm:mx-0")
   })
 
   it("exports LinkText for router and external anchor links", () => {

@@ -21,7 +21,7 @@
 | `Surface` | Low-level framed area with `panel`, `raised`, `subtle`, `inset`, `danger`, `warning`, and `success` variants plus density padding. | Use when `Section` is too opinionated but a tokenized shell is still needed. |
 | `Text` | Polymorphic text element with body, muted, caption, label, mono, and heading variants plus semantic tone classes. | Use for routine typography instead of call-site raw text color classes. |
 | `Stack` / `Inline` / `Cluster` / `Toolbar` | Small layout helpers for vertical rhythm, inline metadata rows, wrapping clusters, and command rows. | Use for common spacing/alignment without repeating layout class piles. |
-| `Page` | Compound page shell: `Page.Root`, `Header`, `HeadingGroup`, `Title`, `Description`, and `Actions`. | Owns route layout, page title copy, description, and actions. |
+| `Page` | Compound page shell: `Page.Root`, `Header`, `Nav`, `HeadingGroup`, `Title`, `Description`, and `Actions`. `Root`'s `gutter` prop is shared via context (`usePageGutter`, `usePageGutterRestoreClassName`) so `Header` and `Nav` auto-restore the mobile inset under `gutter="responsive"` instead of every consumer hand-writing `px-4 sm:px-0`. | Owns route layout, page title copy, description, and actions. |
 | `Section` | Compound content section: `Section.Root`, `Header`, `Title`, `Description`, `Actions`, and `Body`. | Owns operational panels and major route content bands. |
 | `LinkText` | Tokenized React Router or anchor link text. | Use for inline/navigation links instead of repeating brand hover classes. |
 | `Notice` | Tokenized alert/callout surface with `info`, `warning`, `danger`, `success`, and `neutral` tones plus optional actions. | Replaces ad hoc warning/error/success panels and backs `PanelMessage`. |
