@@ -14,6 +14,7 @@ import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { Checkbox } from "../../components/Checkbox"
 import { DataTable, Select } from "../../components/ui"
+import { useOrderedColumns } from "./useOrderedColumns"
 import { PrHoverCard } from "../../components/PrHoverCard"
 import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
@@ -31,7 +32,7 @@ import { createDashboardJobNavigationContext, jobNavigationHref, storeJobNavigat
 // per-job cells, and the mobile jobs list. Entry point rendered by the table
 // view. Depends only on leaf modules and shared UI imports.
 
-export function JobsDashboardTable({ items, columns, controls, landingQueueEntries, landingQueueStatus, prefix, sortState, t, untaggedIssues }: { items: DashboardJobItem[]; columns: string[]; controls: DashboardPayload["controls"]; landingQueueEntries: DashboardLandingQueueEntry[]; landingQueueStatus?: DashboardLandingQueueStatus | null; prefix: string; sortState: DashboardSortState; t: (key: string, opts?: Record<string, unknown>) => string; untaggedIssues?: DashboardUntaggedIssues }) {
+export function JobsDashboardTable({ items, columns, controls, landingQueueEntries, landingQueueStatus, onReorderColumns, prefix, reorderPending, sortState, t, untaggedIssues }: { items: DashboardJobItem[]; columns: string[]; controls: DashboardPayload["controls"]; landingQueueEntries: DashboardLandingQueueEntry[]; landingQueueStatus?: DashboardLandingQueueStatus | null; onReorderColumns?: (nextOrder: string[]) => void; prefix: string; reorderPending?: boolean; sortState: DashboardSortState; t: (key: string, opts?: Record<string, unknown>) => string; untaggedIssues?: DashboardUntaggedIssues }) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const visibleIds = useMemo(() => items.map((item) => item.id), [items])
   const selectedArray = useMemo(() => Array.from(selectedIds), [selectedIds])
@@ -71,9 +72,12 @@ export function JobsDashboardTable({ items, columns, controls, landingQueueEntri
         columns={columns}
         items={items}
         landingQueueEntries={landingQueueEntries}
+        onReorderColumns={onReorderColumns}
         onToggleAll={toggleAll}
         onToggleOne={toggleOne}
         prefix={prefix}
+        reorderPending={reorderPending}
+        requiredColumns={controls.columns.required.map((column) => column.key)}
         selectedIds={selectedIds}
         sortState={sortState}
         t={t}
@@ -264,6 +268,9 @@ function JobsTable({
   items,
   columns,
   landingQueueEntries,
+  onReorderColumns,
+  reorderPending,
+  requiredColumns,
   selectedIds,
   allSelected,
   onToggleAll,
@@ -275,6 +282,9 @@ function JobsTable({
   items: DashboardJobItem[]
   columns: string[]
   landingQueueEntries: DashboardLandingQueueEntry[]
+  onReorderColumns?: (nextOrder: string[]) => void
+  reorderPending?: boolean
+  requiredColumns: string[]
   selectedIds: Set<number>
   allSelected: boolean
   onToggleAll: () => void
@@ -285,6 +295,12 @@ function JobsTable({
 }) {
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const tableColumns = useMemo(() => columns.filter((column) => column !== "landing_queue_wait_reason"), [columns])
+  const { dragOverKey, dragProps, draggable, orderedColumns } = useOrderedColumns({
+    columns: tableColumns,
+    onReorderColumns,
+    reorderPending,
+    requiredColumns
+  })
   // Only group by Epic when the rows are actually in queue order — in any
   // other sort the Epics aren't contiguous, so a separator would mislead.
   const groupByEpic = sortState.column === "landing_queue_position"
@@ -327,8 +343,15 @@ function JobsTable({
     <DataTable.Root>
       <DataTable.Header>
           <DataTable.Row>
-            {tableColumns.map((column) => (
-              <DataTable.HeadCell aria-sort={columnAriaSort("job", column, sortState)} checkbox={column === "checkbox"} key={column} title={column === "commits_behind_base" ? t("column_label.commits_behind_base_tooltip") : undefined}>
+            {orderedColumns.map((column) => (
+              <DataTable.HeadCell
+                aria-sort={columnAriaSort("job", column, sortState)}
+                checkbox={column === "checkbox"}
+                className={dragOverKey === column ? "outline outline-2 -outline-offset-2 outline-brand" : undefined}
+                key={column}
+                title={column === "commits_behind_base" ? t("column_label.commits_behind_base_tooltip") : undefined}
+                {...(draggable(column) ? dragProps(column) : {})}
+              >
                 {column === "checkbox" ? <Checkbox aria-label={t("select_all_jobs")} checked={allSelected} onChange={onToggleAll} /> : <SortableColumnHeader column={column} sortState={sortState} subject="job" />}
               </DataTable.HeadCell>
             ))}
@@ -338,7 +361,7 @@ function JobsTable({
           {groupByEpic ? (
             landingQueueGroups.map((group, index) => (
               <LandingQueueJobGroup
-                columns={tableColumns}
+                columns={orderedColumns}
                 expanded={expandedBlockerGroups.has(group.key)}
                 group={group}
                 key={group.key}
@@ -355,7 +378,7 @@ function JobsTable({
               const urgentClass = job.priority === "urgent" ? "bg-red-50 dark:bg-red-950/40" : ""
               return (
                 <DataTable.Row className={[separatorClass, urgentClass].filter(Boolean).join(" ") || undefined} key={job.id}>
-                  {tableColumns.map((column) => <JobCell column={column} job={job} key={column} navigationItems={items} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
+                  {orderedColumns.map((column) => <JobCell column={column} job={job} key={column} navigationItems={items} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
                 </DataTable.Row>
               )
             })

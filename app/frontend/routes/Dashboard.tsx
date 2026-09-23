@@ -2,7 +2,7 @@ import { useMediaQuery } from "./dashboard/components"
 import { DashboardKanban } from "./dashboard/KanbanBoard"
 import { JobsDashboardTable } from "./dashboard/JobsTable"
 import { EpicsTable, WorkflowsTable } from "./dashboard/EpicWorkflowTables"
-import { dashboardEmptyState, dashboardLinkFromSearch, dashboardVisibleColumns, epicTableColumns, pageLink, sortValue, sortableColumnFor, subjectLabel, uniqueValue, withRoutePrefix } from "./dashboard/helpers"
+import { dashboardColumnDefs, dashboardEmptyState, dashboardLinkFromSearch, dashboardVisibleColumns, epicTableColumns, pageLink, sortValue, sortableColumnFor, subjectLabel, uniqueValue, withRoutePrefix } from "./dashboard/helpers"
 import type { DashboardSortState } from "./dashboard/helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -14,7 +14,7 @@ import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../
 import { ApiError } from "../api/client"
 import { Button, buttonClasses } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
-import { ColumnVisibilityMenu } from "../components/ColumnVisibilityMenu"
+import { DataTableColumnMenu } from "../components/dataTable"
 import { DashboardSmartFolderNav, smartFolderIdFromSearch } from "../components/DashboardSmartFolderNav"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { CloseIcon } from "../components/CloseIcon"
@@ -577,19 +577,19 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
     <div className="shrink-0">
       <div className="flex flex-wrap items-center justify-end gap-3">
         {showConfiguration && payload.view === "list" ? (
-          <ColumnVisibilityMenu
+          <DataTableColumnMenu
+            columns={dashboardColumnDefs(payload.controls)}
             downLabel={t("column_down")}
             menuId="dashboard-columns-menu"
             moveDownLabel={(title) => t("column_move_down", { title })}
             moveUpLabel={(title) => t("column_move_up", { title })}
             onChange={(next) => updatePreferences.mutate({ subject: payload.subject, visible_columns: next })}
-            optionalColumns={payload.controls.columns.optional}
+            order={payload.preferences.visible_columns}
             pending={updatePreferences.isPending}
             triggerAriaLabel={t("columns")}
             triggerClassName="h-[var(--control-height-md)] w-[var(--control-height-md)]"
             triggerSize="icon"
             upLabel={t("column_up")}
-            visibleColumns={payload.preferences.visible_columns}
             visibleLabel={t("visible_columns")}
           />
         ) : null}
@@ -688,6 +688,13 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
   })
+  const updateColumnOrder = useMutation({
+    mutationFn: updateDashboardPreferences,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+    }
+  })
+  const onReorderColumns = (next: string[]) => updateColumnOrder.mutate({ subject: payload.subject, visible_columns: next })
   const storedSortColumn = sortValue(payload.preferences.sort, "column")
   const storedSortDirection = sortValue(payload.preferences.sort, "direction")
   const isOnLandingQueueFolder = payload.smart_folders.some(
@@ -769,16 +776,18 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
         controls={payload.controls}
         landingQueueEntries={payload.landing_queue.entries ?? []}
         landingQueueStatus={payload.landing_queue.status ?? null}
+        onReorderColumns={onReorderColumns}
         prefix={prefix}
+        reorderPending={updateColumnOrder.isPending}
         sortState={sortState}
         t={t}
         untaggedIssues={payload.untagged_issues}
       />
     )
   }
-  if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} prefix={prefix} sortState={sortState} />
+  if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} onReorderColumns={onReorderColumns} prefix={prefix} reorderPending={updateColumnOrder.isPending} sortState={sortState} />
 
-  return <EpicsTable columns={epicTableColumns(columns)} items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} sortState={sortState} />
+  return <EpicsTable columns={epicTableColumns(columns)} items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} onReorderColumns={onReorderColumns} prefix={prefix} reorderPending={updateColumnOrder.isPending} sortState={sortState} />
 }
 
 function Pagination({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
