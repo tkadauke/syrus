@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { Page } from "@app/components/ui"
 import i18n from "@app/i18n"
 import { ClusterBrowser } from "./ClusterBrowser"
 
@@ -219,6 +220,19 @@ function renderBrowser() {
   )
 }
 
+function renderBrowserInResponsiveShell() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={client}>
+        <Page.Root aria-label="Kubernetes clusters" className="flex h-full flex-col overflow-hidden" gutter="responsive" size="wide">
+          <ClusterBrowser clusterId={1} label="Staging" onBack={vi.fn()} />
+        </Page.Root>
+      </QueryClientProvider>
+    </I18nextProvider>
+  )
+}
+
 async function switchTab(name: string) {
   fireEvent.click(screen.getByRole("button", { name: "Cluster view" }))
   fireEvent.click(await screen.findByRole("option", { name }))
@@ -248,6 +262,24 @@ describe("ClusterBrowser", () => {
     fireEvent.click(button)
     expect(await screen.findByRole("listbox")).toBeInTheDocument()
     expect(document.querySelector("select")).not.toBeInTheDocument()
+  })
+
+  describe("responsive gutter", () => {
+    it("restores margin on the header and tab nav while the surrounding Page.Root stays flush", async () => {
+      setupFetchMock()
+      renderBrowserInResponsiveShell()
+
+      const heading = await screen.findByRole("heading", { name: "Browsing Staging" })
+      const header = heading.closest("header")
+      expect(header?.className).toContain("px-4 sm:px-0")
+
+      const dropdownButton = screen.getByRole("button", { name: "Cluster view" })
+      const nav = dropdownButton.closest("div.flex.shrink-0.flex-wrap.items-center.gap-2")
+      expect(nav?.className).toContain("px-4 sm:px-0")
+
+      const overviewPane = (await screen.findByText("1")).closest("div.min-h-0.flex-1.overflow-y-auto")
+      expect(overviewPane?.className ?? "").not.toContain("px-4 sm:px-0")
+    })
   })
 
   describe("Overview tab", () => {
