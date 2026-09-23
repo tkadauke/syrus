@@ -673,8 +673,15 @@ Epics, or issues. In **Coding Mode** (labs feature `coding_mode`), the
 chat workspace gets a writable full clone on a dedicated branch so the
 agent can implement directly. `ChatWorkspacePrepareJob` auto-installs
 dependencies after every coding checkout (`:chat` queue, same soft-fail
-semantics as the workflow `prepare` step), and agents can inspect the checkout
-prep state before assuming dependencies are ready. Chat has a
+semantics as the workflow `prepare` step), builds its subprocess env through
+the same `Steps::Prepare.prep_env_forward`/`.prep_extra_env` (`:step_environment`
+plugin extension point) `Steps::Prepare`/`Steps::Grader` use rather than a
+private hardcoded list, so a plugin like `build_cache`'s sccache configures
+consistently there too (see `ChatWorkspaceEnv`, `PrepareScope`, and
+`plugins/build_cache/docs/syrus_docs/sccache_build_cache.md`) -- the same
+helper also backs `ChatShellCommandExecutor::Coding`'s ad hoc `!` commands --
+and agents can inspect the checkout prep state before assuming dependencies
+are ready. Chat has a
 `reset_workspace` MCP tool that is status-only by default and requires
 `confirm_discard: true` before it discards dirty or ahead-of-default Coding
 Mode work and prepares a fresh branch. After committing, the agent
