@@ -95,6 +95,7 @@ module Observability
       register(:operational, model: "OperationalLogEvent", durable: true, persist: :create_each)
       register(:work_engine_reconciler_activity, model: "WorkEngineReconcilerActivityEvent")
       register(:workflow_activity, model: "WorkflowActivityEvent", durable: true)
+      register(:mcp_startup_phase, model: "McpStartupPhaseEvent", durable: true)
     end
   end
 end

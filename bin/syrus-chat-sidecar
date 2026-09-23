@@ -9,6 +9,11 @@
 require "optparse"
 require_relative "../lib/syrus_sidecar_bootstrap"
 
+# Captured before anything else so McpStartupTiming's "sidecar_process_spawn"
+# phase reflects the true process start, not "however long it took Bundler
+# and Rails to boot before we could record it."
+process_spawned_at = Time.now
+
 SyrusSidecarBootstrap.prepare_bundle!(sidecar_env_key: "SYRUS_CHAT_MCP_SIDECAR")
 
 chat_session_id = ENV["SYRUS_CHAT_SESSION_ID"].to_s
@@ -37,12 +42,15 @@ SyrusSidecarBootstrap.open_chat_stderr!(
 
 begin
   require_relative "../config/environment"
+  application_booted_at = Time.now
 
   Mcp::Sidecar.chat(
     session_id: ENV.fetch("SYRUS_CHAT_SESSION_ID"),
     current_message_id: ENV["SYRUS_CHAT_CURRENT_MESSAGE_ID"],
     tier: tier,
-    server_name: server_name
+    server_name: server_name,
+    process_spawned_at: process_spawned_at,
+    application_booted_at: application_booted_at
   ).run
 rescue SystemExit => e
   raise unless e.success?
