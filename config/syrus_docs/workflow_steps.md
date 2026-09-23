@@ -692,6 +692,31 @@ only a regrade to retry. The skip is still bounded by the loop's
 `max_iterations`, and each skip is recorded on the workflow's
 `transient_grader_repair_skips` artifact for operator visibility.
 
+`grader_collect` also consults the same deterministic rung-0 adjudicator
+ladder (`Adjudicators`, see `app/services/adjudicators.rb`) that decides
+whether a required-grader failure is already known to be inherited from
+base, confirmed-flaky, or dismissed by an isolated repro before ever raising
+a workflow failure. `Adjudicators::ReportedMainConcern` is one such
+adjudicator: an agent's `report_main_concern` call is a claim, not evidence,
+so this dismisses a required-grader failure only when BOTH are true for this
+exact loop iteration — an agent filed `report_main_concern`, AND a live
+`BaseRevisionRetry` independently confirms every currently-failing required
+grader also fails when rerun against the base revision (using the grader's
+configured `base_retry`, including the custom-grader default described
+above). `failures: strict` graders are never eligible, and a `report_main_concern`
+call with no matching base-revision failure changes nothing — the required
+grader still blocks the iteration. A dismissal here is recorded the same way
+`inherited_grader_failure` is: the grader Step's `details["accepted_failure"]`
+is stamped and `Workflow#artifacts["main_concern_verified_grader_failure"]`
+records the grader names, the base SHA, and the base_retry results, so the
+job detail UI shows the required grader as `warning` rather than `failed`
+while preserving its original failing output. Because the workspace tree did
+not change to produce that no-op repair (that is exactly what `report_main_concern`
+plus a no-diff repair agent turn means), a later regrade of the same
+iteration's other, still-passing graders is skipped the same way an
+infrastructure-only retry skips them — see `retrying_no_change_repair?` in
+`Steps::GraderFanout`.
+
 When `grader_collect` records a grader conclusion, it also records a persistent
 `TargetHealthRecord` for each materialized grader target. The record stores the
 target label, project id, repository, commit SHA, input fingerprint, command

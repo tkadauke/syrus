@@ -381,6 +381,16 @@ output fingerprints only. Use `strict` for catastrophic or invariant checks
 where a failure should never be ignored, such as eager-load or production boot
 checks.
 
+A custom (`type: custom` or bare `run:`) grader has no framework plugin to
+compare structured failed-test identities, so without an explicit `base_retry:`
+it used to get no base-revision comparison at all once it opted into
+`allow_inherited`. Syrus now defaults a bare `allow_inherited` custom grader to
+`base_retry: { strategy: full_command }` -- rerunning the exact command already
+trusted against the candidate is a safe default with no extra config. An
+explicit `base_retry:` key, including `base_retry: false` to opt out, always
+overrides the default. Plugin-defined graders (`type: rspec`, `type: vitest`, ...)
+are unaffected; they already set their own `base_retry` strategy when they can.
+
 `base_retry` runs from a temporary worktree checked out at the base SHA:
 
 ```yaml
