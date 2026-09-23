@@ -464,6 +464,7 @@ RSpec.describe ChatSession do
         resource: "chat",
         id: session.id,
         changed: [ "header" ],
+        revision: session.entity_revision,
         payload: {
           action: "update_header",
           chat: {
