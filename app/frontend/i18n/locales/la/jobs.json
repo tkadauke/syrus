@@ -510,6 +510,8 @@
   "pr_syrus": "Syrus PR #{{number}}",
   "pr_external": "PR externa #{{number}}",
   "pr_checked": "inspectum",
+  "step_outcome_pr_opened": "PR #{{number}} aperta",
+  "step_outcome_pr_opened_role": "PR {{role}} #{{number}} aperta",
   "retry_state_next_retry": "Iteratio proxima",
   "retry_state_delayed_until": "Dilatum usque ad",
   "feedback_trigger_chat": "Responsum colloquii",
