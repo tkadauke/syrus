@@ -11,7 +11,7 @@ import { CopyableSlug } from "@app/components/CopyableSlug"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
-import { Button, DataTable, DescriptionList, Form, buttonClasses } from "@app/components/ui"
+import { Button, DataTable, DescriptionList, Form, Page, buttonClasses } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useConfirm } from "@app/hooks/useConfirm"
@@ -64,8 +64,8 @@ export function ScheduledTasksIndex() {
   })
 
   return (
-    <main aria-label={t("scheduled_tasks.aria_index")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+    <Page.Root aria-label={t("scheduled_tasks.aria_index")} gutter="responsive" size="wide">
+      <Page.Header className="items-start">
         <div>
           <PageHeading>{t("scheduled_tasks.heading")}</PageHeading>
           <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">{t("scheduled_tasks.description")}</p>
@@ -73,7 +73,7 @@ export function ScheduledTasksIndex() {
         <Link className={buttonClasses("primary")} to={`${tasksBase(location.pathname)}/new`}>
           {t("scheduled_tasks.new_task")}
         </Link>
-      </header>
+      </Page.Header>
 
       {tasks.isPending ? <PanelMessage>{t("scheduled_tasks.loading")}</PanelMessage> : null}
       {tasks.isError ? <ScheduledTasksError error={tasks.error} /> : null}
@@ -102,7 +102,7 @@ export function ScheduledTasksIndex() {
           />
         </>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -119,11 +119,11 @@ export function ScheduledTaskDetailRoute() {
   })
 
   return (
-    <main aria-label={t("scheduled_tasks.aria_detail")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <Page.Root aria-label={t("scheduled_tasks.aria_detail")} gutter="responsive" size="wide">
       {detail.isPending ? <PanelMessage>{t("scheduled_tasks.loading_detail")}</PanelMessage> : null}
       {detail.isError ? <ScheduledTasksError error={detail.error} /> : null}
       {detail.isSuccess ? <TaskDetail basePath={tasksBase(location.pathname)} payload={detail.data} prefix={prefix} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -167,11 +167,13 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   const showRepositoryPicker = needsRepositoryPick && repositoryId.length === 0
 
   return (
-    <main aria-label={mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")} className="mx-auto max-w-3xl space-y-6 p-6">
-      <header>
-        <PageHeading>{mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")}</PageHeading>
-        {repository ? <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">{repository.slug}</p> : null}
-      </header>
+    <Page.Root aria-label={mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")} gutter="responsive" size="narrow">
+      <Page.Header>
+        <div>
+          <PageHeading>{mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")}</PageHeading>
+          {repository ? <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">{repository.slug}</p> : null}
+        </div>
+      </Page.Header>
 
       {showRepositoryPicker ? (
         <RepositoryPicker
@@ -198,7 +200,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
           ) : null}
         </>
       )}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -333,7 +335,7 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
 
   return (
     <>
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <Page.Header className="flex-col items-start gap-3 sm:flex-row sm:items-start">
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <PageHeading>{payload.task.name}</PageHeading>
@@ -349,7 +351,7 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
           </p>
         </div>
         <TaskActions archive={archive} basePath={basePath} command={command} task={payload.task} />
-      </header>
+      </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("scheduled_tasks.error_update"))}</PanelMessage> : null}

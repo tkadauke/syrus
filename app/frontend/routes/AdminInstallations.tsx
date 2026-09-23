@@ -13,7 +13,8 @@ import { ApiError } from "../api/client"
 import { Button } from "../components/Button"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
-import { DataTable } from "../components/ui"
+import { DataTable, Page, usePageGutterRestoreClassName } from "../components/ui"
+import { classes } from "../components/ui/classes"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -33,36 +34,39 @@ export function AdminInstallations() {
   })
 
   return (
-    <main aria-label={t("aria_installations")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <PageHeading className="mt-1">{t("installations.heading")}</PageHeading>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {t("installations.description")}
-        </p>
-      </header>
+    <Page.Root aria-label={t("aria_installations")} gutter="responsive">
+      <Page.Header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+        <div>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <PageHeading className="mt-1">{t("installations.heading")}</PageHeading>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {t("installations.description")}
+          </p>
+        </div>
+      </Page.Header>
 
-      {installations.isPending ? <PanelMessage>{t("installations.loading")}</PanelMessage> : null}
-      {installations.isError ? <InstallationsError error={installations.error} /> : null}
+      {installations.isPending ? <MarginGutterRestore><PanelMessage>{t("installations.loading")}</PanelMessage></MarginGutterRestore> : null}
+      {installations.isError ? <MarginGutterRestore><InstallationsError error={installations.error} /></MarginGutterRestore> : null}
       {installations.isSuccess ? <InstallationsView payload={installations.data} prefix={prefix} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
 function InstallationsView({ payload, prefix }: { payload: AdminInstallationsPayload; prefix: string }) {
   const { t } = useT("admin")
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
 
   return (
     <>
       {!payload.github_app_registered ? (
-        <section className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+        <section className={classes("rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-100", marginGutterRestore)}>
           <div className="font-semibold">{t("installations.app_not_registered_title")}</div>
           <p className="mt-1">{t("installations.app_not_registered_body")}</p>
           <Link className="mt-3 inline-block rounded bg-amber-600 dark:bg-amber-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500 dark:hover:bg-amber-400" to={withRoutePrefix("/admin/github_app/register", prefix)}>{t("installations.run_manifest_flow")}</Link>
         </section>
       ) : null}
 
-      <section className="space-y-3">
+      <section className={classes("space-y-3", marginGutterRestore)}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <SectionHeading>{t("installations.credential_modes")}</SectionHeading>
           <RefreshButton />
@@ -72,7 +76,9 @@ function InstallationsView({ payload, prefix }: { payload: AdminInstallationsPay
       </section>
 
       {payload.github_app_registered && payload.pat_owner_groups.length > 0 ? (
-        <PatOwnerGroups groups={payload.pat_owner_groups} />
+        <div className={marginGutterRestore}>
+          <PatOwnerGroups groups={payload.pat_owner_groups} />
+        </div>
       ) : null}
 
       <RepositoriesTable repositories={payload.repositories} />
@@ -227,9 +233,11 @@ function RepositoriesTable({ repositories }: { repositories: InstallationReposit
   const preferences = useLocalStorageColumnPreferences({ columns, storageKey: INSTALLATIONS_REPOSITORIES_VISIBLE_COLUMNS_STORAGE_KEY })
   const colSpan = visibleColumns({ columns, order: preferences.order }).length
 
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
+
   return (
     <section>
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className={classes("mb-3 flex items-center justify-between gap-3", marginGutterRestore)}>
         <SectionHeading>{t("installations.repositories_heading")}</SectionHeading>
         <DataTableColumnMenu
           columns={columns}
@@ -262,6 +270,13 @@ function RepositoriesTable({ repositories }: { repositories: InstallationReposit
       </div>
     </section>
   )
+}
+
+// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
+// context Page.Root actually provides.
+function MarginGutterRestore({ children }: { children: ReactNode }) {
+  const restore = usePageGutterRestoreClassName("margin")
+  return <div className={restore}>{children}</div>
 }
 
 function InstallationsError({ error }: { error: Error }) {

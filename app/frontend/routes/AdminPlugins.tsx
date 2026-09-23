@@ -20,6 +20,8 @@ import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Markdown } from "../lib/Markdown"
 import * as pageReload from "../lib/pageReload"
+import { Page, usePageGutterRestoreClassName } from "../components/ui"
+import { classes } from "../components/ui/classes"
 
 export function AdminPlugins() {
   const { t } = useT("admin")
@@ -35,11 +37,13 @@ export function AdminPlugins() {
   const isFiltered = plugins.isSuccess && topFilterChildren(filterTreeFromPayload(plugins.data.filter)).length > 0
 
   return (
-    <main aria-label={t("plugins.aria_plugins")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <PageHeading className="mt-1">{t("plugins.heading")}</PageHeading>
-      </header>
+    <Page.Root aria-label={t("plugins.aria_plugins")} gutter="responsive">
+      <Page.Header className="border-b border-gray-200 pb-4 dark:border-gray-700">
+        <div>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <PageHeading className="mt-1">{t("plugins.heading")}</PageHeading>
+        </div>
+      </Page.Header>
 
       {plugins.isPending ? <PanelMessage>{t("plugins.loading")}</PanelMessage> : null}
       {plugins.isError ? <PanelMessage tone="error">{errorMessage(plugins.error, t("plugins.error_load"))}</PanelMessage> : null}
@@ -57,7 +61,7 @@ export function AdminPlugins() {
           <PluginsView isFiltered={isFiltered} plugins={plugins.data.plugins} />
         </AdminFiltersLayout>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -73,12 +77,24 @@ export function AdminPluginDetail() {
   })
 
   return (
-    <main aria-label={t("plugins.detail_aria")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <Link className="text-sm font-medium text-brand hover:underline" to="/admin/plugins">{t("plugins.back_to_plugins")}</Link>
+    <Page.Root aria-label={t("plugins.detail_aria")} gutter="responsive">
+      <PluginDetailBackLink />
       {plugin.isPending ? <PanelMessage>{t("plugins.detail_loading")}</PanelMessage> : null}
       {plugin.isError ? <PanelMessage tone="error">{errorMessage(plugin.error, t("plugins.detail_error_load"))}</PanelMessage> : null}
       {plugin.isSuccess ? <PluginDetailView plugin={plugin.data.plugin} /> : null}
-    </main>
+    </Page.Root>
+  )
+}
+
+// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
+// context Page.Root actually provides.
+function PluginDetailBackLink() {
+  const { t } = useT("admin")
+  const restore = usePageGutterRestoreClassName("padding")
+  return (
+    <div className={restore}>
+      <Link className="text-sm font-medium text-brand hover:underline" to="/admin/plugins">{t("plugins.back_to_plugins")}</Link>
+    </div>
   )
 }
 
@@ -301,9 +317,11 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
   const disableBlocked = plugin.enabled && disableBlockers.length > 0
   const toggleState = usePluginToggle(plugin, () => pageReload.reloadPage())
 
+  const restore = usePageGutterRestoreClassName("padding")
+
   return (
     <>
-      <header className="border-b border-gray-200 pb-5 dark:border-gray-700">
+      <header className={classes("border-b border-gray-200 pb-5 dark:border-gray-700", restore)}>
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
@@ -542,5 +560,6 @@ function extensionPointLabel(point: string, t: (key: string, opts?: Record<strin
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
+  const restore = usePageGutterRestoreClassName("padding")
+  return <div className={classes("p-4 text-sm", tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300", restore)}>{children}</div>
 }

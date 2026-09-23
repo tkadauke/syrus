@@ -20,7 +20,8 @@ import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 import { useConfirm } from "@app/hooks/useConfirm"
-import { Button, DataTable, DescriptionList, Form, buttonClasses } from "@app/components/ui"
+import { Button, DataTable, DescriptionList, Form, Page, buttonClasses, usePageGutterRestoreClassName } from "@app/components/ui"
+import { classes } from "@app/components/ui/classes"
 
 const defaultPolicies = ["skip", "pile", "replace"]
 const emptyTemplate: CronTemplateInput = {
@@ -45,19 +46,19 @@ export function CronTemplatesIndex() {
   })
 
   return (
-    <main aria-label={t("aria_cron_templates")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <Page.Root aria-label={t("aria_cron_templates")} gutter="responsive">
+      <Page.Header className="flex-col items-start gap-3 sm:flex-row sm:items-start">
         <div>
           <PageHeading>{t("cron_templates.heading")}</PageHeading>
           <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">{t("cron_templates.description")}</p>
         </div>
         <Link className={buttonClasses("primary", "md", "self-start")} to={`${basePath}/new`}>{t("cron_templates.new")}</Link>
-      </header>
+      </Page.Header>
 
       {templates.isPending ? <PanelMessage>{t("cron_templates.loading")}</PanelMessage> : null}
       {templates.isError ? <CronTemplatesError error={templates.error} /> : null}
       {templates.isSuccess ? <TemplatesTable basePath={basePath} templates={templates.data.templates} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -75,11 +76,11 @@ export function CronTemplateDetailRoute() {
   })
 
   return (
-    <main aria-label={t("aria_cron_template_detail")} className="mx-auto max-w-6xl space-y-6 p-6">
+    <Page.Root aria-label={t("aria_cron_template_detail")} gutter="responsive">
       {detail.isPending ? <PanelMessage>{t("cron_templates.loading_template")}</PanelMessage> : null}
       {detail.isError ? <CronTemplatesError error={detail.error} /> : null}
       {detail.isSuccess ? <TemplateDetail basePath={basePath} payload={detail.data} prefix={prefix} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -105,13 +106,15 @@ export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
   const initial = mode === "edit" && detail.data ? inputFromTemplate(detail.data.template) : emptyTemplate
 
   return (
-    <main aria-label={mode === "new" ? "New cron template" : "Edit cron template"} className="mx-auto max-w-3xl space-y-6 p-6">
-      <header>
-        <PageHeading>{mode === "new" ? t("cron_templates.new_heading") : t("cron_templates.edit_heading")}</PageHeading>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          {mode === "new" ? t("cron_templates.new_description") : t("cron_templates.edit_description")}
-        </p>
-      </header>
+    <Page.Root aria-label={mode === "new" ? "New cron template" : "Edit cron template"} gutter="responsive" size="narrow">
+      <Page.Header>
+        <div>
+          <PageHeading>{mode === "new" ? t("cron_templates.new_heading") : t("cron_templates.edit_heading")}</PageHeading>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            {mode === "new" ? t("cron_templates.new_description") : t("cron_templates.edit_description")}
+          </p>
+        </div>
+      </Page.Header>
 
       {loading ? <PanelMessage>{t("cron_templates.loading_form")}</PanelMessage> : null}
       {error ? <CronTemplatesError error={error} /> : null}
@@ -124,7 +127,7 @@ export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
           policies={policies}
         />
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -189,7 +192,7 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
 
   return (
     <>
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <Page.Header className="flex-col items-start gap-3 sm:flex-row sm:items-start">
         <div>
           <div className="flex items-center gap-3">
             <PageHeading>{payload.template.name}</PageHeading>
@@ -212,7 +215,7 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
             {destroy.isPending ? t("cron_templates.deleting") : t("cron_templates.delete")}
           </button>
         </div>
-      </header>
+      </Page.Header>
 
       {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, t("cron_templates.error_delete"))}</PanelMessage> : null}
 
@@ -419,7 +422,8 @@ function CronTemplatesError({ error }: { error: Error }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-400"}`}>{children}</div>
+  const restore = usePageGutterRestoreClassName("padding")
+  return <div className={classes("p-4 text-sm", tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-400", restore)}>{children}</div>
 }
 
 function routeBase(pathname: string) {

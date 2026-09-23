@@ -10,7 +10,8 @@ import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
 import { Select } from "../components/Select"
 import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
-import { DataTable } from "../components/ui"
+import { DataTable, Page, usePageGutterRestoreClassName } from "../components/ui"
+import { classes } from "../components/ui/classes"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -44,16 +45,16 @@ export function AdminUsersIndex() {
   const activeUserFolderId = users.data?.smart_folders.find((folder) => folder.id === users.data.active_smart_folder_id && folder.kind === "user_defined")?.id
 
   return (
-    <main aria-label={t("users.aria_index")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("users.aria_index")} gutter="responsive" size="wide">
+      <Page.Header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
           <PageHeading className="mt-1">{t("users.heading")}</PageHeading>
         </div>
-      </header>
+      </Page.Header>
 
-      {users.isPending ? <PanelMessage>{t("users.loading")}</PanelMessage> : null}
-      {users.isError ? <UsersError error={users.error} /> : null}
+      {users.isPending ? <MarginGutterRestore><PanelMessage>{t("users.loading")}</PanelMessage></MarginGutterRestore> : null}
+      {users.isError ? <MarginGutterRestore><UsersError error={users.error} /></MarginGutterRestore> : null}
       {users.isSuccess ? (
         <AdminFiltersLayout
           filterBar={
@@ -90,7 +91,7 @@ export function AdminUsersIndex() {
           </section>
         </AdminFiltersLayout>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -109,16 +110,34 @@ export function AdminUserDetailRoute() {
   })
 
   return (
-    <main aria-label={t("users.aria_detail")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={basePath}>{t("users.heading")}</Link>
-        <PageHeading className="mt-2">{user.data?.display_name || `User #${id}`}</PageHeading>
-      </header>
+    <Page.Root aria-label={t("users.aria_detail")} gutter="responsive">
+      <UserDetailHeader basePath={basePath} title={user.data?.display_name || `User #${id}`} />
 
-      {user.isPending ? <PanelMessage>{t("users.loading_user")}</PanelMessage> : null}
-      {user.isError ? <UsersError error={user.error} /> : null}
+      {user.isPending ? <MarginGutterRestore><PanelMessage>{t("users.loading_user")}</PanelMessage></MarginGutterRestore> : null}
+      {user.isError ? <MarginGutterRestore><UsersError error={user.error} /></MarginGutterRestore> : null}
       {user.isSuccess ? <UserDetail user={user.data} /> : null}
-    </main>
+    </Page.Root>
+  )
+}
+
+// Split out so usePageGutterRestoreClassName reads the context Page.Root
+// actually provides (a hook call from AdminUserDetailRoute's own body would
+// run before the Provider is mounted).
+// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
+// context Page.Root actually provides.
+function MarginGutterRestore({ children }: { children: ReactNode }) {
+  const restore = usePageGutterRestoreClassName("margin")
+  return <div className={restore}>{children}</div>
+}
+
+function UserDetailHeader({ basePath, title }: { basePath: string; title: string }) {
+  const { t } = useT("admin")
+  const restore = usePageGutterRestoreClassName("padding")
+  return (
+    <header className={classes("border-b border-gray-200 dark:border-gray-700 pb-4", restore)}>
+      <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={basePath}>{t("users.heading")}</Link>
+      <PageHeading className="mt-2">{title}</PageHeading>
+    </header>
   )
 }
 
@@ -189,9 +208,10 @@ function UsersTable({ users, basePath }: { users: AdminUserRow[]; basePath: stri
 
 function UserDetail({ user }: { user: AdminUserDetail }) {
   const { t } = useT("admin")
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
   return (
     <>
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className={classes("grid gap-4 md:grid-cols-2", marginGutterRestore)}>
         <InfoPanel title={t("users.identity")}>
           <Info label={t("users.info_email")} value={user.email_address} />
           <Info label={t("users.info_github")} value={user.github_handle ? `@${user.github_handle}` : "-"} />
@@ -209,7 +229,7 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
         </InfoPanel>
       </section>
 
-      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <section className={classes("rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4", marginGutterRestore)}>
         <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("users.scheduling")}</h2>
         <div className="mt-3 flex items-center gap-4">
           <span className="text-sm text-gray-700 dark:text-gray-200">{t("users.status_prefix")}<strong>{user.scheduling_paused ? t("users.scheduling_paused") : t("users.scheduling_active")}</strong></span>

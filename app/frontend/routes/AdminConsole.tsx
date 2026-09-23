@@ -20,7 +20,8 @@ import { NoticeToast } from "../components/NoticeToast"
 import { Select } from "../components/Select"
 import { useT } from "../hooks/useT"
 import { Button } from "../components/Button"
-import { DataTable } from "../components/ui"
+import { DataTable, Page, usePageGutterRestoreClassName } from "../components/ui"
+import { classes } from "../components/ui/classes"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -37,24 +38,27 @@ export function AdminConsole() {
   })
 
   return (
-    <main aria-label={t("aria_console")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <PageHeading className="mt-1">{t("console.heading")}</PageHeading>
-      </header>
+    <Page.Root aria-label={t("aria_console")} gutter="responsive">
+      <Page.Header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+        <div>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <PageHeading className="mt-1">{t("console.heading")}</PageHeading>
+        </div>
+      </Page.Header>
 
-      {consoleQuery.isPending ? <PanelMessage>{t("console.loading")}</PanelMessage> : null}
-      {consoleQuery.isError ? <ConsoleError error={consoleQuery.error} /> : null}
+      {consoleQuery.isPending ? <MarginGutterRestore><PanelMessage>{t("console.loading")}</PanelMessage></MarginGutterRestore> : null}
+      {consoleQuery.isError ? <MarginGutterRestore><ConsoleError error={consoleQuery.error} /></MarginGutterRestore> : null}
       {consoleQuery.isSuccess ? <ConsoleView payload={consoleQuery.data} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
 function ConsoleView({ payload }: { payload: AdminConsolePayload }) {
   const { t } = useT("admin")
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
   return (
     <>
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className={classes("grid gap-4 md:grid-cols-2", marginGutterRestore)}>
         <TogglePanel
           command={payload.settings.polling_paused ? "unpause_polling" : "pause_polling"}
           description={t("console.polling_description")}
@@ -81,12 +85,14 @@ function ConsoleView({ payload }: { payload: AdminConsolePayload }) {
         />
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className={classes("grid gap-4 md:grid-cols-2", marginGutterRestore)}>
         <ReaperPanel />
         <GithubCachePanel payload={payload} />
       </section>
 
-      <MaintenanceSection activeRuns={payload.active_runs} />
+      <div className={marginGutterRestore}>
+        <MaintenanceSection activeRuns={payload.active_runs} />
+      </div>
 
       <ActionsTable actions={payload.recent_admin_actions} />
     </>
@@ -337,6 +343,13 @@ function ActionsTable({ actions }: { actions: ConsoleAction[] }) {
       )}
     </section>
   )
+}
+
+// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
+// context Page.Root actually provides.
+function MarginGutterRestore({ children }: { children: ReactNode }) {
+  const restore = usePageGutterRestoreClassName("margin")
+  return <div className={restore}>{children}</div>
 }
 
 function ConsoleError({ error }: { error: Error }) {

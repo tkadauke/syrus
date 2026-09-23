@@ -1,7 +1,7 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -21,7 +21,8 @@ import {
   type SpawnedProcessUser
 } from "../api/adminProcesses"
 import { workflowSlug } from "../lib/slugs"
-import { DataTable } from "../components/ui"
+import { DataTable, Page, usePageGutterRestoreClassName } from "../components/ui"
+import { classes } from "../components/ui/classes"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -49,14 +50,16 @@ export function AdminProcessesIndex() {
   const activeUserFolderId = processes.data?.smart_folders.find((folder) => folder.id === processes.data.active_smart_folder_id && folder.kind === "user_defined")?.id
 
   return (
-    <main aria-label={t("processes.aria_index")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <PageHeading className="mt-1">{t("processes.heading")}</PageHeading>
-      </header>
+    <Page.Root aria-label={t("processes.aria_index")} gutter="responsive" size="wide">
+      <Page.Header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+        <div>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <PageHeading className="mt-1">{t("processes.heading")}</PageHeading>
+        </div>
+      </Page.Header>
 
-      {processes.isPending ? <PanelMessage>{t("processes.loading")}</PanelMessage> : null}
-      {processes.isError ? <ProcessError error={processes.error} /> : null}
+      {processes.isPending ? <MarginGutterRestore><PanelMessage>{t("processes.loading")}</PanelMessage></MarginGutterRestore> : null}
+      {processes.isError ? <MarginGutterRestore><ProcessError error={processes.error} /></MarginGutterRestore> : null}
       {processes.isSuccess ? (
         <AdminFiltersLayout
           filterBar={
@@ -95,7 +98,7 @@ export function AdminProcessesIndex() {
           </section>
         </AdminFiltersLayout>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -115,18 +118,46 @@ export function AdminProcessDetail() {
   })
 
   return (
-    <main aria-label={t("processes.aria_detail")} className="mx-auto max-w-5xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link className="text-sm text-brand underline hover:no-underline" to={basePath}>{t("processes.heading")}</Link>
-        <PageHeading className="mt-2">{t("processes.detail_heading")}{id ? ` #${id}` : ""}</PageHeading>
-      </header>
+    <Page.Root aria-label={t("processes.aria_detail")} gutter="responsive">
+      <ProcessDetailHeader basePath={basePath} id={id} />
 
-      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        {process.isPending ? <PanelMessage>{t("processes.loading")}</PanelMessage> : null}
-        {process.isError ? <ProcessError error={process.error} /> : null}
-        {process.isSuccess ? <ProcessDetail prefix={prefix} process={process.data} /> : null}
-      </section>
-    </main>
+      <ProcessDetailPanel process={process} prefix={prefix} />
+    </Page.Root>
+  )
+}
+
+// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
+// context Page.Root actually provides. The process detail is a single info
+// card, not a list, so it keeps the page's normal margin.
+function ProcessDetailPanel({ process, prefix }: { process: UseQueryResult<SpawnedProcessPayload, Error>; prefix: string }) {
+  const { t } = useT("admin")
+  const restore = usePageGutterRestoreClassName("margin")
+  return (
+    <section className={classes("rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900", restore)}>
+      {process.isPending ? <PanelMessage>{t("processes.loading")}</PanelMessage> : null}
+      {process.isError ? <ProcessError error={process.error} /> : null}
+      {process.isSuccess ? <ProcessDetail prefix={prefix} process={process.data} /> : null}
+    </section>
+  )
+}
+
+// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
+// context Page.Root actually provides.
+// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
+// context Page.Root actually provides.
+function MarginGutterRestore({ children }: { children: ReactNode }) {
+  const restore = usePageGutterRestoreClassName("margin")
+  return <div className={restore}>{children}</div>
+}
+
+function ProcessDetailHeader({ basePath, id }: { basePath: string; id: string }) {
+  const { t } = useT("admin")
+  const restore = usePageGutterRestoreClassName("padding")
+  return (
+    <header className={classes("border-b border-gray-200 dark:border-gray-700 pb-4", restore)}>
+      <Link className="text-sm text-brand underline hover:no-underline" to={basePath}>{t("processes.heading")}</Link>
+      <PageHeading className="mt-2">{t("processes.detail_heading")}{id ? ` #${id}` : ""}</PageHeading>
+    </header>
   )
 }
 

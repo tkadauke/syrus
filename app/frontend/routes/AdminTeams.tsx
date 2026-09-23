@@ -4,7 +4,7 @@ import { Button } from "../components/Button"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { FormEvent } from "react"
+import type { FormEvent, ReactNode } from "react"
 import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -13,6 +13,8 @@ import { NoticeToast } from "../components/NoticeToast"
 import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
+import { Page, usePageGutterRestoreClassName } from "../components/ui"
+import { classes } from "../components/ui/classes"
 import {
   addTeamMember,
   createAdminTeam,
@@ -50,18 +52,18 @@ export function AdminTeamsIndex() {
   })
 
   return (
-    <main aria-label={t("teams.aria_index")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("teams.aria_index")} gutter="responsive" size="wide">
+      <Page.Header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
           <PageHeading className="mt-1">{t("teams.heading")}</PageHeading>
         </div>
-      </header>
+      </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
-      {teams.isPending ? <PanelMessage>{t("teams.loading")}</PanelMessage> : null}
-      {teams.isError ? <TeamsError error={teams.error} /> : null}
+      {teams.isPending ? <MarginGutterRestore><PanelMessage>{t("teams.loading")}</PanelMessage></MarginGutterRestore> : null}
+      {teams.isError ? <MarginGutterRestore><TeamsError error={teams.error} /></MarginGutterRestore> : null}
       {teams.isSuccess ? (
         <AdminFiltersLayout>
           <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -69,15 +71,24 @@ export function AdminTeamsIndex() {
             <TeamsTable teams={teams.data.teams} />
           </section>
 
-          <CreateTeamForm
-            error={create.isError ? errorMessage(create.error, t("teams.error_create")) : null}
-            onSubmit={(name) => create.mutate(name)}
-            pending={create.isPending}
-          />
+          <MarginGutterRestore>
+            <CreateTeamForm
+              error={create.isError ? errorMessage(create.error, t("teams.error_create")) : null}
+              onSubmit={(name) => create.mutate(name)}
+              pending={create.isPending}
+            />
+          </MarginGutterRestore>
         </AdminFiltersLayout>
       ) : null}
-    </main>
+    </Page.Root>
   )
+}
+
+// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
+// context Page.Root actually provides.
+function MarginGutterRestore({ children }: { children: ReactNode }) {
+  const restore = usePageGutterRestoreClassName("margin")
+  return <div className={restore}>{children}</div>
 }
 
 // Left off the shared column-config primitive: only 3 columns, all of which
@@ -161,16 +172,26 @@ export function AdminTeamDetailRoute() {
   })
 
   return (
-    <main aria-label={t("teams.aria_detail")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to="/admin/teams">{t("teams.heading")}</Link>
-        <PageHeading className="mt-2">{team.data?.team.name || `Team #${id}`}</PageHeading>
-      </header>
+    <Page.Root aria-label={t("teams.aria_detail")} gutter="responsive">
+      <TeamDetailHeader title={team.data?.team.name || `Team #${id}`} />
 
-      {team.isPending ? <PanelMessage>{t("teams.loading_team")}</PanelMessage> : null}
-      {team.isError ? <TeamsError error={team.error} /> : null}
+      {team.isPending ? <MarginGutterRestore><PanelMessage>{t("teams.loading_team")}</PanelMessage></MarginGutterRestore> : null}
+      {team.isError ? <MarginGutterRestore><TeamsError error={team.error} /></MarginGutterRestore> : null}
       {team.isSuccess ? <TeamDetail payload={team.data} /> : null}
-    </main>
+    </Page.Root>
+  )
+}
+
+// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
+// context Page.Root actually provides.
+function TeamDetailHeader({ title }: { title: string }) {
+  const { t } = useT("admin")
+  const restore = usePageGutterRestoreClassName("padding")
+  return (
+    <header className={classes("border-b border-gray-200 dark:border-gray-700 pb-4", restore)}>
+      <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to="/admin/teams">{t("teams.heading")}</Link>
+      <PageHeading className="mt-2">{title}</PageHeading>
+    </header>
   )
 }
 
@@ -206,24 +227,26 @@ function TeamDetail({ payload }: { payload: AdminTeamDetailPayload }) {
       {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, t("teams.error_delete"))}</PanelMessage> : null}
 
       {payload.can_manage ? (
-        <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-          <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("teams.heading")}</h2>
-          <RenameTeamForm disabled={rename.isPending} initialName={payload.team.name} onSubmit={(name) => rename.mutate(name)} />
-          <div className="mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">
-            <Button
-              className="disabled:bg-red-300"
-              disabled={destroy.isPending}
-              onClick={async () => {
-                if (await confirm({ message: t("teams.confirm_delete", { name: payload.team.name }), destructive: true })) {
-                  destroy.mutate()
-                }
-              }}
-              variant="danger"
-            >
-              {destroy.isPending ? t("teams.deleting") : t("teams.delete")}
-            </Button>
-          </div>
-        </section>
+        <MarginGutterRestore>
+          <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+            <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("teams.heading")}</h2>
+            <RenameTeamForm disabled={rename.isPending} initialName={payload.team.name} onSubmit={(name) => rename.mutate(name)} />
+            <div className="mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">
+              <Button
+                className="disabled:bg-red-300"
+                disabled={destroy.isPending}
+                onClick={async () => {
+                  if (await confirm({ message: t("teams.confirm_delete", { name: payload.team.name }), destructive: true })) {
+                    destroy.mutate()
+                  }
+                }}
+                variant="danger"
+              >
+                {destroy.isPending ? t("teams.deleting") : t("teams.delete")}
+              </Button>
+            </div>
+          </section>
+        </MarginGutterRestore>
       ) : null}
 
       <TeamMembers canManage={payload.can_manage} memberships={payload.memberships} teamId={teamId} />

@@ -6,6 +6,7 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchMetricsDashboard } from "../api/metricsDashboard"
 import { MetricsChart } from "./MetricsChart"
+import { Page, usePageGutterRestoreClassName } from "@app/components/ui"
 
 const DEFAULT_WINDOW = "6h"
 const TAB_PARAM = "tab"
@@ -43,10 +44,10 @@ export function MetricsDashboardRoute() {
   }
 
   if (dashboard.isPending) {
-    return <main className="p-6 text-sm text-gray-500">{t("loading")}</main>
+    return <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide"><p className="text-sm text-gray-500">{t("loading")}</p></Page.Root>
   }
   if (dashboard.isError) {
-    return <main className="p-6 text-sm text-red-700">{errorMessage(dashboard.error, t("error"))}</main>
+    return <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide"><p className="text-sm text-red-700">{errorMessage(dashboard.error, t("error"))}</p></Page.Root>
   }
 
   const payload = dashboard.data
@@ -62,8 +63,8 @@ export function MetricsDashboardRoute() {
   const visiblePanels = payload.panels.filter((panel) => panel.category === activeTab)
 
   return (
-    <main aria-label={t("aria_page")} className="mx-auto max-w-[100rem] space-y-5 p-6">
-      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 pb-4 dark:border-gray-700">
+    <Page.Root aria-label={t("aria_page")} className="space-y-5" gutter="responsive" size="wide">
+      <Page.Header className="items-end border-b border-gray-200 pb-4 dark:border-gray-700">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
             {t("heading")}
@@ -90,31 +91,33 @@ export function MetricsDashboardRoute() {
             </button>
           ))}
         </div>
-      </header>
+      </Page.Header>
 
       <RecordingNotice lastRecordedAt={payload.last_recorded_at} recording={payload.recording} />
 
-      <nav aria-label={t("tabs_aria")} className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700" role="tablist">
-        {tabs.map((tab) => (
-          <button
-            aria-selected={tab.id === activeTab}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
-              tab.id === activeTab
-                ? "border-brand text-brand dark:text-brand-emphasis"
-                : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-100"
-            }`}
-            key={tab.id}
-            onClick={() => {
-              setHoverIndex(null)
-              updateParam(TAB_PARAM, tab.id)
-            }}
-            role="tab"
-            type="button"
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      <Page.Nav>
+        <nav aria-label={t("tabs_aria")} className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700" role="tablist">
+          {tabs.map((tab) => (
+            <button
+              aria-selected={tab.id === activeTab}
+              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
+                tab.id === activeTab
+                  ? "border-brand text-brand dark:text-brand-emphasis"
+                  : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-100"
+              }`}
+              key={tab.id}
+              onClick={() => {
+                setHoverIndex(null)
+                updateParam(TAB_PARAM, tab.id)
+              }}
+              role="tab"
+              type="button"
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </Page.Nav>
 
       <div className="grid gap-5 2xl:grid-cols-2" role="tabpanel">
         {visiblePanels.map((panel) => (
@@ -129,7 +132,7 @@ export function MetricsDashboardRoute() {
           />
         ))}
       </div>
-    </main>
+    </Page.Root>
   )
 }
 
@@ -138,10 +141,11 @@ export function MetricsDashboardRoute() {
 // different causes and the operator needs to know which.
 function RecordingNotice({ recording, lastRecordedAt }: { recording: boolean; lastRecordedAt: string | null }) {
   const { t } = useT("metrics_dashboard")
+  const restore = usePageGutterRestoreClassName("margin")
   if (recording) return null
 
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+    <div className={`rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100 ${restore}`}>
       {lastRecordedAt
         ? t("stale_notice", { at: new Date(lastRecordedAt).toLocaleString() })
         : t("no_data_notice")}

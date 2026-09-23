@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Select } from "@app/components/Select"
 import { useState } from "react"
 import { fetchGithubApiUsage, type GithubApiUsageOperationRow, type GithubApiUsageRepositoryRow } from "../api/githubApiUsage"
+import { Page, usePageGutterRestoreClassName } from "@app/components/ui"
 
 function number(value: number | null | undefined) {
   return typeof value === "number" ? value.toLocaleString() : "-"
@@ -22,8 +23,8 @@ export default function AdminGithubApiUsage() {
   const payload = query.data
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <Page.Root aria-label="GitHub API Usage" className="space-y-6" gutter="responsive" size="wide">
+      <Page.Header className="items-end">
         <div>
           <h1 className="text-3xl font-semibold text-gray-950 dark:text-gray-50">GitHub API Usage</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Hourly rollups by credential, operation, repository, and rate-limit resource.</p>
@@ -43,24 +44,17 @@ export default function AdminGithubApiUsage() {
             <option value={168}>7 days</option>
           </Select>
         </label>
-      </div>
+      </Page.Header>
 
-      {query.isPending ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p> : null}
-      {query.isError ? <p className="text-sm text-red-700 dark:text-red-300">Could not load GitHub API usage.</p> : null}
+      {query.isPending ? <LoadingNotice text="Loading..." tone="muted" /> : null}
+      {query.isError ? <LoadingNotice text="Could not load GitHub API usage." tone="error" /> : null}
 
       {payload ? (
         <div className="space-y-6">
-          <section className="grid gap-4 md:grid-cols-3">
-            <Metric label="Requests" value={payload.totals.requests} />
-            <Metric label="Rate limited" value={payload.totals.rate_limited} />
-            <Metric label="Generated" value={time(payload.generated_at)} />
-          </section>
+          <MetricsSection payload={payload} />
 
           {payload.recent_rate_limits.length ? (
-            <section className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/20">
-              <h2 className="text-lg font-semibold text-red-900 dark:text-red-100">Recent Rate Limits</h2>
-              <UsageTable rows={payload.recent_rate_limits} showRepo />
-            </section>
+            <RateLimitsSection rows={payload.recent_rate_limits} />
           ) : null}
 
           <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">
@@ -74,7 +68,36 @@ export default function AdminGithubApiUsage() {
           </section>
         </div>
       ) : null}
-    </main>
+    </Page.Root>
+  )
+}
+
+// Real descendants of Page.Root so usePageGutterRestoreClassName reads the
+// context Page.Root actually provides -- these sit above the flush data
+// tables and keep the page's normal mobile margin.
+function LoadingNotice({ text, tone }: { text: string; tone: "muted" | "error" }) {
+  const restore = usePageGutterRestoreClassName("padding")
+  return <p className={`text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-500 dark:text-gray-400"} ${restore}`}>{text}</p>
+}
+
+function MetricsSection({ payload }: { payload: { totals: { requests: number; rate_limited: number }; generated_at: string | null } }) {
+  const restore = usePageGutterRestoreClassName("margin")
+  return (
+    <section className={`grid gap-4 md:grid-cols-3 ${restore}`}>
+      <Metric label="Requests" value={payload.totals.requests} />
+      <Metric label="Rate limited" value={payload.totals.rate_limited} />
+      <Metric label="Generated" value={time(payload.generated_at)} />
+    </section>
+  )
+}
+
+function RateLimitsSection({ rows }: { rows: (GithubApiUsageOperationRow & { repo_slug?: string | null })[] }) {
+  const restore = usePageGutterRestoreClassName("margin")
+  return (
+    <section className={`rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/20 ${restore}`}>
+      <h2 className="text-lg font-semibold text-red-900 dark:text-red-100">Recent Rate Limits</h2>
+      <UsageTable rows={rows} showRepo />
+    </section>
   )
 }
 

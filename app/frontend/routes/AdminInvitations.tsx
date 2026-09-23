@@ -17,6 +17,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import { Page, usePageGutterRestoreClassName } from "../components/ui"
 
 const queryKey = ["admin", "invitations"] as const
 
@@ -29,16 +30,20 @@ export function AdminInvitations() {
   })
 
   return (
-    <main aria-label={t("aria_invitations")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <PageHeading className="mt-1">{t("invitations.heading")}</PageHeading>
-        <p className="mt-2 max-w-prose text-sm text-gray-600 dark:text-gray-300">
-          {t("invitations.description")}
-        </p>
-      </header>
+    <Page.Root aria-label={t("aria_invitations")} gutter="responsive">
+      <Page.Header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+        <div>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <PageHeading className="mt-1">{t("invitations.heading")}</PageHeading>
+          <p className="mt-2 max-w-prose text-sm text-gray-600 dark:text-gray-300">
+            {t("invitations.description")}
+          </p>
+        </div>
+      </Page.Header>
 
-      <CreateInvitationForm onNotice={setNotice} />
+      <MarginGutterRestore>
+        <CreateInvitationForm onNotice={setNotice} />
+      </MarginGutterRestore>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -47,8 +52,15 @@ export function AdminInvitations() {
         {invitations.isError ? <InvitationsError error={invitations.error} /> : null}
         {invitations.isSuccess ? <InvitationsTable invitations={invitations.data.invitations} onNotice={setNotice} /> : null}
       </section>
-    </main>
+    </Page.Root>
   )
+}
+
+// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
+// context Page.Root actually provides.
+function MarginGutterRestore({ children }: { children: ReactNode }) {
+  const restore = usePageGutterRestoreClassName("margin")
+  return <div className={restore}>{children}</div>
 }
 
 function CreateInvitationForm({ onNotice }: { onNotice: (message: string | null) => void }) {

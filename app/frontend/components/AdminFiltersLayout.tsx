@@ -1,11 +1,21 @@
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { useT } from "../hooks/useT"
+import { classes } from "./ui/classes"
+import { usePageGutterRestoreClassName } from "./ui"
 
+// Filter/smart-folder controls are header-ish chrome, not the page's flush
+// main content, so they keep the normal page margin under a "responsive"
+// Page.Root the same way Page.Header/Page.Nav do -- `children` (the actual
+// list/table content) is left alone so it can run edge to edge. Resolves to
+// a no-op under a "always"-gutter Page.Root (or outside any Page.Root), so
+// callers like AdminQueue that don't opt into the responsive gutter are
+// unaffected.
 export function AdminFiltersLayout({ children, filterBar, smartFolders }: { children: ReactNode; filterBar?: ReactNode; smartFolders?: ReactNode }) {
   const { t } = useT("nav")
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const hasControls = Boolean(filterBar || smartFolders)
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
 
   if (!hasControls) {
     return <div className="space-y-3">{children}</div>
@@ -15,9 +25,9 @@ export function AdminFiltersLayout({ children, filterBar, smartFolders }: { chil
     if (smartFolders) {
       return (
         <div className="grid gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
-          {smartFolders}
+          <div className={marginGutterRestore}>{smartFolders}</div>
           <div className="min-w-0 space-y-3">
-            {filterBar}
+            {filterBar ? <div className={marginGutterRestore}>{filterBar}</div> : null}
             {children}
           </div>
         </div>
@@ -26,7 +36,7 @@ export function AdminFiltersLayout({ children, filterBar, smartFolders }: { chil
 
     return (
       <div className="space-y-3">
-        {filterBar}
+        {filterBar ? <div className={marginGutterRestore}>{filterBar}</div> : null}
         {children}
       </div>
     )
@@ -34,7 +44,7 @@ export function AdminFiltersLayout({ children, filterBar, smartFolders }: { chil
 
   return (
     <div className="space-y-3">
-      <details className="group rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <details className={classes("group rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900", marginGutterRestore)}>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
           <span>{t("filters_layout.folders_and_filters")}</span>
           <span className="text-gray-400 dark:text-gray-500 group-open:hidden">{t("filters_layout.show")}</span>

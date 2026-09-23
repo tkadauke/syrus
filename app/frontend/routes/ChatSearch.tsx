@@ -8,6 +8,8 @@ import { fetchChatSearch, fetchChatSearchMessages, type ChatSearchMatch, type Ch
 import { getJson } from "../api/client"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { FilterBar, type FilterLinkBuilder, type FilterOption, type FilterSchemaField } from "../components/FilterBar"
+import { Page, usePageGutterRestoreClassName } from "../components/ui"
+import { classes } from "../components/ui/classes"
 
 type FilterOptionsPayload = {
   options?: FilterOption[]
@@ -34,13 +36,15 @@ export function ChatSearchRoute() {
   const filter = useMemo(() => filterFromSearch(search), [search])
   const filterSchema = useMemo(() => chatSearchFilterSchema(filterOptions.data), [filterOptions.data])
 
-  return (
-    <main aria-label={t("aria_chat_search")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header>
-        <PageHeading>{t('search.heading')}</PageHeading>
-      </header>
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
 
-      <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+  return (
+    <Page.Root aria-label={t("aria_chat_search")} gutter="responsive" size="wide">
+      <Page.Header>
+        <PageHeading>{t('search.heading')}</PageHeading>
+      </Page.Header>
+
+      <section className={classes("rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900", marginGutterRestore)}>
         <FilterBar
           buildLink={chatSearchFilterLink}
           filter={filter}
@@ -60,7 +64,7 @@ export function ChatSearchRoute() {
       ) : (
         <SearchResults payload={results.data} search={search} />
       )}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -177,9 +181,9 @@ function SearchPagination({ page, perPage, total }: { page: number; perPage: num
 }
 
 function PanelMessage({ children, tone = "neutral" }: { children: string; tone?: "neutral" | "error" }) {
-  const { t } = useT("chat")
   const color = tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-500 dark:text-gray-400"
-  return <div className={`rounded border border-gray-200 bg-white p-6 text-sm ${color} dark:border-gray-700 dark:bg-gray-900`}>{children}</div>
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
+  return <div className={classes("rounded border border-gray-200 bg-white p-6 text-sm dark:border-gray-700 dark:bg-gray-900", color, marginGutterRestore)}>{children}</div>
 }
 
 function chatSearchFilterSchema(options: Awaited<ReturnType<typeof loadFilterOptions>> | undefined): FilterSchemaField[] {
