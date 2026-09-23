@@ -2607,11 +2607,13 @@ Underneath, both call the lower-level `try_mirror_transport`, which resolves
 the transport, runs the caller's block against `transport.url`/
 `transport.env`, retries once after `transport.register!` if the first
 attempt raised `GitRunner::GitError`, and returns `false` (never raises) when
-neither attempt panned out. `try_mirror_transport` is also exposed directly
-for the one caller -- a branch refetch whose GitHub-side fallback needs
-`GithubAuthenticatedGit`'s own retry-on-auth-failure semantics -- that
-doesn't fit the single `fallback` block `fetch_via_transport!` expects. An
-optional `verify_sha:` (on both `fetch_via_transport!` and
+neither attempt panned out. It stays public as the shared primitive both
+higher-level helpers build on -- `fetch_via_transport!`'s `fallback` block is
+happy to wrap `GithubAuthenticatedGit`'s own retry-on-auth-failure semantics
+for the branch-refetch caller, so nothing today needs `try_mirror_transport`
+directly, but it's independently unit-tested and is the seam a future caller
+would use if its fallback ever doesn't fit a single block. An optional
+`verify_sha:` (on both `fetch_via_transport!` and
 `try_mirror_transport`) catches the case a plain "did the fetch succeed"
 check would miss: the transport answers, but with an older commit than the
 caller actually wanted (a mirror whose background sync hasn't caught up to a
