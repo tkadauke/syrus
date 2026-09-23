@@ -599,7 +599,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(entry).to be_nil
     end
 
-    it "includes an untagged_issues summary with a per-repository breakdown on the default Inbox smart folder" do
+    it "includes plugin UI panels for the default Inbox smart folder" do
       repo.update_columns(untagged_open_issue_count: 3)
       other = Factories.repository(user: user, owner: "acme", name: "widgets2", untagged_open_issue_count: 2)
       Factories.repository(user: user, owner: "acme", name: "widgets3", untagged_open_issue_count: 0)
@@ -607,15 +607,16 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       get "/api/v1/app/dashboard", params: { subject: "job", view: "list" }
 
       expect(response).to have_http_status(:ok)
-      untagged_issues = parse_body["untagged_issues"]
-      expect(untagged_issues["total"]).to eq(5)
-      expect(untagged_issues["repositories"]).to contain_exactly(
-        { "id" => repo.id, "slug" => repo.slug, "count" => 3, "issues_path" => "/repositories/#{repo.id}?tab=github_issues" },
-        { "id" => other.id, "slug" => other.slug, "count" => 2, "issues_path" => "/repositories/#{other.id}?tab=github_issues" }
+      panel = parse_body.fetch("ui_panels").find { |entry| entry.fetch("id") == "github_source.untagged_issues" }
+      expect(panel).to include("component" => "github_source/UntaggedIssuesBanner")
+      expect(panel.dig("props", "untagged_issues", "total")).to eq(5)
+      expect(panel.dig("props", "untagged_issues", "repositories")).to contain_exactly(
+        { "id" => repo.id, "slug" => repo.slug, "count" => 3, "issues_path" => "/repositories/#{repo.id}/plugin/issues" },
+        { "id" => other.id, "slug" => other.slug, "count" => 2, "issues_path" => "/repositories/#{other.id}/plugin/issues" }
       )
     end
 
-    it "omits the untagged_issues summary outside the Inbox smart folder" do
+    it "omits the GitHub Source dashboard notice outside the Inbox smart folder" do
       repo.update_columns(untagged_open_issue_count: 3)
       SmartFolder.ensure_builtins_for_subject!("job")
       landing_queue_folder = SmartFolder.find_builtin_by_attention("landing_queue")
@@ -623,7 +624,17 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: landing_queue_folder.id }
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["untagged_issues"]).to eq("total" => 0, "repositories" => [])
+      expect(parse_body.fetch("ui_panels")).to be_empty
+    end
+
+    it "omits the GitHub Source dashboard notice when the plugin is disabled" do
+      PluginRecord.find_or_create_by!(name: "github_source").update!(enabled: false, disableable: true)
+      repo.update_columns(untagged_open_issue_count: 3)
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("ui_panels")).to be_empty
     end
 
     it "adds landing queue positions when the landing smart folder is active" do

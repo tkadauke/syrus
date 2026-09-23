@@ -781,7 +781,7 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
         reorderPending={updateColumnOrder.isPending}
         sortState={sortState}
         t={t}
-        untaggedIssues={payload.untagged_issues}
+        uiPanels={payload.ui_panels}
       />
     )
   }

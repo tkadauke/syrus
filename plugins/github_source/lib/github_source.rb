@@ -12,6 +12,7 @@ module SyrusGithubSource
     default_enabled true
     disableable true
     provides repo_page_tab: "GithubSource::RepoPageTabs",
+             ui_slot: "GithubSource::UiSlots",
              admin_page: "GithubSource::AdminPages",
              input_source: "InputSources::Github",
              source_control_provider: "SourceControl::GithubOperations"
@@ -26,6 +27,7 @@ module SyrusGithubSource
           "github_source/RepositoryIssues" => "app/frontend/repo_tabs/RepositoryIssues.tsx",
           "github_source/AdminGithubApiUsage" => "app/frontend/routes/AdminGithubApiUsage.tsx"
         },
+        ui_slots: { "github_source/UntaggedIssuesBanner" => "app/frontend/ui_slots/UntaggedIssuesBanner.tsx" },
         i18n: [ "app/frontend/i18n/locales/*/github_source.json" ]
   end
 end

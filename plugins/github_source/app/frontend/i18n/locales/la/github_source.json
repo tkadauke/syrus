@@ -2,6 +2,13 @@
   "tab_issues": "GitHub Issues",
   "nav_github_api_usage": "Usus API GitHub",
   "nav_api_usage": "Usus API GitHub",
+  "dashboard": {
+    "untagged_issues_summary_one": "{{count}} negotium apertum non signatum",
+    "untagged_issues_summary_other": "{{count}} negotia aperta non signata",
+    "untagged_issues_repo_count_one": "in {{count}} repositorio",
+    "untagged_issues_repo_count_other": "in {{count}} repositoriis",
+    "untagged_issues_dismiss": "Dimitte"
+  },
   "repository": {
     "loading_issues": "Quaestiones GitHub onerantur...",
     "trigger_label_prefix": "Pittacium excitans:",

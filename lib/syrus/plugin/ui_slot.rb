@@ -30,6 +30,7 @@ module Syrus
       # Declared here rather than as free-form strings so a typo in a plugin
       # fails loudly instead of silently rendering nowhere.
       SLOTS = %w[
+        dashboard.jobs.notice
         repository.detail
         job.detail
         job.detail.tab

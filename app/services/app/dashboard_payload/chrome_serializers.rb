@@ -274,32 +274,6 @@ module App
           (repository.main_health_broken? || repository.main_health_inconclusive?)
       end
 
-      def untagged_issues_visible?
-        subject == "job" && active_smart_folder&.attention_preset == "inbox"
-      end
-
-      def untagged_issues_json
-        @untagged_issues_json ||= PerformanceLogging.phase("dashboard_untagged_issues", subject: subject) do
-          next { total: 0, repositories: [] } unless untagged_issues_visible?
-
-          repositories = active_repositories_scope.where("untagged_open_issue_count > 0")
-          repositories_json = repositories.map { |repo| untagged_issue_repository_json(repo) }
-          {
-            total: repositories_json.sum { |entry| entry.fetch(:count) },
-            repositories: repositories_json
-          }
-        end
-      end
-
-      def untagged_issue_repository_json(repository)
-        {
-          id: repository.id,
-          slug: repository.slug,
-          count: repository.untagged_open_issue_count,
-          issues_path: repository_path(repository, tab: "github_issues")
-        }
-      end
-
       def main_branch_repair_json(status)
         {
           enabled: status[:enabled],

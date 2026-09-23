@@ -1877,92 +1877,41 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
   end
 
-  describe "untagged_issues chrome field" do
-    # Untagged issues are only ever surfaced on the Inbox smart folder (they
-    # aggregate raw GitHub issue counts, unrelated to whatever other Job
-    # attention preset the operator happens to be filtering by), so every
-    # example here pins the active smart folder to Inbox explicitly.
+  describe "dashboard UI slot panels" do
     before { SmartFolder.ensure_builtins_for_subject!("job") }
 
     let(:inbox_folder) { SmartFolder.find_builtin_by_attention("inbox") }
 
-    it "returns a zero total and no repositories when nothing has untagged open issues" do
-      repo.update_columns(untagged_open_issue_count: 0)
+    it "resolves plugin panels for the jobs dashboard notice slot" do
+      panel = { id: "test.notice", component: "test/Notice", order: 10 }
+
+      expect(App::UiSlotsPayload).to receive(:panels_for) do |slot:, context:|
+        expect(slot).to eq("dashboard.jobs.notice")
+        expect(context[:user]).to eq(user)
+        expect(context[:subject]).to eq("job")
+        expect(context[:active_smart_folder]).to eq(inbox_folder)
+        expect(context[:active_repositories_scope]).to respond_to(:where)
+        [ panel ]
+      end
 
       result = call(subject: "job", smart_folder_id: inbox_folder.id)
 
-      expect(result[:untagged_issues]).to eq(total: 0, repositories: [])
+      expect(result[:ui_panels]).to eq([ panel ])
     end
 
-    it "aggregates the total across repositories and includes a per-repository breakdown" do
-      repo.update_columns(untagged_open_issue_count: 5)
-      other_repo = Factories.repository(user: user, untagged_open_issue_count: 7)
-      zero_repo = Factories.repository(user: user, untagged_open_issue_count: 0)
+    it "includes resolved plugin panels in rows payloads too" do
+      panel = { id: "test.notice", component: "test/Notice", order: 10 }
+      allow(App::UiSlotsPayload).to receive(:panels_for).and_return([ panel ])
 
+      result = call(subject: "job", section: "rows", smart_folder_id: inbox_folder.id)
+
+      expect(result[:ui_panels]).to eq([ panel ])
+    end
+
+    it "does not expose the old core-owned untagged issues payload" do
       result = call(subject: "job", smart_folder_id: inbox_folder.id)
 
-      expect(result[:untagged_issues][:total]).to eq(12)
-      breakdown = result[:untagged_issues][:repositories]
-      expect(breakdown.map { |entry| entry[:id] }).to contain_exactly(repo.id, other_repo.id)
-      expect(breakdown.map { |entry| entry[:id] }).not_to include(zero_repo.id)
-
-      repo_entry = breakdown.find { |entry| entry[:id] == repo.id }
-      expect(repo_entry).to eq(
-        id: repo.id,
-        slug: repo.slug,
-        count: 5,
-        issues_path: "/repositories/#{repo.id}?tab=github_issues"
-      )
-    end
-
-    it "excludes archived repositories even when they have a stale untagged issue count" do
-      repo.update_columns(untagged_open_issue_count: 3)
-      archived = Factories.repository(user: user, untagged_open_issue_count: 4, archived_at: Time.current)
-
-      result = call(subject: "job", smart_folder_id: inbox_folder.id)
-
-      expect(result[:untagged_issues][:total]).to eq(3)
-      expect(result[:untagged_issues][:repositories].map { |entry| entry[:id] }).not_to include(archived.id)
-    end
-
-    it "respects the same active_repositories_scope used by the rest of the chrome payload (team-wide, active-only)" do
-      repo.update_columns(untagged_open_issue_count: 2)
-      teammate = Factories.user
-      teammate_repo = Factories.repository(user: teammate, untagged_open_issue_count: 6)
-
-      result = call(subject: "job", smart_folder_id: inbox_folder.id)
-
-      # Dashboard repository visibility is team-wide (same scoping `counts` and
-      # `landing_queue` chrome fields already use), not restricted to repos this
-      # user personally connected.
-      breakdown_ids = result[:untagged_issues][:repositories].map { |entry| entry[:id] }
-      expect(breakdown_ids).to contain_exactly(repo.id, teammate_repo.id)
-      expect(result[:untagged_issues][:total]).to eq(8)
-    end
-
-    it "hides untagged issues outside the Inbox smart folder even when repositories have some" do
-      repo.update_columns(untagged_open_issue_count: 5)
-      landing_queue_folder = SmartFolder.find_builtin_by_attention("landing_queue")
-
-      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
-
-      expect(result[:untagged_issues]).to eq(total: 0, repositories: [])
-    end
-
-    it "hides untagged issues when no smart folder is active" do
-      repo.update_columns(untagged_open_issue_count: 5)
-
-      result = call(subject: "job")
-
-      expect(result[:untagged_issues]).to eq(total: 0, repositories: [])
-    end
-
-    it "hides untagged issues for non-job dashboard subjects" do
-      repo.update_columns(untagged_open_issue_count: 5)
-
-      result = call(subject: "epic", smart_folder_id: inbox_folder.id)
-
-      expect(result[:untagged_issues]).to eq(total: 0, repositories: [])
+      expect(result).not_to have_key(:untagged_issues)
     end
   end
 
