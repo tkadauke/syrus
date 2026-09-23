@@ -21,6 +21,7 @@ export type CredentialsUser = {
   chat_provider: string | null
   codex_auth_mode: string
   agent_max_turns: number
+  recent_chats_group_size: number
   provider_availability_pause_thresholds: Record<string, number>
   provider_availability_overrides: Record<string, unknown>
   scheduling_paused: boolean
@@ -66,6 +67,10 @@ export type CredentialsOptions = {
   roles: string[]
   codex_auth_modes: string[]
   agent_max_turns: {
+    min: number
+    max: number
+  }
+  recent_chats_group_size: {
     min: number
     max: number
   }
@@ -137,6 +142,7 @@ export type CredentialsInput = {
   muse_api_key: string
   github_token: string
   agent_max_turns: number
+  recent_chats_group_size: number
   provider_availability_pause_thresholds: Record<string, number>
   scheduling_paused: boolean
   auto_approve_mode: string

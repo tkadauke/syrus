@@ -1018,6 +1018,8 @@
     "agent_provider_see_also": "Dies ist der Standard-Agentenanbieter für neue Jobs. Er ist getrennt von deinem Chat-Anbieter (siehe",
     "agent_provider_see_also_suffix": "), und jedes Repository kann ihn einzeln überschreiben.",
     "max_turns": "Maximale Züge",
+    "recent_chats_group_size": "Angezeigte Chats pro Repository",
+    "recent_chats_group_size_desc": "Anzahl der Chats, die in der Seitenleiste unter jedem Repository (und Allgemein) angezeigt werden, bevor \"Mehr anzeigen\" erscheint.",
     "language": "Sprache",
     "auto_approval_fallback": "Auto-Genehmigungs-Fallback",
     "save": "Speichern",

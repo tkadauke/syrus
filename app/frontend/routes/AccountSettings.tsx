@@ -358,6 +358,20 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
         ) : null}
 
         {section === "preferences" ? (
+          <Form.Field>
+            <Form.Label>{t('account_settings.recent_chats_group_size')}</Form.Label>
+            <Form.Input
+              max={payload.options.recent_chats_group_size.max}
+              min={payload.options.recent_chats_group_size.min}
+              onChange={(event) => setValues({ ...values, recent_chats_group_size: Number(event.target.value) })}
+              type="number"
+              value={values.recent_chats_group_size}
+            />
+            <Form.HelpText>{t('account_settings.recent_chats_group_size_desc')}</Form.HelpText>
+          </Form.Field>
+        ) : null}
+
+        {section === "preferences" ? (
           <Checkbox
             aria-label={t('account_settings.aria_pause_scheduling')}
             checked={values.scheduling_paused}
@@ -631,6 +645,7 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     muse_api_key: "",
     github_token: "",
     agent_max_turns: payload.user.agent_max_turns,
+    recent_chats_group_size: payload.user.recent_chats_group_size,
     provider_availability_pause_thresholds: payload.user.provider_availability_pause_thresholds || { claude: 10, codex: 10 },
     scheduling_paused: payload.user.scheduling_paused,
     auto_approve_mode: payload.user.auto_approve_mode,

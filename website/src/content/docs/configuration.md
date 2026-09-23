@@ -338,6 +338,7 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag; configured on `/settings/agent` |
 | Theme | Light or dark app chrome, toggled from the account area and persisted per user |
 | Scheduling paused | Skips scheduled task firing for that user; configured on `/settings/preferences` |
+| Recent chats group size | Number of chats shown per repository (and General) group in the chat sidebar before "Show more" appears; 1-50, defaults to 10; configured on `/settings/preferences` |
 | Desktop notifications | Per-type desktop banner toggles for implemented and failed Jobs; configured on `/settings/preferences` |
 | Admin API token | Admin-only bearer token for `/api/v1/admin/*` diagnostics, including Jobs, Runs, queue/processes, and chat transcripts; shown once on rotation from `/credentials` |
 | Memories | Persistent agent context owned by the user; repository-scoped memories can be published from the Memories settings panel |

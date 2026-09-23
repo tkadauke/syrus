@@ -10,7 +10,9 @@
 module ChatIndexPayload
   private
 
-  CHAT_INDEX_GROUP_SIZE = 5
+  def chat_index_group_size
+    Current.user.recent_chats_group_size
+  end
 
   def recent_chats_index_json
     PerformanceLogging.phase("chat_index.groups") do
@@ -155,8 +157,8 @@ module ChatIndexPayload
   def paginated_chat_index_group(scope, before_chat: nil)
     PerformanceLogging.phase("chat_index.paginated_group", before_chat_id: before_chat&.id) do
       scope = chat_index_before(scope, before_chat) if before_chat
-      fetched = scope.preload(:chat_participants, repository_attachments: :attachable).limit(CHAT_INDEX_GROUP_SIZE + 1).to_a
-      [ fetched.first(CHAT_INDEX_GROUP_SIZE), fetched.size > CHAT_INDEX_GROUP_SIZE ]
+      fetched = scope.preload(:chat_participants, repository_attachments: :attachable).limit(chat_index_group_size + 1).to_a
+      [ fetched.first(chat_index_group_size), fetched.size > chat_index_group_size ]
     end
   end
 
@@ -173,7 +175,7 @@ module ChatIndexPayload
 
     rows.group_by { |row| row.fetch("repository_id")&.to_i }.filter_map do |repository_id, group_rows|
       ordered_rows = group_rows.sort_by { |row| row.fetch("group_position").to_i }
-      chats = ordered_rows.first(CHAT_INDEX_GROUP_SIZE).filter_map { |row| chats_by_id[row.fetch("chat_session_id").to_i] }
+      chats = ordered_rows.first(chat_index_group_size).filter_map { |row| chats_by_id[row.fetch("chat_session_id").to_i] }
       next if chats.empty?
 
       if repository_id
@@ -185,7 +187,7 @@ module ChatIndexPayload
           label: repository.slug,
           repository_id: repository.id,
           chats: chats,
-          has_more: ordered_rows.size > CHAT_INDEX_GROUP_SIZE
+          has_more: ordered_rows.size > chat_index_group_size
         }
       else
         {
@@ -193,7 +195,7 @@ module ChatIndexPayload
           label: "General",
           repository_id: nil,
           chats: chats,
-          has_more: ordered_rows.size > CHAT_INDEX_GROUP_SIZE
+          has_more: ordered_rows.size > chat_index_group_size
         }
       end
     end
@@ -214,7 +216,7 @@ module ChatIndexPayload
         ) AS group_position
       SQL
 
-    quoted_limit = ActiveRecord::Base.connection.quote(CHAT_INDEX_GROUP_SIZE + 1)
+    quoted_limit = ActiveRecord::Base.connection.quote(chat_index_group_size + 1)
     ActiveRecord::Base.connection.select_all(<<~SQL.squish).to_a
       SELECT chat_session_id, repository_id, group_position
       FROM (#{ranked_scope.to_sql}) chat_index_ranked
