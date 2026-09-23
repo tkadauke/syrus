@@ -196,6 +196,91 @@ describe("RepositoriesIndex data table", () => {
     ])
   })
 
+  it("reorders columns by dragging a header and persists the new order", async () => {
+    renderRoute()
+
+    await screen.findByRole("columnheader", { name: "Repository" })
+
+    function optionalColumnOrder() {
+      const optionalNames = ["GitHub owner", "Open jobs", "Last activity", "Health", "Agent"]
+      // Sortable headers append an aria-hidden sort-direction glyph to their
+      // textContent, so strip non-word characters before matching.
+      return screen
+        .getAllByRole("columnheader")
+        .map((header) => header.textContent?.replace(/[^\w\s]/g, "").trim())
+        .filter((name) => optionalNames.includes(name ?? ""))
+    }
+
+    expect(optionalColumnOrder()).toEqual(["GitHub owner", "Open jobs", "Last activity", "Health", "Agent"])
+
+    const ownerHeader = screen.getByRole("columnheader", { name: "GitHub owner" })
+    const openJobsHeader = screen.getByRole("columnheader", { name: /Open jobs/ })
+    const transfer = { dropEffect: "", effectAllowed: "", getData: vi.fn(), setData: vi.fn() }
+
+    fireEvent.dragStart(ownerHeader, { dataTransfer: transfer })
+    fireEvent.dragOver(openJobsHeader, { dataTransfer: transfer })
+    fireEvent.drop(openJobsHeader, { dataTransfer: transfer })
+
+    await waitFor(() => {
+      expect(optionalColumnOrder()).toEqual(["Open jobs", "GitHub owner", "Last activity", "Health", "Agent"])
+    })
+
+    expect(JSON.parse(window.localStorage.getItem("syrus.repositories.visible_columns") ?? "[]")).toEqual([
+      "open_jobs",
+      "github_owner",
+      "last_activity",
+      "health",
+      "agent"
+    ])
+
+    // The required Repository/Actions columns never accept a drag -- verify
+    // dragging one onto an optional column is a no-op.
+    const repositoryHeader = screen.getByRole("columnheader", { name: "Repository" })
+    fireEvent.dragStart(repositoryHeader, { dataTransfer: transfer })
+    fireEvent.dragOver(openJobsHeader, { dataTransfer: transfer })
+    fireEvent.drop(openJobsHeader, { dataTransfer: transfer })
+
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent?.replace(/[^\w\s]/g, "").trim())[0]).toBe("Repository")
+  })
+
+  it("sorts repositories by clicking a sortable column header", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload({
+      active_repositories: [
+        repositoryRow({ id: 1, slug: "acme/widgets", open_jobs_count: 1 }),
+        repositoryRow({ id: 2, slug: "acme/apex", open_jobs_count: 9 }),
+        repositoryRow({ id: 3, slug: "acme/zulu", open_jobs_count: 5 })
+      ]
+    })))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+          <RepositoriesIndex />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByRole("link", { name: "acme/widgets" })
+
+    function slugOrder() {
+      return screen.getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("link")[0]?.textContent)
+    }
+
+    expect(slugOrder()).toEqual(["acme/apex", "acme/widgets", "acme/zulu"])
+
+    fireEvent.click(screen.getByRole("button", { name: /Open jobs/ }))
+
+    await waitFor(() => {
+      expect(slugOrder()).toEqual(["acme/widgets", "acme/zulu", "acme/apex"])
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /Open jobs/ }))
+
+    await waitFor(() => {
+      expect(slugOrder()).toEqual(["acme/apex", "acme/zulu", "acme/widgets"])
+    })
+  })
+
   it("does not render an Archive button on index rows", async () => {
     renderRoute()
 
