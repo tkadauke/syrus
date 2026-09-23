@@ -83,8 +83,8 @@ module DesignDocs
       }
     end
 
-    def detail_payload(design_doc)
-      DesignDocs::Serializer.detail(design_doc).merge(
+    def detail_payload(design_doc, context:)
+      DesignDocs::Serializer.detail(design_doc, user: permissions_user(context)).merge(
         doc_ref: design_doc.display_id,
         markdown: capped_markdown(design_doc.markdown),
         rendered_markdown: capped_markdown(DesignDocs::AnchorMarkers.strip(design_doc.markdown))
@@ -102,6 +102,14 @@ module DesignDocs
     end
 
     private
+
+    # Workflow agents have no design-doc mutation tools registered, so their
+    # permissions payload must stay all-false regardless of what the
+    # underlying job owner is actually allowed to do -- reporting the real
+    # policy result there would advertise capabilities the agent can't act on.
+    def permissions_user(context)
+      context.user if context.chat?
+    end
 
     def workflow_scope(scope, context)
       return scope.none unless context.repository

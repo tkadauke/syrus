@@ -43,7 +43,7 @@ module DesignDocs
         )
 
         success(
-          design_doc: detail_payload(result.design_doc),
+          design_doc: detail_payload(result.design_doc, context: context),
           doc_ref: result.design_doc.display_id,
           mutation_mode: "new_doc_created",
           note: "For existing DOC-<id> content changes, use suggest_design_doc_change; chat-agent content edits are suggestion-only."
