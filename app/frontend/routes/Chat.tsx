@@ -23,7 +23,6 @@ import {
 import { refreshRecentChats, updateRecentChatCache } from "../lib/chatCache"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
-  addChatAttachment,
   attachChatRepository,
   branchChat,
   clearChatHistory,
@@ -37,7 +36,6 @@ import {
   createScratchpadItem,
   deleteScratchpadItem,
   deleteQueuedChatMessage,
-  deleteChatAttachment,
   enqueueChatMessage,
   reorderScratchpadItems,
   patchChatGoal,
@@ -63,10 +61,8 @@ import {
   updateChatProposal,
   updateChatPinned,
   updateQueuedChatMessage,
-  type ChatAttachmentResult,
   type ChatGoal,
   type ChatMode,
-  type ChatAttachmentRow,
   type ChatBranchPayload,
   type ChatBookmark,
   type ChatMessageAttachmentInput,
