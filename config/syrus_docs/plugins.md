@@ -2546,10 +2546,19 @@ guard calls it for every repository), and `build(repository:, user:)`, which
 returns an instance or nil. Instances implement `resolve(ref, max_age:)`,
 `tree(revision_id)`, `read(revision_id, path)`, and optionally
 `changes(base_id, head_id, patch:)` (three-dot: what `head` introduced since
-its merge base with `base`), `refs(pattern:, max_age:)`, and
-`relation(base_id, head_id)`. Relation describes `head` relative to `base` as
-`identical`, `ahead`, `behind`, or `diverged`. Replicas refresh movable refs
-within `max_age`; `max_age: 0` requests a current authoritative answer.
+its merge base with `base`), `refs(pattern:, max_age:)`, `relation(base_id,
+head_id)`, and `divergence(base_id, head_id)`. Relation describes `head`
+relative to `base` as `identical`, `ahead`, `behind`, or `diverged`.
+Divergence is the numeric form of the same comparison: a
+`RepositoryContent::Divergence` with `ahead` (commits `head` has that `base`
+does not) and `behind` (commits `base` has that `head` does not) -- GitHub
+compare's `ahead_by`/`behind_by`. `git_mirror` answers it from its
+already-synchronized local bare mirror (`git rev-list --left-right --count`);
+`github_host` answers it from GitHub's compare API. `CommitsBehindCalculator`
+is the reference caller: it asks the provider chain first and falls back to a
+local `RepositoryBareClone` only when no provider can answer. Replicas
+refresh movable refs within `max_age`; `max_age: 0` requests a current
+authoritative answer.
 
 Upstream providers may also answer `upstream_source(repository:, user:)` with a
 `RepositoryContent::Source` (`vcs`, `url`, `username`, `password`,

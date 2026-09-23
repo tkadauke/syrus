@@ -213,6 +213,31 @@ module RepositoryContentHelpers
   def use_fake_repository_content!
     RepositoryContent.provider_classes_override = [ FakeRepositoryContentProvider ]
   end
+
+  # A scripted repository_content_provider that only answers #divergence (or
+  # raises), standing in for git_mirror/github_host in specs that exercise a
+  # provider-first / bare-clone-fallback path (e.g. CommitsBehindCalculator)
+  # without wiring up a real provider plugin.
+  def stub_repository_divergence_provider(behind:, ahead: 0, error: nil, role: :upstream)
+    provider = Class.new do
+      include Syrus::Plugin::RepositoryContentProvider
+
+      define_singleton_method(:provider_key) { "scripted_divergence" }
+      define_singleton_method(:display_name) { "Scripted Divergence" }
+      define_singleton_method(:role) { role }
+      define_singleton_method(:available_for?) { |_repository| true }
+      define_singleton_method(:build) { |repository:, user:| new }
+      define_singleton_method(:name) { "ScriptedDivergenceProvider" }
+
+      if error
+        define_method(:divergence) { |_base_id, _head_id| raise error }
+      else
+        define_method(:divergence) { |_base_id, _head_id| RepositoryContent::Divergence.new(ahead: ahead, behind: behind) }
+      end
+    end
+    RepositoryContent.provider_classes_override = [ provider ]
+    provider
+  end
 end
 
 RSpec.configure do |config|

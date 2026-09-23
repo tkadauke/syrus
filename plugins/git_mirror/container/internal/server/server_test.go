@@ -52,6 +52,9 @@ func (f *fakeStore) Refs(_ context.Context, _, _ string, maxAge time.Duration) (
 func (f *fakeStore) Relation(context.Context, string, string, string) (string, error) {
 	return "ahead", nil
 }
+func (f *fakeStore) Divergence(context.Context, string, string, string) (mirror.Divergence, error) {
+	return mirror.Divergence{Ahead: 2, Behind: 3}, nil
+}
 
 func do(h http.Handler, method, path, body string, authed bool) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -154,6 +157,25 @@ func TestChangesPassesThePatchFlag(t *testing.T) {
 	do(h, "GET", "/v1/repositories/1/changes?base=a&head=b", "", true)
 	if store.withPatch {
 		t.Fatal("patches returned without being asked for")
+	}
+}
+
+func TestDivergenceReportsNumericAheadAndBehind(t *testing.T) {
+	store := &fakeStore{}
+	h := New(store, token)
+	rec := do(h, "GET", "/v1/repositories/1/divergence?base=a&head=b", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("divergence: %d, %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Ahead  int `json:"ahead"`
+		Behind int `json:"behind"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if body.Ahead != 2 || body.Behind != 3 {
+		t.Fatalf("divergence = %+v, want ahead=2 behind=3", body)
 	}
 }
 

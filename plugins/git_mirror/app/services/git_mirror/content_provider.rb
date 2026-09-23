@@ -83,6 +83,11 @@ module GitMirror
       registered { @client.relation(mirror_id, base_id, head_id) }.to_sym
     end
 
+    def divergence(base_id, head_id)
+      result = registered { @client.divergence(mirror_id, base_id, head_id) }
+      RepositoryContent::Divergence.new(ahead: result.fetch("ahead"), behind: result.fetch("behind"))
+    end
+
     private
 
     def mirror_id = @repository.id.to_s

@@ -154,6 +154,13 @@ module GithubHost
       end
     end
 
+    def divergence(base_id, head_id)
+      translate(unknown_revision: "unknown revision #{base_id}...#{head_id}") do
+        result = client.compare_divergence(slug, base_id, head_id)
+        RepositoryContent::Divergence.new(ahead: result.fetch(:ahead), behind: result.fetch(:behind))
+      end
+    end
+
     private
 
     attr_reader :repository, :user
