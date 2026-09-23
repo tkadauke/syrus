@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
-import { subscribeToAppEvents } from "./actionCable"
+import { subscribeToAppEvents, subscribeToChatResourceEvents, subscribeToJobResourceEvents } from "./actionCable"
 
 describe("subscribeToAppEvents", () => {
   it("subscribes to the app user channel and invalidates queries for received events", () => {
@@ -180,5 +180,125 @@ describe("subscribeToAppEvents", () => {
     connected?.()
     expect(onSubscriptionChange).toHaveBeenNthCalledWith(3, true)
     expect(onSubscriptionChange).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe("subscribeToJobResourceEvents", () => {
+  it("subscribes to JobChannel scoped to the given job id and applies received events", () => {
+    const queryClient = new QueryClient()
+    const setQueryData = vi.spyOn(queryClient, "setQueryData")
+    const unsubscribe = vi.fn()
+    let received: ((data: unknown) => void) | undefined
+    const consumer = {
+      subscriptions: {
+        create: vi.fn((_params, mixin) => {
+          received = mixin.received
+          return { perform: vi.fn(), unsubscribe }
+        })
+      }
+    }
+
+    const subscription = subscribeToJobResourceEvents(42, queryClient, consumer)
+
+    expect(consumer.subscriptions.create).toHaveBeenCalledWith(
+      { channel: "JobChannel", job_id: 42 },
+      expect.objectContaining({ received: expect.any(Function) })
+    )
+
+    received?.({
+      type: "workflow.updated",
+      resource: "workflow",
+      id: 7,
+      changed: [ "state" ],
+      occurred_at: "2026-05-30T12:00:00.000Z",
+      payload: { fields: { state: "running" } }
+    })
+
+    // No "sequence" on the event -- entity store patches happen directly,
+    // no notifications cache to touch for a workflow resource.
+    expect(setQueryData).not.toHaveBeenCalled()
+
+    subscription.unsubscribe()
+    expect(unsubscribe).toHaveBeenCalled()
+  })
+
+  it("runs a bounded, job-scoped refetch on reconnect but not initial connect", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    let connected: (() => void) | undefined
+    const consumer = {
+      subscriptions: {
+        create: vi.fn((_params, mixin) => {
+          connected = mixin.connected
+          return { perform: vi.fn(), unsubscribe: vi.fn() }
+        })
+      }
+    }
+
+    subscribeToJobResourceEvents(42, queryClient, consumer)
+
+    connected?.() // initial connect
+    expect(invalidate).not.toHaveBeenCalled()
+
+    connected?.() // reconnect
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "jobs", "42", "detail" ] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "jobs", "42", "workflows" ] })
+  })
+})
+
+describe("subscribeToChatResourceEvents", () => {
+  it("subscribes to ChatChannel scoped to the given chat id and applies received events", () => {
+    const queryClient = new QueryClient()
+    const unsubscribe = vi.fn()
+    let received: ((data: unknown) => void) | undefined
+    const consumer = {
+      subscriptions: {
+        create: vi.fn((_params, mixin) => {
+          received = mixin.received
+          return { perform: vi.fn(), unsubscribe }
+        })
+      }
+    }
+
+    const subscription = subscribeToChatResourceEvents(7, queryClient, consumer)
+
+    expect(consumer.subscriptions.create).toHaveBeenCalledWith(
+      { channel: "ChatChannel", chat_id: 7 },
+      expect.objectContaining({ received: expect.any(Function) })
+    )
+
+    expect(() => received?.({
+      type: "updated",
+      resource: "chat",
+      id: 7,
+      changed: [ "messages" ],
+      occurred_at: "2026-05-30T12:00:00.000Z",
+      payload: { action: "invalidate_messages", turn_in_flight: false }
+    })).not.toThrow()
+
+    subscription.unsubscribe()
+    expect(unsubscribe).toHaveBeenCalled()
+  })
+
+  it("runs a bounded, chat-scoped refetch on reconnect but not initial connect", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    let connected: (() => void) | undefined
+    const consumer = {
+      subscriptions: {
+        create: vi.fn((_params, mixin) => {
+          connected = mixin.connected
+          return { perform: vi.fn(), unsubscribe: vi.fn() }
+        })
+      }
+    }
+
+    subscribeToChatResourceEvents(7, queryClient, consumer)
+
+    connected?.() // initial connect
+    expect(invalidate).not.toHaveBeenCalled()
+
+    connected?.() // reconnect
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chats", "7" ] })
   })
 })
