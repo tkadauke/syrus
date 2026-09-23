@@ -514,3 +514,37 @@ describe("RepositoriesIndex filter bar", () => {
     expect(screen.getByRole("button", { name: "GitHub owner is acme" })).toBeInTheDocument()
   })
 })
+
+describe("RepositoriesIndex responsive gutter", () => {
+  it("drops the page-level gutter on the root and restores it on the header, letting the table go flush", async () => {
+    renderRoute()
+
+    await screen.findByRole("columnheader", { name: "Repository" })
+
+    const main = screen.getByRole("main", { name: "Repositories" })
+    expect(main.className).toContain("px-0")
+    expect(main.className).toContain("sm:px-[var(--space-page-x)]")
+
+    const heading = screen.getByRole("heading", { name: "Repositories" })
+    const header = heading.closest("header")
+    expect(header?.className).toContain("px-4 sm:px-0")
+
+    const table = screen.getByRole("columnheader", { name: "Repository" }).closest("table")
+    const tableWrapper = table?.parentElement
+    expect(tableWrapper?.className ?? "").not.toContain("px-4 sm:px-0")
+  })
+
+  it("keeps the filter bar and column menu margined on a narrow viewport", async () => {
+    const restore = mockNarrowViewport()
+    try {
+      renderRoute()
+      await screen.findByRole("columnheader", { name: "Repository" })
+
+      const columnsButton = screen.getByRole("button", { name: "Columns" })
+      const controlsRow = columnsButton.closest("div.flex.flex-wrap.items-start.justify-between")
+      expect(controlsRow?.className).toContain("mx-4 sm:mx-0")
+    } finally {
+      restore()
+    }
+  })
+})
