@@ -274,8 +274,7 @@ class Epic < ApplicationRecord
 
   # "Stuck" means the Epic is in progress but its children have all wound
   # down without landing — nothing is running and the Epic can't complete.
-  # A jobless in-progress Epic (the form-created "start now, add children
-  # later" path) is awaiting children, not stuck.
+  # Historical jobless in-progress Epics are awaiting children, not stuck.
   def stuck?
     child_jobs = work_jobs.reload
     in_progress? &&
@@ -363,14 +362,10 @@ class Epic < ApplicationRecord
 
   # "Start implementing" — the definite operator action (CLAUDE.md pattern:
   # re-check state, then dispatch side effects) that moves an Epic into
-  # :in_progress and releases its held child Jobs. Prefers the AASM graph
-  # (backlog → auto_ready → start); the override_state! fallback exists
-  # ONLY for jobless form-created Epics (auto_ready requires jobs.exists?,
-  # so the graph can never start them) so future children dispatch
-  # immediately on creation. It must never bypass the EpicDependency gate:
-  # an Epic with unfinished dependencies is not startable at all, and an
-  # Epic that has child Jobs must be startable through the graph itself
-  # (children confirmed) rather than force-released past it.
+  # :in_progress and releases its held child Jobs through the AASM graph
+  # (backlog → auto_ready → start). Empty Epics are not startable: starting
+  # is the release valve for already-confirmed child work, not a way to mark
+  # a placeholder Epic as in progress before it has any Jobs.
   def may_start_implementing?(actor: nil)
     return false unless backlog? || ready?
     return false unless actor_can_advance?(actor: actor)
@@ -378,11 +373,11 @@ class Epic < ApplicationRecord
     actor_user = epic_advancement_actor(actor)
     return false if claimed? && actor_user && !claimed_by?(actor_user)
     return false unless dependencies_done?
+    return false unless jobs.exists?
 
-    # ready → start! flows through the graph. backlog must either be
-    # graph-startable (has confirmed children, so auto_ready → start
-    # works) or jobless (the sanctioned override fallback).
-    ready? || jobs.none? || ready_to_start?
+    # ready → start! flows through the graph. backlog must be graph-startable
+    # (has confirmed children, so auto_ready → start works).
+    ready? || ready_to_start?
   end
 
   def start_implementing!(actor: nil)
@@ -393,14 +388,7 @@ class Epic < ApplicationRecord
       if ready? && may_start?(actor: actor)
         start!(actor: actor)
       else
-        # Jobless-Epic fallback. may_start_implementing? has already ruled
-        # out unfinished dependencies and unconfirmed children; re-check the
-        # invariant so a future guard change can't silently widen this
-        # override back into a dependency-gate bypass.
-        raise NotStartable, start_implementing_block_reason(actor) unless jobs.none? && dependencies_done?
-
-        claim!(epic_advancement_actor(actor) || user, force: true) unless claimed?
-        override_state!("in_progress", actor: actor)
+        raise NotStartable, start_implementing_block_reason(actor)
       end
     end
 
@@ -520,6 +508,7 @@ class Epic < ApplicationRecord
     if (backlog? || ready?) && !dependencies_done?
       return I18n.t("api.epics.start_blocked_by_dependencies", names: unfinished_dependency_names.to_sentence)
     end
+    return I18n.t("api.epics.start_children_empty") if (backlog? || ready?) && jobs.none?
     return I18n.t("api.epics.start_children_unconfirmed") if backlog? && jobs.exists? && !child_jobs_confirmed?
 
     I18n.t("api.epics.not_startable", state: state)

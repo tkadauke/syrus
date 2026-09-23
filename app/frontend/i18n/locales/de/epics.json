@@ -95,7 +95,6 @@
   "saving": "Wird gespeichert...",
   "create": "Epic erstellen",
   "save": "Epic speichern",
-  "create_and_start": "Epic erstellen & Umsetzung starten",
   "start_implementing": "Umsetzung starten",
   "waiting_on_dependencies": "Wartet auf {{names}}",
   "starting": "Wird gestartet...",

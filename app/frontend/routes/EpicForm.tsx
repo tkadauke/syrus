@@ -1,7 +1,7 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { PageHeading } from "../components/Heading"
 import { useMutation, useQuery } from "@tanstack/react-query"
-import type { FormEvent, MouseEvent, ReactNode } from "react"
+import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
@@ -58,18 +58,10 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
   }, [payload])
 
   // The form's default submission (Enter key included) is always a plain
-  // create/save. "Create Epic & Start Implementing" is deliberately NOT a
-  // submit button so implicit form submission can never create-and-start.
+  // create/save. Empty Epics cannot start implementing until they have child Jobs.
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     save.mutate({ start: false })
-  }
-
-  function createAndStart(event: MouseEvent<HTMLButtonElement>) {
-    const formElement = event.currentTarget.form
-    if (formElement && !formElement.reportValidity()) return
-
-    save.mutate({ start: true })
   }
 
   return (
@@ -122,19 +114,10 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
         </Field>
 
         <div className="flex flex-wrap items-center gap-3">
-          {mode === "new" ? (
-            <Button
-              disabled={save.isPending}
-              onClick={createAndStart}
-              variant="primary"
-            >
-              {save.isPending ? t("saving") : t("create_and_start")}
-            </Button>
-          ) : null}
           <Button
             disabled={save.isPending}
             type="submit"
-            variant={mode === "new" ? "secondary" : "primary"}
+            variant="primary"
           >
             {save.isPending ? t("saving") : mode === "new" ? t("create") : t("save")}
           </Button>
