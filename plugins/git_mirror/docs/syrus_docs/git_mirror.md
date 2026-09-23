@@ -2,10 +2,12 @@
 
 Git Mirror keeps a bare mirror of every active git repository and answers
 Syrus's repository reads from it -- the `.syrus.yml` read before each workflow
-is built, preview project discovery, skills, the Job source browser -- before
-the hosting platform's API is asked. It takes most of those reads off GitHub's
-rate limit and out of a network round trip, at the cost of disk space for the
-mirrors. Off by default.
+is built, preview project discovery, skills, the Job source browser, and
+`CommitsBehindCalculator`'s numeric `divergence` (ahead/behind commit counts)
+for merge-state polling's `commits_behind_base` -- before the hosting
+platform's API is asked. It takes most of those reads off GitHub's rate limit
+and out of a network round trip, at the cost of disk space for the mirrors.
+Off by default.
 
 It is a `:replica` `repository_content_provider` (see `plugins.md`): whenever
 it cannot answer -- the service is down, a commit has not reached it, a

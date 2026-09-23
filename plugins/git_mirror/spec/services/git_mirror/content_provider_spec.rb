@@ -90,6 +90,12 @@ RSpec.describe GitMirror::ContentProvider do
     expect(provider.relation("b" * 40, sha)).to eq(:ahead)
   end
 
+  it "reports numeric ahead/behind divergence" do
+    stub_mirror("divergence", { base: "b" * 40, head: sha }, body: { ahead: 3, behind: 1 }.to_json)
+
+    expect(provider.divergence("b" * 40, sha)).to eq(RepositoryContent::Divergence.new(ahead: 3, behind: 1))
+  end
+
   describe "errors" do
     it "treats a missing file in a known commit as final" do
       stub_mirror("blob", { revision: sha, path: "gone" }, status: 404, body: error("not_found"))
