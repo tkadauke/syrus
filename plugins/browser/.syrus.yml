@@ -8,3 +8,5 @@ grade:
     deps:
       - "//:plugin-api"
   - type: vitest
+  - type: go-test
+    path: container

@@ -27,3 +27,4 @@ use ./plugins/spending_insights/cli
 // `go test $(go list -m -f '{{.Dir}}/...')` covers them.
 use ./plugins/plugin_runtime/container
 use ./plugins/git_mirror/container
+use ./plugins/browser/container
