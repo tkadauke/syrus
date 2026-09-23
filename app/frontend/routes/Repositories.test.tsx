@@ -547,4 +547,64 @@ describe("RepositoriesIndex responsive gutter", () => {
       restore()
     }
   })
+
+  it("keeps the load-error banner margined instead of running it flush", async () => {
+    vi.spyOn(window, "fetch").mockRejectedValue(new Error("network down"))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+          <RepositoriesIndex />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const banner = await screen.findByText("Unable to load repositories.")
+    const marginWrapper = banner.parentElement?.parentElement
+    expect(marginWrapper?.className).toContain("mx-4 sm:mx-0")
+  })
+
+  it("keeps the loading banner margined instead of running it flush", () => {
+    vi.spyOn(window, "fetch").mockReturnValue(new Promise(() => {}))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+          <RepositoriesIndex />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const banner = screen.getByText("Loading repositories...")
+    const marginWrapper = banner.parentElement?.parentElement
+    expect(marginWrapper?.className).toContain("mx-4 sm:mx-0")
+  })
+
+  it("keeps the inline unarchive-error banner margined instead of running it flush", async () => {
+    const payload = repositoriesPayload({
+      archived_repositories: [repositoryRow({ id: 2, slug: "acme/attic", archived: true, archived_at: "2026-01-01T00:00:00Z" })]
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      const method = init?.method || "GET"
+      if (url === "/api/v1/app/repositories/2/unarchive" && method === "POST") {
+        return Promise.resolve(jsonResponse({ error: "boom" }, 500))
+      }
+      return Promise.resolve(jsonResponse(payload))
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+          <RepositoriesIndex />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Unarchive" }))
+
+    const banner = await screen.findByText("Request failed with 500")
+    const marginWrapper = banner.parentElement?.parentElement
+    expect(marginWrapper?.className).toContain("mx-4 sm:mx-0")
+  })
 })
