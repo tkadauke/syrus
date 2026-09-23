@@ -58,6 +58,7 @@ module PluginRuntime
       entry.provider.respond_to?(:privileged_env)
     end
 
+
     # A privileged provider has no service_spec to read a healthcheck path
     # from -- its container's shape is fixed in the runtime manager's compiled
     # Definition, not declared in Ruby. Every container-backed plugin image in
