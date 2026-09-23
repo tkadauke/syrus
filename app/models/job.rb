@@ -1,6 +1,7 @@
 class Job < ApplicationRecord
   include AASM
   include RecordsStateTransitions
+  include Revisionable
   include ValidatesAgentProvider
   include JobCodingMode
   include JobNeedsAttention
@@ -1640,15 +1641,14 @@ class Job < ApplicationRecord
   def broadcast_app_job_event(action)
     return unless user
 
-    event = {
+    AppEvents.broadcast(
+      user: user,
       type: "job.updated",
       resource: "job",
       id: id,
       changed: [ "job.#{action}", *previous_changes.keys.map(&:to_s) ].uniq,
-      occurred_at: Time.current.iso8601(3)
-    }
-
-    AppUserChannel.broadcast_to(user, event.as_json)
+      revision: entity_revision
+    )
   end
 
   # Issue Jobs auto-instantiate Workflows::Initial on create. The

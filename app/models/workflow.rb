@@ -1,6 +1,7 @@
 class Workflow < ApplicationRecord
   include AASM
   include RecordsStateTransitions
+  include Revisionable
   include BroadcastsJobProgress
   include ValidatesAgentProvider
 

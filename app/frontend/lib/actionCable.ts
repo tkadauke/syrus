@@ -1,6 +1,6 @@
 import { createConsumer, type Consumer, type Subscription } from "@rails/actioncable"
 import type { QueryClient } from "@tanstack/react-query"
-import { applyAppEvent, recoverAppEventContinuity, type AppEvent } from "./appEvents"
+import { applyAppEvent, recoverAppEventContinuity, resetAppEventSequenceTracking, type AppEvent } from "./appEvents"
 
 let sharedConsumer: Consumer | null = null
 
@@ -34,6 +34,13 @@ export function subscribeToAppEvents(
       connected() {
         const wasConnected = everConnected
         if (wasConnected) {
+          // A reconnect already means events were missed during the drop,
+          // and recoverAppEventContinuity's sweep below covers exactly
+          // that window -- broader than the single-resource recovery a
+          // stale sequence would otherwise also trigger on the first
+          // post-reconnect event. Reset so that per-event gap detection
+          // only fires for genuine mid-connection drops going forward.
+          resetAppEventSequenceTracking(queryClient)
           recoverAppEventContinuity(queryClient)
           onConnectionChange?.(true)
         }

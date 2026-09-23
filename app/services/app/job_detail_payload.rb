@@ -187,6 +187,7 @@ module App
 
       {
         id: @job.id,
+        entity_revision: @job.entity_revision,
         slug: @job.slug,
         kind: @job.kind,
         investigation: @job.investigation?,

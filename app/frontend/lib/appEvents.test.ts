@@ -1,7 +1,8 @@
 import { QueryClient } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ChatPayload } from "../api/chats"
-import { applyAppEvent, queryKeysFor } from "./appEvents"
+import { applyAppEvent, queryKeysFor, resetAppEventSequenceTracking } from "./appEvents"
+import { readEntity, resetEntityStoreForTest, upsertEntity } from "./entityStore"
 
 const desktopUa = "Mozilla/5.0 (Macintosh) Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.0 Safari/537.36"
 
@@ -29,6 +30,7 @@ afterEach(() => {
   vi.restoreAllMocks()
   FakeNotification.permission = "granted"
   FakeNotification.instances = []
+  resetEntityStoreForTest()
 })
 
 describe("queryKeysFor", () => {
@@ -1048,6 +1050,146 @@ describe("applyAppEvent", () => {
     expect(dispatched).toHaveLength(1)
     expect(dispatched[0].detail).toEqual({ chat_session_id: 9, theme_id: 42, path: "/design_system?theme_id=42" })
     expect(invalidate).not.toHaveBeenCalled()
+  })
+})
+
+describe("applyAppEvent revisioned event patches", () => {
+  it("patches the normalized entity store from a resource event's payload.fields", () => {
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, {
+      ...event("workflow", 100),
+      sequence: 1,
+      revision: 3,
+      payload: { fields: { state: "running", started_at: "2026-09-23T00:00:00.000Z" } }
+    })
+
+    const workflow = readEntity("workflows", 100)
+    expect(workflow?.fields.state).toBe("running")
+    expect(workflow?.fields.started_at).toBe("2026-09-23T00:00:00.000Z")
+    expect(workflow?.revision).toBe(3)
+  })
+
+  it("ignores a duplicate or replayed event outright, including its entity patch", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { ...event("run", 5), sequence: 4, revision: 2, payload: { fields: { state: "succeeded" } } })
+    invalidate.mockClear()
+
+    applyAppEvent(queryClient, { ...event("run", 5), sequence: 4, revision: 2, payload: { fields: { state: "queued" } } })
+    applyAppEvent(queryClient, { ...event("run", 5), sequence: 3, revision: 1, payload: { fields: { state: "cancelled" } } })
+
+    expect(readEntity("runs", 5)?.fields.state).toBe("succeeded")
+    expect(invalidate).not.toHaveBeenCalled()
+  })
+
+  it("applies an unsequenced event (no sequence field) without disturbing gap tracking", () => {
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, { ...event("job", 1), sequence: 1 })
+    applyAppEvent(queryClient, { ...event("epic", 2) }) // no sequence -- e.g. a bypass broadcaster
+    applyAppEvent(queryClient, { ...event("job", 1), sequence: 2, revision: 5, payload: { fields: { state: "running" } } })
+
+    expect(readEntity("jobs", 1)?.revision).toBe(5)
+  })
+
+  it("recovers with one bounded, targeted refresh scoped to the resource a detected gap arrived on", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 1 })
+    invalidate.mockClear()
+
+    // Sequence jumps from 1 to 5: at least three broadcasts for this user
+    // were dropped somewhere in between.
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 5 })
+
+    expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["dashboard"] }))
+    expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["workflows"] }))
+    expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["workflows", "7"] }))
+  })
+
+  it("does not treat a merely in-order event as a gap", () => {
+    // A routine (non-gap) event already invalidates queryKeysFor's keys on
+    // every delivery -- gap detection must not add an extra recovery pass
+    // on top of that, so the in-order second call should invalidate no
+    // more than the same first call already did.
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 1 })
+    const routineCallCount = invalidate.mock.calls.length
+    invalidate.mockClear()
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 2 })
+
+    expect(invalidate).toHaveBeenCalledTimes(routineCallCount)
+  })
+
+  it("resumes normal in-order tracking after resetAppEventSequenceTracking (e.g. on reconnect)", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 1 })
+    const routineCallCount = invalidate.mock.calls.length
+    resetAppEventSequenceTracking(queryClient)
+    invalidate.mockClear()
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 40 })
+
+    expect(invalidate).toHaveBeenCalledTimes(routineCallCount)
+  })
+
+  it("makes a snapshot race deterministic regardless of arrival order", () => {
+    // Event arrives first (e.g. while a REST snapshot fetch for the same
+    // Job is still in flight): applied immediately, not buffered/lost.
+    upsertEntity({ kind: "jobs", id: 42, fields: { state: "running" }, revision: 5, source: "app_event" })
+    // The in-flight snapshot resolves after, but is older than what the
+    // event already established -- it must not move state backward.
+    upsertEntity({ kind: "jobs", id: 42, fields: { state: "queued" }, revision: 3, source: "job_detail" })
+    expect(readEntity("jobs", 42)?.fields.state).toBe("running")
+
+    // Reverse order: an older event lands after a newer snapshot already
+    // resolved -- the stale event must not overwrite it either.
+    upsertEntity({ kind: "jobs", id: 43, fields: { state: "running" }, revision: 5, source: "job_detail" })
+    upsertEntity({ kind: "jobs", id: 43, fields: { state: "queued" }, revision: 3, source: "app_event" })
+    expect(readEntity("jobs", 43)?.fields.state).toBe("running")
+  })
+
+  it("folds chat message tail patches into the common entity-store mechanism", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      sequence: 1,
+      payload: {
+        action: "replace_tail",
+        replace_from_id: 2,
+        messages: [{ ...message(2, "assistant", "hi there"), entity_revision: 6 }]
+      }
+    })
+
+    const stored = readEntity("chat_messages", 2)
+    expect(stored?.fields.text).toBe("hi there")
+    expect(stored?.revision).toBe(6)
+  })
+
+  it("does not let an older duplicate chat-tail delivery move a message backward through the entity store", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "replace_tail", replace_from_id: 2, messages: [{ ...message(2, "assistant", "final text"), entity_revision: 6 }] }
+    })
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "replace_tail", replace_from_id: 2, messages: [{ ...message(2, "assistant", "stale replay"), entity_revision: 4 }] }
+    })
+
+    expect(readEntity("chat_messages", 2)?.fields.text).toBe("final text")
   })
 })
 

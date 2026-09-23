@@ -73,6 +73,7 @@ export type JobDeliveryStatus =
 
 export type JobRecord = {
   id: number
+  entity_revision?: number
   kind: string
   investigation: boolean
   state: string
@@ -555,6 +556,7 @@ export type JobWorkflowsPagination = {
 
 export type JobWorkflow = {
   id: number
+  entity_revision?: number
   slug: string
   path: string
   trigger_kind: string
@@ -639,6 +641,7 @@ export type JobWorkIntent = {
 
 export type JobStep = {
   id: number
+  entity_revision?: number
   kind: string
   // Mirrors Step#agentic? (Step::Kind). Optional for backward/test-fixture
   // compatibility — callers should treat a missing value as agentic (the
@@ -726,6 +729,7 @@ export type WorkflowWarning = {
 
 export type JobRun = {
   id: number
+  entity_revision?: number
   state: string
   trigger_kind: string
   agent_provider: string | null

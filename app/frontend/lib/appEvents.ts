@@ -3,6 +3,7 @@ import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConvers
 import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
 import { replaceProposalInMessages } from "../routes/chat/messageStreamItems"
+import { normalizeChatMessage, upsertEntity, type EntityKind, type EntityRevision } from "./entityStore"
 
 // A proposal card can live in a chat view's paginated-older-history state,
 // outside the React Query cache the rest of this module patches. Dispatching
@@ -50,10 +51,94 @@ export type AppEvent = {
   type: string
   resource?: string
   id?: number | string | null
+  // Per-user, monotonically increasing across every AppEvents.broadcast
+  // call regardless of resource -- lets the client detect a dropped
+  // delivery (a gap) or a network-level duplicate/replay without relying
+  // on wall-clock occurred_at. Absent on the handful of broadcast paths
+  // that don't yet route through AppEvents.broadcast; such events are
+  // always applied and never participate in gap/duplicate detection.
+  sequence?: number
+  // The broadcasting resource's own revision counter (Job/Workflow/Step/
+  // Run/ChatSession/ChatMessage#entity_revision), when the caller has one. Lets
+  // entityStore.upsertEntity ignore this specific event outright if a
+  // newer revision for the same entity is already known -- independent of
+  // the stream-level sequence check above, and independent of arrival
+  // order relative to a REST snapshot fetch (see applyAppEventToEntityStore).
+  revision?: EntityRevision
   changed?: string[]
   occurred_at?: string
   payload?: unknown
   unread_count?: number
+}
+
+// Resources that map onto a normalized entityStore kind and so can be
+// patched directly from an event's payload.fields, in addition to
+// whatever React Query cache invalidation already happens below.
+const EVENT_RESOURCE_ENTITY_KIND: Partial<Record<string, EntityKind>> = {
+  job: "jobs",
+  workflow: "workflows",
+  step: "steps",
+  run: "runs",
+  chat: "chat_sessions"
+}
+
+type AppEventSequenceOutcome = "ok" | "duplicate" | "gap"
+
+const lastAppEventSequence = new WeakMap<QueryClient, number>()
+
+export function resetAppEventSequenceTracking(queryClient: QueryClient) {
+  lastAppEventSequence.delete(queryClient)
+}
+
+// Stream-level ordering check, independent of any single resource: every
+// event sharing one per-user sequence counter means a gap here means
+// *something* was missed, not necessarily the resource this event is
+// about, so the caller recovers just the resource this event names --
+// bounded and targeted rather than a blanket refresh.
+function trackAppEventSequence(queryClient: QueryClient, event: AppEvent): AppEventSequenceOutcome {
+  if (typeof event.sequence !== "number") return "ok"
+
+  const previous = lastAppEventSequence.get(queryClient)
+  if (previous === undefined || event.sequence > previous) {
+    lastAppEventSequence.set(queryClient, event.sequence)
+    return previous !== undefined && event.sequence > previous + 1 ? "gap" : "ok"
+  }
+
+  return "duplicate"
+}
+
+// Patches the normalized entity store directly from an event's payload,
+// when the event carries one. This is the "snapshot race" seam: an event
+// applied here while a REST snapshot fetch for the same entity is still
+// in flight is not lost (upsertEntity applies it immediately), and is not
+// clobbered once that snapshot resolves (upsertEntity's own revision
+// comparison -- see entityStore.ts -- refuses to let an older revision
+// overwrite a newer one, regardless of which one lands first). There is
+// no separate buffer-then-replay queue because that revision comparison
+// already makes the merge order-independent and so deterministic by
+// construction, for both directions of the race.
+function applyAppEventToEntityStore(event: AppEvent) {
+  const kind = event.resource ? EVENT_RESOURCE_ENTITY_KIND[event.resource] : undefined
+  if (!kind || event.id == null) return
+
+  const fields = entityFieldsFromEventPayload(event.payload)
+  if (!fields && event.revision == null) return
+
+  upsertEntity({
+    kind,
+    id: event.id,
+    fields: fields ?? {},
+    completeness: "partial",
+    revision: event.revision ?? null,
+    source: "app_event"
+  })
+}
+
+function entityFieldsFromEventPayload(payload: unknown): Record<string, unknown> | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const fields = (payload as { fields?: unknown }).fields
+  return fields && typeof fields === "object" && !Array.isArray(fields) ? fields as Record<string, unknown> : null
 }
 
 type NotificationsCache = {
@@ -74,6 +159,12 @@ type NotificationReadPayload = {
 }
 
 export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
+  const sequenceOutcome = trackAppEventSequence(queryClient, event)
+  if (sequenceOutcome === "duplicate") return
+
+  applyAppEventToEntityStore(event)
+  if (sequenceOutcome === "gap") recoverEventResourceContinuity(queryClient, event)
+
   if (event.type.startsWith("video_walkthrough.")) {
     // The chat composer owns the walkthrough chip; hand it the payload
     // directly (a chat-scoped query invalidation would not carry state).
@@ -155,6 +246,17 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
     invalidateAppQuery(queryClient, exactListTarget(queryKey))
   }
   if (dashboardChanged) scheduleDashboardInvalidation(queryClient)
+}
+
+// A detected sequence gap means *some* event for this user was dropped --
+// not necessarily one about this resource -- but the only resource we
+// know for sure might be stale is the one this event names, so recovery
+// is bounded to exactly its query keys rather than the full continuity
+// sweep recoverAppEventContinuity does on reconnect.
+function recoverEventResourceContinuity(queryClient: QueryClient, event: AppEvent) {
+  for (const queryKey of queryKeysFor(event)) {
+    invalidateAppQuery(queryClient, { queryKey })
+  }
 }
 
 export function recoverAppEventContinuity(queryClient: QueryClient) {
@@ -511,6 +613,14 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
   const replaceTail = chatReplaceTailPayload(event.payload)
   if (replaceTail) {
+    // Route each message through the same revision-gated entity merge as
+    // everywhere else (see applyAppEventToEntityStore) instead of a
+    // chat-tail-specific path, so a duplicate/out-of-order delivery of the
+    // same tail can't move a message backward, and so any other surface
+    // that reads a message by ID through the entity store (not just the
+    // ChatPayload query below) also sees it.
+    replaceTail.messages.forEach((message) => normalizeChatMessage(message, "app_event"))
+
     let patched = false
     if (typeof replaceTail.turn_in_flight === "boolean") updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: replaceTail.turn_in_flight, agent_busy: replaceTail.agent_busy })
     queryClient.setQueriesData<ChatPayload>(

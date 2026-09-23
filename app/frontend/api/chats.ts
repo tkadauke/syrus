@@ -20,6 +20,7 @@ export type ChatParticipant = {
 
 export type ChatRecord = {
   id: number
+  entity_revision?: number
   current_user_id?: number
   title: string | null
   title_pending: boolean
@@ -348,6 +349,7 @@ export type ChatCrossChatBridge = {
 export type ChatMessageItem = {
   type: "message"
   id: number
+  entity_revision?: number
   role: "user" | "assistant" | "tool_use" | "tool_result" | "system"
   tool_name?: string | null
   content?: unknown

@@ -33,6 +33,7 @@ module App
         payload = {
           type: "job",
           id: job.id,
+          entity_revision: job.entity_revision,
           slug: job.slug,
           kind: job.kind,
           title: job.issue_title.presence || job.kind.humanize,

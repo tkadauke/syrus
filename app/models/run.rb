@@ -1,6 +1,7 @@
 class Run < ApplicationRecord
   include AASM
   include RecordsStateTransitions
+  include Revisionable
   include BroadcastsJobProgress
   include PluginDataCleanup
   include ValidatesAgentProvider

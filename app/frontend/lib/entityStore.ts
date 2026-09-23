@@ -204,7 +204,7 @@ function normalizeRun(run: JobRun, source: string) {
   upsertEntity({ kind: "runs", id: run.id, fields: run as unknown as Record<string, unknown>, completeness: "detail", source })
 }
 
-function normalizeChatMessage(message: ChatMessageItem, source: string) {
+export function normalizeChatMessage(message: ChatMessageItem, source: string) {
   upsertEntity({ kind: "chat_messages", id: message.id, fields: message as unknown as Record<string, unknown>, completeness: "detail", source })
   if (message.proposal?.materialized?.kind === "job") {
     normalizeJobRecord({

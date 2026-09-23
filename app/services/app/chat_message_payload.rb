@@ -134,6 +134,7 @@ module App
       payload = {
         type: "message",
         id: message.id,
+        entity_revision: message.entity_revision,
         role: message.role,
         tool_name: message.tool_name,
         content: message.content,
