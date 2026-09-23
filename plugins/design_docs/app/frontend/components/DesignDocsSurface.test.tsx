@@ -842,6 +842,46 @@ describe("DesignDocsSurface", () => {
     }
   })
 
+  it("reopens a fully dismissed comment drawer when re-clicking the same already-focused highlighted anchor", async () => {
+    mockMobileViewport()
+    mockFetch()
+    const scrollIntoViewSpy = vi.fn()
+    HTMLElement.prototype.scrollIntoView = scrollIntoViewSpy as typeof HTMLElement.prototype.scrollIntoView
+
+    try {
+      renderSurface("/design_docs/1")
+
+      const body = await screen.findByRole("region", { name: "Design doc content" })
+      // Re-queried before each click below: focusing/unfocusing the anchor
+      // re-renders DesignDocReadOnlyBody's dangerouslySetInnerHTML markup
+      // (the focused mark's class changes), which replaces the DOM node
+      // entirely -- a captured reference from before that render would be
+      // stale/detached and clicking it would be a silent no-op.
+      const findHighlight = () => body.querySelector("mark[data-thread-id='7']")
+      expect(findHighlight()).not.toBeNull()
+
+      // Focus thread 7 first via its highlight, opening the drawer.
+      fireEvent.click(findHighlight()!)
+      const toggle = await screen.findByRole("button", { name: "2 comments" })
+      expect(toggle).toHaveAttribute("aria-expanded", "true")
+
+      // Dismiss, then click the *same* already-focused highlight again --
+      // a naive implementation that only clears visibility (not focus)
+      // leaves focusedThreadId unchanged, so this click is a no-op state
+      // update that would never re-trigger the reopen effect.
+      fireEvent.click(screen.getByRole("button", { name: "Close comments" }))
+      expect(screen.queryByTestId("design-doc-comment-drawer")).not.toBeInTheDocument()
+
+      fireEvent.click(findHighlight()!)
+
+      const reopenedToggle = await screen.findByRole("button", { name: "2 comments" })
+      expect(reopenedToggle).toHaveAttribute("aria-expanded", "true")
+      expect(await screen.findByText("Needs evidence")).toBeInTheDocument()
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
+    }
+  })
+
   it("reopens a fully dismissed comment drawer and focuses the composer when commenting on a text selection", async () => {
     mockFetch()
     mockMobileViewport()

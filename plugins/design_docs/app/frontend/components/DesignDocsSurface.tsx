@@ -710,9 +710,16 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
     window.setTimeout(() => newThreadComposerRef.current?.focus(), 0)
   }
 
+  // Also clears focus, not just visibility: the reopen effect below only
+  // fires on a focusedThreadId/focusedSuggestionId *change*, so without
+  // this, re-clicking the same already-focused highlighted anchor after
+  // dismissing (a no-op state update) would never re-run that effect and
+  // the drawer would stay hidden.
   function dismissNarrowDrawer() {
     setNarrowDrawerOpen(false)
     setNarrowDrawerDismissed(true)
+    setFocusedThreadId(null)
+    setFocusedSuggestionId(null)
   }
 
   function handleAnchorMarkerClick(event: React.MouseEvent<HTMLElement>) {
