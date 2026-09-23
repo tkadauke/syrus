@@ -506,8 +506,6 @@
     "col_issue": "Issue",
     "col_runs": "Runs",
     "col_last": "Last",
-    "col_actions": "Actions",
-    "view": "View",
     "pr_number": "PR #{{number}}",
     "runs_count_one": "{{count}} run",
     "runs_count_other": "{{count}} runs",

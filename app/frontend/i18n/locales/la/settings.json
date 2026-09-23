@@ -505,8 +505,6 @@
     "col_issue": "Quaestio",
     "col_runs": "Cursus",
     "col_last": "Ultimum",
-    "col_actions": "Actiones",
-    "view": "Videre",
     "pr_number": "PR #{{number}}",
     "runs_count_one": "{{count}} cursus",
     "runs_count_other": "{{count}} cursus",
