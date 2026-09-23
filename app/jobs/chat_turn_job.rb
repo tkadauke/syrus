@@ -821,6 +821,12 @@ class ChatTurnJob < ApplicationJob
     record_mcp_startup_phase!(phase: "first_assistant_message")
   end
 
+  # ChatTurnJob has no separate "required tools" allowlist the way the
+  # workflow-side ClaudeInvocation#required_mcp_tools does (chat's essential
+  # tier is itself the closest analog to "required"), so this fires once per
+  # MCP server name -- essential and deferred alike, each tagged by its own
+  # server_name -- the first time it's observed connected/running/ready,
+  # rather than gating on a narrower required-tool list.
   def record_required_server_ready!(servers)
     Array(servers).each do |server|
       name = server["name"].to_s
