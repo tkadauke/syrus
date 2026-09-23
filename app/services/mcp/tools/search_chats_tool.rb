@@ -77,7 +77,7 @@ module Mcp::Tools
           chat_session_id: chat_session.id,
           message_id: row.fetch(:chat_message_id),
           chat_title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository),
-          repository: chat_session.attached_repositories.first&.slug,
+          repository: chat_session.repository&.slug,
           role: row.fetch(:role),
           snippet: row.fetch(:snippet),
           created_at: row.fetch(:created_at)

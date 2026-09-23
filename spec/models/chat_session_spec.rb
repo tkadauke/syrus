@@ -40,6 +40,29 @@ RSpec.describe ChatSession do
     expect(queries.grep(/chat_attachments|repositories/i)).to be_empty
   end
 
+  it "returns the most recently attached repository when a second repository is attached" do
+    other_repo = Factories.repository(user: repo.user)
+    session = described_class.create!(repository: repo, user: repo.user, title: "Plan the aqueduct")
+
+    session.chat_attachments.create!(attachable: other_repo, attached_at: 1.hour.from_now)
+
+    session.reload
+    expect(session.attached_repositories).to contain_exactly(repo, other_repo)
+    expect(session.repository).to eq(other_repo)
+  end
+
+  it "uses preloaded repository attachments to resolve the most recently attached repository" do
+    other_repo = Factories.repository(user: repo.user)
+    session = described_class.create!(repository: repo, user: repo.user, title: "Plan the aqueduct")
+    session.chat_attachments.create!(attachable: other_repo, attached_at: 1.hour.from_now)
+
+    reloaded = described_class.preload(repository_attachments: :attachable).find(session.id)
+
+    queries = captured_sql { expect(reloaded.repository).to eq(other_repo) }
+
+    expect(queries.grep(/chat_attachments|repositories/i)).to be_empty
+  end
+
   it "can exist without an attached repository" do
     session = described_class.new(user: repo.user)
 

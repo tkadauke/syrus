@@ -110,6 +110,40 @@ RSpec.describe ChatWorkspace, :ci_only do
       )
       expect(fetch[:args]).not_to include("origin")
     end
+
+    it "resolves ChatSession#repository (and its file tree) to the most recently attached repository" do
+      described_class.attach_repository!(chat_session, repository)
+
+      other_bare_remote_dir = Pathname.new(Dir.mktmpdir("syrus-chatws-bare-2"))
+      Dir.mktmpdir("syrus-chatws-seed-2") do |seed|
+        sh("git init -q -b main #{seed}")
+        File.write(Pathname.new(seed).join("README.md"), "# Gadgets\n")
+        sh("git -C #{seed} add README.md")
+        sh("git -C #{seed} commit -q -m 'initial' --author='Seed <s@e>'")
+        sh("git clone -q --bare #{seed} #{other_bare_remote_dir}")
+      end
+      other_repository = Factories.repository(user: user, owner: "acme", name: "gadgets", default_branch: "main")
+      allow_any_instance_of(Repository).to receive(:remote_url) do |instance|
+        instance.name == "gadgets" ? "file://#{other_bare_remote_dir}" : "file://#{bare_remote_dir}"
+      end
+      allow_any_instance_of(Repository).to receive(:authenticated_push_url) do |instance, *|
+        instance.name == "gadgets" ? "file://#{other_bare_remote_dir}" : "file://#{bare_remote_dir}"
+      end
+
+      described_class.attach_repository!(chat_session, other_repository)
+      chat_session.reload
+
+      expect(chat_session.attached_repositories).to contain_exactly(repository, other_repository)
+      expect(chat_session.repository).to eq(other_repository)
+
+      result = described_class.file_tree(chat_session, chat_session.repository)
+      expect(result[:files]).to include("README.md")
+
+      checkout_path = described_class.repo_path_for(chat_session, other_repository)
+      expect(checkout_path.join("README.md").read).to include("Gadgets")
+    ensure
+      FileUtils.rm_rf(other_bare_remote_dir) if other_bare_remote_dir
+    end
   end
 
   describe "workspace_git_transport preference" do

@@ -61,7 +61,7 @@ module Mcp::Tools
       end
 
       def payload_for(session, message_count:)
-        repository = session.attached_repositories.first
+        repository = session.repository
 
         {
           id: session.id,
