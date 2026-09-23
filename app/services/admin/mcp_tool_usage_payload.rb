@@ -42,7 +42,8 @@ module Admin
         sidecar_mode_breakdown: sidecar_mode_rows(usages),
         unused_advertised_tools: (advertised - used).sort,
         custom_card_gaps: custom_card_gaps(usages),
-        recent_calls: recent_call_rows(usages)
+        recent_calls: recent_call_rows(usages),
+        startup_timing: startup_timing_payload
       }
     end
 
@@ -319,6 +320,14 @@ module Admin
       return 25 if value <= 0
 
       [ value, 100 ].min
+    end
+
+    # Separate data model (McpStartupPhaseEvent, not McpToolUsage) rendered
+    # on the same admin page rather than a new one -- see
+    # Admin::McpStartupTimingPayload. Reuses this request's own window/
+    # provider/server params so one filter bar controls both sections.
+    def startup_timing_payload
+      Admin::McpStartupTimingPayload.new(params: params).as_json
     end
 
     attr_reader :chat_session, :repository

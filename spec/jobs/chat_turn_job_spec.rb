@@ -1854,6 +1854,113 @@ RSpec.describe ChatTurnJob, :ci_only do
     end
   end
 
+  describe "McpStartupTiming phases" do
+    def spawn_agent_process!(workspace_path, process_started)
+      process = SpawnedProcess.create!(
+        kind: "agent",
+        command: "claude --print",
+        workdir: workspace_path,
+        hostname: "worker-1",
+        pid: 4242,
+        started_at: Time.current
+      )
+      process_started.call(process)
+    end
+
+    def recorded_phases
+      McpStartupPhaseEvent.where(chat_session_id: chat.id, chat_message_id: user_message.id)
+    end
+
+    it "records the agent-observed MCP startup phases for a successful turn" do
+      ChatTurnJob.agent_runner = ->(workspace_path:, process_started:, log_sink:, **_) {
+        spawn_agent_process!(workspace_path, process_started)
+        log_sink.call(
+          "[mcp_servers] syrus-chat-sidecar=connected",
+          kind: "system",
+          mcp_servers: [ { "name" => "syrus-chat-sidecar", "status" => "connected" } ]
+        )
+        log_sink.call("All good.", kind: "assistant_text")
+        result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+      }
+
+      described_class.perform_now(chat.id, user_message.id)
+      Observability::EventSink.flush!(kinds: [ :mcp_startup_phase ])
+
+      expect(recorded_phases.pluck(:phase)).to contain_exactly(
+        "agent_process_spawn", "required_server_ready", "first_assistant_message"
+      )
+      expect(recorded_phases.find_by(phase: "agent_process_spawn").provider).to eq("claude")
+      expect(recorded_phases.find_by(phase: "required_server_ready").server_name).to eq("syrus-chat-sidecar")
+      # Every phase only ever fires once, even though the agent reports the
+      # server connected on every subsequent system line.
+      log_sink_calls = recorded_phases.where(phase: "required_server_ready").count
+      expect(log_sink_calls).to eq(1)
+    end
+
+    it "captures a slow MCP startup as a wide gap between phases instead of dropping the data" do
+      # `travel` zeroes sub-second precision on its target time (avoids
+      # off-by-one-second MySQL rounding surprises); start from an
+      # already-zeroed instant so every phase in this example is recorded on
+      # the same footing and the deltas below come out exact.
+      travel_to Time.current.change(usec: 0)
+      ChatTurnJob.agent_runner = ->(workspace_path:, process_started:, log_sink:, **_) {
+        spawn_agent_process!(workspace_path, process_started)
+        travel 45.seconds # the sidecar took its time handshaking
+        log_sink.call(
+          "[mcp_servers] syrus-chat-sidecar=connected",
+          kind: "system",
+          mcp_servers: [ { "name" => "syrus-chat-sidecar", "status" => "connected" } ]
+        )
+        travel 5.seconds # and the model took a while to say anything
+        log_sink.call("Finally ready.", kind: "assistant_text")
+        result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+      }
+
+      described_class.perform_now(chat.id, user_message.id)
+      Observability::EventSink.flush!(kinds: [ :mcp_startup_phase ])
+
+      spawn_at = recorded_phases.find_by(phase: "agent_process_spawn").occurred_at
+      ready_at = recorded_phases.find_by(phase: "required_server_ready").occurred_at
+      first_message_at = recorded_phases.find_by(phase: "first_assistant_message").occurred_at
+
+      expect(ready_at - spawn_at).to be >= 45.seconds
+      expect(first_message_at - ready_at).to be >= 5.seconds
+    end
+
+    it "attributes a handshake timeout to the first startup phase the turn never reached" do
+      ChatTurnJob.agent_runner = ->(workspace_path:, process_started:, log_sink:, **_) {
+        spawn_agent_process!(workspace_path, process_started)
+        # The sidecar never reports a connected/failed status and the model
+        # never replies -- e.g. the MCP handshake wedged. No further
+        # log_sink calls, matching a real hung sidecar subprocess.
+        result_fixture(session_id: "chat-session-1", is_error: true, outcome: "mcp_sidecar_failed", final_text: nil)
+      }
+
+      expect(McpStartupTiming).to receive(:log_stalled_phase!)
+        .with(chat_session_id: chat.id, chat_message_id: user_message.id)
+        .and_call_original
+
+      described_class.perform_now(chat.id, user_message.id)
+
+      expect(recorded_phases.pluck(:phase)).to eq([ "agent_process_spawn" ])
+      # "sidecar_process_spawn" is the next phase in canonical order and was
+      # never recorded -- the sidecar subprocess never even reported existing.
+      expect(McpStartupTiming.stalled_phase_for(chat_session_id: chat.id, chat_message_id: user_message.id))
+        .to eq("sidecar_process_spawn")
+    end
+
+    it "also attributes a plain process timeout (not just an explicit mcp_sidecar_failed outcome)" do
+      ChatTurnJob.agent_runner = ->(workspace_path:, process_started:, log_sink:, **_) {
+        spawn_agent_process!(workspace_path, process_started)
+        result_fixture(session_id: "chat-session-1", timed_out: true, is_error: false, outcome: nil, final_text: nil)
+      }
+
+      expect(McpStartupTiming).to receive(:log_stalled_phase!).and_call_original
+
+      described_class.perform_now(chat.id, user_message.id)
+    end
+  end
+
   it "attaches failed MCP sidecar stderr to unavailable MCP health messages" do
     Dir.mktmpdir("syrus-mcp-sidecar-logs") do |dir|
       saved_data_root = ENV["SYRUS_DATA_ROOT"]

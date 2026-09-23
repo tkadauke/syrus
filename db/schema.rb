@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_22_035359) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_23_022221) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1798,6 +1798,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_22_035359) do
     t.index ["state"], name: "index_maintenance_tasks_on_state"
     t.index ["task_key"], name: "index_maintenance_tasks_on_task_key", unique: true
     t.index ["trigger_kind", "trigger_key"], name: "idx_maintenance_tasks_trigger"
+  end
+
+  create_table "mcp_startup_phase_events", force: :cascade do |t|
+    t.string "app_revision"
+    t.integer "chat_message_id"
+    t.integer "chat_session_id"
+    t.datetime "created_at", null: false
+    t.string "hostname"
+    t.json "metadata", null: false
+    t.datetime "occurred_at", null: false
+    t.string "phase", null: false
+    t.integer "pid"
+    t.string "provider"
+    t.integer "run_id"
+    t.string "server_name"
+    t.string "source", null: false
+    t.string "tier"
+    t.datetime "updated_at", null: false
+    t.index ["chat_message_id"], name: "index_mcp_startup_phase_events_on_chat_message_id"
+    t.index ["chat_session_id", "chat_message_id", "occurred_at"], name: "idx_mcp_startup_phase_chat_message_occurred"
+    t.index ["chat_session_id"], name: "index_mcp_startup_phase_events_on_chat_session_id"
+    t.index ["occurred_at"], name: "index_mcp_startup_phase_events_on_occurred_at"
+    t.index ["phase", "occurred_at"], name: "idx_mcp_startup_phase_phase_occurred"
+    t.index ["run_id"], name: "index_mcp_startup_phase_events_on_run_id"
+    t.index ["server_name", "occurred_at"], name: "idx_mcp_startup_phase_server_occurred"
   end
 
   create_table "mcp_tool_usages", force: :cascade do |t|
