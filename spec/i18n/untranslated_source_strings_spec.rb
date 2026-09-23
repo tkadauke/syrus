@@ -57,10 +57,17 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/components/CoverageCard.tsx|jsx_text|(threshold: %)
       app/frontend/components/AdminEventActions.tsx|jsx_text|JOB-
       app/frontend/components/Checkbox.tsx|jsx_text|in a
+      app/frontend/components/dataTable/columnOrder.ts|jsx_text|(columns: DataTableColumnDef
+      app/frontend/components/dataTable/columnOrder.ts|jsx_text|[], keys: string[]): DataTableColumnDef
+      app/frontend/components/dataTable/columnOrder.ts|jsx_text|[], visibleOptionalKeys: string[]): DataTableColumnDef
+      app/frontend/components/dataTable/columnPersistence.ts|jsx_text|(storageKey: string, columns: DataTableColumnDef
       app/frontend/components/ShortcutsHelpModal.tsx|jsx_text|(items: T[]): ShortcutGroupSummary
       app/frontend/components/ui/Text.tsx|jsx_text|, keyof TextOwnProps
       app/frontend/routes/AdminBackendExceptions.tsx|jsx_text|active job
+      app/frontend/routes/AdminConsole.tsx|jsx_text|string): DataTableColumnDef
+      app/frontend/routes/AdminInstallations.tsx|jsx_text|string): DataTableColumnDef
       app/frontend/routes/AdminMcpToolUsage.tsx|jsx_text|· ·
+      app/frontend/routes/AdminMcpToolUsage.tsx|jsx_text|string): DataTableColumnDef
       app/frontend/routes/AdminReconcilerActivity.tsx|jsx_text|Run #
       app/frontend/routes/AdminUsers.tsx|jsx_text|[`#$`, job.state, job.kind,
       app/frontend/routes/AdminUsers.tsx|jsx_text|[`#$`, run.state, run.trigger_kind,
@@ -74,6 +81,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/JobDetail.tsx|jsx_text|( )
       app/frontend/routes/JobDetail.tsx|jsx_text|· Goal #
       app/frontend/routes/RepositoryTargetGraph.tsx|jsx_text|THR-
+      app/frontend/routes/dashboard/helpers.ts|jsx_text|(column: ): DataTableColumnDef
       app/frontend/routes/dashboard/JobsTable.tsx|jsx_text|PR #
       app/frontend/routes/dashboard/KanbanBoard.tsx|jsx_text|PR #
       app/frontend/routes/jobDetail/Delivery.tsx|jsx_text|PR #
