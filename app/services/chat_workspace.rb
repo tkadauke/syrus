@@ -31,6 +31,18 @@ class ChatWorkspace
   MAX_COMMIT_MESSAGE_BYTES = 300
   COMMIT_SHA_PATTERN = /\A[0-9a-fA-F]{7,40}\z/
 
+  # Maintenance-sweep pacing: each retained Coding-Mode checkout can be a
+  # multi-gigabyte tree, and reclaiming/sizing one means a `du -sk` treewalk
+  # plus, for a live reclaim, a git backup and an `rm -rf`. Run on the same
+  # worker process as live chat turns and dependency installs, an unbounded
+  # back-to-back sweep across many checkouts can saturate the shared local
+  # disk long enough to stall unrelated small writes elsewhere in the pod
+  # (e.g. an agent home config write). Cap how many heavy per-checkout
+  # operations one sweep tick performs and pause between them; anything left
+  # over is picked up on the next scheduled tick.
+  MAINTENANCE_SWEEP_BATCH_LIMIT = 20
+  MAINTENANCE_SWEEP_PACE = 0.05
+
   def self.data_root
     Pathname.new(ENV["SYRUS_DATA_ROOT"] || File.expand_path("~/.syrus"))
   end
@@ -189,7 +201,7 @@ class ChatWorkspace
 
     paths.filter_map { |path| safe_data_root_path(path) }
          .uniq
-         .each { |path| FileUtils.rm_rf(path.to_s) }
+         .each { |path| low_priority_rm_rf!(path) }
   end
 
   # nil unless the candidate is an absolute path strictly inside
@@ -217,6 +229,8 @@ class ChatWorkspace
                .where(coding_checkout_branch: nil)
                .where("COALESCE(last_message_at, updated_at) < ?", cutoff)
                .find_each do |chat_session|
+      break if n >= MAINTENANCE_SWEEP_BATCH_LIMIT
+
       destroy!(chat_session)
       chat_session.update_columns(workspace_path: nil, updated_at: Time.current)
       n += 1
@@ -227,15 +241,28 @@ class ChatWorkspace
 
   # Reclaims Coding-Mode checkouts idle longer than `older_than`, backing up
   # any un-pushed / uncommitted work to the remote first. Returns bytes freed.
+  # Bounded to MAINTENANCE_SWEEP_BATCH_LIMIT actual reclaims per call, paced
+  # with a short sleep between each, so a sweep with many idle checkouts on
+  # this node doesn't burst-saturate the shared local disk (see
+  # MAINTENANCE_SWEEP_BATCH_LIMIT). A no-op skip (checkout lives on a
+  # different node) costs no I/O and isn't paced or counted against the cap.
   def self.reclaim_idle_coding_checkouts!(older_than:)
     cutoff = older_than.ago
     freed = 0
+    reclaimed = 0
 
     ChatSession.where.not(coding_checkout_branch: nil)
                .where.not(workspace_path: nil)
                .where("COALESCE(last_message_at, updated_at) < ?", cutoff)
                .find_each do |chat_session|
-      freed += reclaim_coding_checkout!(chat_session)
+      break if reclaimed >= MAINTENANCE_SWEEP_BATCH_LIMIT
+
+      bytes = reclaim_coding_checkout!(chat_session)
+      next unless bytes.positive?
+
+      freed += bytes
+      reclaimed += 1
+      sleep(MAINTENANCE_SWEEP_PACE)
     rescue StandardError => e
       Rails.logger.warn("[ChatWorkspace] idle coding reclaim failed for chat #{chat_session.id}: #{e.class}: #{e.message}")
     end
@@ -247,6 +274,11 @@ class ChatWorkspace
   # LRU-evicting the least-recently-active ones (each safely backed up first)
   # until total on-disk size is under budget. 0/negative budget = disabled.
   # Returns bytes freed.
+  # Sizing every retained checkout (one `du -sk` treewalk each) is the
+  # expensive part of this method and runs on every sweep tick regardless of
+  # whether anything ends up evicted. Pace those calls, same rationale as
+  # MAINTENANCE_SWEEP_BATCH_LIMIT above, so this node's disk isn't hit with a
+  # burst of full-tree walks back to back.
   def self.reclaim_coding_over_budget!(budget_bytes:)
     return 0 if budget_bytes.to_i <= 0
 
@@ -259,10 +291,13 @@ class ChatWorkspace
       path = repo_path_for(chat_session, repository)
       next unless path.join(".git").directory?
 
+      bytes = du_bytes(path)
+      sleep(MAINTENANCE_SWEEP_PACE)
+
       {
         chat_session: chat_session,
         repository: repository,
-        bytes: du_bytes(path),
+        bytes: bytes,
         active_at: chat_session.last_message_at || chat_session.updated_at
       }
     end
@@ -271,10 +306,14 @@ class ChatWorkspace
     return 0 if total <= budget_bytes
 
     freed = 0
+    reclaimed = 0
     entries.sort_by { |e| e[:active_at] }.each do |entry|
       break if (total - freed) <= budget_bytes
+      break if reclaimed >= MAINTENANCE_SWEEP_BATCH_LIMIT
 
       freed += new(entry[:chat_session]).reclaim_coding_checkout!(entry[:repository])
+      reclaimed += 1
+      sleep(MAINTENANCE_SWEEP_PACE)
     rescue StandardError => e
       Rails.logger.warn("[ChatWorkspace] budget coding reclaim failed for chat #{entry[:chat_session].id}: #{e.class}: #{e.message}")
     end
@@ -303,16 +342,37 @@ class ChatWorkspace
   end
 
   # On-disk size of a path in bytes. Uses `du -sk` (KB) for portability across
-  # GNU (Linux worker) and BSD (macOS dev) — `du -sb` is GNU-only.
+  # GNU (Linux worker) and BSD (macOS dev) — `du -sb` is GNU-only. Run at the
+  # lowest I/O/CPU scheduling priority available (see Syrus::LowPriorityIo):
+  # this treewalk exists purely for background budget bookkeeping and must
+  # not compete with live chat turns or dependency installs for disk
+  # bandwidth on the same worker.
   def self.du_bytes(path)
     return 0 unless File.exist?(path.to_s)
 
-    out, status = Open3.capture2e("du", "-sk", path.to_s)
+    out, status = Open3.capture2e(*Syrus::LowPriorityIo.wrap([ "du", "-sk", path.to_s ]))
     return 0 unless status.success?
 
     out.to_i * 1024
   rescue StandardError
     0
+  end
+
+  # Removes a path via a low-I/O-priority `rm -rf` subprocess, falling back to
+  # FileUtils.rm_rf if the subprocess can't run at all. Used only by
+  # background maintenance (scheduled pruning/reclaim) — never on a path a
+  # live chat turn is synchronously waiting on, where normal priority is
+  # correct so the user isn't kept waiting for a deprioritized delete.
+  def self.low_priority_rm_rf!(path)
+    str = path.to_s
+    out, status = Open3.capture2e(*Syrus::LowPriorityIo.wrap([ "rm", "-rf", "--", str ]))
+    return if status.success?
+
+    Rails.logger.warn("[ChatWorkspace] low_priority_rm_rf! falling back to FileUtils for #{str}: #{out.strip}")
+    FileUtils.rm_rf(str)
+  rescue StandardError => e
+    Rails.logger.warn("[ChatWorkspace] low_priority_rm_rf! error for #{str}, falling back: #{e.class}: #{e.message}")
+    FileUtils.rm_rf(str)
   end
 
   # Walks chat-workspaces/ and agent_homes/chats/ and removes any
@@ -326,14 +386,17 @@ class ChatWorkspace
       next unless root.exist?
 
       root.each_child do |child|
+        break if n >= MAINTENANCE_SWEEP_BATCH_LIMIT
+
         next unless child.directory?
 
         id = Integer(child.basename.to_s, exception: false)
         next unless id&.positive?
         next if ChatSession.exists?(id: id)
 
-        FileUtils.rm_rf(child.to_s)
+        low_priority_rm_rf!(child)
         n += 1
+        sleep(MAINTENANCE_SWEEP_PACE)
       rescue StandardError => e
         Rails.logger.warn("[ChatWorkspace] orphan sweep error on #{child}: #{e.class}: #{e.message}")
       end
@@ -443,7 +506,7 @@ class ChatWorkspace
     bytes = self.class.du_bytes(path)
     branch = backup_coding_checkout!(repository, path, branch)
     @chat_session.update_columns(coding_checkout_branch: branch) if branch != @chat_session.coding_checkout_branch
-    FileUtils.rm_rf(path.to_s)
+    self.class.low_priority_rm_rf!(path)
     clear_relay_credentials!
     bytes
   end
