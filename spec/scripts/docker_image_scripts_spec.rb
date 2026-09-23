@@ -236,6 +236,29 @@ RSpec.describe "Docker image scripts" do
     expect(deploy).to include('kubectl logs')
   end
 
+  it "keeps the worker free of the Tailscale-only privileges/devices now owned by the privileged service lane" do
+    # Regression: the worker used to carry cap_add: [NET_ADMIN, NET_RAW] and a
+    # /dev/net/tun device grant solely so it could spawn tailscaled in-process.
+    # That daemon now runs in its own container, started through Plugin
+    # Runtime's privileged lane (plugins/plugin_runtime/container/internal/privileged),
+    # which grants those capabilities dynamically via the Docker API -- never
+    # through a compose-declared cap_add/devices block. No service in this
+    # file should statically request them, and the worker specifically must
+    # stay unprivileged. (Explanatory prose mentioning NET_ADMIN/NET_RAW in
+    # comments is fine -- only real YAML keys are asserted against here.)
+    expect(compose_yml).not_to include("cap_add:")
+    expect(compose_yml).not_to include("devices:")
+    expect(compose_yml).not_to include("privileged: true")
+    expect(compose_yml).not_to include("/dev/net/tun")
+
+    worker_section = compose_yml[/^  worker:.*?(?=^  \w)/m] || ""
+    expect(worker_section).not_to be_empty
+    expect(worker_section).not_to include("cap_add")
+    expect(worker_section).not_to include("NET_ADMIN")
+    expect(worker_section).not_to include("NET_RAW")
+    expect(worker_section).not_to include("privileged")
+  end
+
   it "tracks suspended rollout controls so failures resume them" do
     expect(deploy).to include("trap cleanup_rollout_controls EXIT")
     expect(deploy).to include('ACTIVE_FLUX_KUBECONFIG="$kubeconfig"')
