@@ -14,6 +14,15 @@ export type NativeNotificationPayload = {
   body: string
   jobId: number | string | null
   prUrl: string | null
+  notificationId: number | null
+}
+
+// Stable dedupe tag so multiple live tabs/windows collapse into one OS
+// notification instead of each showing their own copy of the same event.
+// null when the event carries no persisted notification id -- callers fall
+// back to the browser's default (untagged, always-shown) behavior.
+export function nativeNotificationTag(notificationId: number | null) {
+  return notificationId == null ? null : `syrus-notification-${notificationId}`
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -114,9 +123,12 @@ export function dispatchNativeNotification(payload: NativeNotificationPayload) {
   if (!isNativeNotificationSupported()) return false
   if (window.Notification.permission !== "granted") return false
 
+  const tag = nativeNotificationTag(payload.notificationId)
+  const options: NotificationOptions = tag ? { body: payload.body, tag } : { body: payload.body }
+
   let notification: Notification
   try {
-    notification = new window.Notification(nativeNotificationTitle(payload.kind), { body: payload.body })
+    notification = new window.Notification(nativeNotificationTitle(payload.kind), options)
   } catch {
     return false
   }

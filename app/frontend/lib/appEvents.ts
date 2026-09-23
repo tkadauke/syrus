@@ -176,7 +176,8 @@ function notificationCreatedNativePayload(payload: unknown): NativeNotificationP
     kind,
     body,
     jobId: typeof record.job_id === "number" ? record.job_id : null,
-    prUrl: httpNotificationUrl(record.pr_url)
+    prUrl: httpNotificationUrl(record.pr_url),
+    notificationId: typeof record.id === "number" ? record.id : null
   }
 }
 
