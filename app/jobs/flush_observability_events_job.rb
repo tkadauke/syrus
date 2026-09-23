@@ -11,6 +11,7 @@ class FlushObservabilityEventsJob < ApplicationJob
       prune_expired(BrowserErrorEvent, index: BrowserErrorIndex)
       prune_expired(BackendExceptionEvent)
       prune_expired(WorkflowActivityEvent)
+      prune_expired(McpStartupPhaseEvent)
     end
   end
 
