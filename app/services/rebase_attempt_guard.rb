@@ -7,6 +7,7 @@ class RebaseAttemptGuard
   MEMORY_WRITE_RETRY_STORM_THRESHOLD = 2
 
   def self.cap_reached?(job, pr: nil)
+    return true if permanently_blocked?(job, pr: pr)
     return false unless consecutive_failures(job, pr: pr) >= ATTEMPT_CAP
 
     cooldown = AppSetting.rebase_failure_cooldown_minutes.minutes
@@ -16,11 +17,55 @@ class RebaseAttemptGuard
   end
 
   def self.cooling_down?(job, pr: nil)
+    return true if permanently_blocked?(job, pr: pr)
+
     cooldown = AppSetting.rebase_failure_cooldown_minutes.minutes
     return false unless cooldown.positive?
 
     recent_failed_agent_workflow(job, pr: pr, since: cooldown.ago).present?
   end
+
+  # A time-based cooldown assumes the next attempt has a chance of
+  # succeeding once enough wall-clock time has passed. That's true for a
+  # transient failure (a dead worker, a rate limit) but not for one
+  # RunFailureClassifier already determined is permanent (e.g. a missing
+  # agent provider credential) -- nothing about the workflow's inputs
+  # changes between attempts, so every cooldown-expiry retry fails the
+  # same way, forever, at the cooldown cadence. Block indefinitely on the
+  # same PR head/base instead; `matches_pr?` already lifts the block the
+  # moment the PR actually changes (a new push, a rebased base).
+  def self.permanently_blocked?(job, pr: nil)
+    workflow = latest_failed_agent_rebase_workflow(job, pr: pr)
+    return false unless workflow
+
+    latest_failed_agent_rebase_run(workflow)&.run_failure_classification&.retryable == false
+  end
+  private_class_method :permanently_blocked?
+
+  def self.latest_failed_agent_rebase_workflow(job, pr:)
+    job.workflows.where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS).reorder(id: :desc).each do |workflow|
+      break if workflow.succeeded?
+      next unless workflow.failed?
+
+      break if pr && !matches_pr?(workflow, job, pr)
+      break unless failed_in_agent_rebase?(workflow)
+
+      return workflow
+    end
+    nil
+  end
+  private_class_method :latest_failed_agent_rebase_workflow
+
+  def self.latest_failed_agent_rebase_run(workflow)
+    workflow.steps
+      .where(kind: AGENT_REBASE_STEPS, state: "failed")
+      .order(id: :desc)
+      .first
+      &.runs
+      &.order(id: :desc)
+      &.first
+  end
+  private_class_method :latest_failed_agent_rebase_run
 
   def self.blocking_landing?(job)
     job.pr_mergeable == false && cap_reached?(job)
