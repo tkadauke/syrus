@@ -1,6 +1,7 @@
 class Step < ApplicationRecord
   include AASM
   include RecordsStateTransitions
+  include Revisionable
   include BroadcastsJobProgress
 
   KINDS = Step::Kind.values

@@ -118,6 +118,39 @@ describe("subscribeToAppEvents", () => {
     expect(onConnectionChange).toHaveBeenCalledWith(true)
   })
 
+  it("resets app-event sequence tracking on reconnect so a stale sequence doesn't also trigger gap recovery", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    let connected: (() => void) | undefined
+    let received: ((data: unknown) => void) | undefined
+    const consumer = {
+      subscriptions: {
+        create: vi.fn((_params, mixin) => {
+          connected = mixin.connected
+          received = mixin.received
+          return { perform: vi.fn(), unsubscribe: vi.fn() }
+        })
+      }
+    }
+
+    subscribeToAppEvents(queryClient, consumer)
+    connected?.() // initial connect
+
+    received?.({ type: "workflow.updated", resource: "workflow", id: 7, sequence: 1, changed: [] })
+    const routineCallCount = invalidate.mock.calls.length
+    invalidate.mockClear()
+
+    connected?.() // reconnect -- resets sequence tracking, runs its own continuity sweep
+    invalidate.mockClear()
+
+    // Without the reset, sequence 1 -> 40 would look like a huge gap on top
+    // of the routine per-event invalidation; the reset means this is
+    // treated as the first event of a fresh stream instead.
+    received?.({ type: "workflow.updated", resource: "workflow", id: 7, sequence: 40, changed: [] })
+
+    expect(invalidate).toHaveBeenCalledTimes(routineCallCount)
+  })
+
   it("calls onSubscriptionChange on EVERY connect/disconnect, including the very first connect", () => {
     // Unlike onConnectionChange (reconnect-only, drives the "reconnected"
     // banner), the desktop-shell notification-liveness signal needs "are we

@@ -1,4 +1,5 @@
 class ChatMessage < ApplicationRecord
+  include Revisionable
   include EnqueuesSearchIndex
 
   ROLES = %w[ user assistant tool_use tool_result system ].freeze

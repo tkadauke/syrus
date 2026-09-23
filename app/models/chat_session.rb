@@ -1,4 +1,5 @@
 class ChatSession < ApplicationRecord
+  include Revisionable
   include PluginDataCleanup
 
   MESSAGE_PAGE_SIZE = 30
@@ -417,6 +418,7 @@ class ChatSession < ApplicationRecord
       resource: "chat",
       id: id,
       changed: [ "header" ],
+      revision: entity_revision,
       payload: {
         action: "update_header",
         chat: {
