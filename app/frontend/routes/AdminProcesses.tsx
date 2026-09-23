@@ -46,7 +46,9 @@ export function AdminProcessesIndex() {
     queryKey: ["admin", "processes", location.search],
     queryFn: () => fetchAdminProcesses(location.search)
   })
-  const activeUserFolderId = processes.data?.smart_folders.find((folder) => folder.id === processes.data.active_smart_folder_id && folder.kind === "user_defined")?.id
+  const activeUserFolderId = processes.data?.smart_folders.find(
+    (folder) => folder.id === processes.data.active_smart_folder_id && folder.kind === "user_defined"
+  )?.id
 
   return (
     <Page.Root aria-label={t("processes.aria_index")} gutter="responsive" size="wide">
@@ -117,8 +119,13 @@ export function AdminProcessDetail() {
   return (
     <Page.Root aria-label={t("processes.aria_detail")} gutter="responsive" size="medium">
       <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link className="text-sm text-brand underline hover:no-underline" to={basePath}>{t("processes.heading")}</Link>
-        <PageHeading className="mt-2">{t("processes.detail_heading")}{id ? ` #${id}` : ""}</PageHeading>
+        <Link className="text-sm text-brand underline hover:no-underline" to={basePath}>
+          {t("processes.heading")}
+        </Link>
+        <PageHeading className="mt-2">
+          {t("processes.detail_heading")}
+          {id ? ` #${id}` : ""}
+        </PageHeading>
       </Page.Header>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -132,18 +139,43 @@ export function AdminProcessDetail() {
 
 const PROCESSES_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.admin.processes.visible_columns"
 
-function buildProcessesColumns({ basePath, prefix, t }: { basePath: string; prefix: string; t: (key: string) => string }): DataTableColumnDef<SpawnedProcessPayload>[] {
+function buildProcessesColumns({
+  basePath,
+  prefix,
+  t
+}: {
+  basePath: string
+  prefix: string
+  t: (key: string) => string
+}): DataTableColumnDef<SpawnedProcessPayload>[] {
   return [
     {
       key: "kind",
       label: t("processes.col_kind"),
       required: true,
       cellClassName: "align-top",
-      renderCell: (process) => <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-200">{process.kind}</span>
+      renderCell: (process) => (
+        <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-200">{process.kind}</span>
+      )
     },
-    { key: "command", label: t("processes.col_command"), cellClassName: "max-w-md truncate align-top font-mono text-xs text-gray-700 dark:text-gray-200", renderCell: (process) => <span title={process.command}>{process.command}</span> },
-    { key: "user", label: t("processes.col_user"), cellClassName: "max-w-xs align-top text-xs text-gray-700 dark:text-gray-200", renderCell: (process) => <UserLabel prefix={prefix} user={process.user} /> },
-    { key: "owner", label: t("processes.col_owner"), cellClassName: "max-w-xs align-top text-xs text-gray-700 dark:text-gray-200", renderCell: (process) => <OwnerLabel owner={process.owner} prefix={prefix} /> },
+    {
+      key: "command",
+      label: t("processes.col_command"),
+      cellClassName: "max-w-md truncate align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      renderCell: (process) => <span title={process.command}>{process.command}</span>
+    },
+    {
+      key: "user",
+      label: t("processes.col_user"),
+      cellClassName: "max-w-xs align-top text-xs text-gray-700 dark:text-gray-200",
+      renderCell: (process) => <UserLabel prefix={prefix} user={process.user} />
+    },
+    {
+      key: "owner",
+      label: t("processes.col_owner"),
+      cellClassName: "max-w-xs align-top text-xs text-gray-700 dark:text-gray-200",
+      renderCell: (process) => <OwnerLabel owner={process.owner} prefix={prefix} />
+    },
     {
       key: "host_pid",
       label: t("processes.col_host_pid"),
@@ -155,7 +187,12 @@ function buildProcessesColumns({ basePath, prefix, t }: { basePath: string; pref
         </>
       )
     },
-    { key: "started", label: t("processes.col_started"), cellClassName: "whitespace-nowrap align-top text-xs text-gray-700 dark:text-gray-200", renderCell: (process) => <RelativeTimestamp value={process.started_at} /> },
+    {
+      key: "started",
+      label: t("processes.col_started"),
+      cellClassName: "whitespace-nowrap align-top text-xs text-gray-700 dark:text-gray-200",
+      renderCell: (process) => <RelativeTimestamp value={process.started_at} />
+    },
     {
       key: "last_chunk",
       label: t("processes.col_last_chunk"),
@@ -163,11 +200,20 @@ function buildProcessesColumns({ basePath, prefix, t }: { basePath: string; pref
       renderCell: (process) => (
         <>
           <RelativeTimestamp value={process.last_chunk_at} />
-          {process.stale ? <span className="ml-1 rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-2xs font-semibold uppercase text-amber-900 dark:text-amber-100">{t("processes.stale")}</span> : null}
+          {process.stale ? (
+            <span className="ml-1 rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-2xs font-semibold uppercase text-amber-900 dark:text-amber-100">
+              {t("processes.stale")}
+            </span>
+          ) : null}
         </>
       )
     },
-    { key: "duration", label: t("processes.col_duration"), cellClassName: "align-top text-xs text-gray-700 dark:text-gray-200", renderCell: (process) => formatDuration(process.duration_s) },
+    {
+      key: "duration",
+      label: t("processes.col_duration"),
+      cellClassName: "align-top text-xs text-gray-700 dark:text-gray-200",
+      renderCell: (process) => formatDuration(process.duration_s)
+    },
     { key: "outcome", label: t("processes.col_outcome"), cellClassName: "align-top text-xs", renderCell: (process) => <Outcome process={process} /> },
     {
       key: "actions",
@@ -178,7 +224,9 @@ function buildProcessesColumns({ basePath, prefix, t }: { basePath: string; pref
       cellClassName: "space-x-3 whitespace-nowrap align-top text-xs",
       renderCell: (process) => (
         <>
-          <Link className="text-brand underline hover:no-underline" to={`${basePath}/${process.id}`}>{t("processes.detail")}</Link>
+          <Link className="text-brand underline hover:no-underline" to={`${basePath}/${process.id}`}>
+            {t("processes.detail")}
+          </Link>
           <KillButton process={process} />
         </>
       )
@@ -244,31 +292,50 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
         {process.owner ? (
           <>
             <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_owner")}</dt>
-            <dd><OwnerLabel owner={process.owner} prefix={prefix} /></dd>
+            <dd>
+              <OwnerLabel owner={process.owner} prefix={prefix} />
+            </dd>
           </>
         ) : null}
         {process.user ? (
           <>
             <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_user")}</dt>
-            <dd><UserLabel user={process.user} prefix={prefix} /></dd>
+            <dd>
+              <UserLabel user={process.user} prefix={prefix} />
+            </dd>
           </>
         ) : null}
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_hostname")}</dt>
         <dd className="font-mono text-gray-900 dark:text-gray-100">{process.hostname || "-"}</dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_pid_pgid")}</dt>
-        <dd className="font-mono text-gray-900 dark:text-gray-100">{process.pid || "-"} / {process.pgid || "-"}</dd>
+        <dd className="font-mono text-gray-900 dark:text-gray-100">
+          {process.pid || "-"} / {process.pgid || "-"}
+        </dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_workdir")}</dt>
         <dd className="break-all font-mono text-gray-900 dark:text-gray-100">{process.workdir || "-"}</dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_started")}</dt>
-        <dd><RelativeTimestamp value={process.started_at} /></dd>
+        <dd>
+          <RelativeTimestamp value={process.started_at} />
+        </dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_last_chunk")}</dt>
-        <dd><RelativeTimestamp value={process.last_chunk_at} /> {process.stale ? <span className="rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-2xs font-semibold uppercase text-amber-900 dark:text-amber-100">{t("processes.stale")}</span> : null}</dd>
+        <dd>
+          <RelativeTimestamp value={process.last_chunk_at} />{" "}
+          {process.stale ? (
+            <span className="rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-2xs font-semibold uppercase text-amber-900 dark:text-amber-100">
+              {t("processes.stale")}
+            </span>
+          ) : null}
+        </dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_finished")}</dt>
-        <dd><RelativeTimestamp value={process.finished_at} /></dd>
+        <dd>
+          <RelativeTimestamp value={process.finished_at} />
+        </dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_duration")}</dt>
         <dd>{formatDuration(process.duration_s)}</dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_outcome")}</dt>
-        <dd><Outcome process={process} /></dd>
+        <dd>
+          <Outcome process={process} />
+        </dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_wall_timeout")}</dt>
         <dd>{formatDuration(process.wall_timeout_s)}</dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_silent_timeout")}</dt>
@@ -276,7 +343,11 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
         {process.run_id ? (
           <>
             <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_run")}</dt>
-            <dd><Link className="text-brand underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${process.run_id}/transcript`, prefix)}>#{process.run_id}</Link></dd>
+            <dd>
+              <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${process.run_id}/transcript`, prefix)}>
+                #{process.run_id}
+              </Link>
+            </dd>
           </>
         ) : null}
         {process.workflow_id ? (
@@ -287,14 +358,18 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
                 <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(process.workflow_path, prefix)}>
                   {process.workflow_slug || workflowSlug(process.workflow_id)}
                 </Link>
-              ) : process.workflow_slug || workflowSlug(process.workflow_id)}
+              ) : (
+                process.workflow_slug || workflowSlug(process.workflow_id)
+              )}
             </dd>
           </>
         ) : null}
         {process.kill_requested_at ? (
           <>
             <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_kill_requested")}</dt>
-            <dd><RelativeTimestamp value={process.kill_requested_at} /></dd>
+            <dd>
+              <RelativeTimestamp value={process.kill_requested_at} />
+            </dd>
           </>
         ) : null}
       </dl>
@@ -318,12 +393,7 @@ function KillButton({ process }: { process: SpawnedProcessPayload }) {
   if (process.finished_at || process.kill_requested_at) return null
 
   return (
-    <Button
-      disabled={kill.isPending}
-      onClick={() => kill.mutate()}
-      size="sm"
-      variant="danger"
-    >
+    <Button disabled={kill.isPending} onClick={() => kill.mutate()} size="sm" variant="danger">
       {kill.isPending ? t("processes.killing") : t("processes.kill")}
     </Button>
   )
@@ -375,13 +445,15 @@ function UserLabel({ user, prefix }: { user: SpawnedProcessUser | null; prefix: 
 function Outcome({ process }: { process: SpawnedProcessPayload }) {
   const { t } = useT("admin")
   if (process.finished_at) {
-    const label = process.outcome
-      ? t(`processes.outcome_${process.outcome}`, { defaultValue: process.outcome })
-      : t("processes.outcome_finished")
+    const label = process.outcome ? t(`processes.outcome_${process.outcome}`, { defaultValue: process.outcome }) : t("processes.outcome_finished")
     return <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 font-medium text-gray-700 dark:text-gray-200">{label}</span>
   }
   if (process.kill_requested_at) {
-    return <span className="rounded bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 font-medium text-amber-800 dark:text-amber-200">{t("processes.outcome_kill_requested")}</span>
+    return (
+      <span className="rounded bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 font-medium text-amber-800 dark:text-amber-200">
+        {t("processes.outcome_kill_requested")}
+      </span>
+    )
   }
   return <span className="rounded border border-info bg-surface-raised px-2 py-0.5 font-medium text-info">{t("processes.outcome_running")}</span>
 }
@@ -402,8 +474,8 @@ function formatDuration(value: number | null) {
   if (value < 60) return `${Math.round(value)}s`
 
   const minutes = Math.floor(value / 60)
-  if (minutes < 60) return`${minutes}m`
+  if (minutes < 60) return `${minutes}m`
 
   const hours = Math.floor(minutes / 60)
-  return`${hours}h ${minutes % 60}m`
+  return `${hours}h ${minutes % 60}m`
 }

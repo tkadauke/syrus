@@ -31,12 +31,7 @@ export default function AdminGithubApiUsage() {
         </div>
         <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
           Window
-          <Select
-            className="ml-2"
-            fullWidth={false}
-            value={hours}
-            onChange={(event) => setHours(Number(event.target.value))}
-          >
+          <Select className="ml-2" fullWidth={false} value={hours} onChange={(event) => setHours(Number(event.target.value))}>
             <option value={1}>1 hour</option>
             <option value={6}>6 hours</option>
             <option value={24}>24 hours</option>

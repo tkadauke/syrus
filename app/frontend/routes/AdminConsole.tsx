@@ -125,7 +125,12 @@ function TogglePanel({
           <h2 className="font-medium text-gray-900 dark:text-gray-100">{title}</h2>
           <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">{description}</p>
           <p className="mt-3 text-xs">
-            {t("console.state")} <span className={`rounded px-2 py-0.5 font-mono uppercase ${warning ? "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300" : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"}`}>{value}</span>
+            {t("console.state")}{" "}
+            <span
+              className={`rounded px-2 py-0.5 font-mono uppercase ${warning ? "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300" : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"}`}
+            >
+              {value}
+            </span>
           </p>
         </div>
         <button
@@ -185,14 +190,12 @@ function GithubCachePanel({ payload }: { payload: AdminConsolePayload }) {
       <h2 className="font-medium text-gray-900 dark:text-gray-100">{t("console.github_cache_heading")}</h2>
       <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">{t("console.github_cache_description")}</p>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <Select
-          fullWidth={false}
-          onChange={(event) => setUserId(event.target.value)}
-          value={userId}
-        >
+        <Select fullWidth={false} onChange={(event) => setUserId(event.target.value)} value={userId}>
           <option value="">{t("console.all_users")}</option>
           {payload.users.map((user) => (
-            <option key={user.id} value={user.id}>{user.email_address}</option>
+            <option key={user.id} value={user.id}>
+              {user.email_address}
+            </option>
           ))}
         </Select>
         <Button disabled={mutation.isPending} onClick={() => mutation.mutate()} variant="primary">
@@ -215,40 +218,20 @@ function MaintenanceSection({ activeRuns }: { activeRuns: number }) {
       </div>
       <p className="px-4 pt-3 text-xs text-gray-600 dark:text-gray-300">{t("console.maintenance_description")}</p>
       <div className="grid gap-4 p-4 md:grid-cols-3">
-        <RestartPanel
-          activeRuns={activeRuns}
-          component="web"
-          description={t("console.restart_web_description")}
-          title={t("console.restart_web_title")}
-        />
+        <RestartPanel activeRuns={activeRuns} component="web" description={t("console.restart_web_description")} title={t("console.restart_web_title")} />
         <RestartPanel
           activeRuns={activeRuns}
           component="worker"
           description={t("console.restart_worker_description")}
           title={t("console.restart_worker_title")}
         />
-        <RestartPanel
-          activeRuns={activeRuns}
-          component="all"
-          description={t("console.restart_all_description")}
-          title={t("console.restart_all_title")}
-        />
+        <RestartPanel activeRuns={activeRuns} component="all" description={t("console.restart_all_description")} title={t("console.restart_all_title")} />
       </div>
     </section>
   )
 }
 
-function RestartPanel({
-  component,
-  title,
-  description,
-  activeRuns
-}: {
-  component: RestartComponent
-  title: string
-  description: string
-  activeRuns: number
-}) {
+function RestartPanel({ component, title, description, activeRuns }: { component: RestartComponent; title: string; description: string; activeRuns: number }) {
   const { t } = useT("admin")
   const [confirming, setConfirming] = useState(false)
   const warnActiveRuns = component !== "web" && activeRuns > 0
@@ -288,10 +271,21 @@ const CONSOLE_ACTIONS_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.admin.console.actions
 
 function buildConsoleActionsColumns(t: (key: string) => string): DataTableColumnDef<ConsoleAction>[] {
   return [
-    { key: "when", label: t("console.col_when"), required: true, cellClassName: "whitespace-nowrap text-xs text-gray-600 dark:text-gray-300", renderCell: (action) => <RelativeTimestamp value={action.performed_at} /> },
+    {
+      key: "when",
+      label: t("console.col_when"),
+      required: true,
+      cellClassName: "whitespace-nowrap text-xs text-gray-600 dark:text-gray-300",
+      renderCell: (action) => <RelativeTimestamp value={action.performed_at} />
+    },
     { key: "operator", label: t("console.col_operator"), cellClassName: "text-xs text-gray-700 dark:text-gray-200", renderCell: (action) => action.user_email },
     { key: "action", label: t("console.col_action"), cellClassName: "font-mono text-xs", renderCell: (action) => action.action },
-    { key: "params", label: t("console.col_params"), cellClassName: "font-mono text-xs text-gray-500 dark:text-gray-400", renderCell: (action) => JSON.stringify(action.params).slice(0, 200) }
+    {
+      key: "params",
+      label: t("console.col_params"),
+      cellClassName: "font-mono text-xs text-gray-500 dark:text-gray-400",
+      renderCell: (action) => JSON.stringify(action.params).slice(0, 200)
+    }
   ]
 }
 

@@ -41,21 +41,27 @@ export function AdminMysql() {
       {dialog}
       <Page.Header className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
         <div>
-          <Text className="font-medium uppercase" variant="caption" tone="muted">{t("admin:section_label")}</Text>
+          <Text className="font-medium uppercase" variant="caption" tone="muted">
+            {t("admin:section_label")}
+          </Text>
           <PageHeading>{t("heading")}</PageHeading>
-          <Page.Description className="max-w-3xl">
-            {t("description")}
-          </Page.Description>
+          <Page.Description className="max-w-3xl">{t("description")}</Page.Description>
         </div>
         <Toolbar>
-          <label className="text-sm font-medium text-text-primary" htmlFor="mysql-limit">{t("rows")}</label>
+          <label className="text-sm font-medium text-text-primary" htmlFor="mysql-limit">
+            {t("rows")}
+          </label>
           <select
             className="rounded border border-border bg-surface px-2 py-1 text-sm text-text-primary"
             id="mysql-limit"
             onChange={(event) => setLimit(Number(event.target.value))}
             value={limit}
           >
-            {[25, 50, 100, 200].map((value) => <option key={value} value={value}>{value}</option>)}
+            {[25, 50, 100, 200].map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
           </select>
           <Button onClick={() => void mysql.refetch()} size="sm" variant="secondary">
             {t("refresh")}
@@ -111,10 +117,26 @@ function MysqlDashboard({
   return (
     <div className="space-y-6">
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label={t("metric_threads_running")} value={formatValue(summary.threads_running)} detail={t("metric_threads_connected", { count: formatValue(summary.threads_connected) })} />
-        <MetricCard label={t("metric_connections_used")} value={connectionPercent(summary)} detail={t("metric_connections_limit", { max: formatValue(summary.max_used_connections), limit: formatValue(summary.max_connections) })} />
-        <MetricCard label={t("metric_sleeping_connections")} value={formatValue(summary.sleeping_connections)} detail={t("metric_wait_timeout", { seconds: formatValue(summary.wait_timeout) })} />
-        <MetricCard label={t("metric_buffer_pool")} value={formatBytes(Number(payload.variables.innodb_buffer_pool_size))} detail={t("metric_database", { database: payload.database })} />
+        <MetricCard
+          label={t("metric_threads_running")}
+          value={formatValue(summary.threads_running)}
+          detail={t("metric_threads_connected", { count: formatValue(summary.threads_connected) })}
+        />
+        <MetricCard
+          label={t("metric_connections_used")}
+          value={connectionPercent(summary)}
+          detail={t("metric_connections_limit", { max: formatValue(summary.max_used_connections), limit: formatValue(summary.max_connections) })}
+        />
+        <MetricCard
+          label={t("metric_sleeping_connections")}
+          value={formatValue(summary.sleeping_connections)}
+          detail={t("metric_wait_timeout", { seconds: formatValue(summary.wait_timeout) })}
+        />
+        <MetricCard
+          label={t("metric_buffer_pool")}
+          value={formatBytes(Number(payload.variables.innodb_buffer_pool_size))}
+          detail={t("metric_database", { database: payload.database })}
+        />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
@@ -155,11 +177,7 @@ function MysqlDashboard({
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
           <SectionHeading>{t("process_list")}</SectionHeading>
           <div className="flex flex-wrap items-center gap-3">
-            <Checkbox
-              checked={hideIdle}
-              label={t("hide_idle_threads", { count: idleCount })}
-              onChange={onToggleHideIdle}
-            />
+            <Checkbox checked={hideIdle} label={t("hide_idle_threads", { count: idleCount })} onChange={onToggleHideIdle} />
             <p className="text-xs text-gray-500 dark:text-gray-400">{t("generated", { time: new Date(payload.generated_at).toLocaleString() })}</p>
           </div>
         </div>
@@ -191,7 +209,9 @@ function MysqlDashboard({
                   <td className="px-4 py-2">{process.time_seconds}s</td>
                   <td className="px-4 py-2">{process.state || "-"}</td>
                   <td className="px-4 py-2 font-mono text-xs">{process.host}</td>
-                  <td className="max-w-2xl truncate px-4 py-2 font-mono text-xs" title={process.info || ""}>{process.info || "-"}</td>
+                  <td className="max-w-2xl truncate px-4 py-2 font-mono text-xs" title={process.info || ""}>
+                    {process.info || "-"}
+                  </td>
                   <td className="px-4 py-2">
                     {process.command && process.command !== "Sleep" ? (
                       <button
@@ -224,13 +244,12 @@ function StatementDigestPanel({ payload, t }: { payload: MysqlSnapshot; t: Retur
     <Section.Root className="min-w-0 overflow-hidden p-0">
       <div className="border-b border-border px-4 py-3">
         <SectionHeading>{t("statement_digests")}</SectionHeading>
-        <Text variant="caption" tone="muted">{t("statement_digests_description")}</Text>
+        <Text variant="caption" tone="muted">
+          {t("statement_digests_description")}
+        </Text>
       </div>
       {!payload.statement_digests.available ? (
-        <UnavailablePanel
-          fallback={t("statement_digests_unavailable")}
-          error={payload.statement_digests.error}
-        />
+        <UnavailablePanel fallback={t("statement_digests_unavailable")} error={payload.statement_digests.error} />
       ) : (
         <div className="max-h-[32rem] overflow-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
@@ -248,7 +267,9 @@ function StatementDigestPanel({ payload, t }: { payload: MysqlSnapshot; t: Retur
                   <td className="px-4 py-2">{formatSeconds(row.total_seconds)}</td>
                   <td className="px-4 py-2">{formatSeconds(row.max_seconds)}</td>
                   <td className="px-4 py-2">{row.count}</td>
-                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.digest_text || ""}>{row.digest_text || "-"}</td>
+                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.digest_text || ""}>
+                    {row.digest_text || "-"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -259,14 +280,25 @@ function StatementDigestPanel({ payload, t }: { payload: MysqlSnapshot; t: Retur
   )
 }
 
-function SlowLogPanel({ includeSlowLog, onToggleSlowLog, payload, t }: { includeSlowLog: boolean; onToggleSlowLog: () => void; payload: MysqlSnapshot; t: ReturnType<typeof useT>["t"] }) {
+function SlowLogPanel({
+  includeSlowLog,
+  onToggleSlowLog,
+  payload,
+  t
+}: {
+  includeSlowLog: boolean
+  onToggleSlowLog: () => void
+  payload: MysqlSnapshot
+  t: ReturnType<typeof useT>["t"]
+}) {
   return (
     <Section.Root className="min-w-0 overflow-hidden p-0">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <SectionHeading>{t("slow_log")}</SectionHeading>
           <Text variant="caption" tone="muted">
-            slow_query_log {String(payload.slow_log.config.slow_query_log || "unknown")} · log_output {String(payload.slow_log.config.log_output || "unknown")} · long_query_time {String(payload.slow_log.config.long_query_time || "unknown")}s
+            slow_query_log {String(payload.slow_log.config.slow_query_log || "unknown")} · log_output {String(payload.slow_log.config.log_output || "unknown")}{" "}
+            · long_query_time {String(payload.slow_log.config.long_query_time || "unknown")}s
           </Text>
         </div>
         <button
@@ -296,7 +328,9 @@ function SlowLogPanel({ includeSlowLog, onToggleSlowLog, payload, t }: { include
                   <td className="px-4 py-2">{row.start_time ? new Date(row.start_time).toLocaleString() : "-"}</td>
                   <td className="px-4 py-2">{row.query_time}</td>
                   <td className="px-4 py-2">{row.rows_examined}</td>
-                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.sql_text || ""}>{row.sql_text || "-"}</td>
+                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.sql_text || ""}>
+                    {row.sql_text || "-"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -344,9 +378,15 @@ function KeyValuePanel({ title, values }: { title: string; values: Record<string
 function MetricCard({ detail, label, value }: { detail: string; label: string; value: string }) {
   return (
     <Section.Root>
-      <Text className="font-semibold uppercase" variant="caption" tone="muted">{label}</Text>
-      <Text className="mt-2 text-2xl font-semibold" tone="default">{value}</Text>
-      <Text className="mt-1" variant="caption" tone="muted">{detail}</Text>
+      <Text className="font-semibold uppercase" variant="caption" tone="muted">
+        {label}
+      </Text>
+      <Text className="mt-2 text-2xl font-semibold" tone="default">
+        {value}
+      </Text>
+      <Text className="mt-1" variant="caption" tone="muted">
+        {detail}
+      </Text>
     </Section.Root>
   )
 }

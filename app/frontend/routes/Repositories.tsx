@@ -8,12 +8,7 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
-import {
-  fetchRepositories,
-  unarchiveRepository,
-  type RepositoriesPayload,
-  type RepositoryRow
-} from "../api/repositories"
+import { fetchRepositories, unarchiveRepository, type RepositoriesPayload, type RepositoryRow } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 import { linkFromSearch } from "../components/filterBar/helpers"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
@@ -95,7 +90,9 @@ function buildRepositoryColumns({
       sortKey: "slug",
       renderCell: (repository) => (
         <div className="flex items-center gap-2">
-          <Link className="font-mono text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
+          <Link className="font-mono text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(repository.repository_path, prefix)}>
+            {repository.slug}
+          </Link>
           {repository.archived ? <TonePill tone="gray">{t("repositories.archived_badge")}</TonePill> : null}
         </div>
       )
@@ -165,7 +162,8 @@ function buildRepositoryColumns({
       label: t("repositories.col_upstream_slug"),
       defaultVisible: false,
       cellClassName: "font-mono text-xs text-text-secondary",
-      renderCell: (repository) => repository.upstream_slug ? `${repository.upstream_slug}${repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}` : "-"
+      renderCell: (repository) =>
+        repository.upstream_slug ? `${repository.upstream_slug}${repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}` : "-"
     },
     {
       key: "actions",
@@ -174,16 +172,17 @@ function buildRepositoryColumns({
       pin: "end",
       align: "right",
       renderHeader: () => <span className="sr-only">{t("repositories.col_actions")}</span>,
-      renderCell: (repository) => repository.archived ? (
-        <button
-          className="text-brand dark:text-brand-emphasis underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
-          disabled={unarchivePending}
-          onClick={() => onUnarchive(repository)}
-          type="button"
-        >
-          {t('repositories.unarchive')}
-        </button>
-      ) : null
+      renderCell: (repository) =>
+        repository.archived ? (
+          <button
+            className="text-brand dark:text-brand-emphasis underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
+            disabled={unarchivePending}
+            onClick={() => onUnarchive(repository)}
+            type="button"
+          >
+            {t("repositories.unarchive")}
+          </button>
+        ) : null
     }
   ]
 }
@@ -218,9 +217,7 @@ export function RepositoriesIndex() {
     <Page.Root aria-label={t("aria_repositories")} gutter="responsive" size="wide">
       {repositories.isPending ? (
         <QueryStateBanner>
-          <PanelMessage>
-            {t('repositories.loading')}
-          </PanelMessage>
+          <PanelMessage>{t("repositories.loading")}</PanelMessage>
         </QueryStateBanner>
       ) : null}
       {repositories.isError ? (
@@ -228,14 +225,7 @@ export function RepositoriesIndex() {
           <PanelMessage tone="error">{errorMessage(repositories.error, t("repositories.error_load"))}</PanelMessage>
         </QueryStateBanner>
       ) : null}
-      {repositories.isSuccess ? (
-        <RepositoriesView
-          pathname={location.pathname}
-          payload={repositories.data}
-          prefix={prefix}
-          search={location.search}
-        />
-      ) : null}
+      {repositories.isSuccess ? <RepositoriesView pathname={location.pathname} payload={repositories.data} prefix={prefix} search={location.search} /> : null}
     </Page.Root>
   )
 }
@@ -283,7 +273,7 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
   }
 
   const combinedRepositories = useMemo(
-    () => sortedRepositories([ ...payload.active_repositories, ...payload.archived_repositories ], sortState),
+    () => sortedRepositories([...payload.active_repositories, ...payload.archived_repositories], sortState),
     [payload.active_repositories, payload.archived_repositories, sortState]
   )
   const activeSmartFolderId = smartFolderIdFromSearch(search) ?? payload.active_smart_folder_id
@@ -294,10 +284,10 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
   return (
     <>
       <Page.Header className="items-center gap-3">
-        <PageHeading>
-          {t('repositories.heading')}
-        </PageHeading>
-        <Link className={buttonClasses("primary")} to={withRoutePrefix(payload.new_repository_path, prefix)}>{t('repositories.add')}</Link>
+        <PageHeading>{t("repositories.heading")}</PageHeading>
+        <Link className={buttonClasses("primary")} to={withRoutePrefix(payload.new_repository_path, prefix)}>
+          {t("repositories.add")}
+        </Link>
       </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -322,8 +312,12 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
             <details className={classes("group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900", marginGutterRestore)}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium">
                 <span>{tNav("filters_layout.folders_and_filters")}</span>
-                <Text as="span" className="group-open:hidden" muted variant="caption">{tNav("filters_layout.show")}</Text>
-                <Text as="span" className="hidden group-open:inline" muted variant="caption">{tNav("filters_layout.hide")}</Text>
+                <Text as="span" className="group-open:hidden" muted variant="caption">
+                  {tNav("filters_layout.show")}
+                </Text>
+                <Text as="span" className="hidden group-open:inline" muted variant="caption">
+                  {tNav("filters_layout.hide")}
+                </Text>
               </summary>
               <div className="border-t border-gray-200 p-4 dark:border-gray-700">
                 <AdminSmartFolderNav
@@ -486,13 +480,13 @@ function PollingPill({ enabled }: { enabled: boolean }) {
   if (enabled) {
     return (
       <span className="inline-block rounded bg-green-100 dark:bg-green-950/40 px-2 py-0.5 text-xs text-green-700 dark:text-green-300">
-        {t('repositories.polling_enabled')}
+        {t("repositories.polling_enabled")}
       </span>
     )
   }
   return (
     <span className="inline-block rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400">
-      {t('repositories.polling_paused')}
+      {t("repositories.polling_paused")}
     </span>
   )
 }
@@ -502,11 +496,15 @@ function LastPoll({ repository }: { repository: RepositoryRow }) {
   if (repository.last_poll_status === "failed") {
     return (
       <div>
-        <span className="font-medium text-red-600 dark:text-red-300">
-          {t('repositories.poll_failed')}
+        <span className="font-medium text-red-600 dark:text-red-300">{t("repositories.poll_failed")}</span>
+        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+          <RelativeTimestamp value={repository.last_poll_started_at} />
         </span>
-        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={repository.last_poll_started_at} /></span>
-        {repository.last_poll_error ? <div className="mt-0.5 max-w-xs truncate font-mono text-xs text-red-500 dark:text-red-300" title={repository.last_poll_error}>{repository.last_poll_error}</div> : null}
+        {repository.last_poll_error ? (
+          <div className="mt-0.5 max-w-xs truncate font-mono text-xs text-red-500 dark:text-red-300" title={repository.last_poll_error}>
+            {repository.last_poll_error}
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -514,10 +512,10 @@ function LastPoll({ repository }: { repository: RepositoryRow }) {
   if (repository.last_poll_status === "ok") {
     return (
       <div>
-        <span className="text-green-700 dark:text-green-300">
-          {t('repositories.poll_ok')}
+        <span className="text-green-700 dark:text-green-300">{t("repositories.poll_ok")}</span>
+        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+          <RelativeTimestamp value={repository.last_poll_started_at} />
         </span>
-        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={repository.last_poll_started_at} /></span>
       </div>
     )
   }
