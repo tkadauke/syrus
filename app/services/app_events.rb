@@ -22,14 +22,26 @@ class AppEvents
     AppUserChannel.broadcast_to(user, event.as_json)
   end
 
-  # Two statements rather than one atomic RETURNING-style query: this
-  # must stay portable across SQLite (dev/test) and MySQL (prod), and
-  # nothing here needs strict per-call uniqueness -- the column only ever
-  # increases, so a rare read-after-a-concurrent-write race just assigns
-  # two broadcasts the same sequence number, which the frontend already
-  # treats as "not a gap" (duplicates are ignored, never mistaken for one).
+  # Two statements rather than one atomic RETURNING-style query, to stay
+  # portable across SQLite (dev/test) and MySQL (prod) -- but they must run
+  # inside one transaction, not as independent calls. An `UPDATE` always
+  # takes a lock covering the updated row for the rest of the transaction
+  # (an exclusive row lock under MySQL/InnoDB; SQLite's single writer-lock
+  # covers the whole database once a transaction has written). Wrapping the
+  # update and the follow-up read in the same transaction means no other
+  # call can modify this counter in between: the `pick` below is guaranteed
+  # to see exactly the value *this* call's `update_all` produced, not a
+  # value that raced ahead of it. Without the transaction, two concurrent
+  # broadcasts for the same user could both read the same post-increment
+  # value and be stamped with an identical `sequence` -- and since the
+  # frontend drops a repeated/non-advancing `sequence` outright as a
+  # duplicate (see trackAppEventSequence in app/frontend/lib/appEvents.ts),
+  # that would silently discard one of the two broadcasts instead of
+  # merely mis-detecting a duplicate.
   def self.next_sequence(user)
-    User.where(id: user.id).update_all("app_event_sequence = app_event_sequence + 1")
-    User.where(id: user.id).pick(:app_event_sequence).to_i
+    User.transaction do
+      User.where(id: user.id).update_all("app_event_sequence = app_event_sequence + 1")
+      User.where(id: user.id).pick(:app_event_sequence).to_i
+    end
   end
 end
