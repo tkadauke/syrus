@@ -62,7 +62,7 @@ export function DiffReviewVersionSelector({
   // share the same base_sha or head_sha. An explicit range whose shas exactly
   // match one stored version highlights that version's row instead of
   // whichever row the cross-row lookup happens to match first.
-  const resolvedSingleVersion = selected || (selectedRange ? findMatchingVersion(ordered, rangeBaseSha, rangeHeadSha) : null)
+  const resolvedSingleVersion = selectedRange ? findMatchingVersion(ordered, rangeBaseSha, rangeHeadSha) : selected
   const highlightedFromVersion = selectedRange ? (resolvedSingleVersion || fromEndpointVersion) : selected
   const highlightedToVersion = selectedRange ? (resolvedSingleVersion || toEndpointVersion) : selected
   const displayLabel = selectedRange ? selectedRangeLabel(t, ordered, rangeBaseSha, rangeHeadSha, ambiguousRunIds) : selected ? collapsedLabel(t, selected, ambiguousRunIds) : t("review_version_label")
@@ -186,7 +186,9 @@ export function DiffReviewVersionSelector({
           role="listbox"
         >
           {ordered.map((version, index) => {
-            const selectedOption = version.id === selected?.id || (version.base_sha === rangeBaseSha && version.head_sha === rangeHeadSha)
+            const selectedOption = selectedRange
+              ? version.base_sha === rangeBaseSha && version.head_sha === rangeHeadSha
+              : version.id === selected?.id
             const fromSelected = version.id === highlightedFromVersion?.id
             const toSelected = version.id === highlightedToVersion?.id
             const allChanges = isAllChangesVersion(version)
