@@ -13,13 +13,7 @@ import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
 import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
-import {
-  DataTableColumnCells,
-  DataTableColumnHeaderRow,
-  DataTableColumnMenu,
-  useLocalStorageColumnPreferences,
-  type DataTableColumnDef
-} from "../components/dataTable"
+import { AdminEventLogTable, type AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
 import {
   fetchAdminQueue,
   isQueueTab,
@@ -199,46 +193,6 @@ function isFilteredQueuePayload(payload: AdminQueuePayload): payload is ActiveQu
   return "filter" in payload && "controls" in payload
 }
 
-// Shared selectable/reorderable-column rendering for the queue tab tables
-// (jobs, failures, recurring, workers, processes) -- each one is already a
-// flat row list with no sorting or expansion, so this is just the column
-// menu plus DataTableColumnHeaderRow/Cells wired to a per-table localStorage
-// preference, mirroring Repositories.tsx and AdminEventLogTable.
-function QueueColumnTable<Row>({ columns, getRowKey, rows, storageKey }: { columns: DataTableColumnDef<Row>[]; getRowKey: (row: Row) => string | number; rows: Row[]; storageKey: string }) {
-  const { t } = useT("admin")
-  const preferences = useLocalStorageColumnPreferences({ columns, storageKey })
-
-  return (
-    <>
-      <div className="flex justify-end border-b border-border px-4 py-2">
-        <DataTableColumnMenu
-          columns={columns}
-          downLabel={t("event_log_table.column_down")}
-          menuId={`${storageKey}-menu`}
-          moveDownLabel={(title) => t("event_log_table.column_move_down", { title })}
-          moveUpLabel={(title) => t("event_log_table.column_move_up", { title })}
-          onChange={preferences.onChange}
-          order={preferences.order}
-          triggerAriaLabel={t("event_log_table.columns")}
-          upLabel={t("event_log_table.column_up")}
-          visibleLabel={t("event_log_table.visible_columns")}
-        />
-      </div>
-      <DataTable.Root>
-        <DataTable.Header>
-          <DataTableColumnHeaderRow columns={columns} onReorder={preferences.onChange} order={preferences.order} />
-        </DataTable.Header>
-        <DataTable.Body>
-          {rows.map((row) => (
-            <DataTable.Row key={getRowKey(row)}>
-              <DataTableColumnCells columns={columns} order={preferences.order} row={row} />
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
-    </>
-  )
-}
 
 function QueueTabPanel({ tab, payload }: { tab: QueueTab; payload: unknown }) {
   const { t } = useT("admin")
@@ -269,15 +223,15 @@ function PendingTable({ payload }: { payload: PendingQueuePayload }) {
   )
 }
 
-function jobsTableColumns(t: (key: string) => string, showClaimed: boolean): DataTableColumnDef<QueueJob>[] {
-  const columns: DataTableColumnDef<QueueJob>[] = [
-    { key: "class", label: t("queue.col_class"), required: true, cellClassName: "font-medium text-gray-900 dark:text-gray-100", renderCell: (job) => job.class_name },
-    { key: "queue", label: t("queue.col_queue"), cellClassName: "text-gray-700 dark:text-gray-200", renderCell: (job) => job.queue_name },
-    { key: "arguments", label: t("queue.col_arguments"), cellClassName: "font-mono text-xs text-gray-600 dark:text-gray-300", renderCell: (job) => formatArguments(job.arguments) },
-    { key: "created", label: t("queue.col_created"), cellClassName: "text-gray-600 dark:text-gray-300", renderCell: (job) => <RelativeTimestamp value={job.created_at} /> }
+function jobsTableColumns(t: (key: string) => string, showClaimed: boolean): Array<AdminEventLogTableColumn<QueueJob>> {
+  const columns: Array<AdminEventLogTableColumn<QueueJob>> = [
+    { key: "class", header: t("queue.col_class"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (job) => job.class_name },
+    { key: "queue", header: t("queue.col_queue"), className: "text-gray-700 dark:text-gray-200", render: (job) => job.queue_name },
+    { key: "arguments", header: t("queue.col_arguments"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (job) => formatArguments(job.arguments) },
+    { key: "created", header: t("queue.col_created"), className: "text-gray-600 dark:text-gray-300", render: (job) => <RelativeTimestamp value={job.created_at} /> }
   ]
   if (showClaimed) {
-    columns.push({ key: "claimed", label: t("queue.col_claimed"), cellClassName: "text-gray-600 dark:text-gray-300", renderCell: (job) => <RelativeTimestamp value={job.claimed_at} /> })
+    columns.push({ key: "claimed", header: t("queue.col_claimed"), className: "text-gray-600 dark:text-gray-300", render: (job) => <RelativeTimestamp value={job.claimed_at} /> })
   }
   return columns
 }
@@ -287,7 +241,7 @@ function JobsTable({ emptyLabel, jobs, showClaimed = false, storageKey }: { empt
 
   if (jobs.length === 0) return <PanelMessage>{emptyLabel}</PanelMessage>
 
-  return <QueueColumnTable columns={jobsTableColumns(t, showClaimed)} getRowKey={(job) => job.id} rows={jobs} storageKey={storageKey} />
+  return <AdminEventLogTable columns={jobsTableColumns(t, showClaimed)} getRowKey={(job) => job.id} rows={jobs} storageKey={storageKey} />
 }
 
 function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
@@ -296,15 +250,15 @@ function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
 
   if (failures.length === 0) return <PanelMessage>{t("queue.no_failures", { since: payload.since ? formatRelativeDate(new Date(payload.since)) : "-" })}</PanelMessage>
 
-  const columns: DataTableColumnDef<QueueFailure>[] = [
-    { key: "created", label: t("queue.col_created"), required: true, cellClassName: "text-gray-600 dark:text-gray-300", renderCell: (failure) => <RelativeTimestamp value={failure.created_at} /> },
-    { key: "class", label: t("queue.col_class"), cellClassName: "font-medium text-gray-900 dark:text-gray-100", renderCell: (failure) => failure.class_name || "-" },
-    { key: "exception", label: t("queue.col_exception"), cellClassName: "text-gray-700 dark:text-gray-200", renderCell: (failure) => failure.exception_class || "-" },
-    { key: "message", label: t("queue.col_message"), cellClassName: "max-w-md text-gray-700 dark:text-gray-200", renderCell: (failure) => failure.message || "-" },
-    { key: "arguments", label: t("queue.col_arguments"), cellClassName: "font-mono text-xs text-gray-600 dark:text-gray-300", renderCell: (failure) => formatArguments(failure.arguments) }
+  const columns: Array<AdminEventLogTableColumn<QueueFailure>> = [
+    { key: "created", header: t("queue.col_created"), required: true, className: "text-gray-600 dark:text-gray-300", render: (failure) => <RelativeTimestamp value={failure.created_at} /> },
+    { key: "class", header: t("queue.col_class"), className: "font-medium text-gray-900 dark:text-gray-100", render: (failure) => failure.class_name || "-" },
+    { key: "exception", header: t("queue.col_exception"), className: "text-gray-700 dark:text-gray-200", render: (failure) => failure.exception_class || "-" },
+    { key: "message", header: t("queue.col_message"), className: "max-w-md text-gray-700 dark:text-gray-200", render: (failure) => failure.message || "-" },
+    { key: "arguments", header: t("queue.col_arguments"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (failure) => formatArguments(failure.arguments) }
   ]
 
-  return <QueueColumnTable columns={columns} getRowKey={(failure) => failure.id} rows={failures} storageKey="syrus.admin.queue.failures.visible_columns" />
+  return <AdminEventLogTable columns={columns} getRowKey={(failure) => failure.id} rows={failures} storageKey="syrus.admin.queue.failures.visible_columns" />
 }
 
 function RecurringTable({ tasks }: { tasks: QueueRecurringTask[] }) {
@@ -312,15 +266,15 @@ function RecurringTable({ tasks }: { tasks: QueueRecurringTask[] }) {
 
   if (tasks.length === 0) return <PanelMessage>{t("queue.no_recurring")}</PanelMessage>
 
-  const columns: DataTableColumnDef<QueueRecurringTask>[] = [
-    { key: "key", label: t("queue.col_key"), required: true, cellClassName: "font-medium text-gray-900 dark:text-gray-100", renderCell: (task) => task.key },
-    { key: "class", label: t("queue.col_class"), cellClassName: "text-gray-700 dark:text-gray-200", renderCell: (task) => task.class_name || "-" },
-    { key: "schedule", label: t("queue.col_schedule"), cellClassName: "font-mono text-xs text-gray-600 dark:text-gray-300", renderCell: (task) => task.schedule },
-    { key: "last_run", label: t("queue.col_last_run"), cellClassName: "text-gray-600 dark:text-gray-300", renderCell: (task) => <RelativeTimestamp value={task.last_run_at} /> },
-    { key: "last_finished", label: t("queue.col_last_finished"), cellClassName: "text-gray-600 dark:text-gray-300", renderCell: (task) => <RelativeTimestamp value={task.last_finished_at} /> }
+  const columns: Array<AdminEventLogTableColumn<QueueRecurringTask>> = [
+    { key: "key", header: t("queue.col_key"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (task) => task.key },
+    { key: "class", header: t("queue.col_class"), className: "text-gray-700 dark:text-gray-200", render: (task) => task.class_name || "-" },
+    { key: "schedule", header: t("queue.col_schedule"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (task) => task.schedule },
+    { key: "last_run", header: t("queue.col_last_run"), className: "text-gray-600 dark:text-gray-300", render: (task) => <RelativeTimestamp value={task.last_run_at} /> },
+    { key: "last_finished", header: t("queue.col_last_finished"), className: "text-gray-600 dark:text-gray-300", render: (task) => <RelativeTimestamp value={task.last_finished_at} /> }
   ]
 
-  return <QueueColumnTable columns={columns} getRowKey={(task) => task.key} rows={tasks} storageKey="syrus.admin.queue.recurring.visible_columns" />
+  return <AdminEventLogTable columns={columns} getRowKey={(task) => task.key} rows={tasks} storageKey="syrus.admin.queue.recurring.visible_columns" />
 }
 
 function WorkersPanel({ payload }: { payload: WorkersQueuePayload }) {
@@ -659,16 +613,16 @@ function WorkerTable({ workers }: { workers: QueueWorker[] }) {
 
   if (workers.length === 0) return <PanelMessage>{t("queue.no_workers")}</PanelMessage>
 
-  const columns: DataTableColumnDef<QueueWorker>[] = [
-    { key: "host", label: t("queue.col_host"), required: true, cellClassName: "font-medium text-gray-900 dark:text-gray-100", renderCell: (worker) => worker.hostname || "-" },
-    { key: "pid", label: t("queue.col_pid"), cellClassName: "text-gray-700 dark:text-gray-200", renderCell: (worker) => worker.pid },
-    { key: "queues", label: t("queue.col_queues"), cellClassName: "font-mono text-xs text-gray-600 dark:text-gray-300", renderCell: (worker) => formatQueues(worker.queues) },
-    { key: "threads", label: t("queue.col_threads"), cellClassName: "text-gray-700 dark:text-gray-200", renderCell: (worker) => worker.threads ?? "-" },
-    { key: "heartbeat", label: t("queue.col_heartbeat"), cellClassName: "text-gray-600 dark:text-gray-300", renderCell: (worker) => <RelativeTimestamp value={worker.last_heartbeat_at} /> },
-    { key: "state", label: t("queue.col_state"), renderCell: (worker) => <span className={worker.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>{worker.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</span> }
+  const columns: Array<AdminEventLogTableColumn<QueueWorker>> = [
+    { key: "host", header: t("queue.col_host"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (worker) => worker.hostname || "-" },
+    { key: "pid", header: t("queue.col_pid"), className: "text-gray-700 dark:text-gray-200", render: (worker) => worker.pid },
+    { key: "queues", header: t("queue.col_queues"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (worker) => formatQueues(worker.queues) },
+    { key: "threads", header: t("queue.col_threads"), className: "text-gray-700 dark:text-gray-200", render: (worker) => worker.threads ?? "-" },
+    { key: "heartbeat", header: t("queue.col_heartbeat"), className: "text-gray-600 dark:text-gray-300", render: (worker) => <RelativeTimestamp value={worker.last_heartbeat_at} /> },
+    { key: "state", header: t("queue.col_state"), render: (worker) => <span className={worker.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>{worker.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</span> }
   ]
 
-  return <QueueColumnTable columns={columns} getRowKey={(worker) => `${worker.hostname}-${worker.pid}`} rows={workers} storageKey="syrus.admin.queue.workers.visible_columns" />
+  return <AdminEventLogTable columns={columns} getRowKey={(worker) => `${worker.hostname}-${worker.pid}`} rows={workers} storageKey="syrus.admin.queue.workers.visible_columns" />
 }
 
 function ProcessTable({ processes }: { processes: QueueProcess[] }) {
@@ -676,15 +630,15 @@ function ProcessTable({ processes }: { processes: QueueProcess[] }) {
 
   if (processes.length === 0) return <PanelMessage>{t("queue.no_processes")}</PanelMessage>
 
-  const columns: DataTableColumnDef<QueueProcess>[] = [
-    { key: "kind", label: t("queue.col_kind"), required: true, cellClassName: "font-medium text-gray-900 dark:text-gray-100", renderCell: (process) => process.kind },
-    { key: "host", label: t("queue.col_host"), cellClassName: "text-gray-700 dark:text-gray-200", renderCell: (process) => process.hostname || "-" },
-    { key: "pid", label: t("queue.col_pid"), cellClassName: "text-gray-700 dark:text-gray-200", renderCell: (process) => process.pid },
-    { key: "heartbeat", label: t("queue.col_heartbeat"), cellClassName: "text-gray-600 dark:text-gray-300", renderCell: (process) => <RelativeTimestamp value={process.last_heartbeat_at} /> },
-    { key: "state", label: t("queue.col_state"), renderCell: (process) => <span className={process.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>{process.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</span> }
+  const columns: Array<AdminEventLogTableColumn<QueueProcess>> = [
+    { key: "kind", header: t("queue.col_kind"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (process) => process.kind },
+    { key: "host", header: t("queue.col_host"), className: "text-gray-700 dark:text-gray-200", render: (process) => process.hostname || "-" },
+    { key: "pid", header: t("queue.col_pid"), className: "text-gray-700 dark:text-gray-200", render: (process) => process.pid },
+    { key: "heartbeat", header: t("queue.col_heartbeat"), className: "text-gray-600 dark:text-gray-300", render: (process) => <RelativeTimestamp value={process.last_heartbeat_at} /> },
+    { key: "state", header: t("queue.col_state"), render: (process) => <span className={process.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>{process.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</span> }
   ]
 
-  return <QueueColumnTable columns={columns} getRowKey={(process) => `${process.kind}-${process.hostname}-${process.pid}`} rows={processes} storageKey="syrus.admin.queue.processes.visible_columns" />
+  return <AdminEventLogTable columns={columns} getRowKey={(process) => `${process.kind}-${process.hostname}-${process.pid}`} rows={processes} storageKey="syrus.admin.queue.processes.visible_columns" />
 }
 
 function QueueError({ error }: { error: Error }) {
