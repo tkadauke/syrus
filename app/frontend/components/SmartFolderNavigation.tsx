@@ -16,6 +16,7 @@ export type SmartFolderNavFolder = {
   visibility: string
   position: number
   count: number | null
+  count_capped?: boolean
   active: boolean
   path: string
 }
@@ -341,7 +342,7 @@ function SmartFolderRow<TFolder extends SmartFolderNavFolder>({
   if (folder.kind !== "user_defined") {
     const countPrefix = renderCountPrefix?.(folder)
     const href = withRoutePrefix(folder.path, prefix)
-    const label = smartFolderLabel(displayName, folder.count)
+    const label = smartFolderLabel(displayName, folder.count, folder.count_capped)
     const selectFolder = () => onSelect?.(folder)
 
     if (!countPrefix) {
@@ -355,7 +356,7 @@ function SmartFolderRow<TFolder extends SmartFolderNavFolder>({
         >
           {showDragHandle ? <GripIcon /> : null}
           <span className="min-w-0 flex-1 truncate">{displayName}</span>
-          <FolderCount active={folder.active} count={folder.count} />
+          <FolderCount active={folder.active} count={folder.count} countCapped={folder.count_capped} />
         </Link>
       )
     }
@@ -381,7 +382,7 @@ function SmartFolderRow<TFolder extends SmartFolderNavFolder>({
       >
         {showDragHandle ? <GripIcon /> : null}
         <span className="min-w-0 flex-1 truncate">{displayName}</span>
-        <FolderCount active={folder.active} count={folder.count} prefixContent={countPrefix} />
+        <FolderCount active={folder.active} count={folder.count} countCapped={folder.count_capped} prefixContent={countPrefix} />
       </div>
     )
   }
@@ -427,7 +428,7 @@ function SmartFolderRow<TFolder extends SmartFolderNavFolder>({
             />
           </div>
         ) : (
-          <Link aria-label={smartFolderLabel(folder.name, folder.count)} className="flex min-w-0 flex-1 items-center gap-2 rounded-l px-2 py-1.5 text-sm" onClick={() => onSelect?.(folder)} to={withRoutePrefix(folder.path, prefix)}>
+          <Link aria-label={smartFolderLabel(folder.name, folder.count, folder.count_capped)} className="flex min-w-0 flex-1 items-center gap-2 rounded-l px-2 py-1.5 text-sm" onClick={() => onSelect?.(folder)} to={withRoutePrefix(folder.path, prefix)}>
             <span className="truncate">{folder.name}</span>
           </Link>
         )}
@@ -449,7 +450,7 @@ function SmartFolderRow<TFolder extends SmartFolderNavFolder>({
               ...
             </button>
           ) : (
-            <FolderCount active={folder.active} count={folder.count} prefixContent={renderCountPrefix?.(folder)} />
+            <FolderCount active={folder.active} count={folder.count} countCapped={folder.count_capped} prefixContent={renderCountPrefix?.(folder)} />
           )}
         </div>
         {menuOpen && menuAnchor ? createPortal(
@@ -486,14 +487,14 @@ function SmartFolderRow<TFolder extends SmartFolderNavFolder>({
   )
 }
 
-function FolderCount({ active, count, prefixContent }: { active: boolean; count: number | null; prefixContent?: ReactNode }) {
+function FolderCount({ active, count, countCapped, prefixContent }: { active: boolean; count: number | null; countCapped?: boolean; prefixContent?: ReactNode }) {
   if (count == null && !prefixContent) return null
 
   return (
     <div className="ml-auto flex shrink-0 items-center gap-1">
       {prefixContent}
       {count == null ? null : (
-        <span className={`inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${active ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{count}</span>
+        <span className={`inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${active ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{countCapped ? "999+" : count}</span>
       )}
     </div>
   )
@@ -503,8 +504,8 @@ export function smartFolderRowClass(active: boolean, withDragHandle = false) {
   return `flex min-w-0 items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${withDragHandle ? "group cursor-grab active:cursor-grabbing" : ""} ${active ? "bg-brand/10 font-medium text-brand dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`
 }
 
-export function smartFolderLabel(name: string, count: number | null) {
-  return count == null ? name : `${name} ${count}`
+export function smartFolderLabel(name: string, count: number | null, countCapped?: boolean) {
+  return count == null ? name : `${name} ${countCapped ? "999+" : count}`
 }
 
 function reorderFolders<TFolder>(folders: TFolder[], sourceIndex: number, targetIndex: number) {

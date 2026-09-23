@@ -10,6 +10,7 @@ export type AdminSmartFolder = {
   subject_type: string
   visibility: string
   count: number
+  count_capped?: boolean
   active: boolean
   filter?: Record<string, unknown>
   path: string
