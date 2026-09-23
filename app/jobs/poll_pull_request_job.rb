@@ -687,9 +687,7 @@ class PollPullRequestJob < ApplicationJob
 
   def commits_behind_base(head_sha:, base_sha:)
     pr_repo = @job.effective_pr_repository
-    bare_clone = RepositoryBareClone.new(pr_repo)
-    bare_clone.sync!(user: @job.user)
-    bare_clone.commits_behind(head_sha: head_sha, base_sha: base_sha)
+    CommitsBehindCalculator.call(repository: pr_repo, user: @job.user, head_sha: head_sha, base_sha: base_sha)
   rescue StandardError => e
     Rails.logger.warn("[PollPullRequestJob] #{@job.slug}: commits-behind check skipped before ci_failure: #{e.class}: #{e.message}")
     nil

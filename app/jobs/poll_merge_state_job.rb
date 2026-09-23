@@ -71,9 +71,7 @@ class PollMergeStateJob < ApplicationJob
     return unless head_sha && base_sha
 
     pr_repo = @job.effective_pr_repository
-    bare_clone = RepositoryBareClone.new(pr_repo)
-    bare_clone.sync!(user: @job.user)
-    distance = bare_clone.commits_behind(head_sha: head_sha, base_sha: base_sha)
+    distance = CommitsBehindCalculator.call(repository: pr_repo, user: @job.user, head_sha: head_sha, base_sha: base_sha)
     return if @job.commits_behind_base == distance
 
     @job.update_column(:commits_behind_base, distance)

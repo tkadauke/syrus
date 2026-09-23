@@ -821,6 +821,20 @@ class GithubClient
     raise
   end
 
+  # Returns { ahead:, behind: } -- how many commits `head` has that `base`
+  # does not (ahead), and how many commits `base` has that `head` does not
+  # (behind) -- from GitHub's compare summary alone. Unlike #compare_commits,
+  # this issues a single, unpaginated request: the counts are already on
+  # the first page and do not require walking every commit. Raises
+  # Octokit::NotFound when base or head is unknown to GitHub.
+  def compare_divergence(repo_slug, base, head)
+    result = track_rate_limits { @client.get("repos/#{repo_slug}/compare/#{base}...#{head}") }
+    { ahead: result.ahead_by.to_i, behind: result.behind_by.to_i }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} compare #{base}...#{head}: #{e.message}")
+    raise
+  end
+
   # Returns { commits: [...], merge_base_sha: "abc", truncated: bool } for
   # commits that are on `head` but not yet in `base`. Each commit entry has
   # :sha, :short_sha, :message (first line), and :date. Commits are returned

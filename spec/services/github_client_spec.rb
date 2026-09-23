@@ -898,6 +898,31 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#compare_divergence" do
+    let(:client) { GithubClient.for(repository: repository, user: user) }
+
+    it "returns numeric ahead/behind counts from the compare summary alone" do
+      stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/compare/base-sha...staging")
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: { status: "diverged", ahead_by: 3, behind_by: 1, merge_base_commit: { sha: "base-sha" }, commits: [] }.to_json
+        )
+
+      result = client.compare_divergence("acme/widgets", "base-sha", "staging")
+
+      expect(result).to eq(ahead: 3, behind: 1)
+      expect(stub).to have_been_requested
+    end
+
+    it "raises Octokit::NotFound when a ref is unknown" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/compare/base-sha...gone")
+        .to_return(status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json)
+
+      expect { client.compare_divergence("acme/widgets", "base-sha", "gone") }.to raise_error(Octokit::NotFound)
+    end
+  end
+
   describe "#merge_pull_request" do
     let(:client) { GithubClient.for(repository: repository, user: user) }
 
