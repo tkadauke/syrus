@@ -112,6 +112,25 @@ RSpec.describe ChatShellCommandJob do
     expect(command.finished_at).to be_present
   end
 
+  it "forwards :step_environment plugin-contributed env keys into the command subprocess" do
+    make_checkout_path
+    command = create_command(command: "echo hi")
+    ENV["SYRUS_TEST_STEP_ENV_KEY"] = "shell-cmd-value"
+    fake_provider = Class.new do
+      def self.forwarded_env_keys = %w[SYRUS_TEST_STEP_ENV_KEY]
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:step_environment).and_return([ fake_provider ])
+    captured_kwargs = {}
+    stub_process_runner(result: build_result, captured_kwargs: captured_kwargs)
+
+    described_class.perform_now(command.id)
+
+    expect(captured_kwargs[:env]["SYRUS_TEST_STEP_ENV_KEY"]).to eq("shell-cmd-value")
+  ensure
+    ENV.delete("SYRUS_TEST_STEP_ENV_KEY")
+  end
+
   it "records a failed outcome for a non-zero exit status" do
     make_checkout_path
     command = create_command(command: "exit 1")

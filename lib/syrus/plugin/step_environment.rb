@@ -19,10 +19,18 @@ module Syrus
     #
     # A provider may optionally also implement `#extra_env`, the companion
     # hook for values that don't already exist in the worker pod's own ENV --
-    # a value computed per Workflow (a per-Workflow daemon port, say),
-    # rather than a name to copy through:
+    # a value computed per scope (a per-scope daemon port, say), rather than
+    # a name to copy through:
     #
-    #   def self.extra_env(workflow:, workspace_path:) = { "SCCACHE_SERVER_PORT" => "20123" }
+    #   def self.extra_env(scope:, workspace_path:) = { "SCCACHE_SERVER_PORT" => "20123" }
+    #
+    # `scope` is a PrepareScope (see app/services/prepare_scope.rb) rather
+    # than a bare Workflow -- this hook runs for both workflow Steps
+    # (Steps::Prepare, Steps::Grader) and Coding Mode's chat workspace
+    # prepare (ChatWorkspacePrepareJob), which has a ChatSession +
+    # Repository and no Workflow at all. Read `scope.id`/`scope.repository`,
+    # or hash `scope.cache_key` for a stable per-scope derived value; do not
+    # assume `scope` responds to Workflow-specific methods.
     #
     # `#extra_env` is optional; a provider that only forwards static names
     # from the worker environment does not need to define it.
