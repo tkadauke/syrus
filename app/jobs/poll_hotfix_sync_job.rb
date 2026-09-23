@@ -11,15 +11,10 @@ class PollHotfixSyncJob < ApplicationJob
 
   limits_concurrency to: 1, key: ->(repo_id, *) { "poll_hotfix_sync:#{repo_id}" }
 
-  # GitHub-side failures that mean "we couldn't reach GitHub this tick," not
-  # "there's nothing to sync." Mirrors the GitHub-related subset of
-  # AutoRetryFailureClassifier::RETRYABLE_ERROR_CLASSES (see
-  # PollMainBranchHealthJob's identical list).
-  TRANSIENT_GITHUB_ERROR_CLASSES = [
-    Octokit::ServerError,
-    Faraday::TimeoutError,
-    Faraday::ConnectionFailed
-  ].freeze
+  # A relation other than these means `source` has commits `target` lacks --
+  # `:ahead`/`:behind` are from target's point of view, so `source` being
+  # `:ahead` of `target` (or the two having `:diverged`) is what needs a sync.
+  UNSYNCED_RELATIONS = %i[ahead diverged].freeze
 
   def perform(repository_id)
     repository = Repository.find_by(id: repository_id)
@@ -38,23 +33,23 @@ class PollHotfixSyncJob < ApplicationJob
     # anchor Jobs every poll tick.
     return if HotfixSyncDispatcher.pending_for?(repository)
 
-    client = GithubClient.for(repository: repository, user: repository.user)
-
-    comparison = begin
-      client.compare_commits(repository.slug, target, source)
-    rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
-      Rails.logger.warn(
-        "[PollHotfixSyncJob] GitHub unreachable for #{repository.slug}: #{e.class}: #{e.message}"
-      )
-      return
-    end
-
-    return if comparison[:commits].empty?
+    return unless source_ahead_of_target?(repository, source: source, target: target)
 
     Rails.logger.info(
-      "[PollHotfixSyncJob] #{repository.slug}: #{source} has #{comparison[:commits].size} commit(s) " \
-      "not yet in #{target}; dispatching hotfix sync"
+      "[PollHotfixSyncJob] #{repository.slug}: #{source} has commits not yet in #{target}; dispatching hotfix sync"
     )
     HotfixSyncDispatcher.call!(repository: repository, source_branch: source, target_branch: target)
+  end
+
+  private
+
+  def source_ahead_of_target?(repository, source:, target:)
+    content = RepositoryContent.for(repository, user: repository.user)
+    UNSYNCED_RELATIONS.include?(content.relation(base: content.resolve(target), head: content.resolve(source)))
+  rescue RepositoryContent::UnknownRevision
+    false
+  rescue RepositoryContent::Unavailable => e
+    Rails.logger.warn("[PollHotfixSyncJob] could not compare #{repository.slug}: #{e.class}: #{e.message}")
+    false
   end
 end

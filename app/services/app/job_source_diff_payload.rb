@@ -17,15 +17,14 @@ module App
       return fixture_payload if preview_fixture.present?
       return unavailable_payload unless source_available?
 
-      github = GithubClient.for(repository: @repository, user: @user)
+      # Defaulted up front, not just inside branch_history, so the rescue
+      # below still has something to hand stored_review_version_payload if
+      # RepositoryContent itself raises before branch_history returns.
       branch_commits = []
       merge_base_sha = nil
-
-      if @job.branch_name.present?
-        compare = github.compare_commits(@repository.slug, job_base_branch, @job.branch_name)
-        branch_commits = Array(compare[:commits])
-        merge_base_sha = compare[:merge_base_sha]
-      end
+      history = branch_history
+      branch_commits = history.commits.map { |commit| commit_hash(commit) }
+      merge_base_sha = history.merge_base_id
 
       if @job.branch_name.present? && branch_commits.empty? && !explicit_selection?
         return stored_review_version_payload(branch_commits: branch_commits, merge_base_sha: merge_base_sha)
@@ -74,6 +73,23 @@ module App
       [ changes.map { |change| file_hash(change) }, false ]
     rescue RepositoryContent::Truncated => e
       [ e.partial.map { |change| file_hash(change) }, true ]
+    end
+
+    # Commits the branch introduced since its merge base with the Job's own
+    # base branch, through RepositoryContent -- the git mirror when it can,
+    # GitHub otherwise. A truncated answer (GitHub's 250-commit cap) is
+    # still shown, same as a complete one always was.
+    def branch_history
+      return RepositoryContent::CommitHistory.new(commits: [], merge_base_id: nil) unless @job.branch_name.present?
+
+      content = RepositoryContent.for(@repository, user: @user)
+      content.history(base: content.resolve(job_base_branch), head: content.resolve(@job.branch_name))
+    rescue RepositoryContent::Truncated => e
+      e.partial
+    end
+
+    def commit_hash(commit)
+      { sha: commit.sha, message: commit.message, date: commit.authored_at }
     end
 
     def file_hash(change)

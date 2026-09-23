@@ -83,6 +83,19 @@ module GitMirror
       registered { @client.relation(mirror_id, base_id, head_id) }.to_sym
     end
 
+    # No 250-commit cap here -- the mirror holds the full history locally.
+    def history(base_id, head_id)
+      result = registered { @client.history(mirror_id, base_id, head_id) }
+      commits = result.fetch("commits").map do |commit|
+        RepositoryContent::Commit.new(
+          sha: commit.fetch("sha"),
+          message: commit["message"],
+          authored_at: commit["authored_at"] && Time.zone.parse(commit["authored_at"])
+        )
+      end
+      RepositoryContent::CommitHistory.new(commits: commits, merge_base_id: result["merge_base_id"])
+    end
+
     # Repository id as the mirror knows it. Public so adapters over this
     # provider (e.g. GitMirror::WorkspaceGitTransport, which builds a git URL
     # the JSON client never needs) can address the same repository without

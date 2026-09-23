@@ -80,6 +80,10 @@ module GitMirror
       json(request(Net::HTTP::Get, "/v1/repositories/#{id}/relation", query: { base: base, head: head })).fetch("relation")
     end
 
+    def history(id, base, head)
+      json(request(Net::HTTP::Get, "/v1/repositories/#{id}/history", query: { base: base, head: head }))
+    end
+
     private
 
     def request(klass, path, query: nil, body: nil, read_timeout: READ_TIMEOUT)

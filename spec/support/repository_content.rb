@@ -7,6 +7,7 @@
 #   stub_repository_content(repository, ref: "release", files: { ... })
 #   stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("rate limited"))
 #   stub_repository_changes(repository, head: "feature", paths: %w[app/a.rb])
+#   stub_repository_history(repository, base: "main", head: "feature", commits: [{ sha: "a" * 40, message: "m" }])
 #
 # Re-stubbing a ref points it at a new revision; the old revision stays
 # readable, as a real commit would. A repository nothing has stubbed reads as
@@ -51,6 +52,11 @@ class FakeRepositoryContentProvider
       @diffs ||= {}
     end
 
+    # { [base_revision_id, head_revision_id] => { history:, truncated: } }
+    def histories
+      @histories ||= {}
+    end
+
     # Hook for forbid_repository_changes!.
     def changes_requested; end
 
@@ -67,6 +73,7 @@ class FakeRepositoryContentProvider
       @revisions = {}
       @changed_paths = {}
       @diffs = {}
+      @histories = {}
       @failures = {}
       @calls = []
     end
@@ -127,6 +134,18 @@ class FakeRepositoryContentProvider
       elsif base[path] != head[path] then RepositoryContent::Change.new(path: path, status: "modified")
       end
     end
+  end
+
+  # An explicit stub_repository_history entry, or an empty history with
+  # base itself as the merge base when nothing was stubbed.
+  def history(base_id, head_id)
+    record(:history, base_id, head_id)
+    entry = self.class.histories[[ base_id, head_id ]]
+    return RepositoryContent::CommitHistory.new(commits: [], merge_base_id: base_id) unless entry
+
+    raise RepositoryContent::Truncated.new("truncated", partial: entry[:history]) if entry[:truncated]
+
+    entry[:history]
   end
 
   private
@@ -191,6 +210,22 @@ module RepositoryContentHelpers
                                     additions: file[:additions], deletions: file[:deletions], patch: file[:patch])
     end
     FakeRepositoryContentProvider.diffs[[ base_id, head_id ]] = { changes: changes, truncated: truncated }
+  end
+
+  # The commits between two refs, given the way callers already shaped
+  # GithubClient#compare_commits results ({ sha:, message:, date: }).
+  # `truncated: true` makes the fake raise RepositoryContent::Truncated with
+  # it as the partial answer. `resolve_refs: false` treats `base`/`head` as
+  # revision ids a caller already holds (RepositoryContent#revision, no
+  # #resolve round trip) rather than refs to look up.
+  def stub_repository_history(repository, base:, head:, commits: [], merge_base_sha: nil, truncated: false, resolve_refs: true)
+    use_fake_repository_content!
+    base_id = resolve_refs ? ensure_fake_ref(repository, base) : base
+    head_id = resolve_refs ? ensure_fake_ref(repository, head) : head
+    history_commits = commits.map { |commit| RepositoryContent::Commit.new(sha: commit[:sha], message: commit[:message], authored_at: commit[:date]) }
+    history = RepositoryContent::CommitHistory.new(commits: history_commits, merge_base_id: merge_base_sha)
+    FakeRepositoryContentProvider.histories[[ base_id, head_id ]] = { history: history, truncated: truncated }
+    history
   end
 
   # Fails the example the moment anything asks for changes -- as an RSpec

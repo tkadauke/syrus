@@ -5,7 +5,7 @@ RSpec.describe RepositoryContent do
   let(:repository) { Factories.repository(user: user) }
 
   # A scripted provider: each operation either returns its value or raises.
-  def provider_class(key, role: :upstream, available: true, resolve: nil, tree: nil, read: nil, changes: nil, log: [])
+  def provider_class(key, role: :upstream, available: true, resolve: nil, tree: nil, read: nil, changes: nil, history: nil, log: [])
     Class.new do
       include Syrus::Plugin::RepositoryContentProvider
 
@@ -29,6 +29,9 @@ RSpec.describe RepositoryContent do
       define_method(:read) { |id, path| answer.call(:read, read, id, path) }
       if changes
         define_method(:changes) { |base, head, patch: false| answer.call(:changes, changes, base, head, patch) }
+      end
+      if history
+        define_method(:history) { |base, head| answer.call(:history, history, base, head) }
       end
     end
   end
@@ -271,6 +274,31 @@ RSpec.describe RepositoryContent do
       result = described_class.for(repository, user: user).changes(base: revision("b" * 40), head: revision)
 
       expect(result).to eq([ change ])
+    end
+  end
+
+  describe "#history" do
+    it "is Unsupported by default, so the chain can move on to a provider that lists commit history" do
+      commit = RepositoryContent::Commit.new(sha: "c" * 40, message: "fix bug", authored_at: "2026-09-22T12:00:00Z")
+      history = RepositoryContent::CommitHistory.new(commits: [ commit ], merge_base_id: "b" * 40)
+      described_class.provider_classes_override = [
+        provider_class(:mirror, role: :replica),
+        provider_class(:github, history: history)
+      ]
+
+      result = described_class.for(repository, user: user).history(base: revision("b" * 40), head: revision)
+
+      expect(result).to eq(history)
+    end
+
+    it "carries a partial answer -- and whatever it did get -- when a provider cannot list every commit" do
+      partial = RepositoryContent::CommitHistory.new(commits: [ RepositoryContent::Commit.new(sha: "c" * 40, message: "m") ], merge_base_id: "b" * 40)
+      described_class.provider_classes_override = [
+        provider_class(:github, history: RepositoryContent::Truncated.new("too many", partial: partial))
+      ]
+
+      expect { described_class.for(repository, user: user).history(base: revision("b" * 40), head: revision) }
+        .to raise_error(RepositoryContent::Truncated) { |error| expect(error.partial).to eq(partial) }
     end
   end
 

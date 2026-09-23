@@ -51,15 +51,9 @@ module App
     def payload
       return unavailable_payload unless source_available?
 
-      github = GithubClient.for(repository: @repository, user: @user)
-      branch_commits = []
-      merge_base_sha = nil
-
-      if @job.branch_name.present?
-        compare = github.compare_commits(@repository.slug, @repository.default_branch, @job.branch_name)
-        branch_commits = Array(compare[:commits])
-        merge_base_sha = compare[:merge_base_sha]
-      end
+      history = branch_history
+      branch_commits = history.commits.map { |commit| commit_hash(commit) }
+      merge_base_sha = history.merge_base_id
 
       selected_ref = @params[:ref].presence || branch_commits.first&.fetch(:sha) || merge_base_sha || @repository.default_branch
       tree_result = load_tree(selected_ref)
@@ -95,6 +89,22 @@ module App
 
     def content
       @content ||= RepositoryContent.for(@repository, user: @user)
+    end
+
+    # Commits the branch introduced since its merge base with the default
+    # branch, through RepositoryContent -- the git mirror when it can,
+    # GitHub otherwise. A truncated answer (GitHub's 250-commit cap) is
+    # still shown, same as a complete one always was.
+    def branch_history
+      return RepositoryContent::CommitHistory.new(commits: [], merge_base_id: nil) unless @job.branch_name.present?
+
+      content.history(base: content.resolve(@repository.default_branch), head: content.resolve(@job.branch_name))
+    rescue RepositoryContent::Truncated => e
+      e.partial
+    end
+
+    def commit_hash(commit)
+      { sha: commit.sha, message: commit.message, date: commit.authored_at }
     end
 
     def load_tree(selected_ref)

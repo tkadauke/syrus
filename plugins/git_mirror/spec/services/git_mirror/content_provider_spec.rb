@@ -90,6 +90,18 @@ RSpec.describe GitMirror::ContentProvider do
     expect(provider.relation("b" * 40, sha)).to eq(:ahead)
   end
 
+  it "lists commit history and the merge base, with no cap on how many commits come back" do
+    stub_mirror("history", { base: "b" * 40, head: sha }, body: {
+      commits: [ { "sha" => sha, "message" => "Implement feature", "authored_at" => "2026-09-22T12:00:00Z" } ],
+      merge_base_id: "b" * 40
+    }.to_json)
+
+    result = provider.history("b" * 40, sha)
+
+    expect(result.merge_base_id).to eq("b" * 40)
+    expect(result.commits.sole).to have_attributes(sha: sha, message: "Implement feature", authored_at: Time.zone.parse("2026-09-22T12:00:00Z"))
+  end
+
   describe "errors" do
     it "treats a missing file in a known commit as final" do
       stub_mirror("blob", { revision: sha, path: "gone" }, status: 404, body: error("not_found"))
@@ -102,11 +114,13 @@ RSpec.describe GitMirror::ContentProvider do
       stub_mirror("tree", { revision: sha }, status: 404, body: error("unknown_repository"))
       stub_mirror("changes", { base: sha, head: sha }, status: 501, body: error("unsupported"))  # e.g. no merge base
       stub_mirror("resolve", { ref: "main", max_age: "60" }, status: 503, body: error("unavailable"))
+      stub_mirror("history", { base: sha, head: sha }, status: 501, body: error("unsupported"))
 
       expect { provider.read(sha, "a") }.to raise_error(RepositoryContent::UnknownRevision)
       expect { provider.tree(sha) }.to raise_error(RepositoryContent::Unavailable)
       expect { provider.changes(sha, sha) }.to raise_error(RepositoryContent::Unsupported)
       expect { provider.resolve("main", max_age: 60) }.to raise_error(RepositoryContent::Unavailable)
+      expect { provider.history(sha, sha) }.to raise_error(RepositoryContent::Unsupported)
     end
 
     it "treats an unreachable service as unavailable" do

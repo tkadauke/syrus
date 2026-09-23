@@ -858,6 +858,44 @@ RSpec.describe GithubClient do
 
       expect(result[:commits].map { |c| c[:sha] }).to eq(%w[newer-sha older-sha])
     end
+
+    it "flags a comparison GitHub truncated at 250 commits" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/compare/base-sha...staging")
+        .with(query: hash_including("per_page" => "100"))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            status: "ahead",
+            total_commits: 400,
+            merge_base_commit: { sha: "base-sha" },
+            commits: [ { sha: "commitsha123", commit: { message: "Deploy app", committer: { date: "2026-07-30T18:00:00Z" } } } ]
+          }.to_json
+        )
+
+      result = client.compare_commits("acme/widgets", "base-sha", "staging")
+
+      expect(result[:truncated]).to be(true)
+    end
+
+    it "does not flag a comparison as truncated when total_commits matches what came back" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/compare/base-sha...staging")
+        .with(query: hash_including("per_page" => "100"))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            status: "ahead",
+            total_commits: 1,
+            merge_base_commit: { sha: "base-sha" },
+            commits: [ { sha: "commitsha123", commit: { message: "Deploy app", committer: { date: "2026-07-30T18:00:00Z" } } } ]
+          }.to_json
+        )
+
+      result = client.compare_commits("acme/widgets", "base-sha", "staging")
+
+      expect(result[:truncated]).to be(false)
+    end
   end
 
   describe "#merge_pull_request" do
