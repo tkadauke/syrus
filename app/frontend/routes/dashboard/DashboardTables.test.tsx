@@ -8,6 +8,10 @@ import { JobsDashboardTable } from "./JobsTable"
 import type { DashboardEpicItem, DashboardJobItem, DashboardPayload, DashboardRepository, DashboardWorkflowItem } from "../../api/dashboard"
 import type { DashboardSortState } from "./helpers"
 
+vi.mock("../../pluginUiSlots", () => ({
+  PluginUiSlot: ({ panels }: { panels?: Array<{ id: string }> }) => panels && panels.length > 0 ? <div role="status">plugin notice {panels.map((panel) => panel.id).join(", ")}</div> : null
+}))
+
 const repository: DashboardRepository = {
   id: 1,
   repository_path: "/repositories/1",
@@ -253,7 +257,7 @@ describe("dashboard DataTable migrations", () => {
     expect(screen.getByText("2 selected")).toBeInTheDocument()
   })
 
-  it("renders the untagged issues banner directly above the data table", () => {
+  it("renders dashboard plugin panels directly above the data table", () => {
     setDesktop(true)
 
     renderWithProviders(
@@ -264,17 +268,17 @@ describe("dashboard DataTable migrations", () => {
         landingQueueEntries={[]}
         prefix=""
         sortState={sortState()}
-        t={(key, opts) => key === "untagged_issues_summary" ? `${opts?.count} unlabeled open issues` : key === "untagged_issues_repo_count" ? `across ${opts?.count} repositories` : key}
-        untaggedIssues={{ total: 4, repositories: [{ id: 1, slug: "acme/widgets", count: 4, issues_path: "/repositories/1/plugin/issues" }] }}
+        t={(key) => key}
+        uiPanels={[{ id: "test.notice", component: "test/Notice", order: 10 }]}
       />
     )
 
     const banner = screen.getByRole("status")
-    expect(banner).toHaveTextContent("4 unlabeled open issues")
+    expect(banner).toHaveTextContent("plugin notice test.notice")
     expect(banner.compareDocumentPosition(screen.getByRole("table"))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
-  it("omits the untagged issues banner when there is nothing untagged", () => {
+  it("omits dashboard plugin panels when none are resolved", () => {
     setDesktop(true)
 
     renderWithProviders(
