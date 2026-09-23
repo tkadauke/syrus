@@ -1,5 +1,5 @@
 import { type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardWorkflowItem } from "../../api/dashboard"
-import { visibleColumnKeys } from "../../components/ColumnVisibilityMenu"
+import { visibleColumnKeys, type DataTableColumnDef } from "../../components/dataTable"
 
 
 // Pure dashboard helpers extracted from Dashboard.tsx: link/query-string builders,
@@ -116,10 +116,29 @@ export function dashboardColumnLabel(subject: DashboardSubject, column: string, 
 
 export function dashboardVisibleColumns(payload: DashboardPayload) {
   return visibleColumnKeys({
-    requiredColumns: payload.controls.columns.required,
-    optionalColumns: payload.controls.columns.optional,
-    visibleColumns: payload.preferences.visible_columns.map((column) => normalizeDashboardColumn(payload.subject, column))
+    columns: dashboardColumnDefs(payload.controls),
+    order: payload.preferences.visible_columns.map((column) => normalizeDashboardColumn(payload.subject, column))
   })
+}
+
+// Lightweight column definitions for the dashboard's shared DataTableColumnMenu
+// picker -- key/label/required only, sourced straight from the backend's
+// dynamic required/optional column lists (which already vary per subject,
+// e.g. jobs' required set gains landing_queue_position or blocked_reason on
+// some smart folders). renderCell is never invoked for a picker-only column
+// list; it exists only to satisfy DataTableColumnDef's shape.
+export function dashboardColumnDefs(controls: DashboardPayload["controls"]): DataTableColumnDef<unknown>[] {
+  const toColumnDef = (required: boolean) => (column: { key: string; title: string }): DataTableColumnDef<unknown> => ({
+    key: column.key,
+    label: column.title,
+    required,
+    renderCell: () => null
+  })
+
+  return [
+    ...controls.columns.required.map(toColumnDef(true)),
+    ...controls.columns.optional.map(toColumnDef(false))
+  ]
 }
 
 export function normalizeDashboardColumn(subject: DashboardSubject, column: string) {

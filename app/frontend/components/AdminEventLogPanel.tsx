@@ -3,7 +3,17 @@ import { FilterBar, type FilterChip, type FilterSchemaField, type FilterTree } f
 import { encodeFilterTree, linkFromSearch } from "./filterBar/helpers"
 import type { FilterLinkUpdates } from "./filterBar/types"
 import { PageHeading } from "./Heading"
-import { DataTable } from "./ui"
+import { useT } from "../hooks/useT"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  visibleColumns,
+  type DataTableColumnDef,
+  type DataTableColumnPin
+} from "./dataTable"
+import { DataTable, type DataTableSortDirection } from "./ui"
 
 export function AdminEventPanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warn" }) {
   const toneClass = tone === "error"
@@ -78,51 +88,37 @@ export function AdminEventPagination({
   )
 }
 
-export function AdminEventSortableHeader({
-  children,
-  className,
-  column,
-  onNavigate,
-  search
-}: {
-  children: ReactNode
-  className?: string
-  column: string
-  onNavigate: (params: URLSearchParams) => void
-  search: string
-}) {
-  const params = new URLSearchParams(search)
-  const active = params.get("sort") === column || (!params.get("sort") && column === "time")
-  const currentDirection = params.get("direction") === "asc" ? "asc" : "desc"
-  const nextDirection = active && currentDirection === "asc" ? "desc" : "asc"
-
-  function sort() {
-    const next = new URLSearchParams(search)
-    next.set("sort", column)
-    next.set("direction", nextDirection)
-    next.delete("page")
-    onNavigate(next)
-  }
-
-  return (
-    <DataTable.HeadCell className={className}>
-      <button className="group inline-flex items-center gap-1 text-left font-medium uppercase hover:text-gray-900 dark:hover:text-gray-100" onClick={sort} type="button">
-        <span>{children}</span>
-        <span className={`text-2xs ${active ? "text-gray-700 dark:text-gray-200" : "text-gray-300 group-hover:text-gray-500 dark:text-gray-600 dark:group-hover:text-gray-400"}`}>
-          {active ? (currentDirection === "asc" ? "↑" : "↓") : "↕"}
-        </span>
-      </button>
-    </DataTable.HeadCell>
-  )
-}
-
 export type AdminEventLogTableColumn<Row> = {
   className?: string
+  // Required columns are always visible and excluded from the column picker
+  // -- reserve this for a column that's the only way to reach something (an
+  // expand toggle, the primary identity of the row) so hiding it wouldn't
+  // just declutter, it'd make the row unusable.
+  defaultVisible?: boolean
   header: ReactNode
   headerClassName?: string
   key: string
+  // Used by the column picker menu; falls back to `header` when that's a
+  // plain string, so most columns never need to set this explicitly.
+  label?: string
+  // Required columns are pinned to the declared end of the row instead of
+  // taking part in the optional reorder -- defaults to "start" (see
+  // DataTableColumnDef). A required column that isn't naturally the first
+  // or last one declared MUST set this explicitly, or it silently jumps to
+  // the front of the row regardless of where it was defined.
+  pin?: DataTableColumnPin
   render: (row: Row, state: { expanded: boolean; toggleExpanded: () => void }) => ReactNode
+  required?: boolean
   sort?: string
+}
+
+// Reads the current `sort`/`direction` query params, defaulting to a
+// time-descending sort when neither is present -- every AdminEventLogTable
+// consumer's backend already defaults to that ordering server-side, so the
+// "no sort param yet" state should render as if `sort=time` were explicit.
+function parseEventLogSort(search: string | undefined): { column: string; direction: "asc" | "desc" } {
+  const params = new URLSearchParams(search || "")
+  return { column: params.get("sort") || "time", direction: params.get("direction") === "asc" ? "asc" : "desc" }
 }
 
 export function AdminEventLogTable<Row>({
@@ -132,6 +128,7 @@ export function AdminEventLogTable<Row>({
   renderExpanded,
   rows,
   search,
+  storageKey,
   tableClassName = "table-fixed"
 }: {
   columns: Array<AdminEventLogTableColumn<Row>>
@@ -140,43 +137,93 @@ export function AdminEventLogTable<Row>({
   renderExpanded?: (row: Row) => ReactNode
   rows: Row[]
   search?: string
+  // Persistence key for this table's column visibility/order -- unique per
+  // table/surface (e.g. "syrus.admin.backend_exceptions.visible_columns") so
+  // different admin event tables don't clobber each other's preferences.
+  storageKey: string
   tableClassName?: string
 }) {
+  const { t } = useT("admin")
   const [expandedKey, setExpandedKey] = useState<string | number | null>(null)
 
+  // Maps the caller's simpler column shape onto the shared DataTableColumnDef
+  // model: `render` needs per-row expand state, which DataTableColumnDef's
+  // `renderCell(row)` doesn't carry, so it's closed over here from this
+  // component's own expandedKey state instead.
+  const dataTableColumns = useMemo<DataTableColumnDef<Row>[]>(() => columns.map((column) => ({
+    cellClassName: column.className,
+    defaultVisible: column.defaultVisible,
+    headClassName: column.headerClassName || column.className,
+    key: column.key,
+    label: column.label ?? (typeof column.header === "string" ? column.header : column.key),
+    pin: column.pin,
+    renderCell: (row: Row) => {
+      const rowKey = getRowKey(row)
+      const expanded = expandedKey === rowKey
+      const toggleExpanded = () => setExpandedKey((current) => current === rowKey ? null : rowKey)
+      return column.render(row, { expanded, toggleExpanded })
+    },
+    renderHeader: () => column.header,
+    required: column.required,
+    sortKey: column.sort
+  })), [columns, expandedKey, getRowKey])
+
+  const preferences = useLocalStorageColumnPreferences({ columns: dataTableColumns, storageKey })
+  const activeSort = parseEventLogSort(search)
+  const sortDirection: DataTableSortDirection = activeSort.direction === "asc" ? "ascending" : "descending"
+  const colSpan = visibleColumns({ columns: dataTableColumns, order: preferences.order }).length
+
+  function sortTo(sortKey: string) {
+    if (!onNavigate) return
+
+    const nextDirection = activeSort.column === sortKey && activeSort.direction === "asc" ? "desc" : "asc"
+    const next = new URLSearchParams(search || "")
+    next.set("sort", sortKey)
+    next.set("direction", nextDirection)
+    next.delete("page")
+    onNavigate(next)
+  }
+
   return (
-    <DataTable.Root className={tableClassName}>
-      <DataTable.Header>
-          <DataTable.Row>
-            {columns.map((column) => (
-              column.sort && onNavigate ? (
-                <AdminEventSortableHeader className={column.headerClassName || column.className} column={column.sort} key={column.key} search={search || ""} onNavigate={onNavigate}>
-                  {column.header}
-                </AdminEventSortableHeader>
-              ) : (
-                <DataTable.HeadCell className={column.headerClassName || column.className} key={column.key}>{column.header}</DataTable.HeadCell>
-              )
-            ))}
-          </DataTable.Row>
+    <>
+      <div className="flex justify-end pb-2">
+        <DataTableColumnMenu
+          columns={dataTableColumns}
+          downLabel={t("event_log_table.column_down")}
+          menuId={`${storageKey}-columns-menu`}
+          moveDownLabel={(title) => t("event_log_table.column_move_down", { title })}
+          moveUpLabel={(title) => t("event_log_table.column_move_up", { title })}
+          onChange={preferences.onChange}
+          order={preferences.order}
+          triggerAriaLabel={t("event_log_table.columns")}
+          upLabel={t("event_log_table.column_up")}
+          visibleLabel={t("event_log_table.visible_columns")}
+        />
+      </div>
+      <DataTable.Root className={tableClassName}>
+        <DataTable.Header>
+          <DataTableColumnHeaderRow
+            columns={dataTableColumns}
+            onReorder={preferences.onChange}
+            onSort={onNavigate ? sortTo : undefined}
+            order={preferences.order}
+            sortColumn={activeSort.column}
+            sortDirection={sortDirection}
+          />
         </DataTable.Header>
         <DataTable.Body>
           {rows.map((row) => {
             const rowKey = getRowKey(row)
             const expanded = expandedKey === rowKey
-            const toggleExpanded = () => setExpandedKey((current) => current === rowKey ? null : rowKey)
 
             return (
               <Fragment key={rowKey}>
                 <DataTable.Row>
-                  {columns.map((column) => (
-                    <DataTable.Cell className={column.className} key={column.key}>
-                      {column.render(row, { expanded, toggleExpanded })}
-                    </DataTable.Cell>
-                  ))}
+                  <DataTableColumnCells columns={dataTableColumns} order={preferences.order} row={row} />
                 </DataTable.Row>
                 {expanded && renderExpanded ? (
                   <DataTable.Row groupHeader>
-                    <DataTable.Cell className="bg-gray-50 px-4 py-4 dark:bg-gray-950/40" colSpan={columns.length}>
+                    <DataTable.Cell className="bg-gray-50 px-4 py-4 dark:bg-gray-950/40" colSpan={colSpan}>
                       {renderExpanded(row)}
                     </DataTable.Cell>
                   </DataTable.Row>
@@ -186,6 +233,7 @@ export function AdminEventLogTable<Row>({
           })}
         </DataTable.Body>
       </DataTable.Root>
+    </>
   )
 }
 

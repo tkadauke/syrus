@@ -157,6 +157,11 @@ function BackendExceptionsTable({ onNavigate, revisionScope, rows, search }: { o
       headerClassName: "w-32 px-4 py-2",
       header: t("backend_exceptions.col_actions"),
       key: "actions",
+      // Pin to the declared end (its natural, already-rightmost position) --
+      // required columns default to start-pinning, which would otherwise
+      // yank the only expand/collapse toggle in front of time/context/runtime.
+      pin: "end",
+      required: true,
       render: (row, state) => (
         <AdminEventActions actions={row.actions} eventId={row.id} eventType="backend_exception" showDetailsLabel={state.expanded ? t("backend_exceptions.hide_details") : t("backend_exceptions.show_details")} onToggleDetails={state.toggleExpanded} />
       )
@@ -169,6 +174,7 @@ function BackendExceptionsTable({ onNavigate, revisionScope, rows, search }: { o
       getRowKey={(row) => row.id}
       rows={rows}
       search={search}
+      storageKey="syrus.admin.backend_exceptions.visible_columns"
       onNavigate={onNavigate}
       renderExpanded={(row) => (
         <div className="grid gap-4 lg:grid-cols-2">

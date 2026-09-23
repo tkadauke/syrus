@@ -7,12 +7,22 @@ import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 
 export type ColumnOption = { key: string; title: string }
 
-// Shared normalization helpers for "toggle + reorder optional table columns"
-// preference UIs (Design Docs, Dashboard). A caller's stored preference is a
-// flat visible_columns array that may be missing, may include required
-// columns, or may reference columns the caller no longer offers -- these
-// helpers are the single place that reconciles that against the column
-// definitions the caller currently has.
+// Normalization helpers for "toggle + reorder optional table columns"
+// preference UIs. A caller's stored preference is a flat visible_columns
+// array that may be missing, may include required columns, or may reference
+// columns the caller no longer offers -- these helpers are the single place
+// that reconciles that against the column definitions the caller currently
+// has.
+//
+// Dashboard and Repositories have both moved to the generalized
+// DataTableColumnDef-based primitive in ./dataTable (DataTableColumnMenu +
+// columnOrder.ts's visibleColumnKeys/visibleOptionalColumnKeys), which adds
+// header drag-and-drop reordering on top of this component's picker-only
+// move-up/down. This component and its helpers stay only because the
+// design_docs plugin (plugins/design_docs/app/frontend/components/
+// DesignDocsSurface.tsx) still imports them directly; migrating Design Docs
+// onto the shared primitive is a separate, not-yet-scheduled piece of work.
+// Do not add new callers here -- build against ./dataTable instead.
 
 function uniqueValue(value: string, index: number, values: string[]) {
   return values.indexOf(value) === index

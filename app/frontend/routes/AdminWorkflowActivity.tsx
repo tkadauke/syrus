@@ -69,6 +69,9 @@ function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (p
       headerClassName: "px-4 py-2",
       header: t("activity.col_time"),
       key: "time",
+      // Already the first column, so requiring it doesn't reorder anything
+      // -- an activity feed without its ordering anchor isn't usable.
+      required: true,
       sort: "time",
       render: (event) => <RelativeTimestamp value={event.occurred_at} />
     },
@@ -135,7 +138,7 @@ function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (p
       <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
         {t("activity.showing", { first: payload.pagination.first_item, last: payload.pagination.last_item, total: payload.pagination.total })}
       </div>
-      <AdminEventLogTable columns={columns} getRowKey={(event) => event.id} rows={payload.events} search={search} tableClassName="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700" onNavigate={onNavigate} />
+      <AdminEventLogTable columns={columns} getRowKey={(event) => event.id} rows={payload.events} search={search} storageKey="syrus.admin.workflow_activity.visible_columns" tableClassName="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700" onNavigate={onNavigate} />
       <Pagination pagination={payload.pagination} prefix={prefix} />
     </div>
   )

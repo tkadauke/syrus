@@ -3,6 +3,13 @@ import { PanelMessage } from "../components/PanelMessage"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { DataTable, DescriptionList } from "../components/ui"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  type DataTableColumnDef
+} from "../components/dataTable"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { DismissButton } from "../components/DismissButton"
 import { PluginUiSlot } from "../pluginUiSlots"
@@ -523,6 +530,11 @@ function CredentialNotice({ payload }: { payload: RepositoryDetailPayload }) {
   )
 }
 
+// Left off the shared column-config primitive on purpose: only one of its
+// three columns (Created) is genuinely optional -- Job and Action are both
+// the point of a triage queue -- and the list is bounded/small, so a
+// picker/reorder menu would add controls without giving the operator
+// anything worth decluttering.
 function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
@@ -599,8 +611,80 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
   )
 }
 
+const RECENT_JOBS_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.repository_detail.jobs.visible_columns"
+
+// State and Issue together are this table's row identity (status + what the
+// job is about); Actions is required too since it's the only affordance
+// pinned to the row rather than folded into the Issue cell's inline links.
+// Runs/Last activity are the only genuinely optional columns.
+function buildRecentJobsColumns({ prefix, t }: { prefix: string; t: (key: string, options?: Record<string, unknown>) => string }): DataTableColumnDef<RepositoryDetailJob>[] {
+  return [
+    {
+      key: "state",
+      label: t('repository.col_state'),
+      required: true,
+      cellClassName: "align-top",
+      renderCell: (job) => (
+        <>
+          <StateStatusPill state={job.state} />
+          {job.priority !== "medium" ? <span className="ml-1"><TonePill tone="gray">{job.priority}</TonePill></span> : null}
+        </>
+      )
+    },
+    {
+      key: "issue",
+      label: t('repository.col_issue'),
+      required: true,
+      renderCell: (job) => (
+        <>
+          <SourceLink job={job} prefix={prefix} />
+          <ProviderAvailabilityWarning availability={job.provider_availability} className="ml-1 inline-flex align-[-0.125em]" />
+          {job.issue_title ? <Link className="ml-1 text-gray-700 dark:text-gray-300 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.issue_title}</Link> : null}
+          {job.pr_number && job.pr_url ? <a className="ml-1 text-xs text-indigo-700 underline hover:no-underline" href={job.pr_url} rel="noopener" target="_blank">{t("repository.pr_number", { number: job.pr_number })}</a> : null}
+          {job.external_pr_number && job.external_pr_url ? <a className="ml-1 text-xs text-violet-700 underline hover:no-underline" href={job.external_pr_url} rel="noopener" target="_blank">{t("repository.pr_number", { number: job.external_pr_number })}</a> : null}
+          <ProviderFailoverNotice failover={job.provider_failover} className="mt-1 flex w-fit" />
+          {job.current_step_caption ? <div className="mt-0.5 text-xs italic text-gray-500 dark:text-gray-400">{job.current_step_caption}</div> : null}
+          <RepositoryRetryState job={job} />
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 sm:hidden">
+            <span>{t("repository.runs_count", { count: job.runs_count })}</span>
+            <span>·</span>
+            <span><RelativeTimestamp value={job.updated_at} /></span>
+          </div>
+        </>
+      )
+    },
+    {
+      key: "runs",
+      label: t('repository.col_runs'),
+      responsiveClassName: "hidden sm:table-cell",
+      cellClassName: "text-gray-600 dark:text-gray-400",
+      renderCell: (job) => job.runs_count
+    },
+    {
+      key: "last_activity",
+      label: t('repository.col_last'),
+      responsiveClassName: "hidden sm:table-cell",
+      cellClassName: "text-gray-500 dark:text-gray-400",
+      renderCell: (job) => <RelativeTimestamp value={job.updated_at} />
+    },
+    {
+      key: "actions",
+      label: t('repository.col_actions'),
+      required: true,
+      pin: "end",
+      align: "right",
+      responsiveClassName: "hidden sm:table-cell",
+      renderHeader: () => <span className="sr-only">{t("repository.col_actions")}</span>,
+      renderCell: (job) => <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(job.job_path, prefix)}>{t('repository.view')}</Link>
+    }
+  ]
+}
+
 function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetailPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
   const { t } = useT("settings")
+  const columns = buildRecentJobsColumns({ prefix, t })
+  const preferences = useLocalStorageColumnPreferences({ columns, storageKey: RECENT_JOBS_VISIBLE_COLUMNS_STORAGE_KEY })
+
   if (payload.jobs.length === 0) {
     return (
       <section>
@@ -621,65 +705,37 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
 
   return (
     <section>
-      <SectionHeading className="mb-3">
-        {t('repository.recent_jobs')}
-      </SectionHeading>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <SectionHeading>
+          {t('repository.recent_jobs')}
+        </SectionHeading>
+        <DataTableColumnMenu
+          columns={columns}
+          downLabel={t("repositories.column_down")}
+          menuId="repository-detail-jobs-columns-menu"
+          moveDownLabel={(title) => t("repositories.column_move_down", { title })}
+          moveUpLabel={(title) => t("repositories.column_move_up", { title })}
+          onChange={preferences.onChange}
+          order={preferences.order}
+          triggerAriaLabel={t("repositories.columns")}
+          upLabel={t("repositories.column_up")}
+          visibleLabel={t("repositories.visible_columns")}
+        />
+      </div>
       <DataTable.Root>
         <DataTable.Header>
-          <DataTable.Row>
-              <DataTable.HeadCell>
-                {t('repository.col_state')}
-              </DataTable.HeadCell>
-              <DataTable.HeadCell>
-                {t('repository.col_issue')}
-              </DataTable.HeadCell>
-              <DataTable.HeadCell className="hidden sm:table-cell">
-                {t('repository.col_runs')}
-              </DataTable.HeadCell>
-              <DataTable.HeadCell className="hidden sm:table-cell">
-                {t('repository.col_last')}
-              </DataTable.HeadCell>
-              <DataTable.HeadCell className="hidden sm:table-cell"><span className="sr-only">{t("repository.col_actions")}</span></DataTable.HeadCell>
+          <DataTableColumnHeaderRow columns={columns} onReorder={preferences.onChange} order={preferences.order} />
+        </DataTable.Header>
+        <DataTable.Body>
+          {payload.jobs.map((job) => (
+            <DataTable.Row key={job.id}>
+              <DataTableColumnCells columns={columns} order={preferences.order} row={job} />
             </DataTable.Row>
-          </DataTable.Header>
-          <DataTable.Body>
-            {payload.jobs.map((job) => <JobRow job={job} key={job.id} prefix={prefix} />)}
-          </DataTable.Body>
-        </DataTable.Root>
+          ))}
+        </DataTable.Body>
+      </DataTable.Root>
       <Pagination payload={payload} prefix={prefix} />
     </section>
-  )
-}
-
-function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
-  const { t } = useT("settings")
-  return (
-    <DataTable.Row>
-      <DataTable.Cell className="align-top">
-        <StateStatusPill state={job.state} />
-        {job.priority !== "medium" ? <span className="ml-1"><TonePill tone="gray">{job.priority}</TonePill></span> : null}
-      </DataTable.Cell>
-      <DataTable.Cell>
-        <SourceLink job={job} prefix={prefix} />
-        <ProviderAvailabilityWarning availability={job.provider_availability} className="ml-1 inline-flex align-[-0.125em]" />
-        {job.issue_title ? <Link className="ml-1 text-gray-700 dark:text-gray-300 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.issue_title}</Link> : null}
-        {job.pr_number && job.pr_url ? <a className="ml-1 text-xs text-indigo-700 underline hover:no-underline" href={job.pr_url} rel="noopener" target="_blank">{t("repository.pr_number", { number: job.pr_number })}</a> : null}
-        {job.external_pr_number && job.external_pr_url ? <a className="ml-1 text-xs text-violet-700 underline hover:no-underline" href={job.external_pr_url} rel="noopener" target="_blank">{t("repository.pr_number", { number: job.external_pr_number })}</a> : null}
-        <ProviderFailoverNotice failover={job.provider_failover} className="mt-1 flex w-fit" />
-        {job.current_step_caption ? <div className="mt-0.5 text-xs italic text-gray-500 dark:text-gray-400">{job.current_step_caption}</div> : null}
-        <RepositoryRetryState job={job} />
-        <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 sm:hidden">
-          <span>{t("repository.runs_count", { count: job.runs_count })}</span>
-          <span>·</span>
-          <span><RelativeTimestamp value={job.updated_at} /></span>
-        </div>
-      </DataTable.Cell>
-      <DataTable.Cell className="hidden text-gray-600 dark:text-gray-400 sm:table-cell">{job.runs_count}</DataTable.Cell>
-      <DataTable.Cell className="hidden text-gray-500 dark:text-gray-400 sm:table-cell"><RelativeTimestamp value={job.updated_at} /></DataTable.Cell>
-      <DataTable.Cell align="right" className="hidden sm:table-cell">
-        <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(job.job_path, prefix)}>{t('repository.view')}</Link>
-      </DataTable.Cell>
-    </DataTable.Row>
   )
 }
 

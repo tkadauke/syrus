@@ -384,6 +384,10 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
             ) : <EmptyText>{t("plugins.no_docs")}</EmptyText>}
           </DetailSection>
 
+          {/* Metrics table left off the shared column-config primitive: this is one
+              specific plugin's own static metric declarations (a small, fixed-shape
+              technical registry), not a cross-plugin record list an operator would
+              filter/reorder -- same reasoning as ExtensionPointsTable below. */}
           <DetailSection title={t("plugins.metrics_heading")}>
             {(plugin.metrics || []).length > 0 ? (
               <div className="overflow-x-auto">
@@ -471,6 +475,10 @@ function KeyValueLine({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
+// Left off the shared column-config primitive: this is one plugin's own
+// static extension-point registrations (extension point + implementing
+// class + availability) -- a small, fixed-shape technical registry, not a
+// record list with optional application columns to declutter.
 function ExtensionPointsTable({ extensions }: { extensions: AdminPluginExtensionPoint[] }) {
   const { t } = useT("admin")
   return (

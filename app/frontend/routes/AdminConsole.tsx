@@ -20,6 +20,14 @@ import { NoticeToast } from "../components/NoticeToast"
 import { Select } from "../components/Select"
 import { useT } from "../hooks/useT"
 import { Button } from "../components/Button"
+import { DataTable } from "../components/ui"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  type DataTableColumnDef
+} from "../components/dataTable"
 
 export function AdminConsole() {
   const { t } = useT("admin")
@@ -276,37 +284,56 @@ function RestartPanel({
   )
 }
 
+const CONSOLE_ACTIONS_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.admin.console.actions.visible_columns"
+
+function buildConsoleActionsColumns(t: (key: string) => string): DataTableColumnDef<ConsoleAction>[] {
+  return [
+    { key: "when", label: t("console.col_when"), required: true, cellClassName: "whitespace-nowrap text-xs text-gray-600 dark:text-gray-300", renderCell: (action) => <RelativeTimestamp value={action.performed_at} /> },
+    { key: "operator", label: t("console.col_operator"), cellClassName: "text-xs text-gray-700 dark:text-gray-200", renderCell: (action) => action.user_email },
+    { key: "action", label: t("console.col_action"), cellClassName: "font-mono text-xs", renderCell: (action) => action.action },
+    { key: "params", label: t("console.col_params"), cellClassName: "font-mono text-xs text-gray-500 dark:text-gray-400", renderCell: (action) => JSON.stringify(action.params).slice(0, 200) }
+  ]
+}
+
 function ActionsTable({ actions }: { actions: ConsoleAction[] }) {
   const { t } = useT("admin")
+  const columns = buildConsoleActionsColumns(t)
+  const preferences = useLocalStorageColumnPreferences({ columns, storageKey: CONSOLE_ACTIONS_VISIBLE_COLUMNS_STORAGE_KEY })
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("console.recent_actions")}</div>
+      <div className="flex items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+        {t("console.recent_actions")}
+        {actions.length > 0 ? (
+          <DataTableColumnMenu
+            columns={columns}
+            downLabel={t("event_log_table.column_down")}
+            menuId="admin-console-actions-columns-menu"
+            moveDownLabel={(title) => t("event_log_table.column_move_down", { title })}
+            moveUpLabel={(title) => t("event_log_table.column_move_up", { title })}
+            onChange={preferences.onChange}
+            order={preferences.order}
+            triggerAriaLabel={t("event_log_table.columns")}
+            upLabel={t("event_log_table.column_up")}
+            visibleLabel={t("event_log_table.visible_columns")}
+          />
+        ) : null}
+      </div>
       {actions.length === 0 ? (
         <PanelMessage>{t("console.no_actions")}</PanelMessage>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-2">{t("console.col_when")}</th>
-                <th className="px-4 py-2">{t("console.col_operator")}</th>
-                <th className="px-4 py-2">{t("console.col_action")}</th>
-                <th className="px-4 py-2">{t("console.col_params")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {actions.map((action) => (
-                <tr key={action.id}>
-                  <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300"><RelativeTimestamp value={action.performed_at} /></td>
-                  <td className="px-4 py-2 text-xs text-gray-700 dark:text-gray-200">{action.user_email}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{action.action}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{JSON.stringify(action.params).slice(0, 200)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable.Root>
+          <DataTable.Header>
+            <DataTableColumnHeaderRow columns={columns} onReorder={preferences.onChange} order={preferences.order} />
+          </DataTable.Header>
+          <DataTable.Body>
+            {actions.map((action) => (
+              <DataTable.Row key={action.id}>
+                <DataTableColumnCells columns={columns} order={preferences.order} row={action} />
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
       )}
     </section>
   )

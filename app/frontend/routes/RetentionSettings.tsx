@@ -244,6 +244,10 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
   )
 }
 
+// Left off the shared column-config primitive: rendered once per retention
+// table (nested inside that table's own settings row) as a compact text-xs
+// prune-history log with every column already essential to reading a single
+// prune event -- not a persistent cross-table grid worth a picker/reorder menu.
 function ArchiveHistory({ tableKey }: { tableKey: string }) {
   const { t } = useT("admin")
   const [page, setPage] = useState(1)

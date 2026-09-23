@@ -1,6 +1,14 @@
 {
   "title": "Admin",
   "loading": "Loading...",
+  "event_log_table": {
+    "columns": "Columns",
+    "visible_columns": "Visible columns",
+    "column_up": "Up",
+    "column_down": "Down",
+    "column_move_up": "Move {{title}} up",
+    "column_move_down": "Move {{title}} down"
+  },
   "page_title_queue": "Queue — Admin",
   "page_title_stuck": "Stuck Jobs — Admin",
   "page_title_resource_admission": "Resource Admission — Admin",

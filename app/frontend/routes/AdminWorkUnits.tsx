@@ -124,6 +124,11 @@ function WorkUnitsTable({ onNavigate, payload, prefix, search }: { onNavigate: (
       headerClassName: "px-4 py-2",
       header: t("work_units.col_units"),
       key: "units",
+      // Pin to the declared end (its natural, already-last position) --
+      // required columns default to start-pinning, which would otherwise
+      // yank the actual work-unit list ahead of the intent's own identity.
+      pin: "end",
+      required: true,
       render: (intent) => <UnitList units={intent.units} prefix={prefix} />
     }
   ]
@@ -133,7 +138,7 @@ function WorkUnitsTable({ onNavigate, payload, prefix, search }: { onNavigate: (
       <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
         {t("work_units.showing", { first: payload.pagination.first_item, last: payload.pagination.last_item, total: payload.pagination.total })}
       </div>
-      <AdminEventLogTable columns={columns} getRowKey={(intent) => intent.id} rows={payload.intents} search={search} tableClassName="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700" onNavigate={onNavigate} />
+      <AdminEventLogTable columns={columns} getRowKey={(intent) => intent.id} rows={payload.intents} search={search} storageKey="syrus.admin.work_units.visible_columns" tableClassName="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700" onNavigate={onNavigate} />
       <Pagination pagination={payload.pagination} prefix={prefix} />
     </div>
   )

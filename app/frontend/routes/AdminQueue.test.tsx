@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { jsonResponse } from "../testSupport"
 import { AdminQueueRoute } from "./AdminQueue"
@@ -150,6 +150,75 @@ describe("AdminQueue worker health charts", () => {
 
     expect(await screen.findByText("worker-current")).toBeInTheDocument()
     expect(screen.queryByText(/Historical workers/)).not.toBeInTheDocument()
+  })
+})
+
+describe("AdminQueue configurable columns", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  afterEach(() => {
+    window.localStorage.clear()
+  })
+
+  it("hides an optional column on the active jobs table through the column picker and persists it", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(activeQueuePayload({
+      jobs: [
+        {
+          arguments: [{ job_id: 42 }],
+          claimed_at: "2026-05-30T12:00:00Z",
+          class_name: "RunJob",
+          created_at: "2026-05-30T11:59:00Z",
+          id: 1,
+          queue_name: "runs"
+        }
+      ]
+    })))
+
+    renderAdminQueue("/admin/queue/active")
+
+    expect(await screen.findByRole("columnheader", { name: "Queue" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    const menu = await screen.findByRole("menu")
+    fireEvent.click(within(menu).getByRole("checkbox", { name: "Queue" }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole("columnheader", { name: "Queue" })).not.toBeInTheDocument()
+    })
+    // Class stays -- it's the required identity column and never appears in the picker.
+    expect(screen.getByRole("columnheader", { name: "Class" })).toBeInTheDocument()
+
+    expect(JSON.parse(window.localStorage.getItem("syrus.admin.queue.active_jobs.visible_columns") ?? "[]")).toEqual([
+      "arguments",
+      "created",
+      "claimed"
+    ])
+  })
+
+  it("reorders the processes table columns and persists the order separately from the workers table", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(workerQueuePayload()))
+
+    renderAdminQueue()
+
+    await screen.findByText("Queues")
+    const processesMenus = screen.getAllByRole("button", { name: "Columns" })
+    // Workers table renders first, Processes table second, within the same tab panel.
+    fireEvent.click(processesMenus[processesMenus.length - 1])
+    const menu = await screen.findByRole("menu")
+    fireEvent.click(within(menu).getByRole("button", { name: "Move Host down" }))
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem("syrus.admin.queue.processes.visible_columns") ?? "[]")).toEqual([
+        "pid",
+        "host",
+        "heartbeat",
+        "state"
+      ])
+    })
+    // Workers table's own preference key is untouched by the processes reorder.
+    expect(window.localStorage.getItem("syrus.admin.queue.workers.visible_columns")).toBeNull()
   })
 })
 

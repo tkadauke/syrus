@@ -13,6 +13,7 @@ import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
 import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
+import { AdminEventLogTable, type AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
 import {
   fetchAdminQueue,
   isQueueTab,
@@ -192,12 +193,13 @@ function isFilteredQueuePayload(payload: AdminQueuePayload): payload is ActiveQu
   return "filter" in payload && "controls" in payload
 }
 
+
 function QueueTabPanel({ tab, payload }: { tab: QueueTab; payload: unknown }) {
   const { t } = useT("admin")
 
   switch (tab) {
     case "active":
-      return <JobsTable emptyLabel={t("queue.no_active")} jobs={(payload as ActiveQueuePayload).jobs ?? []} showClaimed />
+      return <JobsTable emptyLabel={t("queue.no_active")} jobs={(payload as ActiveQueuePayload).jobs ?? []} showClaimed storageKey="syrus.admin.queue.active_jobs.visible_columns" />
     case "pending":
       return <PendingTable payload={payload as PendingQueuePayload} />
     case "failed":
@@ -216,40 +218,30 @@ function PendingTable({ payload }: { payload: PendingQueuePayload }) {
   return (
     <>
       <Text className="border-b border-border px-4 py-3" muted>{t("queue.showing_of", { shown: jobs.length, total: payload.total ?? 0 })}</Text>
-      <JobsTable emptyLabel={t("queue.no_queued")} jobs={jobs} />
+      <JobsTable emptyLabel={t("queue.no_queued")} jobs={jobs} storageKey="syrus.admin.queue.pending_jobs.visible_columns" />
     </>
   )
 }
 
-function JobsTable({ jobs, showClaimed = false, emptyLabel }: { jobs: QueueJob[]; showClaimed?: boolean; emptyLabel: string }) {
+function jobsTableColumns(t: (key: string) => string, showClaimed: boolean): Array<AdminEventLogTableColumn<QueueJob>> {
+  const columns: Array<AdminEventLogTableColumn<QueueJob>> = [
+    { key: "class", header: t("queue.col_class"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (job) => job.class_name },
+    { key: "queue", header: t("queue.col_queue"), className: "text-gray-700 dark:text-gray-200", render: (job) => job.queue_name },
+    { key: "arguments", header: t("queue.col_arguments"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (job) => formatArguments(job.arguments) },
+    { key: "created", header: t("queue.col_created"), className: "text-gray-600 dark:text-gray-300", render: (job) => <RelativeTimestamp value={job.created_at} /> }
+  ]
+  if (showClaimed) {
+    columns.push({ key: "claimed", header: t("queue.col_claimed"), className: "text-gray-600 dark:text-gray-300", render: (job) => <RelativeTimestamp value={job.claimed_at} /> })
+  }
+  return columns
+}
+
+function JobsTable({ emptyLabel, jobs, showClaimed = false, storageKey }: { emptyLabel: string; jobs: QueueJob[]; showClaimed?: boolean; storageKey: string }) {
   const { t } = useT("admin")
 
   if (jobs.length === 0) return <PanelMessage>{emptyLabel}</PanelMessage>
 
-  return (
-    <DataTable.Root>
-      <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("queue.col_class")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_queue")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_arguments")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_created")}</DataTable.HeadCell>
-            {showClaimed ? <DataTable.HeadCell>{t("queue.col_claimed")}</DataTable.HeadCell> : null}
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {jobs.map((job) => (
-            <DataTable.Row key={job.id}>
-              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{job.class_name}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{job.queue_name}</DataTable.Cell>
-              <DataTable.Cell className="font-mono text-xs text-gray-600 dark:text-gray-300">{formatArguments(job.arguments)}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={job.created_at} /></DataTable.Cell>
-              {showClaimed ? <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={job.claimed_at} /></DataTable.Cell> : null}
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
-  )
+  return <AdminEventLogTable columns={jobsTableColumns(t, showClaimed)} getRowKey={(job) => job.id} rows={jobs} storageKey={storageKey} />
 }
 
 function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
@@ -258,30 +250,15 @@ function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
 
   if (failures.length === 0) return <PanelMessage>{t("queue.no_failures", { since: payload.since ? formatRelativeDate(new Date(payload.since)) : "-" })}</PanelMessage>
 
-  return (
-    <DataTable.Root>
-      <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("queue.col_created")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_class")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_exception")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_message")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_arguments")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {failures.map((failure: QueueFailure) => (
-            <DataTable.Row key={failure.id}>
-              <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={failure.created_at} /></DataTable.Cell>
-              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{failure.class_name || "-"}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{failure.exception_class || "-"}</DataTable.Cell>
-              <DataTable.Cell className="max-w-md text-gray-700 dark:text-gray-200">{failure.message || "-"}</DataTable.Cell>
-              <DataTable.Cell className="font-mono text-xs text-gray-600 dark:text-gray-300">{formatArguments(failure.arguments)}</DataTable.Cell>
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
-  )
+  const columns: Array<AdminEventLogTableColumn<QueueFailure>> = [
+    { key: "created", header: t("queue.col_created"), required: true, className: "text-gray-600 dark:text-gray-300", render: (failure) => <RelativeTimestamp value={failure.created_at} /> },
+    { key: "class", header: t("queue.col_class"), className: "font-medium text-gray-900 dark:text-gray-100", render: (failure) => failure.class_name || "-" },
+    { key: "exception", header: t("queue.col_exception"), className: "text-gray-700 dark:text-gray-200", render: (failure) => failure.exception_class || "-" },
+    { key: "message", header: t("queue.col_message"), className: "max-w-md text-gray-700 dark:text-gray-200", render: (failure) => failure.message || "-" },
+    { key: "arguments", header: t("queue.col_arguments"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (failure) => formatArguments(failure.arguments) }
+  ]
+
+  return <AdminEventLogTable columns={columns} getRowKey={(failure) => failure.id} rows={failures} storageKey="syrus.admin.queue.failures.visible_columns" />
 }
 
 function RecurringTable({ tasks }: { tasks: QueueRecurringTask[] }) {
@@ -289,30 +266,15 @@ function RecurringTable({ tasks }: { tasks: QueueRecurringTask[] }) {
 
   if (tasks.length === 0) return <PanelMessage>{t("queue.no_recurring")}</PanelMessage>
 
-  return (
-    <DataTable.Root>
-      <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("queue.col_key")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_class")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_schedule")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_last_run")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_last_finished")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {tasks.map((task) => (
-            <DataTable.Row key={task.key}>
-              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{task.key}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{task.class_name || "-"}</DataTable.Cell>
-              <DataTable.Cell className="font-mono text-xs text-gray-600 dark:text-gray-300">{task.schedule}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={task.last_run_at} /></DataTable.Cell>
-              <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={task.last_finished_at} /></DataTable.Cell>
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
-  )
+  const columns: Array<AdminEventLogTableColumn<QueueRecurringTask>> = [
+    { key: "key", header: t("queue.col_key"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (task) => task.key },
+    { key: "class", header: t("queue.col_class"), className: "text-gray-700 dark:text-gray-200", render: (task) => task.class_name || "-" },
+    { key: "schedule", header: t("queue.col_schedule"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (task) => task.schedule },
+    { key: "last_run", header: t("queue.col_last_run"), className: "text-gray-600 dark:text-gray-300", render: (task) => <RelativeTimestamp value={task.last_run_at} /> },
+    { key: "last_finished", header: t("queue.col_last_finished"), className: "text-gray-600 dark:text-gray-300", render: (task) => <RelativeTimestamp value={task.last_finished_at} /> }
+  ]
+
+  return <AdminEventLogTable columns={columns} getRowKey={(task) => task.key} rows={tasks} storageKey="syrus.admin.queue.recurring.visible_columns" />
 }
 
 function WorkersPanel({ payload }: { payload: WorkersQueuePayload }) {
@@ -463,6 +425,13 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
           <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.one_hour_max")}>{oneHour ? compactTrend(oneHour) : "-"}</DescriptionList.Item>
         </DescriptionList.Root>
         <WorkerHealthCharts buckets={chartBuckets} hostname={host.hostname} />
+        {/* WorkerHealthTrendTable and the minute-bucket table below are intentionally left
+            without the shared column-config primitive: both render inside a per-host
+            <details>, so the page can repeat either table once per worker -- a persisted
+            column preference would apply globally across every host's copy, which doesn't
+            make sense for a table whose whole content is "this one host's own numbers".
+            They're also fixed-shape diagnostic snapshots (3 or a handful of rows, every
+            column numeric) rather than a record list a user would want to declutter. */}
         <details className="mt-3">
           <summary className="cursor-pointer text-xs font-medium text-text-muted hover:text-text-primary">{t("queue.worker_health_exact_values")}</summary>
           <WorkerHealthTrendTable windows={host.windows} />
@@ -644,32 +613,16 @@ function WorkerTable({ workers }: { workers: QueueWorker[] }) {
 
   if (workers.length === 0) return <PanelMessage>{t("queue.no_workers")}</PanelMessage>
 
-  return (
-    <DataTable.Root>
-      <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("queue.col_host")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_pid")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_queues")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_threads")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_heartbeat")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_state")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {workers.map((worker) => (
-            <DataTable.Row key={`${worker.hostname}-${worker.pid}`}>
-              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{worker.hostname || "-"}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{worker.pid}</DataTable.Cell>
-              <DataTable.Cell className="font-mono text-xs text-gray-600 dark:text-gray-300">{formatQueues(worker.queues)}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{worker.threads ?? "-"}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={worker.last_heartbeat_at} /></DataTable.Cell>
-              <DataTable.Cell className={worker.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>{worker.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</DataTable.Cell>
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
-  )
+  const columns: Array<AdminEventLogTableColumn<QueueWorker>> = [
+    { key: "host", header: t("queue.col_host"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (worker) => worker.hostname || "-" },
+    { key: "pid", header: t("queue.col_pid"), className: "text-gray-700 dark:text-gray-200", render: (worker) => worker.pid },
+    { key: "queues", header: t("queue.col_queues"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (worker) => formatQueues(worker.queues) },
+    { key: "threads", header: t("queue.col_threads"), className: "text-gray-700 dark:text-gray-200", render: (worker) => worker.threads ?? "-" },
+    { key: "heartbeat", header: t("queue.col_heartbeat"), className: "text-gray-600 dark:text-gray-300", render: (worker) => <RelativeTimestamp value={worker.last_heartbeat_at} /> },
+    { key: "state", header: t("queue.col_state"), render: (worker) => <span className={worker.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>{worker.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</span> }
+  ]
+
+  return <AdminEventLogTable columns={columns} getRowKey={(worker) => `${worker.hostname}-${worker.pid}`} rows={workers} storageKey="syrus.admin.queue.workers.visible_columns" />
 }
 
 function ProcessTable({ processes }: { processes: QueueProcess[] }) {
@@ -677,30 +630,15 @@ function ProcessTable({ processes }: { processes: QueueProcess[] }) {
 
   if (processes.length === 0) return <PanelMessage>{t("queue.no_processes")}</PanelMessage>
 
-  return (
-    <DataTable.Root>
-      <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("queue.col_kind")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_host")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_pid")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_heartbeat")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_state")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {processes.map((process) => (
-            <DataTable.Row key={`${process.kind}-${process.hostname}-${process.pid}`}>
-              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{process.kind}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{process.hostname || "-"}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{process.pid}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={process.last_heartbeat_at} /></DataTable.Cell>
-              <DataTable.Cell className={process.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>{process.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</DataTable.Cell>
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
-  )
+  const columns: Array<AdminEventLogTableColumn<QueueProcess>> = [
+    { key: "kind", header: t("queue.col_kind"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (process) => process.kind },
+    { key: "host", header: t("queue.col_host"), className: "text-gray-700 dark:text-gray-200", render: (process) => process.hostname || "-" },
+    { key: "pid", header: t("queue.col_pid"), className: "text-gray-700 dark:text-gray-200", render: (process) => process.pid },
+    { key: "heartbeat", header: t("queue.col_heartbeat"), className: "text-gray-600 dark:text-gray-300", render: (process) => <RelativeTimestamp value={process.last_heartbeat_at} /> },
+    { key: "state", header: t("queue.col_state"), render: (process) => <span className={process.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>{process.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</span> }
+  ]
+
+  return <AdminEventLogTable columns={columns} getRowKey={(process) => `${process.kind}-${process.hostname}-${process.pid}`} rows={processes} storageKey="syrus.admin.queue.processes.visible_columns" />
 }
 
 function QueueError({ error }: { error: Error }) {

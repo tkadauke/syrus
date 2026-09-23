@@ -1,8 +1,8 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { describe, expect, it, vi, afterEach } from "vitest"
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { RepositoryDetailRoute } from "./RepositoryDetail"
 
 const ARCHIVE_PATH = "/api/v1/app/repositories/1/archive"
@@ -271,6 +271,65 @@ describe("RepositoryDetailRoute jobs", () => {
 
     expect(await screen.findByText("Inspect preview dashboard states")).toBeInTheDocument()
     expect(screen.getByText("Claude Code unavailable; running this workflow with Codex.")).toBeInTheDocument()
+  })
+})
+
+describe("RepositoryDetailRoute recent jobs configurable columns", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  afterEach(() => {
+    window.localStorage.clear()
+  })
+
+  function recentJobsPayload() {
+    return {
+      jobs: [
+        {
+          id: 4,
+          state: "running",
+          priority: "medium",
+          kind: "direct",
+          issue_title: "Inspect preview dashboard states",
+          agent_provider: "codex",
+          provider_availability: null,
+          provider_failover: null,
+          job_path: "/jobs/4",
+          source: { label: "Direct", url: null, external: false },
+          pr_number: null,
+          pr_url: null,
+          external_pr_number: null,
+          external_pr_url: null,
+          current_step_caption: null,
+          retry_state: null,
+          runs_count: 3,
+          updated_at: "2026-08-01T12:02:00Z"
+        }
+      ],
+      pagination: { page: 1, per_page: 20, total_jobs: 1, total_pages: 1, first_item: 1, last_item: 1, previous_path: null, next_path: null }
+    }
+  }
+
+  it("hides the optional Runs column through the column picker and persists it", async () => {
+    renderRoute(recentJobsPayload())
+
+    expect(await screen.findByRole("columnheader", { name: "Runs" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    const menu = await screen.findByRole("menu")
+    fireEvent.click(within(menu).getByRole("checkbox", { name: "Runs" }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole("columnheader", { name: "Runs" })).not.toBeInTheDocument()
+    })
+    // State/Issue/Actions stay -- they're the required columns and never appear in the picker.
+    expect(screen.getByRole("columnheader", { name: "State" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Issue" })).toBeInTheDocument()
+
+    expect(JSON.parse(window.localStorage.getItem("syrus.repository_detail.jobs.visible_columns") ?? "[]")).toEqual(["last_activity"])
   })
 })
 

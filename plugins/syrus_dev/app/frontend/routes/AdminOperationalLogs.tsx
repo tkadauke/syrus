@@ -132,6 +132,11 @@ function OperationalLogsTable({ revisionScope, rows }: { revisionScope: Operatio
       headerClassName: "px-4 py-2",
       header: t("operational_logs.col_message"),
       key: "message",
+      // Pin to the declared end (its natural, already-last position) --
+      // required columns default to start-pinning, which would otherwise
+      // yank the log message ahead of time/level/process/refs.
+      pin: "end",
+      required: true,
       render: (row) => (
         <>
           <div className="overflow-hidden break-words font-mono text-xs leading-5 text-gray-900 dark:text-gray-100">{row.message}</div>
@@ -142,7 +147,7 @@ function OperationalLogsTable({ revisionScope, rows }: { revisionScope: Operatio
   ]
 
   return (
-    <AdminEventLogTable columns={columns} getRowKey={(row) => row.id} rows={rows} />
+    <AdminEventLogTable columns={columns} getRowKey={(row) => row.id} rows={rows} storageKey="syrus.admin.operational_logs.visible_columns" />
   )
 }
 
