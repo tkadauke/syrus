@@ -70,6 +70,32 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
+  it "normalizes literal backslash-n sequences and over-escaped quotes in epic and job descriptions" do
+    response = call_tool(
+      epic: {
+        slug: "m3-proposals",
+        title: "M3 proposals",
+        description: "Goal:\\nShip the \\\"grouped\\\" flow.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "schema",
+          target_repo: repository.slug,
+          title: "Add proposal schema",
+          description: "Steps:\\n1. Rename the \\'body\\' column."
+        }
+      ]
+    )
+
+    proposal = chat_session.proposals.find_by!(slug: "m3-proposals")
+    schema = chat_session.proposals.find_by!(slug: "schema")
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.body).to eq("Goal:\nShip the \"grouped\" flow.")
+    expect(schema.body).to eq("Steps:\n1. Rename the 'body' column.")
+  end
+
   it "does not attach active goal provenance to bundled Epic and child Job proposals by default" do
     ChatGoal.create!(
       chat_session: chat_session,

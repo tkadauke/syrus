@@ -22,13 +22,18 @@ module Mcp::Tools
       [ nil, "unknown provider #{value.inspect}. Valid providers: #{Job::ProviderSetting::Base.values.join(', ')}" ]
     end
 
-    # Models occasionally write the literal two-character sequence
-    # backslash-n into a tool-call string when they intend a line break,
-    # instead of an actual embedded newline. Proposal descriptions render as
-    # Markdown, so without this the literal escape shows up verbatim instead
-    # of producing a line break.
-    def normalize_line_breaks(text)
-      text.to_s.gsub('\n', "\n")
+    # Models occasionally write JSON-style escape sequences into a tool-call
+    # string instead of the character they actually intend -- the literal
+    # two-character sequence backslash-n instead of an embedded newline, or a
+    # backslash-escaped quote instead of a plain quote (an artifact of the
+    # model composing the text as though it were about to be JSON-encoded
+    # again). Proposal descriptions render as Markdown, so without this the
+    # literal escape shows up verbatim instead of the intended character.
+    def normalize_proposal_markdown(text)
+      text.to_s
+        .gsub('\n', "\n")
+        .gsub("\\\"", "\"")
+        .gsub("\\'", "'")
     end
 
     def repository_for(chat_session, repo)

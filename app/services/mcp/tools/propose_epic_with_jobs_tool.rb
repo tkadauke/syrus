@@ -60,6 +60,12 @@ module Mcp::Tools
       behavior: the Job inherits the repository/user default provider at
       confirmation time. Each child is pinned independently; unknown provider
       values are rejected before the proposal card is created.
+      epic.description and jobs[].description are stored and rendered as
+      Markdown after JSON decoding of this tool call, so write them as plain
+      Markdown prose: real newline characters between paragraphs, lists, and
+      code fences, and normal quote characters around quoted text. Do not
+      write literal backslash-n sequences (`\\n`) or JSON-style escaped
+      quotes (`\\"`, `\\'`) into either field.
     DESC
 
     input_schema(
@@ -70,7 +76,7 @@ module Mcp::Tools
             slug: { type: "string", description: "Stable epic proposal slug unique within this chat session." },
             epic_id: { type: "integer", description: "Optional existing Epic id to receive the proposed child Jobs." },
             title: { type: "string", description: "Epic title." },
-            description: { type: "string", description: "Epic description." },
+            description: { type: "string", description: "Markdown Epic description, stored and rendered as Markdown after JSON decoding. Use real newline characters for paragraphs, lists, and code fences, and plain `\"`/`'` quote characters for quoted text; do not include literal backslash-n sequences (`\\n`) or JSON-style escaped quotes (`\\\"`, `\\'`)." },
             target_repo: { type: "string", description: "Repository slug owner/name. Defaults to the chat repository." },
             depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Epic depends on." },
             depends_on_proposal_slugs: { type: "array", items: { type: "string" }, description: "Epic proposal slugs in this chat session that this Epic depends on. Declaring this here wires the epic-to-epic dependency automatically at confirmation time — preferred over calling add_epic_dependency afterward." },
@@ -86,7 +92,7 @@ module Mcp::Tools
               slug: { type: "string", description: "Stable sibling job slug unique within this chat session." },
               target_repo: { type: "string", description: "Repository slug owner/name." },
               title: { type: "string", description: "Child Job title." },
-              description: { type: "string", description: "Child Job prompt/body." },
+              description: { type: "string", description: "Markdown child Job prompt/body, stored and rendered as Markdown after JSON decoding. Use real newline characters for paragraphs, lists, and code fences, and plain `\"`/`'` quote characters for quoted text; do not include literal backslash-n sequences (`\\n`) or JSON-style escaped quotes (`\\\"`, `\\'`)." },
               depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job (not the whole epic) depends on. Use when only this specific job must wait for an upstream epic while sibling jobs in the same epic can start sooner. For whole-epic sequencing, prefer `epic.depends_on`." },
               depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this child Job depends on. This is the ONLY way to chain a new child Job onto an existing Epic's already-materialized Jobs when epic.epic_id targets a non-empty Epic — depends_on (below) only reaches slugs proposed in this same session, not real Job IDs. Required on at least one new child whenever the target Epic already has Jobs, naming that Epic's current tail Job, or the proposal is rejected as a disconnected parallel branch." },
               depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. REQUIRED to form a single linear chain across all child Jobs in this proposal: every job besides the first must depend on exactly one other child job (no two children may share a dependency or a dependent). A fan-in, fan-out, or otherwise unordered graph is rejected before the card is created. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when there is just one other child job in this proposal and the two are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." },
@@ -195,7 +201,7 @@ module Mcp::Tools
           slug: epic["slug"].to_s.strip,
           epic_id: Integer(epic["epic_id"], exception: false),
           title: epic["title"].to_s.strip,
-          description: epic["description"].to_s.strip,
+          description: normalize_proposal_markdown(epic["description"]).strip,
           target_repo: epic["target_repo"].to_s.strip,
           depends_on_job_ids: normalize_integer_list(epic["depends_on_job_ids"]),
           depends_on: normalize_string_list(epic["depends_on"]) | normalize_string_list(epic["depends_on_proposal_slugs"])
@@ -207,7 +213,7 @@ module Mcp::Tools
         {
           slug: job["slug"].to_s.strip,
           title: job["title"].to_s.strip,
-          description: job["description"].to_s.strip,
+          description: normalize_proposal_markdown(job["description"]).strip,
           target_repo: job["target_repo"].to_s.strip.presence || default_repo,
           depends_on_epic_ids: normalize_integer_list(job["depends_on_epic_ids"]),
           depends_on_job_ids: normalize_integer_list(job["depends_on_job_ids"]),
