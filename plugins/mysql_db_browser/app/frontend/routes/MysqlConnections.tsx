@@ -543,21 +543,23 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
 
   return (
     <section className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("browse_heading", { label })}</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("browse_description")}</p>
-        </div>
-        <button
-          className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-          onClick={onBack}
-          type="button"
-        >
-          {t("back_to_connections")}
-        </button>
-      </div>
+      <Page.Header className="shrink-0 items-center">
+        <Page.HeadingGroup>
+          <Page.Title>{t("browse_heading", { label })}</Page.Title>
+          <Page.Description>{t("browse_description")}</Page.Description>
+        </Page.HeadingGroup>
+        <Page.Actions>
+          <button
+            className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+            onClick={onBack}
+            type="button"
+          >
+            {t("back_to_connections")}
+          </button>
+        </Page.Actions>
+      </Page.Header>
 
-      <div className="flex shrink-0 gap-1 border-b border-gray-200 dark:border-gray-800" role="tablist">
+      <Page.Nav className="flex shrink-0 gap-1 border-b border-gray-200 dark:border-gray-800" role="tablist">
         <TabButton active={browserTab === "browse"} onClick={() => setBrowserTab("browse")}>
           {t("tab_browse")}
         </TabButton>
@@ -567,7 +569,7 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
         <TabButton active={browserTab === "live"} onClick={() => setBrowserTab("live")}>
           {t("tab_live")}
         </TabButton>
-      </div>
+      </Page.Nav>
 
       {browserTab === "browse" ? (
         <>
