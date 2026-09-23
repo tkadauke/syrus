@@ -47,24 +47,28 @@ module TestInsights
     scope :skipped, -> { where(status: "skipped") }
     scope :errored, -> { where(status: "error") }
     scope :failure_like, -> { where(status: %w[failed error]) }
-    scope :wip_repair_failures, -> {
-      joins(test_run: { run: :step })
-        .failure_like
-        .where.not(test_identity_id: nil)
-        .where(steps: { kind: "grader" })
-        .where.not(steps: { loop_id: nil })
-        .where(later_passing_grader_case_exists_sql)
-    }
-    scope :scored, -> { where.not(id: wip_repair_failures.select(:id)) }
+    # A case that failed mid-loop but was fixed by a later iteration of the
+    # same grader retry loop -- see TestInsights::WipRepairFailureClassifier,
+    # which is the only writer of this column. Excluding these from `scored`
+    # used to run a correlated EXISTS across test_insight_cases/
+    # test_insight_runs/runs/steps at read time; MySQL 8 flattened that into a
+    # semi-join across all four tables and picked a join order that ignored
+    # the test_identity_id index, examining tens of millions of rows per call
+    # in production (up to 67s). Persisting the classification at ingest time
+    # turns every one of those reads back into a plain indexed boolean filter.
+    scope :wip_repair_failures, -> { where(wip_repair_failure: true) }
+    scope :scored, -> { where(wip_repair_failure: false) }
 
     # Returns flakiness data for a specific (repository, suite_name, name) tuple.
     # A test is flaky if it has both passed and failed within the lookback window.
     # Returns nil if no history exists.
     def self.flakiness_score(repository:, suite_name:, name:, lookback: FLAKINESS_LOOKBACK)
-      statuses = history_scope_for(repository: repository, suite_name: suite_name, name: name)
-        .scored
-        .limit(lookback)
-        .pluck(:status)
+      statuses = PerformanceLogging.phase("test_insights.flakiness_score", repository_id: repository.id) do
+        history_scope_for(repository: repository, suite_name: suite_name, name: name)
+          .scored
+          .limit(lookback)
+          .pluck(:status)
+      end
 
       return nil if statuses.empty?
 
@@ -185,22 +189,24 @@ module TestInsights
       cases_by_identity_id = cases.filter_map { |tc| [ tc.test_identity_id, tc ] if tc.test_identity_id }.to_h
       return {} if cases_by_identity_id.empty?
 
-      ranked_cases = where(test_identity_id: cases_by_identity_id.keys)
-        .scored
-        .select(
-          "test_insight_cases.test_identity_id",
-          "test_insight_cases.suite_name",
-          "test_insight_cases.name",
-          "test_insight_cases.status",
-          "test_insight_cases.duration_ms",
-          "test_insight_cases.created_at",
-          "ROW_NUMBER() OVER (PARTITION BY test_insight_cases.test_identity_id ORDER BY test_insight_cases.created_at DESC, test_insight_cases.id DESC) AS syrus_flakiness_rank"
-        )
+      recent = PerformanceLogging.phase("test_insights.batch_flakiness_by_identity", identity_count: cases_by_identity_id.size) do
+        ranked_cases = where(test_identity_id: cases_by_identity_id.keys)
+          .scored
+          .select(
+            "test_insight_cases.test_identity_id",
+            "test_insight_cases.suite_name",
+            "test_insight_cases.name",
+            "test_insight_cases.status",
+            "test_insight_cases.duration_ms",
+            "test_insight_cases.created_at",
+            "ROW_NUMBER() OVER (PARTITION BY test_insight_cases.test_identity_id ORDER BY test_insight_cases.created_at DESC, test_insight_cases.id DESC) AS syrus_flakiness_rank"
+          )
 
-      recent = from(ranked_cases, :test_insight_cases)
-        .where("syrus_flakiness_rank <= ?", lookback)
-        .order(:test_identity_id, created_at: :desc)
-        .select(:test_identity_id, :suite_name, :name, :status, :duration_ms, :created_at)
+        from(ranked_cases, :test_insight_cases)
+          .where("syrus_flakiness_rank <= ?", lookback)
+          .order(:test_identity_id, created_at: :desc)
+          .select(:test_identity_id, :suite_name, :name, :status, :duration_ms, :created_at)
+      end
 
       result = {}
       grouped = recent.group_by(&:test_identity_id)
@@ -240,28 +246,6 @@ module TestInsights
 
     def self.classification_for(test_case)
       classifications_for([ test_case ]).fetch(test_case.id, CLASSIFICATION_SCORED)
-    end
-
-    def self.later_passing_grader_case_exists_sql
-      <<~SQL.squish
-        EXISTS (
-          SELECT 1
-          FROM test_insight_cases later_cases
-          INNER JOIN test_insight_runs later_test_runs
-            ON later_test_runs.id = later_cases.test_run_id
-          INNER JOIN runs later_runs
-            ON later_runs.id = later_test_runs.run_id
-          INNER JOIN steps later_steps
-            ON later_steps.id = later_runs.step_id
-          WHERE later_cases.test_identity_id = test_insight_cases.test_identity_id
-            AND later_cases.status = 'passed'
-            AND later_test_runs.grader_name = test_insight_runs.grader_name
-            AND later_steps.kind = 'grader'
-            AND later_steps.workflow_id = steps.workflow_id
-            AND later_steps.loop_id = steps.loop_id
-            AND later_steps.iteration > steps.iteration
-        )
-      SQL
     end
   end
 end

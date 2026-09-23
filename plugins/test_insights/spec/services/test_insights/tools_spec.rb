@@ -99,7 +99,7 @@ RSpec.describe "Test Insight MCP tools" do
       duration_ms: duration_ms
     )
 
-    TestInsights::TestCase.create!(
+    test_case = TestInsights::TestCase.create!(
       test_run: test_run,
       repository: repository,
       test_identity: identity,
@@ -110,6 +110,13 @@ RSpec.describe "Test Insight MCP tools" do
       created_at: Time.current + iteration.seconds,
       updated_at: Time.current + iteration.seconds
     )
+
+    # Mirrors TestInsights::Ingester: a real ingestion retroactively flags
+    # earlier same-loop failures once a later iteration passes. This helper
+    # builds cases directly, so it must trigger that step itself.
+    TestInsights::WipRepairFailureClassifier.mark_superseded!(test_run: test_run, step: step) if status == "passed"
+
+    test_case
   end
 
   def payload_from(response)
