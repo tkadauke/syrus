@@ -459,6 +459,38 @@ describe("applyAppEvent", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
   })
 
+  it("applies a lightweight turn-state payload to the recent-chats sidebar without touching the open chat detail query", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "recent"], {
+      groups: [{
+        key: "general",
+        label: "General",
+        repository_id: null,
+        chats: [{ ...chatPayload([]).chat, turn_in_flight: false, agent_busy: false, current: false, last_message_at: "2026-05-30T11:00:00Z", unread: false }],
+        has_more: false
+      }],
+      repositories: []
+    })
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "update_turn_state", turn_in_flight: true, agent_busy: true }
+    })
+
+    expect(invalidate).not.toHaveBeenCalled()
+    const recent = queryClient.getQueryData<{ groups: Array<{ chats: Array<{ id: number; turn_in_flight?: boolean; agent_busy?: boolean }> }> }>(["chats", "recent"])
+    expect(recent?.groups[0].chats[0].turn_in_flight).toBe(true)
+    expect(recent?.groups[0].chats[0].agent_busy).toBe(true)
+    // Unlike update_controls/replace_tail, this lightweight payload (sent to
+    // every tab over AppUserChannel, not just ChatChannel subscribers
+    // actively viewing this chat) never carries message content or touches
+    // the open chat-detail query -- that only comes from ChatChannel.
+    const detail = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    expect(detail?.turn_in_flight).toBe(true)
+  })
+
   it("applies chat controls payloads directly to cached chat data", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")

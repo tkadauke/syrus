@@ -37,6 +37,15 @@ afterEach(() => {
   __resetDraftAttachmentsForTests()
 })
 
+// ChatRoute always opens a resource-scoped ChatChannel subscription (see
+// subscribeToChatResourceEvents) alongside whatever dictation streaming
+// subscription a given test triggers, so tests that need the dictation
+// subscription specifically must filter it out rather than assume it's the
+// only (or first) entry in actionCableSubscriptions.
+function dictationSubscription() {
+  return actionCableSubscriptions.find((subscription) => subscription.params.channel !== "ChatChannel")
+}
+
 describe("storedWorkspaceCollapsed", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -850,11 +859,11 @@ describe("chat composer dictation", () => {
     fireEvent.change(textarea, { target: { value: "Review" } })
     fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
 
-    await waitFor(() => expect(actionCableSubscriptions).toHaveLength(1))
+    await waitFor(() => expect(dictationSubscription()).toBeDefined())
     await act(async () => {
-      actionCableSubscriptions[0].mixin.connected?.()
-      actionCableSubscriptions[0].mixin.received({ type: "transcript_delta", text: "the failing grader", final: true })
-      actionCableSubscriptions[0].mixin.received({ type: "done" })
+      dictationSubscription()?.mixin.connected?.()
+      dictationSubscription()?.mixin.received({ type: "transcript_delta", text: "the failing grader", final: true })
+      dictationSubscription()?.mixin.received({ type: "done" })
     })
 
     await waitFor(() => expect(textarea).toHaveValue("Review the failing grader"))
@@ -895,10 +904,10 @@ describe("chat composer dictation", () => {
     const textarea = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
 
-    await waitFor(() => expect(actionCableSubscriptions).toHaveLength(1))
+    await waitFor(() => expect(dictationSubscription()).toBeDefined())
     await act(async () => {
-      actionCableSubscriptions[0].mixin.connected?.()
-      actionCableSubscriptions[0].mixin.received({ type: "error", message: "stream unavailable" })
+      dictationSubscription()?.mixin.connected?.()
+      dictationSubscription()?.mixin.received({ type: "error", message: "stream unavailable" })
     })
 
     await waitFor(() => expect(textarea).toHaveValue("batch fallback text"))
