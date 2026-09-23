@@ -17,3 +17,5 @@ Enable Tailscale for self-hosted deployments that use a tailnet as the access la
 ## Operational Notes
 
 The plugin expects Tailscale credentials to be provided through environment-backed configuration. Operators remain responsible for tailnet ACLs and device policy.
+
+Today `tailscaled` runs inside the generic worker process, which is why the worker container currently carries `NET_ADMIN`/`NET_RAW` and `/dev/net/tun`. That is scheduled to move: see `docs/plans/tailscale-privileged-service-lane.md` for the planned first-party privileged Plugin Runtime service that lets the worker give up those capabilities entirely.

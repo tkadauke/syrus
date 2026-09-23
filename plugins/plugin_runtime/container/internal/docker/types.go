@@ -47,9 +47,16 @@ type CreateContainerRequest struct {
 //
 // Privileged, CapAdd, Devices, Binds, PidMode, IpcMode, UsernsMode,
 // PortBindings and host networking are not fields of this struct. That is the
-// enforcement, not a convention: no request, however it was assembled, can
-// serialize one of them, so the daemon never sees them. Extending this struct
-// is a security change and should be reviewed as one.
+// enforcement, not a convention: no request deserialized from spec.Service,
+// however it was assembled, can serialize one of them, so the daemon never
+// sees them. Extending this struct is a security change and should be
+// reviewed as one.
+//
+// See docs/plans/tailscale-privileged-service-lane.md for a planned,
+// structurally separate exception: a small compiled table of first-party
+// privileged services (not a request field, not a plugin manifest
+// declaration) reachable only from its own code path, never from the
+// deserialized spec.Service this comment describes.
 type HostConfig struct {
 	NetworkMode   string        `json:"NetworkMode"`
 	Mounts        []Mount       `json:"Mounts,omitempty"`
