@@ -137,7 +137,20 @@ chain for numeric divergence first and falls back to the bare clone only when
 no provider can answer (see `plugins.md`); the polling queue's bare-clone I/O
 is now the exception path, not the common one, but the pod-affinity
 requirement below is unchanged since the fallback can still fire on every
-poll tick when no divergence-capable provider is enabled. `GitHistory::RelayServer`
+poll tick when no divergence-capable provider is enabled. `PollMergeStateJob`
+gates its own call to `sync!` further: it runs the cheap GitHub-only refreshes
+first (mergeability straight off the already-fetched PR payload, terminal
+merged/closed checks), and only reaches the ancestry/commits-behind fetch once
+the Job is actionable (PR open, Syrus controls the head, the Job itself hasn't
+closed) *and* the PR's head/base shas moved since the last check — the
+distance between two unchanged commits can't have changed, so a repeat poll
+with nothing new skips the fetch entirely. `GithubPollingBudget` layers a
+second gate on top, at the polling-cadence level: merge-state polling only
+treats `landing`/`approved` Jobs as full-cadence-urgent, so `running`/
+`failed`/`blocked_by_epic`/other non-landing Jobs fall back to the
+recent-update fast path plus a low-frequency rotation slot — still frequent
+enough to notice an externally merged/closed PR, since Syrus has no inbound
+GitHub callbacks. `GitHistory::RelayServer`
 (the internal-only HTTP server that answers the Git History tab's bare-clone
 reads for `Api::V1::App::GitHistoryController`, since web pods don't mount
 `$SYRUS_DATA_ROOT`) is only ever booted on a process where
