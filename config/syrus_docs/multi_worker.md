@@ -131,7 +131,26 @@ Two mitigations, both in `ChatWorkspace`:
 
 `RepositoryBareClone#sync!` only ever runs from `PollMergeStateJob` /
 `PollPullRequestJob` / `LandingQueueRecheck`, all of which are processed on the
-`polling` queue — i.e. today, always the home worker. `GitHistory::RelayServer`
+`polling` queue — i.e. today, always the home worker. All three reach it only
+through `CommitsBehindCalculator`, which asks the `repository_content_provider`
+chain for numeric divergence first and falls back to the bare clone only when
+no provider can answer (see `plugins.md`); the polling queue's bare-clone I/O
+is now the exception path, not the common one, but the pod-affinity
+requirement below is unchanged since the fallback can still fire on every
+poll tick when no divergence-capable provider is enabled. `PollMergeStateJob`
+gates its own call to `sync!` further: it runs the cheap GitHub-only refreshes
+first (mergeability straight off the already-fetched PR payload, terminal
+merged/closed checks), and only reaches the ancestry/commits-behind fetch once
+the Job is actionable (PR open, Syrus controls the head, the Job itself hasn't
+closed) *and* the PR's head/base shas moved since the last check — the
+distance between two unchanged commits can't have changed, so a repeat poll
+with nothing new skips the fetch entirely. `GithubPollingBudget` layers a
+second gate on top, at the polling-cadence level: merge-state polling only
+treats `landing`/`approved` Jobs as full-cadence-urgent, so `running`/
+`failed`/`blocked_by_epic`/other non-landing Jobs fall back to the
+recent-update fast path plus a low-frequency rotation slot — still frequent
+enough to notice an externally merged/closed PR, since Syrus has no inbound
+GitHub callbacks. `GitHistory::RelayServer`
 (the internal-only HTTP server that answers the Git History tab's bare-clone
 reads for `Api::V1::App::GitHistoryController`, since web pods don't mount
 `$SYRUS_DATA_ROOT`) is only ever booted on a process where
@@ -158,6 +177,22 @@ silently serve stale or inconsistent history depending on which pod answers.
 error if *no* live worker process anywhere reports consuming `polling` at
 all — the backstop for a queue-config split that omits `polling` from every
 tier, which would otherwise degrade exactly as silently as the bug above.
+
+`PollMergeStateJob` fans out once per tracked Job, so several Jobs sharing a
+repository land in the same `PollAllMergeStatesJob` tick. Rather than each one
+calling `RepositoryBareClone#sync!` independently, `RepositoryCommitDistance`
+sits in front of it: the `(repository, base_sha, head_sha)` divergence is
+cached directly (that tuple is immutable once computed), and the underlying
+`sync!` fetch is coalesced per repository behind a bounded freshness window
+(`RepositoryCommitDistance::REFRESH_FRESHNESS_WINDOW`, kept just under
+`PollAllMergeStatesJob`'s 5-minute cadence) guarded by an exclusive file lock
+next to that repository's bare-clone path. The lock lives under
+`$SYRUS_DATA_ROOT`, so it coalesces correctly whether concurrent pollers land
+on the same process, the same pod, or (if `polling` is ever split) different
+pods sharing that mounted volume — a caller that arrives mid-refresh blocks on
+the lock instead of starting a second full-ref fetch. `syrus_repository_commit_distance_lookups_total`
+(tagged `outcome`: `cache_hit`, `cache_miss`, `refreshed`, `coalesced_wait`)
+instruments which path each lookup took.
 
 `SOLID_QUEUE_CONFIG` is a path relative to the Rails root; if it points at a
 missing file SolidQueue silently falls back to its *own* built-in default (not

@@ -210,6 +210,26 @@ RSpec.describe GithubHost::ContentProvider do
     end
   end
 
+  describe "#divergence" do
+    it "reports numeric ahead/behind divergence" do
+      allow(client).to receive(:compare_divergence).with("acme/widgets", "base", sha).and_return(ahead: 3, behind: 1)
+
+      expect(provider.divergence("base", sha)).to eq(RepositoryContent::Divergence.new(ahead: 3, behind: 1))
+    end
+
+    it "treats an unknown revision as UnknownRevision, not Unavailable" do
+      allow(client).to receive(:compare_divergence).with("acme/widgets", "gone", sha).and_raise(Octokit::NotFound)
+
+      expect { provider.divergence("gone", sha) }.to raise_error(RepositoryContent::UnknownRevision)
+    end
+
+    it "treats a GitHub outage as Unavailable" do
+      allow(client).to receive(:compare_divergence).and_raise(Octokit::ServerError.new(status: 500))
+
+      expect { provider.divergence("base", sha) }.to raise_error(RepositoryContent::Unavailable)
+    end
+  end
+
   it "answers through RepositoryContent end to end" do
     allow(GithubClient).to receive(:for).and_return(client)
     allow(client).to receive(:commit_sha_for).and_return(sha)

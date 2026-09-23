@@ -32,6 +32,10 @@ WORKDIR /rails
 #   - `ffmpeg` extracts still frames from walkthrough videos at the
 #     timestamps Gemini flags, so the analysis chat turn can illustrate each
 #     issue (VideoWalkthroughFrameExtractor).
+#   - `pigz` is a multi-threaded gzip the worker prefers (at compression
+#     level 1) when streaming prepared-workspace archives to object storage
+#     (PreparedWorkspaceArchive); it falls back to plain `gzip -1` when
+#     absent, so this is a speed optimization, not a hard dependency.
 ARG NODE_MAJOR=22
 ARG CLAUDE_CODE_VERSION=2.1.251
 ARG CODEX_CLI_VERSION=0.151.0
@@ -45,7 +49,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     set -eu; \
     apt-get update -qq && \
     apt-get install --no-install-recommends -y \
-      ca-certificates curl default-mysql-client ffmpeg git gnupg libjemalloc2 libvips && \
+      ca-certificates curl default-mysql-client ffmpeg git gnupg libjemalloc2 libvips pigz && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && \
     apt-get install --no-install-recommends -y nodejs && \

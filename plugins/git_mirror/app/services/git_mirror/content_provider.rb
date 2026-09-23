@@ -96,6 +96,11 @@ module GitMirror
       RepositoryContent::CommitHistory.new(commits: commits, merge_base_id: result["merge_base_id"])
     end
 
+    def divergence(base_id, head_id)
+      result = registered { @client.divergence(mirror_id, base_id, head_id) }
+      RepositoryContent::Divergence.new(ahead: result.fetch("ahead"), behind: result.fetch("behind"))
+    end
+
     def tree_sha(revision_id)
       registered { @client.tree_sha(mirror_id, revision_id) }
     end

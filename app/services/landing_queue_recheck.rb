@@ -112,9 +112,7 @@ class LandingQueueRecheck
     base_sha = MergeabilityRecorder.base_sha(pr).presence || @job.mergeability_base_sha.presence
     return false if head_sha.blank? || base_sha.blank?
 
-    bare_clone = RepositoryBareClone.new(pr_repository)
-    bare_clone.sync!(user: @job.user)
-    distance = bare_clone.commits_behind(head_sha: head_sha, base_sha: base_sha)
+    distance = CommitsBehindCalculator.call(repository: pr_repository, user: @job.user, head_sha: head_sha, base_sha: base_sha)
     @job.update_column(:commits_behind_base, distance)
     true
   rescue StandardError => e
