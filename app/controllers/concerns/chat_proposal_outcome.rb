@@ -16,6 +16,10 @@ module ChatProposalOutcome
     epic = result.respond_to?(:epic) ? result.epic : nil
     return false unless epic
     return true if epic.in_progress?
+    # No allow_jobless here: ChatEpicProposalMaterializer#validate_child_count!
+    # already refuses to confirm an Epic proposal with zero child Jobs (unless
+    # it targets an existing Epic that already has Jobs), so this Epic always
+    # has at least one Job by the time it can reach this call.
     return false unless epic.may_start_implementing?(actor: Current.user)
 
     epic.start_implementing!(actor: Current.user)

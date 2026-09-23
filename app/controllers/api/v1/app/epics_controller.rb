@@ -631,10 +631,13 @@ module Api
         # Best-effort start after a "Create Epic & Start Implementing" create:
         # the Epic row is already saved, so a non-startable Epic (e.g. product
         # owner actor) degrades to a plain create instead of failing the request.
+        # allow_jobless: true is safe ONLY here — this Epic was just created in
+        # this same request, so a zero-Job Epic is genuinely jobless by intent,
+        # not an Epic whose children simply haven't landed yet.
         def start_created_epic!(epic)
-          return false unless epic.may_start_implementing?(actor: Current.user)
+          return false unless epic.may_start_implementing?(actor: Current.user, allow_jobless: true)
 
-          epic.start_implementing!(actor: Current.user)
+          epic.start_implementing!(actor: Current.user, allow_jobless: true)
           auto_claim_started_epic!(epic, "in_progress")
           true
         rescue Epic::NotStartable

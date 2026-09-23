@@ -198,6 +198,7 @@ en:
       not_startable: "Epic cannot start implementing from the %{state} state."
       start_blocked_by_dependencies: "Epic cannot start implementing yet — waiting on Epic dependencies: %{names}."
       start_children_unconfirmed: "Epic cannot start implementing until its child Jobs are confirmed."
+      start_no_jobs: "Epic has no Jobs yet — add at least one before starting implementation."
       start_claimed_by_other: "Epic is claimed by another user."
       access_forbidden: "You do not have access to the target repository."
       owner_not_found: "Owner user not found."

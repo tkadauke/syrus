@@ -924,6 +924,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     it "exposes startable and the start path in the detail payload" do
       sign_in_as(user)
       epic = Factories.epic(user: user, repository: repository, state: "ready")
+      Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
 
       get "/api/v1/app/epics/#{epic.id}"
 
@@ -931,6 +932,22 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       expect(parse_body.dig("epic", "startable")).to be(true)
       expect(parse_body.dig("epic", "start_blocked_on")).to eq([])
       expect(parse_body.dig("paths", "app_start_path")).to eq("/api/v1/app/epics/#{epic.id}/start")
+    end
+
+    it "does not expose startable for an Epic with no Jobs yet, and 409s if started anyway" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repository, state: "ready")
+
+      get "/api/v1/app/epics/#{epic.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("epic", "startable")).to be(false)
+
+      post "/api/v1/app/epics/#{epic.id}/start"
+
+      expect(response).to have_http_status(:conflict)
+      expect(parse_body.dig("error", "message")).to eq("Epic has no Jobs yet — add at least one before starting implementation.")
+      expect(epic.reload).to be_ready
     end
 
     it "marks dependency-blocked Epics not startable and names the blockers" do

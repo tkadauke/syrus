@@ -170,6 +170,7 @@ la:
       not_startable: "Epos ex statu %{state} effectionem incipere non potest."
       start_blocked_by_dependencies: "Epos effectionem nondum incipere potest — Epica praerequisita exspectat: %{names}."
       start_children_unconfirmed: "Epos effectionem incipere non potest antequam opera filiorum confirmentur."
+      start_no_jobs: "Epos nulla opera adhuc habet — unum saltem adde antequam effectionem incipias."
       start_claimed_by_other: "Epos ab alio usuario vindicatum est."
       access_forbidden: "Ad repositorium destinatum accessum non habes."
       owner_not_found: "Usor dominus non inventus est."

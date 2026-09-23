@@ -170,6 +170,7 @@ de:
       not_startable: "Epic kann aus dem Zustand %{state} nicht mit der Umsetzung beginnen."
       start_blocked_by_dependencies: "Epic kann noch nicht mit der Umsetzung beginnen — wartet auf Epic-Abhängigkeiten: %{names}."
       start_children_unconfirmed: "Epic kann erst mit der Umsetzung beginnen, wenn seine Kind-Aufgaben bestätigt sind."
+      start_no_jobs: "Epic hat noch keine Aufgaben — füge mindestens eine hinzu, bevor du die Umsetzung startest."
       start_claimed_by_other: "Epic ist von einem anderen Benutzer beansprucht."
       access_forbidden: "Du hast keinen Zugriff auf das Ziel-Repository."
       owner_not_found: "Eigentümer-Benutzer nicht gefunden."
