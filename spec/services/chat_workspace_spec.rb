@@ -774,6 +774,54 @@ RSpec.describe ChatWorkspace, :ci_only do
 
       expect(weird).to exist
     end
+
+    it "is bounded by MAINTENANCE_SWEEP_BATCH_LIMIT so one tick can't sweep unbounded orphans" do
+      stub_const("ChatWorkspace::MAINTENANCE_SWEEP_BATCH_LIMIT", 2)
+      root = Pathname.new(@data_root)
+      3.times { |i| FileUtils.mkdir_p(root.join("chat-workspaces", "9000#{i}").to_s) }
+
+      expect(described_class.sweep_orphans!).to eq(2)
+    end
+  end
+
+  describe ".du_bytes" do
+    it "shells out through Syrus::LowPriorityIo so the treewalk yields foreground I/O priority" do
+      dir = Dir.mktmpdir("syrus-chatws-du")
+      File.write(File.join(dir, "f.txt"), "x" * 2048)
+
+      expect(Open3).to receive(:capture2e)
+        .with(*Syrus::LowPriorityIo.wrap([ "du", "-sk", dir ]))
+        .and_call_original
+
+      expect(described_class.du_bytes(dir)).to be > 0
+    ensure
+      FileUtils.rm_rf(dir)
+    end
+  end
+
+  describe ".low_priority_rm_rf!" do
+    it "removes the path via a low-I/O-priority rm -rf subprocess" do
+      dir = Dir.mktmpdir("syrus-chatws-rm")
+      File.write(File.join(dir, "f.txt"), "x")
+
+      expect(Open3).to receive(:capture2e)
+        .with(*Syrus::LowPriorityIo.wrap([ "rm", "-rf", "--", dir ]))
+        .and_call_original
+
+      described_class.low_priority_rm_rf!(dir)
+
+      expect(File).not_to exist(dir)
+    end
+
+    it "falls back to FileUtils.rm_rf when the subprocess fails" do
+      dir = Dir.mktmpdir("syrus-chatws-rm-fallback")
+      failed_status = instance_double(Process::Status, success?: false)
+      allow(Open3).to receive(:capture2e).and_return([ "boom", failed_status ])
+
+      described_class.low_priority_rm_rf!(dir)
+
+      expect(File).not_to exist(dir)
+    end
   end
 
   describe "ChatSession destroy" do
@@ -937,6 +985,66 @@ RSpec.describe ChatWorkspace, :ci_only do
 
       expect(coding_path.join(".git")).not_to exist   # oldest evicted
       expect(newer_path.join(".git")).to exist          # newest kept
+    end
+
+    it "reclaim_idle_coding_checkouts! paces successful reclaims and stops at the batch limit" do
+      stub_const("ChatWorkspace::MAINTENANCE_SWEEP_BATCH_LIMIT", 2)
+
+      sessions = Array.new(3) do
+        session = ChatSession.create!(user: user)
+        session.update!(repository: repository)
+        described_class.ensure_coding_checkout!(session, repository)
+        session.update_columns(last_message_at: 3.days.ago)
+        session
+      end
+
+      expect(described_class).to receive(:sleep).with(ChatWorkspace::MAINTENANCE_SWEEP_PACE).exactly(2).times
+
+      described_class.reclaim_idle_coding_checkouts!(older_than: 48.hours)
+
+      remaining = sessions.count { |s| described_class.repo_path_for(s, repository).join(".git").exist? }
+      expect(remaining).to eq(1)
+    end
+
+    it "reclaim_coding_over_budget! paces the du_bytes sizing pass across every retained checkout" do
+      sessions = Array.new(2) do
+        session = ChatSession.create!(user: user)
+        session.update!(repository: repository)
+        described_class.ensure_coding_checkout!(session, repository)
+        session
+      end
+
+      # Budget comfortably above the combined (fake) size: nothing is evicted,
+      # but every retained checkout still had to be sized first — that sizing
+      # pass is what must be paced.
+      allow(described_class).to receive(:du_bytes).and_return(1)
+      expect(described_class).to receive(:sleep).with(ChatWorkspace::MAINTENANCE_SWEEP_PACE).exactly(sessions.size).times
+
+      expect(described_class.reclaim_coding_over_budget!(budget_bytes: 1_000_000_000)).to eq(0)
+    end
+
+    it "does not pace or spend I/O on checkouts recorded for a different worker node" do
+      # A cluster-wide sweep sees every ChatSession with a coding checkout,
+      # including ones whose on-disk clone lives on a different node's local
+      # disk. Those are cheap DB-only skips (no `.git` dir here to `du` or
+      # `rm`) and must not count against the batch limit or incur pacing —
+      # otherwise a large fleet of other-node sessions would starve this
+      # node's own idle-reclaim progress for no I/O benefit.
+      other_node_sessions = Array.new(50) do
+        session = ChatSession.create!(user: user, coding_checkout_branch: "main")
+        session.update_columns(
+          workspace_path: "/nonexistent/#{session.id}",
+          last_message_at: 3.days.ago
+        )
+        session
+      end
+
+      expect(described_class).not_to receive(:sleep)
+
+      freed = described_class.reclaim_idle_coding_checkouts!(older_than: 48.hours)
+
+      expect(freed).to eq(0)
+      other_node_sessions.each { |s| expect(s.reload.coding_checkout_branch).to eq("main") }
     end
 
     it "clears coding_relay_address and coding_relay_token on reclaim" do
