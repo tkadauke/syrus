@@ -13,6 +13,7 @@
   "col_image": "Image",
   "col_endpoint": "Endpoint",
   "col_actions": "Actions",
+  "privileged": "Privileged",
   "held": "Stopped by an admin",
   "orphaned": "No longer wanted",
   "start": "Start",

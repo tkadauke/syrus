@@ -7,8 +7,9 @@ module PluginRuntime
 
     def mode = "managed"
 
-    # Ensure every desired service, then remove managed services nobody wants
-    # any more -- which is what disabling a plugin amounts to.
+    # Ensure every desired service (generic and privileged), then remove
+    # managed services nobody wants any more -- which is what disabling a
+    # plugin amounts to.
     #
     # If the manager cannot be reached, nothing is removed. Acting on a partial
     # view is how a monitoring blip turns into every plugin's container being
@@ -16,15 +17,19 @@ module PluginRuntime
     #
     # A service an operator stopped (Holds) is not ensured -- that would start
     # it again -- only re-read, so its cached status stays current.
-    def reconcile(desired)
-      Holds.prune!(desired.map(&:name))
+    def reconcile(desired, privileged: [])
+      all = desired + privileged
+      Holds.prune!(all.map(&:name))
       held = Holds.all
       desired.each do |entry|
         StatusCache.write(held.include?(entry.name) ? read_one(entry) : ensure_one(entry))
       end
-      remove_unwanted(desired)
+      privileged.each do |entry|
+        StatusCache.write(held.include?(entry.name) ? read_one(entry) : ensure_privileged_one(entry))
+      end
+      remove_unwanted(all)
     rescue Client::Unavailable => e
-      desired.each do |entry|
+      all.each do |entry|
         StatusCache.write(ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode,
                                               state: "unavailable", error: e.message))
       end
@@ -33,10 +38,14 @@ module PluginRuntime
     # Ensures one service right away and records its status -- what the admin
     # page's Start and Restart use instead of waiting for the next tick.
     def ensure_now(entry)
-      StatusCache.write(ensure_one(entry))
+      StatusCache.write(privileged_entry?(entry) ? ensure_privileged_one(entry) : ensure_one(entry))
     end
 
     private
+
+    def privileged_entry?(entry)
+      entry.provider.respond_to?(:privileged_env)
+    end
 
     def read_one(entry)
       ServiceStatus.from_manager(@client.status(entry.name), plugin: entry.plugin)
@@ -59,6 +68,22 @@ module PluginRuntime
       # leave the others alone.
       ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode, state: "error",
                           error: "#{entry.plugin} could not build its service spec: #{e.class}: #{e.message}")
+    end
+
+    # Same shape as ensure_one, but for the privileged lane: the request body
+    # is env only, built from the provider's privileged_env rather than a
+    # full service_spec.
+    def ensure_privileged_one(entry)
+      env = entry.provider.privileged_env.to_h.transform_values(&:to_s)
+      ServiceStatus.from_manager(@client.ensure_privileged_service(entry.name, env), plugin: entry.plugin)
+    rescue Client::Refused => e
+      ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode, state: "error",
+                          error: "refused by the runtime manager: #{e.message}")
+    rescue Client::Unavailable
+      raise
+    rescue StandardError => e
+      ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode, state: "error",
+                          error: "#{entry.plugin} could not build its privileged env: #{e.class}: #{e.message}")
     end
 
     def request_for(entry)

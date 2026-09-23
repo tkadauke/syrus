@@ -43,18 +43,36 @@ type CreateContainerRequest struct {
 	NetworkingConfig NetworkingConfig    `json:"NetworkingConfig"`
 }
 
-// HostConfig models only what a plugin service may have.
+// HostConfig models what a plugin service may have, plus one narrow,
+// structurally isolated exception.
 //
-// Privileged, CapAdd, Devices, Binds, PidMode, IpcMode, UsernsMode,
-// PortBindings and host networking are not fields of this struct. That is the
-// enforcement, not a convention: no request, however it was assembled, can
-// serialize one of them, so the daemon never sees them. Extending this struct
-// is a security change and should be reviewed as one.
+// Binds, PidMode, IpcMode, UsernsMode, PortBindings, Privileged, and host
+// networking are not fields of this struct, full stop -- nothing in this
+// repository can ever set them. CapAdd and Devices do exist as fields, but
+// the generic create() path (driven only by spec.Service, which has no such
+// fields) can never populate them: only manager.EnsurePrivileged does, and
+// only from a compiled internal/privileged.Definition, never from a decoded
+// request. Extending what create() can set from spec.Service is a security
+// change and should be reviewed as one; see
+// docs/plans/tailscale-privileged-service-lane.md for why CapAdd/Devices
+// exist at all and how their one caller is kept separate from every other
+// service request.
 type HostConfig struct {
-	NetworkMode   string        `json:"NetworkMode"`
-	Mounts        []Mount       `json:"Mounts,omitempty"`
-	RestartPolicy RestartPolicy `json:"RestartPolicy"`
-	SecurityOpt   []string      `json:"SecurityOpt,omitempty"`
+	NetworkMode   string          `json:"NetworkMode"`
+	Mounts        []Mount         `json:"Mounts,omitempty"`
+	RestartPolicy RestartPolicy   `json:"RestartPolicy"`
+	SecurityOpt   []string        `json:"SecurityOpt,omitempty"`
+	CapAdd        []string        `json:"CapAdd,omitempty"`
+	Devices       []DeviceMapping `json:"Devices,omitempty"`
+}
+
+// DeviceMapping grants a container access to a host device node. Only
+// manager.EnsurePrivileged ever populates this, from a compiled
+// internal/privileged.Definition.
+type DeviceMapping struct {
+	PathOnHost        string `json:"PathOnHost"`
+	PathInContainer   string `json:"PathInContainer"`
+	CgroupPermissions string `json:"CgroupPermissions"`
 }
 
 // Mount is a volume mount. The manager only ever sets Type to "volume".

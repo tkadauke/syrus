@@ -63,7 +63,6 @@ function StatusView({ payload }: { payload: AdminTailscaleStatus }) {
         <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">{t("checklist_heading")}</h2>
         <ul className="mt-3 space-y-2">
           <ChecklistItem done={payload.auth_key_present} label={t("checklist_auth_key")} />
-          <ChecklistItem done={payload.net_admin_capable} label={t("checklist_net_admin")} />
           <ChecklistItem done={payload.daemon_running} label={t("checklist_daemon")} />
         </ul>
       </section>

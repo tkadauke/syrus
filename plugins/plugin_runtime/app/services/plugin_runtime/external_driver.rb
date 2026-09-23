@@ -21,8 +21,13 @@ module PluginRuntime
 
     def mode = "external"
 
-    def reconcile(desired)
-      desired.each { |entry| StatusCache.write(check(entry)) }
+    # A privileged service is checked exactly like a generic one here: on
+    # Kubernetes there is no runtime manager and no privileged lane at all --
+    # an operator deploys Tailscale (or any other privileged service) as its
+    # own workload with whatever grants it needs, and Syrus only checks the
+    # address it was given, same as any other external service.
+    def reconcile(desired, privileged: [])
+      (desired + privileged).each { |entry| StatusCache.write(check(entry)) }
     end
 
     private
@@ -43,14 +48,31 @@ module PluginRuntime
       status(entry, state: "running", endpoint: endpoint)
     end
 
+    # Same duck-typing ManagedDriver#privileged_entry? uses: a privileged
+    # provider implements PluginRuntime::PrivilegedService's contract
+    # (privileged_env), a generic one implements Service's (service_spec).
+    # Kubernetes/external mode never creates the container, but the operator
+    # still needs the "Privileged" badge to know this service carries
+    # elevated host grants wherever it actually runs.
+    def privileged_entry?(entry)
+      entry.provider.respond_to?(:privileged_env)
+    end
+
+    # A privileged provider has no service_spec to read a healthcheck path
+    # from -- its container's shape is fixed in the runtime manager's compiled
+    # Definition, not declared in Ruby. Every container-backed plugin image in
+    # this codebase exposes /healthz, so that is the fallback.
     def health_path(entry)
+      return "/healthz" unless entry.provider.respond_to?(:service_spec)
+
       entry.provider.service_spec.deep_symbolize_keys.dig(:healthcheck, :path)
     rescue StandardError
       nil
     end
 
     def status(entry, **attributes)
-      ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode, **attributes)
+      ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode,
+                          privileged: privileged_entry?(entry), **attributes)
     end
 
     # Returns nil when healthy, otherwise a reason.

@@ -9,23 +9,31 @@ import (
 
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/manager"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/policy"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/privileged"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/spec"
 )
 
 const token = "0123456789abcdef0123456789abcdef"
 
 type stubManager struct {
-	ensured bool
-	purged  *bool
-	state   string
-	err     error
-	acted   []string
-	tail    int
+	ensured           bool
+	ensuredPrivileged bool
+	privilegedEnv     map[string]string
+	purged            *bool
+	state             string
+	err               error
+	acted             []string
+	tail              int
 }
 
 func (s *stubManager) Ensure(_ context.Context, name string, _ spec.Service) (manager.Status, error) {
 	s.ensured = true
 	return manager.Status{Service: name, State: s.state}, s.err
+}
+func (s *stubManager) EnsurePrivileged(_ context.Context, name string, env map[string]string) (manager.Status, error) {
+	s.ensuredPrivileged = true
+	s.privilegedEnv = env
+	return manager.Status{Service: name, State: s.state, Privileged: true}, s.err
 }
 func (s *stubManager) Status(_ context.Context, name string) (manager.Status, error) {
 	return manager.Status{Service: name, State: manager.StateRunning}, nil
@@ -86,6 +94,7 @@ func TestEveryV1RouteRequiresTheToken(t *testing.T) {
 		{"GET", "/v1/services/git-mirror"},
 		{"PUT", "/v1/services/git-mirror"},
 		{"DELETE", "/v1/services/git-mirror"},
+		{"PUT", "/v1/privileged/tailscale"},
 		{"POST", "/v1/services/git-mirror/stop"},
 		{"POST", "/v1/services/git-mirror/start"},
 		{"POST", "/v1/services/git-mirror/restart"},
@@ -137,6 +146,52 @@ func TestPolicyRefusalIs422AndDaemonFailureIs502(t *testing.T) {
 	failing := New(&stubManager{err: context.DeadlineExceeded}, token, Info{})
 	if rec := do(failing, "PUT", "/v1/services/git-mirror", "Bearer "+token, body); rec.Code != http.StatusBadGateway {
 		t.Errorf("daemon failure: code %d, want 502", rec.Code)
+	}
+}
+
+// The privileged route's request body carries only env: no image,
+// internal_port, volumes, devices, or cap_add key exists for a caller to
+// populate, and DisallowUnknownFields refuses one that tries -- the same
+// refusal the generic route gives a "privileged" field.
+func TestPrivilegedRouteAcceptsOnlyEnv(t *testing.T) {
+	m := &stubManager{state: manager.StateRunning}
+	h := New(m, token, Info{})
+
+	rec := do(h, "PUT", "/v1/privileged/tailscale", "Bearer "+token, `{"env":{"TS_AUTHKEY":"tskey-abc"}}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if !m.ensuredPrivileged {
+		t.Fatal("expected EnsurePrivileged to be called")
+	}
+	if m.privilegedEnv["TS_AUTHKEY"] != "tskey-abc" {
+		t.Errorf("env = %v", m.privilegedEnv)
+	}
+	if !strings.Contains(rec.Body.String(), `"privileged":true`) {
+		t.Errorf("expected the response to report privileged: true, got %s", rec.Body.String())
+	}
+
+	for _, extra := range []string{`"image":"evil/x:1"`, `"internal_port":9`, `"devices":["/dev/sda"]`, `"cap_add":["SYS_ADMIN"]`} {
+		m.ensuredPrivileged = false
+		payload := strings.Replace(`{"env":{}}`, "{", "{"+extra+",", 1)
+		if rec := do(h, "PUT", "/v1/privileged/tailscale", "Bearer "+token, payload); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: code %d, want 400", extra, rec.Code)
+		}
+		if m.ensuredPrivileged {
+			t.Errorf("%s: reached the manager despite the unknown field", extra)
+		}
+	}
+}
+
+// A refusal from the privileged registry (unknown name, disallowed env key)
+// must be as loud and as typed as a generic policy refusal.
+func TestPrivilegedRefusalIs422(t *testing.T) {
+	def, _ := privileged.NewRegistry("img:1", "http://web:80").Lookup("tailscale")
+	refused := privileged.ValidateEnv(def, map[string]string{"TS_EXTRA_ARGS": "--accept-routes"})
+
+	h := New(&stubManager{err: refused}, token, Info{})
+	if rec := do(h, "PUT", "/v1/privileged/tailscale", "Bearer "+token, `{"env":{}}`); rec.Code != http.StatusUnprocessableEntity {
+		t.Errorf("code %d, want 422: %s", rec.Code, rec.Body.String())
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/docker"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/policy"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/privileged"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/spec"
 )
 
@@ -33,6 +34,9 @@ const (
 	LabelSpec       = "dev.syrus.runtime.spec"
 	LabelPort       = "dev.syrus.runtime.port"
 	LabelHealthPath = "dev.syrus.runtime.health-path"
+	// LabelPrivileged marks a container created through EnsurePrivileged, so
+	// List/Status can report Status.Privileged without any extra bookkeeping.
+	LabelPrivileged = "dev.syrus.runtime.privileged"
 )
 
 // Service states reported to Syrus.
@@ -82,6 +86,9 @@ type Status struct {
 	ExitCode    *int          `json:"exit_code,omitempty"`
 	Pull        *PullProgress `json:"pull,omitempty"`
 	Error       string        `json:"error,omitempty"`
+	// Privileged is true when this container was created through
+	// EnsurePrivileged rather than the generic Ensure path.
+	Privileged bool `json:"privileged"`
 }
 
 // PullProgress is aggregate byte progress for an in-flight image pull.
@@ -102,10 +109,11 @@ type pull struct {
 
 // Manager reconciles services for one Compose project.
 type Manager struct {
-	docker  Docker
-	policy  policy.Policy
-	project string
-	network string
+	docker     Docker
+	policy     policy.Policy
+	privileged privileged.Registry
+	project    string
+	network    string
 
 	// Probe checks a service's health endpoint. Replaceable in tests.
 	Probe func(ctx context.Context, url string) error
@@ -131,6 +139,15 @@ func New(d Docker, p policy.Policy, project, network string) *Manager {
 	}
 }
 
+// WithPrivileged attaches the compiled table of first-party privileged
+// services EnsurePrivileged may create. A Manager with no registry attached
+// (the zero value, nil) refuses every EnsurePrivileged call -- reading from a
+// nil map is safe in Go and Lookup simply never finds anything.
+func (m *Manager) WithPrivileged(r privileged.Registry) *Manager {
+	m.privileged = r
+	return m
+}
+
 // Ensure makes the named service match s: created, running, and on the right
 // image. It is idempotent -- a request matching the running container does
 // nothing -- so Syrus can call it on every reconcile tick. When the image is
@@ -145,7 +162,56 @@ func (m *Manager) Ensure(ctx context.Context, name string, s spec.Service) (Stat
 		// Validate already parsed it; this cannot fail.
 		return Status{}, err
 	}
+	return m.reconcileContainer(ctx, name, s, ref, nil)
+}
 
+// EnsurePrivileged makes the named first-party privileged service match its
+// compiled internal/privileged.Definition and the request's env: created,
+// running, and on the right image, with the Definition's fixed capabilities
+// and devices. It is the only path in this package that can ever populate
+// docker.HostConfig's CapAdd and Devices fields.
+//
+// Unlike Ensure, name and env are not looked up against the generic policy
+// allowlist at all: the compiled Definition is itself the trust boundary, so
+// there is nothing left for that allowlist to add. env is validated against
+// exactly the Definition's AllowedEnvKeys before anything else happens.
+func (m *Manager) EnsurePrivileged(ctx context.Context, name string, env map[string]string) (Status, error) {
+	def, ok := m.privileged.Lookup(name)
+	if !ok {
+		return Status{}, privileged.NotRegistered(name)
+	}
+	if err := privileged.ValidateEnv(def, env); err != nil {
+		return Status{}, err
+	}
+
+	s := spec.Service{
+		Plugin:       name,
+		Image:        def.Image,
+		InternalPort: def.InternalPort,
+		Env:          privileged.MergeEnv(def, env),
+	}
+	if def.Volume != nil {
+		s.Volumes = []spec.Volume{{Name: def.Volume.Name, MountPath: def.Volume.MountPath}}
+	}
+	if def.Healthcheck != nil {
+		s.Healthcheck = &spec.Healthcheck{Path: def.Healthcheck.Path}
+	}
+
+	ref, err := policy.ParseImage(s.Image)
+	if err != nil {
+		return Status{}, fmt.Errorf("privileged service %q has an invalid compiled image %q: %w", name, s.Image, err)
+	}
+	return m.reconcileContainer(ctx, name, s, ref, &def)
+}
+
+// reconcileContainer is the idempotent create-or-replace-or-start loop
+// shared by Ensure and EnsurePrivileged: a request matching the running
+// container is a no-op, a changed spec replaces the container (keeping its
+// named volumes), and a missing image starts a background pull. def is nil
+// for the generic path and non-nil for a privileged service, and is only
+// ever consulted by create/startPull to add CapAdd/Devices -- never to
+// change any of the logic here.
+func (m *Manager) reconcileContainer(ctx context.Context, name string, s spec.Service, ref policy.ImageRef, def *privileged.Definition) (Status, error) {
 	lock := m.lockFor(name)
 	lock.Lock()
 	defer lock.Unlock()
@@ -177,10 +243,10 @@ func (m *Manager) Ensure(ctx context.Context, name string, s spec.Service) (Stat
 		return Status{}, err
 	}
 	if !present {
-		m.startPull(name, s, ref)
+		m.startPull(name, s, ref, def)
 		return m.Status(ctx, name)
 	}
-	if err := m.create(ctx, name, s, ref); err != nil {
+	if err := m.create(ctx, name, s, ref, def); err != nil {
 		return Status{}, err
 	}
 	m.forgetPull(name, nil)
@@ -436,6 +502,7 @@ func (m *Manager) Status(ctx context.Context, name string) (Status, error) {
 	st.Image = detail.Config.Image
 	st.Plugin = labels[LabelPlugin]
 	st.SpecHash = labels[LabelSpec]
+	st.Privileged = labels[LabelPrivileged] == "true"
 	port := labels[LabelPort]
 	st.Endpoint = fmt.Sprintf("http://%s:%s", name, port)
 
@@ -508,7 +575,7 @@ func (m *Manager) List(ctx context.Context) ([]Status, error) {
 	return out, nil
 }
 
-func (m *Manager) startPull(name string, s spec.Service, ref policy.ImageRef) {
+func (m *Manager) startPull(name string, s spec.Service, ref policy.ImageRef, def *privileged.Definition) {
 	m.mu.Lock()
 	if existing := m.pulls[name]; existing != nil && !existing.done && existing.image == ref.String() {
 		m.mu.Unlock()
@@ -551,7 +618,7 @@ func (m *Manager) startPull(name string, s spec.Service, ref policy.ImageRef) {
 		case existing != nil:
 			m.forgetPull(name, p)
 		default:
-			if cerr := m.create(ctx, name, s, ref); cerr != nil {
+			if cerr := m.create(ctx, name, s, ref, def); cerr != nil {
 				m.failPull(p, cerr)
 				return
 			}
@@ -576,7 +643,13 @@ func (m *Manager) forgetPull(name string, only *pull) {
 	}
 }
 
-func (m *Manager) create(ctx context.Context, name string, s spec.Service, ref policy.ImageRef) error {
+// create builds and starts the container for s. def is nil for every
+// generic-path caller; only when EnsurePrivileged passes its own compiled
+// Definition does the resulting HostConfig gain CapAdd/Devices and the
+// container gain LabelPrivileged. s itself never carries those values --
+// spec.Service has no fields for them -- so there is no way for a generic
+// Ensure caller to reach this branch by accident.
+func (m *Manager) create(ctx context.Context, name string, s spec.Service, ref policy.ImageRef, def *privileged.Definition) error {
 	labels := m.serviceLabels(name)
 	labels[LabelPlugin] = s.Plugin
 
@@ -591,7 +664,7 @@ func (m *Manager) create(ctx context.Context, name string, s spec.Service, ref p
 		mounts = append(mounts, docker.Mount{Type: "volume", Source: volume, Target: v.MountPath})
 	}
 
-	containerLabels := make(map[string]string, len(labels)+3)
+	containerLabels := make(map[string]string, len(labels)+4)
 	for k, v := range labels {
 		containerLabels[k] = v
 	}
@@ -600,6 +673,9 @@ func (m *Manager) create(ctx context.Context, name string, s spec.Service, ref p
 	if s.Healthcheck != nil {
 		containerLabels[LabelHealthPath] = s.Healthcheck.Path
 	}
+	if def != nil {
+		containerLabels[LabelPrivileged] = "true"
+	}
 
 	env := make([]string, 0, len(s.Env))
 	for key, value := range s.Env {
@@ -607,19 +683,27 @@ func (m *Manager) create(ctx context.Context, name string, s spec.Service, ref p
 	}
 	sort.Strings(env)
 
+	hostConfig := docker.HostConfig{
+		NetworkMode:   m.network,
+		Mounts:        mounts,
+		RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
+		// Nothing in a plugin service should gain privileges through
+		// setuid binaries, whatever image it came from -- privileged services
+		// included: their capabilities come from CapAdd below, never from
+		// setuid escalation.
+		SecurityOpt: []string{"no-new-privileges:true"},
+	}
+	if def != nil {
+		hostConfig.CapAdd = def.CapAdd
+		hostConfig.Devices = def.Devices
+	}
+
 	req := docker.CreateContainerRequest{
 		Image:        ref.String(),
 		Env:          env,
 		Labels:       containerLabels,
 		ExposedPorts: map[string]struct{}{fmt.Sprintf("%d/tcp", s.InternalPort): {}},
-		HostConfig: docker.HostConfig{
-			NetworkMode:   m.network,
-			Mounts:        mounts,
-			RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
-			// Nothing in a plugin service should gain privileges through
-			// setuid binaries, whatever image it came from.
-			SecurityOpt: []string{"no-new-privileges:true"},
-		},
+		HostConfig:   hostConfig,
 		NetworkingConfig: docker.NetworkingConfig{
 			EndpointsConfig: map[string]docker.EndpointSettings{
 				m.network: {Aliases: []string{name}},

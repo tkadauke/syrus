@@ -1,4 +1,5 @@
 require "plugin_runtime/service"
+require "plugin_runtime/privileged_service"
 
 module PluginRuntime
   extend Syrus::PluginApi
@@ -18,8 +19,15 @@ module PluginRuntime
     #
     #   provides "plugin_runtime:service" => "GitMirror::RuntimeService"
     #
-    # See PluginRuntime::Service for the contract.
-    hosts [ :service ]
+    # See PluginRuntime::Service for the contract. A small, hardcoded set of
+    # first-party plugins (PluginRuntime::DesiredPrivilegedServices::
+    # FIRST_PARTY_PRIVILEGED_PLUGINS) may instead declare
+    #
+    #   provides "plugin_runtime:privileged_service" => "Tailscale::RuntimeService"
+    #
+    # See PluginRuntime::PrivilegedService and
+    # docs/plans/tailscale-privileged-service-lane.md.
+    hosts [ :service, :privileged_service ]
 
     # The reconcile loop. PluginTickSchedulerJob only ticks enabled plugins, so
     # disabling this plugin stops it touching containers at all.

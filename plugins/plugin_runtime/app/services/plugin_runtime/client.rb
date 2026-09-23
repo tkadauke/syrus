@@ -41,6 +41,14 @@ module PluginRuntime
       request(Net::HTTP::Put, service_path(name), body: spec)
     end
 
+    # The privileged lane: a separately named verb that can only ever
+    # configure one of the manager's compiled first-party services. The
+    # request body is env only -- there is no way to send an image, port,
+    # volumes, devices, or capabilities through this method.
+    def ensure_privileged_service(name, env)
+      request(Net::HTTP::Put, privileged_path(name), body: { env: env })
+    end
+
     def status(name)
       request(Net::HTTP::Get, service_path(name))
     end
@@ -79,6 +87,10 @@ module PluginRuntime
 
     def service_path(name)
       "/v1/services/#{ERB::Util.url_encode(name.to_s)}"
+    end
+
+    def privileged_path(name)
+      "/v1/privileged/#{ERB::Util.url_encode(name.to_s)}"
     end
 
     def request(klass, path, body: nil, query: nil, text: false)

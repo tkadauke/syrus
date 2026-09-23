@@ -62,7 +62,7 @@ module PluginRuntime
     def entry_for(name)
       raise NotManaged, "plugin services are managed outside Syrus in this deployment" unless @configuration.managed?
 
-      DesiredServices.all.find { |entry| entry.name == name.to_s } ||
+      (DesiredServices.all + DesiredPrivilegedServices.all).find { |entry| entry.name == name.to_s } ||
         raise(UnknownService, "no enabled plugin provides a service named #{name}")
     end
 

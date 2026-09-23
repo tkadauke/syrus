@@ -117,6 +117,14 @@ The variable is `SYRUS_PLUGIN_SERVICE_<NAME>_URL`, with the service name
 upper-cased and dashes turned into underscores. Syrus still health-checks the
 address every minute, and hands it out only while it answers.
 
+**The privileged lane (below) is Compose-only.** The runtime manager never
+runs under Kubernetes, so a privileged service such as Tailscale is always
+external there: the operator deploys it themselves — with whatever
+`NET_ADMIN`/TUN grant it needs, on their own manifests — and points Syrus at
+it with `SYRUS_PLUGIN_SERVICE_TAILSCALE_URL` exactly like any other external
+service. There is no Kubernetes equivalent of `PUT /v1/privileged/{name}`;
+Syrus is never given the power to grant capabilities to a workload it starts.
+
 ## Admin -> Plugin Services
 
 `/admin/plugin_services` lists every plugin service: its owning plugin, live
@@ -175,6 +183,23 @@ dangerous — the checks live in the manager, the one place they bind:
 - `no-new-privileges` on every container
 - a request naming a field the manager does not model is rejected outright, so
   asking for `privileged` fails loudly rather than quietly running without it
+
+**The one documented exception:** a separately named, structurally isolated
+privileged lane (`internal/privileged`, `PUT /v1/privileged/{name}` on the
+manager; `PluginRuntime::PrivilegedService` /
+`PluginRuntime::DesiredPrivilegedServices` on the Rails side) for a small,
+compiled table of known services. At the time of writing that table has
+exactly one entry, Tailscale. Even there, a request still cannot accept an
+image, capability, device, mount, or network setting -- only a short allowed
+env list (three keys, for Tailscale), resolved against a fixed, compiled
+`Definition`. Which plugins may even reach this lane is a hardcoded Ruby
+constant (`PluginRuntime::DesiredPrivilegedServices::FIRST_PARTY_PRIVILEGED_PLUGINS`)
+independent of the Go manager's own compiled table, so a mistake in either
+allowlist alone fails closed. See
+`docs/plans/tailscale-privileged-service-lane.md` for the full design and
+threat-model discussion. Nothing else in this document describes that lane;
+everything below still describes the contract every `plugin_runtime:service`
+contributor is held to.
 
 ## Service states
 

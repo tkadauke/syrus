@@ -22,22 +22,13 @@ module Tailscale
       private
 
       def fetch_entries
-        body = fetch_status_body
-        data = JSON.parse(body)
+        data = RemoteStatus.call
+        return [] unless data
 
-        dns_name = data.dig("Self", "DNSName")&.delete_suffix(".")
-        ips = data.dig("Self", "TailscaleIPs") || []
+        dns_name = data["hostname"]
+        ips = data["tailscale_ips"] || []
 
         [dns_name, *ips].compact.reject(&:blank?)
-      end
-
-      def fetch_status_body
-        UNIXSocket.open(DaemonManager::SOCKET_PATH) do |sock|
-          sock.write("GET /localapi/v0/status HTTP/1.0\r\nHost: local\r\n\r\n")
-          sock.flush
-          response = sock.read
-          response.split("\r\n\r\n", 2).last || ""
-        end
       end
 
       def hosts

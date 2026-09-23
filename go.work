@@ -28,3 +28,4 @@ use ./plugins/spending_insights/cli
 use ./plugins/plugin_runtime/container
 use ./plugins/git_mirror/container
 use ./plugins/browser/container
+use ./plugins/tailscale/container

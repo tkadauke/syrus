@@ -1292,14 +1292,22 @@ would also be disabled, before cascading the disable through all of them.
 The bundled `tailscale` plugin exposes a Syrus installation on the operator's
 Tailscale network, so it can be reached from laptops and phones away from the
 local network. It ships installed but disabled by default; enabling it from
-**Admin → Plugins** and setting a `TS_AUTHKEY` auth key runs a `tailscaled`
-daemon in the worker container (so it keeps working no matter how many web
-replicas are running) and forwards Tailscale traffic to the Rails app.
+**Admin → Plugins** and setting a `TS_AUTHKEY` auth key runs `tailscaled` in
+its own dedicated, privileged container -- started by Plugin Runtime, not the
+worker -- and forwards Tailscale traffic to the Rails app. The worker itself
+never needs any elevated network capability.
 
 Once enabled, **Admin → Tailscale** shows whether the daemon is running and
 connected, a copyable `https://<device>.ts.net` URL, and a short setup
 checklist. To reach Syrus from a phone: install the Tailscale app, sign in to
 the same tailnet, then open that ts.net URL.
+
+Lifecycle actions (stop, start, restart) and container health live on the
+shared **Admin → Plugin Services** page rather than the Tailscale page
+itself. See [Tailscale isn't
+connecting](/docs/troubleshooting#tailscale-isnt-connecting) for a
+step-by-step guide covering a missing/unreachable runtime, an unhealthy
+container, and a daemon that's up but not yet connected.
 
 ## K8s Cluster Viewer
 

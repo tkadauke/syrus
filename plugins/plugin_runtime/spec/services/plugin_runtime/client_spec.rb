@@ -50,6 +50,22 @@ RSpec.describe PluginRuntime::Client do
     expect(purge).to have_been_requested.once
   end
 
+  it "puts only env to the privileged lane, under a separate path" do
+    stub = stub_request(:put, "http://plugin-runtime:8080/v1/privileged/tailscale")
+      .with(headers: { "Authorization" => "Bearer secret-token" }, body: { env: { "TS_AUTHKEY" => "tskey-abc" } }.to_json)
+      .to_return(status: 200, body: { service: "tailscale", state: "running", privileged: true }.to_json)
+
+    expect(client.ensure_privileged_service("tailscale", { "TS_AUTHKEY" => "tskey-abc" })).to include("privileged" => true)
+    expect(stub).to have_been_requested
+  end
+
+  it "raises Refused when the privileged lane rejects the env" do
+    stub_request(:put, %r{/v1/privileged/tailscale}).to_return(status: 422, body: { error: "env key not allowed" }.to_json)
+
+    expect { client.ensure_privileged_service("tailscale", { "TS_EXTRA_ARGS" => "x" }) }
+      .to raise_error(described_class::Refused, /not allowed/)
+  end
+
   it "escapes the service name in the path" do
     stub = stub_request(:get, "http://plugin-runtime:8080/v1/services/a%2Fb").to_return(status: 200, body: "{}")
 
