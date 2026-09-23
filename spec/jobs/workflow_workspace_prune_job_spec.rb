@@ -543,6 +543,26 @@ RSpec.describe WorkflowWorkspacePruneJob do
     described_class.perform_now
   end
 
+  it "instruments the chat workspace sweep as a performance phase with item counts" do
+    allow(WorkflowWorkspace).to receive(:cleanup_for).and_call_original
+    allow(ChatWorkspace).to receive(:reclaim_idle_coding_checkouts!).and_return(2048)
+    allow(ChatWorkspace).to receive(:reclaim_coding_over_budget!).and_return(4096)
+
+    captured_metadata = nil
+    allow(PerformanceLogging).to receive(:phase) do |name, metadata, &block|
+      expect(name).to eq("chat_workspace.sweep")
+      block.call
+      captured_metadata = metadata
+    end
+
+    described_class.perform_now
+
+    expect(captured_metadata).to include(
+      idle_coding_bytes_freed: 2048,
+      over_budget_bytes_freed: 4096
+    )
+  end
+
   it "removes orphaned chat workspace and agent home directories whose ChatSession is gone" do
     allow(WorkflowWorkspace).to receive(:cleanup_for).and_call_original
     root = Pathname.new(data_root)
