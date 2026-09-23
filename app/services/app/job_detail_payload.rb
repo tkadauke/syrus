@@ -982,7 +982,11 @@ module App
       writable = JobPolicy.new(@user, @job).write?
       creator = @job.user_id == @user.id
       mutable_runtime_job = @job.open? && !@job.backlog?
-      reviewable_job = @job.implemented? && !job_has_approval_blocking_runtime_work?
+      # Investigation Jobs share :implemented with the normal approve-and-land
+      # pipeline (it's "done, awaiting operator review" either way), but they
+      # never have a PR to approve/land -- reviewing one ends in Close, not
+      # Approve. See Workflows::Investigation.
+      reviewable_job = @job.implemented? && !@job.investigation? && !job_has_approval_blocking_runtime_work?
       has_tracked_pr = @job.pr_number.present? || @job.external_pr_number.present?
       coding_mode_takeover_blocked_reason = coding_mode_takeover_blocked_reason(writable: writable)
       {
@@ -1015,6 +1019,10 @@ module App
         can_stop_landing: writable && @job.landing?,
         can_approve: writable && reviewable_job && @job.can_add_job_approval?(@user),
         can_unapprove: writable && @job.may_unapprove?,
+        # The investigation-Job counterpart to can_approve: closes the Job
+        # successfully with closure_reason: "investigation_reported" once the
+        # operator has reviewed the submitted report. See Workflows::Investigation.
+        can_close_investigation: writable && @job.investigation? && @job.implemented?,
         can_reopen: writable && @job.closed? && !@job.infrastructure?,
         can_mark_valid: writable && (@job.validity_duplicate? || @job.validity_already_implemented?),
         can_start_chat: writable && source_chat_payload.nil? && discussion_chat.nil?,
@@ -1111,6 +1119,7 @@ module App
         app_stop_landing_path: "/api/v1/app/jobs/#{@job.id}/stop_landing",
         app_approve_path: "/api/v1/app/jobs/#{@job.id}/approve",
         app_unapprove_path: "/api/v1/app/jobs/#{@job.id}/unapprove",
+        app_close_investigation_path: "/api/v1/app/jobs/#{@job.id}/close_investigation",
         app_reopen_path: "/api/v1/app/jobs/#{@job.id}/reopen",
         app_poll_feedback_path: "/api/v1/app/jobs/#{@job.id}/poll_feedback",
         app_rebase_path: "/api/v1/app/jobs/#{@job.id}/rebase",

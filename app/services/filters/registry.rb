@@ -20,6 +20,7 @@ module Filters
   # latest_run_state              job
   # pr_present                    job
   # pr_mergeable                  job
+  # investigation                 job
   # repository_id                 generic
   # epic_id                       column-named-after-job
   # parent_job_id                 column-named-after-job
@@ -71,6 +72,9 @@ module Filters
       # PR-related
       "pr_present"                    => "Filters::Chips::Jobs::PrPresent",
       "pr_mergeable"                  => "Filters::Chips::Jobs::PrMergeable",
+
+      # Investigation
+      "investigation"                 => "Filters::Chips::Jobs::Investigation",
 
       # FKs
       "repository_id"                 => "Filters::Chips::RepositoryId",

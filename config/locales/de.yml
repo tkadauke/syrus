@@ -312,6 +312,8 @@ de:
       approval_recorded: "Genehmigung erfasst."
       unapprove_unavailable: "Nur genehmigte Aufgaben, die noch nicht mit dem Landing begonnen haben, können zurückgenommen werden."
       unapproved: "Aufgabengenehmigung zurückgenommen."
+      close_investigation_unavailable: "Nur umgesetzte Untersuchungsaufgaben können als überprüft geschlossen werden."
+      investigation_closed: "Untersuchung als überprüft geschlossen."
       not_closed: "Aufgabe ist nicht geschlossen."
       pause_closed: "Geschlossene Aufgaben können nicht pausiert werden."
       already_paused: "Aufgabe ist bereits manuell pausiert."

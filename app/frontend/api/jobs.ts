@@ -831,6 +831,7 @@ export type JobActions = {
   can_stop_landing: boolean
   can_approve: boolean
   can_unapprove: boolean
+  can_close_investigation: boolean
   can_reopen: boolean
   can_mark_valid: boolean
   can_start_chat: boolean
@@ -905,6 +906,7 @@ export type JobPaths = {
   app_stop_landing_path: string
   app_approve_path: string
   app_unapprove_path: string
+  app_close_investigation_path: string
   app_reopen_path: string
   app_poll_feedback_path: string
   app_rebase_path: string

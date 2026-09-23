@@ -47,6 +47,8 @@
   "approve": "Approve",
   "reapprove": "Reapprove",
   "unapprove": "Unapprove",
+  "close_investigation": "Close",
+  "confirm_close_investigation": "Close this investigation as reviewed?",
   "cancel": "Cancel",
   "remove_from_backlog": "Remove from backlog",
   "stop_landing": "Stop Landing",

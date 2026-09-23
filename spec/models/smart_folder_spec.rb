@@ -2,15 +2,15 @@ require "rails_helper"
 
 RSpec.describe SmartFolder do
   it "creates the built-in folders as system-owned rows" do
-    # 18 Job built-ins (15 + 3 the relevant change delivery presets) + 9 Epic + 4 Workflow
-    # + 4 Admin User + 3 Spawned Process + 11 Admin Queue + 3 Repository
-    # (All/Recent/Archived) = 52 core built-ins.
+    # 19 Job built-ins (15 + 3 the relevant change delivery presets + 1 Investigations)
+    # + 9 Epic + 4 Workflow + 4 Admin User + 3 Spawned Process + 11 Admin Queue
+    # + 3 Repository (All/Recent/Archived) = 53 core built-ins.
     # Plugins register their own on top (design_docs adds 6), so the total is
     # counted rather than pinned -- pinning it makes those plugins undeletable.
     core_builtins = described_class::BUILTINS_BY_SUBJECT.values.sum(&:size)
     plugin_builtins = described_class.registered_subjects.values.sum { |definition| definition.fetch(:builtins).size }
 
-    expect(core_builtins).to eq(52)
+    expect(core_builtins).to eq(53)
     expect { described_class.ensure_builtins! }.to change(described_class, :count).by(core_builtins + plugin_builtins)
 
     expect(described_class::JOB_BUILTINS).to eq(described_class::BUILTIN_DEFINITIONS)
@@ -33,6 +33,7 @@ RSpec.describe SmartFolder do
       "Landing queue",
       "Just failed",
       "Blocked",
+      "Investigations",
       "Waiting for upstream",
       "Promotion pending",
       "Delivery needs attention",
@@ -288,6 +289,7 @@ RSpec.describe SmartFolder do
     expect(by_name["Triaging"]).to eq(:when_present)
     expect(by_name["Invalid"]).to eq(:when_present)
     expect(by_name["Awaiting Epic"]).to eq(:when_present)
+    expect(by_name["Investigations"]).to eq(:when_present)
     expect(by_name["Stale"]).to eq(:on_demand)
     expect(by_name["Merged this week"]).to eq(:on_demand)
     expect(by_name).not_to have_key("In review")

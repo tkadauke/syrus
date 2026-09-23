@@ -44,6 +44,8 @@
   "approve": "Proba",
   "reapprove": "Iterum proba",
   "unapprove": "Probationem retrahe",
+  "close_investigation": "Claude",
+  "confirm_close_investigation": "Hanc investigationem tamquam recognitam claudere?",
   "cancel": "Cancella",
   "remove_from_backlog": "Ex backlog remove",
   "stop_landing": "Descensum Siste",

@@ -265,6 +265,23 @@ module Api
           render_job(job.reload, message: [ lifecycle_t("unapproved"), github_note ].compact.join(" "), changed: [ "state", "approval" ])
         end
 
+        # The investigation-Job counterpart to #approve: there is no PR to
+        # land, so reviewing a completed investigation ends here instead --
+        # an explicit operator action closes the Job successfully with
+        # closure_reason: "investigation_reported". See Workflows::Investigation.
+        def close_investigation
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          unless job.investigation? && job.implemented?
+            render_error("validation_failed", lifecycle_t("close_investigation_unavailable"), status: :unprocessable_content)
+            return
+          end
+
+          job.close_with_reason!(Job::INVESTIGATION_REPORTED_CLOSURE_REASON)
+          render_job(job.reload, message: lifecycle_t("investigation_closed"), changed: [ "state" ])
+        end
+
         def reopen
           job = find_job
           unless job.may_reopen?

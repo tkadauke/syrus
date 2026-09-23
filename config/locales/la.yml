@@ -312,6 +312,8 @@ la:
       approval_recorded: "Approbatio relata est."
       unapprove_unavailable: "Sola opera probata quae descensum nondum inceperunt improbari possunt."
       unapproved: "Opus improbatum est."
+      close_investigation_unavailable: "Sola opera investigationis effecta, tamquam recognita, claudi possunt."
+      investigation_closed: "Investigatio tamquam recognita clausa est."
       not_closed: "Opus clausum non est."
       pause_closed: "Opera clausa pausari non possunt."
       already_paused: "Opus iam manu pausatum est."

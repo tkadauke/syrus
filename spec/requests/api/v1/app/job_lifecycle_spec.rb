@@ -584,6 +584,39 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body.dig("actions", "can_unapprove")).to be(false)
   end
 
+  it "closes an implemented investigation job as reviewed" do
+    investigation_job = Factories.job_record(
+      repository: repo, issue_number: nil, kind: "direct", investigation: true, state: "implemented"
+    )
+
+    post app_job_path(investigation_job, "close_investigation"), as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(investigation_job.reload).to be_closed
+    expect(investigation_job.closure_reason).to eq("investigation_reported")
+    expect(parse_body).to include("message" => "Investigation closed as reviewed.")
+  end
+
+  it "rejects close_investigation for a non-investigation implemented job" do
+    job.update!(state: "implemented")
+
+    post app_job_path(job, "close_investigation"), as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(job.reload).to be_implemented
+  end
+
+  it "rejects close_investigation for an investigation job that hasn't reached implemented yet" do
+    investigation_job = Factories.job_record(
+      repository: repo, issue_number: nil, kind: "direct", investigation: true, state: "running"
+    )
+
+    post app_job_path(investigation_job, "close_investigation"), as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(investigation_job.reload).to be_running
+  end
+
   it "approves an implemented job while automatic visual diff work is active and cancels the obsolete visual diff" do
     job.update!(state: "implemented")
     job.initial_run.update_columns(state: "succeeded")
