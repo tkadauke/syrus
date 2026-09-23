@@ -445,7 +445,7 @@ repository read that goes through `RepositoryContent` (see `plugins.md`,
   read answered from the content cache without asking anyone, or `none` when
   no provider serves the repository.
 - `kind` — `resolve`, `tree`, `read`, `changes`, `refs`, `relation`,
-  `history`, or `tree_sha`.
+  `history`, `tree_sha`, or `divergence`.
 - `outcome` — `answered`, `not_found` (a final "not in this revision"),
   `unknown_revision`, `unsupported`, `unavailable`, or `error`.
 

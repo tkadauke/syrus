@@ -16,7 +16,10 @@ self-hosted plugin would provide the same extension point for its repositories.
 Anything in Syrus that reads a repository before or without a workspace
 clone: the pre-clone `.syrus.yml` read that decides which workflow steps to
 build, preview project discovery, skills, deploy stages, feature
-recommendations, and the Job source browser.
+recommendations, and the Job source browser. It also answers `divergence`
+(numeric ahead/behind commit counts, from GitHub's compare API) for
+`CommitsBehindCalculator`, the merge-state poller's `commits_behind_base`
+calculation, whenever no faster replica (`git_mirror`) can.
 
 ## How it answers
 

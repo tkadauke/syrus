@@ -497,6 +497,46 @@ func (s *Store) TreeSHA(ctx context.Context, id, revision string) (string, error
 	return strings.TrimSpace(string(res.Stdout)), nil
 }
 
+// Divergence is head relative to base as commit counts: Ahead is how many
+// commits head has that base does not, Behind is how many commits base has
+// that head does not.
+type Divergence struct {
+	Ahead  int `json:"ahead"`
+	Behind int `json:"behind"`
+}
+
+// Divergence counts how far base and head have diverged. Equivalent to
+// GitHub compare's ahead_by/behind_by.
+func (s *Store) Divergence(ctx context.Context, id, base, head string) (Divergence, error) {
+	r, err := s.revisionRepo(ctx, id, base)
+	if err != nil {
+		return Divergence{}, err
+	}
+	if _, err := s.revisionRepo(ctx, id, head); err != nil {
+		return Divergence{}, err
+	}
+	if base == head {
+		return Divergence{}, nil
+	}
+	res, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, "rev-list", "--left-right", "--count", base+"..."+head)
+	if err != nil {
+		return Divergence{}, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	fields := strings.Fields(string(res.Stdout))
+	if len(fields) != 2 {
+		return Divergence{}, fmt.Errorf("%w: unexpected rev-list output", ErrUnavailable)
+	}
+	behind, err := strconv.Atoi(fields[0])
+	if err != nil {
+		return Divergence{}, fmt.Errorf("%w: unexpected rev-list output: %v", ErrUnavailable, err)
+	}
+	ahead, err := strconv.Atoi(fields[1])
+	if err != nil {
+		return Divergence{}, fmt.Errorf("%w: unexpected rev-list output: %v", ErrUnavailable, err)
+	}
+	return Divergence{Ahead: ahead, Behind: behind}, nil
+}
+
 // Tree lists every file, symlink, and submodule at a commit.
 func (s *Store) Tree(ctx context.Context, id, revision string) ([]Entry, error) {
 	r, err := s.revisionRepo(ctx, id, revision)

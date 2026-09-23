@@ -100,6 +100,11 @@ module GitMirror
       registered { @client.tree_sha(mirror_id, revision_id) }
     end
 
+    def divergence(base_id, head_id)
+      result = registered { @client.divergence(mirror_id, base_id, head_id) }
+      RepositoryContent::Divergence.new(ahead: result.fetch("ahead"), behind: result.fetch("behind"))
+    end
+
     # Repository id as the mirror knows it. Public so adapters over this
     # provider (e.g. GitMirror::WorkspaceGitTransport, which builds a git URL
     # the JSON client never needs) can address the same repository without

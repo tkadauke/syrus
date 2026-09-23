@@ -78,6 +78,11 @@ module Syrus
     #                                    tree object -- what two revisions
     #                                    share when they produced identical
     #                                    content. Optional.
+    #   divergence(base_id, head_id)   -> RepositoryContent::Divergence, the
+    #                                    numeric ahead/behind commit counts
+    #                                    of head relative to base (GitHub
+    #                                    compare's ahead_by/behind_by).
+    #                                    Optional.
     #
     # Errors decide what the chain does next. Raise RepositoryContent::
     # Unavailable, Unsupported, or UnknownRevision to let the next provider
@@ -146,6 +151,10 @@ module Syrus
 
       def tree_sha(_revision_id)
         raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not read commit tree SHAs"
+      end
+
+      def divergence(_base_id, _head_id)
+        raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not compare revision divergence"
       end
     end
   end
