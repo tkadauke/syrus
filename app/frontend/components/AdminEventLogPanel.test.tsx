@@ -191,4 +191,33 @@ describe("AdminEventLogTable", () => {
     const detailCell = screen.getByText("Details for 7").closest("td")!
     expect(detailCell).toHaveAttribute("colspan", "2")
   })
+
+  it("pins required columns to their declared end instead of always start-pinning them", () => {
+    // Regression test: a required column defaults to start-pinning, which
+    // used to silently reorder every migrated table whose required column
+    // wasn't already declared first (e.g. an "actions" column with the only
+    // expand toggle jumping from last to second). "summary" here is neither
+    // the first nor the last declared column, so it demonstrates the default
+    // start-pin behavior explicitly; "actions" shows the `pin: "end"` escape
+    // hatch keeping a required column in its declared trailing position.
+    render(
+      <AdminEventLogTable
+        columns={[
+          { key: "time", header: "Time", className: "px-4 py-2", render: (row: { id: number }) => row.id },
+          { key: "summary", header: "Summary", required: true, className: "px-4 py-2", render: (row: { id: number }) => `Row ${row.id}` },
+          { key: "owner", header: "Owner", className: "px-4 py-2", render: () => "Alice" },
+          { key: "actions", header: "Actions", required: true, pin: "end", className: "px-4 py-2", render: () => <button type="button">Open</button> }
+        ]}
+        getRowKey={(row) => row.id}
+        rows={[{ id: 7 }]}
+        storageKey="syrus.test.admin_event_log.required_pin"
+      />
+    )
+
+    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([ "Summary", "Time", "Owner", "Actions" ])
+
+    // Required columns never appear in the picker -- only "time" and "owner" do.
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2)
+  })
 })

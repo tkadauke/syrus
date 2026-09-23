@@ -416,7 +416,6 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       headerClassName: "px-4 py-2",
       header: t("mcp_tool_usage.col_call"),
       key: "call",
-      required: true,
       render: (row) => (
         <>
           <div className="font-medium text-gray-900 dark:text-gray-100">{row.tool_name}</div>
