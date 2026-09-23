@@ -112,6 +112,53 @@ RSpec.describe ChatWorkspace, :ci_only do
     end
   end
 
+  describe "workspace_git_transport preference" do
+    let(:mirror_bare_dir) { Pathname.new(Dir.mktmpdir("syrus-chatws-mirror-bare")) }
+
+    after { FileUtils.rm_rf(mirror_bare_dir) }
+
+    def register_transport(url:, register_calls: nil)
+      Syrus::PluginRegistry.register(:workspace_git_transport, Class.new do
+        include Syrus::Plugin::WorkspaceGitTransport
+
+        define_singleton_method(:available_for?) { |_repository| true }
+        define_singleton_method(:build) do |repository:, user:|
+          instance = Object.new
+          instance.define_singleton_method(:url) { url }
+          instance.define_singleton_method(:env) { {} }
+          instance.define_singleton_method(:register!) { register_calls&.push(:called) }
+          instance
+        end
+      end)
+    end
+
+    it "shallow-clones a repository attachment from the registered transport instead of the hosting platform" do
+      sh("git clone -q --bare #{bare_remote_dir} #{mirror_bare_dir}")
+      Dir.mktmpdir("syrus-chatws-mirror-seed") do |work|
+        sh("git clone -q #{mirror_bare_dir} #{work}")
+        File.write(File.join(work, "from-mirror.txt"), "mirror content")
+        sh("git -C #{work} add from-mirror.txt")
+        sh("git -C #{work} commit -q -m 'mirror-only commit' --author='Seed <s@e>'")
+        sh("git -C #{work} push -q origin HEAD:main")
+      end
+      register_transport(url: "file://#{mirror_bare_dir}")
+
+      path = described_class.attach_repository!(chat_session, repository)
+
+      expect(path.join("from-mirror.txt")).to exist
+    end
+
+    it "falls back to the hosting platform, after one registration retry, when the transport fails outright" do
+      register_calls = []
+      register_transport(url: "file://#{mirror_bare_dir}/does-not-exist", register_calls: register_calls)
+
+      path = described_class.attach_repository!(chat_session, repository)
+
+      expect(path.join("README.md")).to exist
+      expect(register_calls).to eq([ :called ])
+    end
+  end
+
   describe ".ensure_coding_checkout!" do
     it "full-clones the repository on the default branch on first call" do
       described_class.ensure_coding_checkout!(chat_session, repository)

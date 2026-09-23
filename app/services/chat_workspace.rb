@@ -6,6 +6,8 @@ require "open3"
 # Unlike WorkflowWorkspace, this workspace is long-lived and is not reset
 # between turns. Repositories are cloned lazily under the session root.
 class ChatWorkspace
+  include WorkspaceGitTransportPreference
+
   class ResetRefused < StandardError
     attr_reader :status
 
@@ -782,12 +784,24 @@ class ChatWorkspace
 
   def clone!(repository, path)
     FileUtils.mkdir_p(path.dirname.to_s)
-    @git.run(
-      "clone", "--depth", CLONE_DEPTH.to_s,
-      "--branch", repository.default_branch,
-      "--no-tags", authenticated_url(repository), path.to_s,
-      env: @env
-    )
+    cloned_via_mirror = try_mirror_transport(repository: repository, user: repository.user) do |url, env|
+      FileUtils.rm_rf(path.to_s) if path.exist?
+      @git.run(
+        "clone", "--depth", CLONE_DEPTH.to_s,
+        "--branch", repository.default_branch,
+        "--no-tags", url, path.to_s,
+        env: @env.merge(env)
+      )
+    end
+    unless cloned_via_mirror
+      FileUtils.rm_rf(path.to_s) if path.exist?
+      @git.run(
+        "clone", "--depth", CLONE_DEPTH.to_s,
+        "--branch", repository.default_branch,
+        "--no-tags", authenticated_url(repository), path.to_s,
+        env: @env
+      )
+    end
     @git.run("remote", "set-url", "origin", repository.remote_url, chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
   end
@@ -798,12 +812,23 @@ class ChatWorkspace
 
   def full_clone_at_branch!(repository, path, branch)
     FileUtils.mkdir_p(path.dirname.to_s)
-    @git.run(
-      "clone",
-      "--branch", branch,
-      "--no-tags", authenticated_url(repository), path.to_s,
-      env: @env
-    )
+    # A failed clone attempt can leave a non-empty destination behind (git
+    # starts writing before any transfer failure would be noticed); clear it
+    # before every attempt so a mirror failure never blocks the GitHub
+    # fallback on "destination path already exists and is not empty".
+    cloned_via_mirror = try_mirror_transport(repository: repository, user: repository.user) do |url, env|
+      FileUtils.rm_rf(path.to_s) if path.exist?
+      @git.run("clone", "--branch", branch, "--no-tags", url, path.to_s, env: @env.merge(env))
+    end
+    unless cloned_via_mirror
+      FileUtils.rm_rf(path.to_s) if path.exist?
+      @git.run(
+        "clone",
+        "--branch", branch,
+        "--no-tags", authenticated_url(repository), path.to_s,
+        env: @env
+      )
+    end
     @git.run("remote", "set-url", "origin", repository.remote_url, chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
   end

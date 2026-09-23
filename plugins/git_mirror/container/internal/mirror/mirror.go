@@ -607,6 +607,21 @@ func applyPatches(changes []Change, out string) {
 	}
 }
 
+// RepoDir returns a tracked repository's bare directory on disk, for serving
+// git's smart-HTTP transport directly out of it. ErrUnknownRepository if id
+// has never been registered (or was removed). Unlike the content reads
+// above, this does not fetch or check freshness -- the git protocol
+// negotiates that itself: a client asking for a commit the mirror does not
+// have gets a normal git protocol error, which Syrus's fallback treats the
+// same as any other mirror miss.
+func (s *Store) RepoDir(id string) (string, error) {
+	r, err := s.get(id)
+	if err != nil {
+		return "", err
+	}
+	return r.dir, nil
+}
+
 func (s *Store) get(id string) (*repo, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -729,7 +744,46 @@ func (s *Store) runFetch(r *repo, url string, cred *gitexec.Credential, expiresA
 	_, err := s.git(context.Background(), r.dir, cred, s.cfg.FetchTimeout,
 		"fetch", "--prune", "--no-tags", "--quiet", url,
 		"+refs/heads/*:refs/heads/*", "+refs/tags/*:refs/tags/*")
-	return err
+	if err != nil {
+		return err
+	}
+	s.syncHead(r, url, cred)
+	return nil
+}
+
+// syncHead keeps the mirror's own HEAD symref pointed at whatever branch the
+// upstream's HEAD names. `git fetch` (unlike `git clone --mirror`) never
+// touches HEAD, so without this the bare repo would keep whatever `git init
+// --bare` set it to (refs/heads/master) regardless of the upstream's actual
+// default branch. That only matters now that the mirror serves git's own
+// smart-HTTP transport: a plain `git clone <mirror-url>` with no explicit
+// --branch checks out via the advertised HEAD symref, not by asking Syrus.
+// Best-effort: a failure here never fails the fetch that produced the
+// objects the symref would point at.
+func (s *Store) syncHead(r *repo, url string, cred *gitexec.Credential) {
+	res, err := s.git(context.Background(), "", cred, s.cfg.ReadTimeout, "ls-remote", "--symref", url, "HEAD")
+	if err != nil {
+		return
+	}
+	target := parseSymrefTarget(string(res.Stdout))
+	if target == "" {
+		return
+	}
+	if _, err := s.git(context.Background(), r.dir, nil, s.cfg.ReadTimeout, "symbolic-ref", "HEAD", target); err != nil {
+		log.Printf("git-mirror: sync HEAD for %s: %v", r.id, err)
+	}
+}
+
+// parseSymrefTarget reads the first line of `git ls-remote --symref <url>
+// HEAD`, formatted "ref: refs/heads/main\tHEAD", and returns the target ref.
+func parseSymrefTarget(out string) string {
+	line, _, _ := strings.Cut(out, "\n")
+	rest, ok := strings.CutPrefix(line, "ref: ")
+	if !ok {
+		return ""
+	}
+	target, _, _ := strings.Cut(rest, "\t")
+	return target
 }
 
 // maintain runs `git gc --auto` when the repository has not had it for
