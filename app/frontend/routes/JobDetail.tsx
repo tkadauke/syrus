@@ -47,7 +47,7 @@ import { diffReviewFeedbackAllowed } from "./jobDetail/DiffReviewFeedback"
 import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
 import { scheduleJobDetailInvalidation } from "../lib/appEvents"
-import { Notice, Section } from "../components/ui"
+import { Notice, Page, Section } from "../components/ui"
 import { jobNavigationHref, navigationIndex, readJobNavigationContext, storeJobNavigationContext, withUpdatedNavigationItemState, type JobNavigationContext } from "../lib/jobNavigationContext"
 import { MetadataLine, OwnerBadge } from "./dashboard/components"
 import { UnderlineTabs } from "../components/Tabs"
@@ -93,7 +93,7 @@ export function JobDetailRoute() {
   }
 
   return (
-    <main aria-label={t("aria_job")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <Page.Root aria-label={t("aria_job")} gutter="responsive" size="wide">
       {detail.isPending ? <PanelMessage>{t("loading")}</PanelMessage> : null}
       {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, t("load_error"))}</PanelMessage> : null}
       {payload ? (
@@ -109,7 +109,7 @@ export function JobDetailRoute() {
           workflowsQueryKey={workflowsQueryKey}
         />
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -241,7 +241,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
   return (
     <>
       <SyrusTour onEvent={(data) => handleJoyrideCallback(data)} run={tourRun} steps={tourSteps} />
-      <header className="space-y-3">
+      <Page.Header className="block space-y-3">
         <div className="min-w-0">
           <PageHeading className="break-words">
             <CopyableSlug slug={jobSlug(payload.job.id)} />
@@ -310,7 +310,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
             ) : null}
           </div>
         </div>
-      </header>
+      </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
@@ -348,7 +348,9 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
         />
       ) : null}
 
-      <TabNav active={activeTab} artifactsCount={(payload.typed_artifacts ?? []).length} attachmentsCount={(payload.attachments ?? []).length} investigation={payload.job.investigation} workflowsCount={payload.job.workflows_count} pluginTabs={payload.ui_tabs} onSelect={onSelectTab} />
+      <Page.Nav>
+        <TabNav active={activeTab} artifactsCount={(payload.typed_artifacts ?? []).length} attachmentsCount={(payload.attachments ?? []).length} investigation={payload.job.investigation} workflowsCount={payload.job.workflows_count} pluginTabs={payload.ui_tabs} onSelect={onSelectTab} />
+      </Page.Nav>
 
       {activeTab === "summary" ? (payload.job.investigation ? <ReportTab payload={payload} /> : <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} withPreviewStop={withPreviewStop} />) : null}
       {activeTab === "review" && !payload.job.investigation ? <ReviewWorkspace payload={payload} /> : null}

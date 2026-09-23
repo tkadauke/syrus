@@ -2,9 +2,9 @@ import { jsonResponse } from "../testSupport"
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 import type { EpicDetailJob, EpicDetailPayload } from "../api/epics"
-import { EpicDetail, JobsSection, ProgressBar, StateChips } from "./EpicDetail"
+import { EpicDetail, EpicDetailRoute, JobsSection, ProgressBar, StateChips } from "./EpicDetail"
 
 function job(state: string, overrides: Partial<EpicDetailJob> = {}): EpicDetailJob {
   return { id: Math.random(), slug: "JOB-1", label: "JOB-1", title: "A job", path: "/jobs/1", state, landed: false, pr_number: null, pr_url: null, owner_user_id: null, owner_user: null, repository_slug: "owner/repo", ...overrides }
@@ -77,6 +77,34 @@ function renderDetail(payload: EpicDetailPayload) {
 }
 
 describe("EpicDetail", () => {
+  it("uses responsive page gutters while keeping the header inset", async () => {
+    const payload = detailPayload({ title: "Mobile gutter audit" })
+    payload.jobs = [job("ready")]
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/epics/3"]}>
+          <Routes>
+            <Route element={<EpicDetailRoute />} path="/epics/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Mobile gutter audit")
+    const main = screen.getByRole("main")
+    expect(main).toHaveClass("px-0", "sm:px-[var(--space-page-x)]")
+    expect(main).not.toHaveClass("px-[var(--space-page-x)]")
+
+    const header = main.querySelector("header")
+    expect(header).toHaveClass("px-4", "sm:px-0", "block", "space-y-3")
+
+    const jobsSection = screen.getByRole("heading", { name: "Jobs" }).closest("section")
+    expect(jobsSection).not.toHaveClass("px-4", "sm:px-0")
+  })
+
   it("shows the Epic's own state when no child Job is landing", () => {
     renderDetail(detailPayload({ state: "in_progress", landing: false }))
 
