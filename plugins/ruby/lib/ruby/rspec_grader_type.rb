@@ -301,7 +301,7 @@ module Ruby
       extra_serial_command = extra_serial ? serial_extra_command(extra_serial) : nil
       status_checks = if extra_serial
         <<~BASH.squish
-          if [ "$parallel_status" -ne 0 ]; then exit "$parallel_status"; fi
+          if [ "$parallel_status" -ne 0 ]; then exit "$parallel_status"; fi;
           exit "$serial_status"
         BASH
       else

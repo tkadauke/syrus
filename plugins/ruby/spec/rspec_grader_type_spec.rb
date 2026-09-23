@@ -207,6 +207,9 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.run).to include("RUN_CI_ONLY_SPECS=true bundle exec rspec")
     expect(step.run).to include("--tag ci_only")
     expect(step.run).to include("serial_status")
+
+    _stdout, stderr, status = Open3.capture3("bash", "-n", "-c", step.run)
+    expect(status).to be_success, "expected generated command to be valid bash, got: #{stderr}"
   end
 
   it "supports direct parallel_rspec command generation without a worker wrapper" do
