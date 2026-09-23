@@ -141,7 +141,9 @@ test("Admin MySQL plugin renders live diagnostics and guarded query termination"
   const enableButton = pluginCard.getByRole("button", { name: "Enable" })
   if (await enableButton.isVisible()) {
     await enableButton.click()
-    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible()
+    // Enabling reloads the whole page; a dev-mode reload of this app does
+    // not finish inside the default five-second expect timeout.
+    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible({ timeout: 30_000 })
   }
 
   // The preview database is SQLite, so AdminMysql::AdminPages intentionally

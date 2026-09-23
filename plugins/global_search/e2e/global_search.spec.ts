@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+import { execFileSync } from "node:child_process"
 import { signInAsDemo } from "../../../e2e/support/auth"
 
 test("signed-in user finds the seeded demo Epic from the sidebar search box", async ({ page }) => {
@@ -12,7 +13,7 @@ test("signed-in user finds the seeded demo Epic from the sidebar search box", as
   // the Epic up directly instead, so it works without a worker and is what
   // this spec exercises against the demo Epic seeded in db/seeds.rb.
   const searchBox = page.getByLabel("Search Syrus")
-  await searchBox.fill("EPIC-1")
+  await searchBox.fill(demoEpicSlug())
   await searchBox.press("Enter")
 
   await page.waitForURL((url) => url.pathname === "/search")
@@ -22,3 +23,14 @@ test("signed-in user finds the seeded demo Epic from the sidebar search box", as
   await expect(epicResult).toBeVisible()
   await expect(epicResult.getByText("demo/syrus-preview")).toBeVisible()
 })
+
+// The demo Epic's slug is its id, which depends on what else the database
+// has seen -- it is EPIC-1 only on a database where it happened to be the
+// first Epic. Ask for it rather than assuming.
+function demoEpicSlug(): string {
+  const output = execFileSync("bin/rails", ["runner", `
+    puts Epic.find_by!(title: "Preview the operator workflow").slug
+  `], { encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "inherit"] })
+
+  return output.trim().split(/\r?\n/).at(-1) || "EPIC-1"
+}

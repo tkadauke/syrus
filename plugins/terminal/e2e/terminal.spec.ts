@@ -22,7 +22,8 @@ test("signed-in admin enables the Terminal plugin and opens a session panel from
   // resolve on a fresh boot -- so re-find the card after the reload lands.
   await expect(page.getByRole("heading", { name: "Plugins", level: 1 })).toBeVisible()
   const enabledTerminalCard = page.locator("article").filter({ has: page.getByRole("heading", { name: "Terminal", exact: true }) })
-  await expect(enabledTerminalCard.getByText("Enabled", { exact: true }).first()).toBeVisible()
+  // A dev-mode reload of this app outlasts the default five-second timeout.
+  await expect(enabledTerminalCard.getByText("Enabled", { exact: true }).first()).toBeVisible({ timeout: 30_000 })
 
   await expect(primaryNav.getByRole("link", { name: "Terminal" })).toBeVisible()
 

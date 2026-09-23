@@ -151,12 +151,19 @@ test("Throughput plugin renders repository delivery metrics on its own tab", asy
   await mockThroughputMetrics(page)
 
   await page.goto("/admin/plugins")
-  const pluginCard = page.getByRole("region", { name: "Registered plugins" }).locator("article", { hasText: "Throughput" })
+  // By heading, not by any text in the card: a plugin's card lists the
+  // plugins that depend on it ("Required by: tailscale, git_mirror"), so a
+  // loose text match now resolves to two cards.
+  const pluginCard = page.getByRole("region", { name: "Registered plugins" })
+    .locator("article")
+    .filter({ has: page.getByRole("heading", { name: "Throughput", exact: true }) })
   await expect(pluginCard).toBeVisible()
   const enableButton = pluginCard.getByRole("button", { name: "Enable" })
   if (await enableButton.isVisible()) {
     await enableButton.click()
-    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible()
+    // Enabling reloads the whole page; a dev-mode reload of this app does
+    // not finish inside the default five-second expect timeout.
+    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible({ timeout: 30_000 })
   }
 
   await page.goto("/repositories")

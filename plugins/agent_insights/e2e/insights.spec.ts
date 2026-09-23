@@ -18,7 +18,9 @@ test("signed-in admin can enable Agent Insights and view a generated insight rep
   // of racing a SPA navigation event.
   if (await enableButton.isVisible()) {
     await enableButton.click()
-    await expect(disableButton).toBeVisible()
+    // Enabling reloads the whole page; a dev-mode reload of this app does
+    // not finish inside the default five-second expect timeout.
+    await expect(disableButton).toBeVisible({ timeout: 30_000 })
   } else {
     await expect(disableButton).toBeVisible()
   }
