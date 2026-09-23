@@ -114,6 +114,22 @@ error if *no* live worker process anywhere reports consuming `polling` at
 all — the backstop for a queue-config split that omits `polling` from every
 tier, which would otherwise degrade exactly as silently as the bug above.
 
+`PollMergeStateJob` fans out once per tracked Job, so several Jobs sharing a
+repository land in the same `PollAllMergeStatesJob` tick. Rather than each one
+calling `RepositoryBareClone#sync!` independently, `RepositoryCommitDistance`
+sits in front of it: the `(repository, base_sha, head_sha)` divergence is
+cached directly (that tuple is immutable once computed), and the underlying
+`sync!` fetch is coalesced per repository behind a bounded freshness window
+(`RepositoryCommitDistance::REFRESH_FRESHNESS_WINDOW`, kept just under
+`PollAllMergeStatesJob`'s 5-minute cadence) guarded by an exclusive file lock
+next to that repository's bare-clone path. The lock lives under
+`$SYRUS_DATA_ROOT`, so it coalesces correctly whether concurrent pollers land
+on the same process, the same pod, or (if `polling` is ever split) different
+pods sharing that mounted volume — a caller that arrives mid-refresh blocks on
+the lock instead of starting a second full-ref fetch. `syrus_repository_commit_distance_lookups_total`
+(tagged `outcome`: `cache_hit`, `cache_miss`, `refreshed`, `coalesced_wait`)
+instruments which path each lookup took.
+
 `SOLID_QUEUE_CONFIG` is a path relative to the Rails root; if it points at a
 missing file SolidQueue silently falls back to its *own* built-in default (not
 `config/queue.yml`), so set it exactly. **Single-host and docker-compose
