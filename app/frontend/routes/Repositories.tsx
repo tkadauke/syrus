@@ -28,7 +28,8 @@ import {
   visibleColumns as visibleDataTableColumns,
   type DataTableColumnDef
 } from "../components/dataTable"
-import { buttonClasses, DataTable, PanelMessage, Text, TonePill, type PillTone } from "../components/ui"
+import { buttonClasses, DataTable, Page, PanelMessage, Text, TonePill, usePageGutterRestoreClassName, type PillTone } from "../components/ui"
+import { classes } from "../components/ui/classes"
 
 const VISIBLE_COLUMNS_STORAGE_KEY = "syrus.repositories.visible_columns"
 
@@ -203,7 +204,7 @@ export function RepositoriesIndex() {
   const prefix = routePrefix(location.pathname)
 
   return (
-    <main aria-label={t("aria_repositories")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <Page.Root aria-label={t("aria_repositories")} gutter="responsive" size="wide">
       {repositories.isPending ? (
         <PanelMessage>
           {t('repositories.loading')}
@@ -218,7 +219,7 @@ export function RepositoriesIndex() {
           search={location.search}
         />
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -235,6 +236,7 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT)
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
 
   const unarchive = useMutation({
     mutationFn: (id: number) => unarchiveRepository(id),
@@ -274,12 +276,12 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
 
   return (
     <>
-      <header className="flex items-center justify-between gap-3">
+      <Page.Header className="items-center gap-3">
         <PageHeading>
           {t('repositories.heading')}
         </PageHeading>
         <Link className={buttonClasses("primary")} to={withRoutePrefix(payload.new_repository_path, prefix)}>{t('repositories.add')}</Link>
-      </header>
+      </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {unarchive.isError ? <PanelMessage tone="error">{errorMessage(unarchive.error, t("repositories.command_failed"))}</PanelMessage> : null}
@@ -296,7 +298,7 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
       ) : (
         <div className="min-w-0 space-y-4">
           {!isDesktop ? (
-            <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+            <details className={classes("group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900", marginGutterRestore)}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium">
                 <span>{tNav("filters_layout.folders_and_filters")}</span>
                 <Text as="span" className="group-open:hidden" muted variant="caption">{tNav("filters_layout.show")}</Text>
@@ -320,7 +322,7 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
               </div>
             </details>
           ) : null}
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className={classes("flex flex-wrap items-start justify-between gap-3", marginGutterRestore)}>
             <RepositoryFilterBar payload={payload} pathname={pathname} search={search} />
             <DataTableColumnMenu
               columns={columns}
