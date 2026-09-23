@@ -1,9 +1,10 @@
 # How many commits a PR branch is behind its base. Prefers a
 # repository_content_provider's numeric divergence -- git_mirror's already-
 # synchronized local bare mirror, or GitHub's compare API -- over
-# RepositoryBareClone, which needs its own network fetch on every call.
-# Falls back to RepositoryBareClone only when no provider can answer (no
-# provider serves the repository, or every one that does is unavailable).
+# RepositoryBareClone, which needs its own network fetch. Falls back to
+# RepositoryCommitDistance (coalesced, cached bare-clone lookups) only when
+# no provider can answer (no provider serves the repository, or every one
+# that does is unavailable).
 class CommitsBehindCalculator
   def self.call(repository:, user:, head_sha:, base_sha:)
     new(repository: repository, user: user).call(head_sha: head_sha, base_sha: base_sha)
@@ -32,8 +33,6 @@ class CommitsBehindCalculator
   end
 
   def from_bare_clone(head_sha:, base_sha:)
-    bare_clone = RepositoryBareClone.new(@repository)
-    bare_clone.sync!(user: @user)
-    bare_clone.commits_behind(head_sha: head_sha, base_sha: base_sha)
+    RepositoryCommitDistance.new(@repository).commits_behind(base_sha: base_sha, head_sha: head_sha, user: @user)
   end
 end
