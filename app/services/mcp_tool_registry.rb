@@ -158,6 +158,7 @@ class McpToolRegistry
     def chat_entries
       [
         chat(Mcp::Tools::AttachRepositoryTool, mutation: true),
+        chat(Mcp::Tools::DetachRepositoryTool, mutation: true),
         chat(Mcp::Tools::ProposeEpicTool, mutation: true),
         chat(Mcp::Tools::ProposeJobTool, mutation: true),
         chat(Mcp::Tools::ProposeEpicWithJobsTool, mutation: true),

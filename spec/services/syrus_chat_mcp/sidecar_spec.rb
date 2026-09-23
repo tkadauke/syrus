@@ -80,6 +80,7 @@ RSpec.describe Mcp::Sidecar do
       tool_names = response[:result][:tools].map { |tool| tool[:name] } - plugin_names
       expect(tool_names).to eq(%w[
         attach_repository
+        detach_repository
         propose_epic
         propose_job
         propose_epic_with_jobs
@@ -104,7 +105,7 @@ RSpec.describe Mcp::Sidecar do
         mark_goal_completed
         mark_goal_blocked
       ])
-      expect(tool_names.size).to eq(24)
+      expect(tool_names.size).to eq(25)
       expect(tool_names).not_to include("complete_implement_step")
     end
 

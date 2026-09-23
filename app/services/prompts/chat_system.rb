@@ -368,7 +368,9 @@ module Prompts
           Use `attach_repository(slug)` whenever you need to look at code for a
           repository you haven't already attached. The tool returns the repository
           checkout path. Repository checkout paths live under
-          `/syrus-home/.syrus/chat-workspaces/*/repositories/`.
+          `/syrus-home/.syrus/chat-workspaces/*/repositories/`. Use
+          `detach_repository(slug)` to remove a repository you attached by mistake
+          or no longer need in this chat.
         TEXT
       end
     end
