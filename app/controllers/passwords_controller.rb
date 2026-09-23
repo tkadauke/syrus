@@ -4,7 +4,8 @@
 class PasswordsController < ApplicationController
   allow_unauthenticated_access
   before_action :set_user_by_token, only: %i[ update ]
-  rate_limit to: 10, within: 3.minutes, only: :create, with: -> { redirect_to new_password_path, alert: I18n.t("passwords.rate_limited") }
+  rate_limit to: 10, within: 3.minutes, only: :create, if: -> { AuthRateLimit.enabled? },
+             with: -> { redirect_to new_password_path, alert: I18n.t("passwords.rate_limited") }
 
   def create
     if user = User.find_by(email_address: params[:email_address])

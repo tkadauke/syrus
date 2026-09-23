@@ -8,6 +8,7 @@ module Api
         # forms actually hit, so they need the same brute-force brake.
         rate_limit to: 10, within: 3.minutes,
                    only: %i[create_session create_password update_password],
+                   if: -> { AuthRateLimit.enabled? },
                    with: -> { render_error("rate_limited", "Try again later.", status: :too_many_requests) }
 
         def status

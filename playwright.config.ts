@@ -51,6 +51,11 @@ export default defineConfig({
     command: `PORT=${port} bin/syrus-preview-dev`,
     url: `http://127.0.0.1:${port}/up`,
     reuseExistingServer: !process.env.CI,
+    // Every spec signs in, from one address, and there are far more than the
+    // ten attempts per three minutes the credential endpoints allow. Without
+    // this the suite throttles itself: the first handful pass and the rest
+    // fail waiting for the sign-in page to navigate (see AuthRateLimit).
+    env: { SYRUS_DISABLE_AUTH_RATE_LIMIT: "1" },
     // bin/syrus-preview-dev builds the SPA and Tailwind before it starts Rails,
     // and a cold local boot of this app -- every plugin, development mode --
     // does not finish inside the two minutes that were enough for a warm image.

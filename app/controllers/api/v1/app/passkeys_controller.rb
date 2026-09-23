@@ -6,6 +6,7 @@ module Api
 
         rate_limit to: 10, within: 3.minutes,
                    only: %i[registration_options authentication_options],
+                   if: -> { AuthRateLimit.enabled? },
                    with: -> { render_error("rate_limited", "Try again later.", status: :too_many_requests) }
 
         def index

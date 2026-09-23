@@ -50,6 +50,24 @@ RSpec.describe "API: /api/v1/app/auth rate limiting", type: :request do
     expect(parse_body.dig("error", "code")).to eq("rate_limited")
   end
 
+  # Every E2E spec signs in from one address, far more than ten times, so the
+  # limit throttled the suite itself: the first handful passed and the rest
+  # failed waiting for the sign-in page to navigate.
+  it "lifts the limit while SYRUS_DISABLE_AUTH_RATE_LIMIT is set" do
+    Factories.user(email_address: "operator@example.com", password: "supersecret")
+    ENV[AuthRateLimit::DISABLE_ENV_VAR] = "1"
+
+    11.times do
+      post "/api/v1/app/auth/session", params: {
+        email_address: "operator@example.com",
+        password: "wrong"
+      }, as: :json
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+  ensure
+    ENV.delete(AuthRateLimit::DISABLE_ENV_VAR)
+  end
+
   it "does not rate limit unrelated auth endpoints like signup state" do
     11.times { get "/api/v1/app/auth/signup" }
 
