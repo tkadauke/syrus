@@ -505,8 +505,6 @@
     "col_issue": "Issue",
     "col_runs": "Läufe",
     "col_last": "Zuletzt",
-    "col_actions": "Aktionen",
-    "view": "Ansehen",
     "pr_number": "PR #{{number}}",
     "runs_count_one": "{{count}} Lauf",
     "runs_count_other": "{{count}} Läufe",
