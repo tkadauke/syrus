@@ -127,7 +127,7 @@ module Api
             issue_count: matching_issues.size,
             issues: matching_issues.first(ISSUES_PER_PAGE).map { |issue| issue_json(repository, issue) },
             folder_counts: folder_issues.transform_values(&:size),
-            folder_paths: FOLDERS.index_with { |value| repository_path(repository, tab: "github_issues", folder: value) },
+            folder_paths: FOLDERS.index_with { |value| "/repositories/#{repository.id}/plugin/issues?folder=#{value}" },
             paths: {
               github_issues_path: "https://github.com/#{repository.slug}/issues",
               app_comment_issue_path: "/api/v1/app/repositories/#{repository.id}/issues/comment",

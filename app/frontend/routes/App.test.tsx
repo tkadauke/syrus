@@ -15475,7 +15475,7 @@ function repositoriesPayload(overrides: {
           trigger_label: "syrus",
           credential_mode: "pat",
           repository_path: "/repositories/3",
-          issues_path: "/repositories/3?tab=github_issues"
+          issues_path: "/repositories/3/plugin/issues"
         }
       }
     }),
