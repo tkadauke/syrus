@@ -233,10 +233,11 @@ describe("MysqlConnections", () => {
       "flex",
       "h-full",
       "flex-col",
-      "gap-6",
       "overflow-hidden",
-      "p-3",
-      "sm:p-6"
+      "px-0",
+      "py-4",
+      "sm:px-[var(--space-page-x)]",
+      "sm:py-[var(--space-page-y)]"
     )
     expect(await screen.findByText("Staging")).toBeInTheDocument()
     const table = screen.getByRole("table")
@@ -487,7 +488,14 @@ describe("MysqlConnections", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
 
       expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
-      expect(screen.getByRole("main", { name: "MySQL DB Browser" })).toHaveClass("h-full", "overflow-hidden", "p-3", "sm:p-6")
+      expect(screen.getByRole("main", { name: "MySQL DB Browser" })).toHaveClass(
+        "h-full",
+        "overflow-hidden",
+        "px-0",
+        "py-4",
+        "sm:px-[var(--space-page-x)]",
+        "sm:py-[var(--space-page-y)]"
+      )
 
       const browserSection = screen.getByText("Browsing Staging").closest("section")
       expect(browserSection).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "gap-4")
