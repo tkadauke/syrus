@@ -2,6 +2,13 @@
   "tab_issues": "GitHub Issues",
   "nav_github_api_usage": "GitHub API Usage",
   "nav_api_usage": "GitHub API Usage",
+  "dashboard": {
+    "untagged_issues_summary_one": "{{count}} unlabeled open issue",
+    "untagged_issues_summary_other": "{{count}} unlabeled open issues",
+    "untagged_issues_repo_count_one": "across {{count}} repository",
+    "untagged_issues_repo_count_other": "across {{count}} repositories",
+    "untagged_issues_dismiss": "Dismiss"
+  },
   "repository": {
     "loading_issues": "Loading GitHub issues...",
     "trigger_label_prefix": "Trigger label:",

@@ -2,39 +2,40 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it } from "vitest"
-import type { DashboardUntaggedIssues } from "../../api/dashboard"
-import { UntaggedIssuesBanner } from "./components"
+import UntaggedIssuesBanner from "./UntaggedIssuesBanner"
 
-const UNTAGGED_ISSUES_DISMISSAL_KEY = "syrus.untagged_issues_banner_dismissed"
+const UNTAGGED_ISSUES_DISMISSAL_KEY = "syrus.github_source.untagged_issues_banner_dismissed"
 
-function makeUntaggedIssues(overrides: Partial<DashboardUntaggedIssues> = {}): DashboardUntaggedIssues {
+type UntaggedIssues = Parameters<typeof UntaggedIssuesBanner>[0]["untagged_issues"]
+
+function makeUntaggedIssues(overrides: Partial<NonNullable<UntaggedIssues>> = {}): NonNullable<UntaggedIssues> {
   return {
     total: 12,
     repositories: [
-      { id: 1, slug: "tkadauke/widgets", count: 9, issues_path: "/repositories/1?tab=github_issues" },
-      { id: 2, slug: "tkadauke/gadgets", count: 3, issues_path: "/repositories/2?tab=github_issues" }
+      { id: 1, slug: "tkadauke/widgets", count: 9, issues_path: "/repositories/1/plugin/issues" },
+      { id: 2, slug: "tkadauke/gadgets", count: 3, issues_path: "/repositories/2/plugin/issues" }
     ],
     ...overrides
   }
 }
 
-function renderBanner(untaggedIssues: DashboardUntaggedIssues | undefined) {
+function renderBanner(untaggedIssues: UntaggedIssues) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <UntaggedIssuesBanner prefix="" untaggedIssues={untaggedIssues} />
+        <UntaggedIssuesBanner prefix="" untagged_issues={untaggedIssues} />
       </MemoryRouter>
     </QueryClientProvider>
   )
 }
 
-describe("UntaggedIssuesBanner", () => {
+describe("GithubSource UntaggedIssuesBanner", () => {
   beforeEach(() => {
     window.sessionStorage.removeItem(UNTAGGED_ISSUES_DISMISSAL_KEY)
   })
 
-  it("shows the aggregate count and per-repository links when untagged issues are present", () => {
+  it("shows the aggregate count and per-repository plugin issue links when untagged issues are present", () => {
     renderBanner(makeUntaggedIssues())
 
     expect(screen.getByRole("status")).toBeInTheDocument()
@@ -42,9 +43,9 @@ describe("UntaggedIssuesBanner", () => {
     expect(screen.getByText("across 2 repositories", { exact: false })).toBeInTheDocument()
 
     const widgetsLink = screen.getByRole("link", { name: "tkadauke/widgets (9)" })
-    expect(widgetsLink).toHaveAttribute("href", "/repositories/1?tab=github_issues")
+    expect(widgetsLink).toHaveAttribute("href", "/repositories/1/plugin/issues")
     const gadgetsLink = screen.getByRole("link", { name: "tkadauke/gadgets (3)" })
-    expect(gadgetsLink).toHaveAttribute("href", "/repositories/2?tab=github_issues")
+    expect(gadgetsLink).toHaveAttribute("href", "/repositories/2/plugin/issues")
   })
 
   it("renders nothing when there are no untagged issues", () => {
@@ -52,7 +53,7 @@ describe("UntaggedIssuesBanner", () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it("renders nothing when untaggedIssues is undefined", () => {
+  it("renders nothing when untagged_issues is undefined", () => {
     const { container } = renderBanner(undefined)
     expect(container.firstChild).toBeNull()
   })
@@ -85,8 +86,8 @@ describe("UntaggedIssuesBanner", () => {
     window.sessionStorage.setItem(UNTAGGED_ISSUES_DISMISSAL_KEY, "12:1:9,2:3")
 
     renderBanner(makeUntaggedIssues({ total: 15, repositories: [
-      { id: 1, slug: "tkadauke/widgets", count: 12, issues_path: "/repositories/1?tab=github_issues" },
-      { id: 2, slug: "tkadauke/gadgets", count: 3, issues_path: "/repositories/2?tab=github_issues" }
+      { id: 1, slug: "tkadauke/widgets", count: 12, issues_path: "/repositories/1/plugin/issues" },
+      { id: 2, slug: "tkadauke/gadgets", count: 3, issues_path: "/repositories/2/plugin/issues" }
     ] }))
 
     expect(screen.getByRole("status")).toBeInTheDocument()
