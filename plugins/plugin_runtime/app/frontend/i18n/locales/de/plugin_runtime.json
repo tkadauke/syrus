@@ -13,6 +13,7 @@
   "col_image": "Image",
   "col_endpoint": "Endpunkt",
   "col_actions": "Aktionen",
+  "privileged": "Privilegiert",
   "held": "Von einem Admin angehalten",
   "orphaned": "Nicht mehr benötigt",
   "start": "Starten",

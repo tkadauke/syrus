@@ -1,31 +1,21 @@
 require "rails_helper"
 
 RSpec.describe Tailscale::HostAllowlist do
-  let(:dns_name) { "mydevice.example.ts.net." }
-  let(:tailscale_ips) { ["100.64.0.1", "fd7a::1"] }
-  let(:status_body) do
-    {
-      "Self" => {
-        "DNSName" => dns_name,
-        "TailscaleIPs" => tailscale_ips
-      }
-    }.to_json
-  end
-  let(:http_response) { "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n#{status_body}" }
-  let(:mock_socket) { instance_double(UNIXSocket, write: nil, flush: nil, read: http_response) }
+  let(:dns_name) { "mydevice.example.ts.net" }
+  let(:tailscale_ips) { [ "100.64.0.1", "fd7a::1" ] }
+  let(:remote_status) { { "hostname" => dns_name, "tailscale_ips" => tailscale_ips } }
   let(:hosts) { [] }
 
   before do
     described_class.instance_variable_set(:@added_entries, nil)
-    allow(UNIXSocket).to receive(:open).and_yield(mock_socket)
+    allow(Tailscale::RemoteStatus).to receive(:call).and_return(remote_status)
     allow(Rails.application.config).to receive(:hosts).and_return(hosts)
   end
 
   describe ".sync" do
-    it "adds the hostname with trailing dot stripped" do
+    it "adds the hostname" do
       described_class.sync
       expect(hosts).to include("mydevice.example.ts.net")
-      expect(hosts).not_to include("mydevice.example.ts.net.")
     end
 
     it "adds all TailscaleIPs" do
@@ -52,17 +42,16 @@ RSpec.describe Tailscale::HostAllowlist do
         .not_to include("100.64.0.1")
     end
 
-    context "when the local API is unreachable" do
-      before { allow(UNIXSocket).to receive(:open).and_raise(Errno::ENOENT, "No such file") }
+    context "when the container is not reachable" do
+      let(:remote_status) { nil }
 
       it "does not raise" do
         expect { described_class.sync }.not_to raise_error
       end
 
-      it "logs a warning" do
-        allow(Rails.logger).to receive(:warn)
+      it "adds nothing" do
         described_class.sync
-        expect(Rails.logger).to have_received(:warn).with(/sync failed/)
+        expect(hosts).to be_empty
       end
     end
   end

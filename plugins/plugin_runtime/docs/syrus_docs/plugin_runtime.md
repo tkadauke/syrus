@@ -176,13 +176,22 @@ dangerous — the checks live in the manager, the one place they bind:
 - a request naming a field the manager does not model is rejected outright, so
   asking for `privileged` fails loudly rather than quietly running without it
 
-**Planned, not shipped:** a first-party privileged lane for a small, compiled
-table of known services (starting with Tailscale) that still cannot accept an
-image, capability, device, mount, or network setting from a request -- only a
-short allowed env list, resolved against that fixed table. See
-`docs/plans/tailscale-privileged-service-lane.md`. Nothing below this point
-describes that lane; it describes the contract every `plugin_runtime:service`
-contributor is held to today.
+**The one documented exception:** a separately named, structurally isolated
+privileged lane (`internal/privileged`, `PUT /v1/privileged/{name}` on the
+manager; `PluginRuntime::PrivilegedService` /
+`PluginRuntime::DesiredPrivilegedServices` on the Rails side) for a small,
+compiled table of known services. At the time of writing that table has
+exactly one entry, Tailscale. Even there, a request still cannot accept an
+image, capability, device, mount, or network setting -- only a short allowed
+env list (three keys, for Tailscale), resolved against a fixed, compiled
+`Definition`. Which plugins may even reach this lane is a hardcoded Ruby
+constant (`PluginRuntime::DesiredPrivilegedServices::FIRST_PARTY_PRIVILEGED_PLUGINS`)
+independent of the Go manager's own compiled table, so a mistake in either
+allowlist alone fails closed. See
+`docs/plans/tailscale-privileged-service-lane.md` for the full design and
+threat-model discussion. Nothing else in this document describes that lane;
+everything below still describes the contract every `plugin_runtime:service`
+contributor is held to.
 
 ## Service states
 

@@ -14,6 +14,5 @@
   "mobile_tip": "Applicationem Tailscale in telephono tuo instaura, in eodem tailnet te insinua, deinde URL ts.net supra scriptam aperi ut ad hanc instantiam Syrus peregre pervenias.",
   "checklist_heading": "Index constitutionis",
   "checklist_auth_key": "Clavis authenticationis constituta",
-  "checklist_net_admin": "/dev/net/tun praesens",
   "checklist_daemon": "Daemon currit"
 }

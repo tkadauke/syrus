@@ -25,7 +25,8 @@ module Api
           # The service's own description of itself (PluginRuntime::Service
           # service_details), for the page's Details panel.
           def details
-            entry = ::PluginRuntime::DesiredServices.all.find { |candidate| candidate.name == params[:name] }
+            entry = (::PluginRuntime::DesiredServices.all + ::PluginRuntime::DesiredPrivilegedServices.all)
+              .find { |candidate| candidate.name == params[:name] }
             unless entry&.provider.respond_to?(:service_details)
               return render_error("not_found", "#{params[:name]} has no details", status: :not_found)
             end

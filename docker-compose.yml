@@ -61,18 +61,6 @@ services:
     environment:
       SYRUS_ROLE: worker
       SYRUS_TERMINAL_HOST: worker
-      # Required for connectivity plugins (e.g. Tailscale) so the daemon can
-      # forward traffic to the web container. Safe to remove if no connectivity
-      # plugin is in use.
-      SYRUS_INTERNAL_WEB_URL: http://web:80
-    # Required for connectivity plugins (e.g. Tailscale) that manage network
-    # interfaces and TUN devices. Safe to remove if no connectivity plugin is
-    # in use.
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    devices:
-      - /dev/net/tun:/dev/net/tun
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
@@ -99,10 +87,22 @@ services:
   # allows (see plugins/plugin_runtime/container). Idle until a plugin asks.
   # On shutdown it takes those containers down with it (their data volumes
   # stay), so `docker compose down` can remove the project network.
+  #
+  # It is also the only thing that can ever ask Docker to grant NET_ADMIN/
+  # NET_RAW/the TUN device to a container it creates -- and only for one
+  # compiled, first-party service (Tailscale), through its own privileged
+  # lane (see docs/plans/tailscale-privileged-service-lane.md). This
+  # container itself stays unprivileged; the worker never holds any of that
+  # either.
   plugin-runtime:
     image: ${SYRUS_PLUGIN_RUNTIME_IMAGE:-ghcr.io/tkadauke/syrus-plugin-runtime:latest}
     environment:
       RUNTIME_MANAGER_TOKEN: ${SYRUS_PLUGIN_RUNTIME_TOKEN:-}
+      # Used only when the Tailscale plugin is enabled: the fixed target its
+      # container's `tailscale serve` forwards to, and an optional override
+      # for the compiled image tag it runs. Harmless to leave set otherwise.
+      SYRUS_INTERNAL_WEB_URL: http://web:80
+      RUNTIME_MANAGER_TAILSCALE_IMAGE: ${SYRUS_TAILSCALE_IMAGE:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     read_only: true

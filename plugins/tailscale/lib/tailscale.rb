@@ -11,6 +11,7 @@ module Tailscale
     category "connectivity"
     default_enabled false
     disableable true
+    depends_on [ "plugin_runtime" ]
     home_queue :connectivity
     tick_interval 30.seconds
     config_schema [
@@ -22,7 +23,8 @@ module Tailscale
           required: false, default: false }
       ]
     provides callbacks: "Tailscale::Callbacks",
-             admin_page: "Tailscale::AdminPages"
+             admin_page: "Tailscale::AdminPages",
+             "plugin_runtime:privileged_service" => "Tailscale::RuntimeService"
     route :get, "/api/v1/app/admin/tailscale/status", to: "api/v1/app/admin/tailscale#status"
     route :get, "/api/v1/admin/tailscale/status", to: "api/v1/admin/tailscale#status"
     route :get, "/admin/tailscale", to: "spa#show"

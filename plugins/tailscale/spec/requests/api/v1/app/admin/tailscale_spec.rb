@@ -7,8 +7,9 @@ RSpec.describe "API: /api/v1/app/admin/tailscale/status", type: :request do
   def parse_body = JSON.parse(response.body)
 
   before do
+    PluginRecord.find_or_create_by!(name: "plugin_runtime").update!(enabled: true)
     PluginRecord.find_by!(name: "tailscale").update!(enabled: true)
-    allow(Tailscale::DaemonManager.instance).to receive(:alive?).and_return(false)
+    allow(PluginRuntime::Services).to receive(:endpoint_for).with("tailscale").and_return(nil)
   end
 
   it "401s with a JSON error when signed out" do
@@ -38,8 +39,7 @@ RSpec.describe "API: /api/v1/app/admin/tailscale/status", type: :request do
       "connected" => false,
       "hostname" => nil,
       "tailscale_url" => nil,
-      "auth_key_present" => a_boolean,
-      "net_admin_capable" => a_boolean
+      "auth_key_present" => a_boolean
     )
   end
 

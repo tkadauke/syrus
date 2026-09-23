@@ -13,7 +13,7 @@ module PluginRuntime
     end
 
     def as_json(*)
-      desired = DesiredServices.all
+      desired = DesiredServices.all + DesiredPrivilegedServices.all
       live, manager_error = live_statuses
       held = Holds.all
 
@@ -43,7 +43,7 @@ module PluginRuntime
       return [ {}, nil ] unless @configuration.managed?
 
       statuses = client.list.to_h do |payload|
-        [ payload["service"], payload.symbolize_keys.slice(:service, :plugin, :state, :endpoint, :image, :error, :pull, :container_id) ]
+        [ payload["service"], payload.symbolize_keys.slice(:service, :plugin, :state, :endpoint, :image, :error, :pull, :container_id, :privileged) ]
       end
       [ statuses, nil ]
     rescue Client::Error => e
@@ -65,7 +65,7 @@ module PluginRuntime
       status = StatusCache.read(entry.name)
       return { service: entry.name, state: "pending" } unless status
 
-      status.to_h.slice(:service, :state, :endpoint, :image, :error, :pull, :checked_at)
+      status.to_h.slice(:service, :state, :endpoint, :image, :error, :pull, :checked_at, :privileged)
     end
 
     def row(status, plugin:, desired:, held:, details:)

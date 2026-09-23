@@ -1292,9 +1292,10 @@ would also be disabled, before cascading the disable through all of them.
 The bundled `tailscale` plugin exposes a Syrus installation on the operator's
 Tailscale network, so it can be reached from laptops and phones away from the
 local network. It ships installed but disabled by default; enabling it from
-**Admin → Plugins** and setting a `TS_AUTHKEY` auth key runs a `tailscaled`
-daemon in the worker container (so it keeps working no matter how many web
-replicas are running) and forwards Tailscale traffic to the Rails app.
+**Admin → Plugins** and setting a `TS_AUTHKEY` auth key runs `tailscaled` in
+its own dedicated, privileged container -- started by Plugin Runtime, not the
+worker -- and forwards Tailscale traffic to the Rails app. The worker itself
+never needs any elevated network capability.
 
 Once enabled, **Admin → Tailscale** shows whether the daemon is running and
 connected, a copyable `https://<device>.ts.net` URL, and a short setup

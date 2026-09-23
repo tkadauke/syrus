@@ -2,9 +2,18 @@
 
 ## Status
 
-Design decided, not implemented. This plan is the output of a job scoped to
-*deciding* the mechanism; the sections under Implementation Plan are sized as
-separate follow-up jobs, not done here.
+Shipped. Items 1-4 of the Implementation Plan below (the Go privileged lane,
+the Ruby `PrivilegedService`/`DesiredPrivilegedServices` wiring, the
+Tailscale container image, and the Tailscale plugin migration off
+`Tailscale::DaemonManager`) landed together, in the same change that removed
+`docker-compose.yml`'s worker `cap_add`/`devices` block -- no dual-path
+window where both the in-worker daemon and the container-backed service
+could run at once. `plugin_runtime.md`'s "What the runtime manager refuses"
+section (item 5) describes the shipped lane. Item 6's operator-facing
+verification (`bin/compose-up`, a real Tailscale auth key) is left to
+whoever next runs this in a real Compose stack -- the change here is
+verified by the Go/RSpec/Vitest suites listed in the PR, not by a live
+tailnet enrollment.
 
 ## Context
 

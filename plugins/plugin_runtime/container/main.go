@@ -25,14 +25,17 @@ import (
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/docker"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/manager"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/policy"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/privileged"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/server"
 )
 
 const (
-	defaultListen   = ":8080"
-	defaultSocket   = "/var/run/docker.sock"
-	defaultPrefixes = "ghcr.io/tkadauke/"
-	minTokenLength  = 32
+	defaultListen         = ":8080"
+	defaultSocket         = "/var/run/docker.sock"
+	defaultPrefixes       = "ghcr.io/tkadauke/"
+	minTokenLength        = 32
+	defaultTailscaleImage = "ghcr.io/tkadauke/syrus-plugin-tailscale:latest"
+	defaultInternalWebURL = "http://web:80"
 )
 
 func main() {
@@ -64,7 +67,14 @@ func run() error {
 		return errors.New("RUNTIME_MANAGER_ALLOWED_IMAGE_PREFIXES allows no images")
 	}
 
-	mgr := manager.New(client, pol, project, network)
+	// The privileged registry's inputs come from this process's own
+	// environment -- Compose/operator-controlled -- never from a request.
+	// tailscale is the only entry; see internal/privileged.
+	registry := privileged.NewRegistry(
+		envOr("RUNTIME_MANAGER_TAILSCALE_IMAGE", defaultTailscaleImage),
+		envOr("SYRUS_INTERNAL_WEB_URL", defaultInternalWebURL),
+	)
+	mgr := manager.New(client, pol, project, network).WithPrivileged(registry)
 	handler := server.New(mgr, token, server.Info{Project: project, Network: network, AllowedPrefixes: pol.Allowed()})
 
 	listen := envOr("RUNTIME_MANAGER_LISTEN", defaultListen)

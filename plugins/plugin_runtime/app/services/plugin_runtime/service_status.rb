@@ -6,9 +6,9 @@ module PluginRuntime
   # starting, running, unhealthy, stopped, error) plus two of the runtime's
   # own: "unavailable" when the manager itself could not be reached, and
   # "unconfigured" when an external service has no address set.
-  ServiceStatus = Data.define(:service, :plugin, :mode, :state, :endpoint, :image, :error, :pull, :checked_at) do
-    def self.build(service:, plugin:, mode:, state:, endpoint: nil, image: nil, error: nil, pull: nil)
-      new(service:, plugin:, mode:, state:, endpoint:, image:, error:, pull:, checked_at: Time.current.iso8601)
+  ServiceStatus = Data.define(:service, :plugin, :mode, :state, :endpoint, :image, :error, :pull, :checked_at, :privileged) do
+    def self.build(service:, plugin:, mode:, state:, endpoint: nil, image: nil, error: nil, pull: nil, privileged: false)
+      new(service:, plugin:, mode:, state:, endpoint:, image:, error:, pull:, checked_at: Time.current.iso8601, privileged:)
     end
 
     def self.from_manager(payload, plugin:)
@@ -20,7 +20,8 @@ module PluginRuntime
         endpoint: payload["endpoint"],
         image: payload["image"],
         error: payload["error"],
-        pull: payload["pull"]
+        pull: payload["pull"],
+        privileged: payload["privileged"] || false
       )
     end
 
