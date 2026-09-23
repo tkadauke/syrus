@@ -120,6 +120,9 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
   )
 }
 
+// Left off the shared column-config primitive: only 4 columns, and Tag/Jobs
+// are the table's whole point while Rename/Actions are inline editing
+// affordances, not application data -- nothing here is worth hiding.
 function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPaletteColor[]; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
   return (

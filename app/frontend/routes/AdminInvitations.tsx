@@ -97,6 +97,10 @@ function CreateInvitationForm({ onNotice }: { onNotice: (message: string | null)
   )
 }
 
+// Left off the shared column-config primitive: a short-lived pending-invite
+// queue (typically a handful of rows) where every column is either the
+// row's identity (email) or an action an operator is here to take
+// (share URL, revoke) -- nothing optional enough to be worth hiding.
 function InvitationsTable({ invitations, onNotice }: { invitations: AdminInvitation[]; onNotice: (message: string | null) => void }) {
   const { t } = useT("admin")
   if (invitations.length === 0) return <PanelMessage>{t("invitations.no_pending")}</PanelMessage>

@@ -13,6 +13,15 @@ import { ApiError } from "../api/client"
 import { Button } from "../components/Button"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
+import { DataTable } from "../components/ui"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  visibleColumns,
+  type DataTableColumnDef
+} from "../components/dataTable"
 
 export function AdminInstallations() {
   const { t } = useT("admin")
@@ -112,6 +121,10 @@ function RefreshButton() {
   )
 }
 
+// Left off the shared column-config primitive: this is fixed explanatory
+// reference content (five hardcoded PAT-vs-App comparison sentences), not a
+// list of records -- there's nothing here for an operator to show/hide or
+// reorder.
 function CredentialModeComparison() {
   const { t } = useT("admin")
   const rows = [
@@ -171,49 +184,81 @@ function PatOwnerGroups({ groups }: { groups: PatOwnerGroup[] }) {
   )
 }
 
+const INSTALLATIONS_REPOSITORIES_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.admin.installations.repositories.visible_columns"
+
+function buildInstallationsRepositoriesColumns(t: (key: string) => string): DataTableColumnDef<InstallationRepository>[] {
+  return [
+    { key: "repository", label: t("installations.col_repository"), required: true, cellClassName: "font-mono", renderCell: (repository) => repository.slug },
+    { key: "syrus_owner", label: t("installations.col_syrus_owner"), cellClassName: "text-gray-600 dark:text-gray-300", renderCell: (repository) => repository.owner_user.email_address },
+    {
+      key: "app_credential",
+      label: t("installations.col_app_credential"),
+      renderCell: (repository) => repository.app_credential_active ? (
+        <span className="font-medium text-emerald-700 dark:text-emerald-300">{t("installations.app_active")}</span>
+      ) : (
+        <div>
+          <span className="text-gray-700 dark:text-gray-200">{t("installations.no_active_installation")}</span>
+          {repository.app_credential_inactive_reason ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{fallbackReasonLabel(repository.app_credential_inactive_reason, t)}</div> : null}
+        </div>
+      )
+    },
+    {
+      key: "pat_credential",
+      label: t("installations.col_pat_credential"),
+      renderCell: (repository) => repository.app_credential_active ? <span className="text-gray-400">{t("installations.not_used")}</span> : <span className="font-medium text-amber-800 dark:text-amber-200">{t("installations.used_as_fallback")}</span>
+    },
+    {
+      key: "account",
+      label: t("installations.col_account"),
+      cellClassName: "text-gray-600 dark:text-gray-300",
+      renderCell: (repository) => (
+        <>
+          {repository.account_login}
+          {repository.installation_removed_at ? <span className="ml-1 text-xs text-amber-700 dark:text-amber-300">{t("installations.removed")}</span> : null}
+        </>
+      )
+    }
+  ]
+}
+
 function RepositoriesTable({ repositories }: { repositories: InstallationRepository[] }) {
   const { t } = useT("admin")
+  const columns = buildInstallationsRepositoriesColumns(t)
+  const preferences = useLocalStorageColumnPreferences({ columns, storageKey: INSTALLATIONS_REPOSITORIES_VISIBLE_COLUMNS_STORAGE_KEY })
+  const colSpan = visibleColumns({ columns, order: preferences.order }).length
 
   return (
     <section>
-      <SectionHeading className="mb-3">{t("installations.repositories_heading")}</SectionHeading>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <SectionHeading>{t("installations.repositories_heading")}</SectionHeading>
+        <DataTableColumnMenu
+          columns={columns}
+          downLabel={t("event_log_table.column_down")}
+          menuId="admin-installations-repositories-columns-menu"
+          moveDownLabel={(title) => t("event_log_table.column_move_down", { title })}
+          moveUpLabel={(title) => t("event_log_table.column_move_up", { title })}
+          onChange={preferences.onChange}
+          order={preferences.order}
+          triggerAriaLabel={t("event_log_table.columns")}
+          upLabel={t("event_log_table.column_up")}
+          visibleLabel={t("event_log_table.visible_columns")}
+        />
+      </div>
       <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            <tr>
-              <th className="px-4 py-2">{t("installations.col_repository")}</th>
-              <th className="px-4 py-2">{t("installations.col_syrus_owner")}</th>
-              <th className="px-4 py-2">{t("installations.col_app_credential")}</th>
-              <th className="px-4 py-2">{t("installations.col_pat_credential")}</th>
-              <th className="px-4 py-2">{t("installations.col_account")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+        <DataTable.Root>
+          <DataTable.Header>
+            <DataTableColumnHeaderRow columns={columns} onReorder={preferences.onChange} order={preferences.order} />
+          </DataTable.Header>
+          <DataTable.Body>
             {repositories.length === 0 ? (
-              <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={5}>{t("installations.no_repositories")}</td></tr>
+              <DataTable.Empty colSpan={colSpan}>{t("installations.no_repositories")}</DataTable.Empty>
             ) : repositories.map((repository) => (
-              <tr key={repository.id}>
-                <td className="px-4 py-3 font-mono">{repository.slug}</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{repository.owner_user.email_address}</td>
-                <td className="px-4 py-3">
-                  {repository.app_credential_active ? (
-                    <span className="font-medium text-emerald-700 dark:text-emerald-300">{t("installations.app_active")}</span>
-                  ) : (
-                    <div>
-                      <span className="text-gray-700 dark:text-gray-200">{t("installations.no_active_installation")}</span>
-                      {repository.app_credential_inactive_reason ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{fallbackReasonLabel(repository.app_credential_inactive_reason, t)}</div> : null}
-                    </div>
-                  )}
-                </td>
-                <td className="px-4 py-3">{repository.app_credential_active ? <span className="text-gray-400">{t("installations.not_used")}</span> : <span className="font-medium text-amber-800 dark:text-amber-200">{t("installations.used_as_fallback")}</span>}</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                  {repository.account_login}
-                  {repository.installation_removed_at ? <span className="ml-1 text-xs text-amber-700 dark:text-amber-300">{t("installations.removed")}</span> : null}
-                </td>
-              </tr>
+              <DataTable.Row key={repository.id}>
+                <DataTableColumnCells columns={columns} order={preferences.order} row={repository} />
+              </DataTable.Row>
             ))}
-          </tbody>
-        </table>
+          </DataTable.Body>
+        </DataTable.Root>
       </div>
     </section>
   )

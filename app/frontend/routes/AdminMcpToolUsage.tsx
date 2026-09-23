@@ -22,6 +22,13 @@ import { Button } from "../components/Button"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
 import { DataTable, PanelMessage, Section, Text } from "../components/ui"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  type DataTableColumnDef
+} from "../components/dataTable"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -209,6 +216,10 @@ function formatMs(value: number | null) {
   return value == null ? "-" : `${Math.round(value)} ms`
 }
 
+// Left off the shared column-config primitive: this is a fixed set of ~5
+// internal startup phases with all-numeric latency columns -- a technical
+// diagnostic snapshot, not a record list with optional application columns
+// an operator would want to declutter or reorder.
 function StartupTimingPanel({ section }: { section: McpStartupTimingSectionType }) {
   const { t } = useT("admin")
   return (
@@ -263,6 +274,9 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
   )
 }
 
+// Left off the shared column-config primitive, like BreakdownPanel below:
+// a compact 4-column leaderboard (tool + three numeric stats) with no
+// optional columns worth hiding.
 function ToolRowsPanel({ heading, rows }: { heading: string; rows: McpToolUsageToolRow[] }) {
   const { t } = useT("admin")
   return (
@@ -315,6 +329,9 @@ function UnusedToolsPanel({ tools }: { tools: string[] }) {
   )
 }
 
+// Left off the shared column-config primitive: a compact 4-column
+// aggregation table (grouping key + three numeric stats) with no optional
+// columns worth hiding -- see ToolRowsPanel above.
 function BreakdownPanel({ heading, labelKey, rows }: { heading: string; labelKey: "surface" | "provider" | "server_name" | "sidecar_mode"; rows: McpToolUsageBreakdownRow[] }) {
   const { t } = useT("admin")
   return (
@@ -357,45 +374,79 @@ function formatRecommendation(value: string | undefined) {
   return value ? value.replaceAll("_", " ") : "-"
 }
 
+const CARD_GAP_RANKING_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.admin.mcp_tool_usage.card_gap_ranking.visible_columns"
+
+function buildCardGapRankingColumns(t: (key: string) => string): DataTableColumnDef<McpToolCardGapRow>[] {
+  return [
+    {
+      key: "tool",
+      label: t("mcp_tool_usage.col_tool"),
+      required: true,
+      cellClassName: "align-top",
+      renderCell: (row) => (
+        <>
+          <div className="font-medium text-gray-900 dark:text-gray-100">{row.tool_name}</div>
+          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{row.card_status}</div>
+          {row.server_names && row.server_names.length > 0 ? <div className="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{row.server_names.join(", ")}</div> : null}
+        </>
+      )
+    },
+    { key: "calls", label: t("mcp_tool_usage.col_calls"), cellClassName: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", renderCell: (row) => row.calls ?? 0 },
+    { key: "errors", label: t("mcp_tool_usage.col_errors"), cellClassName: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", renderCell: (row) => row.errors ?? 0 },
+    { key: "result_bytes", label: t("mcp_tool_usage.col_result_bytes"), cellClassName: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", renderCell: (row) => formatBytes(row.result_bytes) },
+    {
+      key: "owner",
+      label: t("mcp_tool_usage.col_owner"),
+      cellClassName: "align-top text-xs text-gray-700 dark:text-gray-200",
+      renderCell: (row) => (
+        <>
+          <div>{row.owner_type === "plugin" ? row.owner_name : t("mcp_tool_usage.owner_core")}</div>
+          <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{row.recommendation_target}</div>
+        </>
+      )
+    },
+    { key: "last_used", label: t("mcp_tool_usage.col_last_used"), cellClassName: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", renderCell: (row) => row.last_used_at ? formatEventDate(row.last_used_at) : t("mcp_tool_usage.never_used") },
+    { key: "recommendation", label: t("mcp_tool_usage.col_recommendation"), cellClassName: "align-top text-xs text-gray-700 dark:text-gray-200", renderCell: (row) => formatRecommendation(row.recommendation) }
+  ]
+}
+
 function CardGapRankingPanel({ rows }: { rows: McpToolCardGapRow[] }) {
   const { t } = useT("admin")
+  const columns = buildCardGapRankingColumns(t)
+  const preferences = useLocalStorageColumnPreferences({ columns, storageKey: CARD_GAP_RANKING_VISIBLE_COLUMNS_STORAGE_KEY })
+
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{t("mcp_tool_usage.card_gap_ranking_heading")}</SectionHeading>
+      <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <SectionHeading>{t("mcp_tool_usage.card_gap_ranking_heading")}</SectionHeading>
+        {rows.length > 0 ? (
+          <DataTableColumnMenu
+            columns={columns}
+            downLabel={t("event_log_table.column_down")}
+            menuId="admin-mcp-tool-usage-card-gap-columns-menu"
+            moveDownLabel={(title) => t("event_log_table.column_move_down", { title })}
+            moveUpLabel={(title) => t("event_log_table.column_move_up", { title })}
+            onChange={preferences.onChange}
+            order={preferences.order}
+            triggerAriaLabel={t("event_log_table.columns")}
+            upLabel={t("event_log_table.column_up")}
+            visibleLabel={t("event_log_table.visible_columns")}
+          />
+        ) : null}
+      </div>
       {rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.card_gap_ranking_empty")}</AdminEventPanelMessage> : (
-        <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-          <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-            <tr>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_tool")}</th>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_calls")}</th>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_errors")}</th>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_result_bytes")}</th>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_owner")}</th>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_last_used")}</th>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_recommendation")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+        <DataTable.Root>
+          <DataTable.Header>
+            <DataTableColumnHeaderRow columns={columns} onReorder={preferences.onChange} order={preferences.order} />
+          </DataTable.Header>
+          <DataTable.Body>
             {rows.map((row) => (
-              <tr key={`${row.card_status}.${row.tool_name}`}>
-                <td className="px-4 py-2 align-top">
-                  <div className="font-medium text-gray-900 dark:text-gray-100">{row.tool_name}</div>
-                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{row.card_status}</div>
-                  {row.server_names && row.server_names.length > 0 ? <div className="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{row.server_names.join(", ")}</div> : null}
-                </td>
-                <td className="px-4 py-2 align-top font-mono text-xs text-gray-700 dark:text-gray-200">{row.calls ?? 0}</td>
-                <td className="px-4 py-2 align-top font-mono text-xs text-gray-700 dark:text-gray-200">{row.errors ?? 0}</td>
-                <td className="px-4 py-2 align-top font-mono text-xs text-gray-700 dark:text-gray-200">{formatBytes(row.result_bytes)}</td>
-                <td className="px-4 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
-                  <div>{row.owner_type === "plugin" ? row.owner_name : t("mcp_tool_usage.owner_core")}</div>
-                  <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{row.recommendation_target}</div>
-                </td>
-                <td className="px-4 py-2 align-top font-mono text-xs text-gray-700 dark:text-gray-200">{row.last_used_at ? formatEventDate(row.last_used_at) : t("mcp_tool_usage.never_used")}</td>
-                <td className="px-4 py-2 align-top text-xs text-gray-700 dark:text-gray-200">{formatRecommendation(row.recommendation)}</td>
-              </tr>
+              <DataTable.Row key={`${row.card_status}.${row.tool_name}`}>
+                <DataTableColumnCells columns={columns} order={preferences.order} row={row} />
+              </DataTable.Row>
             ))}
-          </tbody>
-        </table>
+          </DataTable.Body>
+        </DataTable.Root>
       )}
     </section>
   )
