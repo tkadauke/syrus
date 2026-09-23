@@ -162,6 +162,40 @@ describe("RepositoriesIndex data table", () => {
     })
   })
 
+  it("reorders visible columns with the move up/down buttons and persists the new order", async () => {
+    renderRoute()
+
+    await screen.findByRole("columnheader", { name: "Repository" })
+
+    function optionalColumnOrder() {
+      const optionalNames = ["GitHub owner", "Open jobs", "Last activity", "Health", "Agent"]
+      // Sortable headers append an aria-hidden sort-direction glyph to their
+      // textContent, so strip non-word characters before matching.
+      return screen
+        .getAllByRole("columnheader")
+        .map((header) => header.textContent?.replace(/[^\w\s]/g, "").trim())
+        .filter((name) => optionalNames.includes(name ?? ""))
+    }
+
+    expect(optionalColumnOrder()).toEqual(["GitHub owner", "Open jobs", "Last activity", "Health", "Agent"])
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    const menu = await screen.findByRole("menu")
+    fireEvent.click(within(menu).getByRole("button", { name: "Move Open jobs up" }))
+
+    await waitFor(() => {
+      expect(optionalColumnOrder()).toEqual(["Open jobs", "GitHub owner", "Last activity", "Health", "Agent"])
+    })
+
+    expect(JSON.parse(window.localStorage.getItem("syrus.repositories.visible_columns") ?? "[]")).toEqual([
+      "open_jobs",
+      "github_owner",
+      "last_activity",
+      "health",
+      "agent"
+    ])
+  })
+
   it("does not render an Archive button on index rows", async () => {
     renderRoute()
 
