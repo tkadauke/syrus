@@ -65,6 +65,19 @@ stamps `stale_as_of_version`, pinned to the design doc's current version
 since that path never creates a new one — every code path that flips an
 anchor to `stale` keeps the same version-window invariant.
 
+An anchor whose range only *partially* overlaps the accepted range (rather
+than nesting fully inside or sitting fully outside it) is a special case: the
+accepted range's replacement can delete just one side of that anchor's
+start/end marker pair, leaving the other side dangling in the Markdown.
+Before deciding whether to re-project or mark such a candidate stale,
+`DesignDocs::ReviewSuggestion` clears any leftover marker fragment for it
+first, so neither path can leave an orphan marker behind for
+`NormalizeAnchorMarkers.assert_marker_pairs!` to trip over later. As a
+defensive backstop, `POST /api/v1/app/design_docs/:id/suggestions/:id/accept`
+also rescues `DesignDocs::NormalizeAnchorMarkers::InvariantError` and
+responds `409` with `error.code == "conflict"` instead of a 500 for any
+remaining invariant failure.
+
 The current-document editor and Threads rail only render anchors with
 `status: "active"` (`buildAnchorHighlights`'s highlight filter and
 `ThreadPanel`'s current-view filters in `DesignDocsSurface.tsx`), so stale
