@@ -20,75 +20,17 @@ import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import type { AdminSmartFolder } from "../api/adminSmartFolders"
 import { FilterBar } from "../components/FilterBar"
 import { useMediaQuery } from "./dashboard/components"
-import { ColumnVisibilityMenu } from "../components/ColumnVisibilityMenu"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  visibleColumns as visibleDataTableColumns,
+  type DataTableColumnDef
+} from "../components/dataTable"
 import { buttonClasses, DataTable, PanelMessage, Text, TonePill, type PillTone } from "../components/ui"
 
-type ColumnKey =
-  | "github_owner"
-  | "open_jobs"
-  | "last_activity"
-  | "health"
-  | "agent"
-  | "polling_status"
-  | "last_poll"
-  | "trigger_label"
-  | "default_branch"
-  | "syrus_owner"
-  | "upstream_slug"
-
-type ColumnConfig = {
-  key: ColumnKey
-  labelKey: string
-  defaultVisible: boolean
-}
-
-const COLUMN_CONFIG: ColumnConfig[] = [
-  { key: "github_owner", labelKey: "repositories.col_github_owner", defaultVisible: true },
-  { key: "open_jobs", labelKey: "repositories.col_open_jobs", defaultVisible: true },
-  { key: "last_activity", labelKey: "repositories.col_last_activity", defaultVisible: true },
-  { key: "health", labelKey: "repositories.col_health", defaultVisible: true },
-  { key: "agent", labelKey: "repositories.col_agent", defaultVisible: true },
-  { key: "polling_status", labelKey: "repositories.col_polling", defaultVisible: false },
-  { key: "last_poll", labelKey: "repositories.col_last_poll", defaultVisible: false },
-  { key: "trigger_label", labelKey: "repositories.col_trigger_label", defaultVisible: false },
-  { key: "default_branch", labelKey: "repositories.col_default_branch", defaultVisible: false },
-  { key: "syrus_owner", labelKey: "repositories.syrus_owner", defaultVisible: false },
-  { key: "upstream_slug", labelKey: "repositories.col_upstream_slug", defaultVisible: false }
-]
-
-const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = COLUMN_CONFIG.filter((column) => column.defaultVisible).map((column) => column.key)
 const VISIBLE_COLUMNS_STORAGE_KEY = "syrus.repositories.visible_columns"
-const COLUMN_KEYS = new Set<string>(COLUMN_CONFIG.map((column) => column.key))
-
-// A column key maps to the sort key backing it when that column is
-// sortable. Columns absent from this map render a non-interactive header.
-const SORT_KEY_BY_COLUMN: Partial<Record<ColumnKey, SortColumn>> = {
-  open_jobs: "open_jobs_count",
-  last_activity: "last_job_activity_at"
-}
-
-function readVisibleColumns(): ColumnKey[] {
-  try {
-    const raw = window.localStorage.getItem(VISIBLE_COLUMNS_STORAGE_KEY)
-    if (!raw) return DEFAULT_VISIBLE_COLUMNS
-
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return DEFAULT_VISIBLE_COLUMNS
-
-    const filtered = parsed.filter((key): key is ColumnKey => typeof key === "string" && COLUMN_KEYS.has(key))
-    return filtered.length > 0 || parsed.length === 0 ? filtered : DEFAULT_VISIBLE_COLUMNS
-  } catch {
-    return DEFAULT_VISIBLE_COLUMNS
-  }
-}
-
-function writeVisibleColumns(columns: ColumnKey[]): void {
-  try {
-    window.localStorage.setItem(VISIBLE_COLUMNS_STORAGE_KEY, JSON.stringify(columns))
-  } catch {
-    // localStorage can be unavailable in private or restricted browser contexts.
-  }
-}
 
 type SortColumn = "slug" | "open_jobs_count" | "last_job_activity_at"
 type SortDirection = "ascending" | "descending"
@@ -125,6 +67,125 @@ const HEALTH_TONE: Record<string, PillTone> = {
 // still accepted server-side for back-compat bookmarks, but FilterBar strips
 // them from links it builds so a stale one never lingers alongside `q=`.
 const REPOSITORY_LEGACY_FILTER_KEYS = ["slug", "github_owner", "health", "agent_provider", "has_open_jobs", "archived"]
+
+// The shared configurable-column model for the Repositories table: required
+// Repository/Actions columns pinned at each end (never hidden, never
+// draggable) with the optional columns in between selectable/reorderable
+// through DataTableColumnMenu (picker) and DataTableColumnHeaderRow (header
+// drag). Built fresh per render -- cheap, and matches how the primitive's own
+// integration test composes it -- rather than memoized, so it always reflects
+// the latest translations/callbacks.
+function buildRepositoryColumns({
+  t,
+  prefix,
+  onUnarchive,
+  unarchivePending
+}: {
+  t: (key: string, opts?: Record<string, unknown>) => string
+  prefix: string
+  onUnarchive: (repository: RepositoryRow) => void
+  unarchivePending: boolean
+}): DataTableColumnDef<RepositoryRow>[] {
+  return [
+    {
+      key: "repository",
+      label: t("repositories.col_repository"),
+      required: true,
+      sortKey: "slug",
+      renderCell: (repository) => (
+        <div className="flex items-center gap-2">
+          <Link className="font-mono text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
+          {repository.archived ? <TonePill tone="gray">{t("repositories.archived_badge")}</TonePill> : null}
+        </div>
+      )
+    },
+    {
+      key: "github_owner",
+      label: t("repositories.col_github_owner"),
+      cellClassName: "font-mono text-xs text-text-secondary",
+      renderCell: (repository) => repository.owner
+    },
+    {
+      key: "open_jobs",
+      label: t("repositories.col_open_jobs"),
+      sortKey: "open_jobs_count",
+      renderCell: (repository) => repository.open_jobs_count
+    },
+    {
+      key: "last_activity",
+      label: t("repositories.col_last_activity"),
+      sortKey: "last_job_activity_at",
+      renderCell: (repository) => <RelativeTimestamp value={repository.last_job_activity_at} />
+    },
+    {
+      key: "health",
+      label: t("repositories.col_health"),
+      renderCell: (repository) => <RepositoryHealthPill health={repository.main_health} />
+    },
+    {
+      key: "agent",
+      label: t("repositories.col_agent"),
+      renderCell: (repository) => repository.agent_provider_label
+    },
+    {
+      key: "polling_status",
+      label: t("repositories.col_polling"),
+      defaultVisible: false,
+      renderCell: (repository) => <PollingPill enabled={repository.polling_enabled} />
+    },
+    {
+      key: "last_poll",
+      label: t("repositories.col_last_poll"),
+      defaultVisible: false,
+      renderCell: (repository) => <LastPoll repository={repository} />
+    },
+    {
+      key: "trigger_label",
+      label: t("repositories.col_trigger_label"),
+      defaultVisible: false,
+      renderCell: (repository) => <code className="rounded bg-surface-subtle px-1 text-xs">{repository.trigger_label}</code>
+    },
+    {
+      key: "default_branch",
+      label: t("repositories.col_default_branch"),
+      defaultVisible: false,
+      cellClassName: "font-mono text-xs text-text-secondary",
+      renderCell: (repository) => repository.default_branch
+    },
+    {
+      key: "syrus_owner",
+      label: t("repositories.syrus_owner"),
+      defaultVisible: false,
+      cellClassName: "text-xs text-text-secondary",
+      renderCell: (repository) => repository.owner_user.email_address
+    },
+    {
+      key: "upstream_slug",
+      label: t("repositories.col_upstream_slug"),
+      defaultVisible: false,
+      cellClassName: "font-mono text-xs text-text-secondary",
+      renderCell: (repository) => repository.upstream_slug ? `${repository.upstream_slug}${repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}` : "-"
+    },
+    {
+      key: "actions",
+      label: t("repositories.col_actions"),
+      required: true,
+      pin: "end",
+      align: "right",
+      renderHeader: () => <span className="sr-only">{t("repositories.col_actions")}</span>,
+      renderCell: (repository) => repository.archived ? (
+        <button
+          className="text-brand dark:text-brand-emphasis underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
+          disabled={unarchivePending}
+          onClick={() => onUnarchive(repository)}
+          type="button"
+        >
+          {t('repositories.unarchive')}
+        </button>
+      ) : null
+    }
+  ]
+}
 
 export function RepositoriesIndex() {
   const { t } = useT("settings")
@@ -173,11 +234,6 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
   // narrow viewports.
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const [notice, setNotice] = useState<string | null>(payload.message || null)
-  const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(() => readVisibleColumns())
-  const columnOptions = useMemo(
-    () => COLUMN_CONFIG.map((column) => ({ key: column.key, title: t(column.labelKey) })),
-    [t]
-  )
   const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT)
 
   const unarchive = useMutation({
@@ -195,11 +251,13 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
     }
   })
 
-  function updateVisibleColumns(next: string[]) {
-    const filtered = next.filter((key): key is ColumnKey => COLUMN_KEYS.has(key))
-    setVisibleColumns(filtered)
-    writeVisibleColumns(filtered)
-  }
+  const columns = buildRepositoryColumns({
+    onUnarchive: (repository) => unarchive.mutate(repository.id),
+    prefix,
+    t,
+    unarchivePending: unarchive.isPending
+  })
+  const preferences = useLocalStorageColumnPreferences({ columns, storageKey: VISIBLE_COLUMNS_STORAGE_KEY })
 
   function toggleSortColumn(column: SortColumn) {
     setSortState((current) => toggleSort(current, column))
@@ -264,32 +322,31 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
           ) : null}
           <div className="flex flex-wrap items-start justify-between gap-3">
             <RepositoryFilterBar payload={payload} pathname={pathname} search={search} />
-            <ColumnVisibilityMenu
+            <DataTableColumnMenu
+              columns={columns}
               downLabel={t("repositories.column_down")}
               menuId="repositories-columns-menu"
               moveDownLabel={(title) => t("repositories.column_move_down", { title })}
               moveUpLabel={(title) => t("repositories.column_move_up", { title })}
-              onChange={updateVisibleColumns}
-              optionalColumns={columnOptions}
+              onChange={preferences.onChange}
+              order={preferences.order}
               triggerAriaLabel={t("repositories.columns")}
               triggerClassName="h-[var(--control-height-md)] w-[var(--control-height-md)]"
               triggerSize="icon"
               upLabel={t("repositories.column_up")}
-              visibleColumns={visibleColumns}
               visibleLabel={t("repositories.visible_columns")}
             />
           </div>
 
           <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
             <RepositoryDataTable
+              columns={columns}
               emptyMessage={emptyStateMessage(t, activeFolder)}
+              onReorder={preferences.onChange}
               onSort={toggleSortColumn}
-              onUnarchive={(repository) => unarchive.mutate(repository.id)}
-              prefix={prefix}
+              order={preferences.order}
               repositories={combinedRepositories}
               sortState={sortState}
-              unarchivePending={unarchive.isPending}
-              visibleColumns={visibleColumns}
             />
           </section>
         </div>
@@ -349,104 +406,49 @@ function RepositoryFilterBar({ payload, pathname, search }: { payload: Repositor
 }
 
 function RepositoryDataTable({
+  columns,
   repositories,
-  visibleColumns,
+  order,
+  onReorder,
   sortState,
   onSort,
-  onUnarchive,
-  unarchivePending,
-  emptyMessage,
-  prefix
+  emptyMessage
 }: {
+  columns: DataTableColumnDef<RepositoryRow>[]
   repositories: RepositoryRow[]
-  visibleColumns: ColumnKey[]
+  order: string[] | null | undefined
+  onReorder: (nextOrder: string[]) => void
   sortState: SortState
   onSort: (column: SortColumn) => void
-  onUnarchive: (repository: RepositoryRow) => void
-  unarchivePending: boolean
   emptyMessage: string
-  prefix: string
 }) {
-  const { t } = useT("settings")
-  const columns = visibleColumns
-    .map((key) => COLUMN_CONFIG.find((column) => column.key === key))
-    .filter((column): column is ColumnConfig => column != null)
+  const colSpan = visibleDataTableColumns({ columns, order }).length
 
   return (
     <DataTable.Root>
       <DataTable.Header>
-        <DataTable.Row>
-          <DataTable.HeadCell onSort={() => onSort("slug")} sortDirection={sortState.column === "slug" ? sortState.direction : "none"}>
-            {t("repositories.col_repository")}
-          </DataTable.HeadCell>
-          {columns.map((column) => {
-            const sortColumn = SORT_KEY_BY_COLUMN[column.key]
-            return (
-              <DataTable.HeadCell
-                key={column.key}
-                onSort={sortColumn ? () => onSort(sortColumn) : undefined}
-                sortDirection={sortColumn && sortState.column === sortColumn ? sortState.direction : "none"}
-              >
-                {t(column.labelKey)}
-              </DataTable.HeadCell>
-            )
-          })}
-          <DataTable.HeadCell><span className="sr-only">{t("repositories.col_actions")}</span></DataTable.HeadCell>
-        </DataTable.Row>
+        <DataTableColumnHeaderRow
+          columns={columns}
+          onReorder={onReorder}
+          onSort={(key) => onSort(key as SortColumn)}
+          order={order}
+          sortColumn={sortState.column}
+          sortDirection={sortState.direction}
+        />
       </DataTable.Header>
       <DataTable.Body>
         {repositories.length === 0 ? (
-          <DataTable.Empty colSpan={columns.length + 2}>{emptyMessage}</DataTable.Empty>
+          <DataTable.Empty colSpan={colSpan}>{emptyMessage}</DataTable.Empty>
         ) : (
           repositories.map((repository) => (
             <DataTable.Row key={repository.id}>
-              <DataTable.Cell>
-                <div className="flex items-center gap-2">
-                  <Link className="font-mono text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
-                  {repository.archived ? <TonePill tone="gray">{t("repositories.archived_badge")}</TonePill> : null}
-                </div>
-              </DataTable.Cell>
-              {columns.map((column) => <RepositoryColumnCell column={column.key} key={column.key} repository={repository} />)}
-              <DataTable.Cell className="text-right">
-                {repository.archived ? (
-                  <button
-                    className="text-brand dark:text-brand-emphasis underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
-                    disabled={unarchivePending}
-                    onClick={() => onUnarchive(repository)}
-                    type="button"
-                  >
-                    {t('repositories.unarchive')}
-                  </button>
-                ) : null}
-              </DataTable.Cell>
+              <DataTableColumnCells columns={columns} order={order} row={repository} />
             </DataTable.Row>
           ))
         )}
       </DataTable.Body>
     </DataTable.Root>
   )
-}
-
-function RepositoryColumnCell({ repository, column }: { repository: RepositoryRow; column: ColumnKey }) {
-  if (column === "github_owner") return <DataTable.Cell className="font-mono text-xs text-text-secondary">{repository.owner}</DataTable.Cell>
-  if (column === "open_jobs") return <DataTable.Cell>{repository.open_jobs_count}</DataTable.Cell>
-  if (column === "last_activity") return <DataTable.Cell><RelativeTimestamp value={repository.last_job_activity_at} /></DataTable.Cell>
-  if (column === "health") return <DataTable.Cell><RepositoryHealthPill health={repository.main_health} /></DataTable.Cell>
-  if (column === "agent") return <DataTable.Cell>{repository.agent_provider_label}</DataTable.Cell>
-  if (column === "polling_status") return <DataTable.Cell><PollingPill enabled={repository.polling_enabled} /></DataTable.Cell>
-  if (column === "last_poll") return <DataTable.Cell><LastPoll repository={repository} /></DataTable.Cell>
-  if (column === "trigger_label") return <DataTable.Cell><code className="rounded bg-surface-subtle px-1 text-xs">{repository.trigger_label}</code></DataTable.Cell>
-  if (column === "default_branch") return <DataTable.Cell className="font-mono text-xs text-text-secondary">{repository.default_branch}</DataTable.Cell>
-  if (column === "syrus_owner") return <DataTable.Cell className="text-xs text-text-secondary">{repository.owner_user.email_address}</DataTable.Cell>
-  if (column === "upstream_slug") {
-    return (
-      <DataTable.Cell className="font-mono text-xs text-text-secondary">
-        {repository.upstream_slug ? `${repository.upstream_slug}${repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}` : "-"}
-      </DataTable.Cell>
-    )
-  }
-
-  return <DataTable.Cell />
 }
 
 function RepositoryHealthPill({ health }: { health: string }) {
