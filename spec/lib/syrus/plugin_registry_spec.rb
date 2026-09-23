@@ -158,6 +158,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:workspace_tab)
     end
 
+    it "includes :workspace_git_transport" do
+      expect(described_class::EXTENSION_POINTS).to include(:workspace_git_transport)
+    end
+
     it "is frozen" do
       expect(described_class::EXTENSION_POINTS).to be_frozen
     end
@@ -227,6 +231,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "maps :repository_content_provider to Syrus::Plugin::RepositoryContentProvider" do
       expect(described_class::INTERFACE_FOR[:repository_content_provider].call).to eq(Syrus::Plugin::RepositoryContentProvider)
+    end
+
+    it "maps :workspace_git_transport to Syrus::Plugin::WorkspaceGitTransport" do
+      expect(described_class::INTERFACE_FOR[:workspace_git_transport].call).to eq(Syrus::Plugin::WorkspaceGitTransport)
     end
 
     it "gives build-system graph providers the class contract used by the registry" do

@@ -29,6 +29,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `workspace_tab`
 - `retention_policy`
 - `repository_content_provider`
+- `workspace_git_transport`
 - `purge_contributor`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
@@ -2546,10 +2547,18 @@ guard calls it for every repository), and `build(repository:, user:)`, which
 returns an instance or nil. Instances implement `resolve(ref, max_age:)`,
 `tree(revision_id)`, `read(revision_id, path)`, and optionally
 `changes(base_id, head_id, patch:)` (three-dot: what `head` introduced since
-its merge base with `base`), `refs(pattern:, max_age:)`, and
-`relation(base_id, head_id)`. Relation describes `head` relative to `base` as
-`identical`, `ahead`, `behind`, or `diverged`. Replicas refresh movable refs
-within `max_age`; `max_age: 0` requests a current authoritative answer.
+its merge base with `base`), `refs(pattern:, max_age:)`,
+`relation(base_id, head_id)`, `history(base_id, head_id)`, and
+`tree_sha(revision_id)`. Relation describes `head` relative to `base` as
+`identical`, `ahead`, `behind`, or `diverged`. History returns a
+`RepositoryContent::CommitHistory` (`commits`, newest-first, plus
+`merge_base_id`) for the same three-dot range `changes` diffs; a provider
+that cannot list every commit raises `Truncated` carrying what it got, the
+same as `changes` does for GitHub's 300-file cap. Replicas refresh movable
+refs within `max_age`; `max_age: 0` requests a current authoritative answer.
+`tree_sha` answers a commit's root tree object id -- two revisions share one
+exactly when they would produce identical content, which is how the landing
+path recognizes an empty merge without diffing files itself.
 
 Upstream providers may also answer `upstream_source(repository:, user:)` with a
 `RepositoryContent::Source` (`vcs`, `url`, `username`, `password`,
@@ -2570,6 +2579,78 @@ repositories it would leave with no provider at all.
 Core specs stub content with `stub_repository_content(repository, files: {...})`
 (`spec/support/repository_content.rb`), never through a provider plugin, so
 provider plugins stay removable.
+
+## `workspace_git_transport`
+
+A narrower sibling of `repository_content_provider`, for the one thing that
+extension point deliberately does not cover: `git clone`/`git fetch` itself,
+which the caller is git, not Syrus reading bytes. `WorkflowWorkspace`'s
+initial clone and its existing-branch refetch, and `ChatWorkspace`'s
+repository attachment, resolve a transport through `WorkspaceGitTransports.for`
+and try it before the hosting platform:
+
+```ruby
+transport = WorkspaceGitTransports.for(repository, user: user)
+# nil when no provider is enabled/available for this repository -- go
+# straight to the hosting platform, same as always.
+```
+
+In practice this is a shared mixin, not a direct call: both workspace classes
+`include WorkspaceGitTransportPreference`, and reach for its two entry
+points -- `clone_via_transport!` and `fetch_via_transport!` -- instead of
+hand-rolling the mirror attempt plus GitHub fallback themselves. Both take a
+`fallback` block that performs the actual GitHub git call and only runs when
+the mirror is unavailable, stale, or fails; `clone_via_transport!` also owns
+clearing the destination before every attempt (mirror or fallback), since a
+failed clone can leave a non-empty directory behind that the next attempt
+would otherwise refuse to write into:
+
+```ruby
+clone_via_transport!(repository:, user:, dest: path, clone_args: [ "--branch", branch, "--no-tags" ]) do
+  @git.run("clone", "--branch", branch, "--no-tags", authenticated_url, path.to_s, env: @env)
+end
+```
+
+Underneath, both call the lower-level `try_mirror_transport`, which resolves
+the transport, runs the caller's block against `transport.url`/
+`transport.env`, retries once after `transport.register!` if the first
+attempt raised `GitRunner::GitError`, and returns `false` (never raises) when
+neither attempt panned out. It stays public as the shared primitive both
+higher-level helpers build on -- `fetch_via_transport!`'s `fallback` block is
+happy to wrap `GithubAuthenticatedGit`'s own retry-on-auth-failure semantics
+for the branch-refetch caller, so nothing today needs `try_mirror_transport`
+directly, but it's independently unit-tested and is the seam a future caller
+would use if its fallback ever doesn't fit a single block. An optional
+`verify_sha:` (on both `fetch_via_transport!` and
+`try_mirror_transport`) catches the case a plain "did the fetch succeed"
+check would miss: the transport answers, but with an older commit than the
+caller actually wanted (a mirror whose background sync hasn't caught up to a
+very recent push). The wanted SHA is checked against the includer's own
+`#git_object_present?` after each attempt, and only counts as a hit when it
+is actually there.
+
+Implementations include `Syrus::Plugin::WorkspaceGitTransport` and define
+class methods `available_for?(repository)` (cheap, no network) and
+`build(repository:, user:)`, returning an instance or nil. Instances
+implement `#url` (a git URL; must never carry a credential) and, optionally,
+`#env` (extra `GitRunner#run` env for that URL -- an `http.extraHeader` auth
+header is the intended use, so a credential travels there instead of on the
+command line) and `#register!` (best-effort: make sure the transport actually
+knows about this repository yet).
+
+Git Mirror is the only current implementation (`GitMirror::WorkspaceGitTransport`),
+and it is deliberately an adapter over `ContentProvider` rather than a sibling
+that repeats its machinery: `.build` wraps a `ContentProvider` instance bound
+to the same repository, `#url` reads that instance's `mirror_id` to build the
+mirror's own smart-HTTP route (`<endpoint>/v1/repositories/<id>`), and
+`#register!` delegates straight to `ContentProvider#register!` -- the same
+reactive re-registration `ContentProvider` runs on its own JSON reads, now
+public so this adapter can call it directly instead of duplicating a client
+and a registration call of its own. Its mirrored refspec is only
+`refs/heads/*` and `refs/tags/*`, so anything outside that -- a GitHub pull
+request ref, a Syrus run checkpoint ref -- is never routed through this
+extension point in the first place; those call sites keep talking to the
+hosting platform directly.
 
 ## Plugin lifecycle: disable, uninstall, purge
 

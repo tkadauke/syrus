@@ -28,22 +28,10 @@ RSpec.describe "App API job source browser", type: :request do
   it "returns refs, compact tree items, and selected file content" do
     user.update!(github_token: "ghp_test_token")
     commit_sha = "deadbeef12345678"
-    github = instance_double(GithubClient)
 
-    allow(GithubClient).to receive(:for).with(repository: repo, user: user).and_return(github)
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(
-        commits: [
-          {
-            sha: commit_sha,
-            short_sha: "deadbee",
-            message: "Change user model",
-            date: Time.zone.parse("2026-05-01T12:00:00Z")
-          }
-        ],
-        merge_base_sha: "aabbccdd1234567"
-      )
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42",
+      commits: [ { sha: commit_sha, message: "Change user model", date: "2026-05-01T12:00:00Z" } ],
+      merge_base_sha: "aabbccdd1234567")
     stub_repository_content(repo, ref: commit_sha, files: {
       "app/models/user.rb" => "class User\nend\n",
       "app/frontend/routes/Chat.tsx" => "x" * 256,
@@ -118,10 +106,6 @@ RSpec.describe "App API job source browser", type: :request do
   it "uses the default branch without comparing when the job has no branch" do
     user.update!(github_token: "ghp_test_token")
     job.update!(branch_name: nil)
-    github = instance_double(GithubClient)
-
-    allow(GithubClient).to receive(:for).with(repository: repo, user: user).and_return(github)
-    expect(github).not_to receive(:compare_commits)
     stub_repository_content(repo, files: { "README.md" => "x" * 64 })
 
     get "/api/v1/app/jobs/#{job.id}/source"
@@ -130,6 +114,7 @@ RSpec.describe "App API job source browser", type: :request do
     body = parse_body
     expect(body["selected_ref"]).to eq("main")
     expect(body["tree_items"]).to contain_exactly(include("path" => "README.md", "language" => "markdown"))
+    expect(FakeRepositoryContentProvider.calls.map(&:first)).not_to include(:history)
   end
 
   it "does not expose another user's job" do

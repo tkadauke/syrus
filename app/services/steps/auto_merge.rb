@@ -80,7 +80,7 @@ module Steps
 
       sha = merge.respond_to?(:sha) ? merge.sha : merge[:sha]
       job.update_column(:landed_sha, sha) if sha.present?
-      record_landed_commits(client, previous_base_sha, sha) if sha.present?
+      record_landed_commits(previous_base_sha, sha) if sha.present?
 
       comment = "Merged automatically by Syrus after approval and green checks. #{job.slug}: #{job_url}"
       add_merge_comment(client, comment)
@@ -131,23 +131,29 @@ module Steps
       nil
     end
 
-    # `GithubClient#compare_commits` returns commits newest-first (its
-    # `.reverse` undoes GitHub's own oldest-first compare-API order —
-    # see the spec asserting that order). Landing order is chronological
-    # (oldest/base-adjacent commit first), so reverse it again before
-    # assigning `position`. This is additive bookkeeping alongside
-    # `landed_sha`; any failure here must not fail the landing.
-    def record_landed_commits(client, previous_base_sha, sha)
+    # RepositoryContent#history returns commits newest-first (see the git_mirror
+    # and github_host content_provider specs asserting that order). Landing
+    # order is chronological (oldest/base-adjacent commit first), so reverse
+    # it again before assigning `position`. This is additive bookkeeping
+    # alongside `landed_sha`; any failure here must not fail the landing.
+    def record_landed_commits(previous_base_sha, sha)
       return if previous_base_sha.blank?
 
-      commits = client.compare_commits(repository.slug, previous_base_sha, sha)[:commits]
+      commits = landed_commits_between(previous_base_sha, sha)
       return if commits.blank?
 
       commits.reverse_each.with_index do |commit, position|
-        LandedCommit.create!(landable: job, sha: commit[:sha], kind: "implementation", position: position)
+        LandedCommit.create!(landable: job, sha: commit.sha, kind: "implementation", position: position)
       end
     rescue StandardError => e
       log("auto_merge: could not record landed commits: #{e.class}: #{e.message}", kind: "system")
+    end
+
+    def landed_commits_between(previous_base_sha, sha)
+      content = RepositoryContent.for(repository, user: job.user)
+      content.history(base: content.revision(previous_base_sha), head: content.revision(sha)).commits
+    rescue RepositoryContent::Truncated => e
+      e.partial.commits
     end
 
     def close_job_for_closed_pull_request!(pr, client)

@@ -165,7 +165,7 @@ RSpec.describe Steps::ExternalPrMerge do
     allow(AutoRebase).to receive(:new).and_return(instance_double(AutoRebase, call: rebase_result))
     allow(client).to receive(:pull_request).and_return(pr(head_sha: "abc123", base_sha: "current-base"))
     allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("current-base")
-    allow(client).to receive(:commit_tree_sha).with("acme/widgets", "def5678").and_return("tree5678")
+    stub_repository_tree_sha("def5678", "tree5678")
     allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
 
     expect {

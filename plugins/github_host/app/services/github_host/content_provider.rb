@@ -13,6 +13,7 @@ module GithubHost
     GIT_SHA = /\A\h{40}\z/
     SYMLINK_MODE = "120000".freeze
     GITHUB_COMPARE_FILE_LIMIT = 300
+    GITHUB_COMPARE_COMMIT_LIMIT = 250
 
     UNAVAILABLE_ERRORS = [
       Octokit::TooManyRequests,
@@ -152,6 +153,25 @@ module GithubHost
       translate(unknown_revision: "unknown revision #{base_id}...#{head_id}") do
         client.compare_commits(slug, base_id, head_id).fetch(:status).to_sym
       end
+    end
+
+    def history(base_id, head_id)
+      result = translate(unknown_revision: "unknown revision #{base_id}...#{head_id}") { client.compare_commits(slug, base_id, head_id) }
+      commits = result[:commits].map do |commit|
+        RepositoryContent::Commit.new(sha: commit[:sha], message: commit[:message], authored_at: commit[:date])
+      end
+      history = RepositoryContent::CommitHistory.new(commits: commits, merge_base_id: result[:merge_base_sha])
+      # GitHub lists at most 250 commits per comparison. Returning the first
+      # 250 as if they were all would be a quiet lie.
+      if result[:truncated]
+        raise RepositoryContent::Truncated.new("GitHub lists at most #{GITHUB_COMPARE_COMMIT_LIMIT} commits per comparison", partial: history)
+      end
+
+      history
+    end
+
+    def tree_sha(revision_id)
+      translate(unknown_revision: "unknown revision #{revision_id}") { client.commit_tree_sha(slug, revision_id) }
     end
 
     private

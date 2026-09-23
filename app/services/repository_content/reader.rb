@@ -145,6 +145,40 @@ module RepositoryContent
       through_chain(:relation) { |provider| provider.relation(base_id, head_id) }.to_sym
     end
 
+    # The commits `head` introduced since its merge base with `base`
+    # (three-dot, like #changes), newest-first, plus that merge base's
+    # revision id.
+    def history(base:, head:)
+      base_id = revision_id(base)
+      head_id = revision_id(head)
+      key = cache_key("history", base_id, head_id)
+      cached = cache.read(key)
+      if cached
+        record(CACHE_PROVIDER, :history, "answered")
+        return commit_history_from_cache(cached)
+      end
+
+      result = through_chain(:history) { |provider| provider.history(base_id, head_id) }
+      cache.write(key, commit_history_to_cache(result), expires_in: CONTENT_CACHE_TTL)
+      result
+    end
+
+    # The id of a commit's root tree object -- what two revisions share when
+    # they produced identical content, immutable per revision like #tree.
+    def tree_sha(revision)
+      id = revision_id(revision)
+      key = cache_key("tree_sha", id)
+      cached = cache.read(key)
+      if cached
+        record(CACHE_PROVIDER, :tree_sha, "answered")
+        return cached
+      end
+
+      result = through_chain(:tree_sha) { |provider| provider.tree_sha(id) }
+      cache.write(key, result, expires_in: CONTENT_CACHE_TTL)
+      result
+    end
+
     # The provider instances that will be asked, in order. Exposed for
     # diagnostics.
     def providers
@@ -216,6 +250,27 @@ module RepositoryContent
       # counts bytes. safe_byteslice would transcode to UTF-8 and corrupt
       # binary content; Blob#text is where decoding happens.
       blob.with(bytes: blob.bytes[0, max_bytes], truncated: true)
+    end
+
+    # `authored_at` is usually already a plain string (neither Octokit nor
+    # the mirror parses commit dates into Time), but cache it as one either
+    # way -- the same care #resolve takes with `observed_at` -- since some
+    # cache backends do not round-trip an arbitrary Time through their
+    # serializer, and callers only ever format it for display.
+    def commit_history_to_cache(history)
+      {
+        "commits" => history.commits.map { |commit| { "sha" => commit.sha, "message" => commit.message, "authored_at" => stringify_time(commit.authored_at) } },
+        "merge_base_id" => history.merge_base_id
+      }
+    end
+
+    def commit_history_from_cache(cached)
+      commits = cached["commits"].map { |attrs| Commit.new(**attrs.symbolize_keys) }
+      CommitHistory.new(commits: commits, merge_base_id: cached["merge_base_id"])
+    end
+
+    def stringify_time(value)
+      value.respond_to?(:iso8601) ? value.iso8601(6) : value
     end
 
     def revision_id(revision)

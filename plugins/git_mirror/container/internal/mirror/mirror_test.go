@@ -145,6 +145,43 @@ func TestRefsAndRevisionRelation(t *testing.T) {
 	}
 }
 
+// TreeSHA answers the question the landing path actually asks: would this
+// commit's tree be identical to another's. Two commits with the same files
+// share a tree SHA even though their commit SHAs (and history) differ; a
+// commit that changed a file does not.
+func TestTreeSHA(t *testing.T) {
+	u := newUpstream(t)
+	first := u.commit(map[string]string{"a.txt": "1"}, "first")
+	changed := u.commit(map[string]string{"a.txt": "2"}, "changed")
+	sameTree := u.commit(map[string]string{"a.txt": "1"}, "revert back to first's content")
+	s := newStore(t, nil)
+	register(t, s, "42", u)
+	ctx := context.Background()
+
+	firstTree, err := s.TreeSHA(ctx, "42", first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sameTreeTree, err := s.TreeSHA(ctx, "42", sameTree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changedTree, err := s.TreeSHA(ctx, "42", changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstTree == "" || firstTree != sameTreeTree {
+		t.Fatalf("tree SHAs for identical content differ: %q vs %q", firstTree, sameTreeTree)
+	}
+	if changedTree == firstTree {
+		t.Fatalf("tree SHA did not change for changed content: %q", changedTree)
+	}
+
+	if _, err := s.TreeSHA(ctx, "42", strings.Repeat("0", 40)); !errors.Is(err, ErrUnknownRevision) {
+		t.Fatalf("unknown commit: got %v, want ErrUnknownRevision", err)
+	}
+}
+
 // The distinction the whole content contract rests on: a missing file in a
 // known commit is final; a commit the mirror has never seen is not.
 func TestMissingFileIsNotFoundButUnknownCommitIsUnknownRevision(t *testing.T) {
@@ -283,6 +320,55 @@ func TestChangesAreThreeDot(t *testing.T) {
 		if got[path] != status {
 			t.Fatalf("got %v, want %v", got, want)
 		}
+	}
+}
+
+func TestHistoryListsCommitsSinceMergeBaseNewestFirst(t *testing.T) {
+	u := newUpstream(t)
+	u.commit(map[string]string{"keep.txt": "k"}, "base")
+	mergeBase := u.git("rev-parse", "HEAD")
+	u.git("checkout", "--quiet", "-b", "feature")
+	first := u.commit(map[string]string{"a.txt": "1"}, "first commit")
+	second := u.commit(map[string]string{"a.txt": "2"}, "second commit")
+	u.git("checkout", "--quiet", "main")
+	// main moves on after the branch point; three-dot must not report it,
+	// and must not treat main's new tip as the merge base either.
+	base := u.commit(map[string]string{"main-only.txt": "m"}, "main moves")
+	s := newStore(t, nil)
+	register(t, s, "42", u)
+
+	history, err := s.History(context.Background(), "42", base, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if history.MergeBaseID != mergeBase {
+		t.Fatalf("merge base = %s, want %s", history.MergeBaseID, mergeBase)
+	}
+	if len(history.Commits) != 2 || history.Commits[0].SHA != second || history.Commits[1].SHA != first {
+		t.Fatalf("unexpected commits: %+v", history.Commits)
+	}
+	if history.Commits[0].Message != "second commit" || history.Commits[1].Message != "first commit" {
+		t.Fatalf("unexpected messages: %+v", history.Commits)
+	}
+	for _, c := range history.Commits {
+		if c.AuthoredAt.IsZero() {
+			t.Fatalf("commit %s has no authored_at: %+v", c.SHA, c)
+		}
+	}
+}
+
+func TestHistoryIsEmptyWhenHeadIsTheMergeBase(t *testing.T) {
+	u := newUpstream(t)
+	sha := u.commit(map[string]string{"a.txt": "1"}, "only commit")
+	s := newStore(t, nil)
+	register(t, s, "42", u)
+
+	history, err := s.History(context.Background(), "42", sha, sha)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if history.MergeBaseID != sha || len(history.Commits) != 0 {
+		t.Fatalf("unexpected history: %+v", history)
 	}
 }
 
@@ -457,5 +543,23 @@ func TestFetchMeasuresSizeAndRunsMaintenanceDaily(t *testing.T) {
 	disk := s.Disk()
 	if disk.TotalBytes == 0 || disk.FreeBytes == 0 || disk.MirrorBytes != s.List()[0].SizeBytes {
 		t.Fatalf("disk = %+v", disk)
+	}
+}
+
+// `git init --bare` defaults HEAD to refs/heads/master, and a plain `git
+// fetch` never touches it. Without syncing it to the upstream's real
+// default branch, a `git clone` against the mirror's smart-HTTP transport
+// (which checks out via HEAD, the same as against any other git remote)
+// would leave the client with nothing checked out.
+func TestFetchSyncsHEADToTheUpstreamsDefaultBranch(t *testing.T) {
+	u := newUpstream(t) // initial branch "main", never "master"
+	u.commit(map[string]string{"a.txt": "1"}, "first")
+	s := newStore(t, nil)
+	register(t, s, "42", u)
+
+	r, _ := s.get("42")
+	head, err := s.git(context.Background(), r.dir, nil, time.Second, "symbolic-ref", "HEAD")
+	if err != nil || strings.TrimSpace(string(head.Stdout)) != "refs/heads/main" {
+		t.Fatalf("HEAD = %q, %v; want refs/heads/main", head.Stdout, err)
 	}
 }

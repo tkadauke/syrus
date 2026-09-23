@@ -32,7 +32,7 @@ module Steps
         rebase_result = mechanically_rebase_before_landing!(gate, client: client)
         pr_for_validation = pr_after_mechanical_rebase(pr, rebase_result)
 
-        decision = landing_validation_decision(client, pr_repo, pr_for_validation)
+        decision = landing_validation_decision(pr_repo, pr_for_validation)
         record_landing_validation_decision!(decision, pr_for_validation)
         if decision.reusable?
           skip_revalidated_landing_steps!(pr_for_validation, decision)
@@ -80,14 +80,14 @@ module Steps
       job.close_with_reason!(ClosedPullRequestResolution.reason(job: job, pr: pr, client: client))
     end
 
-    def landing_validation_decision(client, pr_repo, pr)
+    def landing_validation_decision(pr_repo, pr)
       return LandingValidationCache.decision_for_pr(job: job, pr: pr) unless LandingValidationCache.green_validation_present?(job)
 
       LandingValidationCache.decision_for_pr(
         job: job,
         pr: pr,
-        tree_sha: current_tree_sha(client, pr_repo, pr),
-        base_tree_sha: current_base_tree_sha(client, pr_repo, pr),
+        tree_sha: current_tree_sha(pr_repo, pr),
+        base_tree_sha: current_base_tree_sha(pr_repo, pr),
         grader_fingerprint: current_grader_fingerprint,
         changed_files_fingerprint: current_changed_files_fingerprint(pr)
       )
@@ -253,18 +253,23 @@ module Steps
       )
     end
 
-    def current_tree_sha(client, pr_repo, pr)
-      client.commit_tree_sha(pr_repo.slug, MergeabilityRecorder.head_sha(pr)).to_s.presence
+    def current_tree_sha(pr_repo, pr)
+      content_tree_sha(pr_repo, MergeabilityRecorder.head_sha(pr))
     rescue StandardError => e
       log("auto_merge: could not read current tree SHA for landing validation cache: #{e.message}", kind: "system")
       nil
     end
 
-    def current_base_tree_sha(client, pr_repo, pr)
-      client.commit_tree_sha(pr_repo.slug, MergeabilityRecorder.base_sha(pr)).to_s.presence
+    def current_base_tree_sha(pr_repo, pr)
+      content_tree_sha(pr_repo, MergeabilityRecorder.base_sha(pr))
     rescue StandardError => e
       log("auto_merge: could not read current base tree SHA for landing validation cache: #{e.message}", kind: "system")
       nil
+    end
+
+    def content_tree_sha(pr_repo, sha)
+      content = RepositoryContent.for(pr_repo, user: job.user)
+      content.tree_sha(content.revision(sha)).to_s.presence
     end
 
     def current_changed_files_fingerprint(pr)

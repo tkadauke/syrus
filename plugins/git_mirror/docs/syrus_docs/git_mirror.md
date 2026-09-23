@@ -3,14 +3,21 @@
 Git Mirror keeps a bare mirror of every active git repository and answers
 Syrus's repository reads from it -- the `.syrus.yml` read before each workflow
 is built, preview project discovery, skills, the Job source browser -- before
-the hosting platform's API is asked. It takes most of those reads off GitHub's
-rate limit and out of a network round trip, at the cost of disk space for the
-mirrors. Off by default.
+the hosting platform's API is asked. It also serves the clones and fetches
+that populate workflow and chat workspaces: a plain `git clone`/`git fetch`
+speaks its smart-HTTP git transport directly, read-only. Together this takes
+most of Syrus's reads, and the biggest single source of traffic (a full
+clone per Workflow), off GitHub's rate limit and out of a network round trip,
+at the cost of disk space for the mirrors. Off by default.
 
-It is a `:replica` `repository_content_provider` (see `plugins.md`): whenever
-it cannot answer -- the service is down, a commit has not reached it, a
-request it does not support -- the read falls through to the host, exactly as
-if the plugin were disabled.
+It is a `:replica` `repository_content_provider` (see `plugins.md`) for file,
+tree, diff, commit history, and commit tree SHA reads: whenever it cannot
+answer -- the service is down, a commit has not reached it, a request it does
+not support -- the read falls through to the host, exactly as if the plugin
+were disabled. It is also a `workspace_git_transport` provider (same
+extension point contract, a different consumer): `WorkflowWorkspace` and
+`ChatWorkspace` try it first for every clone/fetch and fall back to the host
+on any failure.
 
 ## Requirements
 
@@ -60,6 +67,34 @@ seen yet is fetched once on demand. Resolving a branch honours the caller's
 `max_age` (60 seconds by default): an older view is refreshed first, and if
 the host cannot be reached the mirror says so rather than returning a stale
 commit, so the read falls back to the host.
+
+## Clones and fetches
+
+`WorkflowWorkspace`'s initial clone and `ChatWorkspace`'s repository
+attachment try the mirror's smart-HTTP routes
+(`<endpoint>/v1/repositories/<id>`, the same `git clone`/`git fetch` a real
+git remote answers) before the host, authenticated with the same bearer token
+as the JSON API via an `http.extraHeader` -- never embedded in the URL, so it
+never lands in `.git/config` or a logged git error. A repository the mirror
+has not been told about since it last restarted registers on the spot and
+retries once, the same recovery the content reads use.
+
+A branch tip the mirror hasn't caught up to yet is an accepted staleness
+window, same as any `max_age`-bounded read; but two cases are verified
+explicitly, because silently landing on a stale commit there would be worse
+than falling back: refreshing a Job's already-existing branch checks the
+fetched commit against the exact SHA a `ls-remote` against the host just
+reported, and checking out a Syrus-pinned commit (`main_sha`, `deploy_sha`,
+a landed merge commit) fetches that exact commit from the host if the mirror
+didn't have it. Either check failing falls back to the host for that
+operation, transparently.
+
+Only `refs/heads/*` and `refs/tags/*` are mirrored, so operations against
+other refs -- a GitHub pull request's `refs/pull/<n>/head`, a Syrus run
+checkpoint's `refs/syrus/checkpoints/...` -- always go straight to the host;
+the mirror is never asked for them. The mirror never accepts a push: its
+smart-HTTP routes only implement `git-upload-pack` (fetch/clone), and there
+is no `git-receive-pack` route at all for a client to reach.
 
 ## Checking that it works
 

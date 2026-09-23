@@ -5,7 +5,7 @@ RSpec.describe RepositoryContent do
   let(:repository) { Factories.repository(user: user) }
 
   # A scripted provider: each operation either returns its value or raises.
-  def provider_class(key, role: :upstream, available: true, resolve: nil, tree: nil, read: nil, changes: nil, log: [])
+  def provider_class(key, role: :upstream, available: true, resolve: nil, tree: nil, read: nil, changes: nil, history: nil, tree_sha: nil, log: [])
     Class.new do
       include Syrus::Plugin::RepositoryContentProvider
 
@@ -29,6 +29,12 @@ RSpec.describe RepositoryContent do
       define_method(:read) { |id, path| answer.call(:read, read, id, path) }
       if changes
         define_method(:changes) { |base, head, patch: false| answer.call(:changes, changes, base, head, patch) }
+      end
+      if history
+        define_method(:history) { |base, head| answer.call(:history, history, base, head) }
+      end
+      if tree_sha
+        define_method(:tree_sha) { |id| answer.call(:tree_sha, tree_sha, id) }
       end
     end
   end
@@ -271,6 +277,53 @@ RSpec.describe RepositoryContent do
       result = described_class.for(repository, user: user).changes(base: revision("b" * 40), head: revision)
 
       expect(result).to eq([ change ])
+    end
+  end
+
+  describe "#history" do
+    it "is Unsupported by default, so the chain can move on to a provider that lists commit history" do
+      commit = RepositoryContent::Commit.new(sha: "c" * 40, message: "fix bug", authored_at: "2026-09-22T12:00:00Z")
+      history = RepositoryContent::CommitHistory.new(commits: [ commit ], merge_base_id: "b" * 40)
+      described_class.provider_classes_override = [
+        provider_class(:mirror, role: :replica),
+        provider_class(:github, history: history)
+      ]
+
+      result = described_class.for(repository, user: user).history(base: revision("b" * 40), head: revision)
+
+      expect(result).to eq(history)
+    end
+
+    it "carries a partial answer -- and whatever it did get -- when a provider cannot list every commit" do
+      partial = RepositoryContent::CommitHistory.new(commits: [ RepositoryContent::Commit.new(sha: "c" * 40, message: "m") ], merge_base_id: "b" * 40)
+      described_class.provider_classes_override = [
+        provider_class(:github, history: RepositoryContent::Truncated.new("too many", partial: partial))
+      ]
+
+      expect { described_class.for(repository, user: user).history(base: revision("b" * 40), head: revision) }
+        .to raise_error(RepositoryContent::Truncated) { |error| expect(error.partial).to eq(partial) }
+    end
+  end
+
+  describe "#tree_sha" do
+    it "is Unsupported by default, so the chain can move on to a provider that answers" do
+      described_class.provider_classes_override = [
+        provider_class(:mirror, role: :replica),
+        provider_class(:github, tree_sha: "tree-abc")
+      ]
+
+      expect(described_class.for(repository, user: user).tree_sha(revision)).to eq("tree-abc")
+    end
+
+    it "caches the answer per revision" do
+      with_memory_cache
+      log = []
+      described_class.provider_classes_override = [ provider_class(:github, tree_sha: "tree-abc", log: log) ]
+      content = described_class.for(repository, user: user)
+
+      2.times { expect(content.tree_sha(revision)).to eq("tree-abc") }
+
+      expect(log.size).to eq(1)
     end
   end
 

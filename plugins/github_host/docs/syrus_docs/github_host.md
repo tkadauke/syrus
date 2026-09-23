@@ -1,7 +1,8 @@
 # GitHub Host
 
 GitHub Host reads repository content from GitHub without a checkout: files,
-trees, and what changed between two commits. It is the `:upstream`
+trees, what changed between two commits, commit history, and commit tree
+SHAs. It is the `:upstream`
 `repository_content_provider` for every git repository Syrus knows, answering
 through the GitHub API with the repository's App installation token or its
 owner's PAT.
@@ -26,10 +27,11 @@ recommendations, and the Job source browser.
 - Files over the contents API's 1 MB inline limit are fetched through the git
   blob API.
 - GitHub truncates very large trees (around 100,000 entries) and lists at most
-  300 files per comparison. Rather than return a partial answer as if it were
-  complete, GitHub Host raises `RepositoryContent::Truncated` carrying what it
-  got: a mirror plugin can answer instead, and display code (the source
-  browser, the diff viewer) shows the partial list flagged as truncated.
+  300 files or 250 commits per comparison. Rather than return a partial answer
+  as if it were complete, GitHub Host raises `RepositoryContent::Truncated`
+  carrying what it got: a mirror plugin can answer instead, and display code
+  (the source browser, the diff viewer) shows the partial list flagged as
+  truncated.
 
 Errors map onto the content contract: a missing file is `NotFound`, an unknown
 ref or commit is `UnknownRevision`, and rate limits, 5xx responses,

@@ -161,6 +161,55 @@ RSpec.describe GithubHost::ContentProvider do
     expect(provider.relation("base", sha)).to eq(:ahead)
   end
 
+  describe "#history" do
+    it "returns the commits since the merge base, plus the merge base itself" do
+      allow(client).to receive(:compare_commits).with("acme/widgets", "base", sha).and_return(
+        truncated: false,
+        merge_base_sha: "base",
+        commits: [
+          { sha: sha, short_sha: sha[0, 7], message: "Implement feature", date: "2026-09-22T12:00:00Z" }
+        ]
+      )
+
+      result = provider.history("base", sha)
+
+      expect(result.merge_base_id).to eq("base")
+      expect(result.commits.sole).to have_attributes(sha: sha, message: "Implement feature", authored_at: "2026-09-22T12:00:00Z")
+    end
+
+    it "refuses to pass off GitHub's 250-commit cap as the whole history, but hands over what it got" do
+      allow(client).to receive(:compare_commits)
+        .and_return(truncated: true, merge_base_sha: "base", commits: [ { sha: sha, message: "m", date: "2026-09-22T12:00:00Z" } ])
+
+      expect { provider.history("base", sha) }
+        .to raise_error(RepositoryContent::Truncated, /250/) { |error| expect(error.partial.commits.map(&:sha)).to eq([ sha ]) }
+    end
+
+    it "reports an unknown revision as UnknownRevision and a rate limit as Unavailable" do
+      allow(client).to receive(:compare_commits).with("acme/widgets", "gone", sha).and_raise(Octokit::NotFound)
+      allow(client).to receive(:compare_commits).with("acme/widgets", "base", sha).and_raise(rate_limited)
+
+      expect { provider.history("gone", sha) }.to raise_error(RepositoryContent::UnknownRevision)
+      expect { provider.history("base", sha) }.to raise_error(RepositoryContent::Unavailable)
+    end
+  end
+
+  describe "#tree_sha" do
+    it "reads the commit's root tree SHA" do
+      allow(client).to receive(:commit_tree_sha).with("acme/widgets", sha).and_return("t" * 40)
+
+      expect(provider.tree_sha(sha)).to eq("t" * 40)
+    end
+
+    it "reports an unknown revision and a rate limit distinctly" do
+      allow(client).to receive(:commit_tree_sha).with("acme/widgets", "gone").and_raise(Octokit::NotFound)
+      allow(client).to receive(:commit_tree_sha).with("acme/widgets", sha).and_raise(rate_limited)
+
+      expect { provider.tree_sha("gone") }.to raise_error(RepositoryContent::UnknownRevision)
+      expect { provider.tree_sha(sha) }.to raise_error(RepositoryContent::Unavailable)
+    end
+  end
+
   it "answers through RepositoryContent end to end" do
     allow(GithubClient).to receive(:for).and_return(client)
     allow(client).to receive(:commit_sha_for).and_return(sha)

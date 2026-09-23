@@ -821,11 +821,14 @@ class GithubClient
     raise
   end
 
-  # Returns { commits: [...], merge_base_sha: "abc" } for commits that are
-  # on `head` but not yet in `base`. Each commit entry has :sha, :short_sha,
-  # :message (first line), and :date. Commits are returned newest-first.
-  # Returns empty commits + nil merge_base_sha if the head branch doesn't
-  # exist yet (Octokit::NotFound).
+  # Returns { commits: [...], merge_base_sha: "abc", truncated: bool } for
+  # commits that are on `head` but not yet in `base`. Each commit entry has
+  # :sha, :short_sha, :message (first line), and :date. Commits are returned
+  # newest-first. GitHub's compare API lists at most 250 commits; `truncated`
+  # says the list is incomplete (compared against `total_commits`, which
+  # GitHub still reports in full even when `commits` is capped). Returns
+  # empty commits + nil merge_base_sha if the head branch doesn't exist yet
+  # (Octokit::NotFound).
   def compare_commits(repo_slug, base, head)
     result = track_rate_limits { @client.compare(repo_slug, base, head) }
     commits = Array(result.commits).map { |c|
@@ -836,9 +839,10 @@ class GithubClient
         date:      c.commit.committer.date
       }
     }.reverse
-    { commits: commits, merge_base_sha: result.merge_base_commit.sha, status: result.status.to_s.presence }
+    truncated = result.respond_to?(:total_commits) && result.total_commits.to_i > commits.size
+    { commits: commits, merge_base_sha: result.merge_base_commit.sha, status: result.status.to_s.presence, truncated: truncated }
   rescue Octokit::NotFound
-    { commits: [], merge_base_sha: nil, status: nil }
+    { commits: [], merge_base_sha: nil, status: nil, truncated: false }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} compare #{base}...#{head}: #{e.message}")
     raise
