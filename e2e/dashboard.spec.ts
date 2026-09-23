@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test"
 import { execFileSync } from "node:child_process"
 import { DEMO_USER, signIn, signInAsDemo } from "./support/auth"
-import { removePresetFilter, sortDashboardByNewest } from "./support/dashboard"
+import { jobsListRow, openJobsListFilteredByTitle } from "./support/dashboard"
 
 test("dashboard shows the seeded epic", async ({ page }) => {
   await signInAsDemo(page)
@@ -25,11 +25,11 @@ test("switches between the epics, jobs, and workflows dashboard sub-views", asyn
   await page.goto("/dashboard/epics")
   await expect(page.getByRole("link", { name: "Preview the operator workflow" })).toBeVisible()
 
-  // The "Jobs" sub-view hides closed/approved/running jobs behind the
-  // default "Inbox" preset filter (see job-lifecycle.spec.ts); removing it
-  // is what makes every seeded Job -- regardless of state -- show up here.
-  await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  await removePresetFilter(page)
+  // The Jobs sub-view opens in a smart folder that hides Jobs for being
+  // closed or approved, and which folder that is depends on what another
+  // spec last selected. Filter by a word both seeded titles share instead,
+  // which shows them whatever state they are in.
+  await openJobsListFilteredByTitle(page, "preview")
   await expect(page.getByRole("link", { name: "Inspect preview dashboard states", exact: true })).toBeVisible()
   await expect(page.getByRole("link", { name: "Document preview seed guidance", exact: true })).toBeVisible()
 
@@ -73,13 +73,9 @@ test("retries a failed job in bulk from the dashboard and reflects it in the das
   skipWhenRemote()
   const title = `E2E bulk retry ${Date.now()}`
   createFailedFixtureJob(title)
-  sortDashboardByNewest()
 
   await signInAsDemo(page)
-  await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  await removePresetFilter(page)
-
-  const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: title, exact: true }) })
+  const row = await jobsListRow(page, title)
   await expect(row).toContainText("failed")
 
   await row.getByRole("checkbox", { name: `Select ${title}` }).check()

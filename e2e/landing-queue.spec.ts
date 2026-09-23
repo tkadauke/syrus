@@ -1,14 +1,11 @@
 import { test, expect, type Page } from "@playwright/test"
 import { signInAsDemo } from "./support/auth"
-import { removePresetFilter } from "./support/dashboard"
+import { jobsListRow } from "./support/dashboard"
 
 test.slow()
 
 async function dashboardRowFor(page: Page, title: string) {
-  await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  await removePresetFilter(page)
-
-  return page.getByRole("row").filter({ has: page.getByRole("link", { name: title, exact: true }) })
+  return jobsListRow(page, title)
 }
 
 async function openJob(page: Page, title: string) {

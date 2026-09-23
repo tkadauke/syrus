@@ -1,32 +1,34 @@
 import { type Page } from "@playwright/test"
-import { execFileSync } from "node:child_process"
 
-// The Jobs list opens filtered by the active smart folder's "Preset" chip,
-// which hides closed and approved Jobs; removing it is what makes every
-// seeded Job show up regardless of the state a prior action moved it to.
+// Opens the Jobs list showing exactly the Jobs whose title matches, by
+// encoding a filter tree into the `q` param the chip bar round-trips through
+// the URL (Filters::QueryParam).
 //
-// Waiting for the chip rather than sampling matters: it renders a beat after
-// the table, so a count() taken when the table appears reads zero and the
-// click is skipped, leaving the list filtered. Its absence is fine -- the
-// preference persists, so a later spec may find it already removed.
-export async function removePresetFilter(page: Page) {
-  const button = page.getByRole("button", { name: "Remove Preset filter" })
-  try {
-    await button.waitFor({ timeout: 10_000 })
-  } catch {
-    return
-  }
-  await button.click()
+// A spec that looks for one Job's row needs it to be on the page, and left to
+// its own devices the list will not cooperate: it opens in whichever smart
+// folder another spec last selected (the preference is stored per user), that
+// folder hides Jobs for being closed or approved or somebody else's, the sort
+// is likewise remembered, and 25 rows per page decide the rest. Every one of
+// those is shared state that another spec can move.
+//
+// Filtering sidesteps all of it. A `q` present in the URL also suppresses the
+// default Inbox folder server-side (App::DashboardPayload#active_smart_folder),
+// so what comes back is this filter and nothing else -- one row, wherever the
+// dashboard happened to be pointed before.
+// "contains", not "is": title is a full-text column and rejects an equality
+// operator outright (Filters::Chips::Jobs::Title), which comes back as an
+// empty list rather than an error.
+export async function openJobsListFilteredByTitle(page: Page, title: string) {
+  const tree = { and: [ { field: "title", op: "contains", value: title } ] }
+  const q = Buffer.from(JSON.stringify(tree)).toString("base64url")
+
+  await page.goto(`/dashboard/jobs?ownership_scope=team&view=list&q=${q}`)
+  await page.getByRole("table").first().waitFor()
 }
 
-// The dashboard's sort is a persisted per-user preference, so whichever spec
-// last sorted by Queue decides the order every later spec sees, and a
-// just-created fixture Job lands somewhere past the first page of 25 instead
-// of at the top. Pin it before looking for a row by title.
-export function sortDashboardByNewest(email = "demo@syrus.local") {
-  if (process.env.E2E_BASE_URL) return
+// The row for a single Job, on a list filtered down to it.
+export async function jobsListRow(page: Page, title: string) {
+  await openJobsListFilteredByTitle(page, title)
 
-  execFileSync("bin/rails", ["runner",
-    `User.find_by!(email_address: ${JSON.stringify(email)}).update_dashboard_sort!(subject: "job", column: "created_at", direction: "desc")`
-  ], { env: process.env, stdio: "inherit" })
+  return page.getByRole("row").filter({ has: page.getByRole("link", { name: title, exact: true }) })
 }

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 import { signInAsDemo } from "./support/auth"
-import { removePresetFilter, sortDashboardByNewest } from "./support/dashboard"
+import { jobsListRow } from "./support/dashboard"
 
 test.slow()
 
@@ -58,10 +58,8 @@ for (const theme of ["light", "dark"] as const) {
 }
 
 async function openSeededJob(page: Page, title: string) {
-  sortDashboardByNewest()
-  await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  await removePresetFilter(page)
-  await page.getByRole("row").filter({ has: page.getByRole("link", { name: title, exact: true }) }).getByRole("link", { name: title, exact: true }).click()
+  const row = await jobsListRow(page, title)
+  await row.getByRole("link", { name: title, exact: true }).click()
 }
 
 async function applyTheme(page: Page, theme: "light" | "dark") {

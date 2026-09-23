@@ -1,15 +1,14 @@
 import { test, expect, type Page } from "@playwright/test"
 import { signInAsDemo } from "./support/auth"
-import { removePresetFilter } from "./support/dashboard"
+import { jobsListRow } from "./support/dashboard"
 
 test.slow()
 
 async function openImplementedDemoJob(page: Page) {
   const title = "Inspect preview dashboard states"
 
-  await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  await removePresetFilter(page)
-  await page.getByRole("row").filter({ has: page.getByRole("link", { name: title, exact: true }) }).getByRole("link", { name: title, exact: true }).click()
+  const row = await jobsListRow(page, title)
+  await row.getByRole("link", { name: title, exact: true }).click()
   await expect(page.getByRole("heading", { level: 1 })).toContainText(title)
 }
 

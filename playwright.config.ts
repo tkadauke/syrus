@@ -45,6 +45,17 @@ const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`
 
 export default defineConfig({
   timeout: 30_000,
+  // One worker. Every spec signs in as the same seeded demo user and drives
+  // the same Rails app, and several of them legitimately change that shared
+  // world: settings-preferences switches the user's locale (the whole UI
+  // renders in German for as long as it holds), job-lifecycle approves a
+  // seeded Job, landing-queue pauses landing. Teardown puts each back, but
+  // teardown cannot help a spec reading the same user in parallel -- it sees
+  // German mid-test and fails looking for an English button.
+  //
+  // Slower and deterministic beats faster and arbitrary here; the suite has
+  // its own path-scoped workflow rather than a slot in ci.yml's budget.
+  workers: 1,
   // Skipped entirely when E2E_BASE_URL points the suite at an already-running
   // server, which is how CI targets a deployed instance.
   webServer: process.env.E2E_BASE_URL ? undefined : {

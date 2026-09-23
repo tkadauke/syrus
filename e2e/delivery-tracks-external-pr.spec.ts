@@ -1,11 +1,12 @@
 import { test, expect, type Page } from "@playwright/test"
 import { execFileSync } from "node:child_process"
 import { DEMO_USER, signInAsDemo } from "./support/auth"
-import { removePresetFilter, sortDashboardByNewest } from "./support/dashboard"
+import { openJobsListFilteredByTitle } from "./support/dashboard"
 
 test.slow()
 
 type DeliveryFixture = {
+  stamp: string
   repositoryId: number
   forkRepositoryId: number
   promotionJobTitle: string
@@ -16,7 +17,6 @@ type DeliveryFixture = {
 test("shows delivery-track configuration and recent external/fork PR ingestion", async ({ page }) => {
   skipWhenRemote()
   const fixture = createDeliveryFixture()
-  sortDashboardByNewest()
 
   await signInAsDemo(page)
 
@@ -65,8 +65,8 @@ test("shows external PR and delivery-status badges on the dashboard", async ({ p
   skipWhenRemote()
   const fixture = createDeliveryFixture()
   await signInAsDemo(page)
-  await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  await removePresetFilter(page)
+  // Both fixture Jobs share this run's stamp, so one filter shows the pair.
+  await openJobsListFilteredByTitle(page, fixture.stamp)
 
   const promotionRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: fixture.promotionJobTitle, exact: true }) })
   await expect(promotionRow).toContainText("Waiting for promotion")
@@ -324,6 +324,7 @@ external_prs:
     ))
 
     puts JSON.generate({
+      stamp: stamp,
       repositoryId: repository.id,
       forkRepositoryId: fork_repository.id,
       promotionJobTitle: waiting_promotion_job.issue_title,

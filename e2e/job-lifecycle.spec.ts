@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test"
+import { execFileSync } from "node:child_process"
 import { signInAsDemo } from "./support/auth"
-import { removePresetFilter, sortDashboardByNewest } from "./support/dashboard"
+import { jobsListRow } from "./support/dashboard"
 
 // Exercises Job lifecycle beyond creation using the seeded demo/syrus-preview
 // fixture data from db/seeds.rb (no worker process runs here, so these only
@@ -18,17 +19,21 @@ import { removePresetFilter, sortDashboardByNewest } from "./support/dashboard"
 // slow first-request cold start under parallel workers doesn't flake them.
 test.slow()
 
-async function dashboardRowFor(page: Page, title: string) {
-  sortDashboardByNewest()
-  await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  // The default "Inbox" preset (a server-supplied "Preset" filter chip on
-  // the `attention` field, see app/services/filters/chips/jobs/attention.rb)
-  // hides closed/approved/running Jobs; removing it is what makes every
-  // seeded Job -- regardless of the state a prior action just moved it to --
-  // show up in the list.
-  await removePresetFilter(page)
+// Approving and retrying mutate seeded Jobs that other specs read -- the
+// visual specs open "Inspect preview dashboard states" and expect the
+// implemented state's page. db/seeds.rb only creates these, so nothing else
+// puts them back within a run.
+test.afterAll(() => {
+  if (process.env.E2E_BASE_URL) return
 
-  return page.getByRole("row").filter({ has: page.getByRole("link", { name: title, exact: true }) })
+  execFileSync("bin/rails", ["runner", `
+    job = Job.find_by(issue_title: "Inspect preview dashboard states")
+    job&.update_columns(state: "implemented", approved_at: nil, approved_via: nil, approved_by_user_id: nil)
+  `], { env: process.env, stdio: "inherit" })
+})
+
+async function dashboardRowFor(page: Page, title: string) {
+  return jobsListRow(page, title)
 }
 
 async function openJob(page: Page, title: string) {
@@ -59,13 +64,13 @@ test("retries a failed job from its failed step and reflects it in the dashboard
   await openJob(page, title)
   await expect(page.getByText("failed", { exact: true }).first()).toBeVisible()
 
-  // The header keeps one primary action inline and folds the rest into the
-  // "More actions" overflow menu, so retry is reached through the menu.
-  await page.getByRole("button", { name: "More actions" }).click()
-  await page.getByRole("menuitem", { name: "Retry failed step" }).click()
+  // A failed Job keeps "Retry failed step" as the header's one inline action
+  // (JobHeader's primary-action list); only the rest fold into the overflow
+  // menu, which is where the cancel test below finds Cancel.
+  await page.getByRole("button", { name: "Retry failed step" }).click()
 
   await expect(page.getByText(/Retrying .* for WF-\d+/)).toBeVisible()
-  await expect(page.getByRole("menuitem", { name: "Retry failed step" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Retry failed step" })).toHaveCount(0)
 
   const row = await dashboardRowFor(page, title)
   await expect(row).toContainText("running")
