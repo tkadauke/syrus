@@ -118,6 +118,28 @@ RSpec.describe SyrusBrowser::Session do
       expect(client).to have_received(:connect)
       expect(client).to have_received(:call_tool).with(name: "browser_snapshot", arguments: {})
     end
+
+    it "propagates errors raised by the underlying MCP client instead of silently falling back" do
+      allow(client).to receive(:call_tool).and_raise(MCP::Client::ServerError.new("service unreachable", code: -32000))
+      session = described_class.spawn_service(1, endpoint: "http://browser-service:8080")
+
+      expect { session.call_tool(name: "browser_snapshot", arguments: {}) }.to raise_error(MCP::Client::ServerError, "service unreachable")
+    end
+
+    it "closes the underlying HTTP transport" do
+      session = described_class.spawn_service(1, endpoint: "http://browser-service:8080")
+
+      session.close
+
+      expect(http_transport).to have_received(:close)
+    end
+
+    it "swallows errors from an HTTP transport that failed to close cleanly" do
+      allow(http_transport).to receive(:close).and_raise(IOError, "connection reset")
+      session = described_class.spawn_service(1, endpoint: "http://browser-service:8080")
+
+      expect { session.close }.not_to raise_error
+    end
   end
 
   describe ".spawn" do
