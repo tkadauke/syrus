@@ -10,16 +10,9 @@ RSpec.describe "App API job source diff browser", type: :request do
   def parse_body = JSON.parse(response.body)
 
   it "returns source diff refs and changed files" do
-    github = instance_double(GithubClient)
-    allow(GithubClient).to receive(:for).with(repository: repo, user: user).and_return(github)
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(
-        commits: [
-          { sha: "deadbeef12345678", short_sha: "deadbee", message: "Change source browser", date: Time.zone.parse("2026-05-01T12:00:00Z") }
-        ],
-        merge_base_sha: "aabbccdd1234567"
-      )
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42",
+      commits: [ { sha: "deadbeef12345678", message: "Change source browser", date: "2026-05-01T12:00:00Z" } ],
+      merge_base_sha: "aabbccdd1234567")
     stub_repository_diff(repo, base: "aabbccdd1234567", head: "deadbeef12345678",
         files: [
           { path: "app/models/user.rb", status: "modified", additions: 4, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" },

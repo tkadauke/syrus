@@ -38,7 +38,6 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     allow(client).to receive(:pr_issue_comments).and_return([])
     allow(client).to receive(:pr_commits).and_return([])
     allow(client).to receive(:branch_head_sha).and_return("base")
-    allow(client).to receive(:compare_commits).and_return(commits: [], merge_base_sha: nil, status: nil)
     allow(client).to receive(:delete_branch).and_return(true)
   end
 
@@ -97,13 +96,9 @@ RSpec.describe Steps::AutoMerge, :ci_only do
 
     it "captures the base tip SHA before merging and records one LandedCommit row for a single-commit PR" do
       allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("base-before-merge")
-      allow(client).to receive(:compare_commits).with("acme/widgets", "base-before-merge", "tip-sha").and_return(
-        commits: [
-          { sha: "tip-sha", short_sha: "tip-sha", message: "Implement feature", date: "2026-08-27T12:00:00Z" }
-        ],
-        merge_base_sha: "base-before-merge",
-        status: "ahead"
-      )
+      stub_repository_history(repository, base: "base-before-merge", head: "tip-sha", resolve_refs: false,
+        commits: [ { sha: "tip-sha", message: "Implement feature", date: "2026-08-27T12:00:00Z" } ],
+        merge_base_sha: "base-before-merge")
 
       described_class.new(run).call
 
@@ -117,18 +112,16 @@ RSpec.describe Steps::AutoMerge, :ci_only do
 
     it "records every commit (including a grader autofix commit) in landing order for a multi-commit PR" do
       allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("base-before-merge")
-      # GithubClient#compare_commits returns commits newest-first (see
-      # spec/services/github_client_spec.rb); the tip commit is first,
-      # the earliest commit on the branch is last.
-      allow(client).to receive(:compare_commits).with("acme/widgets", "base-before-merge", "tip-sha").and_return(
+      # RepositoryContent#history returns commits newest-first (see the
+      # git_mirror and github_host content_provider specs); the tip commit
+      # is first, the earliest commit on the branch is last.
+      stub_repository_history(repository, base: "base-before-merge", head: "tip-sha", resolve_refs: false,
         commits: [
-          { sha: "tip-sha", short_sha: "tip-sha", message: "Implement feature", date: "2026-08-27T12:02:00Z" },
-          { sha: "autofix-sha", short_sha: "autofix", message: "Autofix: rubocop", date: "2026-08-27T12:01:00Z" },
-          { sha: "first-sha", short_sha: "first-s", message: "Initial implementation", date: "2026-08-27T12:00:00Z" }
+          { sha: "tip-sha", message: "Implement feature", date: "2026-08-27T12:02:00Z" },
+          { sha: "autofix-sha", message: "Autofix: rubocop", date: "2026-08-27T12:01:00Z" },
+          { sha: "first-sha", message: "Initial implementation", date: "2026-08-27T12:00:00Z" }
         ],
-        merge_base_sha: "base-before-merge",
-        status: "ahead"
-      )
+        merge_base_sha: "base-before-merge")
 
       described_class.new(run).call
 
@@ -142,9 +135,9 @@ RSpec.describe Steps::AutoMerge, :ci_only do
       expect(rows.pluck(:landable_type).uniq).to eq([ "Job" ])
     end
 
-    it "does not fail the landing when compare_commits errors" do
+    it "does not fail the landing when repository content is unavailable" do
       allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("base-before-merge")
-      allow(client).to receive(:compare_commits).and_raise(Octokit::ServerError.new(status: 500))
+      stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("rate limited"))
 
       expect { described_class.new(run).call }.not_to raise_error
       expect(LandedCommit.where(landable: job)).to be_empty
@@ -152,9 +145,9 @@ RSpec.describe Steps::AutoMerge, :ci_only do
       expect(job.closure_reason).to eq("pr_merged")
     end
 
-    it "does not fail the landing when compare_commits returns no commits" do
+    it "does not fail the landing when the history has no commits" do
       allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("base-before-merge")
-      allow(client).to receive(:compare_commits).and_return(commits: [], merge_base_sha: nil, status: nil)
+      stub_repository_history(repository, base: "base-before-merge", head: "tip-sha", resolve_refs: false, commits: [])
 
       expect { described_class.new(run).call }.not_to raise_error
       expect(LandedCommit.where(landable: job)).to be_empty

@@ -4,21 +4,29 @@ RSpec.describe App::JobSourceDiffPayload do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
   let(:job) { Factories.job(repository: repo, branch_name: "syrus/issue-42") }
-  let(:github) { instance_double(GithubClient) }
 
-  before do
-    allow(GithubClient).to receive(:for).with(repository: repo, user: user).and_return(github)
+  # Simulates the branch's tip commit changing between two payload builds:
+  # `base_ref` resolves to a stable revision throughout, but `head_ref` is
+  # re-pointed at a fresh one (as a real push would) with its own history --
+  # RepositoryContent re-stubs a ref to a new revision on every call, so
+  # identical `commits` across two calls reuse the same revision id, and
+  # different `commits` mint a new one.
+  def stub_branch_history(base_ref:, head_ref:, commits:, merge_base_sha:)
+    base_id = ensure_fake_ref(repo, base_ref)
+    head_revision = stub_repository_content(repo, ref: head_ref, files: { "__history_marker__" => commits.first&.fetch(:sha).to_s })
+    FakeRepositoryContentProvider.histories[[ base_id, head_revision.id ]] = {
+      history: RepositoryContent::CommitHistory.new(
+        commits: commits.map { |c| RepositoryContent::Commit.new(sha: c[:sha], message: c[:message], authored_at: c[:date]) },
+        merge_base_id: merge_base_sha
+      ),
+      truncated: false
+    }
   end
 
   it "returns branch refs and changed files" do
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(
-        commits: [
-          { sha: "deadbeef12345678", short_sha: "deadbee", message: "Change source browser", date: Time.zone.parse("2026-05-01T12:00:00Z") }
-        ],
-        merge_base_sha: "aabbccdd1234567"
-      )
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42",
+      commits: [ { sha: "deadbeef12345678", message: "Change source browser", date: "2026-05-01T12:00:00Z" } ],
+      merge_base_sha: "aabbccdd1234567")
     stub_repository_diff(repo, base: "aabbccdd1234567", head: "deadbeef12345678",
         files: [
           { path: "app/models/user.rb", status: "modified", additions: 4, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" }
@@ -74,9 +82,8 @@ RSpec.describe App::JobSourceDiffPayload do
   # that partial list with a banner; the content contract refuses to pass it
   # off as complete, so the payload opts into the partial answer explicitly.
   it "still shows a truncated comparison, flagged, and uses the UI's status names" do
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(commits: [ { sha: "head1234", short_sha: "head123", message: "m", date: Time.current } ], merge_base_sha: "base1234")
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42",
+      commits: [ { sha: "head1234", message: "m", date: Time.current } ], merge_base_sha: "base1234")
     stub_repository_diff(repo, base: "base1234", head: "head1234", truncated: true, files: [
       { path: "gone.rb", status: "removed", additions: 0, deletions: 3, patch: "@@ -1,3 +0,0 @@" }
     ])
@@ -89,7 +96,7 @@ RSpec.describe App::JobSourceDiffPayload do
   end
 
   it "populates diff_error when GitHub fails" do
-    allow(github).to receive(:compare_commits).and_raise(StandardError, "GitHub unavailable")
+    stub_repository_content_failure(repo, RepositoryContent::Unavailable.new("GitHub unavailable"))
 
     payload = described_class.build(job: job, user: user)
 
@@ -99,14 +106,9 @@ RSpec.describe App::JobSourceDiffPayload do
   end
 
   it "flags patch-less image files by extension and leaves other patch-less files unflagged" do
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(
-        commits: [
-          { sha: "deadbeef12345678", short_sha: "deadbee", message: "Add screenshot", date: Time.zone.parse("2026-05-01T12:00:00Z") }
-        ],
-        merge_base_sha: "aabbccdd1234567"
-      )
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42",
+      commits: [ { sha: "deadbeef12345678", message: "Add screenshot", date: "2026-05-01T12:00:00Z" } ],
+      merge_base_sha: "aabbccdd1234567")
     stub_repository_diff(repo, base: "aabbccdd1234567", head: "deadbeef12345678",
         files: [
           { path: "app/assets/images/logo.png", status: "modified", additions: 0, deletions: 0, patch: nil },
@@ -128,9 +130,7 @@ RSpec.describe App::JobSourceDiffPayload do
   end
 
   it "does not flag an image-extension file as binary when GitHub did return a patch" do
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(commits: [], merge_base_sha: "aabbccdd1234567")
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42", commits: [], merge_base_sha: "aabbccdd1234567")
     stub_repository_diff(repo, base: "old-base", head: "old-head",
         files: [
           { path: "app/assets/images/diagram.svg", status: "modified", additions: 3, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" }
@@ -155,14 +155,9 @@ RSpec.describe App::JobSourceDiffPayload do
     parent_job = Factories.job(repository: repo, user: user, epic: epic, branch_name: "syrus/job-41", pr_number: 41)
     child_job = Factories.job(repository: repo, user: user, epic: epic, parent_job: parent_job, branch_name: "syrus/job-42")
 
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "syrus/job-41", "syrus/job-42")
-      .and_return(
-        commits: [
-          { sha: "cafef00d12345678", short_sha: "cafef00", message: "Only this Job's change", date: Time.zone.parse("2026-05-02T12:00:00Z") }
-        ],
-        merge_base_sha: "11223344aabbccd"
-      )
+    stub_repository_history(repo, base: "syrus/job-41", head: "syrus/job-42",
+      commits: [ { sha: "cafef00d12345678", message: "Only this Job's change", date: "2026-05-02T12:00:00Z" } ],
+      merge_base_sha: "11223344aabbccd")
     stub_repository_diff(repo, base: "11223344aabbccd", head: "cafef00d12345678",
         files: [
           { path: "app/models/widget.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+new" }
@@ -190,7 +185,6 @@ RSpec.describe App::JobSourceDiffPayload do
 
   it "defaults base and head to the default branch when the job has no branch" do
     job.update!(branch_name: nil)
-    expect(github).not_to receive(:compare_commits)
     stub_repository_diff(repo, base: "main", head: "main", files: [], truncated: false)
 
     payload = described_class.build(job: job, user: user)
@@ -200,12 +194,11 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(payload[:branch_commits]).to eq([])
     expect(payload[:files]).to eq([])
     expect(payload[:diff_error]).to be_nil
+    expect(FakeRepositoryContentProvider.calls.map(&:first)).not_to include(:history)
   end
 
   it "persists explicit base/head comparisons so selected diff comments can bind to that version" do
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(commits: [], merge_base_sha: "aabbccdd1234567")
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42", commits: [], merge_base_sha: "aabbccdd1234567")
     stub_repository_diff(repo, base: "old-base", head: "old-head", files: [
         { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1,2 @@\n+new" }
       ], truncated: false)
@@ -237,9 +230,7 @@ RSpec.describe App::JobSourceDiffPayload do
       label: "Earlier review",
       reason: "initial"
     )
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(commits: [], merge_base_sha: "aabbccdd1234567")
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42", commits: [], merge_base_sha: "aabbccdd1234567")
     stub_repository_diff(repo, base: "old-base", head: "old-head", files: [], truncated: false)
 
     payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
@@ -249,9 +240,7 @@ RSpec.describe App::JobSourceDiffPayload do
   end
 
   it "reuses the same explicit SHA pair across repeated source diff payload fetches" do
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(commits: [], merge_base_sha: "aabbccdd1234567")
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42", commits: [], merge_base_sha: "aabbccdd1234567")
     stub_repository_diff(repo, base: "old-base", head: "old-head", files: [
         { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1,2 @@\n+new" }
       ], truncated: false)
@@ -299,11 +288,10 @@ RSpec.describe App::JobSourceDiffPayload do
     )
     expect(repair_step.version_index).to be > initial_version.version_index
 
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(commits: [
-        { sha: "branch-head", short_sha: "branch-h", message: "Current branch", date: Time.zone.parse("2026-05-02T12:00:00Z") },
-        { sha: "initial-head", short_sha: "initial", message: "Initial implementation", date: Time.zone.parse("2026-05-01T12:00:00Z") }
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42",
+      commits: [
+        { sha: "branch-head", message: "Current branch", date: "2026-05-02T12:00:00Z" },
+        { sha: "initial-head", message: "Initial implementation", date: "2026-05-01T12:00:00Z" }
       ], merge_base_sha: "branch-base")
     stub_repository_diff(repo, base: "branch-base", head: "branch-head", files: [
         { path: "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx", status: "modified", additions: 10, deletions: 0, patch: "@@ -1 +1,2 @@\n+ui" },
@@ -365,9 +353,7 @@ RSpec.describe App::JobSourceDiffPayload do
       ],
       reason: "initial"
     )
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(commits: [], merge_base_sha: "old-main-base", status: "identical")
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42", commits: [], merge_base_sha: "old-main-base")
     forbid_repository_changes!
 
     payload = described_class.build(job: job, user: user)
@@ -408,9 +394,7 @@ RSpec.describe App::JobSourceDiffPayload do
       ],
       reason: "initial"
     )
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_raise(StandardError, "GitHub unavailable")
+    stub_repository_content_failure(repo, RepositoryContent::Unavailable.new("GitHub unavailable"))
     forbid_repository_changes!
 
     payload = described_class.build(job: job, user: user)
@@ -428,9 +412,7 @@ RSpec.describe App::JobSourceDiffPayload do
   end
 
   it "does not create an All changes version with main as the head when an ahead branch has no stored review version" do
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(commits: [], merge_base_sha: "old-main-base", status: "identical")
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42", commits: [], merge_base_sha: "old-main-base")
     forbid_repository_changes!
 
     payload = described_class.build(job: job, user: user)
@@ -458,11 +440,8 @@ RSpec.describe App::JobSourceDiffPayload do
       files_snapshot: [],
       metadata: { "range_kind" => "all_changes" }
     )
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(commits: [
-        { sha: "branch-head", short_sha: "branch-h", message: "Current branch", date: Time.zone.parse("2026-05-02T12:00:00Z") }
-      ], merge_base_sha: "branch-base")
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42",
+      commits: [ { sha: "branch-head", message: "Current branch", date: "2026-05-02T12:00:00Z" } ], merge_base_sha: "branch-base")
     stub_repository_diff(repo, base: "branch-base", head: "branch-head", files: [
         { path: "app/models/implemented.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+implemented" }
       ], truncated: false)
@@ -521,11 +500,8 @@ RSpec.describe App::JobSourceDiffPayload do
     )
     expect(repair_step.version_index).to be > full_range.version_index
 
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(commits: [
-        { sha: "branch-head", short_sha: "branch-h", message: "Current branch", date: Time.zone.parse("2026-05-02T12:00:00Z") }
-      ], merge_base_sha: "branch-base")
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42",
+      commits: [ { sha: "branch-head", message: "Current branch", date: "2026-05-02T12:00:00Z" } ], merge_base_sha: "branch-base")
     stub_repository_diff(repo, base: "branch-base", head: "branch-head", files: [
         { path: "app/services/step_dispatcher.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+backend" },
         { path: "db/migrate/repair.rb", status: "added", additions: 6, deletions: 0, patch: "@@ -0,0 +1,6 @@\n+class Repair" }
@@ -551,20 +527,22 @@ RSpec.describe App::JobSourceDiffPayload do
     codex_run = Run.create!(job: job, step: codex_step, trigger_kind: "retry", state: "succeeded",
                             base_sha: "base-sha", head_sha: "codex-head")
 
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(
-        { commits: [ { sha: "claude-head", short_sha: "claude-h", message: "Claude implementation", date: Time.zone.parse("2026-05-01T12:00:00Z") } ], merge_base_sha: "base-sha" },
-        { commits: [ { sha: "codex-head", short_sha: "codex-he", message: "Codex retry", date: Time.zone.parse("2026-05-02T12:00:00Z") } ], merge_base_sha: "base-sha" }
-      )
+    stub_branch_history(base_ref: "main", head_ref: "syrus/issue-42",
+      commits: [ { sha: "claude-head", message: "Claude implementation", date: "2026-05-01T12:00:00Z" } ], merge_base_sha: "base-sha")
     stub_repository_diff(repo, base: "base-sha", head: "claude-head", files: [
         { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1,2 @@\n+claude" }
       ], truncated: false)
+
+    first_payload = described_class.build(job: job, user: user)
+
+    # The branch advanced (a Codex retry pushed a new commit) between the
+    # two payload builds.
+    stub_branch_history(base_ref: "main", head_ref: "syrus/issue-42",
+      commits: [ { sha: "codex-head", message: "Codex retry", date: "2026-05-02T12:00:00Z" } ], merge_base_sha: "base-sha")
     stub_repository_diff(repo, base: "base-sha", head: "codex-head", files: [
         { path: "app/models/widget.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+codex" }
       ], truncated: false)
 
-    first_payload = described_class.build(job: job, user: user)
     second_payload = described_class.build(job: job, user: user)
 
     all_changes_versions = job.diff_review_versions.where(reason: "source_diff").order(:version_index)
@@ -598,18 +576,10 @@ RSpec.describe App::JobSourceDiffPayload do
   end
 
   it "never mutates a persisted DiffReviewVersion row when recomputing the current diff across repeated reads" do
-    allow(github).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/issue-42")
-      .and_return(
-        { commits: [ { sha: "head-one", short_sha: "head-one", message: "First", date: Time.zone.parse("2026-05-01T12:00:00Z") } ], merge_base_sha: "base-sha" },
-        { commits: [ { sha: "head-one", short_sha: "head-one", message: "First", date: Time.zone.parse("2026-05-01T12:00:00Z") } ], merge_base_sha: "base-sha" },
-        { commits: [ { sha: "head-two", short_sha: "head-two", message: "Second", date: Time.zone.parse("2026-05-02T12:00:00Z") } ], merge_base_sha: "base-sha" }
-      )
+    stub_branch_history(base_ref: "main", head_ref: "syrus/issue-42",
+      commits: [ { sha: "head-one", message: "First", date: "2026-05-01T12:00:00Z" } ], merge_base_sha: "base-sha")
     stub_repository_diff(repo, base: "base-sha", head: "head-one", files: [
         { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1,2 @@\n+one" }
-      ], truncated: false)
-    stub_repository_diff(repo, base: "base-sha", head: "head-two", files: [
-        { path: "app/models/widget.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+two" }
       ], truncated: false)
 
     first_payload = described_class.build(job: job, user: user)
@@ -625,6 +595,12 @@ RSpec.describe App::JobSourceDiffPayload do
 
     # The branch advances to a new head -- a fresh row is created for the
     # new current diff, and the earlier historical row is left untouched.
+    stub_branch_history(base_ref: "main", head_ref: "syrus/issue-42",
+      commits: [ { sha: "head-two", message: "Second", date: "2026-05-02T12:00:00Z" } ], merge_base_sha: "base-sha")
+    stub_repository_diff(repo, base: "base-sha", head: "head-two", files: [
+        { path: "app/models/widget.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+two" }
+      ], truncated: false)
+
     third_payload = described_class.build(job: job, user: user)
 
     expect(third_payload.dig(:version, :id)).not_to eq(first_version.id)
@@ -699,7 +675,6 @@ RSpec.describe App::JobSourceDiffPayload do
 
     it "does not activate outside development even when the fixture column is populated" do
       allow(Rails.env).to receive(:development?).and_return(false)
-      allow(github).to receive(:compare_commits).and_return(commits: [], merge_base_sha: nil)
       stub_repository_diff(repo, base: "main", head: "main", files: [], truncated: false)
 
       payload = described_class.build(job: job, user: user)

@@ -67,6 +67,13 @@ module Syrus
     #   relation(base_id, head_id)     -> :identical, :ahead, :behind, or
     #                                    :diverged, describing head relative
     #                                    to base. Optional.
+    #   history(base_id, head_id)      -> RepositoryContent::CommitHistory:
+    #                                    the commits `head` introduced since
+    #                                    its merge base with `base`
+    #                                    (three-dot, like #changes),
+    #                                    newest-first, plus that merge
+    #                                    base's revision id. Optional: the
+    #                                    default raises Unsupported.
     #
     # Errors decide what the chain does next. Raise RepositoryContent::
     # Unavailable, Unsupported, or UnknownRevision to let the next provider
@@ -127,6 +134,10 @@ module Syrus
 
       def relation(_base_id, _head_id)
         raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not compare revision ancestry"
+      end
+
+      def history(_base_id, _head_id)
+        raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not list commit history"
       end
     end
   end
