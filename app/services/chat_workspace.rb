@@ -464,12 +464,14 @@ class ChatWorkspace
       # any uncommitted work, before the agent runs this turn. The agent must
       # never be able to tell the workspace was deleted.
       if path.join(".git").directory?
+        configure_coding_checkout_author!(repository, path)
         write_relay_credentials!
         return path
       end
 
       ensure_root!
       restore_coding_checkout!(repository, path, existing_branch)
+      configure_coding_checkout_author!(repository, path)
       @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
       write_relay_credentials!
       return path
@@ -482,6 +484,7 @@ class ChatWorkspace
     FileUtils.rm_rf(path.to_s) if path.join(".git").directory?
 
     full_clone!(repository, path)
+    configure_coding_checkout_author!(repository, path)
     @chat_session.update_columns(coding_checkout_branch: branch)
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
     enqueue_prepare!(repository)
@@ -536,6 +539,7 @@ class ChatWorkspace
       FileUtils.rm_rf(path.to_s) if path.exist?
       full_clone!(repository, path)
     end
+    configure_coding_checkout_author!(repository, path)
 
     @chat_session.update_columns(
       coding_checkout_branch: default_branch,
@@ -617,13 +621,18 @@ class ChatWorkspace
   # Removes any existing checkout, then clones the repo directly at the given
   # branch so the agent can iterate on the Job's existing implementation.
   def ensure_job_branch_checkout!(repository, branch_name)
-    return if @chat_session.coding_checkout_branch == branch_name
+    path = self.class.repo_path_for(@chat_session, repository)
+
+    if @chat_session.coding_checkout_branch == branch_name
+      configure_coding_checkout_author!(repository, path) if path.join(".git").directory?
+      return
+    end
 
     ensure_root!
-    path = self.class.repo_path_for(@chat_session, repository)
 
     FileUtils.rm_rf(path.to_s) if path.join(".git").directory?
     full_clone_at_branch!(repository, path, branch_name)
+    configure_coding_checkout_author!(repository, path)
     @chat_session.update_columns(coding_checkout_branch: branch_name)
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
     enqueue_prepare!(repository)
@@ -1000,6 +1009,17 @@ class ChatWorkspace
   def authenticated_url(repository)
     token = GithubClient.for(repository: repository, user: repository.user).access_token
     repository.authenticated_push_url(token)
+  end
+
+  # Configures repo-local (never global) git identity on the writable Coding
+  # Mode checkout, so the agent's own `git add -A && git commit -m ...` never
+  # fails for want of a configured identity. Called after every checkout
+  # (re)materialization -- fresh clone, restore, reset, job-branch checkout --
+  # and before returning an already-existing checkout, so older checkouts
+  # from before this existed self-heal on their next use.
+  def configure_coding_checkout_author!(repository, path)
+    identity = BotIdentity.for_owner(@chat_session.user, repository: repository)
+    @git.configure_author(identity, chdir: path.to_s)
   end
 
   def write_relay_credentials!

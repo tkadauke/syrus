@@ -174,13 +174,15 @@ RSpec.describe ChatWorkspace, :ci_only do
       described_class.ensure_coding_checkout!(chat_session, repository)
       branch_before = chat_session.reload.coding_checkout_branch
       path_before = described_class.repo_path_for(chat_session, repository)
-      mtime_before = File.stat(path_before.join(".git").to_s).mtime
+      # A re-clone would rm_rf and recreate the directory, dropping this marker.
+      # (git config self-heal legitimately rewrites .git/config on every call,
+      # so directory mtime is not a reliable "no re-clone happened" signal.)
+      File.write(path_before.join("marker.txt"), "kept")
 
       described_class.ensure_coding_checkout!(chat_session, repository)
 
       expect(chat_session.reload.coding_checkout_branch).to eq(branch_before)
-      # The .git directory should not have been touched (no re-clone happened)
-      expect(File.stat(path_before.join(".git").to_s).mtime).to eq(mtime_before)
+      expect(path_before.join("marker.txt")).to exist
     end
 
     it "replaces an existing shallow checkout with a full clone" do
@@ -198,6 +200,26 @@ RSpec.describe ChatWorkspace, :ci_only do
       described_class.ensure_coding_checkout!(chat_session, repository)
 
       expect(chat_session.reload.attached_repositories).to include(repository)
+    end
+
+    it "configures repo-local git identity for the chat owner on first clone" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      path = described_class.repo_path_for(chat_session, repository)
+      expect(described_class.git_value(path, "config", "--local", "user.name")).to eq("Ada Lovelace")
+      expect(described_class.git_value(path, "config", "--local", "user.email")).to eq(user.email_address)
+    end
+
+    it "self-heals repo-local git identity on an existing checkout that is missing it" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      path = described_class.repo_path_for(chat_session, repository)
+      sh("git -C #{path} config --local --unset user.name")
+      sh("git -C #{path} config --local --unset user.email")
+
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      expect(described_class.git_value(path, "config", "--local", "user.name")).to eq("Ada Lovelace")
+      expect(described_class.git_value(path, "config", "--local", "user.email")).to eq(user.email_address)
     end
 
     it "enqueues ChatWorkspacePrepareJob after setting up the coding checkout" do
@@ -364,11 +386,14 @@ RSpec.describe ChatWorkspace, :ci_only do
     it "is idempotent when coding_checkout_branch already equals the job branch" do
       described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
       path = described_class.repo_path_for(chat_session, repository)
-      mtime_before = File.stat(path.join(".git").to_s).mtime
+      # A re-clone would rm_rf and recreate the directory, dropping this marker.
+      # (git config self-heal legitimately rewrites .git/config on every call,
+      # so directory mtime is not a reliable "no re-clone happened" signal.)
+      File.write(path.join("marker.txt"), "kept")
 
       described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
 
-      expect(File.stat(path.join(".git").to_s).mtime).to eq(mtime_before)
+      expect(path.join("marker.txt")).to exist
     end
 
     it "replaces an existing checkout when called with a different branch" do
@@ -387,6 +412,24 @@ RSpec.describe ChatWorkspace, :ci_only do
       described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
 
       expect(chat_session.reload.attached_repositories).to include(repository)
+    end
+
+    it "configures repo-local git identity for the chat owner on the job branch checkout" do
+      described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
+
+      path = described_class.repo_path_for(chat_session, repository)
+      expect(described_class.git_value(path, "config", "--local", "user.name")).to eq("Ada Lovelace")
+      expect(described_class.git_value(path, "config", "--local", "user.email")).to eq(user.email_address)
+    end
+
+    it "self-heals git identity on an already-checked-out job branch" do
+      described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
+      path = described_class.repo_path_for(chat_session, repository)
+      sh("git -C #{path} config --local --unset user.name")
+
+      described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
+
+      expect(described_class.git_value(path, "config", "--local", "user.name")).to eq("Ada Lovelace")
     end
 
     it "enqueues ChatWorkspacePrepareJob after setting up the job branch checkout" do
@@ -982,6 +1025,17 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(remote_has_ref?(wip_tag_ref)).to be(false)
     end
 
+    it "configures git identity again after restoring a reclaimed checkout" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      described_class.reclaim_coding_checkout!(chat_session)
+      expect(coding_path.join(".git")).not_to exist
+
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      expect(described_class.git_value(coding_path, "config", "--local", "user.name")).to eq("Ada Lovelace")
+      expect(described_class.git_value(coding_path, "config", "--local", "user.email")).to eq(user.email_address)
+    end
+
     it "restores uncommitted work exactly on re-materialize, then drops the tag" do
       described_class.ensure_coding_checkout!(chat_session, repository)
       File.write(coding_path.join("README.md"), "# Widgets\nLOCAL WIP\n")
@@ -1179,6 +1233,15 @@ RSpec.describe ChatWorkspace, :ci_only do
         "lineage" => "fresh_main",
         "default_branch" => "main"
       )
+    end
+
+    it "configures git identity on the reset default-branch checkout" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      described_class.reset_after_coding_handoff!(chat_session, repository)
+
+      expect(described_class.git_value(coding_path, "config", "--local", "user.name")).to eq("Ada Lovelace")
+      expect(described_class.git_value(coding_path, "config", "--local", "user.email")).to eq(user.email_address)
     end
 
     it "reports dirty and committed-ahead status for a coding checkout" do
