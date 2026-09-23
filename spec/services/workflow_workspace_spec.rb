@@ -744,6 +744,112 @@ RSpec.describe WorkflowWorkspace, :ci_only do
     end
   end
 
+  describe "workspace_git_transport preference" do
+    let(:mirror_bare_dir) { Pathname.new(Dir.mktmpdir("syrus-wfws-mirror-bare")) }
+
+    after { FileUtils.rm_rf(mirror_bare_dir) }
+
+    def register_transport(url:, register_calls: nil)
+      Syrus::PluginRegistry.register(:workspace_git_transport, Class.new do
+        include Syrus::Plugin::WorkspaceGitTransport
+
+        define_singleton_method(:available_for?) { |_repository| true }
+        define_singleton_method(:build) do |repository:, user:|
+          instance = Object.new
+          instance.define_singleton_method(:url) { url }
+          instance.define_singleton_method(:env) { {} }
+          instance.define_singleton_method(:register!) { register_calls&.push(:called) }
+          instance
+        end
+      end)
+    end
+
+    it "clones from the registered transport instead of the hosting platform" do
+      sh("git clone -q --bare #{bare_remote_dir} #{mirror_bare_dir}")
+      Dir.mktmpdir("syrus-wfws-mirror-seed") do |work|
+        sh("git clone -q #{mirror_bare_dir} #{work}")
+        File.write(File.join(work, "from-mirror.txt"), "mirror content")
+        sh("git -C #{work} add from-mirror.txt")
+        sh("git -C #{work} -c user.email=t@e -c user.name=t commit -q -m 'mirror-only commit'")
+        sh("git -C #{work} push -q origin HEAD:main")
+      end
+      register_transport(url: "file://#{mirror_bare_dir}")
+
+      ws = described_class.new(workflow)
+      ws.setup
+
+      expect(ws.path.join("from-mirror.txt")).to exist
+    end
+
+    it "falls back to the hosting platform, after one registration retry, when the transport fails outright" do
+      register_calls = []
+      register_transport(url: "file://#{mirror_bare_dir}/does-not-exist", register_calls: register_calls)
+
+      ws = described_class.new(workflow)
+      ws.setup
+
+      expect(ws.path).to exist
+      expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/issue-7-#{job.id}")
+      expect(register_calls).to eq([ :called ])
+    end
+
+    it "falls back and re-fetches from the hosting platform when the mirror has an older copy of the Job's existing branch" do
+      branch = "syrus/issue-7-#{job.id}"
+      # The mirror has *a* copy of the branch, just an older one -- the case
+      # a push right before this follow-up Workflow starts produces, and one
+      # a plain "does a fetch of this ref succeed" check would miss: the
+      # fetch itself succeeds, just on the wrong commit.
+      sh("git clone -q --bare #{bare_remote_dir} #{mirror_bare_dir}")
+      sh("git --git-dir=#{mirror_bare_dir} branch #{branch} main")
+      seed_remote_branch(branch, "first push")
+      fresh_sha = sh("git --git-dir=#{bare_remote_dir} rev-parse #{branch}").strip
+      stale_sha = sh("git --git-dir=#{mirror_bare_dir} rev-parse #{branch}").strip
+      expect(stale_sha).not_to eq(fresh_sha)
+      register_transport(url: "file://#{mirror_bare_dir}")
+
+      job.update!(branch_name: branch)
+      ws = described_class.new(workflow)
+      ws.setup
+
+      expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(fresh_sha)
+    end
+
+    it "repairs a missing pinned commit from the hosting platform after a stale mirror clone (main_grader)" do
+      # The mirror was last synced before this commit landed on the hosting
+      # platform's default branch -- exactly the commit this main_grader
+      # Workflow pinned to.
+      sh("git clone -q --bare #{bare_remote_dir} #{mirror_bare_dir}")
+      Dir.mktmpdir("syrus-wfws-later-seed") do |work|
+        sh("git clone -q #{bare_remote_dir} #{work}")
+        File.write(File.join(work, "later.txt"), "landed after the mirror's last sync")
+        sh("git -C #{work} add later.txt")
+        sh("git -C #{work} -c user.email=t@e -c user.name=t commit -q -m 'later commit'")
+        sh("git -C #{work} push -q origin HEAD:main")
+      end
+      main_sha = sh("git --git-dir=#{bare_remote_dir} rev-parse main").strip
+      register_transport(url: "file://#{mirror_bare_dir}")
+
+      main_grader_job = Job.create!(
+        user: user,
+        repository: repository,
+        kind: "main_grader",
+        issue_title: "main_grader:#{main_sha}",
+        issue_number: nil
+      )
+      main_grader_workflow = Workflow.create!(
+        job: main_grader_job,
+        trigger_kind: "main_grader",
+        artifacts: { "main_sha" => main_sha }
+      )
+
+      ws = described_class.new(main_grader_workflow)
+      ws.setup
+
+      expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(main_sha)
+      expect(ws.path.join("later.txt")).to exist
+    end
+  end
+
   describe "#setup — auto-initializing an empty/uninitialized remote" do
     it "auto-initializes and pushes the default branch when the remote has zero branches" do
       empty_bare_dir = Pathname.new(Dir.mktmpdir("syrus-wfws-empty-bare"))

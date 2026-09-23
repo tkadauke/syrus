@@ -7,6 +7,9 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +23,8 @@ type fakeStore struct {
 	registered map[string]mirror.Registration
 	resolveErr error
 	readErr    error
+	repoDir    string
+	repoDirErr error
 	maxAge     time.Duration
 	withPatch  bool
 }
@@ -51,6 +56,15 @@ func (f *fakeStore) Refs(_ context.Context, _, _ string, maxAge time.Duration) (
 }
 func (f *fakeStore) Relation(context.Context, string, string, string) (string, error) {
 	return "ahead", nil
+}
+func (f *fakeStore) RepoDir(string) (string, error) {
+	if f.repoDirErr != nil {
+		return "", f.repoDirErr
+	}
+	if f.repoDir != "" {
+		return f.repoDir, nil
+	}
+	return "", mirror.ErrUnknownRepository
 }
 
 func do(h http.Handler, method, path, body string, authed bool) *httptest.ResponseRecorder {
@@ -186,5 +200,139 @@ func TestListReportsDisk(t *testing.T) {
 	rec := do(New(&fakeStore{}, token), "GET", "/v1/repositories", "", true)
 	if !strings.Contains(rec.Body.String(), `"disk":{"total_bytes":100,"free_bytes":40,"mirror_bytes":10}`) {
 		t.Fatalf("body = %s", rec.Body)
+	}
+}
+
+func TestInfoRefsOnlyServesUploadPack(t *testing.T) {
+	h := New(&fakeStore{repoDir: t.TempDir()}, token)
+	if rec := do(h, "GET", "/v1/repositories/1/info/refs?service=git-receive-pack", "", true); rec.Code != http.StatusForbidden || errorCode(t, rec) != "unsupported" {
+		t.Fatalf("git-receive-pack: %d %s", rec.Code, rec.Body)
+	}
+	if rec := do(h, "GET", "/v1/repositories/1/info/refs", "", true); rec.Code != http.StatusForbidden {
+		t.Fatalf("missing service param: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestSmartHTTPRoutesNeedTheTokenAndAKnownRepository(t *testing.T) {
+	h := New(&fakeStore{}, token)
+	if rec := do(h, "GET", "/v1/repositories/1/info/refs?service=git-upload-pack", "", false); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated info/refs: %d", rec.Code)
+	}
+	if rec := do(h, "GET", "/v1/repositories/1/info/refs?service=git-upload-pack", "", true); rec.Code != http.StatusNotFound || errorCode(t, rec) != "unknown_repository" {
+		t.Fatalf("unknown repository: %d %s", rec.Code, rec.Body)
+	}
+}
+
+// No route exists for git-receive-pack at all -- the strongest form of
+// "never accept a push" is not wiring the handler up, not rejecting it once
+// reached.
+func TestNoRouteAcceptsGitReceivePack(t *testing.T) {
+	h := New(&fakeStore{repoDir: t.TempDir()}, token)
+	if rec := do(h, "POST", "/v1/repositories/1/git-receive-pack", "", true); rec.Code != http.StatusNotFound {
+		t.Fatalf("git-receive-pack has no route but got %d: %s", rec.Code, rec.Body)
+	}
+}
+
+func gitTestEnv() []string {
+	return append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0")
+}
+
+func runGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = gitTestEnv()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// runGitAuthed passes the bearer token the same way Syrus is expected to:
+// as an http.extraHeader for this invocation only, never embedded in the
+// URL or persisted into the repository's config.
+func runGitAuthed(dir, bearer string, args ...string) (string, error) {
+	full := append([]string{"-c", "http.extraHeader=Authorization: Bearer " + bearer}, args...)
+	cmd := exec.Command("git", full...)
+	cmd.Dir = dir
+	cmd.Env = gitTestEnv()
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+// End-to-end: a real git client clone/fetch against the smart-HTTP routes,
+// wired to a real mirror.Store fetching from a real (file://) upstream --
+// not the fakeStore the other tests use. Proves the CGI wiring in
+// runGitHTTPBackend actually produces a working git transport, that auth
+// gates it the same as the JSON routes, and that a push is refused outright.
+func TestSmartHTTPServesRealClonesAndFetchesButRefusesAPush(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+
+	upstream := t.TempDir()
+	runGit(t, upstream, "init", "--quiet", "--initial-branch=main")
+	runGit(t, upstream, "config", "user.email", "test@example.test")
+	runGit(t, upstream, "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(upstream, "README"), []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, upstream, "add", "-A")
+	runGit(t, upstream, "commit", "--quiet", "-m", "first")
+
+	store, err := mirror.Open(mirror.Config{DataDir: t.TempDir(), AllowFileURLs: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := store.Register(ctx, "9", mirror.Registration{VCS: "git", URL: "file://" + upstream}); err != nil {
+		t.Fatal(err)
+	}
+	// Register's own first fetch runs in the background; Resolve fetches
+	// synchronously when the mirror hasn't caught up yet, so this both
+	// waits for it and proves the commit reached the mirror's disk.
+	sha := runGit(t, upstream, "rev-parse", "HEAD")
+	if got, _, err := store.Resolve(ctx, "9", "main", time.Minute); err != nil || got != sha {
+		t.Fatalf("resolve main = %q, %v; want %q", got, err, sha)
+	}
+
+	srv := httptest.NewServer(New(store, token))
+	defer srv.Close()
+	cloneURL := srv.URL + "/v1/repositories/9"
+
+	if out, err := runGitAuthed("", "wrong-token", "clone", "--quiet", cloneURL, filepath.Join(t.TempDir(), "unauth")); err == nil {
+		t.Fatalf("clone with the wrong token should have failed:\n%s", out)
+	}
+
+	dest := filepath.Join(t.TempDir(), "clone")
+	if out, err := runGitAuthed("", token, "clone", "--quiet", cloneURL, dest); err != nil {
+		t.Fatalf("authenticated clone failed: %v\n%s", err, out)
+	}
+	if got, err := os.ReadFile(filepath.Join(dest, "README")); err != nil || string(got) != "hi" {
+		t.Fatalf("README after clone = %q, %v", got, err)
+	}
+
+	// A second upstream commit, fetched into the mirror, must reach the
+	// clone through an ordinary `git fetch` against the mirror -- proves
+	// fetch, not just the initial clone, is served.
+	if err := os.WriteFile(filepath.Join(upstream, "README"), []byte("bye"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, upstream, "commit", "--quiet", "-am", "second")
+	newSHA := runGit(t, upstream, "rev-parse", "HEAD")
+	if got, _, err := store.Resolve(ctx, "9", "main", time.Millisecond); err != nil || got != newSHA {
+		t.Fatalf("resolve after second commit = %q, %v; want %q", got, err, newSHA)
+	}
+	if out, err := runGitAuthed(dest, token, "fetch", "--quiet", "origin", "main"); err != nil {
+		t.Fatalf("authenticated fetch failed: %v\n%s", err, out)
+	}
+	if fetchedHead := runGit(t, dest, "rev-parse", "FETCH_HEAD"); fetchedHead != newSHA {
+		t.Fatalf("fetched head = %q, want %q", fetchedHead, newSHA)
+	}
+
+	// No git-receive-pack route exists, so a push must fail outright.
+	if out, err := runGitAuthed(dest, token, "push", cloneURL, "HEAD:refs/heads/pushed"); err == nil {
+		t.Fatalf("push should have failed:\n%s", out)
 	}
 }

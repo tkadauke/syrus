@@ -29,6 +29,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `workspace_tab`
 - `retention_policy`
 - `repository_content_provider`
+- `workspace_git_transport`
 - `purge_contributor`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
@@ -2570,6 +2571,53 @@ repositories it would leave with no provider at all.
 Core specs stub content with `stub_repository_content(repository, files: {...})`
 (`spec/support/repository_content.rb`), never through a provider plugin, so
 provider plugins stay removable.
+
+## `workspace_git_transport`
+
+A narrower sibling of `repository_content_provider`, for the one thing that
+extension point deliberately does not cover: `git clone`/`git fetch` itself,
+which the caller is git, not Syrus reading bytes. `WorkflowWorkspace`'s
+initial clone and its existing-branch refetch, and `ChatWorkspace`'s
+repository attachment, resolve a transport through `WorkspaceGitTransports.for`
+and try it before the hosting platform:
+
+```ruby
+transport = WorkspaceGitTransports.for(repository, user: user)
+# nil when no provider is enabled/available for this repository -- go
+# straight to the hosting platform, same as always.
+```
+
+In practice this is a shared mixin, not a direct call: both workspace classes
+`include WorkspaceGitTransportPreference` and call `try_mirror_transport`,
+which resolves the transport, runs the caller's block against `transport.url`/
+`transport.env`, retries once after `transport.register!` if the first
+attempt raised `GitRunner::GitError`, and returns `false` (never raises) when
+neither attempt panned out -- signaling the caller to fall back to the
+hosting platform exactly as if no transport were registered. An optional
+`verify_sha:` catches the case a plain "did the fetch succeed" check would
+miss: the transport answers, but with an older commit than the caller
+actually wanted (a mirror whose background sync hasn't caught up to a very
+recent push). `try_mirror_transport` checks the wanted SHA against the
+includer's own `#git_object_present?` after each attempt and only returns
+`true` when it is actually there.
+
+Implementations include `Syrus::Plugin::WorkspaceGitTransport` and define
+class methods `available_for?(repository)` (cheap, no network) and
+`build(repository:, user:)`, returning an instance or nil. Instances
+implement `#url` (a git URL; must never carry a credential) and, optionally,
+`#env` (extra `GitRunner#run` env for that URL -- an `http.extraHeader` auth
+header is the intended use, so a credential travels there instead of on the
+command line) and `#register!` (best-effort: make sure the transport actually
+knows about this repository yet).
+
+Git Mirror is the only current implementation (`GitMirror::WorkspaceGitTransport`):
+`#url` is the mirror's own smart-HTTP route
+(`<endpoint>/v1/repositories/<id>`), and `#register!` reuses the same
+reactive re-registration `ContentProvider` already does for JSON reads. Its
+mirrored refspec is only `refs/heads/*` and `refs/tags/*`, so anything
+outside that -- a GitHub pull request ref, a Syrus run checkpoint ref -- is
+never routed through this extension point in the first place; those call
+sites keep talking to the hosting platform directly.
 
 ## Plugin lifecycle: disable, uninstall, purge
 

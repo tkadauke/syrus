@@ -25,6 +25,8 @@ require "fileutils"
 # Jobs (or different Workflows on the same Job in sequence) never
 # share a path.
 class WorkflowWorkspace
+  include WorkspaceGitTransportPreference
+
   EXCLUDE_ENTRY = ".syrus/".freeze
   # Advisory OS-level lock sentinel. ProcessRunner takes a shared flock on
   # this file for the duration of any subprocess it spawns in this
@@ -412,12 +414,24 @@ class WorkflowWorkspace
     validate_clone_checkout_branch!
 
     begin
-      @git.run(
-        "clone",
-        "--branch", clone_checkout_branch,
-        "--no-tags", authenticated_url, path.to_s,
-        env: @env
-      )
+      # A failed clone attempt can leave a non-empty destination behind (git
+      # creates the directory and starts writing to it before any transfer
+      # failure would be noticed); clear it before every attempt below so a
+      # mirror failure never blocks the GitHub fallback on "destination path
+      # already exists and is not an empty directory".
+      cloned_via_mirror = try_mirror_transport(repository: @repository, user: @job.user) do |url, env|
+        FileUtils.rm_rf(path.to_s) if path.exist?
+        @git.run("clone", "--branch", clone_checkout_branch, "--no-tags", url, path.to_s, env: @env.merge(env))
+      end
+      unless cloned_via_mirror
+        FileUtils.rm_rf(path.to_s) if path.exist?
+        @git.run(
+          "clone",
+          "--branch", clone_checkout_branch,
+          "--no-tags", authenticated_url, path.to_s,
+          env: @env
+        )
+      end
     rescue GitRunner::GitError => e
       raise e unless remote_repo_empty?
 
@@ -480,12 +494,26 @@ class WorkflowWorkspace
     recover_unpublished_direct_branch_if_missing!(remote_ref)
 
     if remote_ref.strip.present?
-      authenticated_git("git_workflow_fetch_branch") do |url|
+      # remote_ref is "<sha>\trefs/heads/<branch>" from the authoritative
+      # GitHub read above; pass it as verify_sha so a mirror that hasn't
+      # caught up to the branch's latest push falls back instead of silently
+      # reusing an older commit here.
+      wanted_sha = remote_ref.strip.split(/\s+/).first
+      fetched_via_mirror = try_mirror_transport(repository: @repository, user: @job.user, verify_sha: wanted_sha) do |url, env|
         @git.run(
           "fetch", url,
           "refs/heads/#{@branch_name}:refs/heads/#{@branch_name}",
-          chdir: path.to_s, env: @env
+          chdir: path.to_s, env: @env.merge(env)
         )
+      end
+      unless fetched_via_mirror
+        authenticated_git("git_workflow_fetch_branch") do |url|
+          @git.run(
+            "fetch", url,
+            "refs/heads/#{@branch_name}:refs/heads/#{@branch_name}",
+            chdir: path.to_s, env: @env
+          )
+        end
       end
       @git.run("checkout", @branch_name, chdir: path.to_s)
     elsif @required_branch.present?
@@ -814,6 +842,7 @@ class WorkflowWorkspace
     sha = @workflow.artifact("main_sha")
     return if sha.blank?
 
+    ensure_commit_available!(sha)
     @git.run("checkout", sha, chdir: path.to_s)
   end
 
@@ -827,7 +856,27 @@ class WorkflowWorkspace
     sha = @workflow.artifact("deploy_sha")
     return if sha.blank?
 
+    ensure_commit_available!(sha)
     @git.run("checkout", sha, chdir: path.to_s)
+  end
+
+  # A clone sourced from the mirror can land on a slightly older commit than
+  # a SHA Syrus pinned earlier (main_sha/deploy_sha/landed_sha): the mirror's
+  # own background sync trails real time by design. When the pinned commit
+  # isn't in the workspace yet, fetch exactly that commit from GitHub --
+  # never from the mirror, whose bare repos don't allow fetching an
+  # unadvertised (non-tip) object -- rather than silently checking out
+  # whatever the mirror happened to have. A commit that still can't be found
+  # afterwards (a bad SHA, not staleness) is left for the checkout below to
+  # fail on with its own clear git error.
+  def ensure_commit_available!(sha)
+    return if git_object_present?(sha)
+
+    authenticated_git("git_workflow_fetch_missing_commit") do |url|
+      @git.run("fetch", "--no-tags", url, sha, chdir: path.to_s, env: @env)
+    end
+  rescue GitRunner::GitError
+    nil
   end
 
   # For external_pr jobs: fetch the exact PR commit via GitHub's
@@ -889,8 +938,11 @@ class WorkflowWorkspace
   end
 
   # The default-branch clone above is non-shallow, so a merge commit that
-  # already landed on that branch is present locally without an extra fetch.
+  # already landed on that branch is normally present locally without an
+  # extra fetch -- ensure_commit_available! only does one when the clone
+  # came from a mirror whose sync trails the exact commit Syrus pinned.
   def checkout_commit_sha!
+    ensure_commit_available!(@job.landed_sha)
     @git.run("checkout", @job.landed_sha, chdir: path.to_s)
   end
 
