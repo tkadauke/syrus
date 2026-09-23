@@ -182,6 +182,37 @@ func TestTreeSHA(t *testing.T) {
 	}
 }
 
+func TestDivergenceCountsCommitsBothWays(t *testing.T) {
+	u := newUpstream(t)
+	base := u.commit(map[string]string{"a.txt": "1"}, "base")
+	u.git("checkout", "--quiet", "-b", "branch-a")
+	headA := u.commit(map[string]string{"a.txt": "2"}, "head a")
+	u.git("checkout", "--quiet", "main")
+	u.git("checkout", "--quiet", "-b", "branch-b")
+	u.commit(map[string]string{"a.txt": "3"}, "head b 1")
+	headB := u.commit(map[string]string{"a.txt": "4"}, "head b 2")
+	u.git("checkout", "--quiet", "main")
+	s := newStore(t, nil)
+	register(t, s, "42", u)
+	ctx := context.Background()
+
+	if divergence, err := s.Divergence(ctx, "42", base, headB); err != nil || divergence != (Divergence{Ahead: 2, Behind: 0}) {
+		t.Fatalf("divergence = %+v, %v; want ahead=2 behind=0", divergence, err)
+	}
+	if divergence, err := s.Divergence(ctx, "42", headB, base); err != nil || divergence != (Divergence{Ahead: 0, Behind: 2}) {
+		t.Fatalf("reverse divergence = %+v, %v; want ahead=0 behind=2", divergence, err)
+	}
+	if divergence, err := s.Divergence(ctx, "42", base, base); err != nil || divergence != (Divergence{Ahead: 0, Behind: 0}) {
+		t.Fatalf("identical divergence = %+v, %v; want zero", divergence, err)
+	}
+
+	// headA and headB share only base as a common ancestor -- one commit on
+	// one side, two on the other.
+	if divergence, err := s.Divergence(ctx, "42", headA, headB); err != nil || divergence != (Divergence{Ahead: 2, Behind: 1}) {
+		t.Fatalf("diverged divergence = %+v, %v; want ahead=2 behind=1", divergence, err)
+	}
+}
+
 // The distinction the whole content contract rests on: a missing file in a
 // known commit is final; a commit the mirror has never seen is not.
 func TestMissingFileIsNotFoundButUnknownCommitIsUnknownRevision(t *testing.T) {

@@ -179,6 +179,14 @@ module RepositoryContent
       result
     end
 
+    # Head relative to base as numeric commit counts (GitHub compare's
+    # ahead_by/behind_by).
+    def divergence(base:, head:)
+      base_id = revision_id(base)
+      head_id = revision_id(head)
+      through_chain(:divergence) { |provider| provider.divergence(base_id, head_id) }
+    end
+
     # The provider instances that will be asked, in order. Exposed for
     # diagnostics.
     def providers

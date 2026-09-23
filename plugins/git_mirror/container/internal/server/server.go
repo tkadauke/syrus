@@ -13,6 +13,7 @@
 //	GET    /v1/repositories/{id}/relation?base=&head=
 //	GET    /v1/repositories/{id}/history?base=&head=
 //	GET    /v1/repositories/{id}/tree_sha?revision=
+//	GET    /v1/repositories/{id}/divergence?base=&head=
 //	GET    /v1/repositories/{id}/info/refs?service=git-upload-pack   smart-HTTP clone/fetch
 //	POST   /v1/repositories/{id}/git-upload-pack
 //
@@ -63,6 +64,7 @@ type Store interface {
 	Relation(ctx context.Context, id, base, head string) (string, error)
 	History(ctx context.Context, id, base, head string) (mirror.History, error)
 	TreeSHA(ctx context.Context, id, revision string) (string, error)
+	Divergence(ctx context.Context, id, base, head string) (mirror.Divergence, error)
 	RepoDir(id string) (string, error)
 }
 
@@ -91,6 +93,7 @@ func NewWithLogger(store Store, token string, logger *log.Logger) http.Handler {
 	mux.Handle("GET /v1/repositories/{id}/relation", s.auth(s.relation))
 	mux.Handle("GET /v1/repositories/{id}/history", s.auth(s.history))
 	mux.Handle("GET /v1/repositories/{id}/tree_sha", s.auth(s.treeSHA))
+	mux.Handle("GET /v1/repositories/{id}/divergence", s.auth(s.divergence))
 	mux.Handle("GET /v1/repositories/{id}/info/refs", s.auth(s.infoRefs))
 	mux.Handle("POST /v1/repositories/{id}/git-upload-pack", s.auth(s.uploadPack))
 	if logger == nil {
@@ -397,6 +400,16 @@ func (s *server) treeSHA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"tree_sha": treeSHA})
+}
+
+func (s *server) divergence(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	divergence, err := s.store.Divergence(r.Context(), r.PathValue("id"), query.Get("base"), query.Get("head"))
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"ahead": divergence.Ahead, "behind": divergence.Behind})
 }
 
 func maxAgeFrom(r *http.Request) (time.Duration, bool) {

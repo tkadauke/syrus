@@ -2,13 +2,15 @@
 
 Git Mirror keeps a bare mirror of every active git repository and answers
 Syrus's repository reads from it -- the `.syrus.yml` read before each workflow
-is built, preview project discovery, skills, the Job source browser -- before
-the hosting platform's API is asked. It also serves the clones and fetches
-that populate workflow and chat workspaces: a plain `git clone`/`git fetch`
-speaks its smart-HTTP git transport directly, read-only. Together this takes
-most of Syrus's reads, and the biggest single source of traffic (a full
-clone per Workflow), off GitHub's rate limit and out of a network round trip,
-at the cost of disk space for the mirrors. Off by default.
+is built, preview project discovery, skills, the Job source browser, and
+`CommitsBehindCalculator`'s numeric `divergence` (ahead/behind commit counts)
+for merge-state polling's `commits_behind_base` -- before the hosting
+platform's API is asked. It also serves the clones and fetches that populate
+workflow and chat workspaces: a plain `git clone`/`git fetch` speaks its
+smart-HTTP git transport directly, read-only. Together this takes most of
+Syrus's reads, and the biggest single source of traffic (a full clone per
+Workflow), off GitHub's rate limit and out of a network round trip, at the
+cost of disk space for the mirrors. Off by default.
 
 It is a `:replica` `repository_content_provider` (see `plugins.md`) for file,
 tree, diff, commit history, and commit tree SHA reads: whenever it cannot

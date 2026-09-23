@@ -131,7 +131,13 @@ Two mitigations, both in `ChatWorkspace`:
 
 `RepositoryBareClone#sync!` only ever runs from `PollMergeStateJob` /
 `PollPullRequestJob` / `LandingQueueRecheck`, all of which are processed on the
-`polling` queue — i.e. today, always the home worker. `GitHistory::RelayServer`
+`polling` queue — i.e. today, always the home worker. All three reach it only
+through `CommitsBehindCalculator`, which asks the `repository_content_provider`
+chain for numeric divergence first and falls back to the bare clone only when
+no provider can answer (see `plugins.md`); the polling queue's bare-clone I/O
+is now the exception path, not the common one, but the pod-affinity
+requirement below is unchanged since the fallback can still fire on every
+poll tick when no divergence-capable provider is enabled. `GitHistory::RelayServer`
 (the internal-only HTTP server that answers the Git History tab's bare-clone
 reads for `Api::V1::App::GitHistoryController`, since web pods don't mount
 `$SYRUS_DATA_ROOT`) is only ever booted on a process where
