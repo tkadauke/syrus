@@ -6,6 +6,17 @@ class BotIdentity
     new(job)
   end
 
+  # Builds an identity for a writable checkout not yet tied to a Job -- a
+  # Coding Mode chat checkout, which commits locally before any handoff
+  # creates the Job that would otherwise drive #for. Mirrors the ordinary-Job
+  # precedence in Job#bot_authored_pull_request? (the owner's own connected
+  # PAT wins; otherwise fall back to the repository's active GitHub App bot)
+  # without the infrastructure/system_kind branch, which only applies to
+  # internal Jobs that never originate from a chat checkout.
+  def self.for_owner(user, repository:)
+    new(RepositoryOwnerSubject.new(user: user, repository: repository))
+  end
+
   def self.prefix_comment(body, on_behalf_of: nil)
     return body if on_behalf_of.blank?
 
@@ -77,4 +88,26 @@ class BotIdentity
   def app_slug
     AppSetting.current.github_app_slug.to_s.presence
   end
+
+  # Presents the same #user / #bot_authored_pull_request? / #cron? surface
+  # BotIdentity needs from a Job, for a checkout that has no Job yet.
+  class RepositoryOwnerSubject
+    attr_reader :user
+
+    def initialize(user:, repository:)
+      @user = user
+      @repository = repository
+    end
+
+    def bot_authored_pull_request?
+      return false unless @repository&.app_credential_active?
+
+      @user.blank? || @user.github_token.blank?
+    end
+
+    def cron?
+      false
+    end
+  end
+  private_constant :RepositoryOwnerSubject
 end
