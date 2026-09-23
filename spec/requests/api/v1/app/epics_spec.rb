@@ -870,6 +870,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       sign_in_as(user)
       claimant = Factories.user(email_address: "claimant@example.com")
       epic = Factories.epic(user: user, repository: repository, state: "ready", owner: claimant, owner_user: claimant, claimed_at: 1.hour.ago)
+      Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
 
       post "/api/v1/app/epics/#{epic.id}/start"
 
@@ -898,6 +899,22 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       expect(child.reload).to be_blocked_by_epic
     end
 
+    it "409s when the Epic has no child Jobs" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repository, state: "backlog")
+
+      expect {
+        post "/api/v1/app/epics/#{epic.id}/start"
+      }.not_to change(Run, :count)
+
+      expect(response).to have_http_status(:conflict)
+      expect(parse_body.dig("error", "code")).to eq("epic_not_startable")
+      expect(parse_body.dig("error", "message")).to eq(
+        "Epic cannot start implementing until it has at least one child Job."
+      )
+      expect(epic.reload).to be_backlog
+    end
+
     it "404s for Epics the user cannot access" do
       sign_in_as(user)
       other_user = Factories.user
@@ -924,6 +941,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     it "exposes startable and the start path in the detail payload" do
       sign_in_as(user)
       epic = Factories.epic(user: user, repository: repository, state: "ready")
+      Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
 
       get "/api/v1/app/epics/#{epic.id}"
 
@@ -1179,7 +1197,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(parse_body.dig("error", "message")).to eq("You do not have access to the target repository.")
   end
 
-  it "creates and immediately starts an epic when start is requested" do
+  it "degrades create-with-start to a plain create for an empty Epic" do
     sign_in_as(user)
 
     expect {
@@ -1195,10 +1213,10 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
 
     expect(response).to have_http_status(:created)
     epic = user.epics.order(:id).last
-    expect(epic).to be_in_progress
-    expect(epic.owner_user).to eq(user)
+    expect(epic).to be_backlog
+    expect(epic.owner_user).to be_nil
     expect(parse_body).to include(
-      "message" => "Epic created and started — child Jobs will dispatch as they are added.",
+      "message" => "Epic created.",
       "redirect_to" => epic_path(epic)
     )
   end
