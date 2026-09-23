@@ -62,4 +62,12 @@ describe("StatusPill", () => {
     expect(pill).toHaveClass("whitespace-normal", "flex-wrap", "max-w-full")
     expect(pill).not.toHaveClass("whitespace-nowrap")
   })
+
+  it("can opt into a truncated single-line pill for space-constrained columns", () => {
+    render(<TonePill title="Full untruncated reason text" tone="red" truncate>Full untruncated reason text</TonePill>)
+
+    const pill = screen.getByText("Full untruncated reason text").closest("[data-status-pill]")
+    expect(pill).toHaveClass("max-w-[14rem]", "whitespace-nowrap")
+    expect(pill).toHaveAttribute("title", "Full untruncated reason text")
+  })
 })
