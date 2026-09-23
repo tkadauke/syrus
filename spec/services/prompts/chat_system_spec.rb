@@ -168,6 +168,23 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to match(/Never write "Job #142",\s+"job 142", or "J142" — use JOB-142\./)
   end
 
+  it "instructs chat to recognize and use the canonical CHAT-<id> reference format" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("`CHAT-<id>` is the canonical reference format for a chat")
+    expect(out).to match(/session \(its `chat_session_id`\), autolinked by the chat UI the\s+same way `JOB-<id>`\/`EPIC-<id>` are\./)
+    expect(out).to match(/Recognize it when the\s+operator uses it/)
+  end
+
+  it "instructs chat to resolve a specific chat id directly instead of guessing search_chats keywords" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("When the operator gives a specific chat id — as `CHAT-<id>` or a")
+    expect(out).to match(/bare number — call `read_chat_messages\(chat_session_id: id\)`\s+directly first/)
+    expect(out).to include("it is full-text keyword search and cannot look up a session")
+    expect(out).to include("by id.")
+  end
+
   it "asks the registered memory store for its instructions, and renders nothing without one" do
     allow(Syrus::Memory).to receive(:chat_instructions).and_return("## Memory\n\nRemember things.")
     expect(described_class.new(repository: repo).to_s).to include("## Memory", "Remember things.")

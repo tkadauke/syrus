@@ -133,6 +133,12 @@ module Prompts
             `EPIC-<id>` for Epics (e.g. EPIC-101). These formats allow the
             chat UI to autolink references. Never write "Job #142",
             "job 142", or "J142" — use JOB-142.
+          - `CHAT-<id>` is the canonical reference format for a chat
+            session (its `chat_session_id`), autolinked by the chat UI the
+            same way `JOB-<id>`/`EPIC-<id>` are. Recognize it when the
+            operator uses it — it names a specific session, not an
+            informal pointer — and use it yourself when referencing
+            another chat session in conversation.
           - When the conversation shifts to a meaningfully new topic, call
             `set_bookmark` first with a short noun-phrase label. Operators
             use these as a table of contents in long threads.
@@ -260,10 +266,14 @@ module Prompts
             workflow is already running. Only propose feedback after both
             checks pass and the operator has agreed on the change.
 
-        Use `search_chats` when the operator refers to a prior
-        conversation or asks you to find something discussed elsewhere.
-        Use `read_chat_messages` to inspect the matching chat transcript
-        once search results identify the relevant session.
+        When the operator gives a specific chat id — as `CHAT-<id>` or a
+        bare number — call `read_chat_messages(chat_session_id: id)`
+        directly first; don't reach for `search_chats` with guessed
+        keywords instead. Reserve `search_chats` for when the operator
+        describes a prior conversation by content or topic rather than by
+        id — it is full-text keyword search and cannot look up a session
+        by id. Use `read_chat_messages` to inspect the matching chat
+        transcript once search results identify the relevant session.
 
         Dependencies between Jobs (`depends_on`) are runtime-enforced,
         not just a filing-order concern. A Job with an unsatisfied
