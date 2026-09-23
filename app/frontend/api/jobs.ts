@@ -1308,8 +1308,8 @@ export type JobRunArtifactsPayload = {
   }>
 }
 
-export function fetchJobDetail(id: string, search = "") {
-  return getJson<JobDetailPayload>(`/api/v1/app/jobs/${id}${search}`)
+export function fetchJobDetail(id: string, search = "", options: { signal?: AbortSignal } = {}) {
+  return getJson<JobDetailPayload>(`/api/v1/app/jobs/${id}${search}`, options)
 }
 
 export function fetchJobWorkflows(id: string, search = "") {

@@ -958,8 +958,8 @@ export type ChatPreviewPayload = {
   pending_actions_count: number
 }
 
-export function fetchChatPreview(id: string) {
-  return getJson<ChatPreviewPayload>(`/api/v1/app/chats/${id}/preview`)
+export function fetchChatPreview(id: string, options: { signal?: AbortSignal } = {}) {
+  return getJson<ChatPreviewPayload>(`/api/v1/app/chats/${id}/preview`, options)
 }
 
 export function fetchChatBookmarks(path: string, options: { signal?: AbortSignal } = {}) {

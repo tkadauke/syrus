@@ -11,7 +11,7 @@ export function ChatPreviewCard({ id, compact = false }: { id: number; compact?:
   const { t } = useT("chat")
   const { data, isPending } = useQuery({
     queryKey: ["chats", "preview", String(id)],
-    queryFn: () => fetchChatPreview(String(id)),
+    queryFn: ({ signal }) => fetchChatPreview(String(id), { signal }),
     staleTime: 30_000,
   })
 
