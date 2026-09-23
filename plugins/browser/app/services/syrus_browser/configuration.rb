@@ -17,8 +17,14 @@ module SyrusBrowser
     IMAGE_REPOSITORY = "ghcr.io/tkadauke/syrus-plugin-browser".freeze
     HEALTH_PATH = "/healthz".freeze
 
+    # Resolved by name, not by a bare `PluginRuntime::Services` constant
+    # reference: Browser only optionally_depends_on plugin_runtime (it must
+    # stay fully usable via the stdio fallback when that plugin is disabled,
+    # which it is by default), so this has to survive plugin_runtime being
+    # physically absent too, not just disabled. `safe_constantize` answers nil
+    # in both cases instead of raising NameError. See docs/syrus_docs/browser.md.
     def self.endpoint
-      PluginRuntime::Services.endpoint_for(SERVICE_NAME)
+      "PluginRuntime::Services".safe_constantize&.endpoint_for(SERVICE_NAME)
     end
 
     # Plugin images are published with the same tags as the backend image

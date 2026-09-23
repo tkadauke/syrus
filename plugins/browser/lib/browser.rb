@@ -15,7 +15,13 @@ module SyrusBrowser
     category "agent_capability"
     default_enabled true
     disableable true
-    depends_on [ "plugin_runtime" ]
+    # Optional, not hard: Browser is on by default and must keep working via
+    # its bundled stdio subprocess even when Plugin Runtime is disabled --
+    # which it is by default (see plugins/plugin_runtime/lib/plugin_runtime.rb).
+    # A hard depends_on would mark Browser :degraded (PluginHealth) and
+    # withhold every one of its providers -- not just the service
+    # acceleration -- on a stock install where nobody touched Plugin Runtime.
+    optionally_depends_on [ "plugin_runtime" ]
     provides mcp_tool_set: "SyrusBrowser::McpToolSet",
              chat_mcp_tool_set: "SyrusBrowser::ChatToolSet",
              artifact_renderer: "SyrusBrowser::ImageDiffRenderer",

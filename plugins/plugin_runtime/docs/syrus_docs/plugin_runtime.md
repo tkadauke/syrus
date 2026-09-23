@@ -45,6 +45,16 @@ mirror is a fast path in front of GitHub, and when it is unavailable, requests
 go to GitHub as before. `endpoint_for` never makes a network call — it reads
 what the last reconcile recorded — so it is safe on a request path.
 
+Volumes, env, and `service_details` are all optional parts of the contract, not
+just of `service_spec`'s shape. Browser's service (`browser`, see
+`browser.md`) declares neither: it holds no state across sessions and no
+secret to share with Syrus, so its `service_spec` is image/port/healthcheck
+only, and it implements no `service_details` at all — the Plugin Services page
+never shows a Details panel for it, by design rather than omission. A service
+with real session/request data to leak should think as hard about what
+`service_details` summarizes (headline counts, not raw content) as about
+what it logs.
+
 ## Two ways to run
 
 Which one applies follows from configuration.
