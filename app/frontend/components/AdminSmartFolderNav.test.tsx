@@ -194,6 +194,41 @@ describe("AdminSmartFolderNav", () => {
     expect(screen.getByRole("link", { name: "Failed today 0" })).toBeInTheDocument()
   })
 
+  it("renders 999+ for a capped smart folder count instead of the raw count", () => {
+    const foldersWithCappedCount: AdminSmartFolder[] = [
+      {
+        id: 1,
+        name: "Runs",
+        i18n_key: "admin_queue_runs",
+        kind: "builtin",
+        subject_type: "admin_queue",
+        visibility: "always",
+        position: 0,
+        count: 1000,
+        count_capped: true,
+        active: false,
+        path: "/admin/queue/active?smart_folder_id=1"
+      },
+      {
+        id: 2,
+        name: "Failed today",
+        i18n_key: "failed_today",
+        kind: "builtin",
+        subject_type: "admin_queue",
+        visibility: "always",
+        position: 1,
+        count: 5,
+        count_capped: false,
+        active: false,
+        path: "/admin/queue/failed?smart_folder_id=2"
+      }
+    ]
+    renderNav({ folders: foldersWithCappedCount })
+
+    expect(screen.getByRole("link", { name: "Runs 999+" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Failed today 5" })).toBeInTheDocument()
+  })
+
   it("falls back to folder.name when i18n_key is absent", () => {
     const foldersWithoutKey: AdminSmartFolder[] = [
       {

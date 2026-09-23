@@ -544,6 +544,7 @@ describe("AppChromeV2", () => {
               visibility: "always",
               position: 0,
               count: 1000,
+              count_capped: true,
               active: true,
               filter: { and: [] },
               path: "/agent_activity?smart_folder_id=81"
@@ -575,7 +576,7 @@ describe("AppChromeV2", () => {
     expect(await screen.findByRole("link", { name: "Agent Activity" })).toBeInTheDocument()
     const folderNav = await screen.findByRole("navigation", { name: "Agent Activity smart folders" })
     expect(within(folderNav).queryByRole("link", { name: "All agent activity" })).not.toBeInTheDocument()
-    expect(within(folderNav).getByRole("link", { name: "All 1000" })).toHaveAttribute("href", "/agent_activity?smart_folder_id=81")
+    expect(within(folderNav).getByRole("link", { name: "All 999+" })).toHaveAttribute("href", "/agent_activity?smart_folder_id=81")
     expect(within(folderNav).getByRole("link", { name: "Running 5" })).toHaveAttribute("href", "/agent_activity?smart_folder_id=82")
     expect(fetchSpy).toHaveBeenCalled()
   })

@@ -236,6 +236,13 @@ describe("DashboardSmartFolderNav", () => {
     expect(screen.queryByText("3")).not.toBeInTheDocument()
   })
 
+  it("renders 999+ instead of the raw count when the folder count is capped", () => {
+    renderNav([folder({ count: 1000, count_capped: true })])
+
+    expect(screen.getByRole("link", { name: "Saved work 999+" })).toBeInTheDocument()
+    expect(screen.queryByText("1000")).not.toBeInTheDocument()
+  })
+
   it("patches saved folder positions after drag reordering", async () => {
     renderNav([
       folder({ id: 1, name: "Review", position: 0, count: 0 }),
