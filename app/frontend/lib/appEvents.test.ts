@@ -11,10 +11,12 @@ class FakeNotification {
 
   title: string
   body?: string
+  tag?: string
 
   constructor(title: string, options?: NotificationOptions) {
     this.title = title
     this.body = options?.body
+    this.tag = options?.tag
     FakeNotification.instances.push(this)
   }
 
@@ -97,6 +99,24 @@ describe("applyAppEvent", () => {
     expect(FakeNotification.instances).toHaveLength(1)
     expect(FakeNotification.instances[0].title).toBe("PR merged")
     expect(FakeNotification.instances[0].body).toBe("PR #4 merged")
+    expect(FakeNotification.instances[0].tag).toBe("syrus-notification-1")
+  })
+
+  it("dispatches with no dedupe tag when the notification payload lacks an id", () => {
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "granted"
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, {
+      type: "notification_created",
+      unread_count: 1,
+      payload: {
+        notification: { kind: "pr_merged", body: "PR #4 merged", job_id: 4, pr_url: null }
+      }
+    })
+
+    expect(FakeNotification.instances).toHaveLength(1)
+    expect(FakeNotification.instances[0].tag).toBeUndefined()
   })
 
   it("does not dispatch a native browser notification when permission has not been granted", () => {

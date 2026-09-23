@@ -21,10 +21,12 @@ class FakeNotification {
   closed = false
   title: string
   body?: string
+  tag?: string
 
   constructor(title: string, options?: NotificationOptions) {
     this.title = title
     this.body = options?.body
+    this.tag = options?.tag
     FakeNotification.instances.push(this)
   }
 
@@ -133,14 +135,14 @@ describe("isNativeNotificationSupported / requestNativeNotificationPermission", 
 
 describe("dispatchNativeNotification", () => {
   it("fails silently when Notification is unsupported", () => {
-    expect(dispatchNativeNotification({ kind: "job_failed", body: "oops", jobId: 1, prUrl: null })).toBe(false)
+    expect(dispatchNativeNotification({ kind: "job_failed", body: "oops", jobId: 1, prUrl: null, notificationId: 1 })).toBe(false)
   })
 
   it("fails silently when permission has not been granted", () => {
     vi.stubGlobal("Notification", FakeNotification)
     FakeNotification.permission = "denied"
 
-    expect(dispatchNativeNotification({ kind: "job_failed", body: "oops", jobId: 1, prUrl: null })).toBe(false)
+    expect(dispatchNativeNotification({ kind: "job_failed", body: "oops", jobId: 1, prUrl: null, notificationId: 1 })).toBe(false)
     expect(FakeNotification.instances).toHaveLength(0)
   })
 
@@ -151,7 +153,7 @@ describe("dispatchNativeNotification", () => {
     vi.stubGlobal("location", { ...window.location, pathname: "/dashboard", set href(value: string) { assign(value) } })
     const focus = vi.spyOn(window, "focus").mockImplementation(() => {})
 
-    const result = dispatchNativeNotification({ kind: "pr_merged", body: "PR #4 merged", jobId: 4, prUrl: null })
+    const result = dispatchNativeNotification({ kind: "pr_merged", body: "PR #4 merged", jobId: 4, prUrl: null, notificationId: 4 })
 
     expect(result).toBe(true)
     expect(FakeNotification.instances).toHaveLength(1)
@@ -169,10 +171,38 @@ describe("dispatchNativeNotification", () => {
     vi.stubGlobal("Notification", FakeNotification)
     FakeNotification.permission = "granted"
 
-    const result = dispatchNativeNotification({ kind: "pr_merged", body: "PR #4 merged", jobId: 4, prUrl: null })
+    const result = dispatchNativeNotification({ kind: "pr_merged", body: "PR #4 merged", jobId: 4, prUrl: null, notificationId: 4 })
 
     expect(result).toBe(true)
     expect(FakeNotification.instances).toHaveLength(1)
+  })
+
+  it("passes a stable dedupe tag derived from the persisted notification id", () => {
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "granted"
+
+    const result = dispatchNativeNotification({ kind: "pr_merged", body: "PR #4 merged", jobId: 4, prUrl: null, notificationId: 4 })
+
+    expect(result).toBe(true)
+    expect(FakeNotification.instances).toHaveLength(1)
+    expect(FakeNotification.instances[0].body).toBe("PR #4 merged")
+    expect(FakeNotification.instances[0].tag).toBe("syrus-notification-4")
+  })
+
+  it("omits the tag and still dispatches when the event carries no notification id", () => {
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "granted"
+    const assign = vi.fn()
+    vi.stubGlobal("location", { ...window.location, pathname: "/dashboard", set href(value: string) { assign(value) } })
+
+    const result = dispatchNativeNotification({ kind: "pr_merged", body: "PR #4 merged", jobId: 4, prUrl: null, notificationId: null })
+
+    expect(result).toBe(true)
+    expect(FakeNotification.instances).toHaveLength(1)
+    expect(FakeNotification.instances[0].tag).toBeUndefined()
+
+    FakeNotification.instances[0].onclick?.()
+    expect(assign).toHaveBeenCalledWith("/jobs/4")
   })
 })
 
