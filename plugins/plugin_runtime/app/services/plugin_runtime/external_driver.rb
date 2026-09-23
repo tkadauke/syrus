@@ -48,6 +48,16 @@ module PluginRuntime
       status(entry, state: "running", endpoint: endpoint)
     end
 
+    # Same duck-typing ManagedDriver#privileged_entry? uses: a privileged
+    # provider implements PluginRuntime::PrivilegedService's contract
+    # (privileged_env), a generic one implements Service's (service_spec).
+    # Kubernetes/external mode never creates the container, but the operator
+    # still needs the "Privileged" badge to know this service carries
+    # elevated host grants wherever it actually runs.
+    def privileged_entry?(entry)
+      entry.provider.respond_to?(:privileged_env)
+    end
+
     # A privileged provider has no service_spec to read a healthcheck path
     # from -- its container's shape is fixed in the runtime manager's compiled
     # Definition, not declared in Ruby. Every container-backed plugin image in
@@ -61,7 +71,8 @@ module PluginRuntime
     end
 
     def status(entry, **attributes)
-      ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode, **attributes)
+      ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode,
+                          privileged: privileged_entry?(entry), **attributes)
     end
 
     # Returns nil when healthy, otherwise a reason.
