@@ -51,6 +51,7 @@ import { Notice, Section } from "../components/ui"
 import { jobNavigationHref, navigationIndex, readJobNavigationContext, storeJobNavigationContext, withUpdatedNavigationItemState, type JobNavigationContext } from "../lib/jobNavigationContext"
 import { MetadataLine, OwnerBadge } from "./dashboard/components"
 import { UnderlineTabs } from "../components/Tabs"
+import { normalizeJobDetailPayload } from "../lib/entityStore"
 
 export function JobDetailRoute() {
   const { t } = useT("jobs")
@@ -65,14 +66,18 @@ export function JobDetailRoute() {
   const workflowsQueryKey = jobWorkflowsQueryKey(id, detailSearch)
   const detail = useQuery({
     queryKey,
-    queryFn: () => fetchJobDetail(id, detailSearch),
+    queryFn: async () => normalizeJobDetailPayload(await fetchJobDetail(id, detailSearch)),
     enabled: id.length > 0
   })
   const pluginTabKeys = (detail.data?.ui_tabs ?? []).map((tab) => tab.key).filter((key): key is string => Boolean(key))
   const activeTab = tabFromLocation(location.pathname, location.search, pluginTabKeys)
   const workflows = useQuery({
     queryKey: workflowsQueryKey,
-    queryFn: () => fetchJobWorkflows(id, detailSearch),
+    queryFn: async () => {
+      const payload = await fetchJobWorkflows(id, detailSearch)
+      if (detail.data) normalizeJobDetailPayload(mergeJobWorkflowsPayload(detail.data, payload), "job_workflows")
+      return payload
+    },
     enabled: id.length > 0 && (activeTab === "workflows" || activeTab === "timeline") && detail.isSuccess,
     placeholderData: keepPreviousData
   })

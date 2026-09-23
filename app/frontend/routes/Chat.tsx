@@ -128,6 +128,7 @@ import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage
 import { availableWorkspaceTabs, clampWorkspaceWidth, defaultWorkspaceTab, mobileChatTabLabel, storeWorkspacePreference, storedWorkspaceCollapsed, storedWorkspaceTab, storedWorkspaceWidth } from "./chat/workspaceTabs"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
+import { normalizeChatPayload } from "../lib/entityStore"
 const ChatWorkspacePanel = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatWorkspacePanel })))
 const ChatSettingsDialog = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatSettingsDialog })))
 
@@ -162,10 +163,13 @@ export function ChatRoute() {
     queryKey,
     queryFn: async () => {
       const fetched = await fetchChat(id, location.search)
+      normalizeChatPayload(fetched)
       const cached = queryClient.getQueryData<ChatPayload>(queryKey)
       if (!cached || !Array.isArray(cached.messages)) return fetched
 
-      return { ...fetched, messages: mergeMessageTail(cached.messages, fetched.messages) }
+      const merged = { ...fetched, messages: mergeMessageTail(cached.messages, fetched.messages) }
+      normalizeChatPayload(merged)
+      return merged
     },
     enabled: id.length > 0,
     refetchInterval: () => (isDisconnected && document.visibilityState === "visible" ? 30_000 : false),
