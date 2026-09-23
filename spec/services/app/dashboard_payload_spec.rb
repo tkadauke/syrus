@@ -420,6 +420,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
         key: "backlogged_jobs",
         visibility: "when_present",
         count: 1,
+        count_capped: false,
         active: true
       )
     end
@@ -430,7 +431,18 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job")
 
       folder = result.fetch(:smart_folders).find { |candidate| candidate.fetch(:key) == "backlogged_jobs" }
-      expect(folder).to include(count: 1, subject_type: "job")
+      expect(folder).to include(count: 1, count_capped: false, subject_type: "job")
+    end
+
+    it "marks a job SmartFolder's count as capped once the true count meets the configured cap" do
+      stub_const("SmartFolder::COUNT_CAP", 2)
+      2.times { |n| Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, owner_user: user) }
+      folder = SmartFolder.for_subject(:job).find_by!(name: "Backlog")
+
+      result = call(subject: "job", smart_folder_id: folder.id, scope: "team")
+
+      capped_folder = result.fetch(:smart_folders).find { |candidate| candidate.fetch(:id) == folder.id }
+      expect(capped_folder).to include(count: 2, count_capped: true)
     end
 
     it "hides the Backlog SmartFolder when the current user has no backlog Jobs" do
