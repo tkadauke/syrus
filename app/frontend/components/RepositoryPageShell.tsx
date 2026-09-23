@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { Page, usePageGutterRestoreClassName } from "./ui/Page"
 import { RepositoryTabs } from "./RepositoryTabs"
 import type { RepositoryTab } from "../api/repositories"
 
@@ -7,6 +8,8 @@ import type { RepositoryTab } from "../api/repositories"
  * tab bar -> tab-specific content, inside the standard page container.
  * Extracted from RepositoryDetail.tsx (Overview) so other repository tabs
  * can adopt the same header/tab-bar/container without hand-rolling it.
+ * Uses the responsive gutter primitive: the header and tab bar keep the
+ * page's normal mobile margin, while tab content runs edge to edge.
  */
 export function RepositoryPageShell({
   activeTab,
@@ -26,11 +29,24 @@ export function RepositoryPageShell({
   tipBanner?: ReactNode
 }) {
   return (
-    <main aria-label={ariaLabel} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header>{heading}</header>
-      {tipBanner}
-      <RepositoryTabs active={activeTab} prefix={prefix} tabs={tabs} />
+    <Page.Root aria-label={ariaLabel} gutter="responsive" size="wide">
+      <Page.Header>
+        <Page.HeadingGroup>{heading}</Page.HeadingGroup>
+      </Page.Header>
+      {tipBanner ? <TipBanner>{tipBanner}</TipBanner> : null}
+      <Page.Nav>
+        <RepositoryTabs active={activeTab} prefix={prefix} tabs={tabs} />
+      </Page.Nav>
       {children}
-    </main>
+    </Page.Root>
   )
+}
+
+// A real descendant of Page.Root (unlike a plain variable computed in
+// RepositoryPageShell's own render) so the gutter-restore hook reads the
+// context Page.Root actually provides, rather than the default it falls
+// back to outside any Page.Root.
+function TipBanner({ children }: { children: ReactNode }) {
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
+  return <div className={marginGutterRestore}>{children}</div>
 }

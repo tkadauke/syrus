@@ -30,7 +30,9 @@ describe("RepositoryPageShell", () => {
     renderShell()
 
     const main = screen.getByRole("main", { name: "Repository" })
-    expect(main.className).toContain("mx-auto max-w-[96rem] space-y-6 p-6")
+    expect(main.className).toContain("max-w-[96rem]")
+    expect(main.className).toContain("px-0")
+    expect(main.className).toContain("sm:px-[var(--space-page-x)]")
 
     const heading = screen.getByRole("heading", { name: "acme/widgets" })
     const banner = screen.getByRole("region", { name: "Recommended actions" })
@@ -40,6 +42,21 @@ describe("RepositoryPageShell", () => {
     expect(Boolean(heading.compareDocumentPosition(banner) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     expect(Boolean(banner.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     expect(Boolean(tabs.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it("restores the mobile gutter on the header, tip banner, and tab bar, but lets content run flush", () => {
+    renderShell()
+
+    const heading = screen.getByRole("heading", { name: "acme/widgets" })
+    const header = heading.closest("header")
+    expect(header?.className).toContain("px-4 sm:px-0")
+
+    const banner = screen.getByRole("region", { name: "Recommended actions" })
+    expect(banner.parentElement?.className).toContain("mx-4 sm:mx-0")
+
+    const tabs = screen.getByRole("navigation")
+    const nav = tabs.closest("div")
+    expect(nav?.className).toContain("px-4 sm:px-0")
   })
 
   it("renders the tab bar links from the tabs prop and marks the active tab", () => {
