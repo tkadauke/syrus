@@ -69,6 +69,47 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
         expect(call).to be_exhausted
       end
     end
+
+    describe "explicit repository provider vs. user-scoped routing rules" do
+      # JOB-5393 / WF-29556: the repository is configured for a specific
+      # provider ("codex" here, standing in for the real-world "muse"), but
+      # the user also has a routing rule favoring another provider. The
+      # repository provider must win while it's healthy, and a real failover
+      # away from it must still be attributed to the repository provider as
+      # the original choice.
+      before do
+        repository.update!(agent_provider: "codex")
+        ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "default", candidates: [ { "provider" => "claude" } ])
+      end
+
+      it "selects the repository's explicit provider over the user-scoped rule when it is healthy" do
+        allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return({ state: "available" })
+
+        decision = described_class.call(
+          job: job,
+          task_key: "initial",
+          original_candidate: described_class.candidate(provider: "codex")
+        )
+
+        expect(decision.candidate.provider).to eq("codex")
+        expect(decision).not_to be_failover
+      end
+
+      it "fails over to the user-scoped rule's candidate when the repository provider is unavailable, attributing the original choice to the repository provider" do
+        allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return({ state: "auth_error", open: true })
+        allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return({ state: "available" })
+
+        decision = described_class.call(
+          job: job,
+          task_key: "initial",
+          original_candidate: described_class.candidate(provider: "codex")
+        )
+
+        expect(decision.candidate.provider).to eq("claude")
+        expect(decision).to be_failover
+        expect(decision.artifact["original_provider"]).to eq("codex")
+      end
+    end
   end
 end
 
