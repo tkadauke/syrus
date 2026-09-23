@@ -21,7 +21,7 @@ import {
   type SpawnedProcessUser
 } from "../api/adminProcesses"
 import { workflowSlug } from "../lib/slugs"
-import { DataTable } from "../components/ui"
+import { DataTable, Page } from "../components/ui"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -49,11 +49,11 @@ export function AdminProcessesIndex() {
   const activeUserFolderId = processes.data?.smart_folders.find((folder) => folder.id === processes.data.active_smart_folder_id && folder.kind === "user_defined")?.id
 
   return (
-    <main aria-label={t("processes.aria_index")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("processes.aria_index")} gutter="responsive" size="wide">
+      <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
         <PageHeading className="mt-1">{t("processes.heading")}</PageHeading>
-      </header>
+      </Page.Header>
 
       {processes.isPending ? <PanelMessage>{t("processes.loading")}</PanelMessage> : null}
       {processes.isError ? <ProcessError error={processes.error} /> : null}
@@ -95,7 +95,7 @@ export function AdminProcessesIndex() {
           </section>
         </AdminFiltersLayout>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -115,18 +115,18 @@ export function AdminProcessDetail() {
   })
 
   return (
-    <main aria-label={t("processes.aria_detail")} className="mx-auto max-w-5xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("processes.aria_detail")} gutter="responsive" size="medium">
+      <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
         <Link className="text-sm text-brand underline hover:no-underline" to={basePath}>{t("processes.heading")}</Link>
         <PageHeading className="mt-2">{t("processes.detail_heading")}{id ? ` #${id}` : ""}</PageHeading>
-      </header>
+      </Page.Header>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         {process.isPending ? <PanelMessage>{t("processes.loading")}</PanelMessage> : null}
         {process.isError ? <ProcessError error={process.error} /> : null}
         {process.isSuccess ? <ProcessDetail prefix={prefix} process={process.data} /> : null}
       </section>
-    </main>
+    </Page.Root>
   )
 }
 

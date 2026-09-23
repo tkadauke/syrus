@@ -9,7 +9,7 @@ import { workflowSlug } from "../lib/slugs"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
-import { DataTable } from "../components/ui"
+import { DataTable, Page } from "../components/ui"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -39,8 +39,8 @@ export function AdminStuck() {
   })
 
   return (
-    <main aria-label={t("aria_stuck")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="flex items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("aria_stuck")} gutter="responsive" size="wide">
+      <Page.Header className="items-end border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
           <PageHeading className="mt-1">{t("stuck.heading")}</PageHeading>
@@ -56,14 +56,14 @@ export function AdminStuck() {
         >
           {stuck.isFetching ? t("stuck.refreshing") : t("stuck.refresh")}
         </Button>
-      </header>
+      </Page.Header>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         {stuck.isPending ? <PanelMessage>{t("stuck.loading")}</PanelMessage> : null}
         {stuck.isError ? <PanelMessage tone="error">{t("stuck.error_load")}</PanelMessage> : null}
         {stuck.isSuccess ? <StuckTable items={stuck.data.items} pagination={stuck.data.pagination} prefix={prefix} /> : null}
       </section>
-    </main>
+    </Page.Root>
   )
 }
 
