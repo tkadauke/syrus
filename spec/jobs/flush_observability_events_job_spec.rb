@@ -44,4 +44,27 @@ RSpec.describe FlushObservabilityEventsJob do
     expect(BackendExceptionEvent.exists?(stale.id)).to eq(false)
     expect(BackendExceptionEvent.exists?(fresh.id)).to eq(true)
   end
+
+  it "deletes expired MCP startup phase events" do
+    stale = McpStartupPhaseEvent.create!(
+      McpStartupPhaseEvent.from_event_hash(
+        "occurred_at" => (McpStartupPhaseEvent::RETENTION.ago - 1.hour).iso8601,
+        "phase" => "agent_process_spawn",
+        "source" => "agent"
+      )
+    )
+    fresh = McpStartupPhaseEvent.create!(
+      McpStartupPhaseEvent.from_event_hash(
+        "occurred_at" => 1.hour.ago.iso8601,
+        "phase" => "agent_process_spawn",
+        "source" => "agent"
+      )
+    )
+    allow(Observability::EventSink).to receive(:flush!)
+
+    described_class.new.perform
+
+    expect(McpStartupPhaseEvent.exists?(stale.id)).to eq(false)
+    expect(McpStartupPhaseEvent.exists?(fresh.id)).to eq(true)
+  end
 end
