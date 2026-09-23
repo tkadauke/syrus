@@ -27,6 +27,11 @@ const JOB_DETAIL_INVALIDATION_RETRY_MS = 1_000
 const CHAT_DETAIL_INVALIDATION_MIN_INTERVAL_MS = 5_000
 const CHAT_DETAIL_INVALIDATION_RETRY_MS = 1_000
 
+type InvalidationTarget = {
+  exact?: boolean
+  queryKey: QueryKey
+}
+
 type DashboardInvalidationState = {
   lastInvalidatedAt: number
   pending: boolean
@@ -36,6 +41,8 @@ type DashboardInvalidationState = {
 const dashboardInvalidations = new WeakMap<QueryClient, DashboardInvalidationState>()
 const jobDetailInvalidations = new WeakMap<QueryClient, Map<string, DashboardInvalidationState>>()
 const chatDetailInvalidations = new WeakMap<QueryClient, Map<string, DashboardInvalidationState>>()
+const hiddenInvalidations = new WeakMap<QueryClient, Map<string, InvalidationTarget>>()
+const visibilityListeners = new WeakSet<QueryClient>()
 
 export type AppEvent = {
   type: string
@@ -92,7 +99,7 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
         total_pages: 0
       }
     })
-    void queryClient.invalidateQueries({ queryKey: ["notifications"] })
+    invalidateAppQuery(queryClient, { queryKey: ["notifications"], exact: true })
 
     const nativePayload = notificationCreatedNativePayload(event.payload)
     if (nativePayload) dispatchNativeNotification(nativePayload)
@@ -120,7 +127,7 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
         })
       }
     })
-    void queryClient.invalidateQueries({ queryKey: ["notifications"] })
+    invalidateAppQuery(queryClient, { queryKey: ["notifications"], exact: true })
     return
   }
 
@@ -143,9 +150,74 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
       continue
     }
 
-    void queryClient.invalidateQueries({ queryKey })
+    invalidateAppQuery(queryClient, exactListTarget(queryKey))
   }
   if (dashboardChanged) scheduleDashboardInvalidation(queryClient)
+}
+
+export function recoverAppEventContinuity(queryClient: QueryClient) {
+  if (tabIsHidden()) {
+    for (const query of queryClient.getQueryCache().findAll({ type: "active", predicate: continuityRecoveryQuery })) {
+      invalidateAppQuery(queryClient, { queryKey: query.queryKey, exact: true })
+    }
+    return
+  }
+
+  void queryClient.refetchQueries({ type: "active", predicate: continuityRecoveryQuery })
+}
+
+function invalidateAppQuery(queryClient: QueryClient, target: InvalidationTarget) {
+  if (tabIsHidden()) {
+    markHiddenInvalidation(queryClient, target)
+    void queryClient.invalidateQueries({ ...queryFilterFor(target), refetchType: "none" })
+    return
+  }
+
+  void queryClient.invalidateQueries(queryFilterFor(target))
+}
+
+function markHiddenInvalidation(queryClient: QueryClient, target: InvalidationTarget) {
+  let pending = hiddenInvalidations.get(queryClient)
+  if (!pending) {
+    pending = new Map()
+    hiddenInvalidations.set(queryClient, pending)
+  }
+  pending.set(invalidationTargetKey(target), target)
+  ensureVisibilityListener(queryClient)
+}
+
+function ensureVisibilityListener(queryClient: QueryClient) {
+  if (typeof document === "undefined") return
+  if (visibilityListeners.has(queryClient)) return
+
+  visibilityListeners.add(queryClient)
+  document.addEventListener("visibilitychange", () => {
+    if (tabIsHidden()) return
+    flushHiddenInvalidations(queryClient)
+  })
+}
+
+function flushHiddenInvalidations(queryClient: QueryClient) {
+  const pending = hiddenInvalidations.get(queryClient)
+  if (!pending || pending.size === 0) return
+
+  const targets = Array.from(pending.values())
+  pending.clear()
+  for (const target of targets) {
+    void queryClient.refetchQueries({ ...queryFilterFor(target), type: "active" })
+  }
+}
+
+function invalidationTargetKey(target: InvalidationTarget) {
+  return `${target.exact === true ? "exact" : "prefix"}:${JSON.stringify(target.queryKey)}`
+}
+
+function tabIsHidden() {
+  return typeof document !== "undefined" && document.visibilityState === "hidden"
+}
+
+function queryFilterFor(target: InvalidationTarget) {
+  return target.exact === true ? { queryKey: target.queryKey, exact: true } : { queryKey: target.queryKey }
 }
 
 function emptyNotificationsCache(unreadCount: number): NotificationsCache {
@@ -282,7 +354,7 @@ function flushDashboardInvalidation(queryClient: QueryClient) {
 
   state.pending = false
   state.lastInvalidatedAt = Date.now()
-  void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+  invalidateAppQuery(queryClient, { queryKey: ["dashboard"], exact: true })
 }
 
 export function scheduleJobDetailInvalidation(queryClient: QueryClient, queryKey: QueryKey) {
@@ -323,7 +395,7 @@ function flushJobDetailInvalidation(queryClient: QueryClient, queryKey: QueryKey
 
   state.pending = false
   state.lastInvalidatedAt = Date.now()
-  void queryClient.invalidateQueries({ queryKey })
+  invalidateAppQuery(queryClient, { queryKey })
 }
 
 function scheduleChatDetailInvalidation(queryClient: QueryClient, queryKey: QueryKey) {
@@ -364,7 +436,40 @@ function flushChatDetailInvalidation(queryClient: QueryClient, queryKey: QueryKe
 
   state.pending = false
   state.lastInvalidatedAt = Date.now()
-  void queryClient.invalidateQueries({ queryKey })
+  invalidateAppQuery(queryClient, { queryKey })
+}
+
+function exactListTarget(queryKey: QueryKey): InvalidationTarget {
+  return queryKey.length === 1 && exactListRoots.has(String(queryKey[0])) ? { queryKey, exact: true } : { queryKey }
+}
+
+const exactListRoots = new Set([
+  "chats",
+  "dashboard",
+  "design_docs",
+  "epics",
+  "job_run_artifacts",
+  "jobs",
+  "notifications",
+  "repositories",
+  "workflows"
+])
+
+function continuityRecoveryQuery(query: { queryKey: QueryKey }) {
+  const queryKey = query.queryKey
+  const root = queryKey[0]
+
+  if (queryKey.length === 1 && exactListRoots.has(String(root))) return true
+  if (root === "bootstrap") return true
+  if (root === "admin" && (queryKey[1] === "overview" || queryKey[1] === "stuck")) return true
+  if (root === "chats" && queryKey.length >= 2) return true
+  if (root === "epics" && queryKey.length >= 2) return true
+  if (root === "repositories" && queryKey.length >= 2) return true
+  if (root === "workflows" && queryKey.length >= 2) return true
+  if (root !== "jobs") return false
+
+  const jobQueryKind = queryKey[2]
+  return jobQueryKind === "detail" || jobQueryKind === "workflows"
 }
 
 function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
@@ -513,7 +618,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     // same "extend the existing chat-payload handling" pattern as the
     // bookmark/header/controls branches above, just invalidate-based since
     // pins live in their own query cache, not on ChatPayload itself.
-    void queryClient.invalidateQueries({ queryKey: ["chat-pins", String(event.id)] })
+    invalidateAppQuery(queryClient, { queryKey: ["chat-pins", String(event.id)], exact: true })
     return true
   }
 
@@ -556,7 +661,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
   const updateProposal = chatUpdateProposalPayload(event.payload)
   if (updateProposal) {
-    void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+    invalidateAppQuery(queryClient, { queryKey: ["chats", "recent"], exact: true })
 
     if (updateProposal.job_status_proposal) {
       patchChatJobStatusPendingProposal(queryClient, event.id, updateProposal.job_status_proposal)
@@ -932,7 +1037,7 @@ function patchChatJobStatusPendingProposal(queryClient: QueryClient, chatSession
     }
   )
   if (proposal.state !== "proposed") {
-    void queryClient.invalidateQueries({ queryKey })
+    invalidateAppQuery(queryClient, { queryKey, exact: true })
   }
 }
 

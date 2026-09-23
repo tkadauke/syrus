@@ -67,7 +67,7 @@ describe("applyAppEvent", () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs"] })
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
   })
 
   it("updates and invalidates notification cache when a notification is created", () => {
@@ -80,7 +80,7 @@ describe("applyAppEvent", () => {
       notifications: [],
       unread_count: 3
     })
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"], exact: true })
   })
 
   it("dispatches a native browser notification when permission is granted", () => {
@@ -176,7 +176,7 @@ describe("applyAppEvent", () => {
         { id: 2, read_at: "2026-06-25T12:01:00Z" }
       ]
     })
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"], exact: true })
   })
 
   it("marks all cached notifications read when a bulk read event arrives", () => {
@@ -211,13 +211,52 @@ describe("applyAppEvent", () => {
 
     applyAppEvent(queryClient, event("job", 42))
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["job_run_artifacts", "42"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"] })
 
     vi.runOnlyPendingTimers()
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"] })
+  })
+
+  it("does not fan out a job event to source diff or review comment queries under the jobs prefix", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["jobs"], { jobs: [] })
+    queryClient.setQueryData(["jobs", "42", "detail", ""], { job: { id: 42 } })
+    queryClient.setQueryData(["jobs", "42", "source_diff", ""], { files: [] })
+    queryClient.setQueryData(["jobs", "42", "diff_review_comments", "job_source_diff", ""], { comments: [] })
+
+    applyAppEvent(queryClient, event("job", 42))
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs"] })
+    expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["jobs", "42", "source_diff", ""] }))
+    expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["jobs", "42", "diff_review_comments", "job_source_diff", ""] }))
+  })
+
+  it("marks hidden-tab event invalidations stale without immediate REST catch-up, then refetches each stale target once on visibility", () => {
+    vi.useFakeTimers()
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const refetch = vi.spyOn(queryClient, "refetchQueries").mockResolvedValue(undefined as never)
+
+    applyAppEvent(queryClient, event("job", 42))
+    applyAppEvent(queryClient, event("job", 42))
+    vi.runOnlyPendingTimers()
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true, refetchType: "none" })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"], refetchType: "none" })
+    expect(refetch).not.toHaveBeenCalled()
+
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
+    document.dispatchEvent(new Event("visibilitychange"))
+
+    expect(refetch).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true, type: "active" })
+    expect(refetch).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"], type: "active" })
+    expect(refetch.mock.calls.filter(([arg]) => JSON.stringify(arg) === JSON.stringify({ queryKey: ["jobs", "42", "detail"], type: "active" }))).toHaveLength(1)
   })
 
   it("coalesces dashboard invalidations from event bursts", () => {
@@ -229,7 +268,7 @@ describe("applyAppEvent", () => {
     applyAppEvent(queryClient, event("job", 42))
     applyAppEvent(queryClient, event("workflow", 7))
 
-    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["dashboard"] })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["dashboard"], exact: true })
 
     vi.runOnlyPendingTimers()
 
@@ -299,7 +338,7 @@ describe("applyAppEvent", () => {
       }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
 
     vi.runOnlyPendingTimers()
@@ -355,7 +394,7 @@ describe("applyAppEvent", () => {
       }
     })).not.toThrow()
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
 
     vi.runOnlyPendingTimers()
@@ -378,7 +417,7 @@ describe("applyAppEvent", () => {
       }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
 
     vi.runOnlyPendingTimers()
@@ -685,7 +724,7 @@ describe("applyAppEvent", () => {
       payload: { action: "upsert_pin", pin: { id: 1, chat_message_id: 3 } }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ], exact: true })
     const untouched = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
     expect(untouched?.bookmarks).toEqual([])
   })
@@ -700,7 +739,7 @@ describe("applyAppEvent", () => {
       payload: { action: "remove_pin", pin: { id: 1, chat_message_id: 3 } }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ], exact: true })
   })
 
   it("applies chat agent question payloads directly to cached chat data", () => {
@@ -791,7 +830,7 @@ describe("applyAppEvent", () => {
       }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"], exact: true })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats"] })
 
@@ -824,7 +863,7 @@ describe("applyAppEvent", () => {
     expect(patched?.messages[0].proposal?.state).toBe("confirmed")
     expect(patched?.pending_proposal_count).toBe(3)
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"], exact: true })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
 
     expect(dispatched).toHaveLength(1)

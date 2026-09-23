@@ -47,6 +47,7 @@ const REVISION_HEADER = "X-Syrus-Revision"
 const RELOAD_STORAGE_KEY = "syrus:revision-reload"
 const MAX_RECENT_API_REQUESTS = 20
 let embeddedRevision: string | null | undefined
+const inFlightJsonReads = new Map<string, Promise<{ data: unknown; meta: JsonResponseMeta }>>()
 
 export type RecentApiRequest = {
   path: string
@@ -59,34 +60,8 @@ export type RecentApiRequest = {
 const recentApiRequests: RecentApiRequest[] = []
 
 export async function getJson<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<T> {
-  const startedAt = performanceNow()
-  const response = await fetch(path, {
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json"
-    },
-    signal: options.signal
-  })
-  recordApiRequest(path, response, performanceNow() - startedAt)
-  reloadIfBackendRevisionChanged(response)
-
-  if (response.status === 401) {
-    redirectToSignIn()
-  }
-
-  if (!response.ok) {
-    const payload = await readErrorPayload(response)
-    throw new ApiError(payload.error?.message || `Request failed with ${response.status}`, {
-      status: response.status,
-      code: payload.error?.code,
-      retryAfter: payload.error?.retry_after,
-      issues: payload.error?.issues
-    })
-  }
-
-  if (response.status === 204) return undefined as T
-
-  return response.json() as Promise<T>
+  const { data } = await getJsonWithMeta<T>(path, options)
+  return data
 }
 
 export type JsonResponseMeta = {
@@ -97,6 +72,21 @@ export type JsonResponseMeta = {
 }
 
 export async function getJsonWithMeta<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<{ data: T; meta: JsonResponseMeta }> {
+  if (options.signal) return performJsonRead<T>(path, options)
+
+  const existing = inFlightJsonReads.get(path)
+  if (existing) return existing as Promise<{ data: T; meta: JsonResponseMeta }>
+
+  const promise = performJsonRead<T>(path, options)
+  inFlightJsonReads.set(path, promise as Promise<{ data: unknown; meta: JsonResponseMeta }>)
+  const clear = () => {
+    if (inFlightJsonReads.get(path) === promise) inFlightJsonReads.delete(path)
+  }
+  promise.then(clear, clear)
+  return promise
+}
+
+async function performJsonRead<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<{ data: T; meta: JsonResponseMeta }> {
   const startedAt = performanceNow()
   const response = await fetch(path, {
     credentials: "same-origin",
@@ -259,6 +249,7 @@ export function getRecentApiRequests(): RecentApiRequest[] {
 
 export function _clearRecentApiRequestsForTest(): void {
   recentApiRequests.length = 0
+  inFlightJsonReads.clear()
 }
 
 function reloadIfBackendRevisionChanged(response: Response): void {

@@ -38,6 +38,47 @@ describe("API revision reload guard", () => {
   })
 })
 
+describe("GET request single-flight", () => {
+  afterEach(async () => {
+    const { _clearRecentApiRequestsForTest } = await import("./client")
+    _clearRecentApiRequestsForTest()
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  it("shares one network request for concurrent identical getJson reads", async () => {
+    const { getJson, getRecentApiRequests } = await import("./client")
+    let resolveFetch: ((response: Response) => void) | undefined
+    const fetchPromise = new Promise<Response>((resolve) => { resolveFetch = resolve })
+    const fetch = vi.spyOn(window, "fetch").mockReturnValue(fetchPromise)
+
+    const first = getJson("/api/v1/app/jobs/42")
+    const second = getJson("/api/v1/app/jobs/42")
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    resolveFetch?.(jsonResponse({ job: { id: 42 } }))
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { job: { id: 42 } },
+      { job: { id: 42 } }
+    ])
+    expect(getRecentApiRequests()).toHaveLength(1)
+  })
+
+  it("does not coalesce reads that carry abort signals", async () => {
+    const { getJson } = await import("./client")
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse({ ok: true })))
+
+    await Promise.all([
+      getJson("/api/v1/app/jobs/42", { signal: new AbortController().signal }),
+      getJson("/api/v1/app/jobs/42", { signal: new AbortController().signal })
+    ])
+
+    expect(window.fetch).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe("401 sign-in redirect", () => {
   afterEach(() => {
     vi.unstubAllGlobals()
