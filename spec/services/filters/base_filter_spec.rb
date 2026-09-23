@@ -85,6 +85,60 @@ RSpec.describe Filters::BaseFilter do
     end
   end
 
+  describe ".capped_count" do
+    # Simulates SQL's LIMIT: .limit(n) narrows what a later .pluck(:id) returns,
+    # so the double behaves like a real scope instead of always plucking every id.
+    def scope_returning(ids)
+      scope = instance_double(ActiveRecord::Relation)
+      limited = ids
+      allow(scope).to receive(:reselect).with(:id).and_return(scope)
+      allow(scope).to receive(:limit) { |n| limited = ids.first(n); scope }
+      allow(scope).to receive(:pluck).with(:id) { limited }
+      scope
+    end
+
+    it "stops scanning at limit + 1 rows regardless of true match count" do
+      scope = scope_returning([ 1, 2, 3, 4, 5 ])
+
+      Filters::BaseFilter.capped_count(scope, limit: 2)
+
+      expect(scope).to have_received(:limit).with(3)
+    end
+
+    it "defaults the scan window to SmartFolder::COUNT_CAP + 1" do
+      scope = scope_returning([])
+
+      Filters::BaseFilter.capped_count(scope)
+
+      expect(scope).to have_received(:limit).with(SmartFolder::COUNT_CAP + 1)
+    end
+
+    it "returns the exact count when it is below the limit" do
+      scope = scope_returning([ 1, 2 ])
+
+      expect(Filters::BaseFilter.capped_count(scope, limit: 5)).to eq(2)
+    end
+
+    it "clamps the result at the limit when the true count meets it" do
+      scope = scope_returning([ 1, 2 ])
+
+      expect(Filters::BaseFilter.capped_count(scope, limit: 2)).to eq(2)
+    end
+
+    it "clamps the result at the limit when the true count exceeds it" do
+      scope = scope_returning([ 1, 2, 3 ])
+
+      expect(Filters::BaseFilter.capped_count(scope, limit: 2)).to eq(2)
+    end
+
+    it "is usable as an instance method by any including class" do
+      Factories.job_record(issue_number: 1)
+      Factories.job_record(issue_number: 2)
+
+      expect(filter_for({ "and" => [] }).capped_count(Job.all, limit: 1)).to eq(1)
+    end
+  end
+
   describe ".merge_and (private)" do
     it "combines two flat trees into a single AND node" do
       left  = { "and" => [ chip("state", "is", "open") ] }
