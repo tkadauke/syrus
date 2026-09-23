@@ -116,14 +116,10 @@ export function DesignSystemRoute() {
     : undefined
 
   const liveTokenValues = useColorTokens(TOKEN_SPECS.map((spec) => spec.cssVar))
-  const tokenValues = previewColorTokens
-    ? TOKEN_SPECS.map((spec) => previewColorTokens[spec.key] ?? "")
-    : liveTokenValues
+  const tokenValues = previewColorTokens ? TOKEN_SPECS.map((spec) => previewColorTokens[spec.key] ?? "") : liveTokenValues
 
   const liveExtendedTokenValues = useColorTokens(EXTENDED_TOKEN_GROUP_SPECS.map((spec) => spec.cssVar))
-  const extendedTokenValues = previewExtendedTokens
-    ? EXTENDED_TOKEN_GROUP_SPECS.map((spec) => previewExtendedTokens[spec.key] ?? "")
-    : liveExtendedTokenValues
+  const extendedTokenValues = previewExtendedTokens ? EXTENDED_TOKEN_GROUP_SPECS.map((spec) => previewExtendedTokens[spec.key] ?? "") : liveExtendedTokenValues
 
   const [checked, setChecked] = useState(true)
   const [toggleOn, setToggleOn] = useState(true)
@@ -138,12 +134,8 @@ export function DesignSystemRoute() {
         </Page.HeadingGroup>
       </Page.Header>
 
-      {themeId != null && previewTheme ? (
-        <PanelMessage tone="success">{t("design_system.preview_banner", { name: previewTheme.name })}</PanelMessage>
-      ) : null}
-      {themeId != null && previewQuery.isError ? (
-        <PanelMessage tone="error">{t("design_system.preview_not_found")}</PanelMessage>
-      ) : null}
+      {themeId != null && previewTheme ? <PanelMessage tone="success">{t("design_system.preview_banner", { name: previewTheme.name })}</PanelMessage> : null}
+      {themeId != null && previewQuery.isError ? <PanelMessage tone="error">{t("design_system.preview_not_found")}</PanelMessage> : null}
       {themeId != null && previewTheme && contrastWarnings.length > 0 ? (
         <PanelMessage tone="warning">
           <p className="font-medium">{t("design_system.preview_contrast_warnings_heading")}</p>
@@ -255,13 +247,21 @@ function ExtendedTokenGroupDemo({ group, valueFor }: { group: string; valueFor: 
   }
   if (group === "typography") {
     return (
-      <span aria-hidden="true" className="shrink-0 text-text-primary" style={{ fontFamily: valueFor("font-sans") || undefined, fontSize: valueFor("text-body") || undefined }}>
+      <span
+        aria-hidden="true"
+        className="shrink-0 text-text-primary"
+        style={{ fontFamily: valueFor("font-sans") || undefined, fontSize: valueFor("text-body") || undefined }}
+      >
         Aa
       </span>
     )
   }
   return (
-    <span aria-hidden="true" className="shrink-0 border border-dashed border-border bg-surface-raised" style={{ padding: valueFor("space-section-compact") || undefined }}>
+    <span
+      aria-hidden="true"
+      className="shrink-0 border border-dashed border-border bg-surface-raised"
+      style={{ padding: valueFor("space-section-compact") || undefined }}
+    >
       <span className="block h-2 w-2 bg-brand" />
     </span>
   )
@@ -281,15 +281,26 @@ function ButtonsSection() {
         <Button variant="success">{t("design_system.buttons.success")}</Button>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Button size="sm" variant="primary">{t("design_system.buttons.primary")}</Button>
-        <Button size="sm" variant="secondary">{t("design_system.buttons.secondary")}</Button>
-        <Button disabled variant="primary">{t("design_system.buttons.disabled")}</Button>
+        <Button size="sm" variant="primary">
+          {t("design_system.buttons.primary")}
+        </Button>
+        <Button size="sm" variant="secondary">
+          {t("design_system.buttons.secondary")}
+        </Button>
+        <Button disabled variant="primary">
+          {t("design_system.buttons.disabled")}
+        </Button>
       </div>
     </section>
   )
 }
 
-function FormControlsSection({ checked, onCheckedChange, toggleOn, onToggleChange }: {
+function FormControlsSection({
+  checked,
+  onCheckedChange,
+  toggleOn,
+  onToggleChange
+}: {
   checked: boolean
   onCheckedChange: (checked: boolean) => void
   toggleOn: boolean
@@ -372,7 +383,9 @@ function ModalSection({ open, onOpen, onClose }: { open: boolean; onOpen: () => 
         <SectionHeading as="h3">{t("design_system.modal.title")}</SectionHeading>
         <p className="mt-2 text-sm text-text-secondary">{t("design_system.modal.body")}</p>
         <div className="mt-4 flex justify-end">
-          <Button onClick={onClose} variant="secondary">{t("design_system.modal.close")}</Button>
+          <Button onClick={onClose} variant="secondary">
+            {t("design_system.modal.close")}
+          </Button>
         </div>
       </Modal>
     </section>
@@ -387,13 +400,19 @@ function StatusPillsSection() {
     <section>
       <SectionHeading>{t("design_system.status.heading")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("design_system.status.description")}</p>
-      <SectionHeading as="h3" className="mt-4 text-sm">{t("design_system.status.tones_heading")}</SectionHeading>
+      <SectionHeading as="h3" className="mt-4 text-sm">
+        {t("design_system.status.tones_heading")}
+      </SectionHeading>
       <div className="mt-2 flex flex-wrap gap-2">
         {tones.map((tone) => (
-          <TonePill key={tone} tone={tone}>{tone}</TonePill>
+          <TonePill key={tone} tone={tone}>
+            {tone}
+          </TonePill>
         ))}
       </div>
-      <SectionHeading as="h3" className="mt-4 text-sm">{t("design_system.status.states_heading")}</SectionHeading>
+      <SectionHeading as="h3" className="mt-4 text-sm">
+        {t("design_system.status.states_heading")}
+      </SectionHeading>
       <div className="mt-2 flex flex-wrap gap-2">
         {STATUS_PILL_EXAMPLE_STATES.map((state) => (
           <StatusPill key={state} state={state} />
@@ -431,20 +450,30 @@ function SemanticPrimitivesSection() {
         </div>
         <Section.Actions>
           <Badge tone="info">{t("design_system.semantic.badge")}</Badge>
-          <Pill active tone="success">{t("design_system.semantic.pill")}</Pill>
+          <Pill active tone="success">
+            {t("design_system.semantic.pill")}
+          </Pill>
         </Section.Actions>
       </Section.Header>
       <Section.Body className="space-y-4" padding="md">
         <Notice title={t("design_system.semantic.notice_title")} tone="info">
-          <Text as="span" tone="info">{t("design_system.semantic.notice_body")}</Text>
+          <Text as="span" tone="info">
+            {t("design_system.semantic.notice_body")}
+          </Text>
           <Notice.Actions>
-            <Button size="sm" variant="secondary">{t("design_system.buttons.secondary")}</Button>
+            <Button size="sm" variant="secondary">
+              {t("design_system.buttons.secondary")}
+            </Button>
           </Notice.Actions>
         </Notice>
         <Toolbar aria-label={t("design_system.semantic.toolbar_aria")}>
           <Inline gap="xs" wrap>
-            <Button size="sm" variant="primary">{t("design_system.buttons.primary")}</Button>
-            <Button size="sm" variant="secondary">{t("design_system.buttons.secondary")}</Button>
+            <Button size="sm" variant="primary">
+              {t("design_system.buttons.primary")}
+            </Button>
+            <Button size="sm" variant="secondary">
+              {t("design_system.buttons.secondary")}
+            </Button>
           </Inline>
           <Cluster gap="xs">
             <Badge tone="warning">{t("design_system.semantic.warning_badge")}</Badge>
@@ -466,7 +495,9 @@ function SemanticPrimitivesSection() {
           </Surface>
           <Surface variant="success">
             <Stack gap="xs">
-              <Text tone="success" variant="label">{t("design_system.semantic.surface_success_label")}</Text>
+              <Text tone="success" variant="label">
+                {t("design_system.semantic.surface_success_label")}
+              </Text>
               <Text tone="success">{t("design_system.semantic.surface_success_body")}</Text>
             </Stack>
           </Surface>

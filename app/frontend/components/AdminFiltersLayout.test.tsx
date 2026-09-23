@@ -9,16 +9,19 @@ afterEach(() => {
 })
 
 function mockMobileViewport() {
-  vi.stubGlobal("matchMedia", vi.fn(() => ({
-    matches: false,
-    media: "(min-width: 1024px)",
-    onchange: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  })))
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({
+      matches: false,
+      media: "(min-width: 1024px)",
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  )
 }
 
 describe("AdminFiltersLayout", () => {

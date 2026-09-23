@@ -48,12 +48,7 @@ import { EpicDeploymentStagePipeline } from "../components/DeploymentStagePipeli
 import { createEpicJobNavigationContext, jobNavigationHref, storeJobNavigationContext } from "../lib/jobNavigationContext"
 import { Page } from "../components/ui"
 
-type EpicCommand =
-  | { kind: "state"; transition: EpicStateTransition }
-  | { kind: "start" }
-  | { kind: "archive" }
-  | { kind: "claim" }
-  | { kind: "unclaim" }
+type EpicCommand = { kind: "state"; transition: EpicStateTransition } | { kind: "start" } | { kind: "archive" } | { kind: "claim" } | { kind: "unclaim" }
 
 export function EpicDetailRoute() {
   const { t } = useT("epics")
@@ -67,9 +62,7 @@ export function EpicDetailRoute() {
     enabled: id.length > 0
   })
   const epicData = epic.data?.epic
-  const pageTitle = epicData
-    ? `${epicData.display_number}: ${epicData.title}`
-    : (id ? `EPIC-${id}` : undefined)
+  const pageTitle = epicData ? `${epicData.display_number}: ${epicData.title}` : id ? `EPIC-${id}` : undefined
   usePageTitle(pageTitle)
 
   return (
@@ -130,27 +123,34 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
           <EpicStuckBadge stuck={payload.epic.stuck} />
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          <Link className="font-mono hover:underline" to={withRoutePrefix(payload.epic.repository.repository_path, prefix)}>{payload.epic.repository.slug}</Link>
+          <Link className="font-mono hover:underline" to={withRoutePrefix(payload.epic.repository.repository_path, prefix)}>
+            {payload.epic.repository.slug}
+          </Link>
           <span> · {t("jobs_count", { count: payload.epic.jobs_count })}</span>
           <span> · {epicOwnerLabel(payload.epic, t)}</span>
           <span> · {t("updated_relative", { time: formatRelativeDate(new Date(payload.epic.updated_at)) })}</span>
-          {payload.epic.goal_provenance ? <span title={payload.epic.goal_provenance.prompt_snapshot.prompt || undefined}> · Goal #{payload.epic.goal_provenance.chat_goal_id}</span> : null}
+          {payload.epic.goal_provenance ? (
+            <span title={payload.epic.goal_provenance.prompt_snapshot.prompt || undefined}> · Goal #{payload.epic.goal_provenance.chat_goal_id}</span>
+          ) : null}
           {payload.origin_chat ? (
-            <span> · <Link className="inline-flex items-center gap-1 font-medium text-brand hover:underline" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>
-              <ChatBubbleIcon />
-              <span>{t("view_in_chat")}</span>
-            </Link></span>
+            <span>
+              {" "}
+              ·{" "}
+              <Link
+                className="inline-flex items-center gap-1 font-medium text-brand hover:underline"
+                to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}
+              >
+                <ChatBubbleIcon />
+                <span>{t("view_in_chat")}</span>
+              </Link>
+            </span>
           ) : null}
         </p>
 
-        {(payload.state_transitions.length > 0 || payload.epic.claimable || !payload.epic.archived) ? (
+        {payload.state_transitions.length > 0 || payload.epic.claimable || !payload.epic.archived ? (
           <div className="flex flex-wrap items-center gap-2">
             {payload.epic.startable ? (
-              <Button
-                disabled={command.isPending}
-                onClick={() => command.mutate({ kind: "start" })}
-                variant="primary"
-              >
+              <Button disabled={command.isPending} onClick={() => command.mutate({ kind: "start" })} variant="primary">
                 {command.isPending ? t("starting") : t("start_implementing")}
               </Button>
             ) : null}
@@ -160,25 +160,19 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
               </span>
             ) : null}
             {payload.epic.claimable && payload.epic.owner_status === "unclaimed" ? (
-              <Button
-                disabled={command.isPending}
-                onClick={() => command.mutate({ kind: "claim" })}
-                variant="secondary"
-              >
+              <Button disabled={command.isPending} onClick={() => command.mutate({ kind: "claim" })} variant="secondary">
                 {t("claim")}
               </Button>
             ) : null}
             {payload.epic.claimable && payload.epic.owned_by_current_user ? (
-              <Button
-                disabled={command.isPending}
-                onClick={() => command.mutate({ kind: "unclaim" })}
-                variant="secondary"
-              >
+              <Button disabled={command.isPending} onClick={() => command.mutate({ kind: "unclaim" })} variant="secondary">
                 {t("unclaim")}
               </Button>
             ) : null}
             {!payload.epic.archived ? (
-              <Link className={buttonClasses(payload.epic.startable ? "secondary" : "primary")} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>{t("edit")}</Link>
+              <Link className={buttonClasses(payload.epic.startable ? "secondary" : "primary")} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>
+                {t("edit")}
+              </Link>
             ) : null}
             {payload.state_transitions.length > 0 ? (
               <EpicActionsMenu disabled={command.isPending} onTransition={runTransition} transitions={payload.state_transitions} />
@@ -196,7 +190,11 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
                 {t("dep", { count: payload.summary.dependency_edge_count })}
               </span>
             ) : null}
-            {payload.summary.blocked ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">{payload.summary.blocked_reason ? translateBlockedReason(payload.summary.blocked_reason, t) : t("blocked")}</span> : null}
+            {payload.summary.blocked ? (
+              <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                {payload.summary.blocked_reason ? translateBlockedReason(payload.summary.blocked_reason, t) : t("blocked")}
+              </span>
+            ) : null}
             {payload.epic.max_commits_behind_base && payload.epic.max_commits_behind_base > 0 ? (
               <FurthestBehindBadge commits={payload.epic.max_commits_behind_base} jobPath={payload.epic.furthest_behind_job_path} prefix={prefix} t={t} />
             ) : null}
@@ -216,13 +214,24 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
             </section>
           ) : null}
-          <JobsSection epicRepositorySlug={payload.epic.repository.slug} jobs={payload.jobs} newJobPath={`/jobs/new?repository_id=${payload.epic.repository.id}&epic_id=${payload.epic.id}`} prefix={prefix} />
+          <JobsSection
+            epicRepositorySlug={payload.epic.repository.slug}
+            jobs={payload.jobs}
+            newJobPath={`/jobs/new?repository_id=${payload.epic.repository.id}&epic_id=${payload.epic.id}`}
+            prefix={prefix}
+          />
           <DependencyGraph graph={payload.graph} />
           <HistorySection versions={payload.versions || []} />
         </div>
 
         <div className="min-w-0 space-y-6">
-          <DependenciesSection command={dependencyCommand} currentEpicId={payload.epic.id} dependencies={payload.dependencies} dependents={payload.dependents} prefix={prefix} />
+          <DependenciesSection
+            command={dependencyCommand}
+            currentEpicId={payload.epic.id}
+            dependencies={payload.dependencies}
+            dependents={payload.dependents}
+            prefix={prefix}
+          />
           <DetailsPanel deploymentStages={payload.deployment_stages} epic={payload.epic} jobs={payload.jobs} prefix={prefix} />
         </div>
       </div>
@@ -232,9 +241,10 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
 
 function MergeTrainStatusBanner({ status }: { status: MergeTrainStatus }) {
   const { t } = useT("epics")
-  const tone = status.phase === "failed"
-    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200"
-    : "border-teal-200 bg-teal-50 text-teal-900 dark:border-teal-900/70 dark:bg-teal-950/40 dark:text-teal-100"
+  const tone =
+    status.phase === "failed"
+      ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200"
+      : "border-teal-200 bg-teal-50 text-teal-900 dark:border-teal-900/70 dark:bg-teal-950/40 dark:text-teal-100"
   return (
     <div className={`rounded border px-3 py-2 text-sm ${tone}`}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -290,7 +300,9 @@ function DependenciesSection({
             {dependencies.map((dependency) => (
               <li className="flex min-h-10 items-center justify-between gap-3 py-2" key={dependency.epic_id}>
                 <span className="flex min-w-0 flex-wrap items-center gap-2">
-                  <Link className="min-w-0 break-words text-brand hover:underline" to={withRoutePrefix(dependency.url, prefix)}>{dependency.title}</Link>
+                  <Link className="min-w-0 break-words text-brand hover:underline" to={withRoutePrefix(dependency.url, prefix)}>
+                    {dependency.title}
+                  </Link>
                   <StatePill state={dependency.state} />
                 </span>
                 <button
@@ -316,9 +328,15 @@ function DependenciesSection({
             onChange={setSelectedDependency}
             selected={selectedDependency}
           />
-          <Button disabled={command.isPending || !selectedDependency} type="submit" variant="secondary">{t("add_button")}</Button>
+          <Button disabled={command.isPending || !selectedDependency} type="submit" variant="secondary">
+            {t("add_button")}
+          </Button>
         </form>
-        {command.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(command.error, t("dependency_error"))}</p> : null}
+        {command.isError ? (
+          <p className="mt-2 text-sm text-red-700 dark:text-red-300" role="alert">
+            {errorMessage(command.error, t("dependency_error"))}
+          </p>
+        ) : null}
       </div>
       <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
         <SectionHeading>{t("depended_on_by")}</SectionHeading>
@@ -326,7 +344,9 @@ function DependenciesSection({
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {dependents.map((dependent) => (
               <li className="flex min-h-10 flex-wrap items-center gap-2 py-2" key={dependent.epic_id}>
-                <Link className="break-words text-brand hover:underline" to={withRoutePrefix(dependent.url, prefix)}>{dependent.title}</Link>
+                <Link className="break-words text-brand hover:underline" to={withRoutePrefix(dependent.url, prefix)}>
+                  {dependent.title}
+                </Link>
                 <StatePill state={dependent.state} />
               </li>
             ))}
@@ -382,13 +402,16 @@ function EpicDependencyTypeahead({
     const controller = new AbortController()
     setLoading(true)
 
-    void searchEpicOptions(trimmedQuery, { signal: controller.signal }).then((loadedOptions) => {
-      if (!cancelled) setOptions(loadedOptions.filter((option) => !excluded.has(String(option.value))))
-    }).catch((error: unknown) => {
-      if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) setOptions([])
-    }).finally(() => {
-      if (!cancelled) setLoading(false)
-    })
+    void searchEpicOptions(trimmedQuery, { signal: controller.signal })
+      .then((loadedOptions) => {
+        if (!cancelled) setOptions(loadedOptions.filter((option) => !excluded.has(String(option.value))))
+      })
+      .catch((error: unknown) => {
+        if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) setOptions([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
 
     return () => {
       cancelled = true
@@ -450,7 +473,9 @@ function DependencyGraph({ graph }: { graph: EpicGraph }) {
         <span className="flex items-center gap-2">
           <span className="text-gray-400 transition-transform group-open:rotate-90 dark:text-gray-500">▶</span>
           <span className="font-medium">{t("dependency_graph")}</span>
-          <span className="text-gray-500 dark:text-gray-400">({t("epic_dep", { count: graph.epic_dependency_count })}, {t("job_blocker", { count: graph.job_blocker_count })})</span>
+          <span className="text-gray-500 dark:text-gray-400">
+            ({t("epic_dep", { count: graph.epic_dependency_count })}, {t("job_blocker", { count: graph.job_blocker_count })})
+          </span>
         </span>
       </summary>
       <div aria-label={t("dependency_graph_scroll_region")} className="overflow-x-auto border-t border-gray-100 p-3 dark:border-gray-800">
@@ -478,7 +503,9 @@ function HistorySection({ versions }: { versions: EpicVersionRecord[] }) {
               <li className="space-y-3 px-4 py-3" key={version.id}>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                   <span className="font-medium text-gray-700 dark:text-gray-200">{version.actor.email_address}</span>
-                  <span><RelativeTimestamp value={version.created_at} /></span>
+                  <span>
+                    <RelativeTimestamp value={version.created_at} />
+                  </span>
                 </div>
                 {version.title_before !== null || version.title_after !== null ? (
                   <div className="grid gap-2 md:grid-cols-2">
@@ -508,20 +535,34 @@ function DiffValue({ label, multiline = false, value }: { label: string; multili
   return (
     <div>
       <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</div>
-      <pre className={`mt-1 whitespace-pre-wrap break-words rounded border border-gray-200 bg-gray-50 p-2 font-mono text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 ${multiline ? "min-h-20" : ""}`}>
+      <pre
+        className={`mt-1 whitespace-pre-wrap break-words rounded border border-gray-200 bg-gray-50 p-2 font-mono text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 ${multiline ? "min-h-20" : ""}`}
+      >
         {value?.trim() ? value : t("empty_value")}
       </pre>
     </div>
   )
 }
 
-export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { epicRepositorySlug?: string; jobs: EpicDetailJob[]; newJobPath: string; prefix: string }) {
+export function JobsSection({
+  epicRepositorySlug,
+  jobs,
+  newJobPath,
+  prefix
+}: {
+  epicRepositorySlug?: string
+  jobs: EpicDetailJob[]
+  newJobPath: string
+  prefix: string
+}) {
   const { t } = useT("epics")
   return (
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
         <SectionHeading>{t("jobs_section")}</SectionHeading>
-        <Link className="text-xs text-brand hover:underline" to={withRoutePrefix(newJobPath, prefix)}>{t("add_job")}</Link>
+        <Link className="text-xs text-brand hover:underline" to={withRoutePrefix(newJobPath, prefix)}>
+          {t("add_job")}
+        </Link>
       </div>
       {jobs.length > 0 ? (
         <ul className="divide-y divide-gray-100 text-sm dark:divide-gray-700">
@@ -548,36 +589,43 @@ function JobIdentity({ epicRepositorySlug, job, jobs, prefix }: { epicRepository
         </SlugHoverCard>
         <ProviderAvailabilityWarning availability={job.provider_availability} />
         {job.title ? (
-          <EpicJobNavigationLink className="break-words text-gray-700 hover:underline dark:text-gray-200" currentJob={job} jobs={jobs} prefix={prefix}>{job.title}</EpicJobNavigationLink>
+          <EpicJobNavigationLink className="break-words text-gray-700 hover:underline dark:text-gray-200" currentJob={job} jobs={jobs} prefix={prefix}>
+            {job.title}
+          </EpicJobNavigationLink>
         ) : (
-          <EpicJobNavigationLink className="text-brand underline hover:no-underline" currentJob={job} jobs={jobs} prefix={prefix}>{job.slug}</EpicJobNavigationLink>
+          <EpicJobNavigationLink className="text-brand underline hover:no-underline" currentJob={job} jobs={jobs} prefix={prefix}>
+            {job.slug}
+          </EpicJobNavigationLink>
         )}
         {job.pr_number && job.pr_url ? (
           <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url}>
-            <a
-              className="font-mono text-xs text-brand hover:underline"
-              href={job.pr_url}
-              rel="noreferrer"
-              target="_blank"
-            >
+            <a className="font-mono text-xs text-brand hover:underline" href={job.pr_url} rel="noreferrer" target="_blank">
               PR #{job.pr_number}
             </a>
           </PrHoverCard>
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
-        {epicRepositorySlug && job.repository_slug !== epicRepositorySlug ? (
-          <span className="font-mono">{job.repository_slug}</span>
-        ) : null}
-        {job.label !== "Direct" ? (
-          <span className="font-mono">{job.label}</span>
-        ) : null}
+        {epicRepositorySlug && job.repository_slug !== epicRepositorySlug ? <span className="font-mono">{job.repository_slug}</span> : null}
+        {job.label !== "Direct" ? <span className="font-mono">{job.label}</span> : null}
       </div>
     </div>
   )
 }
 
-function EpicJobNavigationLink({ children, className, currentJob, jobs, prefix }: { children: ReactNode; className: string; currentJob: EpicDetailJob; jobs: EpicDetailJob[]; prefix: string }) {
+function EpicJobNavigationLink({
+  children,
+  className,
+  currentJob,
+  jobs,
+  prefix
+}: {
+  children: ReactNode
+  className: string
+  currentJob: EpicDetailJob
+  jobs: EpicDetailJob[]
+  prefix: string
+}) {
   const { t } = useT("epics")
   const navigate = useNavigate()
   const fallbackHref = withRoutePrefix(currentJob.path, prefix)
@@ -609,7 +657,7 @@ const PROGRESS_SEGMENTS = [
   { state: "merged", color: "bg-emerald-700" },
   { state: "approved", color: "bg-green-500" },
   { state: "implemented", color: "bg-cyan-500" },
-  { state: "blocked_by_epic", color: "bg-amber-400" },
+  { state: "blocked_by_epic", color: "bg-amber-400" }
 ]
 
 export function ProgressBar({ jobs, totalCount }: { jobs: EpicDetailJob[]; totalCount: number }) {
@@ -617,7 +665,7 @@ export function ProgressBar({ jobs, totalCount }: { jobs: EpicDetailJob[]; total
   const segments = PROGRESS_SEGMENTS.map(({ state, color }) => ({
     state,
     color,
-    percent: totalCount > 0 ? (jobs.filter((j) => j.state === state).length / totalCount) * 100 : 0,
+    percent: totalCount > 0 ? (jobs.filter((j) => j.state === state).length / totalCount) * 100 : 0
   }))
 
   return (
@@ -629,8 +677,19 @@ export function ProgressBar({ jobs, totalCount }: { jobs: EpicDetailJob[]; total
   )
 }
 
-const STATE_CHIP_ORDER = ["merged", "approved", "implemented", "blocked_by_epic", "open", "triaging", "landing", "landing_failed", "closed", "preempted", "pending"]
-
+const STATE_CHIP_ORDER = [
+  "merged",
+  "approved",
+  "implemented",
+  "blocked_by_epic",
+  "open",
+  "triaging",
+  "landing",
+  "landing_failed",
+  "closed",
+  "preempted",
+  "pending"
+]
 
 const STATE_CHIP_STYLES: Record<string, string> = {
   open: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200",
@@ -666,7 +725,10 @@ export function StateChips({ jobs }: { jobs: EpicDetailJob[] }) {
   return (
     <>
       {sortedStates.map((state) => (
-        <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATE_CHIP_STYLES[state] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`} key={state}>
+        <span
+          className={`rounded px-2 py-0.5 text-xs font-medium ${STATE_CHIP_STYLES[state] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}
+          key={state}
+        >
           {counts.get(state)} {t(`state_chip.${state}`, { defaultValue: humanize(state) })}
         </span>
       ))}
@@ -674,7 +736,17 @@ export function StateChips({ jobs }: { jobs: EpicDetailJob[] }) {
   )
 }
 
-function DetailsPanel({ deploymentStages, epic, jobs, prefix }: { deploymentStages?: EpicDeploymentStage[]; epic: EpicDetailPayload["epic"]; jobs: EpicDetailJob[]; prefix: string }) {
+function DetailsPanel({
+  deploymentStages,
+  epic,
+  jobs,
+  prefix
+}: {
+  deploymentStages?: EpicDeploymentStage[]
+  epic: EpicDetailPayload["epic"]
+  jobs: EpicDetailJob[]
+  prefix: string
+}) {
   const { t } = useT("epics")
   const owner = epic.owner_user || epic.owner
   const activeMembers = uniqueActiveMembers(jobs)
@@ -708,7 +780,9 @@ function DetailsPanel({ deploymentStages, epic, jobs, prefix }: { deploymentStag
         </div>
         <div>
           <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("updated_label")}</dt>
-          <dd className="mt-0.5 text-gray-700 dark:text-gray-200"><RelativeTimestamp value={epic.updated_at} /></dd>
+          <dd className="mt-0.5 text-gray-700 dark:text-gray-200">
+            <RelativeTimestamp value={epic.updated_at} />
+          </dd>
         </div>
       </dl>
     </section>
@@ -753,10 +827,26 @@ function StatePill({ state }: { state: string }) {
     pending: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"
   }
 
-  return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>{humanize(state)}</span>
+  return (
+    <span
+      className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}
+    >
+      {humanize(state)}
+    </span>
+  )
 }
 
-function FurthestBehindBadge({ commits, jobPath, prefix, t }: { commits: number; jobPath: string | null; prefix: string; t: (key: string, opts?: Record<string, unknown>) => string }) {
+function FurthestBehindBadge({
+  commits,
+  jobPath,
+  prefix,
+  t
+}: {
+  commits: number
+  jobPath: string | null
+  prefix: string
+  t: (key: string, opts?: Record<string, unknown>) => string
+}) {
   const isHigh = commits >= 20
   const className = `rounded px-2 py-0.5 text-xs font-medium ${isHigh ? "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-200" : "bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200"}`
   const label = t("furthest_behind", { count: commits })
@@ -764,7 +854,9 @@ function FurthestBehindBadge({ commits, jobPath, prefix, t }: { commits: number;
   if (jobPath) {
     return (
       <span className={className}>
-        <Link className="hover:underline" to={withRoutePrefix(jobPath, prefix)}>{label}</Link>
+        <Link className="hover:underline" to={withRoutePrefix(jobPath, prefix)}>
+          {label}
+        </Link>
       </span>
     )
   }
@@ -822,7 +914,10 @@ function EpicActionsMenu({
         ⋯
       </Button>
       {open ? (
-        <div className="absolute left-0 z-20 mt-2 w-48 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
+        <div
+          className="absolute left-0 z-20 mt-2 w-48 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+          role="menu"
+        >
           {transitions.map((transition) => (
             <button
               className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -845,7 +940,10 @@ function EpicActionsMenu({
 }
 
 function humanize(value: string) {
-  return value.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ")
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
 }
 
 function epicOwnerLabel(epic: EpicDetailPayload["epic"], t: (key: string, opts?: Record<string, unknown>) => string) {

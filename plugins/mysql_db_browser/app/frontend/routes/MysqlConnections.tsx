@@ -95,11 +95,7 @@ export function MysqlConnections() {
       ) : null}
 
       {formTarget ? (
-        <ConnectionFormModal
-          connection={formTarget === "create" ? null : formTarget}
-          onClose={() => setFormTarget(null)}
-          onNotice={setNotice}
-        />
+        <ConnectionFormModal connection={formTarget === "create" ? null : formTarget} onClose={() => setFormTarget(null)} onNotice={setNotice} />
       ) : null}
     </Page.Root>
   )
@@ -175,14 +171,12 @@ function ConnectionFormModal({
           />
           <Form.Actions align="start" className="pt-0">
             <Button disabled={save.isPending} type="submit" variant="primary">
-              {save.isPending ? (isEdit ? t("saving") : t("creating")) : (isEdit ? t("save_button") : t("create_button"))}
+              {save.isPending ? (isEdit ? t("saving") : t("creating")) : isEdit ? t("save_button") : t("create_button")}
             </Button>
             <Button onClick={onClose} type="button" variant="secondary">
               {t("cancel_button")}
             </Button>
-            <TestButton
-              onTest={() => (connection ? testMysqlConnection(connection.id, values.password || undefined) : testDraftMysqlConnection(values))}
-            />
+            <TestButton onTest={() => (connection ? testMysqlConnection(connection.id, values.password || undefined) : testDraftMysqlConnection(values))} />
           </Form.Actions>
         </div>
         {save.isError ? (
@@ -243,13 +237,16 @@ function ConnectionsTable({
             <DataTable.HeadCell>{t("col_password")}</DataTable.HeadCell>
             <DataTable.HeadCell>{t("col_agentic_access")}</DataTable.HeadCell>
             <DataTable.HeadCell>{t("col_allow_writes")}</DataTable.HeadCell>
-            <DataTable.HeadCell><span className="sr-only">{t("col_actions")}</span></DataTable.HeadCell>
+            <DataTable.HeadCell>
+              <span className="sr-only">{t("col_actions")}</span>
+            </DataTable.HeadCell>
           </DataTable.Row>
         </DataTable.Header>
         <DataTable.Body>
-            {connections.length === 0 ? (
-              <DataTable.Empty colSpan={8}>{t("empty")}</DataTable.Empty>
-            ) : connections.map((connection) => (
+          {connections.length === 0 ? (
+            <DataTable.Empty colSpan={8}>{t("empty")}</DataTable.Empty>
+          ) : (
+            connections.map((connection) => (
               <ConnectionRow
                 connection={connection}
                 key={connection.id}
@@ -257,7 +254,8 @@ function ConnectionsTable({
                 onEdit={() => onEdit(connection)}
                 onNotice={onNotice}
               />
-            ))}
+            ))
+          )}
         </DataTable.Body>
       </DataTable.Root>
     </section>
@@ -280,7 +278,9 @@ function ConnectionRow({
   return (
     <DataTable.Row>
       <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{connection.label}</DataTable.Cell>
-      <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">{connection.host}:{connection.port}</DataTable.Cell>
+      <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">
+        {connection.host}:{connection.port}
+      </DataTable.Cell>
       <DataTable.Cell className="text-gray-700 dark:text-gray-300">{connection.username}</DataTable.Cell>
       <DataTable.Cell className="text-gray-700 dark:text-gray-300">{connection.default_database || "-"}</DataTable.Cell>
       <DataTable.Cell>
@@ -322,7 +322,9 @@ function MobileConnectionCard({
     <article className="space-y-3 px-4 py-4">
       <div>
         <p className="font-medium text-gray-900 dark:text-gray-100">{connection.label}</p>
-        <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{connection.host}:{connection.port}</p>
+        <p className="font-mono text-xs text-gray-500 dark:text-gray-400">
+          {connection.host}:{connection.port}
+        </p>
       </div>
       <DescriptionList.Root className="grid-cols-2 text-xs sm:grid-cols-2" density="compact">
         <MobileField label={t("col_username")} value={connection.username} />
@@ -437,41 +439,19 @@ function ConnectionFieldsGrid({
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <Form.Field controlId={`${idPrefix}-label`}>
         <Form.Label>{t("field_label")}</Form.Label>
-        <Form.Input
-          onChange={(event) => set("label", event.target.value)}
-          required
-          type="text"
-          value={values.label}
-        />
+        <Form.Input onChange={(event) => set("label", event.target.value)} required type="text" value={values.label} />
       </Form.Field>
       <Form.Field controlId={`${idPrefix}-host`}>
         <Form.Label>{t("field_host")}</Form.Label>
-        <Form.Input
-          onChange={(event) => set("host", event.target.value)}
-          required
-          type="text"
-          value={values.host}
-        />
+        <Form.Input onChange={(event) => set("host", event.target.value)} required type="text" value={values.host} />
       </Form.Field>
       <Form.Field controlId={`${idPrefix}-port`}>
         <Form.Label>{t("field_port")}</Form.Label>
-        <Form.Input
-          max={65535}
-          min={1}
-          onChange={(event) => set("port", Number(event.target.value))}
-          required
-          type="number"
-          value={values.port}
-        />
+        <Form.Input max={65535} min={1} onChange={(event) => set("port", Number(event.target.value))} required type="number" value={values.port} />
       </Form.Field>
       <Form.Field controlId={`${idPrefix}-username`}>
         <Form.Label>{t("field_username")}</Form.Label>
-        <Form.Input
-          onChange={(event) => set("username", event.target.value)}
-          required
-          type="text"
-          value={values.username}
-        />
+        <Form.Input onChange={(event) => set("username", event.target.value)} required type="text" value={values.username} />
       </Form.Field>
       <Form.Field controlId={`${idPrefix}-password`}>
         <Form.Label>{t("field_password")}</Form.Label>
@@ -488,11 +468,7 @@ function ConnectionFieldsGrid({
         <Form.Label>
           {t("field_default_database")} <span className="font-normal text-text-muted">{t("field_default_database_optional")}</span>
         </Form.Label>
-        <Form.Input
-          onChange={(event) => set("default_database", event.target.value)}
-          type="text"
-          value={values.default_database}
-        />
+        <Form.Input onChange={(event) => set("default_database", event.target.value)} type="text" value={values.default_database} />
       </Form.Field>
       <Form.Field className="sm:col-span-2 lg:col-span-3" controlId={`${idPrefix}-agentic-access`}>
         <Form.Checkbox
@@ -582,9 +558,15 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
       </div>
 
       <div className="flex shrink-0 gap-1 border-b border-gray-200 dark:border-gray-800" role="tablist">
-        <TabButton active={browserTab === "browse"} onClick={() => setBrowserTab("browse")}>{t("tab_browse")}</TabButton>
-        <TabButton active={browserTab === "query"} onClick={() => setBrowserTab("query")}>{t("tab_query")}</TabButton>
-        <TabButton active={browserTab === "live"} onClick={() => setBrowserTab("live")}>{t("tab_live")}</TabButton>
+        <TabButton active={browserTab === "browse"} onClick={() => setBrowserTab("browse")}>
+          {t("tab_browse")}
+        </TabButton>
+        <TabButton active={browserTab === "query"} onClick={() => setBrowserTab("query")}>
+          {t("tab_query")}
+        </TabButton>
+        <TabButton active={browserTab === "live"} onClick={() => setBrowserTab("live")}>
+          {t("tab_live")}
+        </TabButton>
       </div>
 
       {browserTab === "browse" ? (
@@ -617,9 +599,15 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
                 {selected ? (
                   <div className="flex h-full min-h-0 flex-col">
                     <div className="flex shrink-0 gap-1 border-b border-gray-200 dark:border-gray-800 px-2" role="tablist">
-                      <TabButton active={tableTab === "content"} onClick={() => setTableTab("content")}>{t("tab_content")}</TabButton>
-                      <TabButton active={tableTab === "structure"} onClick={() => setTableTab("structure")}>{t("tab_structure")}</TabButton>
-                      <TabButton active={tableTab === "builder"} onClick={() => setTableTab("builder")}>{t("tab_builder")}</TabButton>
+                      <TabButton active={tableTab === "content"} onClick={() => setTableTab("content")}>
+                        {t("tab_content")}
+                      </TabButton>
+                      <TabButton active={tableTab === "structure"} onClick={() => setTableTab("structure")}>
+                        {t("tab_structure")}
+                      </TabButton>
+                      <TabButton active={tableTab === "builder"} onClick={() => setTableTab("builder")}>
+                        {t("tab_builder")}
+                      </TabButton>
                     </div>
                     <div className="min-h-0 flex-1 overflow-y-auto">
                       {tableTab === "content" ? (
@@ -704,7 +692,9 @@ function DatabaseNode({
         type="button"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span aria-hidden className="text-gray-400 dark:text-gray-600">{expanded ? "▾" : "▸"}</span>
+          <span aria-hidden className="text-gray-400 dark:text-gray-600">
+            {expanded ? "▾" : "▸"}
+          </span>
           <span className="truncate font-medium text-gray-900 dark:text-gray-100">{database.name}</span>
         </span>
         {database.system_schema ? (
@@ -717,9 +707,7 @@ function DatabaseNode({
       {expanded ? (
         <div className="pb-1 pl-5 pr-2">
           {tables.isPending ? <p className="py-1 text-xs text-gray-500 dark:text-gray-400">{t("loading_tables")}</p> : null}
-          {tables.isError ? (
-            <p className="py-1 text-xs text-red-700 dark:text-red-300">{errorMessage(tables.error, t("error_loading_tables"))}</p>
-          ) : null}
+          {tables.isError ? <p className="py-1 text-xs text-red-700 dark:text-red-300">{errorMessage(tables.error, t("error_loading_tables"))}</p> : null}
           {tables.isSuccess && !tables.data.available ? (
             <p className="py-1 text-xs text-red-700 dark:text-red-300">{tables.data.error.hint || tables.data.error.message}</p>
           ) : null}
@@ -745,9 +733,7 @@ function DatabaseNode({
                     </li>
                   ))}
                 </ul>
-                {tables.data.truncated ? (
-                  <p className="py-1 text-xs text-amber-700 dark:text-amber-400">{t("tables_truncated")}</p>
-                ) : null}
+                {tables.data.truncated ? <p className="py-1 text-xs text-amber-700 dark:text-amber-400">{t("tables_truncated")}</p> : null}
               </>
             )
           ) : null}
@@ -807,16 +793,16 @@ function TableDetail({ connectionId, database, table }: { connectionId: number; 
               </DataTable.Row>
             </DataTable.Header>
             <DataTable.Body>
-                {columns.map((column) => (
-                  <DataTable.Row key={column.name}>
-                    <DataTable.Cell className="font-mono text-gray-900 dark:text-gray-100">{column.name}</DataTable.Cell>
-                    <DataTable.Cell className="text-gray-600 dark:text-gray-400">{column.column_type}</DataTable.Cell>
-                    <DataTable.Cell className="text-gray-600 dark:text-gray-400">{column.nullable ? t("yes") : t("no")}</DataTable.Cell>
-                    <DataTable.Cell className="text-gray-600 dark:text-gray-400">{column.key || "-"}</DataTable.Cell>
-                    <DataTable.Cell className="max-w-[160px] truncate text-gray-600 dark:text-gray-400">{column.default ?? "-"}</DataTable.Cell>
-                    <DataTable.Cell className="text-gray-600 dark:text-gray-400">{column.extra || "-"}</DataTable.Cell>
-                  </DataTable.Row>
-                ))}
+              {columns.map((column) => (
+                <DataTable.Row key={column.name}>
+                  <DataTable.Cell className="font-mono text-gray-900 dark:text-gray-100">{column.name}</DataTable.Cell>
+                  <DataTable.Cell className="text-gray-600 dark:text-gray-400">{column.column_type}</DataTable.Cell>
+                  <DataTable.Cell className="text-gray-600 dark:text-gray-400">{column.nullable ? t("yes") : t("no")}</DataTable.Cell>
+                  <DataTable.Cell className="text-gray-600 dark:text-gray-400">{column.key || "-"}</DataTable.Cell>
+                  <DataTable.Cell className="max-w-[160px] truncate text-gray-600 dark:text-gray-400">{column.default ?? "-"}</DataTable.Cell>
+                  <DataTable.Cell className="text-gray-600 dark:text-gray-400">{column.extra || "-"}</DataTable.Cell>
+                </DataTable.Row>
+              ))}
             </DataTable.Body>
           </DataTable.Root>
         )}
@@ -860,15 +846,7 @@ function TableDetail({ connectionId, database, table }: { connectionId: number; 
   )
 }
 
-function SchemaSection<TRow>({
-  children,
-  heading,
-  section
-}: {
-  children: (rows: TRow[]) => ReactNode
-  heading: string
-  section: MysqlSection<TRow>
-}) {
+function SchemaSection<TRow>({ children, heading, section }: { children: (rows: TRow[]) => ReactNode; heading: string; section: MysqlSection<TRow> }) {
   const { t } = useT("mysql_db_browser")
 
   return (
@@ -894,18 +872,19 @@ function formatApproxCount(value: number | null) {
 
 function formatBytes(bytes: number) {
   if (!bytes) return "0 B"
-  const units = [ "B", "KB", "MB", "GB", "TB" ]
+  const units = ["B", "KB", "MB", "GB", "TB"]
   const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
   const value = bytes / 1024 ** exponent
   return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`
 }
 
 function StatusBadge({ children, tone }: { children: ReactNode; tone: "success" | "neutral" | "warning" }) {
-  const classes = tone === "success"
-    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-    : tone === "warning"
-      ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-      : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+  const classes =
+    tone === "success"
+      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+      : tone === "warning"
+        ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+        : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
   return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${classes}`}>{children}</span>
 }
 
@@ -936,11 +915,12 @@ function useMediaQuery(query: string, defaultMatches: boolean) {
 }
 
 function Panel({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "error" | "success" }) {
-  const classes = tone === "error"
-    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
-    : tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
-      : "border-gray-200 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
+  const classes =
+    tone === "error"
+      ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+      : tone === "success"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+        : "border-gray-200 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
   return <div className={`rounded border px-4 py-3 text-sm ${classes}`}>{children}</div>
 }
 

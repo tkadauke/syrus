@@ -27,7 +27,7 @@ export function WorkerTimelineMacroView() {
   const prefix = routePrefix(location.pathname)
 
   const macro = useQuery({
-    queryKey: [ "worker_timeline", "macro", location.search ],
+    queryKey: ["worker_timeline", "macro", location.search],
     queryFn: () => fetchWorkerTimelineMacro(location.search),
     placeholderData: keepPreviousData
   })
@@ -39,7 +39,9 @@ export function WorkerTimelineMacroView() {
   return (
     <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide">
       <Page.Header className="border-b border-border pb-4">
-        <Text className="font-medium uppercase" variant="caption" tone="muted">{t("eyebrow")}</Text>
+        <Text className="font-medium uppercase" variant="caption" tone="muted">
+          {t("eyebrow")}
+        </Text>
         <PageHeading>{t("heading")}</PageHeading>
         <Page.Description>{t("description")}</Page.Description>
       </Page.Header>
@@ -66,13 +68,7 @@ export function WorkerTimelineMacroView() {
   )
 }
 
-function PendingList({
-  pending,
-  prefix
-}: {
-  pending: WorkerTimelineMacroPayload["pending"]
-  prefix: string
-}) {
+function PendingList({ pending, prefix }: { pending: WorkerTimelineMacroPayload["pending"]; prefix: string }) {
   const { t } = useT("worker_timeline")
   if (pending.length === 0) return null
 
@@ -89,8 +85,13 @@ function PendingList({
                 <SlugHoverCard id={entry.job_id} kind="job">
                   <CopyableSlug className="text-xs" slug={label.jobSlug} />
                 </SlugHoverCard>
-                <span className="text-gray-400 dark:text-gray-500" aria-hidden="true">·</span>
-                <Link className="truncate text-left text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(`/worker_timeline/workflow?id=${entry.workflow_id}`, prefix)}>
+                <span className="text-gray-400 dark:text-gray-500" aria-hidden="true">
+                  ·
+                </span>
+                <Link
+                  className="truncate text-left text-brand underline hover:no-underline dark:text-brand-emphasis"
+                  to={withRoutePrefix(`/worker_timeline/workflow?id=${entry.workflow_id}`, prefix)}
+                >
                   {label.triggerKind}
                 </Link>
               </span>
@@ -124,7 +125,7 @@ function WorkerTimelineWorkflowDetail() {
 
   const detail = useQuery({
     enabled: Boolean(workflowId),
-    queryKey: [ "worker_timeline", "workflow", workflowId ],
+    queryKey: ["worker_timeline", "workflow", workflowId],
     queryFn: () => fetchWorkerTimelineWorkflow(workflowId as string)
   })
 

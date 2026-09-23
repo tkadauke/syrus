@@ -17,7 +17,11 @@ function renderShell(children = <div>Tab content</div>) {
         heading={<h1>acme/widgets</h1>}
         prefix=""
         tabs={TABS}
-        tipBanner={<div role="region" aria-label="Recommended actions">Tip</div>}
+        tipBanner={
+          <div role="region" aria-label="Recommended actions">
+            Tip
+          </div>
+        }
       >
         {children}
       </RepositoryPageShell>
