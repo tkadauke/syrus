@@ -141,9 +141,11 @@ test("Admin MySQL plugin renders live diagnostics and guarded query termination"
   const enableButton = pluginCard.getByRole("button", { name: "Enable" })
   if (await enableButton.isVisible()) {
     await enableButton.click()
-    // Enabling reloads the whole page; a dev-mode reload of this app does
-    // not finish inside the default five-second expect timeout.
-    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible({ timeout: 30_000 })
+    // Enabling reloads the whole page. A cold dev-mode render of this app can
+    // take the better part of a minute, so wait for the load itself and then
+    // give the card room to come back.
+    await page.waitForLoadState("load")
+    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible({ timeout: 60_000 })
   }
 
   // The preview database is SQLite, so AdminMysql::AdminPages intentionally
@@ -170,7 +172,9 @@ test("Admin MySQL plugin renders live diagnostics and guarded query termination"
   const slowLogPanel = page.locator("section", { has: page.getByRole("heading", { name: "Slow log" }) })
   await expect(slowLogPanel.getByRole("cell", { name: "SELECT * FROM jobs" })).toBeVisible()
 
-  page.on("dialog", (dialog) => dialog.accept())
+  // The shared in-app confirm dialog, not a native one: page.on("dialog")
+  // never fires for it, so the click just leaves a modal waiting.
   await page.getByRole("button", { name: "Kill query" }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click()
   await expect(page.getByText("Killed query for thread 202.")).toBeVisible()
 })

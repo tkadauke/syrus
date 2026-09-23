@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+import { execFileSync } from "node:child_process"
 import { signInAsDemo } from "../../../e2e/support/auth"
 
 // The terminal plugin is off by default -- a terminal session is a real
@@ -7,23 +8,43 @@ import { signInAsDemo } from "../../../e2e/support/auth"
 // a session is opened the test only asserts on what the UI renders without a
 // live PTY: the panel opening with the right chrome, not any real output.
 test("signed-in admin enables the Terminal plugin and opens a session panel from a Job's workflow", async ({ page }) => {
+  // This spec asserts the plugin's disabled starting state and then enables
+  // it, so it leaves the plugin enabled for the next run. Put it back first:
+  // plugin enablement is instance-wide and nothing else resets it.
+  // Also give the seeded workflow a workspace directory: the "Open terminal
+  // in workspace" action hides itself when the workspace is not present on
+  // this storage root (Terminal::WorkspaceAvailability), and nothing in a
+  // preview database ever creates one.
+  execFileSync("bin/rails", ["runner", `
+    PluginRecord.find_or_initialize_by(name: "terminal").update!(enabled: false)
+
+    workflow = Job.find_by!(issue_title: "Inspect preview dashboard states").workflows.order(:id).last
+    workflow.update_columns(cleaned_up_at: nil, worker_storage_key: nil, worker_hostname: nil)
+    FileUtils.mkdir_p(WorkflowWorkspace.path_for(workflow))
+  `], { env: process.env, stdio: "inherit" })
+
   await signInAsDemo(page)
 
   await page.goto("/dashboard")
   const primaryNav = page.getByRole("navigation", { name: "Primary" })
   await expect(primaryNav.getByRole("link", { name: "Terminal" })).toHaveCount(0)
 
-  await page.goto("/admin/plugins")
-  const terminalCard = page.locator("article").filter({ has: page.getByRole("heading", { name: "Terminal", exact: true }) })
-  await expect(terminalCard.getByText("Disabled", { exact: true }).first()).toBeVisible()
-  await terminalCard.getByRole("button", { name: "Enable" }).click()
+  // Toggle from the plugin's own page: its card in the list carries a link to
+  // here in its heading, and enabling re-renders the list under the cursor,
+  // so the click lands on that link often enough to matter.
+  await page.goto("/admin/plugins/terminal")
+  // The page renders its own h1 and the plugin's docs render another.
+  await expect(page.getByRole("heading", { name: "Terminal", level: 1 }).first()).toBeVisible()
+  await expect(page.getByRole("button", { name: "Enable", exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "Enable", exact: true }).click()
 
   // Enabling reloads the SPA -- a plugin's sidebar page and ui_slot only
-  // resolve on a fresh boot -- so re-find the card after the reload lands.
-  await expect(page.getByRole("heading", { name: "Plugins", level: 1 })).toBeVisible()
-  const enabledTerminalCard = page.locator("article").filter({ has: page.getByRole("heading", { name: "Terminal", exact: true }) })
-  // A dev-mode reload of this app outlasts the default five-second timeout.
-  await expect(enabledTerminalCard.getByText("Enabled", { exact: true }).first()).toBeVisible({ timeout: 30_000 })
+  // resolve on a fresh boot -- and a cold dev-mode render of this app can
+  // take the better part of a minute.
+  await page.waitForLoadState("load")
+  await expect(page.getByRole("button", { name: "Disable", exact: true })).toBeVisible({ timeout: 60_000 })
+
+  await page.goto("/dashboard")
 
   await expect(primaryNav.getByRole("link", { name: "Terminal" })).toBeVisible()
 

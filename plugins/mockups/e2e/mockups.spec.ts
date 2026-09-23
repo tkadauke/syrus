@@ -20,8 +20,10 @@ test("signed-in user can view the Mockups sidebar list and open a published mock
   const previewPanel = page.getByLabel("Mockup preview")
   await expect(previewPanel).toBeVisible()
   await expect(previewPanel.getByText("Dashboard onboarding sketch")).toBeVisible()
-  await expect(previewPanel.getByText("index.html")).toBeVisible()
-  await expect(previewPanel.getByRole("link", { name: "Download" })).toBeVisible()
+  // The panel renders the mockup itself in an iframe now, rather than listing
+  // its files, and the download affordance is the zip export.
+  await expect(previewPanel.locator("iframe")).toBeVisible()
+  await expect(previewPanel.getByRole("link", { name: /Export .* as zip/ })).toBeVisible()
 
   // Reload to prove the selection (and the underlying mockup) persists server-side,
   // not just in client-side navigation state.

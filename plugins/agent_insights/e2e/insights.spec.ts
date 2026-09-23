@@ -4,26 +4,25 @@ import { signInAsDemo } from "../../../e2e/support/auth"
 test("signed-in admin can enable Agent Insights and view a generated insight report", async ({ page }) => {
   await signInAsDemo(page)
 
-  await page.goto("/admin/plugins")
-  await expect(page.getByRole("heading", { name: "Plugins" })).toBeVisible()
+  // Toggle from the plugin's own page rather than its card in the list. The
+  // card's heading is a link to this page, and enabling re-renders the list
+  // underneath the cursor, so the click lands on the link often enough to
+  // matter -- and then the assertion waits for a card that is no longer on
+  // screen.
+  await page.goto("/admin/plugins/agent_insights")
+  // The page renders its own h1 and the plugin's docs render another.
+  await expect(page.getByRole("heading", { name: "Agent Insights", level: 1 }).first()).toBeVisible()
 
-  const pluginCard = page.locator("article").filter({ has: page.getByRole("heading", { name: "Agent Insights" }) })
-  await expect(pluginCard).toBeVisible()
+  const enableButton = page.getByRole("button", { name: "Enable", exact: true })
+  const disableButton = page.getByRole("button", { name: "Disable", exact: true })
 
-  const enableButton = pluginCard.getByRole("button", { name: "Enable", exact: true })
-  const disableButton = pluginCard.getByRole("button", { name: "Disable", exact: true })
-
-  // Enabling reloads the page (PluginCard's toggle mutation calls a full
-  // page reload on success), so wait for the button label to flip instead
-  // of racing a SPA navigation event.
   if (await enableButton.isVisible()) {
     await enableButton.click()
-    // Enabling reloads the whole page; a dev-mode reload of this app does
-    // not finish inside the default five-second expect timeout.
-    await expect(disableButton).toBeVisible({ timeout: 30_000 })
-  } else {
-    await expect(disableButton).toBeVisible()
+    // Enabling reloads the whole page, and a cold dev-mode render of this
+    // app can take the better part of a minute.
+    await page.waitForLoadState("load")
   }
+  await expect(disableButton).toBeVisible({ timeout: 60_000 })
 
   await page.goto("/repositories")
   await page.getByRole("link", { name: "demo/syrus-preview" }).click()

@@ -5,6 +5,18 @@ namespace :e2e do
       abort "e2e:seed only runs in development unless ALLOW_E2E_SEED=1 is set"
     end
 
+    # A user's provider-availability thresholds can name a provider whose
+    # plugin is disabled -- someone enabled agy_agent once, the demo user's
+    # settings picked up "agy", and every later save of that user fails
+    # validation. Drop the keys no configured provider answers to.
+    known_providers = User.agent_providers.map(&:to_s)
+    User.where.not(provider_availability_pause_thresholds: nil).find_each do |user|
+      thresholds = user.provider_availability_pause_thresholds.to_h.slice(*known_providers)
+      next if thresholds == user.provider_availability_pause_thresholds
+
+      user.update_columns(provider_availability_pause_thresholds: thresholds)
+    end
+
     Rails.application.load_seed
 
     settings = AppSetting.current
@@ -110,6 +122,11 @@ namespace :e2e do
     onboarding_user.chat_sessions.where(onboarding: true).destroy_all
     onboarding_user.epics.find_each(&:destroy!)
 
+    # Plugin enablement is instance-wide and sticky: specs that enable their
+    # own plugin (or disable another) leave it that way, so the next run's
+    # terminal spec finds the Terminal plugin already enabled and fails
+    # asserting the disabled state it starts from. Put every plugin back to
+    # the default its manifest declares.
     # The dashboard remembers its smart folder, sort, and filters per user, in
     # the database. Nothing resets it, so a run inherits whatever view the
     # previous run's specs left behind -- the Landing queue folder, a Queue

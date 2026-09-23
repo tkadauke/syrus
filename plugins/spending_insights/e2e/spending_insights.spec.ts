@@ -27,10 +27,15 @@ test("signed-in admin sees the instance-wide spend rollup on Spending Insights",
   await expect(repositoryRow).toBeVisible()
   await expect(repositoryRow.getByText("$0.13").first()).toBeVisible()
 
+  // The repository rollup above is scoped to the seeded repository, so its
+  // total is exactly the seeded Run chain's. This one rolls up every
+  // repository in the instance, so assert that the seeded Runs land in the
+  // Initial row and that it is costed -- the amount itself belongs to
+  // whatever else the database holds.
   const triggerBreakdown = page.getByRole("region", { name: "By Trigger kind" })
   const initialRow = triggerBreakdown.locator("tr").filter({ hasText: "Initial" })
   await expect(initialRow).toBeVisible()
-  await expect(initialRow.getByText("$0.13")).toBeVisible()
+  await expect(initialRow.getByText(/^\$\d+\.\d{2}$/).first()).toBeVisible()
 
   const topRuns = page.getByRole("region", { name: "Top runs" })
   await expect(topRuns.getByText("Initial / codex").first()).toBeVisible()

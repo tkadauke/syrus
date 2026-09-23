@@ -24,7 +24,10 @@ test("signed-in user can view Claude's credential status and select it as the ag
   await expect(providerSelect.locator("option", { hasText: "Claude" })).toHaveCount(1)
   const originalProvider = await providerSelect.inputValue()
 
-  await providerSelect.selectOption({ label: "Claude" })
+  // By value: the option reads "Claude Code", and selectOption matches a
+  // label exactly, so asking for "Claude" waits for an option that is never
+  // going to appear.
+  await providerSelect.selectOption("claude")
   await page.getByRole("button", { name: "Save", exact: true }).click()
 
   await expect(page.getByText("Agent settings updated.")).toBeVisible()

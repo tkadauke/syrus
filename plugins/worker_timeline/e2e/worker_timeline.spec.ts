@@ -144,9 +144,11 @@ test("Worker Timeline plugin visualizes worker lanes and drills into a workflow 
   const enableButton = pluginCard.getByRole("button", { name: "Enable" })
   if (await enableButton.isVisible()) {
     await enableButton.click()
-    // Enabling reloads the whole page; a dev-mode reload of this app does
-    // not finish inside the default five-second expect timeout.
-    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible({ timeout: 30_000 })
+    // Enabling reloads the whole page. A cold dev-mode render of this app can
+    // take the better part of a minute, so wait for the load itself and then
+    // give the card room to come back.
+    await page.waitForLoadState("load")
+    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible({ timeout: 60_000 })
   }
 
   await page.goto("/worker_timeline")
@@ -154,7 +156,9 @@ test("Worker Timeline plugin visualizes worker lanes and drills into a workflow 
 
   // Macro lane view: one lane for the seeded worker queue role, with the
   // seeded Workflow span drawn inside it.
-  await expect(page.getByText("runs")).toBeVisible()
+  // Exact: a maintenance task's description ("Create Agent rows for
+  // historical Runs") also contains the word.
+  await expect(page.getByText("runs", { exact: true }).first()).toBeVisible()
   await expect(page.getByRole("button", { name: SPAN_LABEL })).toBeVisible()
 
   // Waiting-to-start list surfaces the pending Workflow separately from the lanes.
@@ -166,7 +170,9 @@ test("Worker Timeline plugin visualizes worker lanes and drills into a workflow 
   // Click the span to drill into the per-workflow Step/Run waterfall.
   await page.getByRole("button", { name: SPAN_LABEL }).click()
   await expect(page.getByRole("heading", { name: "Workflow detail" })).toBeVisible()
-  await expect(page.getByText("Workflow #9001 · initial · succeeded")).toBeVisible()
+  // The summary renders the workflow and its Job as links now, with the
+  // trigger and status alongside them, so match the part that is still text.
+  await expect(page.getByRole("region", { name: "Workflow summary" })).toContainText("initial · succeeded")
   await expect(page.getByText("prepare · iteration 1")).toBeVisible()
   await expect(page.getByText("implement · iteration 1")).toBeVisible()
   await expect(page.getByRole("img", { name: "Run #9101 · succeeded" })).toBeVisible()
