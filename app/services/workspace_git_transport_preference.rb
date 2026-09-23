@@ -7,10 +7,11 @@
 # partial destination, trying the mirror, falling back to `fallback` when
 # it's unavailable or fails) so a workspace class only has to say what it
 # wants ("clone this branch", "fetch this refspec") and how to reach GitHub
-# when the mirror can't help. `try_mirror_transport` is the lower-level
-# primitive both build on, exposed for the one caller (a branch refetch that
-# needs GithubAuthenticatedGit's own retry-on-auth-failure semantics for its
-# fallback) whose GitHub-side behavior doesn't fit a single `fallback` block.
+# when the mirror can't help. `try_mirror_transport` is the shared primitive
+# both build on; it stays public because it is independently unit-tested
+# (see workspace_git_transport_preference_spec.rb) and is the seam a future
+# caller would use if its GitHub-side fallback ever doesn't fit a single
+# `fallback` block.
 module WorkspaceGitTransportPreference
   # Attempts a clone/fetch entirely through the repository's registered
   # workspace_git_transport, retrying once after explicit re-registration --
