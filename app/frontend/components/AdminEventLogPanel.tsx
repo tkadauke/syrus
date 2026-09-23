@@ -14,6 +14,8 @@ import {
   type DataTableColumnPin
 } from "./dataTable"
 import { DataTable, type DataTableSortDirection } from "./ui"
+import { classes } from "./ui/classes"
+import { Page, usePageGutterRestoreClassName } from "./ui/Page"
 
 export function AdminEventPanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warn" }) {
   const toneClass = tone === "error"
@@ -24,6 +26,10 @@ export function AdminEventPanelMessage({ children, tone = "muted" }: { children:
   return <div className={`rounded border p-4 text-sm ${toneClass}`}>{children}</div>
 }
 
+// Uses the responsive gutter primitive: the header keeps the page's normal
+// mobile margin (restored here and, separately, by AdminEventFilterBar
+// below), while children -- normally an AdminEventLogTable-backed section --
+// run edge to edge.
 export function AdminEventPageShell({
   actions,
   ariaLabel,
@@ -38,16 +44,27 @@ export function AdminEventPageShell({
   title: string
 }) {
   return (
-    <main aria-label={ariaLabel} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-gray-700 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{eyebrow}</p>
-          <PageHeading className="mt-1">{title}</PageHeading>
-        </div>
-        {actions}
-      </header>
+    <Page.Root aria-label={ariaLabel} gutter="responsive" size="wide">
+      <AdminEventShellHeader actions={actions} eyebrow={eyebrow} title={title} />
       {children}
-    </main>
+    </Page.Root>
+  )
+}
+
+// Split out so usePageGutterRestoreClassName reads the context Page.Root
+// provides (a hook call from AdminEventPageShell's own body would run before
+// the Provider is mounted). Kept hand-rolled rather than Page.Header so the
+// existing border/responsive-alignment layout survives unchanged.
+function AdminEventShellHeader({ actions, eyebrow, title }: { actions?: ReactNode; eyebrow: string; title: string }) {
+  const restore = usePageGutterRestoreClassName("padding")
+  return (
+    <header className={classes("flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-gray-700 lg:flex-row lg:items-end lg:justify-between", restore)}>
+      <div>
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{eyebrow}</p>
+        <PageHeading className="mt-1">{title}</PageHeading>
+      </div>
+      {actions}
+    </header>
   )
 }
 
@@ -272,11 +289,15 @@ export function AdminEventFilterBar({
   const fallbackFields = fields || []
   const schema = useMemo(() => filterSchema || adminEventFilterSchema(fallbackFields), [fallbackFields, filterSchema])
   const activeFilter = useMemo(() => filter || adminEventFilterTree(fallbackFields, search), [fallbackFields, filter, search])
+  // Restores the mobile gutter AdminEventPageShell's Page.Root drops for its
+  // children, so every consumer's filter bar stays margined like the header
+  // without having to opt in itself.
+  const gutterRestore = usePageGutterRestoreClassName("margin")
 
   return (
     <FilterBar
       buildLink={preserveExplicitEmptyFilter}
-      className="space-y-2"
+      className={classes("space-y-2", gutterRestore)}
       filter={activeFilter}
       filterSchema={schema}
       legacyFilterKeys={fallbackFields.map((field) => field.name)}
