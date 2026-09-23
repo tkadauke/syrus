@@ -511,7 +511,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     )
     allow(AutoRebase).to receive(:new).and_return(instance_double(AutoRebase, call: rebase_result))
     allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("current-base", "current-base")
-    allow(client).to receive(:commit_tree_sha).with("acme/widgets", "new-head").and_return("new-tree")
+    stub_repository_tree_sha("new-head", "new-tree")
     allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
     allow(client).to receive(:add_issue_comment)
     described_class.new(run).call

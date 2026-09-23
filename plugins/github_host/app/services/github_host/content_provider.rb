@@ -154,6 +154,10 @@ module GithubHost
       end
     end
 
+    def tree_sha(revision_id)
+      translate(unknown_revision: "unknown revision #{revision_id}") { client.commit_tree_sha(slug, revision_id) }
+    end
+
     private
 
     attr_reader :repository, :user

@@ -52,6 +52,9 @@ func (f *fakeStore) Refs(_ context.Context, _, _ string, maxAge time.Duration) (
 func (f *fakeStore) Relation(context.Context, string, string, string) (string, error) {
 	return "ahead", nil
 }
+func (f *fakeStore) TreeSHA(context.Context, string, string) (string, error) {
+	return "treeid", nil
+}
 
 func do(h http.Handler, method, path, body string, authed bool) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -179,6 +182,13 @@ func TestRequestLogRecordsReadsButNotHealthChecksOrCredentials(t *testing.T) {
 	}
 	if strings.Contains(buf.String(), "ghs_secret") || strings.Contains(buf.String(), "healthz") {
 		t.Errorf("log leaked a credential or a health check:\n%s", buf.String())
+	}
+}
+
+func TestTreeSHAReturnsTheStoreAnswer(t *testing.T) {
+	rec := do(New(&fakeStore{}, token), "GET", "/v1/repositories/1/tree_sha?revision=a", "", true)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"tree_sha":"treeid"`) {
+		t.Fatalf("got %d %s", rec.Code, rec.Body)
 	}
 }
 

@@ -2546,10 +2546,14 @@ guard calls it for every repository), and `build(repository:, user:)`, which
 returns an instance or nil. Instances implement `resolve(ref, max_age:)`,
 `tree(revision_id)`, `read(revision_id, path)`, and optionally
 `changes(base_id, head_id, patch:)` (three-dot: what `head` introduced since
-its merge base with `base`), `refs(pattern:, max_age:)`, and
-`relation(base_id, head_id)`. Relation describes `head` relative to `base` as
-`identical`, `ahead`, `behind`, or `diverged`. Replicas refresh movable refs
-within `max_age`; `max_age: 0` requests a current authoritative answer.
+its merge base with `base`), `refs(pattern:, max_age:)`,
+`relation(base_id, head_id)`, and `tree_sha(revision_id)`. Relation describes
+`head` relative to `base` as `identical`, `ahead`, `behind`, or `diverged`.
+Replicas refresh movable refs within `max_age`; `max_age: 0` requests a
+current authoritative answer. `tree_sha` answers a commit's root tree object
+id -- two revisions share one exactly when they would produce identical
+content, which is how the landing path recognizes an empty merge without
+diffing files itself.
 
 Upstream providers may also answer `upstream_source(repository:, user:)` with a
 `RepositoryContent::Source` (`vcs`, `url`, `username`, `password`,

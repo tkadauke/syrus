@@ -90,6 +90,12 @@ RSpec.describe GitMirror::ContentProvider do
     expect(provider.relation("b" * 40, sha)).to eq(:ahead)
   end
 
+  it "reads a commit's tree SHA" do
+    stub_mirror("tree_sha", { revision: sha }, body: { tree_sha: "t" * 40 }.to_json)
+
+    expect(provider.tree_sha(sha)).to eq("t" * 40)
+  end
+
   describe "errors" do
     it "treats a missing file in a known commit as final" do
       stub_mirror("blob", { revision: sha, path: "gone" }, status: 404, body: error("not_found"))
