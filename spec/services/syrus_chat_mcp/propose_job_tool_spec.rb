@@ -45,6 +45,18 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(proposal.body).to eq("Steps:\n1. Update copy\n2. Ship it")
   end
 
+  it "normalizes over-escaped quotes in the description into plain quotes" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "Fix tooltip copy",
+      description: "The tooltip should read \\\"Saved successfully\\\" and use \\'smart\\' phrasing."
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Fix tooltip copy")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.body).to eq("The tooltip should read \"Saved successfully\" and use 'smart' phrasing.")
+  end
+
   it "creates a Job proposal targeting an existing Epic" do
     epic = Factories.epic(user: user, repository: repository, title: "Forum renovation")
 
