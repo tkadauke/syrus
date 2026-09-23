@@ -41,7 +41,7 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
   const { t } = useT("epics")
   const { data, isPending } = useQuery({
     queryKey: ["epics", String(id)],
-    queryFn: () => fetchEpicDetail(String(id)),
+    queryFn: ({ signal }) => fetchEpicDetail(String(id), { signal }),
     staleTime: 30_000,
   })
 

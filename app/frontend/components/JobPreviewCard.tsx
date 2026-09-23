@@ -14,7 +14,7 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
   const { t } = useT("jobs")
   const { data, isPending } = useQuery({
     queryKey: ["jobs", String(id)],
-    queryFn: () => fetchJobDetail(String(id)),
+    queryFn: ({ signal }) => fetchJobDetail(String(id), "", { signal }),
     staleTime: 30_000,
   })
 
