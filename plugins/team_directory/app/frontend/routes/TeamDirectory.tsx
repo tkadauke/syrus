@@ -10,6 +10,7 @@ import { fetchProfile, fetchProfiles, type TeamProfileActivity, type TeamProfile
 import { StatusPill } from "@app/components/StatusPill"
 import { useT } from "@app/hooks/useT"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { Page } from "@app/components/ui"
 
 export function TeamDirectoryRoute() {
   const { t } = useT("team_directory")
@@ -21,10 +22,10 @@ export function TeamDirectoryRoute() {
   })
 
   return (
-    <main aria-label={t("profiles.aria_directory")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header>
+    <Page.Root aria-label={t("profiles.aria_directory")} gutter="responsive" size="wide">
+      <Page.Header>
         <PageHeading>{t('profiles.team_directory')}</PageHeading>
-      </header>
+      </Page.Header>
 
       {profiles.isPending ? <PanelMessage>{t('profiles.loading')}</PanelMessage> : null}
       {profiles.isError ? <ProfilesError error={profiles.error} /> : null}
@@ -34,7 +35,7 @@ export function TeamDirectoryRoute() {
           {profiles.data.profiles.map((profile) => <ProfileCard key={profile.id} prefix={prefix} profile={profile} />)}
         </div>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -50,15 +51,15 @@ export function TeamProfileRoute() {
   })
 
   return (
-    <main aria-label={t("profiles.aria_profile")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header>
+    <Page.Root aria-label={t("profiles.aria_profile")} gutter="responsive" size="wide">
+      <Page.Header>
         <Link className="text-sm text-brand underline hover:no-underline" to={`${prefix}/profiles`}>{t('profiles.team_directory')}</Link>
-      </header>
+      </Page.Header>
 
       {profile.isPending ? <PanelMessage>{t('profiles.loading_profile')}</PanelMessage> : null}
       {profile.isError ? <ProfilesError error={profile.error} /> : null}
       {profile.isSuccess ? <ProfileDetail prefix={prefix} profile={profile.data.profile} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 

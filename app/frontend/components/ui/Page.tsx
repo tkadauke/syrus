@@ -4,7 +4,7 @@ import { classes } from "./classes"
 import { Text } from "./Text"
 import type { TextProps } from "./Text"
 
-export type PageSize = "narrow" | "default" | "wide" | "full"
+export type PageSize = "form" | "narrow" | "medium" | "default" | "large" | "wide" | "extra-wide" | "full"
 export type PageGutter = "always" | "responsive"
 
 export interface PageRootProps extends HTMLAttributes<HTMLElement> {
@@ -22,9 +22,13 @@ export interface PageRootProps extends HTMLAttributes<HTMLElement> {
 }
 
 const PAGE_SIZE_CLASSES: Record<PageSize, string> = {
+  form: "max-w-3xl",
   narrow: "max-w-4xl",
+  medium: "max-w-5xl",
   default: "max-w-6xl",
+  large: "max-w-7xl",
   wide: "max-w-[96rem]",
+  "extra-wide": "max-w-[100rem]",
   full: "max-w-none"
 }
 
