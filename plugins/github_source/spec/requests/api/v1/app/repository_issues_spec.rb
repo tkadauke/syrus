@@ -9,6 +9,11 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     JSON.parse(response.body)
   end
 
+  def encoded_query_filter(value)
+    tree = { "and" => [ { "field" => "query", "op" => "contains", "value" => value } ] }
+    Base64.urlsafe_encode64(JSON.generate(tree), padding: false)
+  end
+
   def fake_issue(number:, title: "Fix something", state: "open", labels: [], body: nil)
     double(
       "issue",
@@ -82,13 +87,29 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
     allow(GithubClient).to receive(:for).and_return(client)
 
-    get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "open", q: "forum" }
+    get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "open", q: encoded_query_filter("forum") }
 
     body = parse_body
     expect(body["query"]).to eq("forum")
+    expect(body["filter"]).to eq({ "and" => [ { "field" => "query", "op" => "contains", "value" => "forum" } ] })
     expect(body["issue_count"]).to eq(1)
     expect(body["issues"].map { |issue| issue["number"] }).to eq([ 1 ])
     expect(body["folder_counts"]["open"]).to eq(2)
+  end
+
+
+  it "exposes the FilterBar schema for the issues search chip" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    client = instance_double(GithubClient)
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([])
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
+    allow(GithubClient).to receive(:for).and_return(client)
+
+    get "/api/v1/app/repositories/#{repository.id}/issues"
+
+    fields = parse_body["filter_schema"].index_by { |field| field["field"] }
+    expect(fields.fetch("query")).to include("free_text_search" => true, "bucket" => "string")
   end
 
 

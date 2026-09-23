@@ -2,14 +2,14 @@ import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { TonePill } from "@app/components/StatusPill"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
-import { withRoutePrefix } from "@app/lib/routing"
+import { FilterBar } from "@app/components/FilterBar"
+import { SmartFolderNavigation, type SmartFolderNavFolder } from "@app/components/SmartFolderNavigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
-import { useEffect, useState } from "react"
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { useEffect, useMemo, useState } from "react"
+import { useLocation, useParams, useSearchParams } from "react-router-dom"
 import { useT } from "@app/hooks/useT"
 import { Checkbox } from "@app/components/Checkbox"
-import { Input } from "@app/components/Input"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "@app/components/OnboardingEmptyState"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
@@ -33,11 +33,12 @@ import { errorMessage } from "@app/lib/errorMessage"
 // list (RepositoryIssues), its rows, and the issue label chip. Entry point
 // rendered for the github_issues tab. Depends only on leaf/shared modules.
 //
-// Smart folders here are bespoke rather than the generic DB-backed
-// AdminSmartFolderNav/SmartFolder stack: GitHub issues have no local table
-// to persist a SmartFolder row against, and list_all_issues already
-// auto-paginates the full open/closed sets, so folder counts are computed
-// straight from those two fetches instead of a saved filter definition.
+// The folder nav renders through the standard SmartFolderNavigation
+// component (not the DB-backed AdminSmartFolderNav wrapper): GitHub issues
+// have no local table to persist a SmartFolder row against, so the four
+// folders are synthetic rows shaped to SmartFolderNavFolder rather than
+// real persisted records. Counts come straight from the open/closed
+// fetches list_all_issues already auto-paginates through.
 
 type IssueCommand =
   | { kind: "close"; issueNumber: number }
@@ -61,36 +62,35 @@ function folderLink(pathname: string, search: string, folder: IssueFolder) {
 
 export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: { isRefreshing: boolean; onRefresh: () => void; payload: RepositoryIssuesPayload; prefix: string }) {
   const { t } = useT("github_source")
+  const { t: tNav } = useT("nav")
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const setupStatus = useSetupStatus()
-  const queryKey = ["repositories", String(payload.repository.id), "issues", payload.folder, payload.query || ""] as const
+  const filterParam = searchParams.get("q") || ""
+  const queryKey = ["repositories", String(payload.repository.id), "issues", payload.folder, filterParam] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [selected, setSelected] = useState<number[]>([])
   const [commentingOn, setCommentingOn] = useState<RepositoryIssue | null>(null)
   const [commentBody, setCommentBody] = useState("")
-  const [searchDraft, setSearchDraft] = useState(payload.query || "")
 
   useEffect(() => {
     setSelected([])
     setCommentingOn(null)
-    setSearchDraft(payload.query || "")
   }, [payload.folder, payload.query])
 
   const command = useMutation({
     mutationFn: (action: IssueCommand) => {
       const folder = payload.folder
-      const query = payload.query || ""
       switch (action.kind) {
         case "close":
-          return closeRepositoryIssue(payload.paths.app_close_issue_path, { issueNumber: action.issueNumber, folder, query })
+          return closeRepositoryIssue(payload.paths.app_close_issue_path, { issueNumber: action.issueNumber, folder, filterParam })
         case "delegate":
-          return delegateRepositoryIssue(payload.paths.app_delegate_issue_path, { issueNumber: action.issueNumber, folder, query })
+          return delegateRepositoryIssue(payload.paths.app_delegate_issue_path, { issueNumber: action.issueNumber, folder, filterParam })
         case "comment":
-          return commentRepositoryIssue(payload.paths.app_comment_issue_path, { issueNumber: action.issueNumber, commentBody: action.commentBody, folder, query })
+          return commentRepositoryIssue(payload.paths.app_comment_issue_path, { issueNumber: action.issueNumber, commentBody: action.commentBody, folder, filterParam })
         case "bulk":
-          return bulkRepositoryIssues(payload.paths.app_bulk_issues_path, { issueNumbers: action.issueNumbers, bulkAction: action.bulkAction, folder, query })
+          return bulkRepositoryIssues(payload.paths.app_bulk_issues_path, { issueNumbers: action.issueNumbers, bulkAction: action.bulkAction, folder, filterParam })
       }
     },
     onSuccess: (updated) => {
@@ -116,22 +116,16 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
     command.mutate({ kind: "comment", issueNumber: commentingOn.number, commentBody })
   }
 
-  function navigateToQuery(query: string) {
-    const params = new URLSearchParams(location.search)
-    params.set("folder", payload.folder)
-    params.delete("state")
-    if (query.trim()) {
-      params.set("q", query.trim())
-    } else {
-      params.delete("q")
-    }
-    navigate(withRoutePrefix(`${location.pathname}?${params.toString()}`, prefix))
-  }
-
-  function submitSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    navigateToQuery(searchDraft)
-  }
+  const folders: SmartFolderNavFolder[] = useMemo(() => ISSUE_FOLDERS.map((folder, index) => ({
+    id: index + 1,
+    name: t(`repository.folder_${folder}`),
+    kind: "builtin",
+    visibility: "default",
+    position: index,
+    count: payload.folder_counts[folder],
+    active: payload.folder === folder,
+    path: folderLink(location.pathname, location.search, folder)
+  })), [t, payload.folder, payload.folder_counts, location.pathname, location.search])
 
   const allSelected = payload.issues.length > 0 && selected.length === payload.issues.length
   const canBulkClose = payload.folder !== "closed"
@@ -165,43 +159,26 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
 
       <AdminFiltersLayout
         filterBar={
-          <form className="flex flex-wrap items-center gap-2" onSubmit={submitSearch}>
-            <label className="sr-only" htmlFor="issue-search">{t("repository.search_label")}</label>
-            <Input
-              className="max-w-xs"
-              fullWidth={false}
-              id="issue-search"
-              onChange={(event) => setSearchDraft(event.target.value)}
-              placeholder={t("repository.search_placeholder")}
-              type="search"
-              value={searchDraft}
-            />
-            <Button size="sm" type="submit" variant="secondary">{t("repository.search_apply")}</Button>
-            {payload.query ? (
-              <Button onClick={() => { setSearchDraft(""); navigateToQuery("") }} size="sm" type="button" variant="secondary">
-                {t("repository.clear_search")}
-              </Button>
-            ) : null}
-          </form>
+          <FilterBar
+            filter={payload.filter}
+            filterSchema={payload.filter_schema}
+            pathname={location.pathname}
+            search={location.search}
+          />
         }
         smartFolders={
-          <nav aria-label={t("repository.folders_aria")} className="space-y-1">
-            <h2 className="px-1 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("repository.folders_heading")}</h2>
-            {ISSUE_FOLDERS.map((folder) => {
-              const active = payload.folder === folder
-              return (
-                <Link
-                  aria-current={active ? "page" : undefined}
-                  className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${active ? "bg-brand/10 font-medium text-brand dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
-                  key={folder}
-                  to={withRoutePrefix(folderLink(location.pathname, location.search, folder), prefix)}
-                >
-                  <span>{t(`repository.folder_${folder}`)}</span>
-                  <TonePill tone={active ? "blue" : "gray"}>{payload.folder_counts[folder]}</TonePill>
-                </Link>
-              )
-            })}
-          </nav>
+          <SmartFolderNavigation
+            actionLabel={() => ""}
+            ariaLabel={t("repository.folders_aria")}
+            emptySavedMessage={tNav("smart_folder.no_saved_folders")}
+            folders={folders}
+            getDisplayName={(folder) => folder.name}
+            heading={t("repository.folders_heading")}
+            moreLabel={tNav("smart_folder.more")}
+            prefix={prefix}
+            savedAriaLabel={`${t("repository.folders_aria")} saved`}
+            savedHeading={tNav("smart_folder.saved")}
+          />
         }
       >
         <div className="flex items-center justify-between gap-4">
@@ -391,11 +368,11 @@ export default function RepositoryIssuesTab() {
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const repositoryId = params.repositoryId || ""
   const folder = resolveFolder(searchParams)
-  const query = searchParams.get("q") || ""
+  const filterParam = searchParams.get("q") || ""
 
   const issues = useQuery({
-    queryKey: ["repositories", repositoryId, "issues", folder, query],
-    queryFn: () => fetchRepositoryIssues(repositoryId, folder, query),
+    queryKey: ["repositories", repositoryId, "issues", folder, filterParam],
+    queryFn: () => fetchRepositoryIssues(repositoryId, folder, filterParam),
     enabled: repositoryId.length > 0
   })
   const payload = issues.data
