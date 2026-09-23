@@ -13,6 +13,7 @@
   "col_image": "Imago",
   "col_endpoint": "Terminus",
   "col_actions": "Actiones",
+  "privileged": "Privilegiatum",
   "held": "Ab administratore sistum",
   "orphaned": "Non iam desideratum",
   "start": "Incipe",

@@ -132,6 +132,19 @@ describe("AdminPluginServices", () => {
     await waitFor(() => expect(output).toHaveTextContent("GET /v1/repositories/1/blob 200 13B 2ms"))
   })
 
+  it("badges a privileged service so an operator can spot elevated capabilities at a glance", async () => {
+    mockApi(payload({
+      services: [
+        { ...payload().services[0], service: "tailscale", plugin: "tailscale", endpoint: "http://tailscale:8080", privileged: true }
+      ]
+    }))
+
+    renderRoute(<AdminPluginServices />)
+
+    const row = (await screen.findByText("http://tailscale:8080")).closest("tr") as HTMLElement
+    expect(within(row).getByText("Privileged")).toBeInTheDocument()
+  })
+
   it("explains that externally managed services cannot be controlled", async () => {
     mockApi(payload({ mode: "external", manageable: false, services: [ { ...payload().services[0], actions: [] } ] }))
 

@@ -7,9 +7,12 @@ import (
 	"testing"
 )
 
-// HostConfig's safety comes from what it cannot express. This pins that: if
-// someone adds a dangerous field, this test is where the review starts.
-func TestHostConfigCannotSerializePrivilegedSettings(t *testing.T) {
+// HostConfig's safety mostly comes from what it cannot express at all. This
+// pins that: if someone adds a dangerous field, this test is where the
+// review starts. CapAdd and Devices are the one documented exception (see
+// the HostConfig doc comment) -- they are asserted separately below, not in
+// the forbidden list.
+func TestHostConfigCannotSerializeMostPrivilegedSettings(t *testing.T) {
 	raw, err := json.Marshal(HostConfig{
 		NetworkMode:   "syrus_default",
 		Mounts:        []Mount{{Type: "volume", Source: "v", Target: "/data"}},
@@ -30,10 +33,41 @@ func TestHostConfigCannotSerializePrivilegedSettings(t *testing.T) {
 			t.Errorf("HostConfig serialized unexpected field %q -- extending HostConfig is a security change", field)
 		}
 	}
-	for _, forbidden := range []string{"Privileged", "CapAdd", "Devices", "Binds", "PidMode", "IpcMode", "UsernsMode", "PortBindings"} {
+	for _, forbidden := range []string{"Privileged", "Binds", "PidMode", "IpcMode", "UsernsMode", "PortBindings"} {
 		if _, present := fields[forbidden]; present {
 			t.Errorf("HostConfig must not be able to express %s", forbidden)
 		}
+	}
+	// CapAdd and Devices are real fields now, but the generic create() path
+	// never sets them -- leaving them at their zero value here is what proves
+	// that: with omitempty, an unset CapAdd/Devices does not appear at all.
+	for _, exception := range []string{"CapAdd", "Devices"} {
+		if _, present := fields[exception]; present {
+			t.Errorf("HostConfig unset %s must not be serialized (omitempty)", exception)
+		}
+	}
+}
+
+// The narrow exception: CapAdd and Devices can be set and do serialize --
+// manager.EnsurePrivileged relies on that -- but only when a caller
+// populates them explicitly. Nothing in spec.Service can reach them.
+func TestHostConfigCanSerializeCapAddAndDevicesWhenExplicitlySet(t *testing.T) {
+	raw, err := json.Marshal(HostConfig{
+		CapAdd:  []string{"NET_ADMIN", "NET_RAW"},
+		Devices: []DeviceMapping{{PathOnHost: "/dev/net/tun", PathInContainer: "/dev/net/tun", CgroupPermissions: "rwm"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := fields["CapAdd"]; !present {
+		t.Error("expected CapAdd to serialize when set")
+	}
+	if _, present := fields["Devices"]; !present {
+		t.Error("expected Devices to serialize when set")
 	}
 }
 

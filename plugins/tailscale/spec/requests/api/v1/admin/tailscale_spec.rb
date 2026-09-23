@@ -8,8 +8,9 @@ RSpec.describe "API: /api/v1/admin/tailscale/status", type: :request do
   def parse_body = JSON.parse(response.body)
 
   before do
+    PluginRecord.find_or_create_by!(name: "plugin_runtime").update!(enabled: true)
     PluginRecord.find_by!(name: "tailscale").update!(enabled: true)
-    allow(Tailscale::DaemonManager.instance).to receive(:alive?).and_return(false)
+    allow(PluginRuntime::Services).to receive(:endpoint_for).with("tailscale").and_return(nil)
   end
 
   it "401s without a token" do
@@ -28,7 +29,6 @@ RSpec.describe "API: /api/v1/admin/tailscale/status", type: :request do
     expect(body["hostname"]).to be_nil
     expect(body["tailscale_url"]).to be_nil
     expect(body).to have_key("auth_key_present")
-    expect(body).to have_key("net_admin_capable")
   end
 
   it "404s when the Tailscale plugin is disabled" do

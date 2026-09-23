@@ -16,7 +16,7 @@ module PluginRuntime
     end
 
     def self.reconcile!(driver: self.driver)
-      driver.reconcile(DesiredServices.all)
+      driver.reconcile(DesiredServices.all, privileged: DesiredPrivilegedServices.all)
     end
 
     # The service's address, or nil when it is not usable right now.
@@ -40,7 +40,7 @@ module PluginRuntime
 
     # Every desired service with its last known status, for display.
     def self.statuses
-      DesiredServices.all.map do |entry|
+      (DesiredServices.all + DesiredPrivilegedServices.all).map do |entry|
         StatusCache.read(entry.name) ||
           ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: driver.mode, state: "pending")
       end

@@ -5,11 +5,12 @@ RSpec.describe PluginRuntime::ManagedDriver do
   # answers like the real API.
   let(:client) do
     Class.new do
-      attr_reader :ensured, :removed
+      attr_reader :ensured, :ensured_privileged, :removed
       attr_accessor :running, :refuse, :unavailable
 
       def initialize
         @ensured = []
+        @ensured_privileged = []
         @removed = []
         @running = []
       end
@@ -20,6 +21,14 @@ RSpec.describe PluginRuntime::ManagedDriver do
 
         @ensured << [ name, spec ]
         { "service" => name, "state" => "running", "endpoint" => "http://#{name}:8080", "image" => spec["image"] }
+      end
+
+      def ensure_privileged_service(name, env)
+        raise PluginRuntime::Client::Unavailable, "connection refused" if unavailable
+        raise PluginRuntime::Client::Refused, "env key not allowed" if refuse
+
+        @ensured_privileged << [ name, env ]
+        { "service" => name, "state" => "running", "endpoint" => "http://#{name}:8080", "privileged" => true }
       end
 
       def list
@@ -62,6 +71,21 @@ RSpec.describe PluginRuntime::ManagedDriver do
 
   def entry(name, plugin: "git_mirror", &block)
     PluginRuntime::DesiredServices::Entry.new(name: name, plugin: plugin, provider: provider(name, &block))
+  end
+
+  def privileged_provider(env = { "TS_AUTHKEY" => "tskey-abc" }, &block)
+    Class.new do
+      define_singleton_method(:privileged_service_name) { "tailscale" }
+      if block
+        define_singleton_method(:privileged_env, &block)
+      else
+        define_singleton_method(:privileged_env) { env }
+      end
+    end
+  end
+
+  def privileged_entry(name = "tailscale", plugin: "tailscale", env: { "TS_AUTHKEY" => "tskey-abc" }, &block)
+    PluginRuntime::DesiredPrivilegedServices::Entry.new(name: name, plugin: plugin, provider: privileged_provider(env, &block))
   end
 
   it "ensures each desired service with its owning plugin and records the result" do
@@ -133,6 +157,74 @@ RSpec.describe PluginRuntime::ManagedDriver do
     driver.reconcile([ entry("broken") { raise "boom" }, entry("git-mirror") ])
 
     expect(client.ensured.map(&:first)).to eq([ "git-mirror" ])
+  end
+
+  describe "privileged services" do
+    it "ensures a privileged entry through the privileged lane, not the generic one" do
+      driver.reconcile([], privileged: [ privileged_entry ])
+
+      name, env = client.ensured_privileged.sole
+      expect(name).to eq("tailscale")
+      expect(env).to eq("TS_AUTHKEY" => "tskey-abc")
+      expect(client.ensured).to be_empty
+      status = PluginRuntime::StatusCache.read("tailscale")
+      expect(status).to be_available
+      expect(status.privileged).to be(true)
+    end
+
+    it "sends privileged env values as strings" do
+      driver.reconcile([], privileged: [ privileged_entry("tailscale", env: { "TS_EXIT_NODE" => true }) ])
+
+      expect(client.ensured_privileged.sole.last).to eq("TS_EXIT_NODE" => "true")
+    end
+
+    it "removes a privileged service nobody wants any more" do
+      client.running = %w[tailscale]
+
+      driver.reconcile([], privileged: [])
+
+      expect(client.removed).to eq([ [ "tailscale", false ] ])
+    end
+
+    it "reports a refusal from the privileged lane instead of retrying silently" do
+      client.refuse = true
+
+      driver.reconcile([], privileged: [ privileged_entry ])
+
+      status = PluginRuntime::StatusCache.read("tailscale")
+      expect(status.state).to eq("error")
+      expect(status.error).to include("refused by the runtime manager", "env key not allowed")
+    end
+
+    it "reports an error when the provider's privileged_env raises, without touching other services" do
+      broken = privileged_entry { raise "TS_AUTHKEY is not configured" }
+
+      driver.reconcile([ entry("git-mirror") ], privileged: [ broken ])
+
+      expect(client.ensured.map(&:first)).to eq([ "git-mirror" ])
+      status = PluginRuntime::StatusCache.read("tailscale")
+      expect(status.state).to eq("error")
+      expect(status.error).to include("could not build its privileged env", "TS_AUTHKEY is not configured")
+    end
+
+    it "ensure_now reaches the privileged lane for a privileged entry" do
+      driver.ensure_now(privileged_entry)
+
+      expect(client.ensured_privileged.map(&:first)).to eq([ "tailscale" ])
+    end
+
+    describe "held privileged services" do
+      before { PluginRecord.find_or_create_by!(name: "plugin_runtime") }
+
+      it "does not ensure a held privileged service, but keeps its status current" do
+        PluginRuntime::Holds.hold!("tailscale")
+
+        driver.reconcile([], privileged: [ privileged_entry ])
+
+        expect(client.ensured_privileged).to be_empty
+        expect(PluginRuntime::StatusCache.read("tailscale").state).to eq("stopped")
+      end
+    end
   end
 
   describe "services an operator stopped" do

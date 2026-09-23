@@ -1414,7 +1414,7 @@ The registry defines twenty-four extension points:
 | `:autofix_command` | Provide handler-level default formatting commands for a materialized `format` Step when `.syrus.yml` has `formatters: []` |
 | `:dependency_audit_command` | Claim lockfile changes and run ecosystem-specific dependency audits |
 | `:affected_test_analyzer` | Expand changed-file sets with dependency/import analysis before diff-scoped grader matching |
-| `:callbacks` | Generic plugin lifecycle callback hooks (e.g. connectivity daemon start/stop). `Syrus::Plugin::EffectRegistry` (via `Callbacks#effect(&cleanup)`) lets a callback register a cleanup proc right where it takes a side effect (e.g. spawning a daemon), drained most-recently-registered-first on disable — the `tailscale` plugin's `DaemonManager` uses this instead of a hand-written teardown method |
+| `:callbacks` | Generic plugin lifecycle callback hooks (e.g. connectivity daemon start/stop). `Syrus::Plugin::EffectRegistry` (via `Callbacks#effect(&cleanup)`) lets a callback register a cleanup proc right where it takes a side effect, drained most-recently-registered-first on disable — the `tailscale` plugin's `Callbacks` uses this to clear its `config.hosts` allowlist additions instead of a hand-written teardown method |
 | `:platform_delivery` | Send/receive chat messages over an external platform (Discord, …); see [External platform chat](#external-platform-chat) |
 
 ### Bundled plugins

@@ -1020,13 +1020,12 @@ places that dispatch lifecycle callbacks apply the same policy:
   waiting for a disable that may never come.
 
 `effect` isn't limited to the callbacks class itself — call it with an
-explicit receiver from any collaborator that needs to register a cleanup at
-the moment its own effect takes hold. `Tailscale::DaemonManager#start` does
-exactly this: it calls `Tailscale::Callbacks.effect { stop }` immediately
-after spawning the `tailscaled` process, before any of the steps that can
-fail (`wait_until_ready!`, `run_tailscale_up!`, `run_tailscale_serve!`), so a
-failure partway through startup still gets the daemon killed instead of
-leaked.
+explicit receiver (`SomePlugin::Callbacks.effect { ... }`) from any
+collaborator that needs to register a cleanup at the moment its own effect
+takes hold, immediately after the action that needs undoing and before any
+later step that could fail — so a failure partway through setup still gets
+that one effect cleaned up instead of leaked, even though the callback
+method itself never returned.
 
 ## `prompt_injector`
 

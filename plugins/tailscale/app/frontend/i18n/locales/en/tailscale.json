@@ -14,6 +14,5 @@
   "mobile_tip": "Install the Tailscale app on your phone, sign in to the same tailnet, then open the ts.net URL above to reach this Syrus instance on the go.",
   "checklist_heading": "Setup checklist",
   "checklist_auth_key": "Auth key set",
-  "checklist_net_admin": "/dev/net/tun present",
   "checklist_daemon": "Daemon running"
 }

@@ -1,102 +1,62 @@
 require "rails_helper"
 
 RSpec.describe Tailscale::StatusPayload do
-  let(:dns_name) { "my-box.tail12345.ts.net." }
-  let(:status_body) do
-    {
-      "BackendState" => "Running",
-      "Self" => { "DNSName" => dns_name, "Online" => true }
-    }.to_json
+  def stub_remote_status(status)
+    allow(Tailscale::RemoteStatus).to receive(:call).and_return(status)
   end
-  let(:http_response) { "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n#{status_body}" }
-  let(:mock_socket) { instance_double(UNIXSocket, write: nil, flush: nil, read: http_response) }
 
-  before do
-    allow(ENV).to receive(:[]).and_call_original
-    allow(File).to receive(:exist?).and_call_original
+  def stub_auth_key_present(present)
+    settings = instance_double(Syrus::PluginSettings, present?: present)
+    allow(Syrus::PluginSettings).to receive(:for).with("tailscale").and_return(settings)
   end
 
   describe "#call" do
-    context "when the daemon is not running" do
+    context "when the container is not reachable at all" do
       before do
-        allow(Tailscale::DaemonManager.instance).to receive(:alive?).and_return(false)
-        allow(ENV).to receive(:[]).with("TS_AUTHKEY").and_return("tskey-auth-abc123")
-        allow(File).to receive(:exist?).with("/dev/net/tun").and_return(true)
+        stub_remote_status(nil)
+        stub_auth_key_present(false)
       end
 
       it "reports the daemon as not running and not connected" do
-        payload = described_class.call
-
-        expect(payload).to eq(
+        expect(described_class.call).to eq(
           daemon_running: false,
           connected: false,
           hostname: nil,
           tailscale_url: nil,
-          auth_key_present: true,
-          net_admin_capable: true
+          auth_key_present: false
         )
       end
     end
 
-    context "when the daemon is running and reachable" do
+    context "when the container reports the daemon connected" do
       before do
-        allow(Tailscale::DaemonManager.instance).to receive(:alive?).and_return(true)
-        allow(UNIXSocket).to receive(:open).and_yield(mock_socket)
-        allow(ENV).to receive(:[]).with("TS_AUTHKEY").and_return("tskey-auth-abc123")
-        allow(File).to receive(:exist?).with("/dev/net/tun").and_return(true)
+        stub_remote_status("daemon_running" => true, "connected" => true, "hostname" => "my-box.tail12345.ts.net", "tailscale_ips" => [ "100.64.0.1" ])
+        stub_auth_key_present(true)
       end
 
       it "reports connected status, hostname, and tailscale URL" do
-        payload = described_class.call
-
-        expect(payload).to eq(
+        expect(described_class.call).to eq(
           daemon_running: true,
           connected: true,
           hostname: "my-box.tail12345.ts.net",
           tailscale_url: "https://my-box.tail12345.ts.net",
-          auth_key_present: true,
-          net_admin_capable: true
+          auth_key_present: true
         )
       end
     end
 
-    context "when the daemon is running but the backend is still starting" do
-      let(:status_body) do
-        { "BackendState" => "Starting", "Self" => { "DNSName" => dns_name, "Online" => false } }.to_json
-      end
-
+    context "when the container is up but the backend is still starting" do
       before do
-        allow(Tailscale::DaemonManager.instance).to receive(:alive?).and_return(true)
-        allow(UNIXSocket).to receive(:open).and_yield(mock_socket)
-        allow(ENV).to receive(:[]).with("TS_AUTHKEY").and_return("tskey-auth-abc123")
-        allow(File).to receive(:exist?).with("/dev/net/tun").and_return(true)
+        stub_remote_status("daemon_running" => true, "connected" => false, "hostname" => "my-box.tail12345.ts.net")
+        stub_auth_key_present(true)
       end
 
       it "is not connected" do
-        payload = described_class.call
-        expect(payload[:connected]).to be(false)
-      end
-    end
-
-    context "when the daemon is running but the local API is unreachable" do
-      before do
-        allow(Tailscale::DaemonManager.instance).to receive(:alive?).and_return(true)
-        allow(UNIXSocket).to receive(:open).and_raise(Errno::ENOENT, "No such file")
-        allow(ENV).to receive(:[]).with("TS_AUTHKEY").and_return(nil)
-        allow(File).to receive(:exist?).with("/dev/net/tun").and_return(false)
+        expect(described_class.call[:connected]).to be(false)
       end
 
-      it "does not raise and reports not connected" do
-        payload = nil
-        expect { payload = described_class.call }.not_to raise_error
-        expect(payload).to eq(
-          daemon_running: true,
-          connected: false,
-          hostname: nil,
-          tailscale_url: nil,
-          auth_key_present: false,
-          net_admin_capable: false
-        )
+      it "still reports the daemon as running" do
+        expect(described_class.call[:daemon_running]).to be(true)
       end
     end
   end

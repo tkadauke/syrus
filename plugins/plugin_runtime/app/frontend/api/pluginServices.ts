@@ -13,6 +13,7 @@ export type PluginService = {
   checked_at?: string | null
   desired: boolean
   held: boolean
+  privileged?: boolean
   actions: PluginServiceAction[]
 }
 

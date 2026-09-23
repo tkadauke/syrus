@@ -111,6 +111,7 @@ function ServicesTable({ services, ...panels }: { services: PluginService[] } & 
             <DataTable.Cell>
               <div className="flex flex-wrap items-center gap-1.5">
                 <Pill tone={STATE_TONES[service.state] ?? "neutral"}>{t(`state.${service.state}`, { defaultValue: service.state })}</Pill>
+                {service.privileged ? <Pill tone="danger">{t("privileged")}</Pill> : null}
                 {service.held ? <Pill tone="warning">{t("held")}</Pill> : null}
                 {!service.desired ? <Pill tone="neutral">{t("orphaned")}</Pill> : null}
               </div>

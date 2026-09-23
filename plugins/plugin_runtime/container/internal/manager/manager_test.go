@@ -8,6 +8,7 @@ import (
 
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/docker"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/policy"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/privileged"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/spec"
 )
 
@@ -81,6 +82,163 @@ func TestEnsureCreatesAContainerTheWayThePolicyPromises(t *testing.T) {
 	}
 	if req.Labels[LabelProject] != "syrus" || req.Labels[LabelService] != "git-mirror" || req.Labels[LabelPlugin] != "git_mirror" {
 		t.Errorf("labels = %v", req.Labels)
+	}
+}
+
+// The generic Ensure path must never be able to reach CapAdd/Devices, no
+// matter what the request contains -- spec.Service has no field for them, so
+// this is really asserting create() never populates HostConfig from
+// anything but a privileged Definition.
+func TestEnsureNeverSetsCapabilitiesOrDevices(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	m := newManager(d)
+
+	if _, err := m.Ensure(context.Background(), "git-mirror", service()); err != nil {
+		t.Fatal(err)
+	}
+
+	req := d.created[0]
+	if req.HostConfig.CapAdd != nil {
+		t.Errorf("CapAdd = %v, want nil for a generic service", req.HostConfig.CapAdd)
+	}
+	if req.HostConfig.Devices != nil {
+		t.Errorf("Devices = %v, want nil for a generic service", req.HostConfig.Devices)
+	}
+}
+
+const tailscaleImage = "ghcr.io/tkadauke/syrus-plugin-tailscale:test"
+
+func newManagerWithPrivileged(d *fakeDocker) *Manager {
+	m := newManager(d)
+	return m.WithPrivileged(privileged.NewRegistry(tailscaleImage, "http://web:80"))
+}
+
+// EnsurePrivileged is the one path that may populate CapAdd/Devices, and it
+// does so from the compiled Definition -- never from the request, which only
+// ever carries env.
+func TestEnsurePrivilegedCreatesAContainerWithTheDefinitionsFixedCapabilities(t *testing.T) {
+	d := newFakeDocker()
+	d.images[tailscaleImage] = true
+	m := newManagerWithPrivileged(d)
+
+	st, err := m.EnsurePrivileged(context.Background(), "tailscale", map[string]string{"TS_AUTHKEY": "tskey-abc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.State != StateRunning || !st.Privileged {
+		t.Fatalf("state=%s privileged=%v, want running/true", st.State, st.Privileged)
+	}
+
+	req := d.created[0]
+	if got := req.HostConfig.CapAdd; len(got) != 2 || got[0] != "NET_ADMIN" || got[1] != "NET_RAW" {
+		t.Errorf("CapAdd = %v", got)
+	}
+	if len(req.HostConfig.Devices) != 1 || req.HostConfig.Devices[0].PathOnHost != "/dev/net/tun" {
+		t.Errorf("Devices = %v", req.HostConfig.Devices)
+	}
+	if req.Labels[LabelPrivileged] != "true" {
+		t.Errorf("labels = %v, want %s=true", req.Labels, LabelPrivileged)
+	}
+	envs := map[string]bool{}
+	for _, kv := range req.Env {
+		envs[kv] = true
+	}
+	if !envs["TS_AUTHKEY=tskey-abc"] {
+		t.Errorf("env = %v, want the caller-supplied auth key", req.Env)
+	}
+	if !envs["TS_SERVE_TARGET=http://web:80"] {
+		t.Errorf("env = %v, want the fixed serve target merged in", req.Env)
+	}
+	for _, mount := range req.HostConfig.Mounts {
+		if mount.Target != "/var/lib/tailscale" {
+			continue
+		}
+		if mount.Type != "volume" {
+			t.Errorf("state mount type = %q, want volume", mount.Type)
+		}
+	}
+}
+
+// Ensure's own idempotence/replace-on-change contract must hold identically
+// for the privileged path: a repeat call with the same env is a no-op, and a
+// changed env (auth key rotated) replaces the container but keeps the named
+// state volume.
+func TestEnsurePrivilegedIsIdempotentAndReplacesOnEnvChangeKeepingTheVolume(t *testing.T) {
+	d := newFakeDocker()
+	d.images[tailscaleImage] = true
+	m := newManagerWithPrivileged(d)
+	ctx := context.Background()
+
+	for i := 0; i < 3; i++ {
+		if _, err := m.EnsurePrivileged(ctx, "tailscale", map[string]string{"TS_AUTHKEY": "tskey-abc"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(d.created) != 1 {
+		t.Fatalf("created %d containers, want 1", len(d.created))
+	}
+
+	if _, err := m.EnsurePrivileged(ctx, "tailscale", map[string]string{"TS_AUTHKEY": "tskey-rotated"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(d.created) != 2 || d.containerCount() != 1 {
+		t.Fatalf("created=%d live=%d, want the old container replaced", len(d.created), d.containerCount())
+	}
+	if d.volumeCount() != 1 {
+		t.Errorf("volumes = %d, want the tailscaled state volume kept", d.volumeCount())
+	}
+}
+
+// The registry is a compiled table: a name it does not know is refused, the
+// same way a policy violation is on the generic path -- and nothing is ever
+// created for it.
+func TestEnsurePrivilegedRejectsAnUnregisteredService(t *testing.T) {
+	d := newFakeDocker()
+	m := newManagerWithPrivileged(d)
+
+	_, err := m.EnsurePrivileged(context.Background(), "not-a-real-service", nil)
+	var refused *privileged.Error
+	if !errors.As(err, &refused) {
+		t.Fatalf("expected *privileged.Error, got %T %v", err, err)
+	}
+	if len(d.created) != 0 {
+		t.Fatal("a request for an unregistered service must create nothing")
+	}
+}
+
+// The allowed env keys are the whole caller-facing surface. Anything else --
+// in particular something flag-shaped, which is the exact escape hatch the
+// design deliberately closes off -- is refused before it ever reaches Docker.
+func TestEnsurePrivilegedRejectsAnyEnvKeyOutsideTheAllowlist(t *testing.T) {
+	d := newFakeDocker()
+	d.images[tailscaleImage] = true
+	m := newManagerWithPrivileged(d)
+
+	_, err := m.EnsurePrivileged(context.Background(), "tailscale", map[string]string{
+		"TS_AUTHKEY":    "tskey-abc",
+		"TS_EXTRA_ARGS": "--accept-routes",
+	})
+	var refused *privileged.Error
+	if !errors.As(err, &refused) {
+		t.Fatalf("expected *privileged.Error, got %T %v", err, err)
+	}
+	if len(d.created) != 0 {
+		t.Fatal("a refused request must create nothing")
+	}
+}
+
+// A caller cannot smuggle a fixed value: even sending the same key back
+// verbatim does not override it, because FixedEnv is merged in after
+// validation and always wins.
+func TestEnsurePrivilegedFixedEnvIsNotOverridableByTheRequest(t *testing.T) {
+	def, ok := privileged.NewRegistry("img:1", "http://web:80").Lookup("tailscale")
+	if !ok {
+		t.Fatal("expected tailscale to be registered")
+	}
+	merged := privileged.MergeEnv(def, map[string]string{"TS_AUTHKEY": "tskey-abc"})
+	if merged["TS_SERVE_TARGET"] != "http://web:80" {
+		t.Errorf("TS_SERVE_TARGET = %q", merged["TS_SERVE_TARGET"])
 	}
 }
 

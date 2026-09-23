@@ -14,6 +14,7 @@ import (
 
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/manager"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/policy"
+	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/privileged"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/spec"
 )
 
@@ -22,6 +23,7 @@ const maxBodyBytes = 64 << 10
 // Manager is what the server drives.
 type Manager interface {
 	Ensure(ctx context.Context, name string, s spec.Service) (manager.Status, error)
+	EnsurePrivileged(ctx context.Context, name string, env map[string]string) (manager.Status, error)
 	Status(ctx context.Context, name string) (manager.Status, error)
 	Remove(ctx context.Context, name string, purge bool) error
 	List(ctx context.Context) ([]manager.Status, error)
@@ -60,6 +62,13 @@ func New(m Manager, token string, info Info) http.Handler {
 	mux.Handle("GET /v1/services/{name}", auth(token, http.HandlerFunc(s.status)))
 	mux.Handle("PUT /v1/services/{name}", auth(token, http.HandlerFunc(s.ensure)))
 	mux.Handle("DELETE /v1/services/{name}", auth(token, http.HandlerFunc(s.remove)))
+	// The privileged lane: a small, separately named verb that can only ever
+	// configure one of a compiled table of first-party services (see
+	// internal/privileged). Every other operation above and below acts on
+	// whatever container the label lookup finds, privileged or not, and needs
+	// no privileged counterpart because none of them accepts a payload that
+	// shapes a container.
+	mux.Handle("PUT /v1/privileged/{name}", auth(token, http.HandlerFunc(s.ensurePrivileged)))
 	// Operator actions from Syrus's admin page.
 	mux.Handle("POST /v1/services/{name}/stop", auth(token, s.action(s.manager.Stop)))
 	mux.Handle("POST /v1/services/{name}/start", auth(token, s.action(s.manager.Start)))
@@ -124,6 +133,34 @@ func (h *handlers) ensure(w http.ResponseWriter, r *http.Request) {
 	}
 
 	st, err := h.manager.Ensure(r.Context(), r.PathValue("name"), s)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	code := http.StatusOK
+	if st.State == manager.StatePulling {
+		code = http.StatusAccepted
+	}
+	writeJSON(w, code, st)
+}
+
+// privilegedRequest is the entire wire shape of a privileged request: env
+// only. There is no image, internal_port, volumes, devices, or cap_add key
+// for a caller to populate -- DisallowUnknownFields refuses one that tries.
+type privilegedRequest struct {
+	Env map[string]string `json:"env"`
+}
+
+func (h *handlers) ensurePrivileged(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	decoder.DisallowUnknownFields()
+	var req privilegedRequest
+	if err := decoder.Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid privileged request: "+err.Error())
+		return
+	}
+
+	st, err := h.manager.EnsurePrivileged(r.Context(), r.PathValue("name"), req.Env)
 	if err != nil {
 		h.fail(w, err)
 		return
@@ -214,6 +251,11 @@ func (h *handlers) fail(w http.ResponseWriter, err error) {
 	}
 	var refused *policy.Error
 	if errors.As(err, &refused) {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	var privilegedRefused *privileged.Error
+	if errors.As(err, &privilegedRefused) {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
