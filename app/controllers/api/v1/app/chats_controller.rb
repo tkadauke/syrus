@@ -24,6 +24,7 @@ module Api
 
         HIDDEN_CHATS_PAGE_SIZE = 20
         CODING_RELAY_RETRY_AFTER_SECONDS = 30
+        CODING_RELAY_READ_TIMEOUT_SECONDS = 10
         PRODUCT_OWNER_EPIC_JOB_MESSAGE = "Product owners cannot add Jobs to Epics directly — " \
           "claim the Epic as a developer to elaborate it.".freeze
 
@@ -1473,7 +1474,7 @@ module Api
 
           http = Net::HTTP.new(uri.host, uri.port)
           http.open_timeout = 1
-          http.read_timeout = 1
+          http.read_timeout = CODING_RELAY_READ_TIMEOUT_SECONDS
 
           request = Net::HTTP::Get.new(uri)
           request["Authorization"] = "Bearer #{chat_session.coding_relay_token}"
@@ -1481,8 +1482,13 @@ module Api
           response = http.request(request)
           body = JSON.parse(response.body)
           [ response.code.to_i, body ]
-        rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, Errno::ENETUNREACH, SocketError, EOFError, Timeout::Error, JSON::ParserError
+        rescue Net::OpenTimeout, Errno::ECONNREFUSED, Errno::EHOSTUNREACH, Errno::ENETUNREACH, SocketError, EOFError, JSON::ParserError
           clear_stale_coding_relay!(chat_session)
+          nil
+        rescue Net::ReadTimeout, Timeout::Error
+          # A relay that accepted the connection is alive but busy. Preserve
+          # its registration so transient disk pressure does not turn a slow
+          # request into a longer relay-recovery outage.
           nil
         end
 

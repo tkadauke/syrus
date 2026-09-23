@@ -507,6 +507,20 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(result[:files]).not_to include(".git")
     end
 
+    it "includes nonignored untracked files without listing ignored workspace files" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.write(checkout_path.join("new-file.txt"), "new\n")
+      File.write(checkout_path.join("ignored-file.txt"), "ignored\n")
+      sh("git -C #{checkout_path} config --local core.excludesFile #{checkout_path}/.git/info/exclude")
+      File.write(checkout_path.join(".git/info/exclude"), "ignored-file.txt\n")
+
+      result = described_class.file_tree(chat_session, repository)
+
+      expect(result[:files]).to include("new-file.txt")
+      expect(result[:files]).not_to include("ignored-file.txt")
+    end
+
     it "returns nil when the coding checkout directory does not exist" do
       result = described_class.file_tree(chat_session, repository)
 

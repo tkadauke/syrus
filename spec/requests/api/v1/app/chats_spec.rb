@@ -2471,6 +2471,22 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(chat.coding_relay_token).to be_nil
     end
 
+    it "returns 503 without clearing relay credentials when a live relay times out while responding" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      enable_coding_mode!
+      stub_request(:get, "http://127.0.0.1:9283/workspace/files")
+        .with(query: hash_including("session_id" => chat.id.to_s))
+        .to_raise(Net::ReadTimeout)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_files"
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(chat.reload.coding_relay_address).to eq("127.0.0.1:9283")
+      expect(chat.coding_relay_token).to eq("test-relay-token")
+    end
+
     it "queues the relay refresh on the worker's own resume queue when workspace_storage_key is set" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",

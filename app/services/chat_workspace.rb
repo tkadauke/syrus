@@ -1,5 +1,4 @@
 require "fileutils"
-require "find"
 require "open3"
 
 # Persistent per-ChatSession workspace used by top-level chat inspection.
@@ -680,19 +679,19 @@ class ChatWorkspace
 
     return file_tree_at_ref(path, ref) if ref.present?
 
-    files = []
-    Find.find(path.to_s) do |entry|
-      basename = File.basename(entry)
-      if File.directory?(entry)
-        Find.prune if self.class::EXCLUDED_DIR_NAMES.include?(basename)
-        next
-      end
-      relative = Pathname.new(entry).relative_path_from(path).to_s
-      files << relative
+    out, status = Open3.capture2e(
+      { "GIT_TERMINAL_PROMPT" => "0" },
+      "git", "ls-files", "--cached", "--others", "--exclude-standard", "-z",
+      chdir: path.to_s
+    )
+    return nil unless status.success?
+
+    files = out.split("\0").reject do |relative_path|
+      relative_path.blank? || relative_path.split("/").any? { |part| self.class::EXCLUDED_DIR_NAMES.include?(part) }
     end
 
     {
-      files: files.sort,
+      files: files.uniq.sort,
       checkout_branch: @chat_session.coding_checkout_branch
     }
   end
