@@ -9,11 +9,26 @@ Tailscale container image, and the Tailscale plugin migration off
 `docker-compose.yml`'s worker `cap_add`/`devices` block -- no dual-path
 window where both the in-worker daemon and the container-backed service
 could run at once. `plugin_runtime.md`'s "What the runtime manager refuses"
-section (item 5) describes the shipped lane. Item 6's operator-facing
-verification (`bin/compose-up`, a real Tailscale auth key) is left to
-whoever next runs this in a real Compose stack -- the change here is
-verified by the Go/RSpec/Vitest suites listed in the PR, not by a live
-tailnet enrollment.
+section (item 5) describes the shipped lane, including its own note (added in
+the docs/tests follow-up below) that the lane is Compose-only.
+
+A follow-up job closed out the operational documentation and test gaps this
+plan deliberately left open: `plugins/tailscale/docs/syrus_docs/tailscale.md`
+now has "Operator flows" (enable/disable/restart/status/missing-runtime/
+service-unhealthy), "Admin API compatibility" (the two status routes are
+unchanged), and "Upgrading from the worker-embedded daemon" (migration notes)
+sections; `website/src/content/docs/troubleshooting.md` and
+`deployment/docker-compose.md` cover the same flows for the public docs
+audience; and `plugins/tailscale/spec/requests/api/v1/app/admin/tailscale_plugin_services_spec.rb`
+exercises the real (non-fake) privileged-lane wiring through Plugin Runtime's
+shared Admin → Plugin Services API -- list/status, stop, start, restart,
+missing runtime (plugin disabled and manager unreachable), and unhealthy.
+
+Item 6's live-Compose verification (`bin/compose-up` against a real tailnet
+with a real auth key) is still not something an unattended agent run can do
+and remains for a human operator to confirm once, the same as before. The two
+"Open questions" below are likewise still open -- this follow-up did not
+attempt to resolve either.
 
 ## Context
 

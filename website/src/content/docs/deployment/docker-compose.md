@@ -219,7 +219,14 @@ bin/compose-up                       # restart / pick up changes
   during an install, Syrus starts without it and those plugins stay off.
   **Admin → Plugin Services** lists those containers and lets an admin stop,
   start, or restart them and read their logs, and delete the stored data a
-  disabled plugin left behind.
+  disabled plugin left behind. **Tailscale** is the one exception worth
+  knowing about: it needs `NET_ADMIN`/`NET_RAW`/a TUN device, which the
+  manager never grants to a normal plugin service, so it runs through a
+  separately named, narrowly scoped privileged lane instead — still started
+  by `plugin-runtime`, still shown on **Admin → Plugin Services** (with a
+  **Privileged** badge), but the `worker` container itself carries no
+  elevated network capability. See the Tailscale entry on the
+  [Features](/docs/features#tailscale) page.
 - **syrus-data volume** — `/home/rails/.syrus`, holding the primary **SQLite
   databases** (`db/production*.sqlite3`) and the **clone cache / workflow
   workspaces**.

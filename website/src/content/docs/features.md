@@ -1302,6 +1302,13 @@ connected, a copyable `https://<device>.ts.net` URL, and a short setup
 checklist. To reach Syrus from a phone: install the Tailscale app, sign in to
 the same tailnet, then open that ts.net URL.
 
+Lifecycle actions (stop, start, restart) and container health live on the
+shared **Admin → Plugin Services** page rather than the Tailscale page
+itself. See [Tailscale isn't
+connecting](/docs/troubleshooting#tailscale-isnt-connecting) for a
+step-by-step guide covering a missing/unreachable runtime, an unhealthy
+container, and a daemon that's up but not yet connected.
+
 ## K8s Cluster Viewer
 
 The bundled `k8s_cluster` plugin lets admins register external
