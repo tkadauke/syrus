@@ -74,12 +74,14 @@ This plugin does not yet contribute a `"plugin_runtime:service"` provider
 so `SyrusBrowser::Configuration.endpoint` answers nil in every deployment
 today and `Session.spawn` always falls back to the stdio subprocess --
 current behavior is unchanged. Building the actual container-backed service
-is later work (`optionally_depends_on ["plugin_runtime"]` on this plugin's
-manifest documents the coupling without requiring Plugin Runtime to be
-enabled): once a service is registered and passes its health check,
-`Session.spawn` starts using it automatically, and the stdio path stays
-available as the fallback for as long as it takes to reach full parity, or
-for a deployment that has no Plugin Runtime service configured at all.
+is later work (`depends_on ["plugin_runtime"]` on this plugin's manifest is
+a source-boundary declaration only, matching Git Mirror's precedent -- it
+does not require Plugin Runtime to be *enabled*; `PluginRuntime::Services.endpoint_for`
+degrades to nil on its own when Plugin Runtime is disabled or absent):
+once a service is registered and passes its health check, `Session.spawn`
+starts using it automatically, and the stdio path stays available as the
+fallback for as long as it takes to reach full parity, or for a deployment
+that has no Plugin Runtime service configured at all.
 
 ## Safety model
 
