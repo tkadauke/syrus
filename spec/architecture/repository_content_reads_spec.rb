@@ -6,7 +6,7 @@ require "rails_helper"
 # mirror, cost a GitHub request per read, and tie that code to GitHub. The
 # readers exist only for github_host, the provider built on them.
 RSpec.describe "repository content reads" do
-  READERS = %w[file_bytes_at commit_tree_entries compare_file_changes commit_sha_for].freeze
+  READERS = %w[file_bytes_at commit_tree_entries compare_file_changes commit_sha_for commit_tree_sha].freeze
   ALLOWED = %r{\A(plugins/github_host/|app/services/github_client\.rb\z)}
 
   it "go through RepositoryContent, not GithubClient's content readers" do

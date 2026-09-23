@@ -195,7 +195,8 @@ module Steps
     end
 
     def commit_tree_sha_for_current_landing_validation(head_sha)
-      GithubClient.for(repository: repository, user: job.user).commit_tree_sha(repository.slug, head_sha).to_s.presence
+      content = RepositoryContent.for(repository, user: job.user)
+      content.tree_sha(content.revision(head_sha)).to_s.presence
     rescue StandardError
       nil
     end

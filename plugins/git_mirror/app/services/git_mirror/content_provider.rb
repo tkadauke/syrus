@@ -83,6 +83,10 @@ module GitMirror
       registered { @client.relation(mirror_id, base_id, head_id) }.to_sym
     end
 
+    def tree_sha(revision_id)
+      registered { @client.tree_sha(mirror_id, revision_id) }
+    end
+
     private
 
     def mirror_id = @repository.id.to_s

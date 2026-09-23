@@ -234,8 +234,8 @@ RSpec.describe Steps::MergeabilityPreflight, :ci_only do
       }
     })
     allow(client).to receive(:pull_request).and_return(pr(mergeable_state: "clean", mergeable: true, head_sha: "abc", base_sha: "def"))
-    allow(client).to receive(:commit_tree_sha).with("acme/widgets", "abc").and_return("tree-abc")
-    allow(client).to receive(:commit_tree_sha).with("acme/widgets", "def").and_return("tree-def")
+    stub_repository_tree_sha("abc", "tree-abc")
+    stub_repository_tree_sha("def", "tree-def")
     handler = described_class.new(run)
     workspace = instance_double(WorkflowWorkspace, setup: nil, path: Rails.root)
     target_graph = TargetGraph.new
@@ -282,8 +282,8 @@ RSpec.describe Steps::MergeabilityPreflight, :ci_only do
       }
     })
     allow(client).to receive(:pull_request).and_return(pr(mergeable_state: "clean", mergeable: true, head_sha: "abc", base_sha: "new-base"))
-    allow(client).to receive(:commit_tree_sha).with("acme/widgets", "abc").and_return("tree-abc")
-    allow(client).to receive(:commit_tree_sha).with("acme/widgets", "new-base").and_return("new-base-tree")
+    stub_repository_tree_sha("abc", "tree-abc")
+    stub_repository_tree_sha("new-base", "new-base-tree")
     handler = described_class.new(run)
     workspace = instance_double(WorkflowWorkspace, setup: nil, path: Rails.root)
     allow(handler).to receive(:workspace).and_return(workspace)

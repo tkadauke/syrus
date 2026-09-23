@@ -425,6 +425,20 @@ func (s *Store) Relation(ctx context.Context, id, base, head string) (string, er
 	return "diverged", nil
 }
 
+// TreeSHA returns the id of a commit's root tree object: two commits with
+// identical trees produced identical content, whatever their history.
+func (s *Store) TreeSHA(ctx context.Context, id, revision string) (string, error) {
+	r, err := s.revisionRepo(ctx, id, revision)
+	if err != nil {
+		return "", err
+	}
+	res, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, "rev-parse", "--verify", "--quiet", "--end-of-options", revision+"^{tree}")
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	return strings.TrimSpace(string(res.Stdout)), nil
+}
+
 // Tree lists every file, symlink, and submodule at a commit.
 func (s *Store) Tree(ctx context.Context, id, revision string) ([]Entry, error) {
 	r, err := s.revisionRepo(ctx, id, revision)
