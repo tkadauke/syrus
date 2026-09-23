@@ -1340,6 +1340,72 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(suggestion.anchor.reload.status).to eq("missing")
   end
 
+  it "accepts a suggestion whose range partially overlaps an existing comment anchor over the title, safely reprojecting the comment" do
+    doc = create_design_doc(markdown: "# Checkout Flow\n\nDetails go here.")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+      comment: {
+        body: "Careful with this phrase",
+        start_offset: 11,
+        end_offset: 20,
+        selected_markdown: "Flow\n\nDet"
+      }
+    }
+    expect(response).to have_http_status(:created)
+    comment_anchor = doc.reload.threads.order(:id).last.anchor
+
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+      suggestion: {
+        start_offset: 0,
+        end_offset: 15,
+        original_markdown: "# Checkout Flow",
+        proposed_markdown: "# Billing Flow",
+        change_type: "replace"
+      }
+    }
+    expect(response).to have_http_status(:created)
+    suggestion = DesignDocSuggestion.order(:id).last
+    sign_in_as(owner)
+
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/accept"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("suggestion", "state")).to eq("accepted")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("# Billing Flow\n\nDetails go here.")
+    expect { DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc) }.not_to raise_error
+
+    comment_anchor.reload
+    expect(comment_anchor.status).to eq("active")
+    reprojected = DesignDocs::AnchorMarkers.strip(doc.markdown)[comment_anchor.last_known_start_offset...comment_anchor.last_known_end_offset]
+    expect(reprojected).to eq("Flow\n\nDet")
+  end
+
+  it "returns a conflict instead of a 500 when a defensive marker invariant still fails during acceptance" do
+    doc = create_design_doc(markdown: "Hello world")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    suggestion = ::DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 11, original_markdown: "world", proposed_markdown: "Syrus" }
+    ).suggestion
+    # Corrupt the document with an unrelated dangling marker that none of
+    # ReviewSuggestion's own reconciliation logic knows about, to exercise
+    # the controller's defensive rescue rather than the reconciliation fix
+    # itself.
+    doc.update!(markdown: doc.markdown + DesignDocs::AnchorMarkers.range_start_marker("preexisting-corruption"))
+    sign_in_as(owner)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/accept"
+    }.not_to change(DesignDocVersion, :count)
+
+    expect(response).to have_http_status(:conflict)
+    expect(parse_body.dig("error", "code")).to eq("conflict")
+    expect(suggestion.reload.state).to eq("pending")
+  end
+
   it "accepts DOC-25-style chunked suggestions without leaving reviewed range markers in canonical markdown" do
     original = [
       "# Distributed Parallel Grader Execution",
