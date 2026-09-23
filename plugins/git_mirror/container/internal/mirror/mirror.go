@@ -129,6 +129,20 @@ type Ref struct {
 	ObservedAt time.Time `json:"observed_at"`
 }
 
+// Commit is one commit in a History.
+type Commit struct {
+	SHA        string    `json:"sha"`
+	Message    string    `json:"message"`
+	AuthoredAt time.Time `json:"authored_at"`
+}
+
+// History is the commits head introduced since its merge base with base
+// (three-dot, like Changes), newest-first, plus that merge base's revision id.
+type History struct {
+	Commits     []Commit `json:"commits"`
+	MergeBaseID string   `json:"merge_base_id"`
+}
+
 // MaxPatchBytes is the largest per-file patch returned; bigger ones are
 // omitted, as GitHub does.
 const MaxPatchBytes = 256 << 10
@@ -423,6 +437,50 @@ func (s *Store) Relation(ctx context.Context, id, base, head string) (string, er
 		return "behind", nil
 	}
 	return "diverged", nil
+}
+
+// History lists the commits head introduced since its merge base with base
+// (three-dot, like Changes), newest-first, plus that merge base's revision
+// id. Unlike GitHub's compare API, there is no cap on how many come back.
+func (s *Store) History(ctx context.Context, id, base, head string) (History, error) {
+	r, err := s.revisionRepo(ctx, id, base)
+	if err != nil {
+		return History{}, err
+	}
+	if _, err := s.revisionRepo(ctx, id, head); err != nil {
+		return History{}, err
+	}
+	mergeBase, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, "merge-base", base, head)
+	if err != nil {
+		// No merge base (unrelated histories) is the usual cause; the host may
+		// still have an answer.
+		return History{}, fmt.Errorf("%w: %v", ErrUnsupported, err)
+	}
+	mergeBaseID := strings.TrimSpace(string(mergeBase.Stdout))
+	res, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, "log", "--format=%H%x00%s%x00%cI", "--end-of-options", mergeBaseID+".."+head)
+	if err != nil {
+		return History{}, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	return History{Commits: parseCommits(string(res.Stdout)), MergeBaseID: mergeBaseID}, nil
+}
+
+// parseCommits reads `git log --format=%H%x00%s%x00%cI` output: one
+// sha\x00subject\x00date record per line, newest-first (git log's default
+// order). %s never contains a newline, so "\n" safely separates records.
+func parseCommits(out string) []Commit {
+	var commits []Commit
+	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		fields := strings.SplitN(line, "\x00", 3)
+		if len(fields) != 3 {
+			continue
+		}
+		authoredAt, _ := time.Parse(time.RFC3339, fields[2])
+		commits = append(commits, Commit{SHA: fields[0], Message: fields[1], AuthoredAt: authoredAt})
+	}
+	return commits
 }
 
 // Tree lists every file, symlink, and submodule at a commit.

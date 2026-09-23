@@ -11,6 +11,7 @@
 //	GET    /v1/repositories/{id}/changes?base=&head=&patch=1
 //	GET    /v1/repositories/{id}/refs?pattern=&max_age=
 //	GET    /v1/repositories/{id}/relation?base=&head=
+//	GET    /v1/repositories/{id}/history?base=&head=
 //
 // Errors are {"error":{"code","message"}} with codes the Syrus plugin maps
 // onto the content contract: unknown_repository, unknown_revision, not_found,
@@ -45,6 +46,7 @@ type Store interface {
 	Changes(ctx context.Context, id, base, head string, withPatch bool) ([]mirror.Change, error)
 	Refs(ctx context.Context, id, pattern string, maxAge time.Duration) ([]mirror.Ref, error)
 	Relation(ctx context.Context, id, base, head string) (string, error)
+	History(ctx context.Context, id, base, head string) (mirror.History, error)
 }
 
 const maxRegistrationBytes = 64 << 10
@@ -70,6 +72,7 @@ func NewWithLogger(store Store, token string, logger *log.Logger) http.Handler {
 	mux.Handle("GET /v1/repositories/{id}/changes", s.auth(s.changes))
 	mux.Handle("GET /v1/repositories/{id}/refs", s.auth(s.refs))
 	mux.Handle("GET /v1/repositories/{id}/relation", s.auth(s.relation))
+	mux.Handle("GET /v1/repositories/{id}/history", s.auth(s.history))
 	if logger == nil {
 		return mux
 	}
@@ -241,6 +244,19 @@ func (s *server) relation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"relation": relation})
+}
+
+func (s *server) history(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	history, err := s.store.History(r.Context(), r.PathValue("id"), query.Get("base"), query.Get("head"))
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if history.Commits == nil {
+		history.Commits = []mirror.Commit{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"commits": history.Commits, "merge_base_id": history.MergeBaseID})
 }
 
 func maxAgeFrom(r *http.Request) (time.Duration, bool) {

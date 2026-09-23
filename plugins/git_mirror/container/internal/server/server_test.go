@@ -17,11 +17,14 @@ import (
 const token = "0123456789abcdef0123456789abcdef"
 
 type fakeStore struct {
-	registered map[string]mirror.Registration
-	resolveErr error
-	readErr    error
-	maxAge     time.Duration
-	withPatch  bool
+	registered               map[string]mirror.Registration
+	resolveErr               error
+	readErr                  error
+	maxAge                   time.Duration
+	withPatch                bool
+	history                  mirror.History
+	historyErr               error
+	historyBase, historyHead string
 }
 
 func (f *fakeStore) Register(_ context.Context, id string, reg mirror.Registration) error {
@@ -51,6 +54,10 @@ func (f *fakeStore) Refs(_ context.Context, _, _ string, maxAge time.Duration) (
 }
 func (f *fakeStore) Relation(context.Context, string, string, string) (string, error) {
 	return "ahead", nil
+}
+func (f *fakeStore) History(_ context.Context, _, base, head string) (mirror.History, error) {
+	f.historyBase, f.historyHead = base, head
+	return f.history, f.historyErr
 }
 
 func do(h http.Handler, method, path, body string, authed bool) *httptest.ResponseRecorder {
@@ -154,6 +161,47 @@ func TestChangesPassesThePatchFlag(t *testing.T) {
 	do(h, "GET", "/v1/repositories/1/changes?base=a&head=b", "", true)
 	if store.withPatch {
 		t.Fatal("patches returned without being asked for")
+	}
+}
+
+func TestHistoryPassesBaseAndHeadAndNormalizesNilCommits(t *testing.T) {
+	store := &fakeStore{}
+	h := New(store, token)
+	rec := do(h, "GET", "/v1/repositories/1/history?base=a&head=b", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("history: %d %s", rec.Code, rec.Body)
+	}
+	if store.historyBase != "a" || store.historyHead != "b" {
+		t.Fatalf("history base/head = %q/%q", store.historyBase, store.historyHead)
+	}
+	var body struct {
+		Commits     []mirror.Commit `json:"commits"`
+		MergeBaseID string          `json:"merge_base_id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v: %s", err, rec.Body)
+	}
+	if body.Commits == nil || len(body.Commits) != 0 {
+		t.Fatalf("nil commits should serialize as [], got %v", rec.Body)
+	}
+}
+
+func TestHistoryMapsUnsupportedTheSameWayChangesDoes(t *testing.T) {
+	rec := do(New(&fakeStore{historyErr: mirror.ErrUnsupported}, token), "GET", "/v1/repositories/1/history?base=a&head=b", "", true)
+	if rec.Code != http.StatusNotImplemented || errorCode(t, rec) != "unsupported" {
+		t.Fatalf("history error: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestHistoryReturnsCommitsAndMergeBase(t *testing.T) {
+	when, _ := time.Parse(time.RFC3339, "2026-09-22T12:00:00Z")
+	store := &fakeStore{history: mirror.History{
+		Commits:     []mirror.Commit{{SHA: strings.Repeat("c", 40), Message: "m", AuthoredAt: when}},
+		MergeBaseID: "base-sha",
+	}}
+	rec := do(New(store, token), "GET", "/v1/repositories/1/history?base=a&head=b", "", true)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"merge_base_id":"base-sha"`) {
+		t.Fatalf("history: %d %s", rec.Code, rec.Body)
 	}
 }
 
