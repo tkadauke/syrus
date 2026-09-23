@@ -1,5 +1,6 @@
 import { getJson, postJson } from "@app/api/client"
 import type { RepositoryDetailRecord, RepositoryTab } from "@app/api/repositories"
+import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type IssueFolder = "inbox" | "delegated" | "open" | "closed"
 
@@ -12,6 +13,8 @@ export type RepositoryIssuesPayload = {
   tabs: RepositoryTab[]
   folder: IssueFolder
   query: string | null
+  filter: Record<string, unknown>
+  filter_schema: FilterSchemaField[]
   issue_count: number
   issues: RepositoryIssue[]
   folder_counts: Record<IssueFolder, number>
@@ -40,42 +43,46 @@ export type RepositoryIssue = {
   delegated: boolean
 }
 
-export function fetchRepositoryIssues(id: string, folder: IssueFolder, query: string) {
+// `filterParam` is the opaque FilterBar wire value (a base64-encoded filter
+// tree, or "" when no filter is applied) taken verbatim from the `q` URL
+// param -- see Filters::QueryParam on the backend. It is never decoded on
+// the client; the server round-trips it back as `payload.filter`/`query`.
+export function fetchRepositoryIssues(id: string, folder: IssueFolder, filterParam: string) {
   const params = new URLSearchParams({ folder })
-  if (query) params.set("q", query)
+  if (filterParam) params.set("q", filterParam)
   return getJson<RepositoryIssuesPayload>(`/api/v1/app/repositories/${id}/issues?${params}`)
 }
 
-export function commentRepositoryIssue(path: string, values: { issueNumber: number; commentBody: string; folder: IssueFolder; query: string }) {
+export function commentRepositoryIssue(path: string, values: { issueNumber: number; commentBody: string; folder: IssueFolder; filterParam: string }) {
   return postJson<RepositoryIssuesPayload>(path, {
     issue_number: values.issueNumber,
     comment_body: values.commentBody,
     folder: values.folder,
-    q: values.query
+    q: values.filterParam
   })
 }
 
-export function closeRepositoryIssue(path: string, values: { issueNumber: number; folder: IssueFolder; query: string }) {
+export function closeRepositoryIssue(path: string, values: { issueNumber: number; folder: IssueFolder; filterParam: string }) {
   return postJson<RepositoryIssuesPayload>(path, {
     issue_number: values.issueNumber,
     folder: values.folder,
-    q: values.query
+    q: values.filterParam
   })
 }
 
-export function delegateRepositoryIssue(path: string, values: { issueNumber: number; folder: IssueFolder; query: string }) {
+export function delegateRepositoryIssue(path: string, values: { issueNumber: number; folder: IssueFolder; filterParam: string }) {
   return postJson<RepositoryIssuesPayload>(path, {
     issue_number: values.issueNumber,
     folder: values.folder,
-    q: values.query
+    q: values.filterParam
   })
 }
 
-export function bulkRepositoryIssues(path: string, values: { issueNumbers: number[]; bulkAction: "close" | "delegate"; folder: IssueFolder; query: string }) {
+export function bulkRepositoryIssues(path: string, values: { issueNumbers: number[]; bulkAction: "close" | "delegate"; folder: IssueFolder; filterParam: string }) {
   return postJson<RepositoryIssuesPayload>(path, {
     issue_numbers: values.issueNumbers,
     bulk_action: values.bulkAction,
     folder: values.folder,
-    q: values.query
+    q: values.filterParam
   })
 }

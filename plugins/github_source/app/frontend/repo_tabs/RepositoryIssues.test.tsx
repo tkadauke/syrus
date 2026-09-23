@@ -52,12 +52,18 @@ function folderPaths() {
   }
 }
 
+const ISSUE_FILTER_SCHEMA = [
+  { field: "query", label: "Search", bucket: "string", operators: [ "contains" ], values: [], free_text_search: true }
+]
+
 function issuesPayload(overrides: Partial<RepositoryIssuesPayload> = {}): RepositoryIssuesPayload {
   return {
     repository: repository(),
     tabs: tabs(),
     folder: "inbox",
     query: null,
+    filter: { and: [] },
+    filter_schema: ISSUE_FILTER_SCHEMA,
     issue_count: 1,
     issues: [ issue() ],
     folder_counts: { inbox: 1, delegated: 0, open: 1, closed: 0 },
@@ -65,6 +71,13 @@ function issuesPayload(overrides: Partial<RepositoryIssuesPayload> = {}): Reposi
     paths: paths(),
     ...overrides
   }
+}
+
+function decodeFilterTree(q: string): { and?: Array<{ field: string; op: string; value?: unknown }> } {
+  const normalized = q.replace(/-/g, "+").replace(/_/g, "/")
+  const base64 = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")
+  const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0))
+  return JSON.parse(new TextDecoder().decode(bytes))
 }
 
 function renderRoute(initialEntry = "/repositories/1/plugin/issues") {
@@ -98,7 +111,7 @@ describe("RepositoryIssuesTab", () => {
     expect(issuesLink.className).toContain("border-brand")
   })
 
-  it("renders smart folder navigation with counts and highlights the active folder", async () => {
+  it("renders the standard smart folder navigation with counts and highlights the active folder", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
       folder: "inbox",
       folder_counts: { inbox: 3, delegated: 2, open: 5, closed: 8 }
@@ -106,11 +119,11 @@ describe("RepositoryIssuesTab", () => {
     renderRoute()
 
     const inboxLink = await screen.findByRole("link", { name: /Inbox/ })
-    expect(inboxLink).toHaveAttribute("aria-current", "page")
+    expect(inboxLink.className).toContain("bg-brand/10")
     expect(inboxLink).toHaveTextContent("3")
 
     const delegatedLink = screen.getByRole("link", { name: /Delegated/ })
-    expect(delegatedLink).not.toHaveAttribute("aria-current")
+    expect(delegatedLink.className).not.toContain("bg-brand/10")
     expect(delegatedLink).toHaveTextContent("2")
     expect(screen.getByRole("link", { name: /Open/ })).toHaveTextContent("5")
     expect(screen.getByRole("link", { name: /Closed/ })).toHaveTextContent("8")
@@ -248,15 +261,51 @@ describe("RepositoryIssuesTab", () => {
     expect(screen.getByRole("link", { name: "View inbox" })).toBeInTheDocument()
   })
 
-  it("filters the issue count by search query", async () => {
+  it("renders the applied search as a FilterBar chip with a working clear-filters link", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
       folder: "open",
       query: "forum",
+      filter: { and: [ { field: "query", op: "contains", value: "forum" } ] },
       issue_count: 1
     })))
-    renderRoute("/repositories/1/plugin/issues?folder=open&q=forum")
+    renderRoute("/repositories/1/plugin/issues?folder=open")
 
-    expect(await screen.findByDisplayValue("forum")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Clear search" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Search contains forum" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Clear filters" })).toBeInTheDocument()
+  })
+
+  it("filters the issue list through the FilterBar's free-text search chip", async () => {
+    const matching = issue({ number: 1, title: "Fix the forum" })
+    const other = issue({ number: 2, title: "Unrelated bug" })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = new URL(String(input), "http://test.host")
+      const q = url.searchParams.get("q")
+      const tree = q ? decodeFilterTree(q) : { and: [] }
+      const query = tree.and?.find((chip) => chip.field === "query")?.value
+      const issues = typeof query === "string" ? [ matching, other ].filter((candidate) => candidate.title.toLowerCase().includes(query.toLowerCase())) : [ matching, other ]
+
+      return Promise.resolve(jsonResponse(issuesPayload({
+        folder: "open",
+        filter: tree,
+        query: typeof query === "string" ? query : null,
+        issues,
+        issue_count: issues.length
+      })))
+    })
+    renderRoute("/repositories/1/plugin/issues?folder=open")
+
+    await screen.findByText("Unrelated bug")
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "forum" } })
+    fireEvent.click(screen.getByText("Search for forum"))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("q="), expect.anything()))
+    expect(await screen.findByRole("button", { name: "Search contains forum" })).toBeInTheDocument()
+    expect(screen.getByText("Fix the forum")).toBeInTheDocument()
+    expect(screen.queryByText("Unrelated bug")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("link", { name: "Clear filters" }))
+    await screen.findByText("Unrelated bug")
   })
 })
