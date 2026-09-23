@@ -620,14 +620,14 @@ export function ProposalCard({
                       {t("proposal_route_backlog")}
                     </button>
                     <button
-                      aria-label={t("aria_confirm_proposal_and_implement")}
+                      aria-label={proposal.investigation ? t("aria_confirm_proposal_and_investigate") : t("aria_confirm_proposal_and_implement")}
                       className={proposalActionButton("primary")}
                       disabled={proposalAction.isPending}
                       onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, routeToBacklog: false })}
-                      title={t("aria_confirm_proposal_and_implement")}
+                      title={proposal.investigation ? t("aria_confirm_proposal_and_investigate") : t("aria_confirm_proposal_and_implement")}
                       type="button"
                     >
-                      {t("proposal_route_implement")}
+                      {proposal.investigation ? t("proposal_route_investigate") : t("proposal_route_implement")}
                     </button>
                   </>
                 ) : (

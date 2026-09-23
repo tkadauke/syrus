@@ -478,6 +478,22 @@ describe("ProposalCard routing", () => {
     expect(screen.queryByText("Investigation")).not.toBeInTheDocument()
   })
 
+  it("labels the confirm action Investigate on investigation-flagged Job proposal cards", async () => {
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job", investigation: true }))
+
+    const confirmButton = screen.getByRole("button", { name: "Confirm proposal and investigate" })
+    expect(confirmButton).toHaveTextContent("Investigate")
+    expect(screen.queryByRole("button", { name: "Confirm proposal and implement" })).not.toBeInTheDocument()
+  })
+
+  it("labels the confirm action Implement on ordinary Job proposal cards", async () => {
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job", investigation: false }))
+
+    const confirmButton = screen.getByRole("button", { name: "Confirm proposal and implement" })
+    expect(confirmButton).toHaveTextContent("Implement")
+    expect(screen.queryByRole("button", { name: "Confirm proposal and investigate" })).not.toBeInTheDocument()
+  })
+
   it("lets operators choose backlog routing before confirming a direct Job proposal", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
