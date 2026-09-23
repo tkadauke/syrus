@@ -49,6 +49,65 @@ describe("entityStore", () => {
     expect(readEntity("jobs", 42)?.fields.state).toBe("running")
   })
 
+  it("does not let null-revision chat job snippets overwrite a revisioned job detail", () => {
+    normalizeJobDetailPayload({
+      job: {
+        id: 42,
+        state: "running",
+        issue_title: "Fresh detail title",
+        issue_body: "Known detail body",
+        updated_at: "2026-09-02T00:00:00Z"
+      }
+    } as unknown as JobDetailPayload)
+
+    normalizeChatPayload({
+      chat: {
+        id: 5,
+        title: "Origin chat",
+        title_pending: false,
+        pinned: false,
+        pinned_context: null,
+        chat_path: "/chats/5",
+        repository: null,
+        stop_requested_at: null,
+        cumulative_input_tokens: 0,
+        cumulative_output_tokens: 0,
+        cumulative_cost_usd: 0
+      },
+      recent_chats: [],
+      messages: [
+        {
+          type: "message",
+          id: 10,
+          role: "assistant",
+          text: "Created a job",
+          bookmarkable: true,
+          proposal: {
+            materialized: { kind: "job", job_id: 42, job_title: "Stale chat title", job_state: "open" }
+          }
+        }
+      ],
+      attached_coding_job: {
+        id: 42,
+        slug: "JOB-42",
+        title: "Older attached title",
+        state: "queued",
+        branch_name: "syrus/old",
+        checkout_branch: null,
+        checkout_uncommitted: false,
+        can_submit: false,
+        can_cancel: false,
+        app_path: "/jobs/42"
+      }
+    } as unknown as ChatPayload)
+
+    const job = readEntity("jobs", 42)
+    expect(job?.revision).toBe("2026-09-02T00:00:00Z")
+    expect(job?.fields.issue_title).toBe("Fresh detail title")
+    expect(job?.fields.issue_body).toBe("Known detail body")
+    expect(job?.fields.state).toBe("running")
+  })
+
   it("normalizes job detail snapshots into canonical entity records", () => {
     normalizeJobDetailPayload({
       job: { id: 42, state: "open", issue_title: "Normalize me", updated_at: "2026-09-01T00:00:00Z" },
