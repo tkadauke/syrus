@@ -65,9 +65,12 @@ module BroadcastsJobProgress
     # invalidation/refetch path, while this one carries enough of a diff for
     # the frontend entity store to patch the Workflow/Step/Run record
     # directly (see app/frontend/lib/appEvents.ts) without waiting on that
-    # refetch.
-    AppEvents.broadcast(
-      user: owner_job.user,
+    # refetch. Workflow/Step/Run churn frequently while a Job is running, so
+    # this one is job-scoped (JobChannel) rather than broadcast to the
+    # owner's global channel -- every other tab that owner has open, showing
+    # anything other than this specific Job, would otherwise receive it too.
+    AppEvents.broadcast_job_resource(
+      job_id: owner_job.id,
       type: "#{self.class.name.underscore}.#{action}",
       resource: self.class.name.underscore,
       id: id,

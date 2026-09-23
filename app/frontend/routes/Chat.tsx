@@ -129,6 +129,7 @@ import { availableWorkspaceTabs, clampWorkspaceWidth, defaultWorkspaceTab, mobil
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
 import { normalizeChatPayload } from "../lib/entityStore"
+import { subscribeToChatResourceEvents } from "../lib/actionCable"
 const ChatWorkspacePanel = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatWorkspacePanel })))
 const ChatSettingsDialog = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatSettingsDialog })))
 
@@ -186,6 +187,17 @@ export function ChatRoute() {
     void markChatRead(id).then(() => {
       refreshRecentChats(queryClient)
     }).catch(() => undefined)
+  }, [id, queryClient])
+
+  // Chat-scoped Action Cable subscription: message content and other
+  // detail-only payloads (see ChatChannel, ChatMessage#broadcast_app_event)
+  // only reach this tab while this Chat is the one being viewed. Navigating
+  // to a different chat, or away from this page, releases it.
+  useEffect(() => {
+    if (!id) return
+
+    const subscription = subscribeToChatResourceEvents(id, queryClient)
+    return () => subscription.unsubscribe()
   }, [id, queryClient])
 
   return (

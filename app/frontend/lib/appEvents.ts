@@ -270,6 +270,23 @@ export function recoverAppEventContinuity(queryClient: QueryClient) {
   void queryClient.refetchQueries({ type: "active", predicate: continuityRecoveryQuery })
 }
 
+// Bounded reconnect recovery for a resource-scoped (JobChannel/ChatChannel)
+// subscription: unlike recoverAppEventContinuity's full sweep of every active
+// query, a resource channel only ever carried events for this one Job or
+// Chat, so a reconnect can only have missed events about that one resource --
+// recovery is scoped to it instead of the whole app. Reuses invalidateAppQuery
+// so hidden tabs still defer to a catch-up-on-visible refetch rather than
+// fetching in the background (see markHiddenInvalidation/flushHiddenInvalidations).
+export function recoverJobResourceContinuity(queryClient: QueryClient, jobId: string | number) {
+  const id = String(jobId)
+  invalidateAppQuery(queryClient, { queryKey: [ "jobs", id, "detail" ] })
+  invalidateAppQuery(queryClient, { queryKey: [ "jobs", id, "workflows" ] })
+}
+
+export function recoverChatResourceContinuity(queryClient: QueryClient, chatId: string | number) {
+  invalidateAppQuery(queryClient, { queryKey: [ "chats", String(chatId) ] })
+}
+
 function invalidateAppQuery(queryClient: QueryClient, target: InvalidationTarget) {
   if (tabIsHidden()) {
     markHiddenInvalidation(queryClient, target)
@@ -611,6 +628,12 @@ function repositoryListQuery(query: { queryKey: QueryKey }) {
 function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   if (event.resource !== "chat" || event.id == null) return false
 
+  const turnState = chatUpdateTurnStatePayload(event.payload)
+  if (turnState) {
+    updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: turnState.turn_in_flight, agent_busy: turnState.agent_busy })
+    return true
+  }
+
   const replaceTail = chatReplaceTailPayload(event.payload)
   if (replaceTail) {
     // Route each message through the same revision-gated entity merge as
@@ -856,6 +879,26 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   }
 
   return false
+}
+
+type ChatUpdateTurnStatePayload = {
+  action: "update_turn_state"
+  turn_in_flight: boolean
+  agent_busy?: boolean
+}
+
+function chatUpdateTurnStatePayload(payload: unknown): ChatUpdateTurnStatePayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatUpdateTurnStatePayload>
+  if (candidate.action !== "update_turn_state") return null
+  if (typeof candidate.turn_in_flight !== "boolean") return null
+
+  return {
+    action: "update_turn_state",
+    turn_in_flight: candidate.turn_in_flight,
+    agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined
+  }
 }
 
 type ChatReplaceTailPayload = {

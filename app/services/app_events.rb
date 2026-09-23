@@ -22,6 +22,55 @@ class AppEvents
     AppUserChannel.broadcast_to(user, event.as_json)
   end
 
+  # Detailed per-resource broadcasts, delivered only to JobChannel/ChatChannel
+  # subscribers actively observing that one Job or Chat (see
+  # app/channels/job_channel.rb, chat_channel.rb) -- never to AppUserChannel.
+  # ActionCable drops a broadcast to a stream with no live subscribers, so a
+  # resource nobody has open costs nothing beyond the pub/sub publish; this is
+  # the mechanism that keeps high-churn payloads (Workflow/Step/Run field
+  # patches, chat message tails) off the global per-user channel every other
+  # tab that user has open would otherwise receive regardless of what it's
+  # looking at.
+  #
+  # Deliberately omits `sequence`: the frontend's per-user gap detection only
+  # tracks the sequenced AppUserChannel stream (see trackAppEventSequence in
+  # app/frontend/lib/appEvents.ts), and an event without a `sequence` is
+  # always applied directly rather than participating in gap/duplicate
+  # detection. That's safe here because these events are independently
+  # idempotent and order-independent: entity-store patches merge by
+  # `revision` (see entityStore.ts#upsertEntity), and chat message tails
+  # merge by message id (see replaceMessageTail). Continuity after a
+  # reconnect is instead handled by a bounded, resource-scoped refetch when
+  # the JobChannel/ChatChannel subscription itself reconnects (see
+  # subscribeToJobResourceEvents/subscribeToChatResourceEvents).
+  def self.broadcast_job_resource(job_id:, type:, resource:, id:, changed: [], payload: nil, revision: nil, occurred_at: Time.current)
+    ActionCable.server.broadcast(
+      JobChannel.stream_name(job_id),
+      resource_event(type: type, resource: resource, id: id, changed: changed, payload: payload, revision: revision, occurred_at: occurred_at)
+    )
+  end
+
+  def self.broadcast_chat_resource(chat_session_id:, type:, resource:, id:, changed: [], payload: nil, revision: nil, occurred_at: Time.current)
+    ActionCable.server.broadcast(
+      ChatChannel.stream_name(chat_session_id),
+      resource_event(type: type, resource: resource, id: id, changed: changed, payload: payload, revision: revision, occurred_at: occurred_at)
+    )
+  end
+
+  def self.resource_event(type:, resource:, id:, changed:, payload:, revision:, occurred_at:)
+    event = {
+      type: type.to_s,
+      resource: resource.to_s,
+      id: id,
+      changed: Array(changed).map(&:to_s),
+      occurred_at: occurred_at.iso8601(3)
+    }
+    event[:revision] = revision unless revision.nil?
+    event[:payload] = payload if payload
+    event.as_json
+  end
+  private_class_method :resource_event
+
   # Two statements rather than one atomic RETURNING-style query, to stay
   # portable across SQLite (dev/test) and MySQL (prod) -- but they must run
   # inside one transaction, not as independent calls. An `UPDATE` always
