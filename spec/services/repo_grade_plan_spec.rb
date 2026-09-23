@@ -62,6 +62,24 @@ RSpec.describe RepoGradePlan do
       expect(no_desc.description).to be_nil
     end
 
+    it "propagates an explicit display_name and appends a CI suffix for the legacy ci expansion" do
+      write(".syrus.yml", <<~YAML)
+        grade:
+          - name: tests
+            run: bin/rspec
+            ci: RUN_CI_ONLY_SPECS=true bin/rspec
+            display_name: Rails suite
+          - name: no-display-name
+            run: bin/no-display-name-grader
+      YAML
+
+      graders = described_class.for(@dir).graders
+
+      expect(graders.find { |g| g.name == "tests" }.display_name).to eq("Rails suite")
+      expect(graders.find { |g| g.name == "tests-ci" }.display_name).to eq("Rails suite (CI)")
+      expect(graders.find { |g| g.name == "no-display-name" }.display_name).to be_nil
+    end
+
     it "parses phase-specific graders" do
       write(".syrus.yml", <<~YAML)
         grade:

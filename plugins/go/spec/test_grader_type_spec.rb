@@ -43,4 +43,12 @@ RSpec.describe Go::TestGraderType do
     expect(step.timeout_minutes).to eq(8)
     expect(step.required).to be(false)
   end
+
+  it "defaults to a Go test display name and honors an explicit override" do
+    default_step = described_class.grade_steps(config: {}, default_failures: "strict").first
+    expect(default_step.display_name).to eq("Go test")
+
+    overridden_step = described_class.grade_steps(config: { "display_name" => "Go CLI tests" }, default_failures: "strict").first
+    expect(overridden_step.display_name).to eq("Go CLI tests")
+  end
 end

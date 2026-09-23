@@ -161,6 +161,7 @@ module Steps
         fingerprints = target_fingerprints_for(grader)
         {
           "name" => grader.name,
+          "display_name" => grader.display_name,
           "required" => grader.required,
           "target_label" => target_label_for(grader),
           "affected" => selection.affected,
@@ -564,6 +565,7 @@ module Steps
     def grader_details(grader, prepare_targets:, target_fingerprints:)
       {
         "name" => grader.name,
+        "display_name" => grader.display_name,
         "target_label" => target_label_for(grader),
         "command" => grader.command,
         "phase" => grader.metadata["phase"],

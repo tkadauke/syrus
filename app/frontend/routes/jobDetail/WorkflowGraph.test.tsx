@@ -959,6 +959,54 @@ describe("WorkflowsTab", () => {
     expect(screen.queryByText(/grader_target_selections/)).not.toBeInTheDocument()
   })
 
+  it("prefers a skipped grader's resolved display_name over humanizing its machine name", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 30,
+              kind: "grader_fanout",
+              display_name: "Plan graders",
+              display_status: "succeeded",
+              position: 1,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: null,
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: {
+                grader_target_selections: [
+                  {
+                    name: "plugins-rails-rspec-focused",
+                    display_name: "rails plugin: RSpec (focused)",
+                    target_label: "//plugins/rails:grade/rspec-focused",
+                    required: true,
+                    affected: false,
+                    reason: "no matching files changed"
+                  }
+                ]
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Setup/ }))
+
+    expect(screen.getByText("rails plugin: RSpec (focused)")).toBeInTheDocument()
+    expect(screen.queryByText("Plugins Rails Rspec Focused")).not.toBeInTheDocument()
+  })
+
   it("omits body for grader_collect since the result is already shown on the sibling grader Steps", () => {
     render(
       <MemoryRouter>

@@ -149,15 +149,24 @@ class SyrusYml
   # into a synthetic `*-ci` grader in the `ci` phase. Runtime grading
   # otherwise selects configured grader entries by `phases`.
   BaseRetry = Data.define(:strategy, :command)
-  GradeStep = Data.define(:name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata) do
+  # `display_name` is the optional operator-facing UI label, kept distinct
+  # from `name` (the stable machine identity used in target labels and
+  # `//...:grade/...` references). A manual/custom grader may set it
+  # explicitly in `.syrus.yml`; a plugin-defined grader type (rspec, vitest,
+  # ...) synthesizes one automatically per generated mode. Display precedence
+  # (see App::JobDetailPayload::WorkflowSerializers#grader_display_name) is:
+  # explicit `display_name` > plugin/type-generated `display_name` >
+  # humanized `name` > raw `name`.
+  GradeStep = Data.define(:name, :display_name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata) do
     def initialize(
       name:, run:, ci:, phases:, description:, required:, timeout_minutes:,
-      when_files_changed:, junit_output:, failures:, base_retry:, deps:, metadata: {}
+      when_files_changed:, junit_output:, failures:, base_retry:, deps:, display_name: nil, metadata: {}
     )
       raise ArgumentError, "metadata must be a Hash" unless metadata.is_a?(Hash)
 
       super(
         name: name,
+        display_name: display_name.to_s.strip.presence,
         run: run,
         ci: ci,
         phases: phases,
@@ -508,6 +517,7 @@ class SyrusYml
 
     GradeStep.new(
       name: name,
+      display_name: raw["display_name"].to_s.strip.presence,
       run: run,
       ci: ci,
       phases: phases,

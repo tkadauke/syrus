@@ -217,7 +217,8 @@ most once per workflow workspace.
 | Field | Required | Default | Notes |
 |---|---|---|---|
 | `type` | no | `custom` when `run` is present | Plugin-defined grader type, for example `rspec`; `custom` keeps the shell-command form |
-| `name` | yes for custom | — | Alphanumeric + hyphens; must be unique |
+| `name` | yes for custom | — | Alphanumeric + hyphens; must be unique. Stable machine identity used in target labels (`//package:grade/name`) and elsewhere -- never shown to operators as-is |
+| `display_name` | no | synthesized from `name` | Operator-facing UI label for a custom grader. Plugin-defined grader types (`type: rspec`, `type: vitest`, ...) synthesize a mode-aware default (`RSpec`, `RSpec (focused)`, `RSpec (CI)`) that this overrides; a grader in a nested project also gets its owning project's `project.label` prefixed automatically (e.g. `rails plugin: RSpec (focused)`) |
 | `run` | yes for custom | — | Shell command |
 | `phases` | no | `review`, `landing`, `ci` | Phase or phases where this grader runs |
 | `ci` | no | — | Legacy alternate command; expanded into a `<name>-ci` grader in the `ci` phase |
@@ -225,6 +226,7 @@ most once per workflow workspace.
 | `required` | no | `true` | Non-required failures warn but don't block |
 | `timeout_minutes` | no | 15 | Clamped to 90 max |
 | `<mode>_timeout_minutes` / `timeouts` | no | `timeout_minutes` | Plugin-defined graders can override generated `full`, `focused`, or `ci` grader timeouts |
+| `<mode>_display_name` / `display_names` | no | mode-aware default | Plugin-defined graders can override one generated mode's display name without changing `display_name`, which applies to every generated mode |
 | `tags` / `<mode>_include_tags` / `<mode>_exclude_tags` | no | plugin-defined | Plugin-defined test graders can add RSpec/Vitest tag filters per generated mode |
 | `parallel_rspec` | no | `false` | RSpec-only; opt into `parallel_rspec` command generation for selected RSpec modes |
 | `when_files_changed` | no | — | Array of glob patterns; grader is skipped at fanout time if none of the PR's changed files match |
