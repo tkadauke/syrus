@@ -1,7 +1,8 @@
 # GitHub Host
 
 GitHub Host reads repository content from GitHub without a checkout: files,
-trees, and what changed between two commits. It is the `:upstream`
+trees, what changed between two commits, commit history, and commit tree
+SHAs. It is the `:upstream`
 `repository_content_provider` for every git repository Syrus knows, answering
 through the GitHub API with the repository's App installation token or its
 owner's PAT.

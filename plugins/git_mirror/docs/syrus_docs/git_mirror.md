@@ -11,12 +11,13 @@ clone per Workflow), off GitHub's rate limit and out of a network round trip,
 at the cost of disk space for the mirrors. Off by default.
 
 It is a `:replica` `repository_content_provider` (see `plugins.md`) for file,
-tree, and diff reads: whenever it cannot answer -- the service is down, a
-commit has not reached it, a request it does not support -- the read falls
-through to the host, exactly as if the plugin were disabled. It is also a
-`workspace_git_transport` provider (same extension point contract, a
-different consumer): `WorkflowWorkspace` and `ChatWorkspace` try it first for
-every clone/fetch and fall back to the host on any failure.
+tree, diff, commit history, and commit tree SHA reads: whenever it cannot
+answer -- the service is down, a commit has not reached it, a request it does
+not support -- the read falls through to the host, exactly as if the plugin
+were disabled. It is also a `workspace_git_transport` provider (same
+extension point contract, a different consumer): `WorkflowWorkspace` and
+`ChatWorkspace` try it first for every clone/fetch and fall back to the host
+on any failure.
 
 ## Requirements
 
