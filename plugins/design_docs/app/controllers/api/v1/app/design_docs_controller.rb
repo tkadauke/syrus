@@ -171,6 +171,8 @@ module Api
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue Pundit::NotAuthorizedError
           render_error("forbidden", "Only the owner can review design doc suggestions.", status: :forbidden)
+        rescue ::DesignDocs::NormalizeAnchorMarkers::InvariantError => e
+          render_error("conflict", "Suggestion could not be accepted: #{e.message}", status: :conflict)
         end
 
         def reject_suggestion

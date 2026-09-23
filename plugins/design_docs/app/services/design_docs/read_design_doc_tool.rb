@@ -21,7 +21,7 @@ module DesignDocs
         design_doc = find_design_doc!(doc_ref, context)
 
         success(
-          design_doc: detail_payload(design_doc),
+          design_doc: detail_payload(design_doc, context: context),
           read_only: context.run?,
           reference_format: design_doc.display_id
         )

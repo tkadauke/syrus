@@ -771,9 +771,13 @@ through Claude, Codex, or Muse when the corresponding plugin and user
 credentials are configured. Syrus stores a concrete provider on each chat when
 it is created, seeded from the operator's current chat provider setting and
 then the default agent provider, so later user-default changes do not silently
-move the conversation between providers. Operators can still explicitly choose
-among configured providers from chat settings; explicit provider switching uses
-the normal rehydration flow. Branched chats preserve the stored provider
+move the conversation between providers. When multiple providers are
+configured, a new chat's composer shows an inline provider dropdown next to
+the mode/model controls until the first message is sent; picking a different
+provider there switches the still-unstarted chat immediately, with no
+separate dialog. Operators can still explicitly choose among configured
+providers from chat settings once a chat is underway; explicit provider
+switching uses the normal rehydration flow. Branched chats preserve the stored provider
 choice, and stored agent sessions only resume when the next turn uses the same
 provider. Chat may
 read, search, list, and refresh checkouts for context, but code changes must
