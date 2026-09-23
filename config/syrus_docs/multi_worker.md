@@ -131,13 +131,15 @@ Two mitigations, both in `ChatWorkspace`:
 
 `RepositoryBareClone#sync!` only ever runs from `PollMergeStateJob` /
 `PollPullRequestJob` / `LandingQueueRecheck`, all of which are processed on the
-`polling` queue — i.e. today, always the home worker. All three reach it only
-through `CommitsBehindCalculator`, which asks the `repository_content_provider`
-chain for numeric divergence first and falls back to the bare clone only when
-no provider can answer (see `plugins.md`); the polling queue's bare-clone I/O
-is now the exception path, not the common one, but the pod-affinity
-requirement below is unchanged since the fallback can still fire on every
-poll tick when no divergence-capable provider is enabled. On top of that,
+`polling` queue — i.e. today, always the home worker. `PollPullRequestJob` and
+`LandingQueueRecheck` reach it through `CommitsBehindCalculator`;
+`PollMergeStateJob` reaches it through `RepositoryCommitDistance` (see below).
+Both ask the `repository_content_provider` chain for numeric divergence first
+and fall back to the bare clone only when no provider can answer (see
+`plugins.md`); the polling queue's bare-clone I/O is now the exception path,
+not the common one, but the pod-affinity requirement below is unchanged since
+the fallback can still fire on every poll tick when no divergence-capable
+provider is enabled. On top of that,
 `PollMergeStateJob` gates its own call to `sync!`: it runs the cheap
 GitHub-only refreshes first (mergeability straight off the already-fetched PR
 payload, terminal merged/closed checks), and only reaches the
@@ -182,7 +184,11 @@ tier, which would otherwise degrade exactly as silently as the bug above.
 repository land in the same `PollAllMergeStatesJob` tick. Rather than each one
 calling `RepositoryBareClone#sync!` independently, `RepositoryCommitDistance`
 sits in front of it: the `(repository, base_sha, head_sha)` divergence is
-cached directly (that tuple is immutable once computed), and the underlying
+cached directly (that tuple is immutable once computed), however it was
+answered. Like `CommitsBehindCalculator`, a cache miss first asks the
+`repository_content_provider` chain for numeric divergence, which costs no
+local git fetch at all when a provider can answer. Only when every provider
+is unavailable does it fall through to the bare clone, where the underlying
 `sync!` fetch is coalesced per repository behind a bounded freshness window
 (`RepositoryCommitDistance::REFRESH_FRESHNESS_WINDOW`, kept just under
 `PollAllMergeStatesJob`'s 5-minute cadence) guarded by an exclusive file lock

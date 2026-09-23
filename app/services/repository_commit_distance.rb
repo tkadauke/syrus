@@ -14,7 +14,11 @@ require "fileutils"
 #     base_sha: pr.base.sha, head_sha: pr.head.sha, user: job.user
 #   )
 #
-# Two coalescing layers:
+# Like CommitsBehindCalculator, a repository_content_provider's numeric
+# divergence (git_mirror's already-synchronized local mirror, or GitHub's
+# compare API) is asked first -- it costs no local git fetch at all. Two
+# coalescing layers guard the RepositoryBareClone fallback for when no
+# provider can answer:
 #
 # - The (repository, base_sha, head_sha) tuple is immutable once
 #   computed, so its result is cached directly (a TTL bounds cache
@@ -54,8 +58,8 @@ class RepositoryCommitDistance
   end
 
   # Returns how many commits base_sha has that head_sha does not.
-  # Returns nil if either SHA is blank, or if the bare clone cannot
-  # answer (unreachable SHA, git error).
+  # Returns nil if either SHA is blank, or if neither a provider nor the
+  # bare clone can answer (unreachable SHA, git error).
   def commits_behind(base_sha:, head_sha:, user:)
     return nil if base_sha.blank? || head_sha.blank?
 
@@ -67,14 +71,29 @@ class RepositoryCommitDistance
     end
 
     record(:cache_miss)
-    ensure_fresh!(user: user)
-
-    distance = @bare_clone.commits_behind(head_sha: head_sha, base_sha: base_sha)
+    distance = from_provider(base_sha: base_sha, head_sha: head_sha, user: user) ||
+      from_bare_clone(base_sha: base_sha, head_sha: head_sha, user: user)
     Rails.cache.write(key, distance, expires_in: DISTANCE_CACHE_TTL) unless distance.nil?
     distance
   end
 
   private
+
+  # Prefers a repository_content_provider's numeric divergence over the bare
+  # clone below, exactly like CommitsBehindCalculator: when a provider can
+  # answer, this needs no local git fetch (and no coalesced refresh) at all.
+  def from_provider(base_sha:, head_sha:, user:)
+    content = RepositoryContent.for(@repository, user: user)
+    content.divergence(base: content.revision(base_sha), head: content.revision(head_sha)).behind
+  rescue RepositoryContent::Error => e
+    Rails.logger.info("[RepositoryCommitDistance] #{@repository.slug} provider divergence unavailable, falling back to bare clone: #{e.class}: #{e.message}")
+    nil
+  end
+
+  def from_bare_clone(base_sha:, head_sha:, user:)
+    ensure_fresh!(user: user)
+    @bare_clone.commits_behind(head_sha: head_sha, base_sha: base_sha)
+  end
 
   def ensure_fresh!(user:)
     with_repository_lock do

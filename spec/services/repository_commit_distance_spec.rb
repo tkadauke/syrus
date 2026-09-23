@@ -11,6 +11,7 @@ RSpec.describe RepositoryCommitDistance do
     original_registry = Syrus::Metrics.registry
     Syrus::Metrics.reset!
     described_class.declare_metrics!
+    RepositoryContent.declare_metrics!
     example.run
   ensure
     Rails.cache = original_cache
