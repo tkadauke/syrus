@@ -226,6 +226,36 @@ RSpec.describe BaseRevisionRetry do
     )
   end
 
+  it "treats non-test graders as inherited when the full base command fails with different (flaky) output" do
+    grader_step.update!(
+      details: {
+        "name" => "work-engine-simulations",
+        "command" => "bin/simulator",
+        "output" => "1 scenario stuck: reason A\n",
+        "base_retry" => { "strategy" => "full_command" }
+      }
+    )
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
+      output << "1 scenario stuck: reason B\n"
+      instance_double(Process::Status, success?: false)
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(
+      ran: true,
+      inherited: true,
+      reason: "base_retry_full_command_failed_different_output",
+      command: "bin/simulator"
+    )
+  end
+
   it "keeps non-test grader failures when the full base command passes" do
     grader_step.update!(
       details: {

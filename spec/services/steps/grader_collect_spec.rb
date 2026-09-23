@@ -719,6 +719,79 @@ RSpec.describe Steps::GraderCollect do
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
   end
 
+  it "dismisses a required grader failure verified by report_main_concern plus a matching base-revision retry" do
+    repair_step = Step.create!(workflow: workflow, kind: "landing_fix", position: 99, iteration: step.iteration, loop_id: loop_id)
+    repair_run = repair_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", iteration: step.iteration)
+    MainConcernReport.create!(
+      repository: job.repository,
+      job: job,
+      workflow: workflow,
+      run: repair_run,
+      reason: "work-engine-simulations intermittently fails; reproduces on base too"
+    )
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: {
+        "name" => "work-engine-simulations",
+        "command" => "bin/simulator",
+        "required" => true,
+        "failures" => "allow_inherited",
+        "exit_code" => 1,
+        "output" => "1 scenario stuck\n",
+        "base_retry" => { "strategy" => "full_command" }
+      }
+    )
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([])
+    allow(BaseRevisionRetry).to receive(:call).and_return(
+      BaseRevisionRetry::Result.new(
+        ran: true, inherited: true, reason: "base_retry_full_command_failed_different_output",
+        command: "bin/simulator", base_failed_identities: [], introduced_failed_identities: [], output: "boom"
+      )
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    expect(grader_step.details["accepted_failure"]).to include("adjudicator" => "reported_main_concern")
+    artifact = workflow.reload.artifact("main_concern_verified_grader_failure")
+    expect(artifact).to include("grader_names" => [ "work-engine-simulations" ])
+  end
+
+  it "still fails collection when report_main_concern was filed but base_retry shows the base revision passing" do
+    repair_step = Step.create!(workflow: workflow, kind: "landing_fix", position: 99, iteration: step.iteration, loop_id: loop_id)
+    repair_run = repair_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", iteration: step.iteration)
+    MainConcernReport.create!(
+      repository: job.repository,
+      job: job,
+      workflow: workflow,
+      run: repair_run,
+      reason: "claims pre-existing, but isn't"
+    )
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: {
+        "name" => "work-engine-simulations",
+        "command" => "bin/simulator",
+        "required" => true,
+        "failures" => "allow_inherited",
+        "exit_code" => 1,
+        "output" => "1 scenario stuck\n",
+        "base_retry" => { "strategy" => "full_command" }
+      }
+    )
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([])
+    allow(BaseRevisionRetry).to receive(:call).and_return(
+      BaseRevisionRetry::Result.new(
+        ran: true, inherited: false, reason: "base_retry_full_command_base_passed",
+        command: "bin/simulator", base_failed_identities: [], introduced_failed_identities: [], output: ""
+      )
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: work-engine-simulations")
+  end
+
   it "records a reusable validation artifact when required graders pass" do
     handler.call
 

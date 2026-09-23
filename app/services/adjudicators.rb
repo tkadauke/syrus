@@ -18,6 +18,7 @@ module Adjudicators
   # get its turn before an expensive one is asked the same question.
   BUILT_INS = [
     Adjudicators::InheritedGraderFailure,
+    Adjudicators::ReportedMainConcern,
     Adjudicators::ValidatedLanding,
     Adjudicators::KnownFlakyFailure,
     Adjudicators::IsolatedReproDismissal,

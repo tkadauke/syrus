@@ -515,6 +515,8 @@ class SyrusYml
       when_files_changed = when_files_changed.map { |p| p.to_s.strip }.reject(&:empty?)
     end
 
+    failures = parse_grade_failure_policy(raw.fetch("failures", default_failures), "grade step #{name.inspect} failures")
+
     GradeStep.new(
       name: name,
       display_name: raw["display_name"].to_s.strip.presence,
@@ -526,8 +528,8 @@ class SyrusYml
       timeout_minutes: parse_timeout_minutes(raw.fetch("timeout_minutes", DEFAULT_GRADE_TIMEOUT_MINUTES), name),
       when_files_changed: when_files_changed,
       junit_output: raw["junit_output"]&.to_s&.strip&.presence,
-      failures: parse_grade_failure_policy(raw.fetch("failures", default_failures), "grade step #{name.inspect} failures"),
-      base_retry: parse_base_retry(raw["base_retry"], "#{label}.base_retry"),
+      failures: failures,
+      base_retry: parse_base_retry(raw["base_retry"], "#{label}.base_retry") || default_base_retry_for_custom_grader(raw, failures),
       deps: parse_dependency_refs(raw["deps"] || raw["dependencies"], "#{label}.deps"),
       metadata: parse_grade_metadata(raw, label)
     )
@@ -562,7 +564,7 @@ class SyrusYml
   end
 
   def parse_base_retry(raw, label)
-    return nil if raw.nil?
+    return nil if raw.nil? || raw == false
     if raw.is_a?(String)
       command = raw.strip.presence
       return command && BaseRetry.new(strategy: "command", command: command)
@@ -578,6 +580,24 @@ class SyrusYml
     raise ParseError, "#{label}.command: is required for strategy command" if strategy == "command" && command.blank?
 
     BaseRetry.new(strategy: strategy, command: command)
+  end
+
+  # A custom grader (simulator, build, schema check, ...) has no
+  # `:test_evidence` provider to compare failed test identities against a
+  # base-revision rerun, so without an explicit `base_retry:` it never got
+  # any base-revision comparison at all -- `failures: allow_inherited` alone
+  # only bought the cached-conclusion/output-fingerprint fallback, which a
+  # flaky or nondeterministic command rarely satisfies. Rerunning the
+  # grader's own already-configured command at the base revision is safe
+  # (it is the exact command the operator already trusted enough to run
+  # against the candidate) and requires no extra config, so default to it
+  # once the operator has opted into `allow_inherited` at all. An explicit
+  # `base_retry:` key (including `false`/blank, to opt out) always wins.
+  def default_base_retry_for_custom_grader(raw, failures)
+    return nil unless failures == "allow_inherited"
+    return nil if raw.key?("base_retry")
+
+    BaseRetry.new(strategy: "full_command", command: nil)
   end
 
   def parse_targets(raw)
