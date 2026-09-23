@@ -107,11 +107,21 @@ Two mitigations, both in `ChatWorkspace`:
   `restore_coding_checkout!`) — only on background-sweep-triggered work, so a
   waiting user is never the one who gets deprioritized.
 - **Bounded, paced batches.** `ChatWorkspace::MAINTENANCE_SWEEP_BATCH_LIMIT`
-  caps how many heavy per-checkout operations one sweep tick performs (a
-  no-op skip for a checkout that isn't actually on this node's disk doesn't
-  count against the cap or get paced); `MAINTENANCE_SWEEP_PACE` sleeps
-  briefly between each one. Anything left over is picked up on the next
-  scheduled tick rather than draining the whole backlog in one burst.
+  caps how many *evictions* (a git backup push plus an `rm -rf` of a
+  multi-gigabyte tree — the expensive tier) one sweep tick performs in
+  `prune_idle!`, `reclaim_idle_coding_checkouts!`, `sweep_orphans!`, and the
+  eviction loop of `reclaim_coding_over_budget!`; a no-op skip for a checkout
+  that isn't actually on this node's disk doesn't count against the cap or
+  get paced. `MAINTENANCE_SWEEP_PACE` sleeps briefly between each heavy
+  operation, including every individual `du -sk` sizing call. The sizing pass
+  in `reclaim_coding_over_budget!` (one `du` per retained checkout, needed to
+  compute an accurate total before deciding whether the node is over budget)
+  is deliberately paced but **not** count-capped — capping it could
+  under-count the total and mask a real over-budget node — so a sweep with a
+  very large number of retained checkouts still has an unbounded number of
+  (individually cheap, low-priority, paced) sizing calls in its sizing phase.
+  Anything left over on the eviction side is picked up on the next scheduled
+  tick rather than draining the whole backlog in one burst.
   `chat_workspace_sweep` wraps the whole sweep in a
   `PerformanceLogging.phase("chat_workspace.sweep", ...)` call so a slow
   sweep surfaces in the same phase-drilldown diagnostics as any other

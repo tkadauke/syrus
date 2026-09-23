@@ -1042,17 +1042,24 @@ RSpec.describe ChatWorkspace, :ci_only do
     it "does not pace or spend I/O on checkouts recorded for a different worker node" do
       # A cluster-wide sweep sees every ChatSession with a coding checkout,
       # including ones whose on-disk clone lives on a different node's local
-      # disk. Those are cheap DB-only skips (no `.git` dir here to `du` or
-      # `rm`) and must not count against the batch limit or incur pacing —
-      # otherwise a large fleet of other-node sessions would starve this
-      # node's own idle-reclaim progress for no I/O benefit.
+      # disk. Those are cheap DB-only skips (repository is attached, but this
+      # node's filesystem has no `.git` dir to `du` or `rm` at the recorded
+      # workspace_path) and must not count against the batch limit or incur
+      # pacing — otherwise a large fleet of other-node sessions would starve
+      # this node's own idle-reclaim progress for no I/O benefit.
       other_node_sessions = Array.new(50) do
         session = ChatSession.create!(user: user, coding_checkout_branch: "main")
+        session.update!(repository: repository)
         session.update_columns(
           workspace_path: "/nonexistent/#{session.id}",
           last_message_at: 3.days.ago
         )
         session
+      end
+
+      other_node_sessions.each do |session|
+        checkout_path = described_class.repo_path_for(session, repository)
+        expect(checkout_path.join(".git")).not_to exist
       end
 
       expect(described_class).not_to receive(:sleep)
