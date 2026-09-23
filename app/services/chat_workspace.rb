@@ -784,23 +784,9 @@ class ChatWorkspace
 
   def clone!(repository, path)
     FileUtils.mkdir_p(path.dirname.to_s)
-    cloned_via_mirror = try_mirror_transport(repository: repository, user: repository.user) do |url, env|
-      FileUtils.rm_rf(path.to_s) if path.exist?
-      @git.run(
-        "clone", "--depth", CLONE_DEPTH.to_s,
-        "--branch", repository.default_branch,
-        "--no-tags", url, path.to_s,
-        env: @env.merge(env)
-      )
-    end
-    unless cloned_via_mirror
-      FileUtils.rm_rf(path.to_s) if path.exist?
-      @git.run(
-        "clone", "--depth", CLONE_DEPTH.to_s,
-        "--branch", repository.default_branch,
-        "--no-tags", authenticated_url(repository), path.to_s,
-        env: @env
-      )
+    clone_args = [ "--depth", CLONE_DEPTH.to_s, "--branch", repository.default_branch, "--no-tags" ]
+    clone_via_transport!(repository: repository, user: repository.user, dest: path, clone_args: clone_args, env: @env) do
+      @git.run("clone", *clone_args, authenticated_url(repository), path.to_s, env: @env)
     end
     @git.run("remote", "set-url", "origin", repository.remote_url, chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
@@ -812,22 +798,9 @@ class ChatWorkspace
 
   def full_clone_at_branch!(repository, path, branch)
     FileUtils.mkdir_p(path.dirname.to_s)
-    # A failed clone attempt can leave a non-empty destination behind (git
-    # starts writing before any transfer failure would be noticed); clear it
-    # before every attempt so a mirror failure never blocks the GitHub
-    # fallback on "destination path already exists and is not empty".
-    cloned_via_mirror = try_mirror_transport(repository: repository, user: repository.user) do |url, env|
-      FileUtils.rm_rf(path.to_s) if path.exist?
-      @git.run("clone", "--branch", branch, "--no-tags", url, path.to_s, env: @env.merge(env))
-    end
-    unless cloned_via_mirror
-      FileUtils.rm_rf(path.to_s) if path.exist?
-      @git.run(
-        "clone",
-        "--branch", branch,
-        "--no-tags", authenticated_url(repository), path.to_s,
-        env: @env
-      )
+    clone_args = [ "--branch", branch, "--no-tags" ]
+    clone_via_transport!(repository: repository, user: repository.user, dest: path, clone_args: clone_args, env: @env) do
+      @git.run("clone", *clone_args, authenticated_url(repository), path.to_s, env: @env)
     end
     @git.run("remote", "set-url", "origin", repository.remote_url, chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)

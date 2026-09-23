@@ -2588,18 +2588,36 @@ transport = WorkspaceGitTransports.for(repository, user: user)
 ```
 
 In practice this is a shared mixin, not a direct call: both workspace classes
-`include WorkspaceGitTransportPreference` and call `try_mirror_transport`,
-which resolves the transport, runs the caller's block against `transport.url`/
+`include WorkspaceGitTransportPreference`, and reach for its two entry
+points -- `clone_via_transport!` and `fetch_via_transport!` -- instead of
+hand-rolling the mirror attempt plus GitHub fallback themselves. Both take a
+`fallback` block that performs the actual GitHub git call and only runs when
+the mirror is unavailable, stale, or fails; `clone_via_transport!` also owns
+clearing the destination before every attempt (mirror or fallback), since a
+failed clone can leave a non-empty directory behind that the next attempt
+would otherwise refuse to write into:
+
+```ruby
+clone_via_transport!(repository:, user:, dest: path, clone_args: [ "--branch", branch, "--no-tags" ]) do
+  @git.run("clone", "--branch", branch, "--no-tags", authenticated_url, path.to_s, env: @env)
+end
+```
+
+Underneath, both call the lower-level `try_mirror_transport`, which resolves
+the transport, runs the caller's block against `transport.url`/
 `transport.env`, retries once after `transport.register!` if the first
 attempt raised `GitRunner::GitError`, and returns `false` (never raises) when
-neither attempt panned out -- signaling the caller to fall back to the
-hosting platform exactly as if no transport were registered. An optional
-`verify_sha:` catches the case a plain "did the fetch succeed" check would
-miss: the transport answers, but with an older commit than the caller
-actually wanted (a mirror whose background sync hasn't caught up to a very
-recent push). `try_mirror_transport` checks the wanted SHA against the
-includer's own `#git_object_present?` after each attempt and only returns
-`true` when it is actually there.
+neither attempt panned out. `try_mirror_transport` is also exposed directly
+for the one caller -- a branch refetch whose GitHub-side fallback needs
+`GithubAuthenticatedGit`'s own retry-on-auth-failure semantics -- that
+doesn't fit the single `fallback` block `fetch_via_transport!` expects. An
+optional `verify_sha:` (on both `fetch_via_transport!` and
+`try_mirror_transport`) catches the case a plain "did the fetch succeed"
+check would miss: the transport answers, but with an older commit than the
+caller actually wanted (a mirror whose background sync hasn't caught up to a
+very recent push). The wanted SHA is checked against the includer's own
+`#git_object_present?` after each attempt, and only counts as a hit when it
+is actually there.
 
 Implementations include `Syrus::Plugin::WorkspaceGitTransport` and define
 class methods `available_for?(repository)` (cheap, no network) and
@@ -2610,14 +2628,19 @@ header is the intended use, so a credential travels there instead of on the
 command line) and `#register!` (best-effort: make sure the transport actually
 knows about this repository yet).
 
-Git Mirror is the only current implementation (`GitMirror::WorkspaceGitTransport`):
-`#url` is the mirror's own smart-HTTP route
-(`<endpoint>/v1/repositories/<id>`), and `#register!` reuses the same
-reactive re-registration `ContentProvider` already does for JSON reads. Its
-mirrored refspec is only `refs/heads/*` and `refs/tags/*`, so anything
-outside that -- a GitHub pull request ref, a Syrus run checkpoint ref -- is
-never routed through this extension point in the first place; those call
-sites keep talking to the hosting platform directly.
+Git Mirror is the only current implementation (`GitMirror::WorkspaceGitTransport`),
+and it is deliberately an adapter over `ContentProvider` rather than a sibling
+that repeats its machinery: `.build` wraps a `ContentProvider` instance bound
+to the same repository, `#url` reads that instance's `mirror_id` to build the
+mirror's own smart-HTTP route (`<endpoint>/v1/repositories/<id>`), and
+`#register!` delegates straight to `ContentProvider#register!` -- the same
+reactive re-registration `ContentProvider` runs on its own JSON reads, now
+public so this adapter can call it directly instead of duplicating a client
+and a registration call of its own. Its mirrored refspec is only
+`refs/heads/*` and `refs/tags/*`, so anything outside that -- a GitHub pull
+request ref, a Syrus run checkpoint ref -- is never routed through this
+extension point in the first place; those call sites keep talking to the
+hosting platform directly.
 
 ## Plugin lifecycle: disable, uninstall, purge
 

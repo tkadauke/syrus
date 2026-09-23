@@ -83,9 +83,29 @@ module GitMirror
       registered { @client.relation(mirror_id, base_id, head_id) }.to_sym
     end
 
-    private
-
+    # Repository id as the mirror knows it. Public so adapters over this
+    # provider (e.g. GitMirror::WorkspaceGitTransport, which builds a git URL
+    # the JSON client never needs) can address the same repository without
+    # re-deriving it.
     def mirror_id = @repository.id.to_s
+
+    # Best-effort, explicit reactive registration: make sure the mirror
+    # actually knows about this repository right now. Returns true if it
+    # registered, false if there was no upstream source to register with.
+    # `registered` below uses this on-demand, after a request has already
+    # discovered the mirror doesn't have it; an adapter with no request of
+    # its own to retry (WorkspaceGitTransport's git fetch, which the mirror
+    # answers over its own git transport rather than this JSON client) calls
+    # it directly instead.
+    def register!
+      source = RepositoryContent.upstream_source_for(@repository)
+      return false unless source
+
+      @client.register(mirror_id, source)
+      true
+    end
+
+    private
 
     # After the mirror restarts it holds no credentials until the next sync
     # tick. Rather than send every read to the host until then, register this
@@ -94,10 +114,8 @@ module GitMirror
     def registered
       yield
     rescue Client::Unregistered
-      source = RepositoryContent.upstream_source_for(@repository)
-      raise unless source
+      raise unless register!
 
-      @client.register(mirror_id, source)
       yield
     end
   end
