@@ -27,6 +27,7 @@ jobs:
             started_at: "2000-01-01 00:02:00 UTC"
             solid_queue:
               claimed: true
+              process_heartbeat_at: "2000-01-01 00:02:00 UTC"
         - kind: pr_open
           state: queued
 outcomes:
