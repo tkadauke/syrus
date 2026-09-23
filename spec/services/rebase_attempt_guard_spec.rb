@@ -111,4 +111,47 @@ RSpec.describe RebaseAttemptGuard do
 
     expect(described_class.cooling_down?(job, pr: pr)).to eq(false)
   end
+
+  def failed_agent_rebase_with_classification!(retryable:, finished_at:, pre_sha: "head", base_sha: "base")
+    workflow = failed_agent_rebase!(finished_at: finished_at, pre_sha: pre_sha, base_sha: base_sha)
+    step = workflow.steps.find_by!(kind: "agent_rebase")
+    run = Run.create!(
+      job: job,
+      step: step,
+      trigger_kind: workflow.trigger_kind,
+      state: "failed",
+      agent_provider: workflow.agent_provider,
+      finished_at: finished_at
+    )
+    run.create_run_failure_classification!(
+      classification: "provider_auth_or_config",
+      confidence: 0.8,
+      retryable: retryable,
+      reason: "Codex API key is not configured",
+      classified_at: Time.current
+    )
+    workflow
+  end
+
+  it "keeps blocking a permanently misconfigured rebase past cooldown expiry" do
+    AppSetting.current.update!(rebase_failure_cooldown_minutes: 60)
+    failed_agent_rebase_with_classification!(retryable: false, finished_at: 61.minutes.ago)
+
+    expect(described_class.cooling_down?(job, pr: pr)).to eq(true)
+    expect(described_class.cap_reached?(job, pr: pr)).to eq(true)
+  end
+
+  it "does not permanently block a failure classified as retryable" do
+    AppSetting.current.update!(rebase_failure_cooldown_minutes: 60)
+    failed_agent_rebase_with_classification!(retryable: true, finished_at: 61.minutes.ago)
+
+    expect(described_class.cooling_down?(job, pr: pr)).to eq(false)
+  end
+
+  it "lifts the permanent block once the PR head changes" do
+    AppSetting.current.update!(rebase_failure_cooldown_minutes: 60)
+    failed_agent_rebase_with_classification!(retryable: false, finished_at: 61.minutes.ago, pre_sha: "old-head", base_sha: "base")
+
+    expect(described_class.cooling_down?(job, pr: pr(head_sha: "new-head", base_sha: "base"))).to eq(false)
+  end
 end
