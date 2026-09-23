@@ -414,23 +414,11 @@ class WorkflowWorkspace
     validate_clone_checkout_branch!
 
     begin
-      # A failed clone attempt can leave a non-empty destination behind (git
-      # creates the directory and starts writing to it before any transfer
-      # failure would be noticed); clear it before every attempt below so a
-      # mirror failure never blocks the GitHub fallback on "destination path
-      # already exists and is not an empty directory".
-      cloned_via_mirror = try_mirror_transport(repository: @repository, user: @job.user) do |url, env|
-        FileUtils.rm_rf(path.to_s) if path.exist?
-        @git.run("clone", "--branch", clone_checkout_branch, "--no-tags", url, path.to_s, env: @env.merge(env))
-      end
-      unless cloned_via_mirror
-        FileUtils.rm_rf(path.to_s) if path.exist?
-        @git.run(
-          "clone",
-          "--branch", clone_checkout_branch,
-          "--no-tags", authenticated_url, path.to_s,
-          env: @env
-        )
+      clone_via_transport!(
+        repository: @repository, user: @job.user, dest: path,
+        clone_args: [ "--branch", clone_checkout_branch, "--no-tags" ], env: @env
+      ) do
+        @git.run("clone", "--branch", clone_checkout_branch, "--no-tags", authenticated_url, path.to_s, env: @env)
       end
     rescue GitRunner::GitError => e
       raise e unless remote_repo_empty?
@@ -499,14 +487,10 @@ class WorkflowWorkspace
       # caught up to the branch's latest push falls back instead of silently
       # reusing an older commit here.
       wanted_sha = remote_ref.strip.split(/\s+/).first
-      fetched_via_mirror = try_mirror_transport(repository: @repository, user: @job.user, verify_sha: wanted_sha) do |url, env|
-        @git.run(
-          "fetch", url,
-          "refs/heads/#{@branch_name}:refs/heads/#{@branch_name}",
-          chdir: path.to_s, env: @env.merge(env)
-        )
-      end
-      unless fetched_via_mirror
+      fetch_via_transport!(
+        repository: @repository, user: @job.user, verify_sha: wanted_sha,
+        refspec: "refs/heads/#{@branch_name}:refs/heads/#{@branch_name}", chdir: path.to_s, env: @env
+      ) do
         authenticated_git("git_workflow_fetch_branch") do |url|
           @git.run(
             "fetch", url,
