@@ -10,7 +10,8 @@ import {
   DataTableColumnMenu,
   useLocalStorageColumnPreferences,
   visibleColumns,
-  type DataTableColumnDef
+  type DataTableColumnDef,
+  type DataTableColumnPin
 } from "./dataTable"
 import { DataTable, type DataTableSortDirection } from "./ui"
 
@@ -100,6 +101,12 @@ export type AdminEventLogTableColumn<Row> = {
   // Used by the column picker menu; falls back to `header` when that's a
   // plain string, so most columns never need to set this explicitly.
   label?: string
+  // Required columns are pinned to the declared end of the row instead of
+  // taking part in the optional reorder -- defaults to "start" (see
+  // DataTableColumnDef). A required column that isn't naturally the first
+  // or last one declared MUST set this explicitly, or it silently jumps to
+  // the front of the row regardless of where it was defined.
+  pin?: DataTableColumnPin
   render: (row: Row, state: { expanded: boolean; toggleExpanded: () => void }) => ReactNode
   required?: boolean
   sort?: string
@@ -149,6 +156,7 @@ export function AdminEventLogTable<Row>({
     headClassName: column.headerClassName || column.className,
     key: column.key,
     label: column.label ?? (typeof column.header === "string" ? column.header : column.key),
+    pin: column.pin,
     renderCell: (row: Row) => {
       const rowKey = getRowKey(row)
       const expanded = expandedKey === rowKey

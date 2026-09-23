@@ -84,19 +84,23 @@ function ItemsTable({ onNavigate, payload, prefix, search }: { onNavigate: (para
 
   const columns: Array<AdminEventLogTableColumn<AttentionItemSummary>> = [
     {
-      className: "whitespace-nowrap px-4 py-3 text-xs text-gray-500 dark:text-gray-400",
-      headerClassName: "px-4 py-2",
-      header: t("attention_items.col_created"),
-      key: "created",
-      render: (item) => <RelativeTimestamp value={item.created_at} />
-    },
-    {
+      // Required columns are pinned to the declared start of the row, so
+      // "item" (the only way to expand a row's detail) is declared first --
+      // matching where it actually renders, instead of leaving it defined
+      // after "created" and relying on required-pinning to silently move it.
       className: "px-4 py-3",
       headerClassName: "px-4 py-2",
       header: t("attention_items.col_item"),
       key: "item",
       required: true,
       render: (item, { expanded, toggleExpanded }) => <ItemSummary item={item} onToggle={toggleExpanded} expanded={expanded} />
+    },
+    {
+      className: "whitespace-nowrap px-4 py-3 text-xs text-gray-500 dark:text-gray-400",
+      headerClassName: "px-4 py-2",
+      header: t("attention_items.col_created"),
+      key: "created",
+      render: (item) => <RelativeTimestamp value={item.created_at} />
     },
     {
       className: "px-4 py-3 text-xs text-gray-600 dark:text-gray-300",
