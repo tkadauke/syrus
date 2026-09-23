@@ -317,6 +317,55 @@ RSpec.describe AgentActivity::SessionsQuery do
       expect(result[:running_count]).to eq(1)
       expect(result[:total]).to eq(2)
     end
+
+    it "delegates to the shared Filters::BaseFilter cap so running_count stops growing past the configured cap" do
+      stub_const("SmartFolder::COUNT_CAP", 1)
+      agent_activity_job_with_run(repository: my_repository, user: operator, issue_number: 1, run_attrs: { state: "running", started_at: 1.minute.ago })
+      agent_activity_job_with_run(repository: my_repository, user: operator, issue_number: 2, run_attrs: { state: "running", started_at: 2.minutes.ago })
+
+      result = sessions_for(scope: :mine, user: operator)
+
+      expect(result[:running_count]).to eq(1)
+    end
+  end
+
+  describe ".count_for_smart_folder" do
+    it "keeps the single-status Running folder's exact_status_count uncapped even when the shared cap is small" do
+      stub_const("SmartFolder::COUNT_CAP", 1)
+      SmartFolder.ensure_builtins_for_subject!(AgentActivity::SmartFolders::SUBJECT)
+      agent_activity_job_with_run(repository: my_repository, user: operator, issue_number: 1, run_attrs: { state: "running", started_at: 1.minute.ago })
+      agent_activity_job_with_run(repository: my_repository, user: operator, issue_number: 2, run_attrs: { state: "running", started_at: 2.minutes.ago })
+      folder = SmartFolder.builtins(AgentActivity::SmartFolders::SUBJECT).find_by!(name: "Running")
+      base_scope = described_class.visible_relation(scope: :mine, user: operator)
+
+      result = described_class.count_for_smart_folder(base_scope, folder)
+
+      expect(result).to eq(2)
+    end
+
+    it "caps the All folder's count at the shared limit and flags it as capped" do
+      stub_const("SmartFolder::COUNT_CAP", 1)
+      SmartFolder.ensure_builtins_for_subject!(AgentActivity::SmartFolders::SUBJECT)
+      agent_activity_job_with_run(repository: my_repository, user: operator, issue_number: 1, run_attrs: { state: "running", started_at: 1.minute.ago })
+      agent_activity_job_with_run(repository: my_repository, user: operator, issue_number: 2, run_attrs: { state: "succeeded", started_at: 10.minutes.ago, finished_at: 5.minutes.ago })
+      folder = SmartFolder.builtins(AgentActivity::SmartFolders::SUBJECT).find_by!(name: "All")
+      base_scope = described_class.visible_relation(scope: :mine, user: operator)
+
+      result = described_class.count_for_smart_folder(base_scope, folder)
+
+      expect(result).to eq(count: 1, count_capped: true)
+    end
+
+    it "does not flag the All folder's count as capped when it is below the shared limit" do
+      SmartFolder.ensure_builtins_for_subject!(AgentActivity::SmartFolders::SUBJECT)
+      agent_activity_job_with_run(repository: my_repository, user: operator, issue_number: 1, run_attrs: { state: "running", started_at: 1.minute.ago })
+      folder = SmartFolder.builtins(AgentActivity::SmartFolders::SUBJECT).find_by!(name: "All")
+      base_scope = described_class.visible_relation(scope: :mine, user: operator)
+
+      result = described_class.count_for_smart_folder(base_scope, folder)
+
+      expect(result).to eq(count: 1, count_capped: false)
+    end
   end
 
   describe "pagination" do

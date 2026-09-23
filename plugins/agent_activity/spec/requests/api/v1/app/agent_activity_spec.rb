@@ -140,6 +140,20 @@ RSpec.describe "API: /api/v1/app/agent_activity", type: :request do
       )
     end
 
+    it "marks the All SmartFolder's count as capped once the true count meets the configured cap" do
+      stub_const("SmartFolder::COUNT_CAP", 1)
+      sign_in_as(operator)
+      agent_activity_job_with_run(repository: repository, step_attrs: { kind: "implement" }, run_attrs: { state: "running", started_at: 2.minutes.ago })
+      agent_activity_job_with_run(repository: repository, step_attrs: { kind: "respond" }, run_attrs: { state: "failed", started_at: 5.minutes.ago, finished_at: 4.minutes.ago })
+
+      get "/api/v1/app/agent_activity/sessions"
+
+      expect(response).to have_http_status(:ok)
+      folders = parse_body.fetch("smart_folders")
+      all_folder = folders.find { |folder| folder.fetch("name") == "All" }
+      expect(all_folder).to include("count" => 1, "count_capped" => true)
+    end
+
     it "returns all sessions when the SmartFolder parameter is explicitly blank" do
       sign_in_as(operator)
       running_job = agent_activity_job_with_run(repository: repository, step_attrs: { kind: "implement" }, run_attrs: { state: "running", started_at: 2.minutes.ago })

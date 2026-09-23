@@ -28,7 +28,9 @@ RSpec.describe "App API investigation report", type: :request do
   end
 
   it "exposes the submitted report, including resolved artifact references, in the job detail payload" do
-    run = job.workflows.last.first_step.runs.first
+    workflow = job.workflows.last
+    submit_report_step = workflow.steps.find_by!(kind: "submit_report")
+    run = submit_report_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
     run.workflow.set_typed_artifact!(
       type: "dashboard_screenshot",
       title: "Dashboard screenshot",

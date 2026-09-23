@@ -89,7 +89,7 @@ RSpec.describe WorkflowAdmissionBudget do
   end
 
   def seed_low_cost_profiles(except: [], attributed: false)
-    %w[prepare implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan].each do |step_kind|
+    %w[prepare implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan].each do |step_kind|
       next if except.include?(step_kind)
 
       if attributed
@@ -596,12 +596,12 @@ RSpec.describe WorkflowAdmissionBudget do
 
     expect(decision.action).to eq("admit_now")
     expect(decision.pressure.dig("candidate", "primary_prediction_source")).to eq("command_attributed")
-    # Duration still sums across steps -- 60 for prepare plus 10 low-cost steps
+    # Duration still sums across steps -- 60 for prepare plus 11 low-cost steps
     # at 10s -- because that genuinely is how long the workflow will take.
     # Pressure is the peak step, not the sum: the steps run one after another,
     # so 5.0 is the most this workflow contributes at any instant, not 15.0.
     expect(decision.pressure.dig("candidate", "predicted_command_cost")).to include(
-      "duration_seconds" => 160,
+      "duration_seconds" => 170,
       "cpu_pressure" => 5.0,
       "io_pressure" => 3.0,
       "memory_used_percent" => 25.0,
@@ -609,10 +609,10 @@ RSpec.describe WorkflowAdmissionBudget do
       "confidence" => "process_attributed"
     )
     expect(decision.pressure.dig("candidate", "process_attributed_cost")).to include(
-      "duration_seconds" => 160,
-      "cpu_percent" => 15.0,
+      "duration_seconds" => 170,
+      "cpu_percent" => 16.0,
       "memory_bytes" => 25,
-      "io_bytes" => 13
+      "io_bytes" => 14
     )
     expect(decision.pressure.dig("candidate", "fallback_reasons")).to eq([])
   end

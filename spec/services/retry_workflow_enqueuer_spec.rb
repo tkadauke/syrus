@@ -327,6 +327,7 @@ RSpec.describe RetryWorkflowEnqueuer do
     allow(client).to receive(:fetch_issue)
       .with(repository.slug, job.issue_number)
       .and_return(github_issue_with_labels("syrus", Workflows::SKIP_PREPARE_LABEL))
+    stub_repository_content(repository, files: { ".syrus.yml" => "visual_review:\n  enabled: false\n" })
 
     result = described_class.call(job: job)
 

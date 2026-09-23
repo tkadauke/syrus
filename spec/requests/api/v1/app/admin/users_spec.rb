@@ -51,6 +51,7 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
     expect(rate_folder).to include(
       "subject_type" => "admin_user",
       "count" => 1,
+      "count_capped" => false,
       "filter" => {
         "and" => [
           { "field" => "gh_rate", "op" => "is", "value" => "low" }
@@ -59,6 +60,19 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
       "path" => a_string_matching(%r{\A/admin/users\?smart_folder_id=})
     )
     expect(response.body).not_to include("ghp_secret")
+  end
+
+  it "marks the Rate limit low SmartFolder's count as capped once the true count meets the configured cap" do
+    stub_const("SmartFolder::COUNT_CAP", 1)
+    sign_in_as(admin)
+    Factories.user(email_address: "low1@example.com", gh_rate_limit_remaining: 5, gh_rate_limit_limit: 5_000)
+    Factories.user(email_address: "low2@example.com", gh_rate_limit_remaining: 5, gh_rate_limit_limit: 5_000)
+
+    get "/api/v1/app/admin/users", params: { gh_rate: "low" }
+
+    body = parse_body
+    rate_folder = body["smart_folders"].find { |folder| folder["name"] == "Rate limit low" }
+    expect(rate_folder).to include("count" => 1, "count_capped" => true)
   end
 
   it "applies admin user smart folders" do

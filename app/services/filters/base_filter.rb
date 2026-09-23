@@ -99,6 +99,21 @@ module Filters
       @user = user
     end
 
+    # Bounded-cost row count: stops scanning at limit + 1 rows regardless of
+    # true match count, capped at limit. Mirrors the pattern
+    # AgentActivity::SessionsQuery used privately before this primitive
+    # existed. `Filters::BaseFilter.capped_count` is the module-level
+    # implementation other query objects (that don't include this module)
+    # can delegate to directly.
+    def self.capped_count(scope, limit: SmartFolder::COUNT_CAP)
+      count = scope.reselect(:id).limit(limit + 1).pluck(:id).size
+      [ count, limit ].min
+    end
+
+    def capped_count(scope, limit: SmartFolder::COUNT_CAP)
+      Filters::BaseFilter.capped_count(scope, limit: limit)
+    end
+
     # AST tree as a JSON-friendly Hash. Suitable for SmartFolder#filter
     # storage and for JSON-encoding into a hidden form field.
     def to_h
