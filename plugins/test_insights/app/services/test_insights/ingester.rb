@@ -44,6 +44,8 @@ module TestInsights
 
       touched_test_identity_ids.uniq!
       heartbeat!
+      mark_wip_repair_failures(test_run)
+      heartbeat!
       refresh_test_identities(touched_test_identity_ids)
       heartbeat!
       refresh_runtime_summaries(touched_test_identity_ids)
@@ -54,6 +56,16 @@ module TestInsights
     end
 
     private
+
+    # Retroactively excludes earlier failing cases in this run's grader retry
+    # loop from the scored pool now that this iteration passed them. See
+    # TestInsights::WipRepairFailureClassifier for why this replaced a
+    # correlated read-time query.
+    def mark_wip_repair_failures(test_run)
+      WipRepairFailureClassifier.mark_superseded!(test_run: test_run, step: @run.step)
+    rescue StandardError => e
+      log_enrichment_failure("wip repair failure classification", e)
+    end
 
     def refresh_test_identities(test_identity_ids)
       TestIdentity.refresh_many!(test_identity_ids)

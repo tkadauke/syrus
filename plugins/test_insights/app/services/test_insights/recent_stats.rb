@@ -13,20 +13,22 @@ module TestInsights
       stats_by_id = ids.index_with { EMPTY_STATS.dup }
       return stats_by_id if ids.empty?
 
-      ranked_cases = TestCase
-        .where(test_identity_id: ids)
-        .scored
-        .select(
-          "test_insight_cases.test_identity_id",
-          "test_insight_cases.status",
-          "test_insight_cases.duration_ms",
-          "ROW_NUMBER() OVER (PARTITION BY test_insight_cases.test_identity_id ORDER BY test_insight_cases.created_at DESC, test_insight_cases.id DESC) AS syrus_recent_rank"
-        )
+      rows = PerformanceLogging.phase("test_insights.recent_stats", identity_count: ids.size) do
+        ranked_cases = TestCase
+          .where(test_identity_id: ids)
+          .scored
+          .select(
+            "test_insight_cases.test_identity_id",
+            "test_insight_cases.status",
+            "test_insight_cases.duration_ms",
+            "ROW_NUMBER() OVER (PARTITION BY test_insight_cases.test_identity_id ORDER BY test_insight_cases.created_at DESC, test_insight_cases.id DESC) AS syrus_recent_rank"
+          )
 
-      rows = TestCase
-        .from("(#{ranked_cases.to_sql}) test_cases")
-        .where("syrus_recent_rank <= ?", lookback)
-        .pluck(:test_identity_id, :status, :duration_ms)
+        TestCase
+          .from("(#{ranked_cases.to_sql}) test_cases")
+          .where("syrus_recent_rank <= ?", lookback)
+          .pluck(:test_identity_id, :status, :duration_ms)
+      end
 
       rows.group_by(&:first).each do |identity_id, grouped_rows|
         stats_by_id[identity_id] = stats_for(grouped_rows)

@@ -165,19 +165,22 @@ module TestInsights
 
     def self.latest_status_times_for(ids)
       ids.each_slice(REFRESH_BATCH_SIZE).each_with_object({ failed: {}, passed: {} }) do |slice, result|
-        TestCase
-          .where(test_identity_id: slice, status: %w[failed error passed])
-          .scored
-          .group(:test_identity_id, :status)
-          .maximum(:created_at)
-          .each do |(identity_id, status), occurred_at|
-            if status == "passed"
-              result[:passed][identity_id] = occurred_at
-            else
-              previous = result[:failed][identity_id]
-              result[:failed][identity_id] = occurred_at if previous.nil? || occurred_at > previous
-            end
+        maxima = PerformanceLogging.phase("test_insights.latest_status_times", identity_count: slice.size) do
+          TestCase
+            .where(test_identity_id: slice, status: %w[failed error passed])
+            .scored
+            .group(:test_identity_id, :status)
+            .maximum(:created_at)
+        end
+
+        maxima.each do |(identity_id, status), occurred_at|
+          if status == "passed"
+            result[:passed][identity_id] = occurred_at
+          else
+            previous = result[:failed][identity_id]
+            result[:failed][identity_id] = occurred_at if previous.nil? || occurred_at > previous
           end
+        end
       end
     end
 
