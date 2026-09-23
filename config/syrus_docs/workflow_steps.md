@@ -268,8 +268,21 @@ timeout.
 
 **Provider routing and availability failover:** `ProviderRouting::Resolver`
 chooses ordered provider/model/effort candidates for a Workflow from explicit
-Job pins, repository rules, user rules, and the hardcoded fallback. Workflow
-creation records the chosen candidate in `agent_provider_routing_decision`.
+Job pins, repository routing rules, an explicit repository/membership
+provider (`Repository#agent_provider` or a write/admin member's override,
+via `Repository#explicit_agent_provider`), user routing rules, the user's own
+default provider, and the hardcoded fallback, in that order. A repository (or
+write/admin membership) provider outranks user-scoped routing rules even when
+no repository routing rule exists for the task -- a repository pinned to a
+specific provider is not silently routed to a user's personal default-routing
+rule. It does not foreclose failover, though: the repository provider is
+prepended to the user-scoped candidate chain rather than replacing it, so a
+real outage still fails over into the user's rules/default (deduplicated by
+provider), and the failover artifact still records the repository provider as
+the original choice. A repository-scoped routing rule (task-specific or
+default-task) still overrides the repository's explicit provider outright,
+the same as before. Workflow creation records the chosen candidate in
+`agent_provider_routing_decision`.
 Before the first Run starts, `ProviderRouting::AvailabilitySelector` walks
 that ordered candidate list and chooses the first one that is not exhausted,
 rate-limited, in an auth-error state, or manually overridden -- this basic
