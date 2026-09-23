@@ -16,6 +16,9 @@ module App
       MAX_COMMAND_SPANS_PER_RUN = [ Integer(ENV["SYRUS_JOB_DETAIL_MAX_COMMAND_SPANS_PER_RUN"], exception: false) || 50, 1 ].max
       ACTIVE_RUN_STATES = %w[queued running].freeze
       ACTIVE_STEP_STATES = %w[queued running].freeze
+      # Common grader-name segments whose title-cased form reads wrong
+      # ("Rspec", "Ci") -- everything else falls back to plain capitalization.
+      GRADER_NAME_WORD_OVERRIDES = { "rspec" => "RSpec", "ci" => "CI", "api" => "API", "db" => "DB" }.freeze
 
       def workflows_json
         PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
@@ -419,6 +422,7 @@ module App
           {
             id: step.id,
             kind: step.kind,
+            agentic: step.agentic?,
             display_name: step_display_name(step, workflow: workflow),
             display_status: step_display_status(step, projection: projection),
             position: step.position,
@@ -446,11 +450,42 @@ module App
       end
 
       def step_display_name(step, workflow: step.workflow)
-        return step.details["name"].presence || step.details["command"].presence || "grader" if step.kind == "grader"
+        return grader_display_name(step) if step.kind == "grader" || step.kind == "preflight_grader"
         return merge_train_land_label(workflow, after_rebase: false) if step.kind == "merge_train_land"
         return merge_train_land_label(workflow, after_rebase: true) if step.kind == "merge_train_land_after_rebase"
 
         Step::Kind.label_for(step.kind)
+      end
+
+      # Resolves a materialized grader Step's title using the display
+      # precedence documented on SyrusYml::GradeStep: an explicit or
+      # plugin/type-generated `display_name` (already resolved, and
+      # project-label-prefixed where applicable, by RepoGradePlan/
+      # TargetGraph::GradePlan) wins outright; otherwise falls back to
+      # humanizing the machine id (e.g. "plugins-rails-rspec-focused" ->
+      # "plugins/rails: RSpec Focused") from `target_label`
+      # (`//package:grade/name`, always present on graders resolved through
+      # TargetGraph::GradePlan or RepoGradePlan's synthesized fallback) since
+      # it cleanly separates the owning package from the grader's own name --
+      # the flattened `name` id has already dash-joined the two and can't be
+      # split back apart. The exact `name`/`target_label` stay available
+      # verbatim in the step's details for anyone who needs the machine id.
+      def grader_display_name(step)
+        details = step.details || {}
+        explicit = details["display_name"].to_s.strip.presence
+        return explicit if explicit
+
+        match = details["target_label"].to_s.match(%r{\A//(?<package>[^:]*):(?<name>.+)\z})
+        local_name = match && match[:name].delete_prefix("grade/")
+        humanized = humanize_grader_segment(local_name.presence || details["name"] || details["command"])
+        return "grader" if humanized.blank?
+
+        package = match && match[:package].presence
+        package ? "#{package}: #{humanized}" : humanized
+      end
+
+      def humanize_grader_segment(segment)
+        segment.to_s.tr("-_", " ").split.map { |word| GRADER_NAME_WORD_OVERRIDES[word.downcase] || word.capitalize }.join(" ")
       end
 
       def merge_train_land_label(workflow, after_rebase:)
@@ -651,6 +686,7 @@ module App
           agent_diff_bytes: agent_diff_bytes,
           step_agent_diff_present: step_agent_diff_bytes.positive?,
           step_agent_diff_bytes: step_agent_diff_bytes,
+          step_diff_matches_diff: step_diff_matches_diff?(run),
           job_log_count: job_log_stats.fetch(run.id, EMPTY_JOB_LOG_STATS)[:count],
           rate_limited: job_log_stats.fetch(run.id, EMPTY_JOB_LOG_STATS)[:rate_limited],
           failure_classification: failure_classification_json(run.run_failure_classification),
@@ -852,7 +888,8 @@ module App
               :cache_creation_input_tokens,
               :cache_read_input_tokens,
               Arel.sql("LENGTH(runs.agent_diff) AS agent_diff_byte_size"),
-              Arel.sql("LENGTH(runs.step_agent_diff) AS step_agent_diff_byte_size")
+              Arel.sql("LENGTH(runs.step_agent_diff) AS step_agent_diff_byte_size"),
+              Arel.sql("(runs.step_agent_diff = runs.agent_diff) AS step_diff_matches_diff")
             )
             .includes(:run_diagnostic, :run_failure_classification)
             .order(:step_id, :created_at, :id)
@@ -1140,6 +1177,17 @@ module App
         value.to_i
       rescue ActiveModel::MissingAttributeError
         run.public_send(column)&.bytesize || 0
+      end
+
+      # Computed in SQL (see runs_by_step_id) so the full diff text never has
+      # to be loaded into memory just to tell the UI whether "Step diff"
+      # would be a duplicate of "Diff" -- true on a first implement run,
+      # where the step diff and the whole-branch diff cover the same commits.
+      def step_diff_matches_diff?(run)
+        value = run.read_attribute(:step_diff_matches_diff)
+        ActiveModel::Type::Boolean.new.cast(value)
+      rescue ActiveModel::MissingAttributeError
+        run.agent_diff.present? && run.agent_diff == run.step_agent_diff
       end
 
       def failure_classification_json(classification)

@@ -18,7 +18,16 @@ class RepoGradePlan
   # A grader is a single immutable command selected by phase. Legacy `.syrus.yml`
   # files may still declare `ci:` beside `run:`; resolve expands that into a
   # separate `<name>-ci` grader whose only phase is `ci`.
-  Grader = Data.define(:name, :command, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata)
+  #
+  # `display_name` is the resolved operator-facing label (see
+  # `SyrusYml::GradeStep`); nil means "no explicit or type-generated label --
+  # fall back to a humanized `name`," which downstream display code (the
+  # workflow serializer) already handles.
+  Grader = Data.define(:name, :display_name, :command, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata) do
+    def initialize(display_name: nil, **rest)
+      super(display_name: display_name, **rest)
+    end
+  end
   Result = Data.define(:graders, :source, :note, :max_iterations, :rerun_only_failed) do
     def rerun_only_failed?
       !!rerun_only_failed
@@ -80,6 +89,7 @@ class RepoGradePlan
 
     Grader.new(
       name: name,
+      display_name: display_name_for(step, legacy_ci: legacy_ci),
       command: command,
       phases: phases,
       description: step.description,
@@ -92,6 +102,16 @@ class RepoGradePlan
       deps: step.deps,
       metadata: metadata
     )
+  end
+
+  # The legacy `<name>-ci` expansion shares its source step's explicit or
+  # type-generated `display_name` (when present) but needs its own mode
+  # suffix so the two graders don't read identically in the UI.
+  def display_name_for(step, legacy_ci:)
+    base = step.display_name
+    return nil unless base
+
+    legacy_ci ? "#{base} (CI)" : base
   end
 
   def empty_result(source:, note:)

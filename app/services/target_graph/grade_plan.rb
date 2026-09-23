@@ -36,6 +36,7 @@ class TargetGraph
 
       RepoGradePlan::Grader.new(
         name: grader_name_for_target(target),
+        display_name: display_name_for_target(target, metadata),
         command: target.command,
         phases: target.phases,
         description: metadata["description"],
@@ -55,6 +56,28 @@ class TargetGraph
       return name if target.label.root?
 
       "#{target.label.package.tr('/', '-')}-#{name.tr('/', '-')}"
+    end
+
+    # Prefixes an already-resolved explicit/type-generated `display_name`
+    # with the owning project's operator-facing label (`.syrus.yml`
+    # `project.label`), e.g. "rails plugin: RSpec (focused)" for a grader
+    # declared in `plugins/rails/.syrus.yml`. Root/repository graders never
+    # get a prefix -- there is no "owning project" distinct from the
+    # repository itself. A grader with no resolved `display_name` at all
+    # (a plain custom grader with no explicit label) is left nil so the
+    # existing humanized-name fallback applies unprefixed.
+    def display_name_for_target(target, metadata)
+      base = metadata["display_name"].presence
+      return nil unless base
+
+      prefix = project_label_for(target)
+      prefix ? "#{prefix}: #{base}" : base
+    end
+
+    def project_label_for(target)
+      return nil if target.label.root?
+
+      graph.project(target.project_id)&.label.presence
     end
   end
 end

@@ -132,6 +132,46 @@ export function loopIterations(steps: JobStep[]) {
     }))
 }
 
+export type GraderTargetSelection = {
+  name: string | null
+  displayName: string | null
+  targetLabel: string | null
+  required: boolean | null
+  affected: boolean
+  reason: string | null
+}
+
+// Reads a grader_fanout/preflight_grader_fanout Step's target-selection plan
+// (one entry per configured grader, recorded only when the repository's
+// work definition opts into it) so the UI can summarize it instead of
+// dumping the raw `grader_target_selections` array. Selected graders each
+// get their own materialized `grader` Step already shown as a sibling in the
+// same grade group; skipped graders never do, so they're the only ones worth
+// naming here.
+export function graderFanoutSelections(step: JobStep): GraderTargetSelection[] | null {
+  if (step.kind !== "grader_fanout" && step.kind !== "preflight_grader_fanout") return null
+
+  const raw = objectDetails(step.details).grader_target_selections
+  if (!Array.isArray(raw)) return null
+
+  return raw.filter(isRecord).map((entry) => ({
+    name: stringValue(entry.name),
+    displayName: stringValue(entry.display_name),
+    targetLabel: stringValue(entry.target_label),
+    required: booleanValue(entry.required),
+    affected: booleanValue(entry.affected) ?? true,
+    reason: stringValue(entry.reason)
+  }))
+}
+
+// Mirrors the backend's grader display-name humanization fallback (see
+// App::JobDetailPayload::WorkflowSerializers#grader_display_name) for
+// skipped-grader entries with no resolved `display_name` of their own
+// (a plain custom grader with no explicit or type-generated label).
+export function humanizeGraderName(name: string) {
+  return name.replace(/[-_]+/g, " ").split(" ").filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
+}
+
 export function isGradeDisplayStep(step: JobStep) {
   return step.kind === "grader_fanout" || step.kind === "grader" || step.kind === "grader_collect" || step.kind === "grade"
     || step.kind === "preflight_grader_fanout" || step.kind === "preflight_grader" || step.kind === "preflight_grader_collect"
@@ -154,7 +194,6 @@ export function gradePhases(item: GradeStepItem, t: ReturnType<typeof useT>["t"]
     if (step.kind === "grader_fanout" || step.kind === "preflight_grader_fanout") return { step, displayName: t("grade_setup"), metadataLabel: "grade setup" }
     if (step.kind === "grader_collect" || step.kind === "preflight_grader_collect") return { step, displayName: t("grade_result"), metadataLabel: "grade result" }
     if (step.kind === "grade") return { step, displayName: step.display_name || t("grade_label"), metadataLabel: "grade" }
-    if (step.kind === "preflight_grader") return { step, displayName: stringValue(objectDetails(step.details).name) || step.display_name, metadataLabel: "grader" }
     return { step, displayName: step.display_name, metadataLabel: "grader" }
   })
 }
@@ -284,6 +323,55 @@ export function isActiveState(state: string) {
   return state === "queued" || state === "running"
 }
 
+// Step#agentic? mirror. Missing (older cached payload, or a test fixture
+// built before this field existed) is treated as agentic — the conservative
+// default that keeps showing agent metadata rather than hiding something
+// that might matter.
+export function stepAgentic(step: JobStep) {
+  return step.agentic ?? true
+}
+
+// A run worth surfacing diagnostic metadata for by default: active, failed,
+// carrying a captured failure/diagnostic record, or reporting non-healthy
+// worker health. Everything else is a happy-path outcome where provider,
+// turn count, and cost are debug trivia rather than the story.
+export function isDiagnosticRelevantRun(run: JobRun) {
+  if (isActiveState(run.state)) return true
+  if (run.state === "failed" || run.state === "cancelled") return true
+  if (run.failure_classification) return true
+  if (run.run_diagnostic?.present) return true
+  const health = run.health_snapshots.at(-1)?.health_status
+  if (health && health !== "healthy") return true
+  return false
+}
+
+// A step worth keeping diagnostic metadata expanded for: it failed/was
+// cancelled, it was retried (more than one run), or any of its runs are
+// individually diagnostic-relevant.
+export function isDiagnosticRelevantStep(step: JobStep) {
+  if (step.state === "failed" || step.state === "cancelled") return true
+  if (step.runs.length > 1) return true
+  return step.runs.some(isDiagnosticRelevantRun)
+}
+
+// True only when the run's status/timing genuinely duplicates what the step
+// header already shows — a single-run step whose own started_at/finished_at
+// match the run's. Comparing exact values (rather than just "single run and
+// succeeded") avoids hiding real information for steps whose Step and Run
+// timestamps happen to diverge.
+export function isRedundantRunStatus(step: JobStep, run: JobRun) {
+  return step.runs.length === 1 && step.display_status === run.state
+}
+
+// Only redundant once the run has actually started: when both are unset,
+// the step header falls back to rendering step.created_at (not a "not
+// started yet" message), so hiding the run's own placeholder there would
+// silently drop the only place that message appears.
+export function isRedundantRunTiming(step: JobStep, run: JobRun) {
+  if (step.runs.length !== 1 || !run.started_at) return false
+  return step.started_at === run.started_at && step.finished_at === run.finished_at
+}
+
 export function formatElapsed(seconds: number) {
   const total = Math.max(0, Math.floor(seconds))
   if (total < 60) return `${total}s`
@@ -306,6 +394,56 @@ export function prepareFailureStatus(failure: PrepareFailure, t: ReturnType<type
   if (failure.aliveness_failed) return t("prepare_failure_aliveness_failed")
   if (failure.exit_status != null) return t("prepare_failure_exit", { code: failure.exit_status })
   return t("prepare_failure_failed")
+}
+
+// Soft, non-fatal command failures recorded outside the dedicated
+// `prepare_failure` panel: `format`/`generate` steps (Steps::DiffScopedAutofix)
+// append one entry per failed formatter/generator command under
+// `<step.kind>_failures`, and `prepare` records a secondary `mise_install_failure`
+// singleton alongside its primary `prepare_failure` when a mise version file's
+// install fails without blocking the run. Same failure shape as PrepareFailure —
+// callers render them the same way instead of falling through to a raw JSON dump.
+export function softCommandFailures(step: JobStep): PrepareFailure[] {
+  if (!isRecord(step.details)) return []
+
+  const arrayEntries = step.details[`${step.kind}_failures`]
+  const fromArray = Array.isArray(arrayEntries) ? arrayEntries.filter(isRecord) as PrepareFailure[] : []
+  const miseInstallFailure = step.kind === "prepare" && isRecord(step.details.mise_install_failure)
+    ? [ step.details.mise_install_failure as PrepareFailure ]
+    : []
+
+  return [ ...fromArray, ...miseInstallFailure ]
+}
+
+// Keys `Workflow#active_descendant_cancellation_details` (Step::CANCELLATION_DETAIL_KEYS
+// server-side) merges into `details` when force-cancelling a step. Always
+// excluded here — cancellation is narrated by `stepCancellationNotice`'s
+// human-readable notice, never as raw JSON in the debug disclosure, and a
+// step that has since recovered to another terminal state must not keep
+// surfacing them at all.
+const CANCELLATION_DETAIL_KEYS = [
+  "cancelled_by",
+  "cancelled_reason",
+  "cancelled_workflow_id",
+  "cancelled_workflow_state",
+  "cancelled_source_step_id",
+  "cancelled_source_step_kind"
+]
+
+// Everything left in `step.details` once known semantic renderers (prepare
+// failure panel, soft command failure panel) have claimed their keys. Not
+// meant for default display — fanout/target-health planner output lands
+// here — but kept available behind an explicit debug affordance so operators
+// can still see it.
+export function debugOnlyDetails(step: JobStep): Record<string, unknown> | null {
+  if (!isRecord(step.details)) return null
+
+  const excludedKeys = new Set([
+    "prepare_failure", "mise_install_failure", `${step.kind}_failures`, "grader_target_selections",
+    ...CANCELLATION_DETAIL_KEYS
+  ])
+  const remaining = Object.fromEntries(Object.entries(step.details).filter(([ key ]) => !excludedKeys.has(key)))
+  return Object.keys(remaining).length > 0 ? remaining : null
 }
 
 // Plugin names Steps::Prepare detected in this Workflow's workspace

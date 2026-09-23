@@ -338,6 +338,99 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       )
     end
 
+    it "humanizes a monorepo grader Step's title from its target label while preserving the exact target id" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 1,
+        state: "succeeded",
+        details: {
+          "name" => "plugins-rails-rspec-focused",
+          "target_label" => "//plugins/rails:grade/rspec-focused",
+          "command" => "bin/rspec --tag focus",
+          "required" => true
+        }
+      )
+
+      step_payload = workflows_payload_for(job).fetch(:workflows).first.fetch(:steps).first
+
+      expect(step_payload.fetch(:display_name)).to eq("plugins/rails: RSpec Focused")
+      expect(step_payload.fetch(:details)).to include(
+        "name" => "plugins-rails-rspec-focused",
+        "target_label" => "//plugins/rails:grade/rspec-focused"
+      )
+    end
+
+    it "humanizes a root-level grader Step's title without a package prefix" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 1,
+        state: "succeeded",
+        details: { "name" => "migration-collisions", "target_label" => "//:grade/migration-collisions" }
+      )
+
+      step_payload = workflows_payload_for(job).fetch(:workflows).first.fetch(:steps).first
+
+      expect(step_payload.fetch(:display_name)).to eq("Migration Collisions")
+    end
+
+    it "humanizes a preflight grader Step's title the same way as a regular grader Step" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+      Step.create!(
+        workflow: workflow,
+        kind: "preflight_grader",
+        position: 1,
+        state: "succeeded",
+        details: { "name" => "plugins-rails-rspec-focused", "target_label" => "//plugins/rails:grade/rspec-focused" }
+      )
+
+      step_payload = workflows_payload_for(job).fetch(:workflows).first.fetch(:steps).first
+
+      expect(step_payload.fetch(:display_name)).to eq("plugins/rails: RSpec Focused")
+    end
+
+    it "prefers an explicit resolved display_name over humanizing the target label" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 1,
+        state: "succeeded",
+        details: {
+          "name" => "plugins-rails-rspec-focused",
+          "display_name" => "rails plugin: RSpec (focused)",
+          "target_label" => "//plugins/rails:grade/rspec-focused",
+          "command" => "bin/rspec --tag focus",
+          "required" => true
+        }
+      )
+
+      step_payload = workflows_payload_for(job).fetch(:workflows).first.fetch(:steps).first
+
+      expect(step_payload.fetch(:display_name)).to eq("rails plugin: RSpec (focused)")
+      expect(step_payload.fetch(:details)).to include(
+        "name" => "plugins-rails-rspec-focused",
+        "target_label" => "//plugins/rails:grade/rspec-focused"
+      )
+    end
+
+    it "falls back to the flattened grader name when target_label is missing" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(workflow: workflow, kind: "grader", position: 1, state: "succeeded", details: { "name" => "legacy-grader" })
+
+      step_payload = workflows_payload_for(job).fetch(:workflows).first.fetch(:steps).first
+
+      expect(step_payload.fetch(:display_name)).to eq("Legacy Grader")
+    end
+
     it "keeps Epic wording for Epic merge train landing steps" do
       epic = Factories.epic(user: user, repository: repo)
       job = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 101)
@@ -540,6 +633,19 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         persisted_state: "queued",
         display_status: "running"
       )
+    end
+
+    it "exposes whether a step is agentic, mirroring Step#agentic?" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      agentic_step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      non_agentic_step = Step.create!(workflow: workflow, kind: "prepare", position: 2, state: "succeeded")
+
+      payload = workflows_payload_for(job)
+      steps_by_id = payload.fetch(:workflows).first.fetch(:steps).index_by { |step| step.fetch(:id) }
+
+      expect(steps_by_id.fetch(agentic_step.id)).to include(agentic: true)
+      expect(steps_by_id.fetch(non_agentic_step.id)).to include(agentic: false)
     end
 
     it "exposes distributed Step placement, target, worker, admission, source snapshot, command span, and barrier progress" do
@@ -1009,11 +1115,37 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         agent_diff_present: true,
         agent_diff_bytes: 1024,
         step_agent_diff_present: true,
-        step_agent_diff_bytes: 2048
+        step_agent_diff_bytes: 2048,
+        step_diff_matches_diff: false
       )
 
       run_selects = queries.select { |sql| sql.match?(/FROM [`"]?runs[`"]?/i) }
       expect(run_selects.grep(/SELECT\s+[`"]?runs[`"]?\.\*/i)).to be_empty
+    end
+
+    it "flags step_diff_matches_diff on a first implement run, where the step diff and full diff cover the same commits" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      same_diff = "diff --git a/app/models/job.rb b/app/models/job.rb\n" \
+        "--- a/app/models/job.rb\n+++ b/app/models/job.rb\n@@ -1 +1 @@\n-old\n+new"
+      Run.create!(
+        job: job,
+        step: step,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "succeeded",
+        agent_diff: same_diff,
+        step_agent_diff: same_diff
+      )
+
+      run_payload = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0)
+
+      expect(run_payload).to include(
+        agent_diff_present: true,
+        step_agent_diff_present: true,
+        step_diff_matches_diff: true
+      )
     end
 
     it "loads log counts and rate-limit markers with one grouped job log query" do

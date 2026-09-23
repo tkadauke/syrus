@@ -159,6 +159,24 @@ module JavaScript
       end
     end
 
+    # Mode-aware operator-facing label, mirroring Ruby::RspecGraderType --
+    # a project-label prefix is applied later by TargetGraph::GradePlan.
+    def display_name_for(mode)
+      configured = mode_display_name(mode)
+      return configured if configured
+
+      case mode
+      when "focused" then "Vitest (focused)"
+      when "ci" then "Vitest (CI)"
+      else "Vitest"
+      end
+    end
+
+    def mode_display_name(mode)
+      nested = config["display_names"].is_a?(Hash) ? config["display_names"].stringify_keys[mode] : nil
+      config["#{mode}_display_name"].to_s.strip.presence || nested.to_s.strip.presence || config["display_name"].to_s.strip.presence
+    end
+
     def base_retry
       SyrusYml::BaseRetry.new(strategy: "plugin", command: nil)
     end
@@ -288,6 +306,7 @@ module JavaScript
     def grade_step(name:, run:, phases:, mode:, junit_output:, when_files_changed: nil)
       SyrusYml::GradeStep.new(
         name: name,
+        display_name: display_name_for(mode),
         run: run,
         ci: nil,
         phases: phases,

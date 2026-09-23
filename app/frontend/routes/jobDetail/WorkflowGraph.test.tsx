@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
@@ -93,8 +93,8 @@ describe("WorkflowsTab", () => {
     expect(screen.getByRole("button", { name: "Copy code" })).toBeInTheDocument()
   })
 
-  it("renders run artifact diffs through reviewable comments when anchor context is available", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+  it("renders run artifact diffs read-only, without diff comment feedback UI", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/jobs/42/runs/51/artifacts") {
         return Promise.resolve(new Response(JSON.stringify({
@@ -118,15 +118,12 @@ describe("WorkflowsTab", () => {
           logs: []
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path.startsWith("/api/v1/app/jobs/42/diff_review_comments") && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ job_id: 42, comments: [], by_path: {} }), { status: 201, headers: { "Content-Type": "application/json" } }))
-      }
-      if (path.startsWith("/api/v1/app/jobs/42/diff_review_comments")) {
-        return Promise.resolve(new Response(JSON.stringify({ job_id: 42, comments: [], by_path: {} }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
+    // "implemented" is one of the job states where the Review Workspace and
+    // Source tabs allow diff-comment feedback -- the workflow tab must stay
+    // read-only regardless of job state.
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter>
@@ -137,33 +134,53 @@ describe("WorkflowsTab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
     fireEvent.click(screen.getByRole("button", { name: "Diff" }))
-    fireEvent.click(await screen.findByRole("button", { name: "Comment on app/models/job.rb:new:1" }))
-    fireEvent.change(screen.getByLabelText("Comment"), { target: { value: "Please tighten this line." } })
-    fireEvent.click(screen.getByRole("button", { name: "Create comment" }))
 
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/diff_review_comments",
-        expect.objectContaining({
-          method: "POST",
-          body: expect.stringContaining("\"surface\":\"run_agent_diff\"")
-        })
-      )
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/diff_review_comments",
-        expect.objectContaining({
-          method: "POST",
-          body: expect.stringContaining("\"run_id\":51")
-        })
-      )
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/diff_review_comments",
-        expect.objectContaining({
-          method: "POST",
-          body: expect.stringContaining("\"diff_review_version_id\":100")
-        })
-      )
-    })
+    expect(await screen.findByText("app/models/job.rb")).toBeInTheDocument()
+    expect(document.querySelector('[data-diff-file="app/models/job.rb"]')).toBeInTheDocument()
+    expect(screen.queryByText("Diff comments")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Submit feedback" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Comment on/ })).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("/diff_review_comments"), expect.anything())
+  })
+
+  it("hides Step diff when it duplicates the full diff, as on a first implement run", () => {
+    const workflow = workflowWithDiffRun()
+    workflow.steps[0].runs[0].step_agent_diff_present = true
+    workflow.steps[0].runs[0].step_agent_diff_bytes = 120
+    workflow.steps[0].runs[0].step_diff_matches_diff = true
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ workflows: [workflow] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    expect(screen.getByRole("button", { name: "Diff" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Step diff" })).not.toBeInTheDocument()
+  })
+
+  it("shows both Diff and Step diff when the step diff differs from the full diff", () => {
+    const workflow = workflowWithDiffRun()
+    workflow.steps[0].runs[0].step_agent_diff_present = true
+    workflow.steps[0].runs[0].step_agent_diff_bytes = 40
+    workflow.steps[0].runs[0].step_diff_matches_diff = false
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ workflows: [workflow] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    expect(screen.getByRole("button", { name: "Diff" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Step diff" })).toBeInTheDocument()
   })
 
   it("keeps grade log surfaces as the mobile flex child with an internal scroll region", async () => {
@@ -847,6 +864,508 @@ describe("WorkflowsTab", () => {
 
     expect(screen.getByText("Cancelled:")).toBeInTheDocument()
     expect(screen.getByText(/parent workflow failed after grader STEP-23; cancel terminal workflow active descendants\./)).toBeInTheDocument()
+    // Cancellation is narrated only by the human-readable notice above — the
+    // raw cancellation keys never reach the debug disclosure, so there's
+    // nothing left to hide behind one.
+    expect(screen.queryByText("Debug details")).not.toBeInTheDocument()
+    expect(screen.queryByText(/cancelled_workflow_state/)).not.toBeInTheDocument()
+  })
+
+  it("hides stale cancellation metadata on a succeeded step instead of showing contradictory raw JSON", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 24,
+              kind: "coverage_analyze",
+              display_name: "Analyze coverage",
+              display_status: "succeeded",
+              position: 6,
+              iteration: 1,
+              loop_id: null,
+              state: "succeeded",
+              started_at: "2026-08-25T12:00:00Z",
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: {
+                cancelled_by: "terminal_workflow_cleanup",
+                cancelled_reason: "cancel_terminal_workflow_active_descendants",
+                cancelled_workflow_state: "failed",
+                cancelled_source_step_id: 23,
+                cancelled_source_step_kind: "grader"
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Analyze coverage/ }))
+
+    expect(screen.queryByText("Cancelled:")).not.toBeInTheDocument()
+    expect(screen.queryByText("Debug details")).not.toBeInTheDocument()
+    expect(screen.queryByText(/cancel_terminal_workflow_active_descendants/)).not.toBeInTheDocument()
+  })
+
+  it("links to the opened PR on a succeeded pr_open step", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            job: { id: 42, pr_number: 123, pr_url: "https://github.com/acme/widgets/pull/123" } as JobDetailPayload["job"],
+            workflows: [workflowWithStepDetails({
+              id: 40,
+              kind: "pr_open",
+              display_name: "Open PR",
+              display_status: "succeeded",
+              position: 8,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: "2026-08-25T12:00:00Z",
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: null,
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Open PR/ }))
+
+    const link = screen.getByRole("link", { name: "Opened PR #123" })
+    expect(link).toHaveAttribute("href", "https://github.com/acme/widgets/pull/123")
+  })
+
+  it("does not show a PR outcome for a pr_open step before the PR exists", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            job: { id: 42, pr_number: null, pr_url: null } as JobDetailPayload["job"],
+            workflows: [workflowWithStepDetails({
+              id: 40,
+              kind: "pr_open",
+              display_name: "Open PR",
+              display_status: "failed",
+              position: 8,
+              iteration: null,
+              loop_id: null,
+              state: "failed",
+              started_at: "2026-08-25T12:00:00Z",
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: null,
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Open PR/ }))
+
+    expect(screen.queryByText(/Opened PR/)).not.toBeInTheDocument()
+  })
+
+  it("links to the target PR on a succeeded promotion_publish step via the pr_links registry", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            job: { id: 42 } as JobDetailPayload["job"],
+            pr_links: [{
+              id: 1,
+              role: "promotion",
+              source_repository_slug: "acme/widgets",
+              source_ref: "release/2026-09",
+              target_repository_slug: "acme/widgets",
+              target_ref: "main",
+              pr_number: 456,
+              pr_url: "https://github.com/acme/widgets/pull/456",
+              pr_state: "open",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:00:00Z"
+            }],
+            workflows: [workflowWithStepDetails({
+              id: 41,
+              kind: "promotion_publish",
+              display_name: "Publish promotion",
+              display_status: "succeeded",
+              position: 1,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: "2026-08-25T12:00:00Z",
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: null,
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Publish promotion/ }))
+
+    const link = screen.getByRole("link", { name: "Opened Promotion PR #456" })
+    expect(link).toHaveAttribute("href", "https://github.com/acme/widgets/pull/456")
+  })
+
+  it("hides an unknown step details payload behind a debug affordance instead of dumping raw JSON", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 30,
+              kind: "unspecified_future_step",
+              display_name: "Mystery step",
+              display_status: "succeeded",
+              position: 1,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: null,
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: {
+                some_future_planner_output: [ { name: "unclaimed", reason: "no semantic renderer yet" } ]
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Mystery step/ }))
+
+    const toggle = screen.getByText("Debug details")
+    const rawPayload = screen.getByText(/some_future_planner_output/)
+    expect(toggle).toBeVisible()
+    expect(rawPayload).not.toBeVisible()
+
+    fireEvent.click(toggle)
+    expect(screen.getByText(/some_future_planner_output/)).toBeVisible()
+  })
+
+  it("summarizes grader_fanout target selection instead of dumping grader_target_selections JSON", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 30,
+              kind: "grader_fanout",
+              display_name: "Plan graders",
+              display_status: "succeeded",
+              position: 1,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: null,
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: {
+                grader_target_selections: [
+                  { name: "rspec", target_label: "//:grade/rspec", required: true, affected: true, reason: "own source scope matched a changed file" },
+                  { name: "plugins-rails-eslint", target_label: "//plugins/rails:grade/eslint", required: false, affected: false, reason: "no matching files changed" }
+                ]
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Setup/ }))
+
+    expect(screen.getByText("1 grader selected")).toBeInTheDocument()
+    expect(screen.getByText("1 grader skipped")).toBeInTheDocument()
+    expect(screen.getByText("Plugins Rails Eslint")).toBeInTheDocument()
+    expect(screen.getByText(/no matching files changed/)).toBeInTheDocument()
+    // The selected grader already has its own sibling grader Step in the
+    // group, so it's not re-listed here — only the skipped one is.
+    expect(screen.getAllByRole("listitem")).toHaveLength(1)
+    expect(screen.queryByText(/grader_target_selections/)).not.toBeInTheDocument()
+  })
+
+  it("prefers a skipped grader's resolved display_name over humanizing its machine name", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 30,
+              kind: "grader_fanout",
+              display_name: "Plan graders",
+              display_status: "succeeded",
+              position: 1,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: null,
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: {
+                grader_target_selections: [
+                  {
+                    name: "plugins-rails-rspec-focused",
+                    display_name: "rails plugin: RSpec (focused)",
+                    target_label: "//plugins/rails:grade/rspec-focused",
+                    required: true,
+                    affected: false,
+                    reason: "no matching files changed"
+                  }
+                ]
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Setup/ }))
+
+    expect(screen.getByText("rails plugin: RSpec (focused)")).toBeInTheDocument()
+    expect(screen.queryByText("Plugins Rails Rspec Focused")).not.toBeInTheDocument()
+  })
+
+  it("omits body for grader_collect since the result is already shown on the sibling grader Steps", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 30,
+              kind: "grader_collect",
+              display_name: "Aggregate graders",
+              display_status: "succeeded",
+              position: 1,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: null,
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: { transient_only_required_grader_failure: true },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Result/ }))
+
+    expect(screen.queryByText("Debug details")).not.toBeInTheDocument()
+    expect(screen.queryByText(/transient_only_required_grader_failure/)).not.toBeInTheDocument()
+  })
+
+  it("consolidates grader target id, gating status, description, and command into one metadata panel", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 30,
+              kind: "grader",
+              display_name: "plugins/rails: RSpec Focused",
+              display_status: "succeeded",
+              position: 1,
+              iteration: null,
+              loop_id: null,
+              state: "succeeded",
+              started_at: null,
+              finished_at: "2026-08-25T12:01:00Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:01:00Z",
+              details: {
+                name: "plugins-rails-rspec-focused",
+                target_label: "//plugins/rails:grade/rspec-focused",
+                description: "Runs the focused RSpec suite for plugins/rails.",
+                command: "bin/rspec --tag focus",
+                required: true
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+    fireEvent.click(screen.getByRole("button", { name: /RSpec Focused/ }))
+
+    const targetLink = screen.getByRole("link", { name: "//plugins/rails:grade/rspec-focused" })
+    const statusPanel = targetLink.closest("dl")!.closest("div")!
+    expect(statusPanel).toHaveTextContent("Required to pass")
+    expect(statusPanel).toHaveTextContent("Runs the focused RSpec suite for plugins/rails.")
+    expect(statusPanel).toHaveTextContent("bin/rspec --tag focus")
+  })
+
+  it("renders format/generate soft command failures as a readable notice instead of raw JSON", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 31,
+              kind: "format",
+              display_name: "Format",
+              display_status: "succeeded",
+              position: 2,
+              iteration: 1,
+              loop_id: null,
+              state: "succeeded",
+              started_at: null,
+              finished_at: "2026-08-25T12:02:00Z",
+              created_at: "2026-08-25T12:01:00Z",
+              updated_at: "2026-08-25T12:02:00Z",
+              details: {
+                format_failures: [{
+                  command: "rubocop -A",
+                  workdir: "/workspace",
+                  exit_status: 1,
+                  timed_out: false,
+                  duration_s: 4.2,
+                  output_tail: "offense detected",
+                  soft: true
+                }]
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Format/ }))
+
+    expect(screen.getByText("Command failed (non-fatal)")).toBeVisible()
+    expect(screen.getByText("rubocop -A")).toBeVisible()
+    expect(screen.getByText("exit 1")).toBeVisible()
+    expect(screen.getByText("offense detected")).toBeVisible()
+    expect(screen.queryByText("Debug details")).not.toBeInTheDocument()
+  })
+
+  it("renders a secondary mise install failure alongside the primary prepare failure panel", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [workflowWithStepDetails({
+              id: 32,
+              kind: "prepare",
+              display_name: "Prepare",
+              display_status: "failed",
+              position: 0,
+              iteration: null,
+              loop_id: null,
+              state: "failed",
+              started_at: null,
+              finished_at: "2026-08-25T12:00:30Z",
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:00:30Z",
+              details: {
+                prepare_failure: {
+                  command: "bundle install",
+                  workdir: "/workspace",
+                  exit_status: 1,
+                  timed_out: false,
+                  duration_s: 12.3,
+                  output_tail: "Bundler error",
+                  soft: false
+                },
+                mise_install_failure: {
+                  command: "mise install",
+                  workdir: "/workspace",
+                  exit_status: 2,
+                  timed_out: false,
+                  duration_s: 3.1,
+                  output_tail: "mise error output",
+                  soft: true
+                }
+              },
+              warnings: [],
+              latest: true,
+              runs: []
+            })]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Prepare/ }))
+
+    expect(screen.getByText("Setup failed before the agent started")).toBeVisible()
+    expect(screen.getByText("bundle install")).toBeVisible()
+    expect(screen.getByText("Bundler error")).toBeVisible()
+
+    expect(screen.getByText("Command failed (non-fatal)")).toBeVisible()
+    expect(screen.getByText("mise install")).toBeVisible()
+    expect(screen.getByText("mise error output")).toBeVisible()
   })
 
   it("renders distributed grader batches with placement metadata and sibling admission blocks", () => {
@@ -898,7 +1417,314 @@ describe("WorkflowsTab", () => {
       "/jobs/42?tab=target_graph&workflow_id=10&focus_label=%2F%2F%3Agrade%2Fdelta"
     )
   })
+
+  it("collapses agent metadata and the transcript button into an execution-details disclosure for a happy-path non-agentic run", () => {
+    const { container } = render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab
+            command={command()}
+            payload={payload({
+              workflows: [workflowWithStepDetails({
+                id: 40,
+                kind: "prepare",
+                display_name: "Prepare workspace",
+                display_status: "succeeded",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "succeeded",
+                started_at: null,
+                finished_at: null,
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:00:00Z",
+                agentic: false,
+                details: null,
+                warnings: [],
+                latest: true,
+                runs: [{
+                  id: 90,
+                  state: "succeeded",
+                  trigger_kind: "initial",
+                  agent_provider: "claude",
+                  agent_outcome: "success",
+                  agent_turns: 0,
+                  agent_pr_title: null,
+                  agent_summary: null,
+                  parent_session_id: null,
+                  skill_source: null,
+                  skill_resolved_path: null,
+                  skill_resolved_class: null,
+                  head_sha: null,
+                  iteration: 1,
+                  started_at: null,
+                  last_heartbeat_at: null,
+                  finished_at: null,
+                  created_at: "2026-08-25T12:00:00Z",
+                  updated_at: "2026-08-25T12:00:00Z",
+                  cost_usd: 0,
+                  input_tokens: 0,
+                  output_tokens: 0,
+                  agent_diff_present: false,
+                  agent_diff_bytes: 0,
+                  step_agent_diff_present: false,
+                  step_agent_diff_bytes: 0,
+                  step_diff_matches_diff: false,
+                  job_log_count: 20,
+                  rate_limited: false,
+                  run_diagnostic: null,
+                  health_snapshots: [],
+                  agent_session: null,
+                  can_stop: false,
+                  can_diagnose: false,
+                  can_resume: false,
+                  app_artifacts_path: "/api/v1/app/jobs/1/runs/90/artifacts",
+                  app_stop_path: "/stop",
+                  app_diagnose_path: "/diagnose",
+                  app_resume_path: "/resume",
+                  app_grade_log_path: null
+                }]
+              })]
+            })}
+            prefix=""
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Prepare workspace/ }))
+
+    const toggle = screen.getByText("Execution details")
+    const details = toggle.closest("details")!
+    expect(details).not.toHaveAttribute("open")
+    // Debug metadata stays reachable inside the (collapsed) disclosure rather
+    // than being deleted outright.
+    expect(details).toHaveTextContent("claude")
+    expect(details.querySelector("button")).toHaveTextContent("Transcript")
+    // ...and the Transcript action is not duplicated as a top-level button.
+    expect(screen.getAllByRole("button", { name: "Transcript" })).toHaveLength(1)
+  })
+
+  it("keeps agent metadata visible by default (no toggle needed) for a failed non-agentic run", () => {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab
+            command={command()}
+            payload={payload({
+              workflows: [workflowWithStepDetails({
+                id: 41,
+                kind: "prepare",
+                display_name: "Prepare workspace",
+                display_status: "failed",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "failed",
+                started_at: null,
+                finished_at: null,
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:00:00Z",
+                agentic: false,
+                details: null,
+                warnings: [],
+                latest: true,
+                runs: [{
+                  id: 91,
+                  state: "failed",
+                  trigger_kind: "initial",
+                  agent_provider: "claude",
+                  agent_outcome: null,
+                  agent_turns: 0,
+                  agent_pr_title: null,
+                  agent_summary: null,
+                  parent_session_id: null,
+                  skill_source: null,
+                  skill_resolved_path: null,
+                  skill_resolved_class: null,
+                  head_sha: null,
+                  iteration: 1,
+                  started_at: "2026-08-25T12:00:00Z",
+                  last_heartbeat_at: null,
+                  finished_at: "2026-08-25T12:00:05Z",
+                  created_at: "2026-08-25T12:00:00Z",
+                  updated_at: "2026-08-25T12:00:05Z",
+                  cost_usd: 0,
+                  input_tokens: 0,
+                  output_tokens: 0,
+                  agent_diff_present: false,
+                  agent_diff_bytes: 0,
+                  step_agent_diff_present: false,
+                  step_agent_diff_bytes: 0,
+                  step_diff_matches_diff: false,
+                  job_log_count: 5,
+                  rate_limited: false,
+                  run_diagnostic: null,
+                  health_snapshots: [],
+                  agent_session: null,
+                  can_stop: false,
+                  can_diagnose: false,
+                  can_resume: false,
+                  app_artifacts_path: "/api/v1/app/jobs/1/runs/91/artifacts",
+                  app_stop_path: "/stop",
+                  app_diagnose_path: "/diagnose",
+                  app_resume_path: "/resume",
+                  app_grade_log_path: null
+                }]
+              })]
+            })}
+            prefix=""
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Prepare workspace/ }))
+
+    expect(screen.getByText(/claude/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Transcript" })).toBeInTheDocument()
+    expect(screen.queryByText("Execution details")).not.toBeInTheDocument()
+  })
+
+  it("avoids repeating status and timing between the step header and its sole successful run", () => {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab
+            command={command()}
+            payload={payload({
+              workflows: [workflowWithStepDetails({
+                id: 42,
+                kind: "implement",
+                display_name: "Implement",
+                display_status: "succeeded",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "succeeded",
+                started_at: "2026-08-25T12:00:00Z",
+                finished_at: "2026-08-25T12:00:05Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:00:05Z",
+                details: null,
+                warnings: [],
+                latest: true,
+                runs: [{
+                  id: 92,
+                  state: "succeeded",
+                  trigger_kind: "initial",
+                  agent_provider: "codex",
+                  agent_outcome: "success",
+                  agent_turns: 3,
+                  agent_pr_title: null,
+                  agent_summary: null,
+                  parent_session_id: null,
+                  skill_source: null,
+                  skill_resolved_path: null,
+                  skill_resolved_class: null,
+                  head_sha: null,
+                  iteration: 1,
+                  started_at: "2026-08-25T12:00:00Z",
+                  last_heartbeat_at: null,
+                  finished_at: "2026-08-25T12:00:05Z",
+                  created_at: "2026-08-25T12:00:00Z",
+                  updated_at: "2026-08-25T12:00:05Z",
+                  cost_usd: 0.05,
+                  input_tokens: 0,
+                  output_tokens: 0,
+                  agent_diff_present: false,
+                  agent_diff_bytes: 0,
+                  step_agent_diff_present: false,
+                  step_agent_diff_bytes: 0,
+                  step_diff_matches_diff: false,
+                  job_log_count: 0,
+                  rate_limited: false,
+                  run_diagnostic: null,
+                  health_snapshots: [],
+                  agent_session: null,
+                  can_stop: false,
+                  can_diagnose: false,
+                  can_resume: false,
+                  app_artifacts_path: "/api/v1/app/jobs/1/runs/92/artifacts",
+                  app_stop_path: "/stop",
+                  app_diagnose_path: "/diagnose",
+                  app_resume_path: "/resume",
+                  app_grade_log_path: null
+                }]
+              })]
+            })}
+            prefix=""
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    // The step header already carries this run's status and timing (single
+    // run, exact same started_at/finished_at) -- the run row must not repeat
+    // a second "Started"/"finished" line for it.
+    expect(screen.queryByText("Started")).not.toBeInTheDocument()
+    expect(screen.queryByText("finished")).not.toBeInTheDocument()
+  })
+
+  it("collapses PLACEMENT/WORKER/STORAGE execution details for a succeeded step but expands them for an active/failed one", () => {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab
+            command={command()}
+            payload={payload({
+              job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"],
+              workflows: [distributedGradeWorkflow()]
+            })}
+            prefix=""
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+    fireEvent.click(screen.getByRole("button", { name: /alpha/ }))
+
+    const alphaToggle = screen.getByText("Execution details")
+    expect(alphaToggle.closest("details")).not.toHaveAttribute("open")
+    expect(alphaToggle.closest("details")).toHaveTextContent("worker alpha")
+
+    fireEvent.click(screen.getByRole("button", { name: /beta/ }))
+
+    const [, betaToggle] = screen.getAllByText("Execution details")
+    expect(betaToggle.closest("details")).toHaveAttribute("open")
+    expect(betaToggle.closest("details")).toHaveTextContent("worker beta")
+  })
 })
+
+function workflowWithStepDetails(step: JobDetailPayload["workflows"][number]["steps"][number]) {
+  return {
+    id: 10,
+    slug: "WF-10",
+    path: "/jobs/1?tab=workflows#workflow-10",
+    trigger_kind: "initial",
+    agent_provider: "codex",
+    state: "succeeded",
+    failure_count: 0,
+    artifacts: null,
+    cleaned_up_at: null,
+    retry_available: false,
+    started_at: null,
+    finished_at: null,
+    created_at: "2026-08-25T12:00:00Z",
+    updated_at: "2026-08-25T12:00:00Z",
+    app_retry_step_path: "/retry",
+    app_push_commits_path: "/push",
+    app_force_push_branch_path: "/force",
+    app_discard_branch_output_path: "/discard",
+    steps_total: 1,
+    steps_displayed: 1,
+    steps_truncated: false,
+    steps: [step]
+  } as JobDetailPayload["workflows"][number]
+}
 
 function workflowWithDiffRun() {
   return {
@@ -966,6 +1792,7 @@ function workflowWithDiffRun() {
         agent_diff_bytes: 120,
         step_agent_diff_present: false,
         step_agent_diff_bytes: 0,
+        step_diff_matches_diff: false,
         job_log_count: 0,
         rate_limited: false,
         run_diagnostic: null,
@@ -1012,6 +1839,7 @@ function workflowWithVisualReviews() {
     agent_diff_bytes: 0,
     step_agent_diff_present: false,
     step_agent_diff_bytes: 0,
+    step_diff_matches_diff: false,
     job_log_count: 0,
     rate_limited: false,
     run_diagnostic: null,
@@ -1109,6 +1937,7 @@ function distributedGradeWorkflow() {
     agent_diff_bytes: 0,
     step_agent_diff_present: false,
     step_agent_diff_bytes: 0,
+    step_diff_matches_diff: false,
     job_log_count: 0,
     rate_limited: false,
     run_diagnostic: null,

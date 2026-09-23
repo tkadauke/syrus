@@ -55,6 +55,38 @@ RSpec.describe RunCompletionReconciler do
       expect(StepDispatcher).to have_received(:advance_from).with(step)
     end
 
+    it "strips stale cancellation metadata when a cancelled step recovers to succeeded after a terminal race" do
+      workflow.steps.destroy_all
+      step = Step.create!(workflow: workflow, kind: "coverage_analyze", position: 1)
+      run = step.runs.create!(job: job, trigger_kind: "initial", agent_provider: job.agent_provider)
+      workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+      step.update_columns(
+        state: "cancelled",
+        cancellation_reason: "cancel_terminal_workflow_active_descendants",
+        details: {
+          "cancelled_by" => "terminal_workflow_cleanup",
+          "cancelled_reason" => "cancel_terminal_workflow_active_descendants",
+          "cancelled_workflow_id" => workflow.id,
+          "cancelled_workflow_state" => "failed"
+        },
+        started_at: 5.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      run.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+
+      allow(StepDispatcher).to receive(:advance_from)
+
+      result = described_class.call(run, allow_terminal_recovery: true)
+
+      expect(result).to be_reconciled
+      expect(run.reload).to be_succeeded
+      expect(step.reload).to be_succeeded
+      expect(step.cancellation_reason).to be_nil
+      expect(step.details).not_to include(
+        "cancelled_by", "cancelled_reason", "cancelled_workflow_id", "cancelled_workflow_state"
+      )
+    end
+
     it "does not rewrite a failed grader after its collector has started" do
       workflow.steps.destroy_all
       loop_id = SecureRandom.uuid

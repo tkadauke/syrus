@@ -646,6 +646,7 @@ class TargetGraph
             owner_config_path: config_path,
             metadata: {
               "description" => grader.description,
+              "display_name" => grader.display_name,
               "junit_output" => grader.junit_output,
               "failures" => grader.failures,
               "base_retry" => grader.base_retry&.to_h

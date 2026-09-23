@@ -272,10 +272,12 @@ class RunCompletionReconciler
 
   def force_step_success_after_terminal_race!(reason)
     now = Time.current
+    was_cancelled = step.cancelled?
     StateTransition.with_source("reconciler", reason: "post_handler_terminal_success_race", metadata: { reason: reason }) do
       force_state!(run, "succeeded", now)
       force_state!(step, "succeeded", now)
     end
+    strip_stale_cancellation_details!(step) if was_cancelled
     Runs::LifecyclePropagation.succeeded!(run.reload)
     Runs::LifecyclePropagation.terminal!(run)
 
@@ -300,14 +302,7 @@ class RunCompletionReconciler
   end
 
   def revive_terminal_cleanup_step!(candidate, reason)
-    details = candidate.details.to_h.except(
-      "cancelled_by",
-      "cancelled_reason",
-      "cancelled_workflow_id",
-      "cancelled_workflow_state",
-      "cancelled_source_step_id",
-      "cancelled_source_step_kind"
-    )
+    details = candidate.details.to_h.except(*Step::CANCELLATION_DETAIL_KEYS)
     now = Time.current
 
     StateTransition.with_source("reconciler", reason: "revive_terminal_cleanup_descendant", metadata: { reason: reason }) do
@@ -347,14 +342,23 @@ class RunCompletionReconciler
 
   def force_success_after_terminal_race!(reason)
     now = Time.current
+    was_cancelled = step.cancelled?
     StateTransition.with_source("reconciler", reason: "post_handler_terminal_success_race", metadata: { reason: reason }) do
       force_state!(run, "succeeded", now)
       force_state!(step, "succeeded", now)
       force_state!(workflow, "succeeded", now)
     end
+    strip_stale_cancellation_details!(step) if was_cancelled
     Runs::LifecyclePropagation.succeeded!(run.reload)
     Runs::LifecyclePropagation.terminal!(run)
     Workflows::LifecyclePropagation.succeeded!(workflow.reload)
+  end
+
+  def strip_stale_cancellation_details!(record)
+    cleaned = record.details.to_h.except(*Step::CANCELLATION_DETAIL_KEYS)
+    return if cleaned == record.details.to_h && record.cancellation_reason.nil?
+
+    record.update_columns(details: cleaned, cancellation_reason: nil)
   end
 
   def force_state!(record, state, now)

@@ -13,13 +13,12 @@ import { workflowSlug } from "../../lib/slugs"
 import { Button, buttonClasses } from "../../components/Button"
 import { CodeSurface, DescriptionList, Notice, Section, Surface, surfaceClasses, Text } from "../../components/ui"
 import { pluginIconSrc } from "../../lib/pluginIcon"
-import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type RunTestFailureSummary, type WorkflowWarning } from "../../api/jobs"
+import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobPrLinkRole, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type RunTestFailureSummary, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
-import { booleanValue, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
+import { booleanValue, debugOnlyDetails, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, graderFanoutSelections, humanize, humanizeGraderName, isActiveState, isDiagnosticRelevantRun, isDiagnosticRelevantStep, isRedundantRunStatus, isRedundantRunTiming, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, softCommandFailures, sortedRunsNewestFirst, stepAgentic, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
-import { diffReviewFeedbackAllowed, useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import type { BranchDivergence, BranchDivergenceCommitList, BranchDivergenceComparison } from "./branchDivergence"
@@ -733,23 +732,37 @@ function GradeSummaryPills({ summaries }: { summaries: GradeSummary[] }) {
 
 const GRADER_DESCRIPTION_LIMIT = 220
 
-// Compact, human-friendly view of a grader Step's details: whether it's
-// required, its description (collapsed with "Read more" when long), and the
-// command. The raw fields (output, log_path, exit_code, duration_s,
-// log_bytes, timeout_minutes) are intentionally hidden — the grade log
-// button on the run exposes the output.
-function GraderDetails({ details }: { details: Record<string, unknown> }) {
+// Consolidated, human-friendly view of a grader Step's identity and
+// gating behavior: exact target id, required/gating status, description
+// (collapsed with "Read more" when long), and command — one metadata panel
+// instead of scattering target identity, requirement, description, and
+// command across separate zones. The raw fields (output, log_path,
+// exit_code, duration_s, log_bytes, timeout_minutes) are intentionally
+// hidden — the grade log button on the run exposes the output.
+function GraderDetails({ details, jobId, prefix, workflowId }: { details: Record<string, unknown>; jobId: number; prefix: string; workflowId: number }) {
   const { t } = useT("jobs")
   const [expanded, setExpanded] = useState(false)
   const description = (stringValue(details.description) || "").replace(/\s+/g, " ").trim()
   const command = (stringValue(details.command) || "").trim()
   const required = booleanValue(details.required)
+  const targetLabel = stringValue(details.target_label)
   const isLong = description.length > GRADER_DESCRIPTION_LIMIT
   const shownDescription = expanded || !isLong ? description : `${description.slice(0, GRADER_DESCRIPTION_LIMIT).trimEnd()}…`
 
   return (
-    <div className="mt-2 space-y-2 text-xs">
-      <SmallPill>{required === false ? t("grader_optional") : t("grader_required")}</SmallPill>
+    <Surface className="mt-2 space-y-2 text-xs" padding="sm" variant="panel">
+      <DescriptionList.Root density="compact">
+        {targetLabel ? (
+          <DescriptionList.Item descriptionClassName="break-words" label={t("grader_target_label")}>
+            <TargetGraphLink jobId={jobId} prefix={prefix} targetLabel={targetLabel} workflowId={workflowId}>
+              <code className="font-mono">{targetLabel}</code>
+            </TargetGraphLink>
+          </DescriptionList.Item>
+        ) : null}
+        <DescriptionList.Item label={t("grader_status_label")}>
+          <SmallPill>{required === false ? t("grader_optional") : t("grader_required")}</SmallPill>
+        </DescriptionList.Item>
+      </DescriptionList.Root>
       {description ? (
         <p className="text-gray-700 dark:text-gray-300">
           {shownDescription}
@@ -772,7 +785,153 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
           <CodeSurface code={command} maxHeightClassName="max-h-32" mode="command" />
         </div>
       ) : null}
+    </Surface>
+  )
+}
+
+// Semantic summary for a grader_fanout/preflight_grader_fanout Step: how
+// many graders this iteration selected vs. skipped, with the skip reason for
+// each skipped grader (a skipped grader never gets its own child Step, so
+// this is the only place that explains it). Selected graders aren't listed
+// again here — the materialized grader child Steps already show them as
+// siblings in the same grade group.
+function GraderFanoutSummary({ step }: { step: JobStep }) {
+  const { t } = useT("jobs")
+  const selections = graderFanoutSelections(step)
+  const debugDetails = debugOnlyDetails(step)
+
+  if (!selections || selections.length === 0) {
+    return debugDetails ? <RawStepDetailsDisclosure details={debugDetails} /> : null
+  }
+
+  const selectedCount = selections.filter((selection) => selection.affected).length
+  const skipped = selections.filter((selection) => !selection.affected)
+
+  return (
+    <div className="mt-2 space-y-2 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        {selectedCount > 0 ? <SmallPill>{t("grader_fanout_selected_count", { count: selectedCount })}</SmallPill> : null}
+        {skipped.length > 0 ? <SmallPill>{t("grader_fanout_skipped_count", { count: skipped.length })}</SmallPill> : null}
+      </div>
+      {skipped.length > 0 ? (
+        <ul className="list-disc space-y-0.5 pl-4 text-text-muted">
+          {skipped.map((selection, index) => (
+            <li key={selection.targetLabel || selection.name || index}>
+              <span className="font-medium text-text-primary">{selection.displayName || (selection.name ? humanizeGraderName(selection.name) : t("grader_unknown_name"))}</span>
+              {selection.reason ? <> — {selection.reason}</> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {debugDetails ? <RawStepDetailsDisclosure details={debugDetails} /> : null}
     </div>
+  )
+}
+
+// Roles `JobPrLink` records for the non-`pr_open` steps that land a PR
+// through the durable link registry (see app/models/job_pr_link.rb) rather
+// than the plain job.pr_number/pr_url columns `pr_open` writes.
+const PUBLISH_STEP_PR_LINK_ROLE: Record<string, JobPrLinkRole> = {
+  promotion_publish: "promotion",
+  hotfix_sync_publish: "hotfix_sync",
+  upstream_export_publish: "upstream_export"
+}
+
+// Outcome-first panel for steps whose entire point is producing a durable
+// artifact (a PR link today; the same slot fits a future deploy URL or other
+// external link) — rendered unconditionally, since a succeeded `pr_open`
+// step ordinarily carries no `step.details` at all and would otherwise show
+// nothing. Reads data Syrus already tracks on the Job (`job.pr_number`/`pr_url`)
+// or in the `JobPrLink` registry instead of stashing a duplicate copy on the
+// step.
+function StepOutcomePanel({ step, payload }: { step: JobStep; payload: JobDetailPayload }) {
+  if (step.kind === "pr_open") {
+    return <PrOutcomeNotice number={payload.job.pr_number} url={payload.job.pr_url} />
+  }
+
+  const role = PUBLISH_STEP_PR_LINK_ROLE[step.kind]
+  if (role) {
+    const link = payload.pr_links.find((candidate) => candidate.role === role)
+    return <PrOutcomeNotice number={link?.pr_number ?? null} roleLabelKey={`delivery.role_${role}`} url={link?.pr_url ?? null} />
+  }
+
+  return null
+}
+
+function PrOutcomeNotice({ number, url, roleLabelKey }: { number: number | null; url: string | null; roleLabelKey?: string }) {
+  const { t } = useT("jobs")
+  if (!number) return null
+
+  const label = roleLabelKey ? t("step_outcome_pr_opened_role", { number, role: t(roleLabelKey) }) : t("step_outcome_pr_opened", { number })
+
+  return (
+    <Notice className="mt-2 p-3 text-xs" tone="success">
+      {url ? <a className="font-medium text-brand hover:underline" href={url} rel="noopener" target="_blank">{label}</a> : <span className="font-medium">{label}</span>}
+    </Notice>
+  )
+}
+
+// Typed/semantic rendering path for `step.details`, replacing an
+// unconditional raw JSON dump. Grader steps keep their consolidated
+// GraderDetails panel; grader_fanout/preflight_grader_fanout get a
+// selected/skipped summary instead of the raw target-selection JSON;
+// grader_collect/preflight_grader_collect render nothing — their own
+// details are internal bookkeeping, and the result is already visible on
+// their sibling grader child Steps. Every other kind gets its known
+// soft-failure entries rendered as readable notices, with anything left
+// over (cancellation metadata, target-health planner output, and any other
+// payload with no semantic renderer yet) tucked behind an explicit debug
+// affordance instead of shown by default.
+function StepDetailsSection({ step, jobId, prefix, workflowId }: { step: JobStep; jobId: number; prefix: string; workflowId: number }) {
+  if (step.kind === "grader" || step.kind === "preflight_grader") {
+    return <GraderDetails details={objectDetails(step.details)} jobId={jobId} prefix={prefix} workflowId={workflowId} />
+  }
+  if (step.kind === "grader_collect" || step.kind === "preflight_grader_collect") {
+    return null
+  }
+  if (step.kind === "grader_fanout" || step.kind === "preflight_grader_fanout") {
+    return <GraderFanoutSummary step={step} />
+  }
+
+  const softFailures = softCommandFailures(step)
+  const debugDetails = debugOnlyDetails(step)
+
+  return (
+    <>
+      {softFailures.map((failure, index) => <SoftCommandFailurePanel failure={failure} key={index} />)}
+      {debugDetails ? <RawStepDetailsDisclosure details={debugDetails} /> : null}
+    </>
+  )
+}
+
+// Positive semantic renderer for non-fatal command failures recorded outside
+// the dedicated prepare-failure panel (format/generate autofix commands, the
+// secondary mise install failure) — visible by default, since these are
+// meaningful outcomes ("this fixer command failed"), unlike the debug-only
+// planner output routed through RawStepDetailsDisclosure below.
+function SoftCommandFailurePanel({ failure }: { failure: PrepareFailure }) {
+  const { t } = useT("jobs")
+  const status = prepareFailureStatus(failure, t)
+
+  return (
+    <Notice className="mt-2 p-3 text-xs" tone="warning">
+      <div className="font-semibold">{t("command_failure_title")}</div>
+      <DescriptionList.Root className="mt-2" density="compact">
+        <DescriptionList.Item descriptionClassName="break-words font-mono text-xs text-warning-text" label={t("prepare_failure_command")}>{failure.command || "-"}</DescriptionList.Item>
+        <DescriptionList.Item descriptionClassName="text-xs text-warning-text" label={t("prepare_failure_status_label")}>{status}</DescriptionList.Item>
+      </DescriptionList.Root>
+      {failure.output_tail ? <CodeSurface code={failure.output_tail} className="mt-3" maxHeightClassName="max-h-64" /> : null}
+    </Notice>
+  )
+}
+
+function RawStepDetailsDisclosure({ details }: { details: Record<string, unknown> }) {
+  const { t } = useT("jobs")
+  return (
+    <details className="mt-2 text-xs text-text-muted">
+      <summary className="cursor-pointer select-none hover:text-text-primary">{t("step_debug_details_toggle")}</summary>
+      <CodeSurface code={stringify(details)} className="mt-1" maxHeightClassName="max-h-64" />
+    </details>
   )
 }
 
@@ -784,6 +943,8 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
   const displayStatus = activeRun ? activeRun.state : step.display_status
   const prepareFailure = prepareFailureDetails(step)
   const cancellationNotice = stepCancellationNotice(step)
+  const agentic = stepAgentic(step)
+  const diagnosticRelevant = Boolean(activeRun) || isDiagnosticRelevantStep(step)
 
   const artifacts = workflowArtifacts ?? {}
   const summaryArtifact = (step.kind === "summarize" || step.kind === "summarize_amend")
@@ -826,17 +987,14 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
             {step.finished_at ? <span>{formatDuration(step.started_at, step.finished_at)}</span> : null}
           </div>
           {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
-          <StepPlacementPanel jobId={payload.job.id} prefix={prefix} step={step} workflowId={workflowId} />
+          <StepPlacementPanel defaultOpen={diagnosticRelevant} jobId={payload.job.id} prefix={prefix} step={step} workflowId={workflowId} />
           {cancellationNotice ? <CancellationNotice message={cancellationNotice} /> : null}
           {prepareFailure ? <PrepareFailurePanel failure={prepareFailure} /> : null}
           {pendingWarnings(step).map((warning) => (
             <WarningPanel command={command} jobId={payload.job.id} key={warning.id} warning={warning} />
           ))}
-          {step.details && !prepareFailure ? (
-            (step.kind === "grader" || step.kind === "preflight_grader")
-              ? <GraderDetails details={objectDetails(step.details)} />
-              : <CodeSurface code={stringify(step.details)} className="mt-2" maxHeightClassName="max-h-64" />
-          ) : null}
+          <StepOutcomePanel payload={payload} step={step} />
+          {step.details ? <StepDetailsSection jobId={payload.job.id} prefix={prefix} step={step} workflowId={workflowId} /> : null}
           {step.runs_truncated ? (
             <Notice className="mt-3 px-2 py-1 text-xs" tone="warning">
               {t("step_runs_truncated", { displayed: step.runs_displayed || runs.length, total: step.runs_total || runs.length })}
@@ -847,10 +1005,13 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
               {runs.map((run, idx) => (
                 <RunRow
                   active={activeRun?.id === run.id}
+                  agentic={agentic}
                   command={command}
                   key={run.id}
                   payload={payload}
                   prefix={prefix}
+                  redundantStatus={isRedundantRunStatus(step, run)}
+                  redundantTiming={isRedundantRunTiming(step, run)}
                   run={run}
                   stepAdversarialReviewArtifact={idx === 0 ? adversarialReviewArtifact : null}
                   stepSummaryArtifact={idx === 0 ? summaryArtifact : null}
@@ -895,7 +1056,13 @@ function stepCancellationNotice(step: JobStep) {
   return "parent workflow ended before this step could run."
 }
 
-function StepPlacementPanel({ step, jobId, prefix, workflowId }: { step: JobStep; jobId: number; prefix: string; workflowId: number }) {
+// PLACEMENT/WORKER/STORAGE/source-ref/cache/dependency rows are execution
+// locality trivia, not outcome — compressed into one collapsible cluster
+// instead of a prominent always-visible panel. `defaultOpen` keeps it
+// expanded for steps where that trivia is actually diagnostic (active,
+// failed, retried, or otherwise flagged relevant by the caller).
+function StepPlacementPanel({ step, jobId, prefix, workflowId, defaultOpen }: { step: JobStep; jobId: number; prefix: string; workflowId: number; defaultOpen: boolean }) {
+  const { t } = useT("jobs")
   const placement = step.placement
   const dependencies = step.dependencies
   if (!placement && !dependencies) return null
@@ -919,15 +1086,18 @@ function StepPlacementPanel({ step, jobId, prefix, workflowId }: { step: JobStep
   if (dependencies?.barrier_progress) rows.push(["Barrier", `${dependencies.barrier_progress.completed}/${dependencies.barrier_progress.total} dependencies complete`])
 
   return (
-    <Surface className="mt-2" padding="sm" variant="panel">
-      <DescriptionList.Root density="compact">
-        {rows.map(([label, value]) => (
-          <DescriptionList.Item descriptionClassName="break-words text-xs" key={label} label={label}>
-            {value}
-          </DescriptionList.Item>
-        ))}
-      </DescriptionList.Root>
-    </Surface>
+    <details className="mt-2" open={defaultOpen}>
+      <summary className="cursor-pointer select-none text-xs text-text-muted hover:text-text-primary">{t("step_execution_details_toggle")}</summary>
+      <Surface className="mt-2" padding="sm" variant="panel">
+        <DescriptionList.Root density="compact">
+          {rows.map(([label, value]) => (
+            <DescriptionList.Item descriptionClassName="break-words text-xs" key={label} label={label}>
+              {value}
+            </DescriptionList.Item>
+          ))}
+        </DescriptionList.Root>
+      </Surface>
+    </details>
   )
 }
 
@@ -1146,8 +1316,24 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
   )
 }
 
-function RunRow({ run, payload, command, prefix, active = false, stepSummaryArtifact = null, stepTestPlanArtifact = null, stepAdversarialReviewArtifact = null, stepVisualReviewArtifact = null, targetLabel = null, workflowId }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; active?: boolean; stepSummaryArtifact?: string | null; stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null; stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null; stepVisualReviewArtifact?: JobVisualReviewIteration[] | null; targetLabel?: string | null; workflowId: number }) {
+function RunRow({ run, payload, command, prefix, active = false, agentic = true, redundantStatus = false, redundantTiming = false, stepSummaryArtifact = null, stepTestPlanArtifact = null, stepAdversarialReviewArtifact = null, stepVisualReviewArtifact = null, targetLabel = null, workflowId }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; active?: boolean; agentic?: boolean; redundantStatus?: boolean; redundantTiming?: boolean; stepSummaryArtifact?: string | null; stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null; stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null; stepVisualReviewArtifact?: JobVisualReviewIteration[] | null; targetLabel?: string | null; workflowId: number }) {
   const { t } = useT("jobs")
+  const diagnosticRun = isDiagnosticRelevantRun(run)
+  const hasMeaningfulArtifact = Boolean(
+    stepSummaryArtifact || stepTestPlanArtifact || stepAdversarialReviewArtifact || stepVisualReviewArtifact
+      || run.agent_diff_present || run.step_agent_diff_present || run.test_failure_summary
+  )
+  // Non-agentic happy-path runs (prepare, format, grader, pr_open, ...) have
+  // nothing to inspect but a log stream — fold the Transcript action into
+  // the same collapsed execution-details cluster as the agent metadata line
+  // instead of giving it equal billing with real artifact buttons.
+  const deemphasizeTranscript = !agentic && !diagnosticRun && !hasMeaningfulArtifact && run.job_log_count > 0
+  const showAgentMetadataInline = agentic || diagnosticRun
+  const agentMetadataLine = (
+    <>
+      {run.agent_provider || t("run_agent_fallback")} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count} {t("run_log_line", { count: run.job_log_count })} · {formatCurrency(run.cost_usd || 0)}
+    </>
+  )
   const [gradeLogOpen, setGradeLogOpen] = useState(false)
   const [artifactView, setArtifactView] = useState<"transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | "visual_review" | null>(null)
   const isRunArtifactView = artifactView === "transcript" || artifactView === "diff" || artifactView === "step_diff"
@@ -1193,30 +1379,44 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-text-primary">{t("run_number", { id: run.id })}</span>
-            <StatusPill state={run.state} />
+            {redundantStatus && !diagnosticRun ? null : <StatusPill state={run.state} />}
             {run.rate_limited ? <SmallPill>{t("run_rate_limited")}</SmallPill> : null}
           </div>
-          <p className="mt-1 text-xs text-text-muted">
-            {run.agent_provider || t("run_agent_fallback")} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count} {t("run_log_line", { count: run.job_log_count })} · {formatCurrency(run.cost_usd || 0)}
-          </p>
-          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-text-muted">
-            {run.started_at ? (
-              <>
-                <span>{t("run_started_at")}</span>
-                <RelativeTimestamp value={run.started_at} />
-              </>
-            ) : (
-              <span>{t("run_not_started")}</span>
-            )}
-            {run.finished_at ? (
-              <>
-                <span>·</span>
-                <span>{t("run_finished_at")}</span>
-                <RelativeTimestamp value={run.finished_at} />
-                <span>({formatDuration(run.started_at, run.finished_at)})</span>
-              </>
-            ) : null}
-          </p>
+          {showAgentMetadataInline ? (
+            <p className="mt-1 text-xs text-text-muted">{agentMetadataLine}</p>
+          ) : (
+            <details className="mt-1 text-xs text-text-muted">
+              <summary className="cursor-pointer select-none hover:text-text-primary">{t("run_execution_details_toggle")}</summary>
+              <div className="mt-2 space-y-2">
+                <p>{agentMetadataLine}</p>
+                {deemphasizeTranscript ? (
+                  <Button disabled={artifactsLoading} onClick={() => showArtifacts("transcript")} variant="secondary">
+                    {artifactsLoading && artifactView === "transcript" ? t("run_loading") : t("run_transcript")}
+                  </Button>
+                ) : null}
+              </div>
+            </details>
+          )}
+          {redundantTiming && !diagnosticRun ? null : (
+            <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-text-muted">
+              {run.started_at ? (
+                <>
+                  <span>{t("run_started_at")}</span>
+                  <RelativeTimestamp value={run.started_at} />
+                </>
+              ) : (
+                <span>{t("run_not_started")}</span>
+              )}
+              {run.finished_at ? (
+                <>
+                  <span>·</span>
+                  <span>{t("run_finished_at")}</span>
+                  <RelativeTimestamp value={run.finished_at} />
+                  <span>({formatDuration(run.started_at, run.finished_at)})</span>
+                </>
+              ) : null}
+            </p>
+          )}
           {run.agent_summary ? <Markdown className="chat-prose mt-2 text-sm text-text-muted" text={run.agent_summary} /> : null}
           {run.skill_source ? (
             <p className="mt-1 text-xs text-text-muted">
@@ -1243,7 +1443,7 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
           ) : null}
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          {run.job_log_count > 0 ? (
+          {run.job_log_count > 0 && !deemphasizeTranscript ? (
             <Button disabled={artifactsLoading} onClick={() => showArtifacts("transcript")} variant="secondary">
               {artifactsLoading && artifactView === "transcript" ? t("run_loading") : t("run_transcript")}
             </Button>
@@ -1273,7 +1473,7 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
               {artifactsLoading && artifactView === "diff" ? t("run_loading") : t("run_diff")}
             </Button>
           ) : null}
-          {run.step_agent_diff_present ? (
+          {run.step_agent_diff_present && !(run.agent_diff_present && run.step_diff_matches_diff) ? (
             <Button disabled={artifactsLoading} onClick={() => showArtifacts("step_diff")} variant="secondary">
               {artifactsLoading && artifactView === "step_diff" ? t("run_loading") : t("run_step_diff")}
             </Button>
@@ -1289,7 +1489,7 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
         </div>
       </div>
       {artifacts.isError ? <Text className="mt-3 text-xs" tone="danger">{errorMessage(artifacts.error, t("run_artifacts_error"))}</Text> : null}
-      {isRunArtifactView && artifacts.data ? <RunArtifactsPanel canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)} onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView as "transcript" | "diff" | "step_diff"} /> : null}
+      {isRunArtifactView && artifacts.data ? <RunArtifactsPanel onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView as "transcript" | "diff" | "step_diff"} /> : null}
       {artifactView === "summary" && stepSummaryArtifact ? (
         <StepSummaryPanel onClose={() => setArtifactView(null)} summary={stepSummaryArtifact} />
       ) : null}
@@ -1330,50 +1530,21 @@ function TestFailureSummary({ summary }: { summary: RunTestFailureSummary }) {
   )
 }
 
-function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canReviewDiff: boolean; payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff" | "step_diff"; onClose: () => void }) {
+// Diffs in the workflow tab are read-only inspection artifacts, not a review
+// surface -- comment threads and "Submit feedback" belong to the Review
+// Workspace and Source tabs (see DiffReviewFeedback.tsx), so this panel never
+// wires up useDiffReviewFeedback.
+function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff" | "step_diff"; onClose: () => void }) {
   const { t } = useT("jobs")
-  const surface = view === "step_diff" ? "run_step_agent_diff" : "run_agent_diff"
-  const feedbackEnabled = canReviewDiff && view !== "transcript" && Boolean(payload.base_ref && payload.head_ref && payload.workflow_id && payload.run_id && payload.diff_review_version_id)
-  const feedback = useDiffReviewFeedback({
-    baseRef: payload.base_ref,
-    buildContext: (selection) => ({
-      diff_kind: view,
-      source_surface: "run_artifact",
-      file_status: selection.file.status || null
-    }),
-    diffReviewVersionId: payload.diff_review_version_id,
-    enabled: feedbackEnabled,
-    headRef: payload.head_ref,
-    jobId: payload.job_id,
-    runId: payload.run_id,
-    surface,
-    workflowId: payload.workflow_id
-  })
 
   if (view === "diff") {
     return (
       <section className={artifactPanelClass()}>
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_diff")}</ArtifactPanelHeader>
-        {feedback.panel}
         {payload.agent_diff ? (
           <AgentDiff
-            comments={feedback.diffThreads}
-            composingBody={feedback.composingBody}
-            composingError={feedback.composingError}
-            composingPending={feedback.composingPending}
-            composingSelection={feedback.composingSelection}
             diff={payload.agent_diff}
-            editingThreadBody={feedback.editingThreadBody}
-            editingThreadId={feedback.editingThreadId}
-            onCancelComposing={feedback.onCancelComposing}
-            onCancelEditThread={feedback.onCancelEditThread}
-            onChangeComposingBody={feedback.onChangeComposingBody}
-            onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
-            onCommentLine={feedback.onCommentLine}
             onLoadFileContext={payload.head_ref ? (file) => fetchJobSourceFileContent(payload.job_id, payload.head_ref!, file.path) : undefined}
-            onSaveComposing={feedback.onSaveComposing}
-            onSaveEditThread={feedback.onSaveEditThread}
-            onStartEditThread={feedback.onStartEditThread}
             showFileHeaders
           />
         ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
@@ -1385,26 +1556,10 @@ function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canRevie
     return (
       <section className={artifactPanelClass()}>
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_step_diff")}</ArtifactPanelHeader>
-        {feedback.panel}
         {payload.step_agent_diff ? (
           <AgentDiff
-            comments={feedback.diffThreads}
-            composingBody={feedback.composingBody}
-            composingError={feedback.composingError}
-            composingPending={feedback.composingPending}
-            composingSelection={feedback.composingSelection}
             diff={payload.step_agent_diff}
-            editingThreadBody={feedback.editingThreadBody}
-            editingThreadId={feedback.editingThreadId}
-            onCancelComposing={feedback.onCancelComposing}
-            onCancelEditThread={feedback.onCancelEditThread}
-            onChangeComposingBody={feedback.onChangeComposingBody}
-            onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
-            onCommentLine={feedback.onCommentLine}
             onLoadFileContext={payload.head_ref ? (file) => fetchJobSourceFileContent(payload.job_id, payload.head_ref!, file.path) : undefined}
-            onSaveComposing={feedback.onSaveComposing}
-            onSaveEditThread={feedback.onSaveEditThread}
-            onStartEditThread={feedback.onStartEditThread}
             showFileHeaders
           />
         ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
