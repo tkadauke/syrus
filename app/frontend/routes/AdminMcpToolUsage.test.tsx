@@ -89,7 +89,17 @@ function payload() {
         chat_session_id: null,
         chat_path: null
       }
-    ]
+    ],
+    startup_timing: {
+      window: { start: "2026-08-14T00:00:00Z", end: "2026-08-21T00:00:00Z" },
+      filters: { provider: null, server_name: null },
+      phase_latency: [
+        { phase: "agent_process_spawn", count: 3, avg_ms: 0, p50_ms: 0, p95_ms: 0, max_ms: 0 },
+        { phase: "first_assistant_message", count: 3, avg_ms: 1500, p50_ms: 1400, p95_ms: 2100, max_ms: 2200 }
+      ],
+      turns_observed: 3,
+      stalled_turns: 1
+    }
   }
 }
 
@@ -114,6 +124,10 @@ describe("AdminMcpToolUsage", () => {
     const jobLink = screen.getByRole("link", { name: "JOB-42" })
     expect(jobLink).toHaveAttribute("href", "/jobs/42")
     expect(screen.getByRole("link", { name: "Run #99" })).toHaveAttribute("href", "/admin/runs/99/transcript")
+
+    expect(screen.getByText("MCP startup lifecycle")).toBeInTheDocument()
+    expect(screen.getByText("agent process spawn")).toBeInTheDocument()
+    expect(screen.getByText("1500 ms")).toBeInTheDocument()
   })
 
   it("re-fetches with a since parameter when the window preset changes", async () => {

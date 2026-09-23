@@ -3,6 +3,8 @@ import { SectionHeading } from "../components/Heading"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   fetchAdminMcpToolUsage,
+  type McpStartupPhaseLatencyRow,
+  type McpStartupTimingSection as McpStartupTimingSectionType,
   type McpToolUsageBreakdownRow,
   type McpToolCardGapRow,
   type McpToolUsagePayload,
@@ -19,6 +21,7 @@ import {
 import { Button } from "../components/Button"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
+import { DataTable, PanelMessage, Section, Text } from "../components/ui"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -191,8 +194,63 @@ function McpToolUsageView({ payload }: { payload: McpToolUsagePayload }) {
         <BreakdownPanel heading={t("mcp_tool_usage.sidecar_mode_breakdown_heading")} labelKey="sidecar_mode" rows={payload.sidecar_mode_breakdown} />
       </div>
 
+      <StartupTimingPanel section={payload.startup_timing} />
+
       <RecentCallsPanel calls={payload.recent_calls} />
     </div>
+  )
+}
+
+function formatPhaseName(phase: string) {
+  return phase.replaceAll("_", " ")
+}
+
+function formatMs(value: number | null) {
+  return value == null ? "-" : `${Math.round(value)} ms`
+}
+
+function StartupTimingPanel({ section }: { section: McpStartupTimingSectionType }) {
+  const { t } = useT("admin")
+  return (
+    <Section.Root divided padding="none">
+      <Section.Header className="px-4 py-3">
+        <Section.Title>{t("mcp_tool_usage.startup_timing_heading")}</Section.Title>
+        <Section.Actions>
+          <Text as="span" variant="caption" muted>
+            {t("mcp_tool_usage.startup_timing_turns_observed")}: {section.turns_observed}
+          </Text>
+          <Text as="span" tone={section.stalled_turns > 0 ? "danger" : "muted"} variant="caption">
+            {t("mcp_tool_usage.startup_timing_stalled_turns")}: {section.stalled_turns}
+          </Text>
+        </Section.Actions>
+      </Section.Header>
+      {section.phase_latency.length === 0 ? <PanelMessage>{t("mcp_tool_usage.startup_timing_empty")}</PanelMessage> : (
+        <DataTable.Root>
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("mcp_tool_usage.startup_timing_col_phase")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("mcp_tool_usage.startup_timing_col_count")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("mcp_tool_usage.startup_timing_col_avg")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("mcp_tool_usage.startup_timing_col_p50")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("mcp_tool_usage.startup_timing_col_p95")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("mcp_tool_usage.startup_timing_col_max")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {section.phase_latency.map((row: McpStartupPhaseLatencyRow) => (
+              <DataTable.Row key={row.phase}>
+                <DataTable.Cell className="font-medium capitalize">{formatPhaseName(row.phase)}</DataTable.Cell>
+                <DataTable.Cell>{row.count}</DataTable.Cell>
+                <DataTable.Cell>{formatMs(row.avg_ms)}</DataTable.Cell>
+                <DataTable.Cell>{formatMs(row.p50_ms)}</DataTable.Cell>
+                <DataTable.Cell>{formatMs(row.p95_ms)}</DataTable.Cell>
+                <DataTable.Cell>{formatMs(row.max_ms)}</DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      )}
+    </Section.Root>
   )
 }
 
