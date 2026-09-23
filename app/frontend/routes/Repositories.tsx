@@ -2,7 +2,7 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading } from "../components/Heading"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -188,6 +188,17 @@ function buildRepositoryColumns({
   ]
 }
 
+// Restores the mobile gutter for a banner-like message (loading/error
+// PanelMessage) sitting directly in a "responsive" Page.Root's flush body --
+// a real descendant of Page.Root so usePageGutterRestoreClassName reads the
+// context Page.Root actually provides, rather than the default it falls back
+// to outside any Page.Root (a hook call from the Page.Root caller's own body
+// would run before the Provider mounts).
+function QueryStateBanner({ children }: { children: ReactNode }) {
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
+  return <div className={marginGutterRestore}>{children}</div>
+}
+
 export function RepositoriesIndex() {
   const { t } = useT("settings")
   usePageTitle(t("repositories.heading"))
@@ -206,11 +217,17 @@ export function RepositoriesIndex() {
   return (
     <Page.Root aria-label={t("aria_repositories")} gutter="responsive" size="wide">
       {repositories.isPending ? (
-        <PanelMessage>
-          {t('repositories.loading')}
-        </PanelMessage>
+        <QueryStateBanner>
+          <PanelMessage>
+            {t('repositories.loading')}
+          </PanelMessage>
+        </QueryStateBanner>
       ) : null}
-      {repositories.isError ? <PanelMessage tone="error">{errorMessage(repositories.error, t("repositories.error_load"))}</PanelMessage> : null}
+      {repositories.isError ? (
+        <QueryStateBanner>
+          <PanelMessage tone="error">{errorMessage(repositories.error, t("repositories.error_load"))}</PanelMessage>
+        </QueryStateBanner>
+      ) : null}
       {repositories.isSuccess ? (
         <RepositoriesView
           pathname={location.pathname}
@@ -284,7 +301,11 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
       </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {unarchive.isError ? <PanelMessage tone="error">{errorMessage(unarchive.error, t("repositories.command_failed"))}</PanelMessage> : null}
+      {unarchive.isError ? (
+        <div className={marginGutterRestore}>
+          <PanelMessage tone="error">{errorMessage(unarchive.error, t("repositories.command_failed"))}</PanelMessage>
+        </div>
+      ) : null}
 
       {showOnboarding ? (
         <OnboardingEmptyState
