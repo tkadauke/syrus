@@ -220,7 +220,10 @@ class ChatWorkspace
   # Fully destroys idle chat workspaces (workspace dir + agent homes) and
   # resets the session. Skips Coding-Mode checkouts: those hold committable
   # work and are reclaimed (with a git backup) by reclaim_idle_coding_checkouts!
-  # instead of being blindly deleted.
+  # instead of being blindly deleted. destroy! can issue several
+  # low_priority_rm_rf! subprocess calls per session (workspace dir + agent
+  # home dir), so this is bounded and paced the same as the other maintenance
+  # sweep methods (see MAINTENANCE_SWEEP_BATCH_LIMIT/_PACE).
   def self.prune_idle!(older_than:)
     cutoff = older_than.ago
     n = 0
@@ -234,6 +237,7 @@ class ChatWorkspace
       destroy!(chat_session)
       chat_session.update_columns(workspace_path: nil, updated_at: Time.current)
       n += 1
+      sleep(MAINTENANCE_SWEEP_PACE)
     end
 
     n
@@ -274,11 +278,17 @@ class ChatWorkspace
   # LRU-evicting the least-recently-active ones (each safely backed up first)
   # until total on-disk size is under budget. 0/negative budget = disabled.
   # Returns bytes freed.
-  # Sizing every retained checkout (one `du -sk` treewalk each) is the
-  # expensive part of this method and runs on every sweep tick regardless of
-  # whether anything ends up evicted. Pace those calls, same rationale as
-  # MAINTENANCE_SWEEP_BATCH_LIMIT above, so this node's disk isn't hit with a
-  # burst of full-tree walks back to back.
+  #
+  # The sizing pass below (one low-priority `du -sk` treewalk per retained
+  # checkout on this node) is paced with MAINTENANCE_SWEEP_PACE but, unlike
+  # every other maintenance loop in this class, deliberately NOT capped by
+  # MAINTENANCE_SWEEP_BATCH_LIMIT: correctly deciding whether the node is over
+  # budget requires the up-to-date total across every retained checkout, and
+  # sizing only the first N would let an under-counted `total` mask a real
+  # over-budget node. The pacing still keeps each individual `du` from
+  # bursting against live I/O; only the eviction loop after it — the tier that
+  # actually costs real disk churn (git backup push + `rm -rf` of a
+  # multi-gigabyte tree) — is capped per tick.
   def self.reclaim_coding_over_budget!(budget_bytes:)
     return 0 if budget_bytes.to_i <= 0
 
