@@ -5,7 +5,7 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { Button, DataTable, Form } from "@app/components/ui"
+import { Button, DataTable, Form, Page } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
   createKubernetesCluster,
@@ -45,18 +45,20 @@ export function KubernetesClusters() {
 
   if (browsing) {
     return (
-      <main aria-label={t("aria_page")} className="mx-auto flex h-full max-w-[96rem] flex-col gap-6 overflow-hidden p-3 sm:p-6">
+      <Page.Root aria-label={t("aria_page")} className="flex h-full flex-col overflow-hidden" gutter="responsive" size="wide">
         <ClusterBrowser clusterId={browsing.clusterId} label={browsing.label} onBack={() => setBrowsing(null)} />
-      </main>
+      </Page.Root>
     )
   }
 
   return (
-    <main aria-label={t("aria_page")} className="mx-auto max-w-[72rem] space-y-6 p-3 sm:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("heading")}</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("description")}</p>
-      </header>
+    <Page.Root aria-label={t("aria_page")} gutter="responsive">
+      <Page.Header>
+        <Page.HeadingGroup>
+          <Page.Title>{t("heading")}</Page.Title>
+          <Page.Description>{t("description")}</Page.Description>
+        </Page.HeadingGroup>
+      </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
@@ -72,7 +74,7 @@ export function KubernetesClusters() {
           />
         </>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 

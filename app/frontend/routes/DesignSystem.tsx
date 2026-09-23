@@ -130,7 +130,7 @@ export function DesignSystemRoute() {
   const [modalOpen, setModalOpen] = useState(false)
 
   return (
-    <Page.Root aria-label={t("aria_design_system")} data-design-system-preview={previewTheme?.slug} size="narrow" style={previewStyle}>
+    <Page.Root aria-label={t("aria_design_system")} data-design-system-preview={previewTheme?.slug} gutter="responsive" size="narrow" style={previewStyle}>
       <Page.Header>
         <Page.HeadingGroup>
           <Page.Title>{t("design_system.heading")}</Page.Title>

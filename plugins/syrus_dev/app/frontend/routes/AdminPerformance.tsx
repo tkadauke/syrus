@@ -26,7 +26,7 @@ export function AdminPerformance() {
   })
 
   return (
-    <Page.Root aria-label={t("performance.aria")} size="wide">
+    <Page.Root aria-label={t("performance.aria")} gutter="responsive" size="wide">
       <Page.Header className="flex items-end justify-between gap-4 border-b border-border pb-4">
         <div>
           <Text className="font-medium uppercase" variant="caption" tone="muted">{t("section_label")}</Text>
@@ -75,18 +75,20 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
         <Metric title={t("performance.thresholds")} value={formatMs(payload.thresholds.slow_request_ms)} context={t("performance.threshold_context", { job: formatMs(payload.thresholds.slow_job_ms), phase: formatMs(payload.thresholds.slow_phase_ms), sql: formatMs(payload.thresholds.slow_sql_ms), request_sql: formatMs(payload.thresholds.request_sql_duration_ms), request_sql_count: payload.thresholds.request_sql_count_threshold })} />
       </section>
 
-      <Toolbar aria-label={t("performance.tabs_aria")} className="border-b border-border">
-        {PERFORMANCE_TABS.map((tab) => (
-          <button
-            className={tabButtonClass(activeTab === tab)}
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            type="button"
-          >
-            {t(`performance.tab_${tab}`)}
-          </button>
-        ))}
-      </Toolbar>
+      <Page.Nav>
+        <Toolbar aria-label={t("performance.tabs_aria")} className="border-b border-border">
+          {PERFORMANCE_TABS.map((tab) => (
+            <button
+              className={tabButtonClass(activeTab === tab)}
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              type="button"
+            >
+              {t(`performance.tab_${tab}`)}
+            </button>
+          ))}
+        </Toolbar>
+      </Page.Nav>
 
       {activeTab === "overview" ? (
         <>

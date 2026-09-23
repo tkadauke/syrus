@@ -99,7 +99,7 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
   const prefix = routePrefix(location.pathname)
 
   return (
-    <Page.Root aria-label={t("aria_queue")} size="wide">
+    <Page.Root aria-label={t("aria_queue")} gutter="responsive" size="wide">
       <Page.Header className="items-end border-b border-border pb-4">
         <Page.HeadingGroup>
           <Text as="p" muted variant="label">{t("section_label")}</Text>
@@ -115,17 +115,19 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
         </Button>
       </Page.Header>
 
-      <nav aria-label={t("aria_queue_tabs")} className="flex flex-wrap gap-2">
-        {queueTabs.map((candidate) => (
-          <Link
-            className={candidate === tab ? buttonClasses("primary", "sm") : buttonClasses("secondary", "sm")}
-            key={candidate}
-            to={`${basePath}/${candidate}`}
-          >
-            {t(`queue.tab_${candidate}`)}
-          </Link>
-        ))}
-      </nav>
+      <Page.Nav>
+        <nav aria-label={t("aria_queue_tabs")} className="flex flex-wrap gap-2">
+          {queueTabs.map((candidate) => (
+            <Link
+              className={candidate === tab ? buttonClasses("primary", "sm") : buttonClasses("secondary", "sm")}
+              key={candidate}
+              to={`${basePath}/${candidate}`}
+            >
+              {t(`queue.tab_${candidate}`)}
+            </Link>
+          ))}
+        </nav>
+      </Page.Nav>
 
       {reaper.isSuccess ? (
         <Notice tone="success">{reaper.data.message}</Notice>

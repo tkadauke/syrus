@@ -26,7 +26,7 @@ export function AdminBuildCache() {
   const query = useQuery({ queryKey: QUERY_KEY, queryFn: fetchAdminBuildCache })
 
   return (
-    <Page.Root aria-label={t("build_cache.aria_main")}>
+    <Page.Root aria-label={t("build_cache.aria_main")} gutter="responsive">
       <Page.Header className="border-b border-border pb-4">
         <Text className="font-medium uppercase" variant="caption" tone="muted">{t("admin:section_label")}</Text>
         <PageHeading>{t("build_cache.heading")}</PageHeading>

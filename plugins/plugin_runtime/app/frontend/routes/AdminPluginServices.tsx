@@ -45,7 +45,7 @@ export function AdminPluginServices() {
   const payload = services.data
 
   return (
-    <Page.Root aria-label={t("heading")} size="wide">
+    <Page.Root aria-label={t("heading")} gutter="responsive" size="wide">
       <Page.Header className="border-b border-border pb-4">
         <Page.HeadingGroup>
           <Text className="font-medium uppercase" variant="caption" tone="muted">{t("admin:section_label")}</Text>
