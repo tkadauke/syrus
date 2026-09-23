@@ -176,6 +176,14 @@ dangerous — the checks live in the manager, the one place they bind:
 - a request naming a field the manager does not model is rejected outright, so
   asking for `privileged` fails loudly rather than quietly running without it
 
+**Planned, not shipped:** a first-party privileged lane for a small, compiled
+table of known services (starting with Tailscale) that still cannot accept an
+image, capability, device, mount, or network setting from a request -- only a
+short allowed env list, resolved against that fixed table. See
+`docs/plans/tailscale-privileged-service-lane.md`. Nothing below this point
+describes that lane; it describes the contract every `plugin_runtime:service`
+contributor is held to today.
+
 ## Service states
 
 | State | Meaning |

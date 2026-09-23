@@ -3,6 +3,12 @@
 // service is not allowed to have -- privileges, devices, host mounts, host
 // networking -- is not a field here at all, so it cannot be requested, only
 // omitted.
+//
+// That stays true for every plugin_runtime:service contributor. A first-party
+// privileged lane (see docs/plans/tailscale-privileged-service-lane.md) is
+// planned as a separate wire type and endpoint carrying only a small allowed
+// env map, resolved against a compiled service table -- never an extension of
+// Service, so this type's guarantee is not the thing that changes.
 package spec
 
 import (
