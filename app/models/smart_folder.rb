@@ -236,6 +236,12 @@ class SmartFolder < ApplicationRecord
   KINDS = %w[ builtin user_defined ].freeze
   SUBJECT_TYPES = %w[ job epic workflow admin_user admin_queue spawned_process repository ].freeze
 
+  # Shared cap for scanning smart folder membership counts. Any
+  # Filters::BaseFilter#capped_count call stops scanning at COUNT_CAP + 1
+  # rows regardless of true match count, so a folder count query never
+  # scales with true backlog size.
+  COUNT_CAP = 1_000
+
   belongs_to :user, optional: true
 
   # MySQL 8 rejects defaults on JSON columns, so seed an empty filter
