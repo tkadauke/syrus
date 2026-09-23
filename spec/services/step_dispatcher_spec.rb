@@ -1399,6 +1399,37 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(workflow.artifact("failure_reason")).to eq("uncleared_retry_until_barrier_after_success")
     end
 
+    it "allows workflow success when the skipped retry barrier is marked retry_until_barrier_superseded" do
+      workflow.start!; workflow.save!
+      loop_id = SecureRandom.uuid
+      grader_collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 1,
+        loop_id: loop_id,
+        iteration: 1,
+        state: "skipped",
+        details: {
+          "skipped" => true,
+          "skip_reason" => "preflight graders passed — main is already healthy",
+          "retry_until_barrier_superseded" => true
+        },
+        started_at: 3.minutes.ago,
+        finished_at: 2.minutes.ago
+      )
+      s1.update!(next_step_id: grader_collect.id)
+      grader_collect.update!(next_step_id: s2.id)
+      s2.update!(position: 2)
+      s3.update!(position: 3)
+      s2.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      s3.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      described_class.advance_from(s3)
+
+      expect(workflow.reload).to be_succeeded
+      expect(workflow.failure_reason).to be_nil
+    end
+
     it "allows workflow success when a later retry barrier in the same loop succeeded" do
       workflow.start!; workflow.save!
       loop_id = SecureRandom.uuid
