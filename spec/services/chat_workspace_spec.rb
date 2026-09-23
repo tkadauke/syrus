@@ -38,6 +38,22 @@ RSpec.describe ChatWorkspace, :ci_only do
     end
   end
 
+  describe ".ensure_root!" do
+    it "reports a chat_startup.workspace_ensure phase when performance logging is enabled and the stage is slow" do
+      Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+      allow(PerformanceLogging).to receive(:slow_phase_threshold_ms).and_return(0.0)
+      PerformanceLogging::Store.clear!
+
+      path = described_class.ensure_root!(chat_session)
+
+      event = PerformanceLogging::Store.recent.find { |e| e["phase"] == "chat_startup.workspace_ensure" }
+      expect(event["metadata"]).to include("chat_session_id" => chat_session.id.to_s)
+      expect(path).to eq(described_class.path_for(chat_session))
+    ensure
+      PerformanceLogging::Store.clear!
+    end
+  end
+
   describe ".agent_home_for" do
     it "is keyed on chat id and provider, outside the chat workspace" do
       expect(described_class.agent_home_for(chat_session, "codex"))

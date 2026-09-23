@@ -349,11 +349,13 @@ class ChatWorkspace
   end
 
   def ensure_root!
-    path = self.class.path_for(@chat_session)
-    FileUtils.mkdir_p(path.to_s)
-    persist_workspace_path!(path)
-    write_relay_credentials!
-    path
+    PerformanceLogging.phase("chat_startup.workspace_ensure", chat_session_id: @chat_session.id, capture_host_pressure: true) do
+      path = self.class.path_for(@chat_session)
+      FileUtils.mkdir_p(path.to_s)
+      persist_workspace_path!(path)
+      write_relay_credentials!
+      path
+    end
   end
 
   def attach_repository!(repository)
