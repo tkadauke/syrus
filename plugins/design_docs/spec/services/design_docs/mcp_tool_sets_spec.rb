@@ -284,6 +284,33 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(denied.dig(:result, :content, 0, :text)).to include("design doc not found in this agent context")
   end
 
+  it "returns accurate can_suggest permissions for a chat read_design_doc on a visible draft doc" do
+    doc = create_design_doc(markdown: "Chat permissions check")
+    server = chat_server
+
+    response = call_tool(server, "read_design_doc", doc_ref: doc.display_id)
+    permissions = response_payload(response).dig(:design_doc, :permissions)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(permissions).to include(can_write_canonical: true, can_suggest: true)
+  end
+
+  it "keeps read_design_doc permissions all false for read-only workflow agents even though the job owner could suggest via chat" do
+    doc = create_design_doc(markdown: "Workflow permissions check")
+    run = workflow_run
+    server = workflow_server(run)
+
+    response = call_tool(server, "read_design_doc", doc_ref: doc.display_id)
+    permissions = response_payload(response).dig(:design_doc, :permissions)
+
+    expect(permissions).to eq(
+      can_write_canonical: false,
+      can_suggest: false,
+      can_review_suggestions: false,
+      can_archive: false
+    )
+  end
+
   it "creates agent-owned suggestions with chat provenance and leaves canonical markdown unchanged" do
     doc = create_design_doc(markdown: "Hello world")
     assistant_message = chat_session.messages.create!(role: "assistant", content: { "text" => "" })
