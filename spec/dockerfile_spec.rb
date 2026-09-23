@@ -164,6 +164,19 @@ RSpec.describe "Dockerfile" do
     expect(app_stage).not_to include("sccache")
   end
 
+  it "does not install the tailscale package in the worker image" do
+    # Regression: the worker-deps stage used to apt-get install the
+    # tailscale/tailscaled binaries so the connectivity plugin could spawn
+    # tailscaled directly inside the worker. That daemon now runs in its own
+    # privileged container started by Plugin Runtime (see
+    # docs/plans/tailscale-privileged-service-lane.md); the worker image has
+    # no remaining reason to carry the Tailscale apt source, keyring, or
+    # package.
+    expect(dockerfile).not_to include("pkgs.tailscale.com")
+    expect(dockerfile).not_to include("tailscale-archive-keyring")
+    expect(dockerfile).not_to include("apt-get install --no-install-recommends -y tailscale")
+  end
+
   it "packages the full whisper.cpp runtime, not just the CLI binary" do
     whisper_stage = stage("whisper-build", "app")
 
