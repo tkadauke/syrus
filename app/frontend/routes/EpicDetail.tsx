@@ -46,6 +46,7 @@ import { ChatBubbleIcon } from "./jobDetail/JobHeader"
 import { TopoDepGraph } from "../components/TopoDepGraph"
 import { EpicDeploymentStagePipeline } from "../components/DeploymentStagePipeline"
 import { createEpicJobNavigationContext, jobNavigationHref, storeJobNavigationContext } from "../lib/jobNavigationContext"
+import { Page } from "../components/ui"
 
 type EpicCommand =
   | { kind: "state"; transition: EpicStateTransition }
@@ -72,11 +73,11 @@ export function EpicDetailRoute() {
   usePageTitle(pageTitle)
 
   return (
-    <main aria-label={t("detail_label")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <Page.Root aria-label={t("detail_label")} gutter="responsive" size="wide">
       {epic.isPending ? <PanelMessage>{t("loading")}</PanelMessage> : null}
       {epic.isError ? <PanelMessage tone="error">{errorMessage(epic.error, t("load_error"))}</PanelMessage> : null}
       {epic.isSuccess ? <EpicDetail payload={epic.data} prefix={prefix} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -118,7 +119,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
 
   return (
     <>
-      <header className="space-y-3">
+      <Page.Header className="block space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <PageHeading className="break-words">
             <CopyableSlug slug={payload.epic.display_number} />
@@ -201,7 +202,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
             ) : null}
           </div>
         </div>
-      </header>
+      </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
