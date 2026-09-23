@@ -126,6 +126,7 @@ function MaintenanceTasksTable({ payload, prefix }: { payload: AdminMaintenanceT
       headerClassName: "px-4 py-2",
       header: t("maintenance_tasks.col_task"),
       key: "task",
+      required: true,
       render: (task) => (
         <div className="space-y-2">
           <Link className={adminEventLinkClass()} to={withRoutePrefix(`/admin/maintenance_tasks/${task.id}`, prefix)}>{task.title}</Link>
@@ -166,7 +167,7 @@ function MaintenanceTasksTable({ payload, prefix }: { payload: AdminMaintenanceT
     }
   ]
 
-  return <AdminEventLogTable columns={columns} getRowKey={(task) => task.id} rows={payload.tasks} tableClassName="min-w-full divide-y divide-border text-sm" />
+  return <AdminEventLogTable columns={columns} getRowKey={(task) => task.id} rows={payload.tasks} storageKey="syrus.admin.maintenance_tasks.visible_columns" tableClassName="min-w-full divide-y divide-border text-sm" />
 }
 
 function TaskType({ task }: { task: MaintenanceTask }) {
