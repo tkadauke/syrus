@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { Button } from "@app/components/Button"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { Page } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesNamespaces } from "../api/kubernetesResources"
@@ -41,22 +42,24 @@ export function ClusterBrowser({ clusterId, label, onBack }: { clusterId: number
 
   return (
     <section className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("browse_heading", { label })}</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("browse_description")}</p>
-        </div>
-        <Button onClick={onBack} size="sm" variant="secondary">
-          {t("back_to_clusters")}
-        </Button>
-      </div>
+      <Page.Header className="shrink-0 items-center">
+        <Page.HeadingGroup>
+          <Page.Title>{t("browse_heading", { label })}</Page.Title>
+          <Page.Description>{t("browse_description")}</Page.Description>
+        </Page.HeadingGroup>
+        <Page.Actions>
+          <Button onClick={onBack} size="sm" variant="secondary">
+            {t("back_to_clusters")}
+          </Button>
+        </Page.Actions>
+      </Page.Header>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <Page.Nav className="flex shrink-0 flex-wrap items-center gap-2">
         <Dropdown ariaLabel={t("tab_switcher_label")} onChange={setTab} options={tabOptions} value={tab} />
         {NAMESPACE_SCOPED_TABS.includes(tab) ? (
           <NamespacePicker clusterId={clusterId} namespace={namespace} onChange={setNamespace} />
         ) : null}
-      </div>
+      </Page.Nav>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {tab === "overview" ? <OverviewTab clusterId={clusterId} /> : null}
