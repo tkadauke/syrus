@@ -9802,7 +9802,8 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("link", { name: "EPIC-7 Raise the aqueduct" })).toHaveAttribute("href", "/app-shell/epics/7")
+    expect(await screen.findByRole("link", { name: "Raise the aqueduct" })).toHaveAttribute("href", "/app-shell/epics/7")
+    expect(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" })).toBeInTheDocument()
   })
 
   it("keeps the admin-only Job timeline collapsed until opened", async () => {
