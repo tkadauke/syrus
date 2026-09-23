@@ -208,24 +208,37 @@ class WorkflowWorkspacePruneJob < ApplicationJob
   end
 
   def chat_workspace_sweep
-    n = ChatWorkspace.prune_idle!(older_than: RETAIN_CHAT_WORKSPACES)
-    Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep removed #{n} chat workspaces") if n > 0
+    metadata = {}
 
-    # Coding-Mode checkouts are the expensive tier (writable clone + deps).
-    # Reclaim idle ones (backing up any work to the remote first), then enforce
-    # the instance-wide byte budget by LRU-evicting the rest.
-    idle = ChatWorkspace.reclaim_idle_coding_checkouts!(older_than: ChatWorkspace::RECLAIM_IDLE_CODING_AFTER)
-    Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep reclaimed #{idle} bytes of idle coding checkouts") if idle > 0
+    PerformanceLogging.phase("chat_workspace.sweep", metadata) do
+      n = ChatWorkspace.prune_idle!(older_than: RETAIN_CHAT_WORKSPACES)
+      Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep removed #{n} chat workspaces") if n > 0
 
-    over_budget = ChatWorkspace.reclaim_coding_over_budget!(budget_bytes: AppSetting.chat_coding_workspace_budget_bytes)
-    Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep reclaimed #{over_budget} bytes of coding checkouts over budget") if over_budget > 0
+      # Coding-Mode checkouts are the expensive tier (writable clone + deps).
+      # Reclaim idle ones (backing up any work to the remote first), then enforce
+      # the instance-wide byte budget by LRU-evicting the rest. Both are bounded
+      # and paced (ChatWorkspace::MAINTENANCE_SWEEP_BATCH_LIMIT/_PACE) so this
+      # sweep can't burst-saturate the disk the live chat worker also uses.
+      idle = ChatWorkspace.reclaim_idle_coding_checkouts!(older_than: ChatWorkspace::RECLAIM_IDLE_CODING_AFTER)
+      Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep reclaimed #{idle} bytes of idle coding checkouts") if idle > 0
 
-    # Orphan sweep: chat-workspaces/<id> and agent_homes/chats/<id>
-    # directories whose ChatSession no longer exists. Heals leaks from
-    # deletions that ran on a pod without the workspace PVC (and the
-    # era when agent homes were never cleaned at all).
-    orphans = ChatWorkspace.sweep_orphans!
-    Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep removed #{orphans} orphaned chat directories") if orphans > 0
+      over_budget = ChatWorkspace.reclaim_coding_over_budget!(budget_bytes: AppSetting.chat_coding_workspace_budget_bytes)
+      Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep reclaimed #{over_budget} bytes of coding checkouts over budget") if over_budget > 0
+
+      # Orphan sweep: chat-workspaces/<id> and agent_homes/chats/<id>
+      # directories whose ChatSession no longer exists. Heals leaks from
+      # deletions that ran on a pod without the workspace PVC (and the
+      # era when agent homes were never cleaned at all).
+      orphans = ChatWorkspace.sweep_orphans!
+      Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep removed #{orphans} orphaned chat directories") if orphans > 0
+
+      metadata.merge!(
+        idle_chat_workspaces: n,
+        idle_coding_bytes_freed: idle,
+        over_budget_bytes_freed: over_budget,
+        orphaned_directories: orphans
+      )
+    end
   end
 
   def cleanup_workflow(workflow, force_local: false)
