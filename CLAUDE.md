@@ -1326,6 +1326,26 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   Add an `after_initialize` callback on the model that seeds `{}` for
   new records so the column stays non-null going forward without a DB
   default. Copy an existing guarded JSON-column pattern.
+- **Nontrivial backfills are maintenance tasks, not ad hoc jobs.** When a
+  change needs historical data reclassified/reconciled/backfilled at
+  more-than-trivial scale, implement it as a `MaintenanceTasks::Definitions::Base`
+  subclass (`app/services/maintenance_tasks/definitions/`), registered in
+  `MaintenanceTasks::Registry`, not as a bare `ApplicationJob` an operator has
+  to remember to `perform_later` by hand. The framework gives it a discovered
+  pending state (`MaintenanceTasks::Discovery`), operator start/pause/resume/
+  cancel controls (`MaintenanceTasks::Actions`), checkpointed batch resumption
+  (`MaintenanceTasks::Runner`), and admin/MCP visibility
+  (`admin_maintenance_tasks` MCP tool, Maintenance Tasks admin page) for free.
+  A plugin-owned backfill keeps its actual query/update logic in the plugin
+  (a plain service object with `.pending_count` and `#call`); the Definition
+  subclass itself lives in core and references the plugin service by string
+  via `safe_constantize`, mirroring
+  `MaintenanceTasks::Definitions::StaleInsightBacklogRetirement` — never a
+  hard `require`/constant reference from core into a disableable plugin, since
+  that breaks the plugin's deletability (`bin/plugin-boundary-audit`). A
+  one-off migration-time backfill that touches only a handful of rows, or one
+  that must run synchronously inside the migration itself, doesn't need this —
+  use judgment on "nontrivial."
 - **Three-dot diffs only** — `git diff <base>...HEAD`, never two-dot.
   Lesson learned the hard way (commit `67b2bf9`).
 - **Clones live outside the repo** — under `$SYRUS_DATA_ROOT` (default

@@ -1,11 +1,10 @@
 require "rails_helper"
 
-RSpec.describe BackfillWipRepairFailuresJob do
-  include ActiveJob::TestHelper
-
+RSpec.describe TestInsights::WipRepairFailureBackfill do
   let(:job)      { Factories.job }
   let(:repo)     { job.repository }
   let(:workflow) { job.initial_run.workflow }
+  let(:backfill) { described_class.new }
 
   def create_identity(name: "flaky_case", suite_name: "MySpec")
     TestInsights::TestIdentity.create!(
@@ -56,10 +55,17 @@ RSpec.describe BackfillWipRepairFailuresJob do
     # has been reclassified yet, exactly like pre-migration production data.
     expect(failing_case.wip_repair_failure).to be(false)
 
-    perform_enqueued_jobs { described_class.perform_later }
+    result = backfill.call(limit: 200)
 
+    expect(result.done).to be(false)
     expect(failing_case.reload.wip_repair_failure).to be(true)
     expect(never_fixed_case.reload.wip_repair_failure).to be(false)
+
+    # A candidate batch smaller than the limit still isn't "done" until a
+    # follow-up call finds nothing left -- the same terminal-empty-page
+    # contract every other MaintenanceTasks definition uses.
+    final_result = backfill.call(after_id: result.next_after_id, limit: 200)
+    expect(final_result.done).to be(true)
   end
 
   it "is idempotent: re-running does not change an already-classified case" do
@@ -67,21 +73,24 @@ RSpec.describe BackfillWipRepairFailuresJob do
     _, failing_case = create_grader_case(identity: identity, status: "failed", iteration: 1)
     create_grader_case(identity: identity, status: "passed", iteration: 2)
 
-    perform_enqueued_jobs { described_class.perform_later }
+    backfill.call(limit: 200)
     expect(failing_case.reload.wip_repair_failure).to be(true)
 
-    expect { perform_enqueued_jobs { described_class.perform_later } }
+    expect { backfill.call(limit: 200) }
       .not_to change { failing_case.reload.wip_repair_failure }
   end
 
-  it "batches across multiple test runs using after_id continuation" do
-    stub_const("#{described_class}::BATCH_SIZE", 1)
-
+  it "batches across multiple test runs using an after_id cursor" do
     identity = create_identity
     _, first_failing_case = create_grader_case(identity: identity, status: "failed", iteration: 1)
     create_grader_case(identity: identity, status: "passed", iteration: 2)
 
-    perform_enqueued_jobs { described_class.perform_later }
+    first_batch = backfill.call(limit: 1)
+    expect(first_batch.done).to be(false)
+    expect(first_batch.processed).to eq(1)
+
+    second_batch = backfill.call(after_id: first_batch.next_after_id, limit: 1)
+    expect(second_batch.processed).to eq(1)
 
     expect(first_failing_case.reload.wip_repair_failure).to be(true)
   end
@@ -97,6 +106,18 @@ RSpec.describe BackfillWipRepairFailuresJob do
       total_count: 1, passed_count: 1, failed_count: 0, skipped_count: 0, error_count: 0
     )
 
-    expect { perform_enqueued_jobs { described_class.perform_later } }.not_to raise_error
+    result = backfill.call(limit: 200)
+
+    expect(result.done).to be(true)
+    expect(result.processed).to eq(0)
+  end
+
+  describe ".pending_count" do
+    it "counts candidate grader-retry-loop test runs" do
+      identity = create_identity
+      create_grader_case(identity: identity, status: "failed", iteration: 1)
+
+      expect(described_class.pending_count).to eq(1)
+    end
   end
 end
