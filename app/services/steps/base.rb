@@ -958,15 +958,36 @@ module Steps
     # Idempotent — already-terminal steps are left alone. Walks
     # the linear chain via next_step pointer; a v3 graph would
     # need a graph-traversal version of this.
-    def cancel_downstream!(reason: nil)
+    #
+    # `supersede_retry_until_barriers:` is for callers whose skip is not a
+    # dirty interruption but an intentional "this whole tail is a no-op" —
+    # PreflightGraderCollect's all-graders-passed path is the motivating
+    # case. Without it, a skipped retry_until barrier step (grader_collect,
+    # grade) still reads as "uncleared" to Workflow#uncleared_retry_until_barrier?,
+    # which hard-fails an otherwise-successful workflow. Leave it false for
+    # ordinary skip paths so a genuinely dirty barrier still fails loudly.
+    def cancel_downstream!(reason: nil, supersede_retry_until_barriers: false)
       Step.suppress_cancel_cascade do
         cursor = step.next_step
         while cursor
-          log("[#{step.kind}] skipping downstream step ##{cursor.id} (#{cursor.kind})#{reason ? ': ' + reason : ''}") if cursor.may_skip?
-          cursor.skip_with_reason!(reason || "downstream_not_needed") if cursor.may_skip?
+          if cursor.may_skip?
+            mark_retry_until_barrier_superseded!(cursor) if supersede_retry_until_barriers && retry_until_barrier_step?(cursor)
+            log("[#{step.kind}] skipping downstream step ##{cursor.id} (#{cursor.kind})#{reason ? ': ' + reason : ''}")
+            cursor.skip_with_reason!(reason || "downstream_not_needed")
+          end
           cursor = cursor.next_step
         end
       end
+    end
+
+    def retry_until_barrier_step?(step)
+      step.loop_id.present? && Step::Kind.fetch(step.kind).fail_policy == :loop_iteration
+    rescue ArgumentError
+      false
+    end
+
+    def mark_retry_until_barrier_superseded!(step)
+      step.details = step.details.to_h.merge(Step::RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY => true)
     end
   end
 end
