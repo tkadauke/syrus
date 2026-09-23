@@ -13,6 +13,18 @@ RSpec.describe SyrusBrowser::Configuration do
 
       expect(described_class.endpoint).to be_nil
     end
+
+    it "answers nil instead of raising when PluginRuntime::Services cannot be resolved at all" do
+      # Browser only optionally_depends_on plugin_runtime, so this has to
+      # survive the plugin being physically absent, not just disabled --
+      # exactly what a bare `PluginRuntime::Services` constant reference
+      # would not survive. hide_const simulates that absence without actually
+      # unloading the gem.
+      hide_const("PluginRuntime::Services")
+
+      expect { described_class.endpoint }.not_to raise_error
+      expect(described_class.endpoint).to be_nil
+    end
   end
 
   describe ".image" do
