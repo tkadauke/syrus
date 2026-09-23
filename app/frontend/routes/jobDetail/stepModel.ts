@@ -134,6 +134,7 @@ export function loopIterations(steps: JobStep[]) {
 
 export type GraderTargetSelection = {
   name: string | null
+  displayName: string | null
   targetLabel: string | null
   required: boolean | null
   affected: boolean
@@ -155,6 +156,7 @@ export function graderFanoutSelections(step: JobStep): GraderTargetSelection[] |
 
   return raw.filter(isRecord).map((entry) => ({
     name: stringValue(entry.name),
+    displayName: stringValue(entry.display_name),
     targetLabel: stringValue(entry.target_label),
     required: booleanValue(entry.required),
     affected: booleanValue(entry.affected) ?? true,
@@ -162,10 +164,10 @@ export function graderFanoutSelections(step: JobStep): GraderTargetSelection[] |
   }))
 }
 
-// Mirrors the backend's grader display-name humanization (see
+// Mirrors the backend's grader display-name humanization fallback (see
 // App::JobDetailPayload::WorkflowSerializers#grader_display_name) for
-// skipped-grader entries, which have no materialized Step of their own to
-// carry a pre-humanized `display_name`.
+// skipped-grader entries with no resolved `display_name` of their own
+// (a plain custom grader with no explicit or type-generated label).
 export function humanizeGraderName(name: string) {
   return name.replace(/[-_]+/g, " ").split(" ").filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
 }

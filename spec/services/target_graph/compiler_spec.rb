@@ -54,6 +54,22 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.validate!).to be(true)
     end
 
+    it "carries an explicit grader display_name through into target metadata" do
+      write(".syrus.yml", <<~YAML)
+        grade:
+          - name: tests
+            run: bin/rspec
+            display_name: Rails suite
+          - name: no-display-name
+            run: bin/other
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.target(TargetGraph::Label.parse("//:grade/tests")).metadata["display_name"]).to eq("Rails suite")
+      expect(graph.target(TargetGraph::Label.parse("//:grade/no-display-name")).metadata).not_to have_key("display_name")
+    end
+
     it "expands legacy ci: commands into a separate grader target scoped to the ci phase" do
       write(".syrus.yml", <<~YAML)
         grade:

@@ -521,6 +521,27 @@ RSpec.describe SyrusYml do
     expect(config.grade.steps.first.description).to eq("Rejects regressions in the Rails suite.")
   end
 
+  it "parses an optional explicit grader display_name" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+          display_name: Rails suite
+    YAML
+
+    expect(config.grade.steps.first.display_name).to eq("Rails suite")
+  end
+
+  it "defaults display_name to nil when absent" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+    YAML
+
+    expect(config.grade.steps.first.display_name).to be_nil
+  end
+
   it "parses junit_output path when present" do
     config = parse(<<~YAML)
       grade:

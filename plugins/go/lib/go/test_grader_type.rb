@@ -29,6 +29,7 @@ module Go
       [
         SyrusYml::GradeStep.new(
           name: name,
+          display_name: display_name,
           run: command,
           ci: nil,
           phases: phases,
@@ -107,6 +108,12 @@ module Go
 
     def description
       config["description"].to_s.strip.presence || "Go test suite."
+    end
+
+    # Single-mode grader type -- a project-label prefix is applied later by
+    # TargetGraph::GradePlan.
+    def display_name
+      config["display_name"].to_s.strip.presence || "Go test"
     end
 
     def required?

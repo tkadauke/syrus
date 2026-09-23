@@ -168,6 +168,29 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
   end
 
+  it "carries a resolved grader display_name onto both the materialized Step and the target selection entries" do
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/app
+          display_name: "App suite"
+        - name: docs-tests
+          run: bin/check-docs
+          when_files_changed: ["docs/**/*.md"]
+    YAML
+    stub_changed_files("app/models/user.rb")
+
+    handler.call
+
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    expect(grader_step.details["display_name"]).to eq("App suite")
+
+    expect(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY)).to contain_exactly(
+      include("name" => "app-tests", "display_name" => "App suite"),
+      include("name" => "docs-tests", "display_name" => nil)
+    )
+  end
+
   it "retries transient step materialization deadlocks" do
     write_config(<<~YAML)
       grade:

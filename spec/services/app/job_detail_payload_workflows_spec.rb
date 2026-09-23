@@ -395,6 +395,32 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(step_payload.fetch(:display_name)).to eq("plugins/rails: RSpec Focused")
     end
 
+    it "prefers an explicit resolved display_name over humanizing the target label" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 1,
+        state: "succeeded",
+        details: {
+          "name" => "plugins-rails-rspec-focused",
+          "display_name" => "rails plugin: RSpec (focused)",
+          "target_label" => "//plugins/rails:grade/rspec-focused",
+          "command" => "bin/rspec --tag focus",
+          "required" => true
+        }
+      )
+
+      step_payload = workflows_payload_for(job).fetch(:workflows).first.fetch(:steps).first
+
+      expect(step_payload.fetch(:display_name)).to eq("rails plugin: RSpec (focused)")
+      expect(step_payload.fetch(:details)).to include(
+        "name" => "plugins-rails-rspec-focused",
+        "target_label" => "//plugins/rails:grade/rspec-focused"
+      )
+    end
+
     it "falls back to the flattened grader name when target_label is missing" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

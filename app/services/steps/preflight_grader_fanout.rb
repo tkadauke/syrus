@@ -156,6 +156,7 @@ module Steps
     def grader_details(grader, prepare_targets:, target_fingerprints:)
       {
         "name" => grader.name,
+        "display_name" => grader.display_name,
         "target_label" => target_label_for(grader),
         "command" => grader.command,
         "phase" => grader.metadata["phase"],

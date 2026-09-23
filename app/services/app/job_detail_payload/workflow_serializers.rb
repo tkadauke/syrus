@@ -457,9 +457,13 @@ module App
         Step::Kind.label_for(step.kind)
       end
 
-      # Humanizes a materialized grader Step's title from its machine id
-      # (e.g. "plugins-rails-rspec-focused") into an operator-facing label
-      # (e.g. "plugins/rails: RSpec Focused"). Prefers `target_label`
+      # Resolves a materialized grader Step's title using the display
+      # precedence documented on SyrusYml::GradeStep: an explicit or
+      # plugin/type-generated `display_name` (already resolved, and
+      # project-label-prefixed where applicable, by RepoGradePlan/
+      # TargetGraph::GradePlan) wins outright; otherwise falls back to
+      # humanizing the machine id (e.g. "plugins-rails-rspec-focused" ->
+      # "plugins/rails: RSpec Focused") from `target_label`
       # (`//package:grade/name`, always present on graders resolved through
       # TargetGraph::GradePlan or RepoGradePlan's synthesized fallback) since
       # it cleanly separates the owning package from the grader's own name --
@@ -468,6 +472,9 @@ module App
       # verbatim in the step's details for anyone who needs the machine id.
       def grader_display_name(step)
         details = step.details || {}
+        explicit = details["display_name"].to_s.strip.presence
+        return explicit if explicit
+
         match = details["target_label"].to_s.match(%r{\A//(?<package>[^:]*):(?<name>.+)\z})
         local_name = match && match[:name].delete_prefix("grade/")
         humanized = humanize_grader_segment(local_name.presence || details["name"] || details["command"])

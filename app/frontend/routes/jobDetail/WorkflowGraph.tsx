@@ -813,7 +813,7 @@ function GraderFanoutSummary({ step }: { step: JobStep }) {
         <ul className="list-disc space-y-0.5 pl-4 text-text-muted">
           {skipped.map((selection, index) => (
             <li key={selection.targetLabel || selection.name || index}>
-              <span className="font-medium text-text-primary">{selection.name ? humanizeGraderName(selection.name) : t("grader_unknown_name")}</span>
+              <span className="font-medium text-text-primary">{selection.displayName || (selection.name ? humanizeGraderName(selection.name) : t("grader_unknown_name"))}</span>
               {selection.reason ? <> — {selection.reason}</> : null}
             </li>
           ))}
