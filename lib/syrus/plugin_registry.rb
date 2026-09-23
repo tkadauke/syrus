@@ -46,6 +46,7 @@ module Syrus
       retention_policy
       repository_content_provider
       purge_contributor
+      workspace_git_transport
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -94,7 +95,8 @@ module Syrus
       build_system_graph_provider: -> { Syrus::Plugin::BuildSystemGraphProvider },
       retention_policy:        -> { Syrus::Plugin::RetentionPolicy },
       repository_content_provider: -> { Syrus::Plugin::RepositoryContentProvider },
-      purge_contributor:       -> { Syrus::Plugin::PurgeContributor }
+      purge_contributor:       -> { Syrus::Plugin::PurgeContributor },
+      workspace_git_transport: -> { Syrus::Plugin::WorkspaceGitTransport }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

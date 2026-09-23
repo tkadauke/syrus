@@ -459,3 +459,21 @@ func TestFetchMeasuresSizeAndRunsMaintenanceDaily(t *testing.T) {
 		t.Fatalf("disk = %+v", disk)
 	}
 }
+
+// `git init --bare` defaults HEAD to refs/heads/master, and a plain `git
+// fetch` never touches it. Without syncing it to the upstream's real
+// default branch, a `git clone` against the mirror's smart-HTTP transport
+// (which checks out via HEAD, the same as against any other git remote)
+// would leave the client with nothing checked out.
+func TestFetchSyncsHEADToTheUpstreamsDefaultBranch(t *testing.T) {
+	u := newUpstream(t) // initial branch "main", never "master"
+	u.commit(map[string]string{"a.txt": "1"}, "first")
+	s := newStore(t, nil)
+	register(t, s, "42", u)
+
+	r, _ := s.get("42")
+	head, err := s.git(context.Background(), r.dir, nil, time.Second, "symbolic-ref", "HEAD")
+	if err != nil || strings.TrimSpace(string(head.Stdout)) != "refs/heads/main" {
+		t.Fatalf("HEAD = %q, %v; want refs/heads/main", head.Stdout, err)
+	}
+}
