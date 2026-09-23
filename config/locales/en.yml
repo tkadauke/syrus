@@ -345,6 +345,8 @@ en:
       approval_recorded: "Approval recorded."
       unapprove_unavailable: "Only approved Jobs that have not started landing can be unapproved."
       unapproved: "Job unapproved."
+      close_investigation_unavailable: "Only implemented investigation Jobs can be closed as reviewed."
+      investigation_closed: "Investigation closed as reviewed."
       not_closed: "Job isn't closed."
       pause_closed: "Closed Jobs cannot be paused."
       already_paused: "Job is already manually paused."

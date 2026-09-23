@@ -389,8 +389,11 @@ time. Skips the agent call when the report is already present
 (`skip_if_artifact: "investigation_report"` on the `Step::Kind` entry mirrors
 `test_plan`'s `skip_if_artifact: "test_plan"`). Raises `Steps::Base::StepFailed`
 if the agent never calls the tool. The stored report lands on
-`Workflow#artifacts["investigation_report"]`; `auto_close` then closes the Job
-with `closure_reason: "investigation_reported"`.
+`Workflow#artifacts["investigation_report"]`; `submit_report` is the chain's
+last step -- a successful workflow then carries the Job to `:implemented`
+through the ordinary `Workflows::JobLifecyclePropagation` success path (no
+`auto_close` step here; see the `investigation` trigger kind above), where it
+waits for the operator to review the report and close it.
 
 ### respond
 

@@ -522,6 +522,38 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       expect(payload_for(job).dig(:actions, :can_approve)).to be(false)
     end
+
+    it "is false for an implemented investigation job -- there is no PR to approve/land" do
+      investigation_job = Factories.job_record(
+        user: user, repository: repo, kind: "direct", issue_number: nil, investigation: true, state: "implemented"
+      )
+
+      expect(payload_for(investigation_job).dig(:actions, :can_approve)).to be(false)
+    end
+  end
+
+  describe "#actions_json can_close_investigation" do
+    it "is true for an implemented investigation job" do
+      investigation_job = Factories.job_record(
+        user: user, repository: repo, kind: "direct", issue_number: nil, investigation: true, state: "implemented"
+      )
+
+      expect(payload_for(investigation_job).dig(:actions, :can_close_investigation)).to be(true)
+    end
+
+    it "is false for a non-investigation implemented job" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+
+      expect(payload_for(job).dig(:actions, :can_close_investigation)).to be(false)
+    end
+
+    it "is false for an investigation job that hasn't reached implemented yet" do
+      investigation_job = Factories.job_record(
+        user: user, repository: repo, kind: "direct", issue_number: nil, investigation: true, state: "running"
+      )
+
+      expect(payload_for(investigation_job).dig(:actions, :can_close_investigation)).to be(false)
+    end
   end
 
   describe "#actions_json can_start" do
