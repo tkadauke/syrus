@@ -235,8 +235,8 @@ export function fetchEditEpicForm(id: string) {
   return getJson<EpicFormPayload>(`/api/v1/app/epics/${id}/edit`)
 }
 
-export function fetchEpicDetail(id: string) {
-  return getJson<EpicDetailPayload>(`/api/v1/app/epics/${id}`)
+export function fetchEpicDetail(id: string, options: { signal?: AbortSignal } = {}) {
+  return getJson<EpicDetailPayload>(`/api/v1/app/epics/${id}`, options)
 }
 
 export function searchEpicOptions(query: string, options: { signal?: AbortSignal } = {}) {
@@ -308,5 +308,4 @@ export function fetchPickerEpics(params: { repo?: string; limit?: number } = {})
 export function removeEpicDependency(path: string, dependsOnEpicId: number) {
   return deleteJson<EpicDetailPayload>(`${path}/${dependsOnEpicId}`)
 }
-
 

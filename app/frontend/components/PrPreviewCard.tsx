@@ -22,7 +22,7 @@ export function PrPreviewCard({ jobId, prNumber, prUrl }: { jobId: number; prNum
   const { t } = useT("jobs")
   const { data, isPending } = useQuery({
     queryKey: ["jobs", String(jobId)],
-    queryFn: () => fetchJobDetail(String(jobId)),
+    queryFn: ({ signal }) => fetchJobDetail(String(jobId), "", { signal }),
     staleTime: 30_000,
   })
 
