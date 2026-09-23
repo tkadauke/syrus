@@ -270,6 +270,9 @@ RSpec.describe Ruby::RspecGraderType do
     _stdout, stderr, status = run_generated_rspec_command(step.run, parallel_status: 0, serial_status: 7)
 
     expect(status.exitstatus).to eq(7), "expected the generated CI command to preserve the serial pass status, got:\n#{stderr}"
+
+    _stdout, stderr, status = Open3.capture3("bash", "-n", "-c", step.run)
+    expect(status).to be_success, "expected generated command to be valid bash, got: #{stderr}"
   end
 
   it "supports direct parallel_rspec command generation without a worker wrapper" do
