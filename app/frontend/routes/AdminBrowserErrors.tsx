@@ -120,6 +120,7 @@ function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNav
       headerClassName: "px-4 py-2",
       header: t("browser_errors.col_error"),
       key: "error",
+      required: true,
       sort: "error",
       render: (row) => (
         <>
@@ -146,6 +147,7 @@ function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNav
       headerClassName: "w-32 px-4 py-2",
       header: t("browser_errors.col_actions"),
       key: "actions",
+      required: true,
       render: (row, state) => (
         <AdminEventActions actions={row.actions} eventId={row.id} eventType="browser_error" showDetailsLabel={state.expanded ? t("browser_errors.hide_details") : t("browser_errors.show_details")} onToggleDetails={state.toggleExpanded} />
       )
@@ -158,6 +160,7 @@ function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNav
       getRowKey={(row) => row.id}
       rows={rows}
       search={search}
+      storageKey="syrus.admin.browser_errors.visible_columns"
       onNavigate={onNavigate}
       renderExpanded={(row) => (
         <div className="grid gap-4 lg:grid-cols-2">

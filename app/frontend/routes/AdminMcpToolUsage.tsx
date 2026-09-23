@@ -416,6 +416,7 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       headerClassName: "px-4 py-2",
       header: t("mcp_tool_usage.col_call"),
       key: "call",
+      required: true,
       render: (row) => (
         <>
           <div className="font-medium text-gray-900 dark:text-gray-100">{row.tool_name}</div>
@@ -455,7 +456,7 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{t("mcp_tool_usage.recent_calls_heading")}</SectionHeading>
       {calls.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.recent_calls_empty")}</AdminEventPanelMessage> : (
-        <AdminEventLogTable columns={columns} getRowKey={(row) => row.id} rows={calls} />
+        <AdminEventLogTable columns={columns} getRowKey={(row) => row.id} rows={calls} storageKey="syrus.admin.mcp_tool_usage.recent_calls.visible_columns" />
       )}
     </section>
   )
