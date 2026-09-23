@@ -322,6 +322,14 @@ grade:
     phases: [review, landing, ci]
     required: true
     timeout_minutes: 30
+    # Intermittent worker/timing noise here has exhausted a landing attempt's
+    # entire repair budget on a spotless 73/73 rerun more than once, with no
+    # way for Syrus to tell "flaky today" apart from "genuinely broken" other
+    # than rerunning the exact same command at the base revision. allow_inherited
+    # (plus the base_retry default that comes with it for a custom grader --
+    # see .syrus.yml docs) lets a failure that reproduces on base too pass
+    # with a visible warning instead of blocking landing outright.
+    failures: allow_inherited
 
   - name: production-build-boot
     description: |

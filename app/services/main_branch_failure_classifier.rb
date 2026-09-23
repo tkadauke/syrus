@@ -129,7 +129,16 @@ class MainBranchFailureClassifier
     return classify_test_cases(result, grader_step, base_run) if comparable_test_case_evidence_present?(grader_step, base_run, name)
 
     binary = classify_binary_contextual(result, details, base_conclusion)
-    return binary unless binary.fetch("reason") == "missing_output_fingerprint"
+    # A cached base conclusion whose output fingerprint already matches the
+    # candidate is decisive on its own -- no need to spend a live retry
+    # confirming it. Anything short of that match (a missing fingerprint, or
+    # one that differs) is inconclusive from cache alone: a flaky or
+    # nondeterministic non-test grader routinely produces different output
+    # on every run, so "differs from base" cannot be trusted as "not
+    # inherited" the way it can for a deterministic command. Fall through to
+    # a live base_retry in both cases rather than only when output is
+    # missing entirely.
+    return binary if binary.fetch("inherited")
 
     if (base_retry = base_revision_retry(grader_step, result.fetch("name"), evidence.fetch("sha")))&.ran
       classify_base_retry(result, base_retry)

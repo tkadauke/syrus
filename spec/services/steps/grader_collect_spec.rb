@@ -675,6 +675,81 @@ RSpec.describe Steps::GraderCollect do
     expect(classification).to include("reason" => "output_fingerprint_matches_base")
   end
 
+  it "falls through to a live base-revision retry when cached base output differs from a flaky candidate" do
+    job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
+    base_workflow = Workflow.create!(job: job, trigger_kind: "main_grader")
+    base_step = Step.create!(
+      workflow: base_workflow,
+      kind: "grader",
+      position: 1,
+      state: "failed",
+      details: {
+        "name" => "work-engine-simulations",
+        "output" => "1 scenario stuck: reason A\n"
+      }
+    )
+    base_run = base_step.runs.create!(job: job, trigger_kind: "main_grader", state: "failed")
+    GraderConclusion.create!(
+      repository: job.repository,
+      job: job,
+      workflow: base_workflow,
+      step: base_step,
+      run: base_run,
+      commit_sha: "main123",
+      grader_fingerprint: "base-fingerprint",
+      grader_name: "work-engine-simulations",
+      status: "failed",
+      checked_at: Time.current
+    )
+    MainBranchHealthCheck.record_grader_workflow(
+      repository: job.repository,
+      workflow: base_workflow,
+      sha: "main123",
+      grader_health: "broken",
+      grader_failed_names: [ "work-engine-simulations" ]
+    )
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: {
+        "name" => "work-engine-simulations",
+        "command" => "bin/simulator",
+        "required" => true,
+        "failures" => "allow_inherited",
+        "exit_code" => 1,
+        # Nondeterministic: fails for a different reason than the cached base
+        # failure, so a byte-for-byte fingerprint comparison alone would call
+        # this a new (not inherited) failure.
+        "output" => "1 scenario stuck: reason B\n",
+        "base_retry" => { "strategy" => "full_command" }
+      }
+    )
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([])
+    allow(BaseRevisionRetry).to receive(:call).and_return(
+      BaseRevisionRetry::Result.new(
+        ran: true,
+        inherited: true,
+        reason: "base_retry_full_command_failed_different_output",
+        command: "bin/simulator",
+        base_failed_identities: [],
+        introduced_failed_identities: [],
+        output: "1 scenario stuck: reason C"
+      )
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    expect(BaseRevisionRetry).to have_received(:call).with(
+      workflow: workflow,
+      grader_step: workflow.steps.find_by!(kind: "grader"),
+      base_sha: "main123",
+      failed_cases: [],
+      log: anything
+    )
+    classification = workflow.reload.artifact("inherited_main_branch_grader_failure")["classifications"].first
+    expect(classification).to include("reason" => "base_retry_full_command_failed_different_output")
+  end
+
   it "uses full-command base-revision retry when cached output cannot decide a non-test grader" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
     MainBranchHealthCheck.record_grader_workflow(
@@ -741,6 +816,79 @@ RSpec.describe Steps::GraderCollect do
     )
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+  end
+
+  it "dismisses a required grader failure verified by report_main_concern plus a matching base-revision retry" do
+    repair_step = Step.create!(workflow: workflow, kind: "landing_fix", position: 99, iteration: step.iteration, loop_id: loop_id)
+    repair_run = repair_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", iteration: step.iteration)
+    MainConcernReport.create!(
+      repository: job.repository,
+      job: job,
+      workflow: workflow,
+      run: repair_run,
+      reason: "work-engine-simulations intermittently fails; reproduces on base too"
+    )
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: {
+        "name" => "work-engine-simulations",
+        "command" => "bin/simulator",
+        "required" => true,
+        "failures" => "allow_inherited",
+        "exit_code" => 1,
+        "output" => "1 scenario stuck\n",
+        "base_retry" => { "strategy" => "full_command" }
+      }
+    )
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([])
+    allow(BaseRevisionRetry).to receive(:call).and_return(
+      BaseRevisionRetry::Result.new(
+        ran: true, inherited: true, reason: "base_retry_full_command_failed_different_output",
+        command: "bin/simulator", base_failed_identities: [], introduced_failed_identities: [], output: "boom"
+      )
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    expect(grader_step.details["accepted_failure"]).to include("adjudicator" => "reported_main_concern")
+    artifact = workflow.reload.artifact("main_concern_verified_grader_failure")
+    expect(artifact).to include("grader_names" => [ "work-engine-simulations" ])
+  end
+
+  it "still fails collection when report_main_concern was filed but base_retry shows the base revision passing" do
+    repair_step = Step.create!(workflow: workflow, kind: "landing_fix", position: 99, iteration: step.iteration, loop_id: loop_id)
+    repair_run = repair_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", iteration: step.iteration)
+    MainConcernReport.create!(
+      repository: job.repository,
+      job: job,
+      workflow: workflow,
+      run: repair_run,
+      reason: "claims pre-existing, but isn't"
+    )
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: {
+        "name" => "work-engine-simulations",
+        "command" => "bin/simulator",
+        "required" => true,
+        "failures" => "allow_inherited",
+        "exit_code" => 1,
+        "output" => "1 scenario stuck\n",
+        "base_retry" => { "strategy" => "full_command" }
+      }
+    )
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([])
+    allow(BaseRevisionRetry).to receive(:call).and_return(
+      BaseRevisionRetry::Result.new(
+        ran: true, inherited: false, reason: "base_retry_full_command_base_passed",
+        command: "bin/simulator", base_failed_identities: [], introduced_failed_identities: [], output: ""
+      )
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: work-engine-simulations")
   end
 
   it "records a reusable validation artifact when required graders pass" do

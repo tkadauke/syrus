@@ -494,6 +494,7 @@ module App
       def accepted_grader_failure_artifacts(workflow)
         %w[
           inherited_main_branch_grader_failure
+          main_concern_verified_grader_failure
           known_flaky_grader_failure
           isolated_repro_grader_failure
         ].filter_map { |key| workflow.artifact(key) }

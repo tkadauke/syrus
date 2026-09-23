@@ -584,6 +584,77 @@ RSpec.describe SyrusYml do
     )
   end
 
+  it "defaults a custom allow_inherited grader with no base_retry to full_command" do
+    config = parse(<<~YAML)
+      grade:
+        - name: work-engine-simulations
+          run: bin/simulator
+          failures: allow_inherited
+    YAML
+
+    expect(config.grade.steps.first.base_retry).to eq(
+      described_class::BaseRetry.new(strategy: "full_command", command: nil)
+    )
+  end
+
+  it "does not default base_retry for a strict custom grader" do
+    config = parse(<<~YAML)
+      grade:
+        - name: eager-load
+          run: bin/check-eager-load
+    YAML
+
+    expect(config.grade.steps.first.base_retry).to be_nil
+  end
+
+  it "does not default base_retry when the operator explicitly opts out with false" do
+    config = parse(<<~YAML)
+      grade:
+        - name: work-engine-simulations
+          run: bin/simulator
+          failures: allow_inherited
+          base_retry: false
+    YAML
+
+    expect(config.grade.steps.first.base_retry).to be_nil
+  end
+
+  it "does not default base_retry for a plugin-typed grader (the plugin owns its own base_retry decision)" do
+    provider = Class.new do
+      include Syrus::Plugin::GraderType
+
+      def self.type_name = "example"
+
+      def self.grade_steps(config:, default_failures:)
+        [
+          SyrusYml::GradeStep.new(
+            name: config["name"] || "example",
+            run: "bin/example",
+            ci: nil,
+            phases: %w[review landing ci],
+            description: nil,
+            required: true,
+            timeout_minutes: 15,
+            when_files_changed: nil,
+            junit_output: nil,
+            failures: default_failures,
+            base_retry: nil,
+            deps: []
+          )
+        ]
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_type).and_return([ provider ])
+
+    config = parse(<<~YAML)
+      grade:
+        - type: example
+          failures: allow_inherited
+    YAML
+
+    expect(config.grade.steps.first.base_retry).to be_nil
+  end
+
   it "parses grade-level failures as the default for steps" do
     config = parse(<<~YAML)
       grade:

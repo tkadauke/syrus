@@ -374,8 +374,23 @@ When the candidate has structured failed test cases but no comparable cached
 base run exists, Syrus can run only those failed tests against the base revision
 before deciding, but only when the grader explicitly opts into `base_retry`.
 Without `base_retry`, `allow_inherited` is cache-only plus the normalized output
-fingerprint fallback. Use `strict` for catastrophic or invariant checks where a
-failure should never be ignored, such as eager-load or production boot checks.
+fingerprint fallback -- and a cached fingerprint that only *differs* from base
+(rather than being missing outright) now falls through to a live `base_retry`
+too, instead of being treated as a new failure by default; a nondeterministic
+grader routinely produces different output on every run, so "differs from
+base" cannot be trusted as "not inherited" the way it can for a deterministic
+command. Use `strict` for catastrophic or invariant checks where a failure
+should never be ignored, such as eager-load or production boot checks.
+
+A custom (`type: custom` or bare `run:`) grader has no framework plugin to
+compare structured failed-test identities, so without an explicit `base_retry:`
+it used to get no base-revision comparison at all once it opted into
+`allow_inherited`. Syrus now defaults a bare `allow_inherited` custom grader to
+`base_retry: { strategy: full_command }` -- rerunning the exact command already
+trusted against the candidate is a safe default with no extra config. An
+explicit `base_retry:` key, including `base_retry: false` to opt out, always
+overrides the default. Plugin-defined graders (`type: rspec`, `type: vitest`, ...)
+are unaffected; they already set their own `base_retry` strategy when they can.
 
 `base_retry` runs from a temporary worktree checked out at the base SHA:
 

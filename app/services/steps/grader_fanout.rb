@@ -62,16 +62,24 @@ module Steps
       record_target_selection_inputs!(selections) if workflow.work_definition.record_grader_target_selection_inputs?
       active_graders = enforce_required_target_health_for_unaffected_graders(active_graders, selections) if enforce_required_target_health_for_unaffected_graders?
 
-      if (plan.rerun_only_failed? || retrying_transient_only_failure?) && step.iteration > 1
+      if (plan.rerun_only_failed? || retrying_transient_only_failure? || retrying_no_change_repair?) && step.iteration > 1
         passed_steps_by_name = previous_iteration_passed_steps_by_name
         active_graders, carried_forward = if retrying_transient_only_failure?
-          partition_transient_retry_graders(active_graders, passed_steps_by_name)
+          partition_transient_retry_graders(active_graders, passed_steps_by_name, reason: "passed before infrastructure-only retry")
+        elsif retrying_no_change_repair?
+          partition_transient_retry_graders(active_graders, passed_steps_by_name, reason: "passed before no-change repair retry")
         else
           partition_rerun_only_failed_graders(active_graders, passed_steps_by_name)
         end
         if carried_forward.any?
           carried_forward.each do |grader, result|
-            reason = retrying_transient_only_failure? ? "infrastructure-only retry; unchanged inputs" : "rerun_only_failed; #{result.reason}"
+            reason = if retrying_transient_only_failure?
+              "infrastructure-only retry; unchanged inputs"
+            elsif retrying_no_change_repair?
+              "repair produced no code change; unchanged inputs"
+            else
+              "rerun_only_failed; #{result.reason}"
+            end
             log("[grader_fanout] skipping #{grader.name} (passed iteration #{step.iteration - 1}; #{reason}) [#{target_label_for(grader)}]")
           end
           record_carried_forward_graders!(carried_forward, passed_steps_by_name)
@@ -253,12 +261,14 @@ module Steps
       [ remaining, carried_forward ]
     end
 
-    # An infrastructure-only iteration has no repair step, so the checkout and
-    # target inputs are unchanged. Preserve successful sibling results and
-    # rerun only checks whose outcome was inconclusive. This is unconditional:
-    # `grade.rerun_only_failed` controls retries after code repair, not whether
-    # a database outage should launch every successful grader again.
-    def partition_transient_retry_graders(active_graders, passed_steps_by_name)
+    # An infrastructure-only iteration has no repair step, and a no-change
+    # repair iteration had one but it committed nothing -- either way the
+    # checkout and target inputs are unchanged. Preserve successful sibling
+    # results and rerun only checks whose outcome was inconclusive. This is
+    # unconditional: `grade.rerun_only_failed` controls retries after code
+    # repair, not whether an untouched checkout should relaunch every
+    # already-successful grader again.
+    def partition_transient_retry_graders(active_graders, passed_steps_by_name, reason:)
       carried_forward = []
       remaining = active_graders.reject do |grader|
         prior = passed_steps_by_name[grader.name]
@@ -267,11 +277,7 @@ module Steps
         fingerprints = target_fingerprints_for(grader)
         next false unless prior.details.to_h["target_fingerprints"] == fingerprints.to_h.deep_stringify_keys
 
-        result = CarryForwardResult.new(
-          "passed before infrastructure-only retry",
-          fingerprints,
-          []
-        )
+        result = CarryForwardResult.new(reason, fingerprints, [])
         carried_forward << [ grader, result ]
         true
       end
@@ -290,6 +296,34 @@ module Steps
       )
       @retrying_transient_only_failure =
         prior_collect&.details.to_h[Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY] == true
+    end
+
+    # The repair step for this exact iteration (landing_fix, implement,
+    # respond, analyze_and_fix, ...) shares this fanout Step's own iteration
+    # number -- StepDispatcher#enqueue_next_loop_iteration! stamps repair and
+    # check steps together as `next_iteration`. When that repair Run
+    # committed no diff at all (Steps::Base#no_changes_confirmed_not_broken?
+    # let the step succeed anyway -- e.g. because report_main_concern was
+    # filed for a diagnosed failure), the checkout is provably unchanged
+    # from what the previous iteration's graders already ran against, so a
+    # previously-passing required grader cannot have a different outcome
+    # this time. Only the grader(s) that actually failed need to run again.
+    def retrying_no_change_repair?
+      return @retrying_no_change_repair if defined?(@retrying_no_change_repair)
+      return @retrying_no_change_repair = false if step.loop_id.blank? || step.iteration <= 1
+
+      repair_run = repair_run_for_this_iteration
+      @retrying_no_change_repair = repair_run.present? && repair_run.head_sha.blank? && repair_run.step_agent_diff.blank?
+    end
+
+    def repair_run_for_this_iteration
+      repair_step = workflow.steps
+        .where(loop_id: step.loop_id, iteration: step.iteration)
+        .where.not(kind: %w[grader grader_fanout grader_collect format generate])
+        .first
+      return nil unless repair_step
+
+      repair_step.runs.order(:created_at).last
     end
 
     def carry_forward_blocked_reason(grader, result)

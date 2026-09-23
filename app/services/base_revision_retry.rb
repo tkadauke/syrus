@@ -92,7 +92,15 @@ class BaseRevisionRetry
 
     candidate_fingerprint = output_fingerprint(@grader_step.details.to_h["output"])
     base_fingerprint = output_fingerprint(output)
-    inherited = status && !status.success? && candidate_fingerprint.present? && candidate_fingerprint == base_fingerprint
+    # A non-test grader has no structured failed-case identity to compare,
+    # so "inherited" can only mean "the base revision also fails this exact
+    # command." Requiring the output to match byte-for-byte would miss a
+    # flaky/nondeterministic grader (a simulator, a build with timestamps or
+    # ordering noise) that fails on both revisions but not identically --
+    # exactly the case this whole-command strategy exists to cover. The
+    # fingerprint match is still recorded (see full_command_reason) so the
+    # UI can distinguish "same failure" from "also fails, differently."
+    inherited = status.present? && !status.success?
     Result.new(
       ran: true,
       inherited: inherited,
@@ -250,8 +258,10 @@ class BaseRevisionRetry
   end
 
   def full_command_reason(status, candidate_fingerprint, base_fingerprint, inherited)
-    return "base_retry_full_command_failed_same_output" if inherited
     return "base_retry_full_command_base_passed" if status&.success?
+    return "base_retry_full_command_timed_out" unless inherited
+
+    return "base_retry_full_command_failed_same_output" if candidate_fingerprint.present? && candidate_fingerprint == base_fingerprint
     return "base_retry_full_command_missing_output_fingerprint" if candidate_fingerprint.blank? || base_fingerprint.blank?
 
     "base_retry_full_command_failed_different_output"
