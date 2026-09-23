@@ -722,7 +722,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         return
       }
 
-      navigate(withRoutePrefix(`/repositories/${payload.chat.repository.id}?tab=github_issues&folder=open`, prefix))
+      navigate(withRoutePrefix(`/repositories/${payload.chat.repository.id}/plugin/issues?folder=open`, prefix))
       setText("")
       return
     }
