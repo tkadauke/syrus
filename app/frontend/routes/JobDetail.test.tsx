@@ -1886,6 +1886,37 @@ describe("JobDetailRoute", () => {
     vi.restoreAllMocks()
   })
 
+  it("uses responsive page gutters while keeping the header and tab bar inset", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(jobPayload()))
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1"]}>
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    const summaryTab = await screen.findByRole("button", { name: "Summary" })
+    const main = screen.getByRole("main")
+    expect(main).toHaveClass("px-0", "sm:px-[var(--space-page-x)]")
+    expect(main).not.toHaveClass("px-[var(--space-page-x)]")
+
+    const header = main.querySelector("header")
+    expect(header).toHaveClass("px-4", "sm:px-0", "block", "space-y-3")
+
+    const tabChrome = screen.getByRole("navigation", { name: "Job sections" }).parentElement
+    expect(tabChrome).toHaveClass("px-4", "sm:px-0")
+    expect(summaryTab.closest("main")).toBe(main)
+  })
+
   it("keeps the Agent Conversation tab selected on a direct visit", async () => {
     const payload = jobPayload()
     vi.spyOn(window, "fetch").mockImplementation((input) => {
