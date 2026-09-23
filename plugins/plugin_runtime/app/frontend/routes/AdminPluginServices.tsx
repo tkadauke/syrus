@@ -48,11 +48,15 @@ export function AdminPluginServices() {
     <Page.Root aria-label={t("heading")} gutter="responsive" size="wide">
       <Page.Header className="border-b border-border pb-4">
         <Page.HeadingGroup>
-          <Text className="font-medium uppercase" variant="caption" tone="muted">{t("admin:section_label")}</Text>
+          <Text className="font-medium uppercase" variant="caption" tone="muted">
+            {t("admin:section_label")}
+          </Text>
           <PageHeading>{t("heading")}</PageHeading>
           <Page.Description className="max-w-3xl">{t("description")}</Page.Description>
         </Page.HeadingGroup>
-        <Button disabled={services.isFetching} onClick={() => void services.refetch()} size="sm" variant="secondary">{t("refresh")}</Button>
+        <Button disabled={services.isFetching} onClick={() => void services.refetch()} size="sm" variant="secondary">
+          {t("refresh")}
+        </Button>
       </Page.Header>
 
       {services.isPending ? <Text tone="muted">{t("loading")}</Text> : null}
@@ -115,7 +119,11 @@ function ServicesTable({ services, ...panels }: { services: PluginService[] } & 
                 {service.held ? <Pill tone="warning">{t("held")}</Pill> : null}
                 {!service.desired ? <Pill tone="neutral">{t("orphaned")}</Pill> : null}
               </div>
-              {service.error ? <Text className="mt-1 break-words" variant="caption" tone="danger">{service.error}</Text> : null}
+              {service.error ? (
+                <Text className="mt-1 break-words" variant="caption" tone="danger">
+                  {service.error}
+                </Text>
+              ) : null}
             </DataTable.Cell>
             <DataTable.Cell className="break-all font-mono text-xs">{service.image ?? "-"}</DataTable.Cell>
             <DataTable.Cell className="font-mono text-xs">{service.endpoint ?? "-"}</DataTable.Cell>
@@ -157,22 +165,36 @@ function ServiceActions({ service, onShowLogs, logsFor, onShowDetails, detailsFo
       {dialog}
       <Toolbar className="justify-end">
         {service.actions.includes("start") ? (
-          <Button disabled={action.isPending} onClick={() => void run("start")} size="sm" variant="primary">{t("start")}</Button>
+          <Button disabled={action.isPending} onClick={() => void run("start")} size="sm" variant="primary">
+            {t("start")}
+          </Button>
         ) : null}
         {service.actions.includes("restart") ? (
-          <Button disabled={action.isPending} onClick={() => void run("restart")} size="sm" variant="secondary">{t("restart")}</Button>
+          <Button disabled={action.isPending} onClick={() => void run("restart")} size="sm" variant="secondary">
+            {t("restart")}
+          </Button>
         ) : null}
         {service.actions.includes("stop") ? (
-          <Button disabled={action.isPending} onClick={() => void run("stop")} size="sm" variant="danger">{t("stop")}</Button>
+          <Button disabled={action.isPending} onClick={() => void run("stop")} size="sm" variant="danger">
+            {t("stop")}
+          </Button>
         ) : null}
         {service.actions.includes("details") ? (
-          <Button aria-pressed={detailsFor === service.service} onClick={() => onShowDetails(service.service)} size="sm" variant="secondary">{t("details")}</Button>
+          <Button aria-pressed={detailsFor === service.service} onClick={() => onShowDetails(service.service)} size="sm" variant="secondary">
+            {t("details")}
+          </Button>
         ) : null}
         {service.actions.includes("logs") ? (
-          <Button aria-pressed={logsFor === service.service} onClick={() => onShowLogs(service.service)} size="sm" variant="secondary">{t("logs")}</Button>
+          <Button aria-pressed={logsFor === service.service} onClick={() => onShowLogs(service.service)} size="sm" variant="secondary">
+            {t("logs")}
+          </Button>
         ) : null}
       </Toolbar>
-      {action.isError ? <Text variant="caption" tone="danger">{action.error instanceof Error ? action.error.message : t("action_failed")}</Text> : null}
+      {action.isError ? (
+        <Text variant="caption" tone="danger">
+          {action.error instanceof Error ? action.error.message : t("action_failed")}
+        </Text>
+      ) : null}
     </div>
   )
 }
@@ -192,18 +214,23 @@ function LogsPanel({ name, onClose }: { name: string; onClose: () => void }) {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <SectionHeading>{t("logs_heading", { service: name })}</SectionHeading>
         <Toolbar>
-          <label className="text-sm text-text-primary" htmlFor="plugin-service-log-tail">{t("lines")}</label>
-          <Select
-            fullWidth={false}
-            id="plugin-service-log-tail"
-            onChange={(event) => setTail(Number(event.target.value))}
-            value={tail}
-          >
-            {LOG_TAILS.map((value) => <option key={value} value={value}>{value}</option>)}
+          <label className="text-sm text-text-primary" htmlFor="plugin-service-log-tail">
+            {t("lines")}
+          </label>
+          <Select fullWidth={false} id="plugin-service-log-tail" onChange={(event) => setTail(Number(event.target.value))} value={tail}>
+            {LOG_TAILS.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
           </Select>
           <Checkbox checked={follow} label={t("follow")} onChange={(event) => setFollow(event.target.checked)} />
-          <Button disabled={logs.isFetching} onClick={() => void logs.refetch()} size="sm" variant="secondary">{t("refresh")}</Button>
-          <Button onClick={onClose} size="sm" variant="secondary">{t("close_logs")}</Button>
+          <Button disabled={logs.isFetching} onClick={() => void logs.refetch()} size="sm" variant="secondary">
+            {t("refresh")}
+          </Button>
+          <Button onClick={onClose} size="sm" variant="secondary">
+            {t("close_logs")}
+          </Button>
         </Toolbar>
       </div>
       {logs.isError ? <Notice tone="danger">{logs.error instanceof Error ? logs.error.message : t("logs_error")}</Notice> : null}
@@ -242,8 +269,12 @@ function DetailsPanel({ name, onClose }: { name: string; onClose: () => void }) 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <SectionHeading>{t("details_heading", { service: name })}</SectionHeading>
         <Toolbar>
-          <Button disabled={details.isFetching} onClick={() => void details.refetch()} size="sm" variant="secondary">{t("refresh")}</Button>
-          <Button onClick={onClose} size="sm" variant="secondary">{t("close_logs")}</Button>
+          <Button disabled={details.isFetching} onClick={() => void details.refetch()} size="sm" variant="secondary">
+            {t("refresh")}
+          </Button>
+          <Button onClick={onClose} size="sm" variant="secondary">
+            {t("close_logs")}
+          </Button>
         </Toolbar>
       </div>
       {details.isPending ? <Text tone="muted">{t("loading")}</Text> : null}
@@ -262,7 +293,9 @@ function DetailsPanel({ name, onClose }: { name: string; onClose: () => void }) 
             <DataTable.Root>
               <DataTable.Header>
                 <DataTable.Row>
-                  {data.table.columns.map((column) => <DataTable.HeadCell key={column.key}>{t(column.label_key)}</DataTable.HeadCell>)}
+                  {data.table.columns.map((column) => (
+                    <DataTable.HeadCell key={column.key}>{t(column.label_key)}</DataTable.HeadCell>
+                  ))}
                 </DataTable.Row>
               </DataTable.Header>
               <DataTable.Body>
@@ -303,7 +336,9 @@ function VolumesSection({ volumes }: { volumes: PluginServiceVolume[] }) {
   return (
     <Section.Root aria-label={t("volumes_heading")}>
       <SectionHeading>{t("volumes_heading")}</SectionHeading>
-      <Text className="mb-3" tone="muted">{t("volumes_description")}</Text>
+      <Text className="mb-3" tone="muted">
+        {t("volumes_description")}
+      </Text>
       <DataTable.Root>
         <DataTable.Header>
           <DataTable.Row>
@@ -323,9 +358,7 @@ function VolumesSection({ volumes }: { volumes: PluginServiceVolume[] }) {
               <DataTable.Cell>
                 <Pill tone={volume.in_use ? "success" : "neutral"}>{volume.in_use ? t("volume_in_use") : t("volume_unused")}</Pill>
               </DataTable.Cell>
-              <DataTable.Cell align="right">
-                {volume.in_use ? null : <DeleteVolumeButton volume={volume} />}
-              </DataTable.Cell>
+              <DataTable.Cell align="right">{volume.in_use ? null : <DeleteVolumeButton volume={volume} />}</DataTable.Cell>
             </DataTable.Row>
           ))}
         </DataTable.Body>
@@ -351,8 +384,14 @@ function DeleteVolumeButton({ volume }: { volume: PluginServiceVolume }) {
   return (
     <div className="flex flex-col items-end gap-1">
       {dialog}
-      <Button disabled={remove.isPending} onClick={() => void onDelete()} size="sm" variant="danger">{t("delete_volume")}</Button>
-      {remove.isError ? <Text variant="caption" tone="danger">{remove.error instanceof Error ? remove.error.message : t("action_failed")}</Text> : null}
+      <Button disabled={remove.isPending} onClick={() => void onDelete()} size="sm" variant="danger">
+        {t("delete_volume")}
+      </Button>
+      {remove.isError ? (
+        <Text variant="caption" tone="danger">
+          {remove.error instanceof Error ? remove.error.message : t("action_failed")}
+        </Text>
+      ) : null}
     </div>
   )
 }

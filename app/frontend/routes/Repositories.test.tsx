@@ -68,12 +68,18 @@ function repositoriesPayload(overrides: Record<string, unknown> = {}) {
     filter_schema: [
       { field: "slug", label: "Repository", bucket: "string", operators: ["contains"], free_text_search: true },
       { field: "github_owner", label: "GitHub owner", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [] },
-      { field: "health", label: "Health", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [
-        { value: "healthy", label: "Healthy" },
-        { value: "broken", label: "Broken" },
-        { value: "inconclusive", label: "Inconclusive" },
-        { value: "unknown", label: "Unknown" }
-      ] },
+      {
+        field: "health",
+        label: "Health",
+        bucket: "enum",
+        operators: ["is", "is_not", "is_one_of", "is_none_of"],
+        values: [
+          { value: "healthy", label: "Healthy" },
+          { value: "broken", label: "Broken" },
+          { value: "inconclusive", label: "Inconclusive" },
+          { value: "unknown", label: "Unknown" }
+        ]
+      },
       { field: "agent_provider", label: "Agent", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [] },
       { field: "has_open_jobs", label: "Has open jobs", bucket: "boolean", operators: ["is_true", "is_false"] }
     ],
@@ -244,13 +250,17 @@ describe("RepositoriesIndex data table", () => {
   })
 
   it("sorts repositories by clicking a sortable column header", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload({
-      active_repositories: [
-        repositoryRow({ id: 1, slug: "acme/widgets", open_jobs_count: 1 }),
-        repositoryRow({ id: 2, slug: "acme/apex", open_jobs_count: 9 }),
-        repositoryRow({ id: 3, slug: "acme/zulu", open_jobs_count: 5 })
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        repositoriesPayload({
+          active_repositories: [
+            repositoryRow({ id: 1, slug: "acme/widgets", open_jobs_count: 1 }),
+            repositoryRow({ id: 2, slug: "acme/apex", open_jobs_count: 9 }),
+            repositoryRow({ id: 3, slug: "acme/zulu", open_jobs_count: 5 })
+          ]
+        })
+      )
+    )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
@@ -263,7 +273,10 @@ describe("RepositoriesIndex data table", () => {
     await screen.findByRole("link", { name: "acme/widgets" })
 
     function slugOrder() {
-      return screen.getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("link")[0]?.textContent)
+      return screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).getAllByRole("link")[0]?.textContent)
     }
 
     expect(slugOrder()).toEqual(["acme/apex", "acme/widgets", "acme/zulu"])
@@ -289,10 +302,14 @@ describe("RepositoriesIndex data table", () => {
   })
 
   it("still offers Unarchive on archived rows", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload({
-      active_repositories: [],
-      archived_repositories: [repositoryRow({ id: 2, slug: "acme/attic", archived: true, archived_at: "2026-01-01T00:00:00Z" })]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        repositoriesPayload({
+          active_repositories: [],
+          archived_repositories: [repositoryRow({ id: 2, slug: "acme/attic", archived: true, archived_at: "2026-01-01T00:00:00Z" })]
+        })
+      )
+    )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
@@ -347,10 +364,14 @@ describe("RepositoriesIndex smart folders", () => {
   })
 
   it("shows both active and archived repositories together when no folder narrows them", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload({
-      active_repositories: [repositoryRow({ id: 1, slug: "acme/widgets" })],
-      archived_repositories: [repositoryRow({ id: 2, slug: "acme/attic", archived: true, archived_at: "2026-01-01T00:00:00Z" })]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        repositoriesPayload({
+          active_repositories: [repositoryRow({ id: 1, slug: "acme/widgets" })],
+          archived_repositories: [repositoryRow({ id: 2, slug: "acme/attic", archived: true, archived_at: "2026-01-01T00:00:00Z" })]
+        })
+      )
+    )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
@@ -366,11 +387,15 @@ describe("RepositoriesIndex smart folders", () => {
   })
 
   it("shows the Recent smart folder's empty state when nothing matches its fixed 30-day cutoff", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload({
-      active_repositories: [],
-      archived_repositories: [],
-      active_smart_folder_id: 2
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        repositoriesPayload({
+          active_repositories: [],
+          archived_repositories: [],
+          active_smart_folder_id: 2
+        })
+      )
+    )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
@@ -384,11 +409,15 @@ describe("RepositoriesIndex smart folders", () => {
   })
 
   it("shows the Archived smart folder's empty state when there is nothing archived", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload({
-      active_repositories: [],
-      archived_repositories: [],
-      active_smart_folder_id: 3
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        repositoriesPayload({
+          active_repositories: [],
+          archived_repositories: [],
+          active_smart_folder_id: 3
+        })
+      )
+    )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
@@ -417,11 +446,15 @@ describe("RepositoriesIndex smart folders", () => {
       // (Archived here), so once `archived` flips false the repo drops out
       // of this response entirely -- unlike the unarchive endpoint's own
       // response above, which is unfiltered.
-      return Promise.resolve(jsonResponse(repositoriesPayload({
-        active_repositories: [],
-        archived_repositories: archived ? [ archivedRow() ] : [],
-        active_smart_folder_id: 3
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          repositoriesPayload({
+            active_repositories: [],
+            archived_repositories: archived ? [archivedRow()] : [],
+            active_smart_folder_id: 3
+          })
+        )
+      )
     })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
@@ -437,10 +470,7 @@ describe("RepositoriesIndex smart folders", () => {
     fireEvent.click(screen.getByRole("button", { name: "Unarchive" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/2/unarchive",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/2/unarchive", expect.objectContaining({ method: "POST" }))
     })
 
     await waitFor(() => {
@@ -461,20 +491,23 @@ describe("RepositoriesIndex filter bar", () => {
 
   function ownerFilterSchema() {
     const base = repositoriesPayload().filter_schema as Array<Record<string, unknown>>
-    return base.map((field) => (
+    return base.map((field) =>
       field.field === "github_owner"
-        ? { ...field, values: [{ value: "acme", label: "acme" }, { value: "bob", label: "bob" }] }
+        ? {
+            ...field,
+            values: [
+              { value: "acme", label: "acme" },
+              { value: "bob", label: "bob" }
+            ]
+          }
         : field
-    ))
+    )
   }
 
   it("adds a filter chip through the shared FilterBar and narrows the visible repositories", async () => {
     const filter_schema = ownerFilterSchema()
     const fullPayload = repositoriesPayload({
-      active_repositories: [
-        repositoryRow({ id: 1, slug: "acme/widgets", owner: "acme" }),
-        repositoryRow({ id: 2, slug: "bob/gadgets", owner: "bob" })
-      ],
+      active_repositories: [repositoryRow({ id: 1, slug: "acme/widgets", owner: "acme" }), repositoryRow({ id: 2, slug: "bob/gadgets", owner: "bob" })],
       filter_schema
     })
     const narrowedPayload = repositoriesPayload({

@@ -14,7 +14,7 @@ const TAB_PARAM = "tab"
 export function MetricsDashboardRoute() {
   const { t } = useT("metrics_dashboard")
   usePageTitle(t("heading"))
-  const [ searchParams, setSearchParams ] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const window = searchParams.get("window") || DEFAULT_WINDOW
   const requestedTab = searchParams.get(TAB_PARAM)
 
@@ -23,10 +23,10 @@ export function MetricsDashboardRoute() {
   // on one bucket grid. Index i is the same instant everywhere. The window
   // selector lives at the page level for the same reason -- both must keep
   // working the same way regardless of which tab is active.
-  const [ hoverIndex, setHoverIndex ] = useState<number | null>(null)
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
   const dashboard = useQuery({
-    queryKey: [ "metrics_dashboard", window ],
+    queryKey: ["metrics_dashboard", window],
     queryFn: () => fetchMetricsDashboard(window),
     placeholderData: keepPreviousData,
     refetchInterval: 60_000
@@ -44,10 +44,18 @@ export function MetricsDashboardRoute() {
   }
 
   if (dashboard.isPending) {
-    return <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide"><p className="text-sm text-gray-500">{t("loading")}</p></Page.Root>
+    return (
+      <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide">
+        <p className="text-sm text-gray-500">{t("loading")}</p>
+      </Page.Root>
+    )
   }
   if (dashboard.isError) {
-    return <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide"><p className="text-sm text-red-700">{errorMessage(dashboard.error, t("error"))}</p></Page.Root>
+    return (
+      <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide">
+        <p className="text-sm text-red-700">{errorMessage(dashboard.error, t("error"))}</p>
+      </Page.Root>
+    )
   }
 
   const payload = dashboard.data
@@ -55,10 +63,7 @@ export function MetricsDashboardRoute() {
   // id; a plugin tab ships its label as a literal string, since it cannot
   // resolve against a namespace this plugin doesn't own. Concatenated once so
   // the rest of the page treats every tab the same way.
-  const tabs = [
-    ...payload.categories.map((id) => ({ id, label: t(`tabs.${id}`) })),
-    ...payload.plugin_tabs
-  ]
+  const tabs = [...payload.categories.map((id) => ({ id, label: t(`tabs.${id}`) })), ...payload.plugin_tabs]
   const activeTab = requestedTab && tabs.some((tab) => tab.id === requestedTab) ? requestedTab : tabs[0]?.id
   const visiblePanels = payload.panels.filter((panel) => panel.category === activeTab)
 
@@ -66,9 +71,7 @@ export function MetricsDashboardRoute() {
     <Page.Root aria-label={t("aria_page")} className="space-y-5" gutter="responsive" size="extra-wide">
       <Page.Header className="items-end border-b border-gray-200 pb-4 dark:border-gray-700">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
-            {t("heading")}
-          </h1>
+          <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">{t("heading")}</h1>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("subheading")}</p>
         </div>
         <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800">
@@ -145,9 +148,7 @@ function RecordingNotice({ recording, lastRecordedAt }: { recording: boolean; la
 
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-      {lastRecordedAt
-        ? t("stale_notice", { at: new Date(lastRecordedAt).toLocaleString() })
-        : t("no_data_notice")}
+      {lastRecordedAt ? t("stale_notice", { at: new Date(lastRecordedAt).toLocaleString() }) : t("no_data_notice")}
     </div>
   )
 }

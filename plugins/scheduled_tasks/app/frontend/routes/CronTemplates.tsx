@@ -51,7 +51,9 @@ export function CronTemplatesIndex() {
           <PageHeading>{t("cron_templates.heading")}</PageHeading>
           <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">{t("cron_templates.description")}</p>
         </div>
-        <Link className={buttonClasses("primary", "md", "self-start")} to={`${basePath}/new`}>{t("cron_templates.new")}</Link>
+        <Link className={buttonClasses("primary", "md", "self-start")} to={`${basePath}/new`}>
+          {t("cron_templates.new")}
+        </Link>
       </Page.Header>
 
       {templates.isPending ? <PanelMessage>{t("cron_templates.loading")}</PanelMessage> : null}
@@ -115,15 +117,7 @@ export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
 
       {loading ? <PanelMessage>{t("cron_templates.loading_form")}</PanelMessage> : null}
       {error ? <CronTemplatesError error={error} /> : null}
-      {!loading && !error ? (
-        <CronTemplateForm
-          basePath={basePath}
-          id={Number(id)}
-          initial={initial}
-          mode={mode}
-          policies={policies}
-        />
-      ) : null}
+      {!loading && !error ? <CronTemplateForm basePath={basePath} id={Number(id)} initial={initial} mode={mode} policies={policies} /> : null}
     </Page.Root>
   )
 }
@@ -136,7 +130,9 @@ function TemplatesTable({ templates, basePath }: { templates: CronTemplateRow[];
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-8 text-center">
         <p className="text-gray-600 dark:text-gray-400">{t("cron_templates.no_templates_heading")}</p>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("cron_templates.no_templates_description")}</p>
-        <Link className={buttonClasses("primary", "md", "mt-4")} to={`${basePath}/new`}>{t("cron_templates.create_first")}</Link>
+        <Link className={buttonClasses("primary", "md", "mt-4")} to={`${basePath}/new`}>
+          {t("cron_templates.create_first")}
+        </Link>
       </section>
     )
   }
@@ -151,21 +147,31 @@ function TemplatesTable({ templates, basePath }: { templates: CronTemplateRow[];
             <DataTable.HeadCell>{t("cron_templates.col_pileup")}</DataTable.HeadCell>
             <DataTable.HeadCell>{t("cron_templates.col_applied")}</DataTable.HeadCell>
             <DataTable.HeadCell>{t("cron_templates.col_status")}</DataTable.HeadCell>
-            <DataTable.HeadCell><span className="sr-only">{t("cron_templates.col_open")}</span></DataTable.HeadCell>
+            <DataTable.HeadCell>
+              <span className="sr-only">{t("cron_templates.col_open")}</span>
+            </DataTable.HeadCell>
           </DataTable.Row>
         </DataTable.Header>
         <DataTable.Body>
           {templates.map((template) => (
             <DataTable.Row key={template.id}>
               <DataTable.Cell className="font-medium">
-                <Link className="text-brand underline hover:no-underline" to={`${basePath}/${template.id}`}>{template.name}</Link>
+                <Link className="text-brand underline hover:no-underline" to={`${basePath}/${template.id}`}>
+                  {template.name}
+                </Link>
                 {template.description ? <p className="mt-0.5 text-xs font-normal text-gray-500 dark:text-gray-400">{template.description}</p> : null}
               </DataTable.Cell>
               <DataTable.Cell>{template.schedule_explanation || template.cron_expression}</DataTable.Cell>
               <DataTable.Cell>{template.pr_pileup_policy}</DataTable.Cell>
               <DataTable.Cell className="text-gray-600 dark:text-gray-400">{t("cron_templates.repos", { count: template.applied_tasks_count })}</DataTable.Cell>
-              <DataTable.Cell><StatusPill enabled={template.enabled} /></DataTable.Cell>
-              <DataTable.Cell align="right"><Link className="text-brand underline hover:no-underline" to={`${basePath}/${template.id}`}>{t("cron_templates.col_open")}</Link></DataTable.Cell>
+              <DataTable.Cell>
+                <StatusPill enabled={template.enabled} />
+              </DataTable.Cell>
+              <DataTable.Cell align="right">
+                <Link className="text-brand underline hover:no-underline" to={`${basePath}/${template.id}`}>
+                  {t("cron_templates.col_open")}
+                </Link>
+              </DataTable.Cell>
             </DataTable.Row>
           ))}
         </DataTable.Body>
@@ -198,7 +204,12 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
           {payload.template.description ? <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{payload.template.description}</p> : null}
         </div>
         <div className="flex items-center gap-2">
-          <Link className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800" to={`${basePath}/${payload.template.id}/edit`}>{t("cron_templates.edit")}</Link>
+          <Link
+            className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+            to={`${basePath}/${payload.template.id}/edit`}
+          >
+            {t("cron_templates.edit")}
+          </Link>
           <button
             className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
             disabled={destroy.isPending}
@@ -219,15 +230,21 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("cron_templates.section_schedule")}</h2>
         <DescriptionList.Root>
-          <DescriptionList.Item label={t("cron_templates.cron_expression_label")}>{payload.template.schedule_explanation || payload.template.cron_expression}</DescriptionList.Item>
-          <DescriptionList.Item descriptionClassName="font-mono text-xs" label={t("cron_templates.semantics_label")}>{payload.template.schedule_expression}</DescriptionList.Item>
+          <DescriptionList.Item label={t("cron_templates.cron_expression_label")}>
+            {payload.template.schedule_explanation || payload.template.cron_expression}
+          </DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-mono text-xs" label={t("cron_templates.semantics_label")}>
+            {payload.template.schedule_expression}
+          </DescriptionList.Item>
           <DescriptionList.Item label={t("cron_templates.pr_pileup_policy_label")}>{payload.template.pr_pileup_policy}</DescriptionList.Item>
         </DescriptionList.Root>
       </section>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("cron_templates.section_prompt")}</h2>
-        <pre className="whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 font-mono text-xs">{payload.template.prompt}</pre>
+        <pre className="whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 font-mono text-xs">
+          {payload.template.prompt}
+        </pre>
       </section>
 
       <AppliedTasks prefix={prefix} tasks={payload.applied_tasks} />
@@ -255,9 +272,8 @@ function CronTemplateForm({
   const navigate = useNavigate()
   const [values, setValues] = useState<CronTemplateInput>(initial)
   const save = useMutation({
-    mutationFn: (structuredIntent: Record<string, unknown> | null) => mode === "new"
-      ? createCronTemplate(submitInput(values, structuredIntent))
-      : updateCronTemplate(id, submitInput(values, structuredIntent)),
+    mutationFn: (structuredIntent: Record<string, unknown> | null) =>
+      mode === "new" ? createCronTemplate(submitInput(values, structuredIntent)) : updateCronTemplate(id, submitInput(values, structuredIntent)),
     onSuccess: (payload) => {
       queryClient.setQueryData(["cron_templates", String(payload.template.id)], payload)
       void queryClient.invalidateQueries({ queryKey: ["cron_templates"] })
@@ -287,7 +303,7 @@ function CronTemplateForm({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    save.mutate(previewMatchesInput ? preview.data?.structured_intent ?? null : null)
+    save.mutate(previewMatchesInput ? (preview.data?.structured_intent ?? null) : null)
   }
 
   return (
@@ -303,14 +319,23 @@ function CronTemplateForm({
       </Form.Field>
       <Form.Field controlId="cron-template-schedule">
         <Form.Label>{t("cron_templates.field_schedule")}</Form.Label>
-        <Form.Input onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("cron_templates.schedule_placeholder")} type="text" value={values.schedule_input} />
+        <Form.Input
+          onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })}
+          placeholder={t("cron_templates.schedule_placeholder")}
+          type="text"
+          value={values.schedule_input}
+        />
         <SchedulePreviewState errors={previewErrors} explanation={previewExplanation} loading={preview.isPending} source={previewSource} />
         <Form.HelpText>{t("cron_templates.schedule_help")}</Form.HelpText>
       </Form.Field>
       <Form.Field controlId="cron-template-pileup">
         <Form.Label>{t("cron_templates.field_pileup")}</Form.Label>
         <Form.Select onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>
-          {policies.map((policy) => <option key={policy} value={policy}>{policy}</option>)}
+          {policies.map((policy) => (
+            <option key={policy} value={policy}>
+              {policy}
+            </option>
+          ))}
         </Form.Select>
       </Form.Field>
       <Form.Field controlId="cron-template-prompt">
@@ -318,13 +343,22 @@ function CronTemplateForm({
         <Form.Textarea className="font-mono" onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
       </Form.Field>
       <Form.Field controlId="cron-template-enabled">
-        <Form.Checkbox checked={values.enabled} label={t("cron_templates.field_enabled")} onChange={(event) => setValues({ ...values, enabled: event.target.checked })} />
+        <Form.Checkbox
+          checked={values.enabled}
+          label={t("cron_templates.field_enabled")}
+          onChange={(event) => setValues({ ...values, enabled: event.target.checked })}
+        />
       </Form.Field>
       <div className="flex items-center gap-3">
         <Button disabled={save.isPending} type="submit" variant="primary">
           {save.isPending ? t("cron_templates.saving") : mode === "new" ? t("cron_templates.create") : t("cron_templates.save")}
         </Button>
-        <Link className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100" to={mode === "new" ? basePath : `${basePath}/${id}`}>{t("cron_templates.cancel")}</Link>
+        <Link
+          className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+          to={mode === "new" ? basePath : `${basePath}/${id}`}
+        >
+          {t("cron_templates.cancel")}
+        </Link>
       </div>
     </form>
   )
@@ -350,10 +384,22 @@ function AppliedTasks({ tasks, prefix }: { tasks: Awaited<ReturnType<typeof fetc
           <DataTable.Body>
             {tasks.map((task) => (
               <DataTable.Row key={task.id}>
-                <DataTable.Cell className="font-mono"><Link className="text-brand underline hover:no-underline" to={withRoutePrefix(task.repository_path, prefix)}>{task.repository_slug}</Link></DataTable.Cell>
-                <DataTable.Cell><Link className="text-brand underline hover:no-underline" to={withRoutePrefix(task.scheduled_task_path, prefix)}>{task.name}</Link></DataTable.Cell>
-                <DataTable.Cell><StatePill state={task.state} /></DataTable.Cell>
-                <DataTable.Cell className="text-gray-500 dark:text-gray-400"><RelativeTimestamp fallback={t("cron_templates.never")} value={task.last_fired_at} /></DataTable.Cell>
+                <DataTable.Cell className="font-mono">
+                  <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(task.repository_path, prefix)}>
+                    {task.repository_slug}
+                  </Link>
+                </DataTable.Cell>
+                <DataTable.Cell>
+                  <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(task.scheduled_task_path, prefix)}>
+                    {task.name}
+                  </Link>
+                </DataTable.Cell>
+                <DataTable.Cell>
+                  <StatePill state={task.state} />
+                </DataTable.Cell>
+                <DataTable.Cell className="text-gray-500 dark:text-gray-400">
+                  <RelativeTimestamp fallback={t("cron_templates.never")} value={task.last_fired_at} />
+                </DataTable.Cell>
               </DataTable.Row>
             ))}
           </DataTable.Body>
@@ -372,14 +418,30 @@ function RepositoryApplyLinks({ repositories, prefix }: { repositories: Awaited<
       <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("cron_templates.section_apply")}</h2>
       <div className="flex flex-wrap gap-2">
         {repositories.map((repository) => (
-          <Link className="inline-block rounded border border-gray-300 px-2.5 py-1 font-mono text-xs hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-600" to={withRoutePrefix(repository.new_scheduled_task_path, prefix)} key={repository.id}>{repository.slug}</Link>
+          <Link
+            className="inline-block rounded border border-gray-300 px-2.5 py-1 font-mono text-xs hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-600"
+            to={withRoutePrefix(repository.new_scheduled_task_path, prefix)}
+            key={repository.id}
+          >
+            {repository.slug}
+          </Link>
         ))}
       </div>
     </section>
   )
 }
 
-function SchedulePreviewState({ explanation, errors, loading, source }: { explanation?: string | null; errors: string[]; loading: boolean; source?: string | null }) {
+function SchedulePreviewState({
+  explanation,
+  errors,
+  loading,
+  source
+}: {
+  explanation?: string | null
+  errors: string[]
+  loading: boolean
+  source?: string | null
+}) {
   const { t } = useT("settings")
   if (loading) return <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("cron_templates.preview_loading")}</p>
   if (errors.length > 0) return <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.join(", ")}</p>
@@ -397,9 +459,13 @@ function SchedulePreviewState({ explanation, errors, loading, source }: { explan
 function StatusPill({ enabled }: { enabled: boolean }) {
   const { t } = useT("settings")
   return enabled ? (
-    <span className="inline-block rounded bg-green-100 dark:bg-green-950/40 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">{t("cron_templates.enabled")}</span>
+    <span className="inline-block rounded bg-green-100 dark:bg-green-950/40 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">
+      {t("cron_templates.enabled")}
+    </span>
   ) : (
-    <span className="inline-block rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">{t("cron_templates.disabled")}</span>
+    <span className="inline-block rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+      {t("cron_templates.disabled")}
+    </span>
   )
 }
 
@@ -410,7 +476,13 @@ function StatePill({ state }: { state: string }) {
     auto_paused: "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300",
     fired: "bg-info/10 text-info"
   }
-  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}>{state}</span>
+  return (
+    <span
+      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}
+    >
+      {state}
+    </span>
+  )
 }
 
 function CronTemplatesError({ error }: { error: Error }) {

@@ -109,7 +109,11 @@ function ClusterCreateForm({ onNotice }: { onNotice: (message: string | null) =>
           <TestButton onTest={() => testDraftKubernetesCluster(values)} />
         </Form.Actions>
       </form>
-      {create.isError ? <p className="mt-3 text-sm text-danger-text" role="alert">{errorMessage(create.error, t("create_error_fallback"))}</p> : null}
+      {create.isError ? (
+        <p className="mt-3 text-sm text-danger-text" role="alert">
+          {errorMessage(create.error, t("create_error_fallback"))}
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -137,31 +141,23 @@ function ClustersTable({
             <DataTable.HeadCell>{t("col_agentic_access")}</DataTable.HeadCell>
             <DataTable.HeadCell>{t("col_allow_writes")}</DataTable.HeadCell>
             <DataTable.HeadCell>{t("col_insecure_skip_tls_verify")}</DataTable.HeadCell>
-            <DataTable.HeadCell><span className="sr-only">{t("col_actions")}</span></DataTable.HeadCell>
+            <DataTable.HeadCell>
+              <span className="sr-only">{t("col_actions")}</span>
+            </DataTable.HeadCell>
           </DataTable.Row>
         </DataTable.Header>
         <DataTable.Body>
-            {clusters.length === 0 ? (
-              <DataTable.Empty colSpan={7}>{t("empty")}</DataTable.Empty>
-            ) : clusters.map((cluster) => (
+          {clusters.length === 0 ? (
+            <DataTable.Empty colSpan={7}>{t("empty")}</DataTable.Empty>
+          ) : (
+            clusters.map((cluster) =>
               editingId === cluster.id ? (
-                <ClusterEditRow
-                  cluster={cluster}
-                  key={cluster.id}
-                  onCancel={() => setEditingId(null)}
-                  onNotice={onNotice}
-                  onSaved={() => setEditingId(null)}
-                />
+                <ClusterEditRow cluster={cluster} key={cluster.id} onCancel={() => setEditingId(null)} onNotice={onNotice} onSaved={() => setEditingId(null)} />
               ) : (
-                <ClusterRow
-                  cluster={cluster}
-                  key={cluster.id}
-                  onBrowse={() => onBrowse(cluster)}
-                  onEdit={() => setEditingId(cluster.id)}
-                  onNotice={onNotice}
-                />
+                <ClusterRow cluster={cluster} key={cluster.id} onBrowse={() => onBrowse(cluster)} onEdit={() => setEditingId(cluster.id)} onNotice={onNotice} />
               )
-            ))}
+            )
+          )}
         </DataTable.Body>
       </DataTable.Root>
     </section>
@@ -310,12 +306,7 @@ function ClusterEditRow({
       <DataTable.Cell colSpan={7}>
         <form className="space-y-3" onSubmit={submit}>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("edit_heading")}</h3>
-          <ClusterFieldsGrid
-            idPrefix={`edit-cluster-${cluster.id}`}
-            kubeconfigHint={t("field_kubeconfig_hint_edit")}
-            onChange={setValues}
-            values={values}
-          />
+          <ClusterFieldsGrid idPrefix={`edit-cluster-${cluster.id}`} kubeconfigHint={t("field_kubeconfig_hint_edit")} onChange={setValues} values={values} />
           <Form.Actions align="start" className="pt-0">
             <Button disabled={update.isPending} type="submit" variant="primary">
               {update.isPending ? t("saving") : t("save_button")}
@@ -325,7 +316,11 @@ function ClusterEditRow({
             </Button>
             <TestButton onTest={() => testKubernetesCluster(cluster.id, values.kubeconfig || undefined)} />
           </Form.Actions>
-          {update.isError ? <p className="text-sm text-danger-text" role="alert">{errorMessage(update.error, t("update_error_fallback"))}</p> : null}
+          {update.isError ? (
+            <p className="text-sm text-danger-text" role="alert">
+              {errorMessage(update.error, t("update_error_fallback"))}
+            </p>
+          ) : null}
         </form>
       </DataTable.Cell>
     </DataTable.Row>
@@ -355,12 +350,7 @@ function ClusterFieldsGrid({
     <div className="grid gap-3">
       <Form.Field controlId={`${idPrefix}-label`}>
         <Form.Label>{t("field_label")}</Form.Label>
-        <Form.Input
-          onChange={(event) => set("label", event.target.value)}
-          required
-          type="text"
-          value={values.label}
-        />
+        <Form.Input onChange={(event) => set("label", event.target.value)} required type="text" value={values.label} />
       </Form.Field>
       <Form.Field controlId={`${idPrefix}-kubeconfig`}>
         <Form.Label>{t("field_kubeconfig")}</Form.Label>

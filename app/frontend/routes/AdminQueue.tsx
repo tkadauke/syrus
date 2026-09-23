@@ -43,7 +43,10 @@ const workerHealthQuickRanges = [
 ] as const
 
 type WorkerHealthChartMetric = {
-  key: keyof Pick<WorkerHealthBucket, "cpu_used_percent" | "load_1m" | "memory_used_percent" | "data_root_used_percent" | "cpu_pressure_some" | "io_pressure_some">
+  key: keyof Pick<
+    WorkerHealthBucket,
+    "cpu_used_percent" | "load_1m" | "memory_used_percent" | "data_root_used_percent" | "cpu_pressure_some" | "io_pressure_some"
+  >
   labelKey: string
   unit: "percent" | "number"
   color: string
@@ -102,15 +105,12 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
     <Page.Root aria-label={t("aria_queue")} gutter="responsive" size="wide">
       <Page.Header className="items-end border-b border-border pb-4">
         <Page.HeadingGroup>
-          <Text as="p" muted variant="label">{t("section_label")}</Text>
+          <Text as="p" muted variant="label">
+            {t("section_label")}
+          </Text>
           <Page.Title className="mt-1">{t("queue.heading")}</Page.Title>
         </Page.HeadingGroup>
-        <Button
-          className="shrink-0"
-          disabled={reaper.isPending}
-          onClick={() => reaper.mutate()}
-          variant="secondary"
-        >
+        <Button className="shrink-0" disabled={reaper.isPending} onClick={() => reaper.mutate()} variant="secondary">
           {reaper.isPending ? t("queue.reaper_running") : t("queue.run_reaper")}
         </Button>
       </Page.Header>
@@ -129,25 +129,51 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
         </nav>
       </Page.Nav>
 
-      {reaper.isSuccess ? (
-        <Notice tone="success">{reaper.data.message}</Notice>
-      ) : null}
-      {reaper.isError ? (
-        <Notice tone="danger">{t("queue.reaper_error")}</Notice>
-      ) : null}
+      {reaper.isSuccess ? <Notice tone="success">{reaper.data.message}</Notice> : null}
+      {reaper.isError ? <Notice tone="danger">{t("queue.reaper_error")}</Notice> : null}
 
       {queue.isPending ? <PanelMessage>{t("queue.loading")}</PanelMessage> : null}
       {queue.isError ? <QueueError error={queue.error} /> : null}
       {queue.isSuccess ? (
-        <QueueContent basePath={basePath} onNavigate={(path) => navigate(withRoutePrefix(path, prefix))} onSmartFolderMutationSuccess={() => {
-          void queryClient.invalidateQueries({ queryKey: ["admin", "queue"] })
-        }} pathname={location.pathname} payload={queue.data} prefix={prefix} queryKey={queueQueryKey} search={location.search} tab={tab} />
+        <QueueContent
+          basePath={basePath}
+          onNavigate={(path) => navigate(withRoutePrefix(path, prefix))}
+          onSmartFolderMutationSuccess={() => {
+            void queryClient.invalidateQueries({ queryKey: ["admin", "queue"] })
+          }}
+          pathname={location.pathname}
+          payload={queue.data}
+          prefix={prefix}
+          queryKey={queueQueryKey}
+          search={location.search}
+          tab={tab}
+        />
       ) : null}
     </Page.Root>
   )
 }
 
-function QueueContent({ basePath, onNavigate, onSmartFolderMutationSuccess, pathname, payload, prefix, queryKey, search, tab }: { basePath: string; onNavigate: (path: string) => void; onSmartFolderMutationSuccess: () => void; pathname: string; payload: AdminQueuePayload; prefix: string; queryKey: unknown[]; search: string; tab: QueueTab }) {
+function QueueContent({
+  basePath,
+  onNavigate,
+  onSmartFolderMutationSuccess,
+  pathname,
+  payload,
+  prefix,
+  queryKey,
+  search,
+  tab
+}: {
+  basePath: string
+  onNavigate: (path: string) => void
+  onSmartFolderMutationSuccess: () => void
+  pathname: string
+  payload: AdminQueuePayload
+  prefix: string
+  queryKey: unknown[]
+  search: string
+  tab: QueueTab
+}) {
   const { t } = useT("admin")
   const smartFolders = "smart_folders" in payload ? payload.smart_folders : []
   const activeFolderId = "active_smart_folder_id" in payload ? payload.active_smart_folder_id : null
@@ -165,24 +191,26 @@ function QueueContent({ basePath, onNavigate, onSmartFolderMutationSuccess, path
   return (
     <AdminFiltersLayout
       filterBar={filterBar}
-      smartFolders={smartFolders.length > 0 ? (
-        <AdminSmartFolderNav
-          activeFolderId={activeFolderId}
-          allLabel={t("queue.all_queue")}
-          allPath={`${basePath}/${tab}`}
-          appliedFilter={isFilteredQueuePayload(payload) ? payload.filter : null}
-          ariaLabel="Admin queue smart folders"
-          currentFilter={isFilteredQueuePayload(payload) ? payload.filter : undefined}
-          folders={smartFolders}
-          heading={t("queue.queues")}
-          onNavigate={onNavigate}
-          onMutationSuccess={onSmartFolderMutationSuccess}
-          prefix={prefix}
-          queryKey={queryKey}
-          search={search}
-          subjectType="admin_queue"
-        />
-      ) : null}
+      smartFolders={
+        smartFolders.length > 0 ? (
+          <AdminSmartFolderNav
+            activeFolderId={activeFolderId}
+            allLabel={t("queue.all_queue")}
+            allPath={`${basePath}/${tab}`}
+            appliedFilter={isFilteredQueuePayload(payload) ? payload.filter : null}
+            ariaLabel="Admin queue smart folders"
+            currentFilter={isFilteredQueuePayload(payload) ? payload.filter : undefined}
+            folders={smartFolders}
+            heading={t("queue.queues")}
+            onNavigate={onNavigate}
+            onMutationSuccess={onSmartFolderMutationSuccess}
+            prefix={prefix}
+            queryKey={queryKey}
+            search={search}
+            subjectType="admin_queue"
+          />
+        ) : null
+      }
     >
       <Section.Root padding="none">
         <QueueTabPanel tab={tab} payload={payload} />
@@ -195,13 +223,19 @@ function isFilteredQueuePayload(payload: AdminQueuePayload): payload is ActiveQu
   return "filter" in payload && "controls" in payload
 }
 
-
 function QueueTabPanel({ tab, payload }: { tab: QueueTab; payload: unknown }) {
   const { t } = useT("admin")
 
   switch (tab) {
     case "active":
-      return <JobsTable emptyLabel={t("queue.no_active")} jobs={(payload as ActiveQueuePayload).jobs ?? []} showClaimed storageKey="syrus.admin.queue.active_jobs.visible_columns" />
+      return (
+        <JobsTable
+          emptyLabel={t("queue.no_active")}
+          jobs={(payload as ActiveQueuePayload).jobs ?? []}
+          showClaimed
+          storageKey="syrus.admin.queue.active_jobs.visible_columns"
+        />
+      )
     case "pending":
       return <PendingTable payload={payload as PendingQueuePayload} />
     case "failed":
@@ -219,7 +253,9 @@ function PendingTable({ payload }: { payload: PendingQueuePayload }) {
 
   return (
     <>
-      <Text className="border-b border-border px-4 py-3" muted>{t("queue.showing_of", { shown: jobs.length, total: payload.total ?? 0 })}</Text>
+      <Text className="border-b border-border px-4 py-3" muted>
+        {t("queue.showing_of", { shown: jobs.length, total: payload.total ?? 0 })}
+      </Text>
       <JobsTable emptyLabel={t("queue.no_queued")} jobs={jobs} storageKey="syrus.admin.queue.pending_jobs.visible_columns" />
     </>
   )
@@ -229,11 +265,26 @@ function jobsTableColumns(t: (key: string) => string, showClaimed: boolean): Arr
   const columns: Array<AdminEventLogTableColumn<QueueJob>> = [
     { key: "class", header: t("queue.col_class"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (job) => job.class_name },
     { key: "queue", header: t("queue.col_queue"), className: "text-gray-700 dark:text-gray-200", render: (job) => job.queue_name },
-    { key: "arguments", header: t("queue.col_arguments"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (job) => formatArguments(job.arguments) },
-    { key: "created", header: t("queue.col_created"), className: "text-gray-600 dark:text-gray-300", render: (job) => <RelativeTimestamp value={job.created_at} /> }
+    {
+      key: "arguments",
+      header: t("queue.col_arguments"),
+      className: "font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (job) => formatArguments(job.arguments)
+    },
+    {
+      key: "created",
+      header: t("queue.col_created"),
+      className: "text-gray-600 dark:text-gray-300",
+      render: (job) => <RelativeTimestamp value={job.created_at} />
+    }
   ]
   if (showClaimed) {
-    columns.push({ key: "claimed", header: t("queue.col_claimed"), className: "text-gray-600 dark:text-gray-300", render: (job) => <RelativeTimestamp value={job.claimed_at} /> })
+    columns.push({
+      key: "claimed",
+      header: t("queue.col_claimed"),
+      className: "text-gray-600 dark:text-gray-300",
+      render: (job) => <RelativeTimestamp value={job.claimed_at} />
+    })
   }
   return columns
 }
@@ -250,14 +301,26 @@ function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
   const { t } = useT("admin")
   const failures = payload.failures ?? []
 
-  if (failures.length === 0) return <PanelMessage>{t("queue.no_failures", { since: payload.since ? formatRelativeDate(new Date(payload.since)) : "-" })}</PanelMessage>
+  if (failures.length === 0)
+    return <PanelMessage>{t("queue.no_failures", { since: payload.since ? formatRelativeDate(new Date(payload.since)) : "-" })}</PanelMessage>
 
   const columns: Array<AdminEventLogTableColumn<QueueFailure>> = [
-    { key: "created", header: t("queue.col_created"), required: true, className: "text-gray-600 dark:text-gray-300", render: (failure) => <RelativeTimestamp value={failure.created_at} /> },
+    {
+      key: "created",
+      header: t("queue.col_created"),
+      required: true,
+      className: "text-gray-600 dark:text-gray-300",
+      render: (failure) => <RelativeTimestamp value={failure.created_at} />
+    },
     { key: "class", header: t("queue.col_class"), className: "font-medium text-gray-900 dark:text-gray-100", render: (failure) => failure.class_name || "-" },
     { key: "exception", header: t("queue.col_exception"), className: "text-gray-700 dark:text-gray-200", render: (failure) => failure.exception_class || "-" },
     { key: "message", header: t("queue.col_message"), className: "max-w-md text-gray-700 dark:text-gray-200", render: (failure) => failure.message || "-" },
-    { key: "arguments", header: t("queue.col_arguments"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (failure) => formatArguments(failure.arguments) }
+    {
+      key: "arguments",
+      header: t("queue.col_arguments"),
+      className: "font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (failure) => formatArguments(failure.arguments)
+    }
   ]
 
   return <AdminEventLogTable columns={columns} getRowKey={(failure) => failure.id} rows={failures} storageKey="syrus.admin.queue.failures.visible_columns" />
@@ -272,8 +335,18 @@ function RecurringTable({ tasks }: { tasks: QueueRecurringTask[] }) {
     { key: "key", header: t("queue.col_key"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (task) => task.key },
     { key: "class", header: t("queue.col_class"), className: "text-gray-700 dark:text-gray-200", render: (task) => task.class_name || "-" },
     { key: "schedule", header: t("queue.col_schedule"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (task) => task.schedule },
-    { key: "last_run", header: t("queue.col_last_run"), className: "text-gray-600 dark:text-gray-300", render: (task) => <RelativeTimestamp value={task.last_run_at} /> },
-    { key: "last_finished", header: t("queue.col_last_finished"), className: "text-gray-600 dark:text-gray-300", render: (task) => <RelativeTimestamp value={task.last_finished_at} /> }
+    {
+      key: "last_run",
+      header: t("queue.col_last_run"),
+      className: "text-gray-600 dark:text-gray-300",
+      render: (task) => <RelativeTimestamp value={task.last_run_at} />
+    },
+    {
+      key: "last_finished",
+      header: t("queue.col_last_finished"),
+      className: "text-gray-600 dark:text-gray-300",
+      render: (task) => <RelativeTimestamp value={task.last_finished_at} />
+    }
   ]
 
   return <AdminEventLogTable columns={columns} getRowKey={(task) => task.key} rows={tasks} storageKey="syrus.admin.queue.recurring.visible_columns" />
@@ -322,7 +395,9 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <SectionHeading>{t("queue.worker_health")}</SectionHeading>
-          <Text className="mt-1" muted variant="caption">{t("queue.worker_health_range", { since: formatRelativeDate(new Date(health.range.since)), minutes: health.minute_bucket?.window_minutes ?? 60 })}</Text>
+          <Text className="mt-1" muted variant="caption">
+            {t("queue.worker_health_range", { since: formatRelativeDate(new Date(health.range.since)), minutes: health.minute_bucket?.window_minutes ?? 60 })}
+          </Text>
         </div>
         <form
           aria-label={t("queue.worker_health_range_aria")}
@@ -338,12 +413,7 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
           <div className="flex flex-wrap gap-1" role="group" aria-label={t("queue.worker_health_quick_ranges_aria")}>
             {workerHealthQuickRanges.map((range) =>
               Math.abs(activeMinutes - range.minutes) <= 1 ? (
-                <button
-                  className={buttonClasses("primary", "sm")}
-                  key={range.label}
-                  onClick={() => applyQuickRange(range.minutes)}
-                  type="button"
-                >
+                <button className={buttonClasses("primary", "sm")} key={range.label} onClick={() => applyQuickRange(range.minutes)} type="button">
                   {range.label}
                 </button>
               ) : (
@@ -361,13 +431,17 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
             <span>{t("queue.worker_health_end")}</span>
             <Input defaultValue={endValue} fullWidth={false} name="until" type="datetime-local" />
           </label>
-          <Button size="sm" type="submit">{t("queue.worker_health_apply")}</Button>
+          <Button size="sm" type="submit">
+            {t("queue.worker_health_apply")}
+          </Button>
         </form>
       </div>
       {activeHosts.length > 0 ? <WorkerHealthHostGrid hosts={activeHosts} /> : null}
       {historicalHosts.length > 0 ? (
         <details className="rounded-[var(--radius-panel)] border border-border bg-surface text-text-primary">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">{t("queue.worker_health_historical_workers", { count: historicalHosts.length })}</summary>
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">
+            {t("queue.worker_health_historical_workers", { count: historicalHosts.length })}
+          </summary>
           <div className="border-t border-border p-3">
             <WorkerHealthHostGrid hosts={historicalHosts} />
           </div>
@@ -380,7 +454,9 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
 function WorkerHealthHostGrid({ hosts }: { hosts: WorkerHealthHost[] }) {
   return (
     <div className="grid gap-3 lg:grid-cols-2">
-      {hosts.map((host) => <WorkerHealthHostPanel host={host} key={host.key || host.hostname} />)}
+      {hosts.map((host) => (
+        <WorkerHealthHostPanel host={host} key={host.key || host.hostname} />
+      ))}
     </div>
   )
 }
@@ -407,7 +483,13 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
             <span className="font-mono text-sm font-semibold text-text-primary">{host.hostname}</span>
             <span className={`rounded px-2 py-0.5 text-xs font-medium ${workerHealthBadge(level)}`}>{workerHealthLabel(level, t)}</span>
           </div>
-          <Text className="mt-1" muted variant="caption">{current?.health.reasons.length ? current.health.reasons.join("; ") : status === "current" ? t("queue.worker_health_ok") : t("queue.worker_health_historical")}</Text>
+          <Text className="mt-1" muted variant="caption">
+            {current?.health.reasons.length
+              ? current.health.reasons.join("; ")
+              : status === "current"
+                ? t("queue.worker_health_ok")
+                : t("queue.worker_health_historical")}
+          </Text>
         </div>
         <div className="grid grid-cols-2 gap-3 text-right text-xs sm:grid-cols-3 lg:grid-cols-6">
           <HealthStat label={t("queue.metric_cpu")} value={formatPercent(sample?.cpu_used_percent)} />
@@ -420,11 +502,21 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
       </summary>
       <div className="border-t border-border px-4 py-3">
         <DescriptionList.Root className="text-xs sm:grid-cols-3" density="compact">
-          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.col_version")}>{current?.version || sample?.version || "-"}</DescriptionList.Item>
-          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.last_sample")}>{sample ? formatRelativeDate(new Date(sample.observed_at)) : "-"}</DescriptionList.Item>
-          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.memory_available")}>{formatBytes(sample?.memory_available_bytes)}</DescriptionList.Item>
-          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.data_root_available")}>{formatBytes(sample?.data_root_available_bytes)}</DescriptionList.Item>
-          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.one_hour_max")}>{oneHour ? compactTrend(oneHour) : "-"}</DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.col_version")}>
+            {current?.version || sample?.version || "-"}
+          </DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.last_sample")}>
+            {sample ? formatRelativeDate(new Date(sample.observed_at)) : "-"}
+          </DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.memory_available")}>
+            {formatBytes(sample?.memory_available_bytes)}
+          </DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.data_root_available")}>
+            {formatBytes(sample?.data_root_available_bytes)}
+          </DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.one_hour_max")}>
+            {oneHour ? compactTrend(oneHour) : "-"}
+          </DescriptionList.Item>
         </DescriptionList.Root>
         <WorkerHealthCharts buckets={chartBuckets} hostname={host.hostname} />
         {/* WorkerHealthTrendTable and the minute-bucket table below are intentionally left
@@ -437,9 +529,9 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
         <details className="mt-3">
           <summary className="cursor-pointer text-xs font-medium text-text-muted hover:text-text-primary">{t("queue.worker_health_exact_values")}</summary>
           <WorkerHealthTrendTable windows={host.windows} />
-        {minuteBuckets.length > 0 ? (
-          <DataTable.Root className="text-xs" density="compact" wrapperClassName="mt-3">
-            <DataTable.Header>
+          {minuteBuckets.length > 0 ? (
+            <DataTable.Root className="text-xs" density="compact" wrapperClassName="mt-3">
+              <DataTable.Header>
                 <DataTable.Row>
                   <DataTable.HeadCell>{t("queue.col_minute")}</DataTable.HeadCell>
                   <DataTable.HeadCell>{t("queue.col_samples")}</DataTable.HeadCell>
@@ -466,7 +558,7 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
                 ))}
               </DataTable.Body>
             </DataTable.Root>
-        ) : null}
+          ) : null}
         </details>
       </div>
     </details>
@@ -479,7 +571,11 @@ function WorkerHealthCharts({ buckets, hostname }: { buckets: WorkerHealthBucket
   const metrics = workerHealthChartMetricSpecs.map(({ colorVar, ...spec }, index) => ({ ...spec, color: colors[index] }))
 
   if (buckets.length === 0) {
-    return <Text className="mt-3" muted variant="caption">{t("queue.no_worker_health_buckets")}</Text>
+    return (
+      <Text className="mt-3" muted variant="caption">
+        {t("queue.no_worker_health_buckets")}
+      </Text>
+    )
   }
 
   return (
@@ -515,14 +611,27 @@ function summaryPoint(value?: number | null) {
   return value == null ? null : { avg: value, max: value }
 }
 
-function WorkerHealthMetricChart({ buckets, hostname, metric, title }: { buckets: WorkerHealthBucket[]; hostname: string; metric: WorkerHealthChartMetric; title: string }) {
+function WorkerHealthMetricChart({
+  buckets,
+  hostname,
+  metric,
+  title
+}: {
+  buckets: WorkerHealthBucket[]
+  hostname: string
+  metric: WorkerHealthChartMetric
+  title: string
+}) {
   const values = buckets.map((bucket) => {
     const summary = bucket[metric.key]
     return summary?.max ?? null
   })
   const numericValues = values.filter((value): value is number => value != null)
   const maxValue = metric.max ?? Math.max(1, ...numericValues) * 1.15
-  const points = values.map((value, index) => value == null ? null : chartPoint(index, value, buckets.length, maxValue)).filter(Boolean) as Array<{ x: number; y: number }>
+  const points = values.map((value, index) => (value == null ? null : chartPoint(index, value, buckets.length, maxValue))).filter(Boolean) as Array<{
+    x: number
+    y: number
+  }>
   const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ")
   const missingCount = buckets.filter((bucket) => bucket.sample_count === 0).length
   const lastValue = numericValues.length > 0 ? numericValues[numericValues.length - 1] : null
@@ -533,17 +642,36 @@ function WorkerHealthMetricChart({ buckets, hostname, metric, title }: { buckets
         <h3 className="text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">{title}</h3>
         <span className="font-mono text-xs text-gray-900 dark:text-gray-100">{formatMetricValue(lastValue, metric.unit)}</span>
       </div>
-      <svg aria-label={`${hostname} ${title} chart`} className="h-32 w-full overflow-visible" data-testid={`worker-health-chart-${hostname}-${metric.key}`} preserveAspectRatio="none" role="img" viewBox="0 0 320 120">
+      <svg
+        aria-label={`${hostname} ${title} chart`}
+        className="h-32 w-full overflow-visible"
+        data-testid={`worker-health-chart-${hostname}-${metric.key}`}
+        preserveAspectRatio="none"
+        role="img"
+        viewBox="0 0 320 120"
+      >
         <line className="stroke-gray-200 dark:stroke-gray-700" x1="0" x2="320" y1="108" y2="108" />
         <line className="stroke-gray-200 dark:stroke-gray-700" x1="0" x2="320" y1="12" y2="12" />
         {metric.warning != null ? <ThresholdLine label="warn" max={maxValue} value={metric.warning} /> : null}
         {metric.critical != null ? <ThresholdLine label="crit" max={maxValue} value={metric.critical} /> : null}
-        {buckets.map((bucket, index) => bucket.sample_count === 0 ? (
-          <rect className="fill-gray-200 dark:fill-gray-700" height="96" key={bucket.minute} opacity="0.45" width={Math.max(1.5, 320 / Math.max(1, buckets.length) - 1)} x={chartX(index, buckets.length)} y="12">
-            <title>{`${formatRelativeDate(new Date(bucket.minute))}: missing sample`}</title>
-          </rect>
-        ) : null)}
-        {path ? <path d={path} fill="none" stroke={metric.color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" vectorEffect="non-scaling-stroke" /> : null}
+        {buckets.map((bucket, index) =>
+          bucket.sample_count === 0 ? (
+            <rect
+              className="fill-gray-200 dark:fill-gray-700"
+              height="96"
+              key={bucket.minute}
+              opacity="0.45"
+              width={Math.max(1.5, 320 / Math.max(1, buckets.length) - 1)}
+              x={chartX(index, buckets.length)}
+              y="12"
+            >
+              <title>{`${formatRelativeDate(new Date(bucket.minute))}: missing sample`}</title>
+            </rect>
+          ) : null
+        )}
+        {path ? (
+          <path d={path} fill="none" stroke={metric.color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+        ) : null}
       </svg>
       <div className="mt-1 flex items-center justify-between gap-2 text-2xs text-gray-500 dark:text-gray-400">
         <span>{formatRelativeDate(new Date(buckets[0]?.minute))}</span>
@@ -560,44 +688,46 @@ function ThresholdLine({ label, max, value }: { label: string; max: number; valu
   return (
     <>
       <line className="stroke-amber-500/70" strokeDasharray="4 4" x1="0" x2="320" y1={y} y2={y} vectorEffect="non-scaling-stroke" />
-      <text className="fill-amber-700 text-2xs dark:fill-amber-300" x="4" y={Math.max(10, y - 3)}>{label}</text>
+      <text className="fill-amber-700 text-2xs dark:fill-amber-300" x="4" y={Math.max(10, y - 3)}>
+        {label}
+      </text>
     </>
   )
 }
 
 function WorkerHealthTrendTable({ windows }: { windows: WorkerHealthPayload["hosts"][number]["windows"] }) {
   const { t } = useT("admin")
-  const rows = ["15m", "1h", "6h"].map((window) => [ window, windows[window] ] as const).filter(([, summary]) => summary)
+  const rows = ["15m", "1h", "6h"].map((window) => [window, windows[window]] as const).filter(([, summary]) => summary)
 
   if (rows.length === 0) return null
 
   return (
     <DataTable.Root className="text-xs" density="compact" wrapperClassName="mt-3">
       <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("queue.col_window")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_samples")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.metric_cpu")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.metric_memory")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.metric_disk")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.metric_load")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("queue.col_alerts")}</DataTable.HeadCell>
+        <DataTable.Row>
+          <DataTable.HeadCell>{t("queue.col_window")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("queue.col_samples")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("queue.metric_cpu")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("queue.metric_memory")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("queue.metric_disk")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("queue.metric_load")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("queue.col_alerts")}</DataTable.HeadCell>
+        </DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
+        {rows.map(([window, summary]) => (
+          <DataTable.Row key={window}>
+            <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-200">{window}</DataTable.Cell>
+            <DataTable.Cell className="text-gray-700 dark:text-gray-200">{summary.sample_count}</DataTable.Cell>
+            <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(summary.cpu_used_percent)}</DataTable.Cell>
+            <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(summary.memory_used_percent)}</DataTable.Cell>
+            <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(summary.data_root_used_percent)}</DataTable.Cell>
+            <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(summary.load_1m, "number")}</DataTable.Cell>
+            <DataTable.Cell className="text-gray-700 dark:text-gray-200">{summary.warning_count + summary.critical_count}</DataTable.Cell>
           </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {rows.map(([window, summary]) => (
-            <DataTable.Row key={window}>
-              <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-200">{window}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{summary.sample_count}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(summary.cpu_used_percent)}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(summary.memory_used_percent)}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(summary.data_root_used_percent)}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(summary.load_1m, "number")}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{summary.warning_count + summary.critical_count}</DataTable.Cell>
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
+        ))}
+      </DataTable.Body>
+    </DataTable.Root>
   )
 }
 
@@ -616,15 +746,46 @@ function WorkerTable({ workers }: { workers: QueueWorker[] }) {
   if (workers.length === 0) return <PanelMessage>{t("queue.no_workers")}</PanelMessage>
 
   const columns: Array<AdminEventLogTableColumn<QueueWorker>> = [
-    { key: "host", header: t("queue.col_host"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (worker) => worker.hostname || "-" },
+    {
+      key: "host",
+      header: t("queue.col_host"),
+      required: true,
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (worker) => worker.hostname || "-"
+    },
     { key: "pid", header: t("queue.col_pid"), className: "text-gray-700 dark:text-gray-200", render: (worker) => worker.pid },
-    { key: "queues", header: t("queue.col_queues"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (worker) => formatQueues(worker.queues) },
+    {
+      key: "queues",
+      header: t("queue.col_queues"),
+      className: "font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (worker) => formatQueues(worker.queues)
+    },
     { key: "threads", header: t("queue.col_threads"), className: "text-gray-700 dark:text-gray-200", render: (worker) => worker.threads ?? "-" },
-    { key: "heartbeat", header: t("queue.col_heartbeat"), className: "text-gray-600 dark:text-gray-300", render: (worker) => <RelativeTimestamp value={worker.last_heartbeat_at} /> },
-    { key: "state", header: t("queue.col_state"), render: (worker) => <span className={worker.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>{worker.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</span> }
+    {
+      key: "heartbeat",
+      header: t("queue.col_heartbeat"),
+      className: "text-gray-600 dark:text-gray-300",
+      render: (worker) => <RelativeTimestamp value={worker.last_heartbeat_at} />
+    },
+    {
+      key: "state",
+      header: t("queue.col_state"),
+      render: (worker) => (
+        <span className={worker.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>
+          {worker.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}
+        </span>
+      )
+    }
   ]
 
-  return <AdminEventLogTable columns={columns} getRowKey={(worker) => `${worker.hostname}-${worker.pid}`} rows={workers} storageKey="syrus.admin.queue.workers.visible_columns" />
+  return (
+    <AdminEventLogTable
+      columns={columns}
+      getRowKey={(worker) => `${worker.hostname}-${worker.pid}`}
+      rows={workers}
+      storageKey="syrus.admin.queue.workers.visible_columns"
+    />
+  )
 }
 
 function ProcessTable({ processes }: { processes: QueueProcess[] }) {
@@ -636,11 +797,31 @@ function ProcessTable({ processes }: { processes: QueueProcess[] }) {
     { key: "kind", header: t("queue.col_kind"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (process) => process.kind },
     { key: "host", header: t("queue.col_host"), className: "text-gray-700 dark:text-gray-200", render: (process) => process.hostname || "-" },
     { key: "pid", header: t("queue.col_pid"), className: "text-gray-700 dark:text-gray-200", render: (process) => process.pid },
-    { key: "heartbeat", header: t("queue.col_heartbeat"), className: "text-gray-600 dark:text-gray-300", render: (process) => <RelativeTimestamp value={process.last_heartbeat_at} /> },
-    { key: "state", header: t("queue.col_state"), render: (process) => <span className={process.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>{process.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</span> }
+    {
+      key: "heartbeat",
+      header: t("queue.col_heartbeat"),
+      className: "text-gray-600 dark:text-gray-300",
+      render: (process) => <RelativeTimestamp value={process.last_heartbeat_at} />
+    },
+    {
+      key: "state",
+      header: t("queue.col_state"),
+      render: (process) => (
+        <span className={process.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>
+          {process.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}
+        </span>
+      )
+    }
   ]
 
-  return <AdminEventLogTable columns={columns} getRowKey={(process) => `${process.kind}-${process.hostname}-${process.pid}`} rows={processes} storageKey="syrus.admin.queue.processes.visible_columns" />
+  return (
+    <AdminEventLogTable
+      columns={columns}
+      getRowKey={(process) => `${process.kind}-${process.hostname}-${process.pid}`}
+      rows={processes}
+      storageKey="syrus.admin.queue.processes.visible_columns"
+    />
+  )
 }
 
 function QueueError({ error }: { error: Error }) {
@@ -771,7 +952,11 @@ function formatQueues(queues: QueueWorker["queues"]) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <Notice className="rounded-none border-0" tone={tone === "error" ? "danger" : "neutral"}>{children}</Notice>
+  return (
+    <Notice className="rounded-none border-0" tone={tone === "error" ? "danger" : "neutral"}>
+      {children}
+    </Notice>
+  )
 }
 
 function formatArguments(value: unknown[] | null) {

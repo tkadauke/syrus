@@ -190,7 +190,9 @@ describe("@app/components/ui", () => {
         <Surface aria-label="Repository settings" className="min-h-20" data-testid="surface" onClick={onClick} role="region" variant="raised">
           Settings
         </Surface>
-        <Surface data-testid="danger" padding="sm" variant="danger">Failed</Surface>
+        <Surface data-testid="danger" padding="sm" variant="danger">
+          Failed
+        </Surface>
       </>
     )
 
@@ -207,10 +209,18 @@ describe("@app/components/ui", () => {
     render(
       <>
         <Text data-testid="body">Normal</Text>
-        <Text data-testid="muted" muted>Muted</Text>
-        <Text as="code" data-testid="mono" variant="mono">JOB-1</Text>
-        <Text data-testid="caption" variant="caption">Caption</Text>
-        <Text data-testid="danger" tone="danger">Failed</Text>
+        <Text data-testid="muted" muted>
+          Muted
+        </Text>
+        <Text as="code" data-testid="mono" variant="mono">
+          JOB-1
+        </Text>
+        <Text data-testid="caption" variant="caption">
+          Caption
+        </Text>
+        <Text data-testid="danger" tone="danger">
+          Failed
+        </Text>
       </>
     )
 
@@ -250,14 +260,20 @@ describe("@app/components/ui", () => {
             <Page.Title>Dashboard</Page.Title>
             <Page.Description>Queue and work state</Page.Description>
           </Page.HeadingGroup>
-          <Page.Actions><Button>New Job</Button></Page.Actions>
+          <Page.Actions>
+            <Button>New Job</Button>
+          </Page.Actions>
         </Page.Header>
         <Section.Root aria-label="Work attempts" divided tone="subtle">
           <Section.Header>
             <Section.Title>Attempts</Section.Title>
-            <Section.Actions><Button size="sm">Retry</Button></Section.Actions>
+            <Section.Actions>
+              <Button size="sm">Retry</Button>
+            </Section.Actions>
           </Section.Header>
-          <Section.Body padding="sm"><Text muted>No attempts yet.</Text></Section.Body>
+          <Section.Body padding="sm">
+            <Text muted>No attempts yet.</Text>
+          </Section.Body>
         </Section.Root>
       </Page.Root>
     )
@@ -315,9 +331,15 @@ describe("@app/components/ui", () => {
     render(
       <>
         <CodeSurface aria-label="Command" code="bundle exec rspec" mode="command" />
-        <Metric.Group aria-label="Metrics"><Metric.Card label="Queued" value={3} /></Metric.Group>
-        <Stat.Group aria-label="Stats"><Stat.Card label="Passed" tone="success" value="99%" /></Stat.Group>
-        <Timeline.Root aria-label="Events"><Timeline.ActivityRow title="Run started" /></Timeline.Root>
+        <Metric.Group aria-label="Metrics">
+          <Metric.Card label="Queued" value={3} />
+        </Metric.Group>
+        <Stat.Group aria-label="Stats">
+          <Stat.Card label="Passed" tone="success" value="99%" />
+        </Stat.Group>
+        <Timeline.Root aria-label="Events">
+          <Timeline.ActivityRow title="Run started" />
+        </Timeline.Root>
         <ActivityRow title="Run finished" />
         <ToolCard.Root aria-label="Tool result" role="region">
           <ToolCard.Header title="Read job" />
@@ -335,7 +357,7 @@ describe("@app/components/ui", () => {
     expect(screen.getByRole("region", { name: "Tool result" })).toBeInTheDocument()
   })
 
-  it("defaults Page.Root to a gutter at every viewport, and drops it below sm when gutter=\"responsive\"", () => {
+  it('defaults Page.Root to a gutter at every viewport, and drops it below sm when gutter="responsive"', () => {
     // A caller can't reliably win a px/py override passed via className --
     // plain string concatenation has no way to guarantee which of two
     // conflicting utilities for the same property wins in the compiled
@@ -431,7 +453,9 @@ describe("@app/components/ui", () => {
     render(
       <MemoryRouter>
         <LinkText to="/jobs/1">JOB-1</LinkText>
-        <LinkText external href="https://example.test">External</LinkText>
+        <LinkText external href="https://example.test">
+          External
+        </LinkText>
       </MemoryRouter>
     )
 
@@ -451,8 +475,12 @@ describe("@app/components/ui", () => {
           <span>Broken</span>
           <button>Repair</button>
         </Notice>
-        <Pill active aria-label="Running" tone="info">Running</Pill>
-        <Badge data-testid="badge" tone="success">primary</Badge>
+        <Pill active aria-label="Running" tone="info">
+          Running
+        </Pill>
+        <Badge data-testid="badge" tone="success">
+          primary
+        </Badge>
       </>
     )
 
