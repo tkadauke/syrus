@@ -520,6 +520,8 @@
   "pr_syrus": "Syrus PR #{{number}}",
   "pr_external": "External PR #{{number}}",
   "pr_checked": "checked",
+  "step_outcome_pr_opened": "Opened PR #{{number}}",
+  "step_outcome_pr_opened_role": "Opened {{role}} PR #{{number}}",
   "retry_state_next_retry": "Next retry",
   "retry_state_delayed_until": "Delayed until",
   "feedback_trigger_chat": "Chat feedback",

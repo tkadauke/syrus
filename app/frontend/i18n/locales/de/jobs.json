@@ -514,6 +514,8 @@
   "pr_syrus": "Syrus PR #{{number}}",
   "pr_external": "Externer PR #{{number}}",
   "pr_checked": "geprüft",
+  "step_outcome_pr_opened": "PR #{{number}} geöffnet",
+  "step_outcome_pr_opened_role": "{{role}}-PR #{{number}} geöffnet",
   "retry_state_next_retry": "Nächster Retry",
   "retry_state_delayed_until": "Verzögert bis",
   "feedback_trigger_chat": "Chat-Feedback",

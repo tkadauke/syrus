@@ -13,7 +13,7 @@ import { workflowSlug } from "../../lib/slugs"
 import { Button, buttonClasses } from "../../components/Button"
 import { CodeSurface, DescriptionList, Notice, Section, Surface, surfaceClasses, Text } from "../../components/ui"
 import { pluginIconSrc } from "../../lib/pluginIcon"
-import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type RunTestFailureSummary, type WorkflowWarning } from "../../api/jobs"
+import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobPrLinkRole, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type RunTestFailureSummary, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
 import { booleanValue, debugOnlyDetails, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, graderFanoutSelections, humanize, humanizeGraderName, isActiveState, isDiagnosticRelevantRun, isDiagnosticRelevantStep, isRedundantRunStatus, isRedundantRunTiming, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, softCommandFailures, sortedRunsNewestFirst, stepAgentic, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
@@ -824,6 +824,49 @@ function GraderFanoutSummary({ step }: { step: JobStep }) {
   )
 }
 
+// Roles `JobPrLink` records for the non-`pr_open` steps that land a PR
+// through the durable link registry (see app/models/job_pr_link.rb) rather
+// than the plain job.pr_number/pr_url columns `pr_open` writes.
+const PUBLISH_STEP_PR_LINK_ROLE: Record<string, JobPrLinkRole> = {
+  promotion_publish: "promotion",
+  hotfix_sync_publish: "hotfix_sync",
+  upstream_export_publish: "upstream_export"
+}
+
+// Outcome-first panel for steps whose entire point is producing a durable
+// artifact (a PR link today; the same slot fits a future deploy URL or other
+// external link) — rendered unconditionally, since a succeeded `pr_open`
+// step ordinarily carries no `step.details` at all and would otherwise show
+// nothing. Reads data Syrus already tracks on the Job (`job.pr_number`/`pr_url`)
+// or in the `JobPrLink` registry instead of stashing a duplicate copy on the
+// step.
+function StepOutcomePanel({ step, payload }: { step: JobStep; payload: JobDetailPayload }) {
+  if (step.kind === "pr_open") {
+    return <PrOutcomeNotice number={payload.job.pr_number} url={payload.job.pr_url} />
+  }
+
+  const role = PUBLISH_STEP_PR_LINK_ROLE[step.kind]
+  if (role) {
+    const link = payload.pr_links.find((candidate) => candidate.role === role)
+    return <PrOutcomeNotice number={link?.pr_number ?? null} roleLabelKey={`delivery.role_${role}`} url={link?.pr_url ?? null} />
+  }
+
+  return null
+}
+
+function PrOutcomeNotice({ number, url, roleLabelKey }: { number: number | null; url: string | null; roleLabelKey?: string }) {
+  const { t } = useT("jobs")
+  if (!number) return null
+
+  const label = roleLabelKey ? t("step_outcome_pr_opened_role", { number, role: t(roleLabelKey) }) : t("step_outcome_pr_opened", { number })
+
+  return (
+    <Notice className="mt-2 p-3 text-xs" tone="success">
+      {url ? <a className="font-medium text-brand hover:underline" href={url} rel="noopener" target="_blank">{label}</a> : <span className="font-medium">{label}</span>}
+    </Notice>
+  )
+}
+
 // Typed/semantic rendering path for `step.details`, replacing an
 // unconditional raw JSON dump. Grader steps keep their consolidated
 // GraderDetails panel; grader_fanout/preflight_grader_fanout get a
@@ -946,6 +989,7 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
           {pendingWarnings(step).map((warning) => (
             <WarningPanel command={command} jobId={payload.job.id} key={warning.id} warning={warning} />
           ))}
+          <StepOutcomePanel payload={payload} step={step} />
           {step.details ? <StepDetailsSection jobId={payload.job.id} prefix={prefix} step={step} workflowId={workflowId} /> : null}
           {step.runs_truncated ? (
             <Notice className="mt-3 px-2 py-1 text-xs" tone="warning">
