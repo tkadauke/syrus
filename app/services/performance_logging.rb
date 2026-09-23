@@ -204,8 +204,25 @@ module PerformanceLogging
     )
   end
 
+  # `metadata` intentionally stays a single trailing-hash positional
+  # parameter (no explicit keyword params) so existing `phase("name", foo:
+  # 1, bar: 2) { ... }` call sites keep bundling their bare `key: value`
+  # pairs into it exactly as before -- adding a real keyword parameter here
+  # would make Ruby try to match every trailing key against it instead.
+  #
+  # A `capture_host_pressure: true` entry in that same hash attaches a
+  # snapshot of host IO pressure (PSI) and data-root filesystem/device
+  # context to the emitted event's metadata -- but only when the phase
+  # actually crosses the slow-phase threshold, so normal-speed phases never
+  # pay for a `/proc` read. Use it on filesystem-dependent stages
+  # (workspace/config/transcript work, process spawn) where local storage
+  # stalls are a plausible root cause and you want to distinguish them from
+  # provider or database latency.
   def phase(name, metadata = {})
     return yield unless enabled?
+
+    metadata = metadata.dup
+    capture_host_pressure = metadata.delete(:capture_host_pressure) || metadata.delete("capture_host_pressure")
 
     phase_entry = {
       "phase" => safe_string(name, 200),
@@ -226,6 +243,7 @@ module PerformanceLogging
     duration_ms = monotonic_ms - started_at if started_at
     phase_stack&.delete(phase_entry) if phase_entry
     if duration_ms && duration_ms >= slow_phase_threshold_ms
+      metadata = metadata.merge(host_pressure_metadata) if capture_host_pressure
       emit(
         base_event(SLOW_PHASE_EVENT).merge(
           request_context,
@@ -243,6 +261,26 @@ module PerformanceLogging
         )
       )
     end
+  end
+
+  # For a duration already measured outside a `phase` block -- e.g. a
+  # provider plugin's own stage timer, or a segment that spans a yielded
+  # callback `phase` can't isolate. Shares `phase`'s threshold gating,
+  # metadata sanitization, and optional host IO pressure capture, but skips
+  # the SQL/phase-stack bookkeeping since there's no block to instrument.
+  def report_duration(name, duration_ms, metadata: {}, capture_host_pressure: false)
+    return unless enabled?
+    return if duration_ms.nil? || duration_ms < slow_phase_threshold_ms
+
+    metadata = metadata.merge(host_pressure_metadata) if capture_host_pressure
+    emit(
+      base_event(SLOW_PHASE_EVENT).merge(
+        request_context,
+        "duration_ms" => rounded_duration(duration_ms),
+        "phase" => safe_string(name, 200),
+        "metadata" => safe_metadata(metadata)
+      )
+    )
   end
 
   def plugin_call(extension_point:, provider:, operation:)
@@ -564,6 +602,15 @@ module PerformanceLogging
     return nil if value.nil?
 
     value.to_f.round(1)
+  end
+
+  # Bucketed host-level fields only -- IO pressure averages and a filesystem
+  # name/mount point, never a chat-specific or otherwise high-cardinality
+  # path -- so this is safe to merge straight into `safe_metadata`.
+  def host_pressure_metadata
+    WorkerHostHealthSampler.io_pressure_snapshot
+  rescue StandardError
+    {}
   end
 
   def capture_current_context

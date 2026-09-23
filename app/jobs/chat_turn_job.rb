@@ -445,8 +445,10 @@ class ChatTurnJob < ApplicationJob
   def with_chat_mcp_config(provider)
     decision = chat_mcp_transport_decision(provider)
     Tempfile.create([ "syrus-chat-mcp-#{@chat.id}-", ".json" ]) do |f|
-      f.write({ mcpServers: chat_mcp_servers(decision) }.to_json)
-      f.flush
+      PerformanceLogging.phase("chat_startup.mcp_config_write", chat_session_id: @chat.id, capture_host_pressure: true) do
+        f.write({ mcpServers: chat_mcp_servers(decision) }.to_json)
+        f.flush
+      end
       yield f.path
     end
   end

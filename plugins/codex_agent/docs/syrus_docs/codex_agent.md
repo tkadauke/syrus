@@ -210,5 +210,21 @@ need a Codex-specific rendering path.
 There is no structured "which pool does this key draw from" indicator (API
 key vs. ChatGPT subscription billing), matching the same gap noted in the
 `muse_agent` and `claude_agent` docs. Startup timing instrumentation
-(`CodexInvocation::StartupTiming`) logs stage timings but is not currently
-surfaced anywhere in the operator UI beyond the Rails log.
+(`CodexInvocation::StartupTiming`) still logs every stage to the Rails log
+regardless of context. For the chat-scoped timer only (`source: "codex_chat"`,
+see `ChatProviders::Codex#invoke`), the filesystem/config-bound stages in
+`StartupTiming::CHAT_STARTUP_STAGES` (`codex_home_prepare`, `config_write`,
+`transcript_restore`, `auth_refresh_lock`, `auth_prepare`, `auth_persist`)
+additionally report through `PerformanceLogging.report_duration` under the
+`chat_startup.<stage>` phase namespace shared with `ClaudeInvocation` and
+`ProcessRunner` (see `config/syrus_docs/observability.md`), so they show
+up in the same slow-phase observability surface as everything else, complete
+with an IO-pressure/filesystem snapshot when the stage was actually slow.
+Provider round-trip stages (`process_spawn`, `first_agent_event`,
+`mcp_startup`, `first_agent_message`, `usage_probe`) are deliberately left
+out of that bridge — `process_spawn` is covered once, uniformly for both
+providers, by `ProcessRunner` itself, and the others measure time waiting on
+the model or a network call, not local storage, so folding them into
+`chat_startup.*` would blur the provider-vs-storage-latency distinction the
+instrumentation exists to draw. The default workflow-side timer
+(`source: "codex"`) is unaffected and keeps logging to Rails.logger only.
