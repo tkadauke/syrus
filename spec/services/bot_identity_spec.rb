@@ -43,6 +43,44 @@ RSpec.describe BotIdentity do
     end
   end
 
+  describe ".for_owner" do
+    it "uses the owner's human identity when they have a connected GitHub PAT" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
+      user = Factories.user(name: "Human Operator", email_address: "human@example.com", github_token: "ghp_test")
+      installation = Factories.installation(user: user, account_login: "acme")
+      repository = Factories.repository(user: user, owner: "acme", installation: installation)
+
+      identity = described_class.for_owner(user, repository: repository)
+
+      expect(identity.git_name).to eq("Human Operator")
+      expect(identity.git_email).to eq("human@example.com")
+    end
+
+    it "falls back to the GitHub App bot identity when the owner has no connected PAT and the app is active" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
+      user = Factories.user(name: "Human Operator", email_address: "human@example.com", github_token: nil)
+      installation = Factories.installation(user: user, account_login: "acme")
+      repository = Factories.repository(user: user, owner: "acme", installation: installation)
+
+      identity = described_class.for_owner(user, repository: repository)
+
+      expect(identity.git_name).to eq("tkadauke-syrus[bot]")
+      expect(identity.git_email).to eq("tkadauke-syrus[bot]@users.noreply.github.com")
+    end
+
+    it "uses the human identity when the app is not registered or the installation is inactive" do
+      AppSetting.current.update!(github_app_id: nil, github_app_slug: "tkadauke-syrus")
+      user = Factories.user(name: "Human Operator", email_address: "human@example.com", github_token: nil)
+      installation = Factories.installation(user: user, account_login: "acme", removed_at: Time.current)
+      repository = Factories.repository(user: user, owner: "acme", installation: installation)
+
+      identity = described_class.for_owner(user, repository: repository)
+
+      expect(identity.git_name).to eq("Human Operator")
+      expect(identity.git_email).to eq("human@example.com")
+    end
+  end
+
   describe "git author identity" do
     it "uses the GitHub App bot identity when the app is active and the owner has no connected PAT" do
       AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
