@@ -342,6 +342,21 @@ describe("ChatJobStatusPanel epic tree", () => {
     expect(screen.getByText("Survey route")).toBeInTheDocument()
   })
 
+  it("keeps the epic slug badge from shrinking so a long title can't squeeze it into a character-by-character wrap", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+      epicItem({ title: "A very long epic title that competes for space with the slug badge" })
+    ]))
+
+    renderPanel()
+
+    const slugButton = await screen.findByRole("button", { name: "Copy EPIC-5 to clipboard" })
+    expect(slugButton.closest("span[class]")?.className).toContain("shrink-0")
+
+    const title = screen.getByText("A very long epic title that competes for space with the slug badge")
+    expect(title.className).toContain("min-w-0")
+    expect(title.className).toContain("truncate")
+  })
+
   it("does not emit React invalid nesting warnings for copyable slugs inside clickable cards", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem(), jobItem()]))
