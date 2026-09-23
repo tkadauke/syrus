@@ -21,6 +21,14 @@ import {
   type SpawnedProcessUser
 } from "../api/adminProcesses"
 import { workflowSlug } from "../lib/slugs"
+import { DataTable } from "../components/ui"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  type DataTableColumnDef
+} from "../components/dataTable"
 
 export function AdminProcessesIndex() {
   const { t } = useT("admin")
@@ -122,59 +130,97 @@ export function AdminProcessDetail() {
   )
 }
 
+const PROCESSES_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.admin.processes.visible_columns"
+
+function buildProcessesColumns({ basePath, prefix, t }: { basePath: string; prefix: string; t: (key: string) => string }): DataTableColumnDef<SpawnedProcessPayload>[] {
+  return [
+    {
+      key: "kind",
+      label: t("processes.col_kind"),
+      required: true,
+      cellClassName: "align-top",
+      renderCell: (process) => <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-200">{process.kind}</span>
+    },
+    { key: "command", label: t("processes.col_command"), cellClassName: "max-w-md truncate align-top font-mono text-xs text-gray-700 dark:text-gray-200", renderCell: (process) => <span title={process.command}>{process.command}</span> },
+    { key: "user", label: t("processes.col_user"), cellClassName: "max-w-xs align-top text-xs text-gray-700 dark:text-gray-200", renderCell: (process) => <UserLabel prefix={prefix} user={process.user} /> },
+    { key: "owner", label: t("processes.col_owner"), cellClassName: "max-w-xs align-top text-xs text-gray-700 dark:text-gray-200", renderCell: (process) => <OwnerLabel owner={process.owner} prefix={prefix} /> },
+    {
+      key: "host_pid",
+      label: t("processes.col_host_pid"),
+      cellClassName: "align-top font-mono text-xs text-gray-600 dark:text-gray-300",
+      renderCell: (process) => (
+        <>
+          {process.hostname || "-"}
+          {process.pid ? <div className="text-gray-500 dark:text-gray-400">pid {process.pid}</div> : null}
+        </>
+      )
+    },
+    { key: "started", label: t("processes.col_started"), cellClassName: "whitespace-nowrap align-top text-xs text-gray-700 dark:text-gray-200", renderCell: (process) => <RelativeTimestamp value={process.started_at} /> },
+    {
+      key: "last_chunk",
+      label: t("processes.col_last_chunk"),
+      cellClassName: "whitespace-nowrap align-top text-xs text-gray-700 dark:text-gray-200",
+      renderCell: (process) => (
+        <>
+          <RelativeTimestamp value={process.last_chunk_at} />
+          {process.stale ? <span className="ml-1 rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-2xs font-semibold uppercase text-amber-900 dark:text-amber-100">{t("processes.stale")}</span> : null}
+        </>
+      )
+    },
+    { key: "duration", label: t("processes.col_duration"), cellClassName: "align-top text-xs text-gray-700 dark:text-gray-200", renderCell: (process) => formatDuration(process.duration_s) },
+    { key: "outcome", label: t("processes.col_outcome"), cellClassName: "align-top text-xs", renderCell: (process) => <Outcome process={process} /> },
+    {
+      key: "actions",
+      label: t("processes.col_actions"),
+      required: true,
+      pin: "end",
+      align: "right",
+      cellClassName: "space-x-3 whitespace-nowrap align-top text-xs",
+      renderCell: (process) => (
+        <>
+          <Link className="text-brand underline hover:no-underline" to={`${basePath}/${process.id}`}>{t("processes.detail")}</Link>
+          <KillButton process={process} />
+        </>
+      )
+    }
+  ]
+}
+
 function ProcessesTable({ processes, basePath, prefix }: { processes: SpawnedProcessPayload[]; basePath: string; prefix: string }) {
   const { t } = useT("admin")
+  const columns = buildProcessesColumns({ basePath, prefix, t })
+  const preferences = useLocalStorageColumnPreferences({ columns, storageKey: PROCESSES_VISIBLE_COLUMNS_STORAGE_KEY })
+
   if (processes.length === 0) return <PanelMessage>{t("processes.no_match")}</PanelMessage>
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-3 py-2">{t("processes.col_kind")}</th>
-            <th className="px-3 py-2">{t("processes.col_command")}</th>
-            <th className="px-3 py-2">{t("processes.col_user")}</th>
-            <th className="px-3 py-2">{t("processes.col_owner")}</th>
-            <th className="px-3 py-2">{t("processes.col_host_pid")}</th>
-            <th className="px-3 py-2">{t("processes.col_started")}</th>
-            <th className="px-3 py-2">{t("processes.col_last_chunk")}</th>
-            <th className="px-3 py-2">{t("processes.col_duration")}</th>
-            <th className="px-3 py-2">{t("processes.col_outcome")}</th>
-            <th className="px-3 py-2 text-right">{t("processes.col_actions")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+    <div>
+      <div className="flex justify-end border-b border-gray-200 px-4 py-2 dark:border-gray-700">
+        <DataTableColumnMenu
+          columns={columns}
+          downLabel={t("event_log_table.column_down")}
+          menuId="admin-processes-columns-menu"
+          moveDownLabel={(title) => t("event_log_table.column_move_down", { title })}
+          moveUpLabel={(title) => t("event_log_table.column_move_up", { title })}
+          onChange={preferences.onChange}
+          order={preferences.order}
+          triggerAriaLabel={t("event_log_table.columns")}
+          upLabel={t("event_log_table.column_up")}
+          visibleLabel={t("event_log_table.visible_columns")}
+        />
+      </div>
+      <DataTable.Root>
+        <DataTable.Header>
+          <DataTableColumnHeaderRow columns={columns} onReorder={preferences.onChange} order={preferences.order} />
+        </DataTable.Header>
+        <DataTable.Body>
           {processes.map((process) => (
-            <tr className={process.stale ? "bg-amber-50 dark:bg-amber-950/40" : ""} key={process.id}>
-              <td className="px-3 py-2 align-top">
-                <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-200">{process.kind}</span>
-              </td>
-              <td className="max-w-md truncate px-3 py-2 align-top font-mono text-xs text-gray-700 dark:text-gray-200" title={process.command}>{process.command}</td>
-              <td className="max-w-xs px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
-                <UserLabel user={process.user} prefix={prefix} />
-              </td>
-              <td className="max-w-xs px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
-                <OwnerLabel owner={process.owner} prefix={prefix} />
-              </td>
-              <td className="px-3 py-2 align-top font-mono text-xs text-gray-600 dark:text-gray-300">
-                {process.hostname || "-"}
-                {process.pid ? <div className="text-gray-500 dark:text-gray-400">pid {process.pid}</div> : null}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200"><RelativeTimestamp value={process.started_at} /></td>
-              <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
-                <RelativeTimestamp value={process.last_chunk_at} />
-                {process.stale ? <span className="ml-1 rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-2xs font-semibold uppercase text-amber-900 dark:text-amber-100">{t("processes.stale")}</span> : null}
-              </td>
-              <td className="px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">{formatDuration(process.duration_s)}</td>
-              <td className="px-3 py-2 align-top text-xs"><Outcome process={process} /></td>
-              <td className="space-x-3 whitespace-nowrap px-3 py-2 text-right align-top text-xs">
-                <Link className="text-brand underline hover:no-underline" to={`${basePath}/${process.id}`}>{t("processes.detail")}</Link>
-                <KillButton process={process} />
-              </td>
-            </tr>
+            <DataTable.Row className={process.stale ? "bg-amber-50 dark:bg-amber-950/40" : ""} key={process.id}>
+              <DataTableColumnCells columns={columns} order={preferences.order} row={process} />
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
+        </DataTable.Body>
+      </DataTable.Root>
     </div>
   )
 }

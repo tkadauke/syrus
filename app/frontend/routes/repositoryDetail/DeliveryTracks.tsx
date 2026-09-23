@@ -1,10 +1,56 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { TonePill } from "../../components/StatusPill"
 import { DataTable } from "../../components/ui"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  type DataTableColumnDef
+} from "../../components/dataTable"
 import { Link } from "react-router-dom"
 import { withRoutePrefix } from "../../lib/routing"
 import { useT } from "../../hooks/useT"
 import type { RepositoryDeliveryPayload, RepositoryDeliveryPrIngestion, RepositoryDeliveryRefMovementAction, RepositoryDeliveryRefMovementSummary, RepositoryDeliveryRefMovementWorkflow, RepositoryDeliveryTrack } from "../../api/repositories"
+
+// Shared rendering for this file's three delivery-detail tables (tracks, ref
+// movements, PR ingestions): a column menu next to the section heading plus
+// DataTableColumnHeaderRow/Cells wired to a per-table localStorage
+// preference, mirroring Repositories.tsx and AdminQueue's QueueColumnTable.
+function DeliveryColumnTable<Row>({ columns, getRowKey, rows, storageKey, t }: { columns: DataTableColumnDef<Row>[]; getRowKey: (row: Row) => string | number; rows: Row[]; storageKey: string; t: (key: string, options?: Record<string, unknown>) => string }) {
+  const preferences = useLocalStorageColumnPreferences({ columns, storageKey })
+
+  return (
+    <>
+      <div className="mb-2 flex justify-end">
+        <DataTableColumnMenu
+          columns={columns}
+          downLabel={t("repositories.column_down")}
+          menuId={`${storageKey}-menu`}
+          moveDownLabel={(title) => t("repositories.column_move_down", { title })}
+          moveUpLabel={(title) => t("repositories.column_move_up", { title })}
+          onChange={preferences.onChange}
+          order={preferences.order}
+          triggerAriaLabel={t("repositories.columns")}
+          upLabel={t("repositories.column_up")}
+          visibleLabel={t("repositories.visible_columns")}
+        />
+      </div>
+      <DataTable.Root>
+        <DataTable.Header>
+          <DataTableColumnHeaderRow columns={columns} onReorder={preferences.onChange} order={preferences.order} />
+        </DataTable.Header>
+        <DataTable.Body>
+          {rows.map((row) => (
+            <DataTable.Row key={getRowKey(row)}>
+              <DataTableColumnCells columns={columns} order={preferences.order} row={row} />
+            </DataTable.Row>
+          ))}
+        </DataTable.Body>
+      </DataTable.Root>
+    </>
+  )
+}
 
 // Repository page "Delivery" section : tracks table, ref-movement
 // action availability, recent ref-movement workflows, and recent PR
@@ -41,45 +87,28 @@ function DeliveryTracksTable({ tracks }: { tracks: RepositoryDeliveryTrack[] }) 
   const { t } = useT("settings")
   if (tracks.length === 0) return null
 
-  return (
-    <DataTable.Root>
-      <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("delivery.col_track")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("delivery.col_branch")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("delivery.col_grade_phases")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("delivery.col_health")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("delivery.col_queue_length")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("delivery.col_last_promotion")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("delivery.col_last_hotfix_sync")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {tracks.map((track) => (
-            <DataTable.Row key={track.name}>
-              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">
-                {track.name}
-                {track.is_default ? <span className="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500">{t("delivery.default_track_suffix")}</span> : null}
-              </DataTable.Cell>
-              <DataTable.Cell className="font-mono text-xs text-gray-700 dark:text-gray-300">{track.branch}</DataTable.Cell>
-              <DataTable.Cell className="text-xs text-gray-600 dark:text-gray-400">
-                {track.review_grade_phase} / {track.landing_grade_phase} / {track.branch_health_grade_phase}
-              </DataTable.Cell>
-              <DataTable.Cell>
-                {track.health ? <TonePill tone={healthTone(track.health)}>{track.health}</TonePill> : <span className="text-xs text-gray-400 dark:text-gray-500">{t("delivery.health_not_tracked")}</span>}
-              </DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{track.queue_length}</DataTable.Cell>
-              <DataTable.Cell>
-                <RefMovementSummaryCell summary={track.last_promotion} />
-              </DataTable.Cell>
-              <DataTable.Cell>
-                <RefMovementSummaryCell summary={track.last_hotfix_sync} />
-              </DataTable.Cell>
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
-  )
+  const columns: DataTableColumnDef<RepositoryDeliveryTrack>[] = [
+    {
+      key: "track",
+      label: t("delivery.col_track"),
+      required: true,
+      cellClassName: "font-medium text-gray-900 dark:text-gray-100",
+      renderCell: (track) => (
+        <>
+          {track.name}
+          {track.is_default ? <span className="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500">{t("delivery.default_track_suffix")}</span> : null}
+        </>
+      )
+    },
+    { key: "branch", label: t("delivery.col_branch"), cellClassName: "font-mono text-xs text-gray-700 dark:text-gray-300", renderCell: (track) => track.branch },
+    { key: "grade_phases", label: t("delivery.col_grade_phases"), cellClassName: "text-xs text-gray-600 dark:text-gray-400", renderCell: (track) => `${track.review_grade_phase} / ${track.landing_grade_phase} / ${track.branch_health_grade_phase}` },
+    { key: "health", label: t("delivery.col_health"), renderCell: (track) => track.health ? <TonePill tone={healthTone(track.health)}>{track.health}</TonePill> : <span className="text-xs text-gray-400 dark:text-gray-500">{t("delivery.health_not_tracked")}</span> },
+    { key: "queue_length", label: t("delivery.col_queue_length"), cellClassName: "text-gray-700 dark:text-gray-300", renderCell: (track) => track.queue_length },
+    { key: "last_promotion", label: t("delivery.col_last_promotion"), renderCell: (track) => <RefMovementSummaryCell summary={track.last_promotion} /> },
+    { key: "last_hotfix_sync", label: t("delivery.col_last_hotfix_sync"), renderCell: (track) => <RefMovementSummaryCell summary={track.last_hotfix_sync} /> }
+  ]
+
+  return <DeliveryColumnTable columns={columns} getRowKey={(track) => track.name} rows={tracks} storageKey="syrus.repository_detail.delivery_tracks.visible_columns" t={t} />
 }
 
 function RefMovementSummaryCell({ summary }: { summary: RepositoryDeliveryRefMovementSummary | null }) {
@@ -121,38 +150,33 @@ function RecentRefMovementWorkflows({ workflows, prefix }: { workflows: Reposito
   const { t } = useT("settings")
   if (workflows.length === 0) return null
 
+  const columns: DataTableColumnDef<RepositoryDeliveryRefMovementWorkflow>[] = [
+    { key: "kind", label: t("delivery.col_kind"), required: true, cellClassName: "text-gray-700 dark:text-gray-300", renderCell: (workflow) => workflow.trigger_kind },
+    { key: "job", label: t("delivery.col_job"), renderCell: (workflow) => <Link className="text-brand hover:underline" to={withRoutePrefix(workflow.workflow_path, prefix)}>{workflow.job_slug}</Link> },
+    {
+      key: "refs",
+      label: t("delivery.col_refs"),
+      cellClassName: "font-mono text-xs text-gray-600 dark:text-gray-400",
+      renderCell: (workflow) => (
+        <>
+          {workflow.source_ref} &rarr; {workflow.target_repository_slug ? `${workflow.target_repository_slug}:` : ""}{workflow.target_ref}
+          {workflow.pr_number ? <span className="ml-1 text-gray-400 dark:text-gray-500">PR #{workflow.pr_number}{workflow.pr_state ? ` (${workflow.pr_state})` : ""}</span> : null}
+        </>
+      )
+    },
+    { key: "state", label: t("delivery.col_state"), renderCell: (workflow) => <TonePill tone={workflowStateTone(workflow.state)}>{workflow.state}</TonePill> },
+    {
+      key: "when",
+      label: t("delivery.col_when"),
+      cellClassName: "text-gray-500 dark:text-gray-400",
+      renderCell: (workflow) => workflow.finished_at ? <RelativeTimestamp value={workflow.finished_at} /> : workflow.created_at ? <RelativeTimestamp value={workflow.created_at} /> : null
+    }
+  ]
+
   return (
     <div>
       <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">{t("delivery.recent_ref_movements_heading")}</h3>
-      <DataTable.Root>
-        <DataTable.Header>
-            <DataTable.Row>
-              <DataTable.HeadCell>{t("delivery.col_kind")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("delivery.col_job")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("delivery.col_refs")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("delivery.col_state")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("delivery.col_when")}</DataTable.HeadCell>
-            </DataTable.Row>
-          </DataTable.Header>
-          <DataTable.Body>
-            {workflows.map((workflow) => (
-              <DataTable.Row key={workflow.id}>
-                <DataTable.Cell className="text-gray-700 dark:text-gray-300">{workflow.trigger_kind}</DataTable.Cell>
-                <DataTable.Cell>
-                  <Link className="text-brand hover:underline" to={withRoutePrefix(workflow.workflow_path, prefix)}>{workflow.job_slug}</Link>
-                </DataTable.Cell>
-                <DataTable.Cell className="font-mono text-xs text-gray-600 dark:text-gray-400">
-                  {workflow.source_ref} &rarr; {workflow.target_repository_slug ? `${workflow.target_repository_slug}:` : ""}{workflow.target_ref}
-                  {workflow.pr_number ? <span className="ml-1 text-gray-400 dark:text-gray-500">PR #{workflow.pr_number}{workflow.pr_state ? ` (${workflow.pr_state})` : ""}</span> : null}
-                </DataTable.Cell>
-                <DataTable.Cell><TonePill tone={workflowStateTone(workflow.state)}>{workflow.state}</TonePill></DataTable.Cell>
-                <DataTable.Cell className="text-gray-500 dark:text-gray-400">
-                  {workflow.finished_at ? <RelativeTimestamp value={workflow.finished_at} /> : workflow.created_at ? <RelativeTimestamp value={workflow.created_at} /> : null}
-                </DataTable.Cell>
-              </DataTable.Row>
-            ))}
-          </DataTable.Body>
-        </DataTable.Root>
+      <DeliveryColumnTable columns={columns} getRowKey={(workflow) => workflow.id} rows={workflows} storageKey="syrus.repository_detail.delivery_ref_movements.visible_columns" t={t} />
     </div>
   )
 }
@@ -168,36 +192,26 @@ function RecentPrIngestions({ ingestions, prefix }: { ingestions: RepositoryDeli
   const { t } = useT("settings")
   if (ingestions.length === 0) return null
 
+  const columns: DataTableColumnDef<RepositoryDeliveryPrIngestion>[] = [
+    { key: "pr", label: t("delivery.col_pr"), required: true, cellClassName: "text-gray-700 dark:text-gray-300", renderCell: (ingestion) => ingestion.pr_number ? `#${ingestion.pr_number}` : "—" },
+    { key: "job", label: t("delivery.col_job"), renderCell: (ingestion) => <Link className="text-brand hover:underline" to={withRoutePrefix(ingestion.job_path, prefix)}>{ingestion.job_slug}</Link> },
+    {
+      key: "classification",
+      label: t("delivery.col_classification"),
+      renderCell: (ingestion) => (
+        <>
+          <TonePill tone={ingestion.classification === "external_unknown" ? "gray" : "blue"}>{ingestion.classification}</TonePill>
+          {ingestion.source_repo_slug ? <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">{ingestion.source_repo_slug}</span> : null}
+        </>
+      )
+    },
+    { key: "when", label: t("delivery.col_when"), cellClassName: "text-gray-500 dark:text-gray-400", renderCell: (ingestion) => ingestion.created_at ? <RelativeTimestamp value={ingestion.created_at} /> : null }
+  ]
+
   return (
     <div>
       <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">{t("delivery.recent_pr_ingestions_heading")}</h3>
-      <DataTable.Root>
-        <DataTable.Header>
-            <DataTable.Row>
-              <DataTable.HeadCell>{t("delivery.col_pr")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("delivery.col_job")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("delivery.col_classification")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("delivery.col_when")}</DataTable.HeadCell>
-            </DataTable.Row>
-          </DataTable.Header>
-          <DataTable.Body>
-            {ingestions.map((ingestion) => (
-              <DataTable.Row key={`${ingestion.job_id}-${ingestion.pr_number}`}>
-                <DataTable.Cell className="text-gray-700 dark:text-gray-300">{ingestion.pr_number ? `#${ingestion.pr_number}` : "—"}</DataTable.Cell>
-                <DataTable.Cell>
-                  <Link className="text-brand hover:underline" to={withRoutePrefix(ingestion.job_path, prefix)}>{ingestion.job_slug}</Link>
-                </DataTable.Cell>
-                <DataTable.Cell>
-                  <TonePill tone={ingestion.classification === "external_unknown" ? "gray" : "blue"}>{ingestion.classification}</TonePill>
-                  {ingestion.source_repo_slug ? <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">{ingestion.source_repo_slug}</span> : null}
-                </DataTable.Cell>
-                <DataTable.Cell className="text-gray-500 dark:text-gray-400">
-                  {ingestion.created_at ? <RelativeTimestamp value={ingestion.created_at} /> : null}
-                </DataTable.Cell>
-              </DataTable.Row>
-            ))}
-          </DataTable.Body>
-        </DataTable.Root>
+      <DeliveryColumnTable columns={columns} getRowKey={(ingestion) => `${ingestion.job_id}-${ingestion.pr_number}`} rows={ingestions} storageKey="syrus.repository_detail.delivery_pr_ingestions.visible_columns" t={t} />
     </div>
   )
 }

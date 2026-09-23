@@ -80,6 +80,10 @@ export function AdminTeamsIndex() {
   )
 }
 
+// Left off the shared column-config primitive: only 3 columns, all of which
+// are the table's whole point (name identifies the row; members/repositories
+// are the two counts an operator opens this page to see) -- nothing here is
+// worth hiding.
 function TeamsTable({ teams }: { teams: AdminTeamRow[] }) {
   const { t } = useT("admin")
   if (teams.length === 0) return <PanelMessage>{t("teams.no_match")}</PanelMessage>
