@@ -33,7 +33,25 @@ fi
 # chromium-headless-shell build, not the full chromium, and installing only
 # "chromium" leaves the shell missing -- which fails at browser launch, well
 # after the server has booted.
-if [ ! -d /opt/ms-playwright ]; then
+#
+# Only when they are actually missing, though: `playwright install` is not the
+# cheap no-op its docs suggest. It re-downloads ffmpeg and then hangs in its
+# out-of-process download helper under Node 26 (Node 22 is what CI pins and
+# what this works on), with no output and a silent ten-minute lock retry -- so
+# a run on an already-provisioned machine never reached the tests at all.
+# Probing first keeps that failure away from everyone whose browsers are fine.
+browsers_installed() {
+  local root="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}"
+  [ "$(uname -s)" = "Linux" ] && root="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+  compgen -G "$root/chromium-*/INSTALLATION_COMPLETE" > /dev/null &&
+    compgen -G "$root/chromium_headless_shell-*/INSTALLATION_COMPLETE" > /dev/null
+}
+
+if [ ! -d /opt/ms-playwright ] && ! browsers_installed; then
+  echo "[test-e2e] Installing Chromium (first run only)."
+  echo "[test-e2e] If this hangs after the download reaches 100%, you are likely on"
+  echo "[test-e2e] a Node that Playwright's downloader cannot finish under; CI uses"
+  echo "[test-e2e] Node 22. See CONTRIBUTING.md's E2E section for the manual install."
   npx playwright install chromium chromium-headless-shell
 fi
 

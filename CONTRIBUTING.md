@@ -92,6 +92,30 @@ bin/test-e2e --project=core      # just e2e/
 bin/test-e2e --project=browser   # just the browser plugin's e2e/
 ```
 
+#### If the Chromium install hangs
+
+`playwright install` downloads to 100% and then hangs in its out-of-process
+download helper on some Node versions (seen on Node 26; CI pins Node 22), with
+no output and a silent ten-minute lock retry. `bin/test-e2e` skips the install
+when the browsers are already present, so provisioning them once by hand is
+enough:
+
+```sh
+cache=~/Library/Caches/ms-playwright   # ~/.cache/ms-playwright on Linux
+base=https://cdn.playwright.dev/dbazure/download/playwright/builds
+# The version suffix (1200) and platform must match what
+# `npx playwright install --dry-run` prints for your machine.
+for pkg in "chromium:chromium-1200:chromium-mac-arm64" \
+           "chromium_headless_shell:chromium_headless_shell-1200:chromium-headless-shell-mac-arm64"; do
+  name=${pkg%%:*}; rest=${pkg#*:}; dir=${rest%%:*}; file=${rest#*:}
+  curl -sSL -o /tmp/$name.zip "$base/${name%%_*}/1200/$file.zip"
+  mkdir -p "$cache/$dir" && unzip -q /tmp/$name.zip -d "$cache/$dir"
+  touch "$cache/$dir/INSTALLATION_COMPLETE"   # the marker Playwright checks
+done
+```
+
+Running the suite under Node 22 avoids the problem entirely.
+
 ### Known gotchas
 
 A few footguns have bitten real contributors before; see `CLAUDE.md` for the
