@@ -871,6 +871,36 @@ RSpec.describe User do
     end
   end
 
+  describe "recent_chats_group_size" do
+    it "defaults to 10 for new users" do
+      user = User.create!(attrs)
+      expect(user.recent_chats_group_size).to eq(10)
+    end
+
+    it "accepts a value within range" do
+      user = User.create!(attrs.merge(recent_chats_group_size: 25))
+      expect(user.reload.recent_chats_group_size).to eq(25)
+    end
+
+    it "rejects zero" do
+      user = User.new(attrs.merge(recent_chats_group_size: 0))
+      expect(user).not_to be_valid
+      expect(user.errors[:recent_chats_group_size]).to be_present
+    end
+
+    it "rejects values above the range" do
+      user = User.new(attrs.merge(recent_chats_group_size: User::RECENT_CHATS_GROUP_SIZE_RANGE.last + 1))
+      expect(user).not_to be_valid
+      expect(user.errors[:recent_chats_group_size]).to be_present
+    end
+
+    it "rejects non-integer values" do
+      user = User.new(attrs.merge(recent_chats_group_size: 3.5))
+      expect(user).not_to be_valid
+      expect(user.errors[:recent_chats_group_size]).to be_present
+    end
+  end
+
   describe "GH API blocked flag" do
     let(:user) { Factories.user }
 

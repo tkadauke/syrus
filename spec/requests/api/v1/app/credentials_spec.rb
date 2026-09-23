@@ -57,6 +57,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     )
     expect(body.dig("user", "role")).to eq("developer")
     expect(body.dig("options", "roles")).to eq(%w[ developer product_owner ])
+    expect(body.dig("user", "recent_chats_group_size")).to eq(10)
+    expect(body.dig("options", "recent_chats_group_size")).to eq("min" => 1, "max" => 50)
     expect(body["user"]).not_to have_key("agent_provider_failover_policy")
     expect(body["options"]).not_to have_key("agent_provider_failover_causes")
     expect(body["credential_status"]).to include(
@@ -101,6 +103,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
         github_token: "",
         scheduling_paused: false,
         agent_max_turns: "500",
+        recent_chats_group_size: "20",
         role: "product_owner"
       }
     }
@@ -114,6 +117,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(user.github_token).to eq("ghp_existing")
     expect(user.scheduling_paused).to be false
     expect(user.agent_max_turns).to eq(500)
+    expect(user.recent_chats_group_size).to eq(20)
     expect(user.role).to eq("product_owner")
     expect(parse_body["message"]).to eq("Credentials updated.")
   end

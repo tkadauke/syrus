@@ -1018,6 +1018,8 @@
     "agent_provider_see_also": "Hic est praebitor agentis defectus pro novis Officiis. Separatus est a praebitore colloquii tui (vide",
     "agent_provider_see_also_suffix": "), et quodlibet receptaculum eum proprie superscribere potest.",
     "max_turns": "Vices Maximae",
+    "recent_chats_group_size": "Colloquia per Receptaculum Monstrata",
+    "recent_chats_group_size_desc": "Numerus colloquiorum sub quoque receptaculo (et Generali) in ora monstratorum antequam \"Plura Monstra\" apparet.",
     "language": "Lingua",
     "auto_approval_fallback": "Subsidiarium Adprobationis Automaticae",
     "save": "Serva",

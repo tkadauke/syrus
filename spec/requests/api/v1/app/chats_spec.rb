@@ -413,6 +413,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "loads more chats for one sidebar group with a cursor" do
     sign_in_as(user)
+    user.update!(recent_chats_group_size: 5)
     chats = 7.times.map do |index|
       chat = ChatSession.create!(
         user: user,
@@ -441,6 +442,36 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["has_more"]).to eq(false)
     busy_agent_queries = queries.grep(/FROM ["`]?spawned_processes["`]?.*["`]?workdir["`]?/im)
     expect(busy_agent_queries.size).to eq(1)
+  end
+
+  it "defaults the sidebar chat group size to 10 and honors a smaller configured value" do
+    expect(user.recent_chats_group_size).to eq(10)
+
+    sign_in_as(user)
+    chats = 11.times.map do |index|
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        title: "Chat #{index}",
+        last_message_at: (index + 1).hours.ago
+      )
+      chat.update_columns(created_at: chat.last_message_at, updated_at: chat.last_message_at)
+      chat
+    end
+
+    get "/api/v1/app/chats"
+
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    expect(group["chats"].map { |chat| chat["id"] }).to eq(chats.first(10).map(&:id))
+    expect(group["has_more"]).to eq(true)
+
+    user.update!(recent_chats_group_size: 3)
+
+    get "/api/v1/app/chats"
+
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    expect(group["chats"].map { |chat| chat["id"] }).to eq(chats.first(3).map(&:id))
+    expect(group["has_more"]).to eq(true)
   end
 
   it "orders pinned sidebar chats before unpinned chats in each group" do
@@ -486,6 +517,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "does not load hidden chats when paginating one sidebar group" do
     sign_in_as(user)
+    user.update!(recent_chats_group_size: 5)
     chats = 7.times.map do |index|
       chat = ChatSession.create!(
         user: user,

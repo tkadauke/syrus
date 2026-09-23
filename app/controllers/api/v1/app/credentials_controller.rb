@@ -288,6 +288,7 @@ module Api
             chat_provider: user.chat_provider,
             codex_auth_mode: user.codex_auth_mode,
             agent_max_turns: user.agent_max_turns,
+            recent_chats_group_size: user.recent_chats_group_size,
             provider_availability_pause_thresholds: User.agent_providers.to_h do |provider|
               [ provider, user.provider_availability_pause_threshold_for(provider) ]
             end,
@@ -352,6 +353,10 @@ module Api
               min: User::AGENT_MAX_TURNS_RANGE.first,
               max: User::AGENT_MAX_TURNS_RANGE.last
             },
+            recent_chats_group_size: {
+              min: User::RECENT_CHATS_GROUP_SIZE_RANGE.first,
+              max: User::RECENT_CHATS_GROUP_SIZE_RANGE.last
+            },
             clearable_credentials: User::CLEARABLE_CREDENTIALS.map do |value, label|
               { value: value, label: label }
             end,
@@ -385,7 +390,7 @@ module Api
                                 :profile_company, :profile_website,
                                 :profile_location, :role, :agent_provider, :chat_provider, :claude_oauth_token, :codex_auth_mode,
                                 :codex_api_key, :codex_auth_json, :gemini_api_key, :muse_api_key, :github_token,
-                                :agent_max_turns, :scheduling_paused, :auto_approve_mode, :locale,
+                                :agent_max_turns, :recent_chats_group_size, :scheduling_paused, :auto_approve_mode, :locale,
                                 { provider_availability_pause_thresholds: User.agent_providers.map(&:to_sym) } ])
         end
 
