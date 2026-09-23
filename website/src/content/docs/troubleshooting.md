@@ -261,6 +261,55 @@ Repo-level and account-level dollar budgets are roadmap work. Until they
 ship, max-turns, cancellation, prompt scope, and scheduled-task policy
 are the practical controls.
 
+## Tailscale isn't connecting
+
+Tailscale runs in its own privileged container, started by Plugin Runtime,
+not the worker. Most connection problems come down to one of these:
+
+1. **The plugin is disabled, or has no auth key.** Enable it from
+   **Admin → Plugins** and set `auth_key` (`TS_AUTHKEY`) under its config.
+   With no auth key, Syrus never asks for a container at all — check
+   **Admin → Plugin Services** for an `error` state on the `tailscale` row
+   and read its message.
+2. **`plugin-runtime` itself is down or unreachable (missing runtime).**
+   Tailscale's container can only be started by the runtime manager. On
+   Docker Compose, confirm the `plugin-runtime` service is up:
+
+   ```bash
+   docker compose ps plugin-runtime
+   docker compose logs --tail=200 plugin-runtime
+   ```
+
+   **Admin → Plugin Services** shows `unavailable` for every service,
+   including `tailscale`, when the manager can't be reached — that is a
+   different problem from the Tailscale container being unhealthy (next
+   item), so check the state field rather than assuming.
+3. **The container is running but unhealthy.** `Admin → Plugin Services`
+   shows `unhealthy` past the health-check grace period. Use that page's
+   **Logs** panel on the `tailscale` row, or:
+
+   ```bash
+   docker compose logs -f plugin-runtime   # the manager's view of the container
+   ```
+
+   Then **Restart** it from the same page. A stale or revoked auth key is
+   the most common cause — rotate it in `auth_key` and restart.
+4. **The daemon is up but not connected.** `/admin/tailscale` shows
+   `daemon_running: true, connected: false`. This usually means
+   `tailscale up` is still authenticating, or the auth key was revoked —
+   check the container logs (previous item) for the actual `tailscaled`
+   error.
+5. **Kubernetes / external installs.** The runtime manager never runs
+   under Kubernetes, so Tailscale is always deployed externally there —
+   you run the privileged workload yourself and point Syrus at it with
+   `SYRUS_PLUGIN_SERVICE_TAILSCALE_URL`. `Admin → Plugin Services` is
+   read-only in this mode; there is nothing for Syrus to start, stop, or
+   restart.
+
+See the [Features](/docs/features#tailscale) page for the full picture and
+`GET /api/v1/app/admin/tailscale/status` for the machine-readable status
+payload.
+
 ## The data volume is filling up
 
 Syrus warns in the UI when the worker data volume (`SYRUS_DATA_ROOT`) is

@@ -106,6 +106,14 @@ The variable is `SYRUS_PLUGIN_SERVICE_<NAME>_URL`, with the service name
 upper-cased and dashes turned into underscores. Syrus still health-checks the
 address every minute, and hands it out only while it answers.
 
+**The privileged lane (below) is Compose-only.** The runtime manager never
+runs under Kubernetes, so a privileged service such as Tailscale is always
+external there: the operator deploys it themselves — with whatever
+`NET_ADMIN`/TUN grant it needs, on their own manifests — and points Syrus at
+it with `SYRUS_PLUGIN_SERVICE_TAILSCALE_URL` exactly like any other external
+service. There is no Kubernetes equivalent of `PUT /v1/privileged/{name}`;
+Syrus is never given the power to grant capabilities to a workload it starts.
+
 ## Admin -> Plugin Services
 
 `/admin/plugin_services` lists every plugin service: its owning plugin, live
