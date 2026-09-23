@@ -82,9 +82,10 @@ service still wanted. The containers and volumes carry the
 Every `plugins/<name>/container` is published by `bin/publish-plugin-images`
 (called from `bin/publish-image`, and by the release workflow) as
 `ghcr.io/tkadauke/syrus-plugin-<name>` — `plugin_runtime` becomes
-`syrus-plugin-runtime`, `git_mirror` `syrus-plugin-git-mirror` — with the same
-tags as the backend image, for linux/amd64 and linux/arm64. A plugin asks for
-the image tagged with the running `SYRUS_VERSION`, or `latest` without one.
+`syrus-plugin-runtime`, `git_mirror` `syrus-plugin-git-mirror`, `browser`
+`syrus-plugin-browser` — with the same tags as the backend image, for
+linux/amd64 and linux/arm64. A plugin asks for the image tagged with the
+running `SYRUS_VERSION`, or `latest` without one.
 
 `bin/deploy` (Kubernetes) builds and pushes the same images as linux/amd64 at
 the deploy's SHA, then pins every Deployment, DaemonSet, or StatefulSet

@@ -20,16 +20,17 @@ tool call so a multi-step flow sees the same page Playwright left it in
 (`SessionRegistry`, keyed by `SessionContext#session_key`).
 
 **Protocol: streamable HTTP MCP, spoken by the same binary.** `@playwright/mcp`
-already ships two transports for the identical tool surface: stdio (today's
-path) and streamable HTTP, entered with `--port <port> [--host 0.0.0.0]`,
-served at `<endpoint>/mcp`. Syrus's `mcp` gem ships a full client for both --
-`MCP::Client::Stdio` and `MCP::Client::HTTP` -- behind the same
+already ships two transports for the identical tool surface: stdio (the
+default path) and streamable HTTP, entered with `--port <port> [--host
+0.0.0.0]`, served at `<endpoint>/mcp`. Syrus's `mcp` gem ships a full client
+for both -- `MCP::Client::Stdio` and `MCP::Client::HTTP` -- behind the same
 transport-agnostic `MCP::Client` (`#connect`, `#call_tool`, `#close`). So the
-chosen boundary for a future container-backed Browser Plugin Runtime service
-is: run `playwright-mcp --headless --isolated --block-service-workers --port
-<port> --host 0.0.0.0` as the service's process (mirroring Git Mirror's
-`PluginRuntime::Service` container contract), and have `Session` connect to
-it with `MCP::Client::HTTP` instead of spawning a local subprocess.
+chosen boundary for the container-backed Browser Plugin Runtime service
+(below) is: run `playwright-mcp --headless --isolated --block-service-workers
+--port <port> --host 0.0.0.0` as the service's process (mirroring Git
+Mirror's `PluginRuntime::Service` container contract), and have `Session`
+connect to it with `MCP::Client::HTTP` instead of spawning a local
+subprocess.
 
 This was chosen over a bespoke Syrus-specific HTTP API or another bridge
 protocol because it needs no translation layer at all: the exact same
@@ -48,9 +49,9 @@ Syrus building any per-owner multiplexing of its own.
 `SyrusBrowser::Session` exposes three class-level entry points, all
 returning a `Session` wrapping one `MCP::Client`:
 
-- **`.spawn_stdio(session_key, command:, args:, env:)`** -- today's
-  behavior: spawns `playwright-mcp` as a per-owner stdio subprocess baked
-  into the worker image.
+- **`.spawn_stdio(session_key, command:, args:, env:)`** -- the fallback
+  path: spawns `playwright-mcp` as a per-owner stdio subprocess baked into
+  the worker image.
 - **`.spawn_service(session_key, endpoint:, headers: {})`** -- connects to
   a Browser Plugin Runtime service at `endpoint` over streamable HTTP MCP
   (`MCP::Client::HTTP`, pointed at `<endpoint>/mcp`).
@@ -67,26 +68,51 @@ transport-specific branching: `MCP::Client#call_tool`/`#connect` and
 `MCP::Client::HTTP#close` (a session-terminating DELETE) already implement
 the same contract `MCP::Client::Stdio` does.
 
-## What is not built yet
+## The container-backed service
 
-This plugin does not yet contribute a `"plugin_runtime:service"` provider
-(no `RuntimeService`, no `plugins/browser/container/`, no published image),
-so `SyrusBrowser::Configuration.endpoint` answers nil in every deployment
-today and `Session.spawn` always falls back to the stdio subprocess --
-current behavior is unchanged. Building the actual container-backed service
-is later work (`depends_on ["plugin_runtime"]` on this plugin's manifest is
-a source-boundary declaration only, matching Git Mirror's precedent -- it
-does not require Plugin Runtime to be *enabled*; `PluginRuntime::Services.endpoint_for`
-degrades to nil on its own when Plugin Runtime is disabled or absent):
-once a service is registered and passes its health check, `Session.spawn`
-starts using it automatically, and the stdio path stays available as the
-fallback for as long as it takes to reach full parity, or for a deployment
-that has no Plugin Runtime service configured at all.
+`plugins/browser/container/` builds the image `SyrusBrowser::RuntimeService`
+contributes through `"plugin_runtime:service"`. It runs `@playwright/mcp`
+exactly as documented above -- `--headless --isolated --block-service-workers
+--no-sandbox --allowed-hosts '*'` -- bound to a loopback-only address inside
+the container, plus a small Go bridge (`internal/bridge`) that owns the
+service's actual exposed port (8080).
+
+The bridge exists for one reason: `@playwright/mcp`'s own HTTP transport
+answers every plain GET with a 4xx (it only understands a POST that starts an
+MCP session, or a GET carrying an already-established `mcp-session-id`
+header), so nothing at its own port can serve as the HTTP health check the
+`PluginRuntime::Service` contract expects (`healthcheck: { path: "/healthz"
+}`, probed with a plain GET by both `PluginRuntime::ManagedDriver` and
+`PluginRuntime::ExternalDriver`). The bridge answers `GET /healthz` itself --
+from a live TCP dial to the `@playwright/mcp` child process, not a cached
+flag -- and reverse-proxies everything else (the real MCP traffic, including
+the DELETE that ends a streamable HTTP session) straight through.
+`--no-sandbox` mirrors `@playwright/mcp`'s own documented container recipe:
+Chromium's setuid sandbox helper needs privileges this service intentionally
+does not have, matching the existing Plugin Runtime manager policy of no
+extra container privileges. `--allowed-hosts '*'` turns off
+`@playwright/mcp`'s own Host-header check, which would otherwise reject
+traffic arriving with the service's Compose DNS name in the `Host` header
+instead of the loopback address it bound to -- the bridge's exposed port is
+the actual network boundary, not that check.
+
+No volumes: a browser session's state lives only as long as its MCP
+connection (`--isolated`) and leaves nothing behind when it closes. No env:
+unlike Git Mirror this service holds no secret to share with Syrus, and
+`Session.spawn_service` does not send it any request headers today, so the
+service accepts every request that reaches its exposed port -- the project
+network Plugin Runtime places it on, never published to the host, is what
+keeps that reachable only from Syrus's own web/worker containers.
+
+Images are published by `bin/publish-plugin-images`, the same convention
+`plugin_runtime` and `git_mirror` use (`plugins/*/container/Dockerfile` ->
+`ghcr.io/tkadauke/syrus-plugin-browser`), tagged to match the Syrus release
+that runs them (`SyrusBrowser::Configuration.image`).
 
 ## Safety model
 
 Browser navigation is scoped to loopback preview URLs regardless of
 transport (`LoopbackGuard`, enforced by `NavigateTool` before any tool call
-reaches `Session`). A future service-backed path does not change that: the
-guard runs in Syrus, not in `@playwright/mcp`, so it applies identically to
-a spawned subprocess or a shared service connection.
+reaches `Session`). The service-backed path does not change that: the guard
+runs in Syrus, not in `@playwright/mcp`, so it applies identically to a
+spawned subprocess or a shared service connection.
