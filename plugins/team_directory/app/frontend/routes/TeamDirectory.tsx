@@ -27,9 +27,9 @@ export function TeamDirectoryRoute() {
         <PageHeading>{t('profiles.team_directory')}</PageHeading>
       </Page.Header>
 
-      {profiles.isPending ? <PanelMessage>{t('profiles.loading')}</PanelMessage> : null}
-      {profiles.isError ? <ProfilesError error={profiles.error} /> : null}
-      {profiles.isSuccess && profiles.data.team_user_count <= 1 ? <PanelMessage>{t('profiles.single_user')}</PanelMessage> : null}
+      {profiles.isPending ? <Page.Margin><PanelMessage>{t('profiles.loading')}</PanelMessage></Page.Margin> : null}
+      {profiles.isError ? <Page.Margin><ProfilesError error={profiles.error} /></Page.Margin> : null}
+      {profiles.isSuccess && profiles.data.team_user_count <= 1 ? <Page.Margin><PanelMessage>{t('profiles.single_user')}</PanelMessage></Page.Margin> : null}
       {profiles.isSuccess && profiles.data.team_user_count > 1 ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {profiles.data.profiles.map((profile) => <ProfileCard key={profile.id} prefix={prefix} profile={profile} />)}
@@ -54,8 +54,8 @@ export function TeamProfileRoute() {
     <Page.Root aria-label={t("profiles.aria_profile")} gutter="responsive" size="wide">
       <ProfileBackLink prefix={prefix} />
 
-      {profile.isPending ? <PanelMessage>{t('profiles.loading_profile')}</PanelMessage> : null}
-      {profile.isError ? <ProfilesError error={profile.error} /> : null}
+      {profile.isPending ? <Page.Margin><PanelMessage>{t('profiles.loading_profile')}</PanelMessage></Page.Margin> : null}
+      {profile.isError ? <Page.Margin><ProfilesError error={profile.error} /></Page.Margin> : null}
       {profile.isSuccess ? <ProfileDetail prefix={prefix} profile={profile.data.profile} /> : null}
     </Page.Root>
   )

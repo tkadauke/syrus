@@ -45,8 +45,8 @@ export function AdminInstallations() {
         </div>
       </Page.Header>
 
-      {installations.isPending ? <MarginGutterRestore><PanelMessage>{t("installations.loading")}</PanelMessage></MarginGutterRestore> : null}
-      {installations.isError ? <MarginGutterRestore><InstallationsError error={installations.error} /></MarginGutterRestore> : null}
+      {installations.isPending ? <Page.Margin><PanelMessage>{t("installations.loading")}</PanelMessage></Page.Margin> : null}
+      {installations.isError ? <Page.Margin><InstallationsError error={installations.error} /></Page.Margin> : null}
       {installations.isSuccess ? <InstallationsView payload={installations.data} prefix={prefix} /> : null}
     </Page.Root>
   )
@@ -270,13 +270,6 @@ function RepositoriesTable({ repositories }: { repositories: InstallationReposit
       </div>
     </section>
   )
-}
-
-// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
-// context Page.Root actually provides.
-function MarginGutterRestore({ children }: { children: ReactNode }) {
-  const restore = usePageGutterRestoreClassName("margin")
-  return <div className={restore}>{children}</div>
 }
 
 function InstallationsError({ error }: { error: Error }) {

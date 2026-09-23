@@ -392,6 +392,28 @@ describe("@app/components/ui", () => {
     expect(alwaysClasses).not.toContain("sm:px-0")
   })
 
+  it("applies the margin gutter restore to Page.Margin, for banner-like content that isn't header/nav chrome", () => {
+    render(
+      <>
+        <Page.Root aria-label="Always gutter" gutter="always">
+          <Page.Margin data-testid="always-margin" />
+        </Page.Root>
+        <Page.Root aria-label="Responsive gutter" gutter="responsive">
+          <Page.Margin className="custom-margin" data-testid="responsive-margin" />
+        </Page.Root>
+      </>
+    )
+
+    const alwaysClasses = screen.getByTestId("always-margin").className.split(" ")
+    const responsiveClasses = screen.getByTestId("responsive-margin").className.split(" ")
+
+    expect(responsiveClasses).toContain("mx-4")
+    expect(responsiveClasses).toContain("sm:mx-0")
+    expect(responsiveClasses).toContain("custom-margin")
+    expect(alwaysClasses).not.toContain("mx-4")
+    expect(alwaysClasses).not.toContain("sm:mx-0")
+  })
+
   it("exposes the inherited gutter to arbitrary consumers via usePageGutterRestoreClassName, defaulting to a no-op outside Page.Root", () => {
     function MarginProbe({ testId }: { testId: string }) {
       const restore = usePageGutterRestoreClassName("margin")

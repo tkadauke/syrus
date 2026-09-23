@@ -53,8 +53,8 @@ export function AdminUsersIndex() {
         </div>
       </Page.Header>
 
-      {users.isPending ? <MarginGutterRestore><PanelMessage>{t("users.loading")}</PanelMessage></MarginGutterRestore> : null}
-      {users.isError ? <MarginGutterRestore><UsersError error={users.error} /></MarginGutterRestore> : null}
+      {users.isPending ? <Page.Margin><PanelMessage>{t("users.loading")}</PanelMessage></Page.Margin> : null}
+      {users.isError ? <Page.Margin><UsersError error={users.error} /></Page.Margin> : null}
       {users.isSuccess ? (
         <AdminFiltersLayout
           filterBar={
@@ -113,8 +113,8 @@ export function AdminUserDetailRoute() {
     <Page.Root aria-label={t("users.aria_detail")} gutter="responsive">
       <UserDetailHeader basePath={basePath} title={user.data?.display_name || `User #${id}`} />
 
-      {user.isPending ? <MarginGutterRestore><PanelMessage>{t("users.loading_user")}</PanelMessage></MarginGutterRestore> : null}
-      {user.isError ? <MarginGutterRestore><UsersError error={user.error} /></MarginGutterRestore> : null}
+      {user.isPending ? <Page.Margin><PanelMessage>{t("users.loading_user")}</PanelMessage></Page.Margin> : null}
+      {user.isError ? <Page.Margin><UsersError error={user.error} /></Page.Margin> : null}
       {user.isSuccess ? <UserDetail user={user.data} /> : null}
     </Page.Root>
   )
@@ -123,13 +123,6 @@ export function AdminUserDetailRoute() {
 // Split out so usePageGutterRestoreClassName reads the context Page.Root
 // actually provides (a hook call from AdminUserDetailRoute's own body would
 // run before the Provider is mounted).
-// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
-// context Page.Root actually provides.
-function MarginGutterRestore({ children }: { children: ReactNode }) {
-  const restore = usePageGutterRestoreClassName("margin")
-  return <div className={restore}>{children}</div>
-}
-
 function UserDetailHeader({ basePath, title }: { basePath: string; title: string }) {
   const { t } = useT("admin")
   const restore = usePageGutterRestoreClassName("padding")

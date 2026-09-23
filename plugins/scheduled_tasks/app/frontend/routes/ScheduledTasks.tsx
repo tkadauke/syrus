@@ -75,8 +75,8 @@ export function ScheduledTasksIndex() {
         </Link>
       </Page.Header>
 
-      {tasks.isPending ? <PanelMessage>{t("scheduled_tasks.loading")}</PanelMessage> : null}
-      {tasks.isError ? <ScheduledTasksError error={tasks.error} /> : null}
+      {tasks.isPending ? <Page.Margin><PanelMessage>{t("scheduled_tasks.loading")}</PanelMessage></Page.Margin> : null}
+      {tasks.isError ? <Page.Margin><ScheduledTasksError error={tasks.error} /></Page.Margin> : null}
       {tasks.isSuccess ? (
         <>
           <TaskSection
@@ -120,8 +120,8 @@ export function ScheduledTaskDetailRoute() {
 
   return (
     <Page.Root aria-label={t("scheduled_tasks.aria_detail")} gutter="responsive" size="wide">
-      {detail.isPending ? <PanelMessage>{t("scheduled_tasks.loading_detail")}</PanelMessage> : null}
-      {detail.isError ? <ScheduledTasksError error={detail.error} /> : null}
+      {detail.isPending ? <Page.Margin><PanelMessage>{t("scheduled_tasks.loading_detail")}</PanelMessage></Page.Margin> : null}
+      {detail.isError ? <Page.Margin><ScheduledTasksError error={detail.error} /></Page.Margin> : null}
       {detail.isSuccess ? <TaskDetail basePath={tasksBase(location.pathname)} payload={detail.data} prefix={prefix} /> : null}
     </Page.Root>
   )
@@ -183,7 +183,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
           repositories={repositoryOptions.data?.repositories || []}
         />
       ) : (
-        <>
+        <Page.Margin>
           {loading ? <PanelMessage>{t("scheduled_tasks.loading_form")}</PanelMessage> : null}
           {error ? <ScheduledTasksError error={error} /> : null}
           {!loading && !error && initial ? (
@@ -198,7 +198,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
               skillsRepositoryId={skillsRepositoryId}
             />
           ) : null}
-        </>
+        </Page.Margin>
       )}
     </Page.Root>
   )
@@ -354,8 +354,8 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
       </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("scheduled_tasks.error_update"))}</PanelMessage> : null}
-      {archive.isError ? <PanelMessage tone="error">{errorMessage(archive.error, t("scheduled_tasks.error_archive"))}</PanelMessage> : null}
+      {command.isError ? <Page.Margin><PanelMessage tone="error">{errorMessage(command.error, t("scheduled_tasks.error_update"))}</PanelMessage></Page.Margin> : null}
+      {archive.isError ? <Page.Margin><PanelMessage tone="error">{errorMessage(archive.error, t("scheduled_tasks.error_archive"))}</PanelMessage></Page.Margin> : null}
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("scheduled_tasks.schedule")}</h2>

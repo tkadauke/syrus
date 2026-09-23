@@ -4,7 +4,7 @@ import { Button } from "../components/Button"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { FormEvent, ReactNode } from "react"
+import type { FormEvent } from "react"
 import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -62,8 +62,8 @@ export function AdminTeamsIndex() {
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
-      {teams.isPending ? <MarginGutterRestore><PanelMessage>{t("teams.loading")}</PanelMessage></MarginGutterRestore> : null}
-      {teams.isError ? <MarginGutterRestore><TeamsError error={teams.error} /></MarginGutterRestore> : null}
+      {teams.isPending ? <Page.Margin><PanelMessage>{t("teams.loading")}</PanelMessage></Page.Margin> : null}
+      {teams.isError ? <Page.Margin><TeamsError error={teams.error} /></Page.Margin> : null}
       {teams.isSuccess ? (
         <AdminFiltersLayout>
           <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -71,24 +71,17 @@ export function AdminTeamsIndex() {
             <TeamsTable teams={teams.data.teams} />
           </section>
 
-          <MarginGutterRestore>
+          <Page.Margin>
             <CreateTeamForm
               error={create.isError ? errorMessage(create.error, t("teams.error_create")) : null}
               onSubmit={(name) => create.mutate(name)}
               pending={create.isPending}
             />
-          </MarginGutterRestore>
+          </Page.Margin>
         </AdminFiltersLayout>
       ) : null}
     </Page.Root>
   )
-}
-
-// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
-// context Page.Root actually provides.
-function MarginGutterRestore({ children }: { children: ReactNode }) {
-  const restore = usePageGutterRestoreClassName("margin")
-  return <div className={restore}>{children}</div>
 }
 
 // Left off the shared column-config primitive: only 3 columns, all of which
@@ -175,8 +168,8 @@ export function AdminTeamDetailRoute() {
     <Page.Root aria-label={t("teams.aria_detail")} gutter="responsive">
       <TeamDetailHeader title={team.data?.team.name || `Team #${id}`} />
 
-      {team.isPending ? <MarginGutterRestore><PanelMessage>{t("teams.loading_team")}</PanelMessage></MarginGutterRestore> : null}
-      {team.isError ? <MarginGutterRestore><TeamsError error={team.error} /></MarginGutterRestore> : null}
+      {team.isPending ? <Page.Margin><PanelMessage>{t("teams.loading_team")}</PanelMessage></Page.Margin> : null}
+      {team.isError ? <Page.Margin><TeamsError error={team.error} /></Page.Margin> : null}
       {team.isSuccess ? <TeamDetail payload={team.data} /> : null}
     </Page.Root>
   )
@@ -222,12 +215,12 @@ function TeamDetail({ payload }: { payload: AdminTeamDetailPayload }) {
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {!payload.can_manage ? <PanelMessage>{t("teams.cannot_manage")}</PanelMessage> : null}
-      {rename.isError ? <PanelMessage tone="error">{errorMessage(rename.error, t("teams.error_rename"))}</PanelMessage> : null}
-      {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, t("teams.error_delete"))}</PanelMessage> : null}
+      {!payload.can_manage ? <Page.Margin><PanelMessage>{t("teams.cannot_manage")}</PanelMessage></Page.Margin> : null}
+      {rename.isError ? <Page.Margin><PanelMessage tone="error">{errorMessage(rename.error, t("teams.error_rename"))}</PanelMessage></Page.Margin> : null}
+      {destroy.isError ? <Page.Margin><PanelMessage tone="error">{errorMessage(destroy.error, t("teams.error_delete"))}</PanelMessage></Page.Margin> : null}
 
       {payload.can_manage ? (
-        <MarginGutterRestore>
+        <Page.Margin>
           <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
             <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("teams.heading")}</h2>
             <RenameTeamForm disabled={rename.isPending} initialName={payload.team.name} onSubmit={(name) => rename.mutate(name)} />
@@ -246,7 +239,7 @@ function TeamDetail({ payload }: { payload: AdminTeamDetailPayload }) {
               </Button>
             </div>
           </section>
-        </MarginGutterRestore>
+        </Page.Margin>
       ) : null}
 
       <TeamMembers canManage={payload.can_manage} memberships={payload.memberships} teamId={teamId} />

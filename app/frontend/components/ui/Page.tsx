@@ -88,6 +88,19 @@ function Nav({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={classes(restore, className)} {...props} />
 }
 
+/**
+ * Wraps banner-like content that sits directly in a "responsive" Page.Root's
+ * flush body -- loading/error notices, standalone form cards, warning
+ * banners -- and needs the page's normal mobile margin even though it isn't
+ * Page.Header/Page.Nav chrome. A thin wrapper over
+ * usePageGutterRestoreClassName("margin") so callers don't each hand-roll
+ * the same "real descendant of Page.Root" component.
+ */
+function Margin({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
+  const restore = usePageGutterRestoreClassName("margin")
+  return <div className={classes(restore, className)} {...props} />
+}
+
 function HeadingGroup({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={classes("min-w-0 space-y-1", className)} {...props} />
 }
@@ -108,6 +121,7 @@ export const Page = {
   Root,
   Header,
   Nav,
+  Margin,
   HeadingGroup,
   Title,
   Description,

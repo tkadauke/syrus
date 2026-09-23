@@ -17,7 +17,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
-import { Page, usePageGutterRestoreClassName } from "../components/ui"
+import { Page } from "../components/ui"
 
 const queryKey = ["admin", "invitations"] as const
 
@@ -41,9 +41,9 @@ export function AdminInvitations() {
         </div>
       </Page.Header>
 
-      <MarginGutterRestore>
+      <Page.Margin>
         <CreateInvitationForm onNotice={setNotice} />
-      </MarginGutterRestore>
+      </Page.Margin>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -54,13 +54,6 @@ export function AdminInvitations() {
       </section>
     </Page.Root>
   )
-}
-
-// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
-// context Page.Root actually provides.
-function MarginGutterRestore({ children }: { children: ReactNode }) {
-  const restore = usePageGutterRestoreClassName("margin")
-  return <div className={restore}>{children}</div>
 }
 
 function CreateInvitationForm({ onNotice }: { onNotice: (message: string | null) => void }) {

@@ -119,13 +119,15 @@ export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
       {loading ? <PanelMessage>{t("cron_templates.loading_form")}</PanelMessage> : null}
       {error ? <CronTemplatesError error={error} /> : null}
       {!loading && !error ? (
-        <CronTemplateForm
-          basePath={basePath}
-          id={Number(id)}
-          initial={initial}
-          mode={mode}
-          policies={policies}
-        />
+        <Page.Margin>
+          <CronTemplateForm
+            basePath={basePath}
+            id={Number(id)}
+            initial={initial}
+            mode={mode}
+            policies={policies}
+          />
+        </Page.Margin>
       ) : null}
     </Page.Root>
   )
@@ -421,8 +423,13 @@ function CronTemplatesError({ error }: { error: Error }) {
   return <PanelMessage tone="error">{errorMessage(error, t("cron_templates.error_load"))}</PanelMessage>
 }
 
+// The message box's own p-4 is fixed at every viewport (it's the box's
+// internal padding, not the page gutter), so a responsive Page.Root's
+// dropped mobile margin is restored around it with margin -- not baked in
+// as padding, which would fight the existing p-4 and zero out its
+// horizontal component at sm+.
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  const restore = usePageGutterRestoreClassName("padding")
+  const restore = usePageGutterRestoreClassName("margin")
   return <div className={classes("p-4 text-sm", tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-400", restore)}>{children}</div>
 }
 

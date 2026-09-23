@@ -46,8 +46,8 @@ export function AdminConsole() {
         </div>
       </Page.Header>
 
-      {consoleQuery.isPending ? <MarginGutterRestore><PanelMessage>{t("console.loading")}</PanelMessage></MarginGutterRestore> : null}
-      {consoleQuery.isError ? <MarginGutterRestore><ConsoleError error={consoleQuery.error} /></MarginGutterRestore> : null}
+      {consoleQuery.isPending ? <Page.Margin><PanelMessage>{t("console.loading")}</PanelMessage></Page.Margin> : null}
+      {consoleQuery.isError ? <Page.Margin><ConsoleError error={consoleQuery.error} /></Page.Margin> : null}
       {consoleQuery.isSuccess ? <ConsoleView payload={consoleQuery.data} /> : null}
     </Page.Root>
   )
@@ -343,13 +343,6 @@ function ActionsTable({ actions }: { actions: ConsoleAction[] }) {
       )}
     </section>
   )
-}
-
-// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
-// context Page.Root actually provides.
-function MarginGutterRestore({ children }: { children: ReactNode }) {
-  const restore = usePageGutterRestoreClassName("margin")
-  return <div className={restore}>{children}</div>
 }
 
 function ConsoleError({ error }: { error: Error }) {

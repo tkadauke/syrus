@@ -58,8 +58,8 @@ export function AdminProcessesIndex() {
         </div>
       </Page.Header>
 
-      {processes.isPending ? <MarginGutterRestore><PanelMessage>{t("processes.loading")}</PanelMessage></MarginGutterRestore> : null}
-      {processes.isError ? <MarginGutterRestore><ProcessError error={processes.error} /></MarginGutterRestore> : null}
+      {processes.isPending ? <Page.Margin><PanelMessage>{t("processes.loading")}</PanelMessage></Page.Margin> : null}
+      {processes.isError ? <Page.Margin><ProcessError error={processes.error} /></Page.Margin> : null}
       {processes.isSuccess ? (
         <AdminFiltersLayout
           filterBar={
@@ -139,15 +139,6 @@ function ProcessDetailPanel({ process, prefix }: { process: UseQueryResult<Spawn
       {process.isSuccess ? <ProcessDetail prefix={prefix} process={process.data} /> : null}
     </section>
   )
-}
-
-// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
-// context Page.Root actually provides.
-// A real descendant of Page.Root so usePageGutterRestoreClassName reads the
-// context Page.Root actually provides.
-function MarginGutterRestore({ children }: { children: ReactNode }) {
-  const restore = usePageGutterRestoreClassName("margin")
-  return <div className={restore}>{children}</div>
 }
 
 function ProcessDetailHeader({ basePath, id }: { basePath: string; id: string }) {
