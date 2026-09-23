@@ -159,6 +159,8 @@ module DesignDocs
     def reproject_or_mark_stale!(candidate, version, after)
       return mark_unrelated_anchor_stale!(candidate, version) unless after.status == "missing"
 
+      clear_orphan_marker_fragment!(candidate)
+
       selected = candidate.selected_markdown.to_s
       matches = AnchorMarkers.exact_matches(AnchorMarkers.strip(design_doc.markdown), selected)
 
@@ -179,6 +181,27 @@ module DesignDocs
         prefix_context: inserted.prefix_context,
         suffix_context: inserted.suffix_context
       )
+    end
+
+    # A candidate whose range only partially overlaps the accepted anchor's
+    # range (rather than nesting fully inside or outside it) can have exactly
+    # one side of its start/end marker pair fall inside the replaced text.
+    # `AnchorMarkers.replace_range` deletes that side along with everything
+    # else in the accepted range, but has no way to know about -- or remove
+    # -- the other side, which sits outside the replaced text and survives
+    # untouched. Left alone, that dangling fragment either gets duplicated by
+    # `AnchorMarkers.insert` below (if we reproject) or lingers forever (if we
+    # mark stale), and either way `NormalizeAnchorMarkers.assert_marker_pairs!`
+    # explodes on the next check. Removing it here is safe unconditionally --
+    # a `status: "missing"` candidate has already lost the invariant we'd be
+    # protecting by leaving a lone fragment in place.
+    def clear_orphan_marker_fragment!(candidate)
+      cleaned_markdown = AnchorMarkers.remove(
+        markdown: design_doc.markdown,
+        marker_id: candidate.marker_id,
+        anchor_kind: candidate.anchor_kind
+      )
+      design_doc.update!(markdown: cleaned_markdown) if cleaned_markdown != design_doc.markdown
     end
 
     def mark_unrelated_anchor_stale!(candidate, version)
