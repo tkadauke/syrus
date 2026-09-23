@@ -1,6 +1,14 @@
 {
   "title": "Administration",
   "loading": "Wird geladen...",
+  "event_log_table": {
+    "columns": "Spalten",
+    "visible_columns": "Sichtbare Spalten",
+    "column_up": "Hoch",
+    "column_down": "Runter",
+    "column_move_up": "{{title}} nach oben verschieben",
+    "column_move_down": "{{title}} nach unten verschieben"
+  },
   "page_title_queue": "Warteschlange — Administration",
   "page_title_stuck": "Blockierte Jobs — Administration",
   "page_title_resource_admission": "Ressourcen-Zulassung — Administration",

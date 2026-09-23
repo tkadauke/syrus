@@ -95,6 +95,7 @@ function ItemsTable({ onNavigate, payload, prefix, search }: { onNavigate: (para
       headerClassName: "px-4 py-2",
       header: t("attention_items.col_item"),
       key: "item",
+      required: true,
       render: (item, { expanded, toggleExpanded }) => <ItemSummary item={item} onToggle={toggleExpanded} expanded={expanded} />
     },
     {
@@ -124,6 +125,7 @@ function ItemsTable({ onNavigate, payload, prefix, search }: { onNavigate: (para
         renderExpanded={(item) => <ItemDetail item={item} prefix={prefix} />}
         rows={payload.items}
         search={search}
+        storageKey="syrus.admin.attention_items.visible_columns"
         tableClassName="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700"
         onNavigate={onNavigate}
       />
