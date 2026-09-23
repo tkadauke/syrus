@@ -20,7 +20,8 @@ module App
         folder_counts = smart_folder_counts(folders)
 
         folders.filter_map do |folder|
-          count = folder_counts[folder.id]
+          count_info = folder_counts[folder.id]
+          count = count_info&.fetch(:count, nil)
           next unless smart_folder_visible?(folder, count)
 
           json = {
@@ -32,6 +33,7 @@ module App
             subject_type: folder.subject_type,
             visibility: folder.visibility.to_s,
             count: count,
+            count_capped: count_info&.fetch(:count_capped, false) || false,
             active: active_smart_folder&.id == folder.id,
             filter: folder.filter,
             attention_preset: folder.attention_preset,
@@ -119,17 +121,24 @@ module App
         case subject
         when "job"
           count = fast_builtin_job_count(folder)
-          return count unless count.nil?
+          return { count: count, count_capped: false } unless count.nil?
 
-          Jobs::Filter.from_tree(folder.filter, user: user).apply(jobs_base_scope).count
+          filter = Jobs::Filter.from_tree(folder.filter, user: user)
+          capped_smart_folder_count(filter, filter.apply(jobs_base_scope))
         when "workflow"
-          Workflows::Filter.from_tree(folder.filter, user: user).apply(workflows_base_scope).count
+          filter = Workflows::Filter.from_tree(folder.filter, user: user)
+          capped_smart_folder_count(filter, filter.apply(workflows_base_scope))
         else
           filter = Epics::Filter.from_tree(folder.filter, user: user)
           scope = epics_base_scope
           scope = scope.where.not(state: Epic::ARCHIVED_STATE) unless filter.includes_archived_state?
-          filter.apply(scope).count
+          capped_smart_folder_count(filter, filter.apply(scope))
         end
+      end
+
+      def capped_smart_folder_count(filter, scope)
+        count = filter.capped_count(scope)
+        { count: count, count_capped: count >= SmartFolder::COUNT_CAP }
       end
 
       def fast_builtin_job_count(folder)
