@@ -61,6 +61,18 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.third.metadata["grader_mode"]).to eq("ci")
   end
 
+  it "synthesizes mode-aware operator-facing display names by default" do
+    steps = described_class.grade_steps(config: {}, default_failures: "strict")
+
+    expect(steps.map(&:display_name)).to eq([ "Vitest", "Vitest (focused)", "Vitest (CI)" ])
+  end
+
+  it "lets an explicit display_name override the generated default" do
+    steps = described_class.grade_steps(config: { "display_name" => "Frontend suite" }, default_failures: "strict")
+
+    expect(steps.map(&:display_name)).to eq([ "Frontend suite" ] * 3)
+  end
+
   it "uses configured project scope for every generated grader" do
     steps = described_class.grade_steps(
       config: { "when_files_changed" => [ "app/frontend/**/*.ts", "app/frontend/**/*.tsx" ] },

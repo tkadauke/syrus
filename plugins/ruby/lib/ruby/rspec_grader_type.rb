@@ -146,6 +146,27 @@ module Ruby
       end
     end
 
+    # Mode-aware operator-facing label ("RSpec", "RSpec (focused)", "RSpec
+    # (CI)"); a project-label prefix (e.g. "rails plugin: ") is applied later
+    # by TargetGraph::GradePlan once the owning project is known. An explicit
+    # per-mode or blanket `display_name` config wins over the generated
+    # default, mirroring `mode_timeout_minutes`.
+    def display_name_for(mode)
+      configured = mode_display_name(mode)
+      return configured if configured
+
+      case mode
+      when "focused" then "RSpec (focused)"
+      when "ci" then "RSpec (CI)"
+      else "RSpec"
+      end
+    end
+
+    def mode_display_name(mode)
+      nested = config["display_names"].is_a?(Hash) ? config["display_names"].stringify_keys[mode] : nil
+      config["#{mode}_display_name"].to_s.strip.presence || nested.to_s.strip.presence || config["display_name"].to_s.strip.presence
+    end
+
     def base_retry
       SyrusYml::BaseRetry.new(strategy: "plugin", command: nil)
     end
@@ -565,6 +586,7 @@ module Ruby
     def grade_step(name:, run:, phases:, mode:, junit_output:, when_files_changed: nil)
       SyrusYml::GradeStep.new(
         name: name,
+        display_name: display_name_for(mode),
         run: run,
         ci: nil,
         phases: phases,
