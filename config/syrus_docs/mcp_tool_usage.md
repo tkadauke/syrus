@@ -98,6 +98,64 @@ itself omits. The `admin_mcp_tool_usage` chat custom card renders the
 `custom_card_gaps` buckets alongside those aggregate usage sections so
 operators can prioritize future card work from chat.
 
+## MCP startup lifecycle timing (`startup_timing`)
+
+Separately from tool-call usage, `McpStartupTiming` (`app/services/mcp_startup_timing.rb`)
+instruments the chat MCP *startup* lifecycle itself -- everything from Syrus
+spawning the agent CLI to the operator seeing the first reply -- as eight
+canonical phases, in order:
+
+`agent_process_spawn`, `sidecar_process_spawn`, `sidecar_application_boot`,
+`initialize_request_received`, `initialize_response_sent`,
+`tool_inventory_received`, `required_server_ready`, `first_assistant_message`.
+
+Each phase is recorded as its own durable, append-only row in
+`mcp_startup_phase_events` (model `McpStartupPhaseEvent`, retained 14 days,
+pruned by `FlushObservabilityEventsJob` alongside the other durable
+observability tables) rather than one record mutated in place, because the
+phases are genuinely observed from two different OS processes that cannot see
+each other's state directly:
+
+- **Agent-sourced** (`agent_process_spawn`, `required_server_ready`,
+  `first_assistant_message`) -- recorded by the `ChatTurnJob` worker process
+  driving the agent CLI. `required_server_ready` fires once per MCP server
+  name the first time `ChatTurnJob` observes that server's status turn
+  `connected`/`running`/`ready` in the agent's own stream (both
+  `syrus-chat-sidecar` and `syrus-chat-deferred-sidecar` are recorded this
+  way, tagged by `server_name`, not only whichever server a given prompt
+  happened to require).
+- **Sidecar-sourced** (`sidecar_process_spawn`, `sidecar_application_boot`,
+  `initialize_request_received`, `initialize_response_sent`,
+  `tool_inventory_received`) -- recorded by the spawned MCP sidecar process
+  itself (`Mcp::Sidecar#record_startup_timing_phases!`). The first two use
+  timestamps captured in `bin/syrus-chat-sidecar` before Bundler/Rails even
+  boot; the protocol phases are recorded via `MCP::Configuration#around_request`
+  around the real `initialize` and `tools/list` JSON-RPC requests, so the
+  timing reflects the actual handshake rather than an approximation from the
+  agent CLI's own output. This wiring only fires for chat sidecars (the
+  workflow sidecar, `bin/syrus-mcp-sidecar`, never supplies the spawn
+  timestamp that gates it).
+
+Every event is tagged with `provider`, `server_name`, `tier`,
+`chat_session_id`, and `chat_message_id` (never prompt/response content or
+credentials) so a single query reconstructs the full waterfall for one turn
+even across the two processes. `McpStartupPhaseEvent.stalled_phase_for`
+returns the earliest canonical phase with no recorded row for a turn -- the
+phase the lifecycle never reached -- giving unambiguous timeout/handshake-
+failure attribution; `ChatTurnJob` calls this automatically (logging a
+`[mcp_startup] stalled ...` line) whenever a turn's result is
+`mcp_sidecar_failed` or has timed out.
+
+`Admin::McpStartupTimingPayload` aggregates these rows into the `startup_timing`
+key of the same `mcp_tool_usage` payload described above (no separate
+route): a `phase_latency` array of `{ phase, count, avg_ms, p50_ms, p95_ms,
+max_ms }` rows giving each phase's distribution of elapsed time since the
+turn's earliest observed phase, plus `turns_observed` and `stalled_turns`
+(turns with at least one recorded phase that never reached
+`first_assistant_message`) for the same window/`provider`/`server_name`
+filters as the rest of the page. The admin **MCP Tool Usage** page renders
+this as an "MCP startup lifecycle" table alongside the tool-usage sections.
+
 ## Sidecar mode (`sidecar_mode`, `daemon_worker_id`)
 
 `sidecar_mode` is `"stdio"` or `"persistent"` (`McpToolUsage::SIDECAR_MODES`),
