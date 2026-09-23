@@ -190,6 +190,49 @@ RSpec.describe Workflows::MainBranchRepair do
     end
   end
 
+  describe "preflight-pass path (regression: uncleared_retry_until_barrier_after_success)" do
+    it "runs PreflightGraderCollect for real, walks the dispatcher forward, and reaches after_success instead of hard-failing on the skipped grade-loop barrier" do
+      workflow = described_class.instantiate(job: job)
+      workflow.start!
+      workflow.save!
+
+      prepare_step = workflow.steps.find_by!(kind: "prepare")
+      fanout_step  = workflow.steps.find_by!(kind: "preflight_grader_fanout")
+      collect_step = workflow.steps.find_by!(kind: "preflight_grader_collect")
+
+      prepare_step.update_columns(state: "succeeded", started_at: 2.minutes.ago, finished_at: 90.seconds.ago)
+      fanout_step.update_columns(state: "succeeded", started_at: 90.seconds.ago, finished_at: 60.seconds.ago)
+
+      run = collect_step.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "running",
+        iteration: collect_step.iteration
+      )
+      Steps::PreflightGraderCollect.new(run).call
+
+      run.update_columns(state: "succeeded", finished_at: Time.current)
+      collect_step.update_columns(state: "succeeded", started_at: 60.seconds.ago, finished_at: Time.current)
+
+      # The grade loop's grader_collect step is a retry_until barrier
+      # (Step::Kind#fail_policy == :loop_iteration); PreflightGraderCollect's
+      # cancel_downstream! must have marked it retry_until_barrier_superseded
+      # so it doesn't read as "uncleared" once skipped.
+      grade_loop_barrier = workflow.steps.find_by!(kind: "grader_collect")
+      expect(grade_loop_barrier).to be_skipped
+      expect(grade_loop_barrier.retry_until_barrier_superseded?).to be true
+
+      StepDispatcher.advance_from(collect_step)
+
+      workflow.reload
+      expect(workflow).to be_succeeded
+      expect(workflow.failure_reason).to be_nil
+      expect(job.reload.state).to eq("closed")
+      expect(job.reload.closure_reason).to eq("preflight_passed")
+      expect(repository.reload.grader_health).to eq("healthy")
+    end
+  end
+
   describe "Job#create_initial_run routing" do
     before { allow(StepDispatcher).to receive(:start_workflow) }
 
