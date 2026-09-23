@@ -1923,7 +1923,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
         id: repo.id,
         slug: repo.slug,
         count: 5,
-        issues_path: "/repositories/#{repo.id}?tab=github_issues"
+        issues_path: "/repositories/#{repo.id}/plugin/issues"
       )
     end
 

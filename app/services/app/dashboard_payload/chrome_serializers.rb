@@ -305,7 +305,7 @@ module App
           id: repository.id,
           slug: repository.slug,
           count: repository.untagged_open_issue_count,
-          issues_path: repository_path(repository, tab: "github_issues")
+          issues_path: "/repositories/#{repository.id}/plugin/issues"
         }
       end
 

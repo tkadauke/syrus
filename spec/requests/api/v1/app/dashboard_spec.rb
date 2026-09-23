@@ -610,8 +610,8 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       untagged_issues = parse_body["untagged_issues"]
       expect(untagged_issues["total"]).to eq(5)
       expect(untagged_issues["repositories"]).to contain_exactly(
-        { "id" => repo.id, "slug" => repo.slug, "count" => 3, "issues_path" => "/repositories/#{repo.id}?tab=github_issues" },
-        { "id" => other.id, "slug" => other.slug, "count" => 2, "issues_path" => "/repositories/#{other.id}?tab=github_issues" }
+        { "id" => repo.id, "slug" => repo.slug, "count" => 3, "issues_path" => "/repositories/#{repo.id}/plugin/issues" },
+        { "id" => other.id, "slug" => other.slug, "count" => 2, "issues_path" => "/repositories/#{other.id}/plugin/issues" }
       )
     end
 

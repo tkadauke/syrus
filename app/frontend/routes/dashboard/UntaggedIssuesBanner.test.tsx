@@ -11,8 +11,8 @@ function makeUntaggedIssues(overrides: Partial<DashboardUntaggedIssues> = {}): D
   return {
     total: 12,
     repositories: [
-      { id: 1, slug: "tkadauke/widgets", count: 9, issues_path: "/repositories/1?tab=github_issues" },
-      { id: 2, slug: "tkadauke/gadgets", count: 3, issues_path: "/repositories/2?tab=github_issues" }
+      { id: 1, slug: "tkadauke/widgets", count: 9, issues_path: "/repositories/1/plugin/issues" },
+      { id: 2, slug: "tkadauke/gadgets", count: 3, issues_path: "/repositories/2/plugin/issues" }
     ],
     ...overrides
   }
@@ -42,9 +42,9 @@ describe("UntaggedIssuesBanner", () => {
     expect(screen.getByText("across 2 repositories", { exact: false })).toBeInTheDocument()
 
     const widgetsLink = screen.getByRole("link", { name: "tkadauke/widgets (9)" })
-    expect(widgetsLink).toHaveAttribute("href", "/repositories/1?tab=github_issues")
+    expect(widgetsLink).toHaveAttribute("href", "/repositories/1/plugin/issues")
     const gadgetsLink = screen.getByRole("link", { name: "tkadauke/gadgets (3)" })
-    expect(gadgetsLink).toHaveAttribute("href", "/repositories/2?tab=github_issues")
+    expect(gadgetsLink).toHaveAttribute("href", "/repositories/2/plugin/issues")
   })
 
   it("renders nothing when there are no untagged issues", () => {

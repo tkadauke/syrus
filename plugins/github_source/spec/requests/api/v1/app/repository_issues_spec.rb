@@ -55,7 +55,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     ))
     expect(body["folder_counts"]).to eq({ "inbox" => 1, "delegated" => 0, "open" => 1, "closed" => 1 })
     expect(body.dig("paths", "app_delegate_issue_path")).to eq("/api/v1/app/repositories/#{repository.id}/issues/delegate")
-    expect(body.dig("folder_paths", "open")).to eq(repository_path(repository, tab: "github_issues", folder: "open"))
+    expect(body.dig("folder_paths", "open")).to eq("/repositories/#{repository.id}/plugin/issues?folder=open")
   end
 
 

@@ -265,7 +265,7 @@ describe("dashboard DataTable migrations", () => {
         prefix=""
         sortState={sortState()}
         t={(key, opts) => key === "untagged_issues_summary" ? `${opts?.count} unlabeled open issues` : key === "untagged_issues_repo_count" ? `across ${opts?.count} repositories` : key}
-        untaggedIssues={{ total: 4, repositories: [{ id: 1, slug: "acme/widgets", count: 4, issues_path: "/repositories/1?tab=github_issues" }] }}
+        untaggedIssues={{ total: 4, repositories: [{ id: 1, slug: "acme/widgets", count: 4, issues_path: "/repositories/1/plugin/issues" }] }}
       />
     )
 
