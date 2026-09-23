@@ -160,12 +160,16 @@ optimizer flattened that `EXISTS` into a semi-join across all four tables and
 picked a join order that ignored the `test_identity_id` index, so a query that
 should have touched a handful of rows for one `TestIdentity` instead examined
 millions of rows (production: 4,000+ calls/day averaging ~10M rows examined,
-up to 67s). `BackfillWipRepairFailuresJob` replays the same classifier over
-historical `test_insight_runs` for rows ingested before the column existed;
-it's idempotent (only ever flips `false` -> `true`) and safe to re-run, and is
-not scheduled automatically -- trigger it manually
-(`BackfillWipRepairFailuresJob.perform_later`) after deploying this change if
-older history's flakiness/failure-rate numbers need to reflect it.
+up to 67s). `TestInsights::WipRepairFailureBackfill`, wrapped by the
+`test_insights_wip_repair_failure_backfill` maintenance task
+(`MaintenanceTasks::Definitions::TestInsightsWipRepairFailureBackfill`), replays
+the same classifier over historical `test_insight_runs` for rows ingested
+before the column existed; it's idempotent (only ever flips `false` -> `true`)
+and safe to run repeatedly or resume after a pause. `MaintenanceTasks::Discovery`
+surfaces it as a pending admin task automatically once there is backfill work
+to do -- start it from the Maintenance Tasks admin page (or the
+`admin_maintenance_tasks` MCP tool) if older history's flakiness/failure-rate
+numbers need to reflect it.
 
 Every `TestCase`/`TestIdentity`/`RecentStats` query built on `.scored` is
 wrapped in `PerformanceLogging.phase("test_insights.<name>", ...)`
