@@ -369,15 +369,17 @@ grade:
 ```
 
 `strict` is the default and means any required failure blocks the workflow.
-`allow_inherited` lets Syrus compare the candidate failure with known failed
-base-revision evidence. If both sides have ingested test cases, Syrus compares
-the exact failed test identities and blocks newly introduced failed tests.
-When the candidate has structured failed test cases but no comparable cached
-base run exists, Syrus can run only those failed tests against the base revision
-before deciding, but only when the grader explicitly opts into `base_retry`.
-Without `base_retry`, `allow_inherited` is cache-only plus the normalized output
-fingerprint fallback. Use `strict` for catastrophic or invariant checks where a
-failure should never be ignored, such as eager-load or production boot checks.
+`allow_inherited` lets Syrus compare the candidate failure with failed
+base-revision evidence. A JUnit grader that opts into `base_retry` parses its
+failed test identities, then runs only those tests against the base revision as
+the grader's final action. The grader therefore finishes with its conclusive
+outcome immediately: inherited or known-flaky failures become a warning, while
+newly introduced failures remain failed. The collector consumes that recorded
+outcome; it does not launch a separate retry after the grader has finished.
+Without `base_retry`, `allow_inherited` uses cached base evidence and normalized
+output fingerprints only. Use `strict` for catastrophic or invariant checks
+where a failure should never be ignored, such as eager-load or production boot
+checks.
 
 `base_retry` runs from a temporary worktree checked out at the base SHA:
 
@@ -401,8 +403,7 @@ Supported forms:
 - `strategy: full_command` reruns the grader's full `run` command at the base
   revision and compares the normalized failure output. Use this for non-test
   or build-style graders such as `website-build` where individual failing tests
-  do not exist. Syrus only falls back to this after cached base test/output
-  evidence cannot decide the inherited-failure question.
+  do not exist.
 - `command: bin/test-individual {files}` uses an explicit command template.
   `{files}` expands to the shell-quoted unique failed test files and
   `{failed_count}` expands to the number of failed cases. A string

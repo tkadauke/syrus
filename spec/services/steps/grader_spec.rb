@@ -259,6 +259,87 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(WorkflowWarning.where(kind: "formatter_like_grader_failure")).to be_empty
   end
 
+  it "runs base-revision retry before returning and accepts inherited JUnit failures as a warning" do
+    workflow.update!(trigger_kind: "auto_merge")
+    job.update!(mergeability_base_sha: "base123")
+    step.update!(details: step.details.merge(
+      "name" => "rspec",
+      "junit_output" => ".syrus/grade-output/rspec-junit.xml",
+      "failures" => "allow_inherited",
+      "base_retry" => { "strategy" => "plugin" }
+    ))
+    failed_cases = [
+      {
+        "suite_name" => "spec/models/widget_spec.rb",
+        "name" => "Widget fails",
+        "file_path" => "spec/models/widget_spec.rb",
+        "identity" => "spec/models/widget_spec.rb\0Widget fails"
+      }
+    ]
+    allow(ProcessRunner).to receive(:new).and_return(instance_double(ProcessRunner, run: ProcessRunner::Result.new(
+      exit_status: 1, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )))
+    allow(TestEvidenceLookup).to receive(:failed_test_cases_for).with(run, "rspec").and_return(failed_cases)
+    allow(BaseRevisionRetry).to receive(:call).and_return(BaseRevisionRetry::Result.new(
+      ran: true,
+      inherited: true,
+      reason: "base_retry_failed_cases_match",
+      command: "bundle exec rspec spec/models/widget_spec.rb",
+      base_failed_identities: [ "spec/models/widget_spec.rb\0Widget fails" ],
+      introduced_failed_identities: [],
+      output: "1 example, 1 failure"
+    ))
+
+    expect { handler.call }.not_to raise_error
+
+    expect(BaseRevisionRetry).to have_received(:call).with(
+      workflow: workflow,
+      grader_step: step,
+      base_sha: "base123",
+      failed_cases: failed_cases,
+      log: anything
+    )
+    expect(step.reload.details).to include(
+      "conclusion" => "warning",
+      "accepted_failure" => include(
+        "adjudicator" => "base_revision_retry",
+        "reason" => "base_retry_failed_cases_match"
+      )
+    )
+  end
+
+  it "still fails when base-revision retry finds candidate-introduced JUnit failures" do
+    workflow.update!(trigger_kind: "auto_merge")
+    job.update!(mergeability_base_sha: "base123")
+    step.update!(details: step.details.merge(
+      "name" => "rspec",
+      "junit_output" => ".syrus/grade-output/rspec-junit.xml",
+      "failures" => "allow_inherited",
+      "base_retry" => { "strategy" => "plugin" }
+    ))
+    failed_cases = [ { "suite_name" => "spec/models/widget_spec.rb", "name" => "Widget fails" } ]
+    allow(ProcessRunner).to receive(:new).and_return(instance_double(ProcessRunner, run: ProcessRunner::Result.new(
+      exit_status: 1, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )))
+    allow(TestEvidenceLookup).to receive(:failed_test_cases_for).and_return(failed_cases)
+    allow(BaseRevisionRetry).to receive(:call).and_return(BaseRevisionRetry::Result.new(
+      ran: true,
+      inherited: false,
+      reason: "base_retry_found_introduced_cases",
+      command: "bundle exec rspec spec/models/widget_spec.rb",
+      base_failed_identities: [],
+      introduced_failed_identities: [ "spec/models/widget_spec.rb\0Widget fails" ],
+      output: "1 example, 0 failures"
+    ))
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader rspec failed/)
+    expect(step.reload.details["accepted_failure"]).to be_nil
+  end
+
   it "runs the configured command without formatter-specific mutation" do
     step.update!(details: step.details.merge("command" => "bin/rspec spec/models --format json --out custom.json"))
     captured_command = nil

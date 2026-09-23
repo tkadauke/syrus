@@ -126,16 +126,13 @@ class MainBranchFailureClassifier
     return result.merge("reason" => "strict_failure_policy") unless failures == ALLOW_INHERITED
     return result unless base_failed
 
+    if (base_retry = details["base_retry_result"].presence)
+      return classify_recorded_base_retry(result, base_retry)
+    end
+
     return classify_test_cases(result, grader_step, base_run) if comparable_test_case_evidence_present?(grader_step, base_run, name)
 
-    binary = classify_binary_contextual(result, details, base_conclusion)
-    return binary unless binary.fetch("reason") == "missing_output_fingerprint"
-
-    if (base_retry = base_revision_retry(grader_step, result.fetch("name"), evidence.fetch("sha")))&.ran
-      classify_base_retry(result, base_retry)
-    else
-      binary
-    end
+    classify_binary_contextual(result, details, base_conclusion)
   end
 
   def failure_policy(details)
@@ -203,16 +200,6 @@ class MainBranchFailureClassifier
     end.uniq.sort
   end
 
-  def failed_test_cases_for_run(run, grader_name)
-    return [] unless run
-
-    test_evidence_providers.flat_map do |provider|
-      next [] unless provider.respond_to?(:failed_test_cases)
-
-      Array(provider.failed_test_cases(run: run, grader_name: grader_name))
-    end.map { |test_case| test_case.to_h.stringify_keys }.uniq { |test_case| test_case["identity"] }.sort_by { |test_case| test_case["identity"].to_s }
-  end
-
   def base_run_for(grader_name, evidence, base_conclusion)
     return base_conclusion.run if base_conclusion&.run
 
@@ -225,28 +212,14 @@ class MainBranchFailureClassifier
     base_step&.runs&.max_by(&:created_at)
   end
 
-  def base_revision_retry(grader_step, grader_name, base_sha)
-    candidate_run = grader_step.runs.order(:created_at).last
-    failed_cases = failed_test_cases_for_run(candidate_run, grader_name)
-    base_retry = grader_step.details.to_h["base_retry"].to_h.stringify_keys
-    return nil if base_retry.blank?
-
-    BaseRevisionRetry.call(
-      workflow: @workflow,
-      grader_step: grader_step,
-      base_sha: base_sha,
-      failed_cases: failed_cases,
-      log: ->(message) { JobLog.append!(run: candidate_run, chunk: message, kind: "system") if candidate_run }
-    )
-  end
-
-  def classify_base_retry(result, retry_result)
+  def classify_recorded_base_retry(result, retry_result)
+    retry_result = retry_result.to_h.stringify_keys
     result.merge(
-      "inherited" => retry_result.inherited,
-      "reason" => retry_result.reason,
-      "base_retry_command" => retry_result.command,
-      "base_retry_failed_case_count" => retry_result.base_failed_identities.size,
-      "introduced_failed_cases" => retry_result.introduced_failed_identities.first(20)
+      "inherited" => retry_result["ran"] && retry_result["inherited"],
+      "reason" => retry_result["reason"],
+      "base_retry_command" => retry_result["command"],
+      "base_retry_failed_case_count" => Array(retry_result["base_failed_identities"]).size,
+      "introduced_failed_cases" => Array(retry_result["introduced_failed_identities"]).first(20)
     )
   end
 

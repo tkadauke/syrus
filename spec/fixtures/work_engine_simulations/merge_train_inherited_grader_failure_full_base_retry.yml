@@ -57,7 +57,15 @@ jobs:
             required: true
             failures: allow_inherited
             base_retry:
-              strategy: files_as_args
+              strategy: full_command
+            base_retry_result:
+              ran: true
+              inherited: true
+              reason: base_retry_full_command_failed_same_output
+              command: printf 'React failure without structured cases\n' && exit 1
+              base_sha: base-broken-sha
+              base_failed_identities: []
+              introduced_failed_identities: []
           run:
             state: failed
         - key: collect

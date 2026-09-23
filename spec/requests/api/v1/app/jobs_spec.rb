@@ -1351,6 +1351,38 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       )
     end
 
+    it "presents a grader that completed with an accepted failure as a warning" do
+      workflow = job.latest_workflow
+      collect = workflow.steps.find_by!(kind: "grader_collect")
+      collect.update!(position: collect.position + 1)
+      grade_step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: collect.position - 1,
+        loop_id: collect.loop_id,
+        iteration: collect.iteration,
+        state: "succeeded",
+        details: {
+          "name" => "tests",
+          "required" => true,
+          "conclusion" => "warning",
+          "accepted_failure" => { "adjudicator" => "base_revision_retry" }
+        }
+      )
+      collect.update!(depends_on_ids: [ grade_step.id ])
+
+      get "/api/v1/app/jobs/#{job.id}/workflows"
+
+      steps = serialized_steps(parse_body)
+      grader_payload = steps.find { |payload| payload["id"] == grade_step.id }
+      collect_payload = steps.find { |payload| payload["id"] == collect.id }
+      expect(grader_payload).to include("state" => "succeeded", "display_status" => "warning")
+      expect(collect_payload.dig("dependencies", "barrier_progress")).to include(
+        "failed" => 0,
+        "warning" => 1
+      )
+    end
+
     it "presents historical artifact-only accepted grader failures as warnings" do
       workflow = job.latest_workflow
       grade_step = Step.create!(

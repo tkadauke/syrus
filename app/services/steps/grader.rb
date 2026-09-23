@@ -172,11 +172,109 @@ module Steps
           )
         end
 
+        return if accept_failure_by_base_retry?(name: name, definition: definition)
+
         raise StepFailed, "grader #{name} failed (exit #{exit_code})"
       end
     end
 
     private
+
+    def accept_failure_by_base_retry?(name:, definition:)
+      return false unless definition["failures"] == MainBranchFailureClassifier::ALLOW_INHERITED
+      return false if definition["base_retry"].blank?
+
+      failed_cases = TestEvidenceLookup.failed_test_cases_for(run, name)
+      return false if definition["junit_output"].present? && failed_cases.empty?
+
+      base_sha = base_revision_sha
+      return false if base_sha.blank?
+
+      retry_result = BaseRevisionRetry.call(
+        workflow: workflow,
+        grader_step: step,
+        base_sha: base_sha,
+        failed_cases: failed_cases,
+        log: ->(message) { log(message, kind: "system") }
+      )
+      record_base_retry_result!(retry_result, base_sha: base_sha)
+
+      if retry_result.ran && retry_result.inherited
+        accept_failure!(
+          adjudicator: "base_revision_retry",
+          reason: retry_result.reason,
+          evidence: {
+            "base_sha" => base_sha,
+            "command" => retry_result.command,
+            "failed_tests" => failed_cases,
+            "base_failed_identities" => retry_result.base_failed_identities
+          }
+        )
+        return true
+      end
+
+      accept_known_flaky_failure?(failed_cases)
+    rescue StandardError => e
+      log("[grader:#{name}] base-revision retry could not classify the failure: #{e.class}: #{e.message}")
+      false
+    end
+
+    def record_base_retry_result!(result, base_sha:)
+      step.update!(details: step.details.to_h.merge(
+        "base_retry_result" => {
+          "ran" => result.ran,
+          "inherited" => result.inherited,
+          "reason" => result.reason,
+          "command" => result.command,
+          "base_sha" => base_sha,
+          "base_failed_identities" => result.base_failed_identities,
+          "introduced_failed_identities" => result.introduced_failed_identities,
+          "recorded_at" => Time.current.iso8601
+        }.compact
+      ))
+    end
+
+    def accept_known_flaky_failure?(failed_cases)
+      verdict = Adjudicators::KnownFlakyFailure.adjudicate(
+        problem: Problem[:grader_failure, evidence: { grader_names: [ step.details.to_h["name"] ] }],
+        workflow: workflow,
+        step: step
+      )
+      return false unless verdict.dismiss?
+
+      accept_failure!(
+        adjudicator: verdict.adjudicator,
+        reason: verdict.reason,
+        evidence: verdict.evidence.to_h.merge("failed_tests" => failed_cases)
+      )
+      true
+    end
+
+    def accept_failure!(adjudicator:, reason:, evidence:)
+      accepted_failure = {
+        "adjudicator" => adjudicator,
+        "reason" => reason,
+        "accepted_at" => Time.current.iso8601,
+        "evidence" => evidence
+      }
+      step.update!(details: step.details.to_h.merge(
+        "conclusion" => "warning",
+        "accepted_failure" => accepted_failure
+      ))
+      log("[grader:#{step.details['name']}] accepted failing tests as #{reason}; grader completed with a warning")
+    end
+
+    def base_revision_sha
+      return workflow.artifact("predicted_base_sha").presence if workflow.trigger_kind.in?(%w[landing_validation merge_train_validation])
+      return job.mergeability_base_sha.presence if workflow.trigger_kind.in?(%w[auto_merge external_pr_merge])
+      return workflow.artifact("merge_train_base_sha").presence if workflow.trigger_kind == "merge_train"
+
+      base_ref = "origin/#{job.effective_base_branch.presence || repository.default_branch}"
+      GitRunner.new.run("merge-base", "HEAD", base_ref, chdir: workspace.path.to_s, env: env).strip.presence
+    rescue GitRunner::GitError => e
+      log("[grader:#{step.details['name']}] could not resolve base revision for retry: #{e.message}")
+      nil
+    end
 
     def prepare_dependency_status(result)
       return "timed out after #{Steps::Prepare::PER_COMMAND_TIMEOUT}s" if result.timed_out?

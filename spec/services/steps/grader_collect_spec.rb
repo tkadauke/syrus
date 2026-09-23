@@ -433,7 +433,7 @@ RSpec.describe Steps::GraderCollect do
     expect(workflow.reload.artifact("isolated_repro_grader_failure")).to be_nil
   end
 
-  it "uses base-revision retry when main health is broken but no base grader conclusion is cached" do
+  it "consumes grader-recorded base-revision evidence without launching another retry" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
     MainBranchHealthCheck.record_grader_workflow(
       repository: job.repository,
@@ -450,7 +450,15 @@ RSpec.describe Steps::GraderCollect do
         "required" => true,
         "failures" => "allow_inherited",
         "exit_code" => 1,
-        "base_retry" => { "strategy" => "files_as_args" }
+        "base_retry" => { "strategy" => "files_as_args" },
+        "base_retry_result" => {
+          "ran" => true,
+          "inherited" => true,
+          "reason" => "base_retry_failed_cases_match",
+          "command" => "bin/rspec-fast spec/models/widget_spec.rb",
+          "base_failed_identities" => [ "spec/models/widget_spec.rb\0Widget fails" ],
+          "introduced_failed_identities" => []
+        }
       }
     )
     provider = Class.new do
@@ -469,27 +477,11 @@ RSpec.describe Steps::GraderCollect do
     end
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
-    allow(BaseRevisionRetry).to receive(:call).and_return(
-      BaseRevisionRetry::Result.new(
-        ran: true,
-        inherited: true,
-        reason: "base_retry_failed_cases_match",
-        command: "bin/rspec-fast spec/models/widget_spec.rb",
-        base_failed_identities: [ "spec/models/widget_spec.rb\0Widget fails" ],
-        introduced_failed_identities: [],
-        output: "1 example, 1 failure"
-      )
-    )
+    allow(BaseRevisionRetry).to receive(:call)
 
     expect { handler.call }.not_to raise_error
 
-    expect(BaseRevisionRetry).to have_received(:call).with(
-      workflow: workflow,
-      grader_step: grader_step,
-      base_sha: "main123",
-      failed_cases: [ include("identity" => "spec/models/widget_spec.rb\0Widget fails") ],
-      log: anything
-    )
+    expect(BaseRevisionRetry).not_to have_received(:call)
     classification = workflow.reload.artifact("inherited_main_branch_grader_failure")["classifications"].first
     expect(classification).to include(
       "reason" => "base_retry_failed_cases_match",
@@ -497,7 +489,7 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
-  it "uses base-revision retry for a landing base with no exact main-health row" do
+  it "consumes grader-recorded base-revision evidence for a landing base with no exact health row" do
     workflow.update!(trigger_kind: "merge_train")
     workflow.set_artifact!("merge_train_base_sha", "trainbase123")
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "oldermain123")
@@ -510,7 +502,15 @@ RSpec.describe Steps::GraderCollect do
         "required" => true,
         "failures" => "allow_inherited",
         "exit_code" => 1,
-        "base_retry" => { "strategy" => "files_as_args" }
+        "base_retry" => { "strategy" => "files_as_args" },
+        "base_retry_result" => {
+          "ran" => true,
+          "inherited" => true,
+          "reason" => "base_retry_failed_cases_match",
+          "command" => "bin/rspec-fast spec/services/query_spec.rb",
+          "base_failed_identities" => [ "spec/services/query_spec.rb\0uses index" ],
+          "introduced_failed_identities" => []
+        }
       }
     )
     provider = Class.new do
@@ -529,27 +529,11 @@ RSpec.describe Steps::GraderCollect do
     end
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
-    allow(BaseRevisionRetry).to receive(:call).and_return(
-      BaseRevisionRetry::Result.new(
-        ran: true,
-        inherited: true,
-        reason: "base_retry_failed_cases_match",
-        command: "bin/rspec-fast spec/services/query_spec.rb",
-        base_failed_identities: [ "spec/services/query_spec.rb\0uses index" ],
-        introduced_failed_identities: [],
-        output: "1 example, 1 failure"
-      )
-    )
+    allow(BaseRevisionRetry).to receive(:call)
 
     expect { handler.call }.not_to raise_error
 
-    expect(BaseRevisionRetry).to have_received(:call).with(
-      workflow: workflow,
-      grader_step: grader_step,
-      base_sha: "trainbase123",
-      failed_cases: [ include("identity" => "spec/services/query_spec.rb\0uses index") ],
-      log: anything
-    )
+    expect(BaseRevisionRetry).not_to have_received(:call)
     artifact = workflow.reload.artifact("inherited_main_branch_grader_failure")
     expect(artifact["evidence"]).to include(
       "source" => "base_retry",
@@ -675,7 +659,7 @@ RSpec.describe Steps::GraderCollect do
     expect(classification).to include("reason" => "output_fingerprint_matches_base")
   end
 
-  it "uses full-command base-revision retry when cached output cannot decide a non-test grader" do
+  it "consumes grader-recorded full-command retry evidence for a non-test grader" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
     MainBranchHealthCheck.record_grader_workflow(
       repository: job.repository,
@@ -694,32 +678,24 @@ RSpec.describe Steps::GraderCollect do
         "failures" => "allow_inherited",
         "exit_code" => 1,
         "output" => "Build failed: missing generated plugin data\n",
-        "base_retry" => { "strategy" => "full_command" }
+        "base_retry" => { "strategy" => "full_command" },
+        "base_retry_result" => {
+          "ran" => true,
+          "inherited" => true,
+          "reason" => "base_retry_full_command_failed_same_output",
+          "command" => "npm run website-build",
+          "base_failed_identities" => [],
+          "introduced_failed_identities" => []
+        }
       }
     )
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([])
-    allow(BaseRevisionRetry).to receive(:call).and_return(
-      BaseRevisionRetry::Result.new(
-        ran: true,
-        inherited: true,
-        reason: "base_retry_full_command_failed_same_output",
-        command: "npm run website-build",
-        base_failed_identities: [],
-        introduced_failed_identities: [],
-        output: "Build failed: missing generated plugin data"
-      )
-    )
+    allow(BaseRevisionRetry).to receive(:call)
 
     expect { handler.call }.not_to raise_error
 
-    expect(BaseRevisionRetry).to have_received(:call).with(
-      workflow: workflow,
-      grader_step: grader_step,
-      base_sha: "main123",
-      failed_cases: [],
-      log: anything
-    )
+    expect(BaseRevisionRetry).not_to have_received(:call)
     classification = workflow.reload.artifact("inherited_main_branch_grader_failure")["classifications"].first
     expect(classification).to include(
       "reason" => "base_retry_full_command_failed_same_output",

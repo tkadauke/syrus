@@ -516,7 +516,7 @@ module App
       end
 
       def accepted_grader_failure?(step)
-        return false unless step.kind.in?(%w[grader preflight_grader]) && step.failed?
+        return false unless step.kind.in?(%w[grader preflight_grader])
         return true if step.details.to_h["accepted_failure"].present?
 
         accepted_grader_failure_artifacts(step.workflow).any? do |artifact|

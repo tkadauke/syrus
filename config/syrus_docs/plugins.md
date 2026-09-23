@@ -1263,11 +1263,10 @@ plugin-backed BRR.
 
 Base-revision retry (BRR) uses this extension point when a grader with
 `.syrus.yml` `base_retry: { strategy: plugin }` fails with structured test
-cases but Syrus has no cached base-revision test result to compare against. A
-provider receives the grader name, the configured grader command, the parsed
-`base_retry` config, and the failed cases from the candidate run, then returns
-a shell command that runs only those tests on a temporary worktree checked out
-at the base SHA:
+cases. As the grader's final classification action, a provider receives the
+grader name, the configured grader command, the parsed `base_retry` config, and
+the failed cases from the candidate run, then returns a shell command that runs
+only those tests on a temporary worktree checked out at the base SHA:
 
 ```ruby
 .command_for(grader_name:, grader_command:, failed_cases:, base_retry:) # => String or nil
