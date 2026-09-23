@@ -656,6 +656,23 @@ describe("MysqlConnections", () => {
       expect(screen.getByRole("region", { name: "Table content" })).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
     })
 
+    it("restores margin on the browser header and tab bar while the surrounding Page.Root stays flush", async () => {
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
+
+      const heading = await screen.findByRole("heading", { name: "Browsing Staging" })
+      const header = heading.closest("header")
+      expect(header?.className).toContain("px-4 sm:px-0")
+
+      const tablist = screen.getByRole("tab", { name: "Browse" }).closest('[role="tablist"]')
+      expect(tablist?.className ?? "").toContain("px-4 sm:px-0")
+
+      const schemaTree = await screen.findByRole("navigation", { name: "Databases and tables" })
+      expect(schemaTree.className).not.toContain("px-4 sm:px-0")
+    })
+
     it("constrains the content column so a wide results table scrolls instead of widening the page", async () => {
       setupFetchMock()
       renderConnections()
