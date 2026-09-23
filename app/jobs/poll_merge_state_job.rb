@@ -40,13 +40,26 @@ class PollMergeStateJob < ApplicationJob
       # Jobs; closed-preempted Jobs only flow through here.)
       return if finalize_terminal_external_pr(@pr)
 
+      # Cheap refreshes first: mergeability comes straight off the PR
+      # payload we already fetched. Once we know a merged/closed PR, a
+      # fork head we don't control, or an already-closed Job makes this
+      # poll non-actionable, bail before paying for a local git fetch --
+      # `compute_commits_behind` below is the one part of this Step that
+      # shells out (`RepositoryBareClone#sync!`), so it should only run
+      # once we know the answer can still change what Syrus does next.
+      previous_head_sha = @job.mergeability_head_sha
+      previous_base_sha = @job.mergeability_base_sha
       persist_mergeability(@pr)
-      compute_commits_behind(@pr)
 
       return if @pr.merged
       return if @pr.state == "closed"
       return unless we_control_head?(@pr)
       return if job_closed?
+
+      # The two endpoints of the ancestry comparison haven't moved since
+      # the last time we fetched -- the distance between two fixed commits
+      # can't have changed, so skip the redundant git fetch.
+      compute_commits_behind(@pr) if commits_behind_stale?(previous_head_sha, previous_base_sha)
 
       gate = AutoMergeGate.new(job: @job, client: @client, bypass_cache: true, pr: @pr).evaluate
       if gate.merge_ready?
@@ -63,6 +76,17 @@ class PollMergeStateJob < ApplicationJob
 
   def persist_mergeability(pr)
     MergeabilityRecorder.record_github!(job: @job, pr: pr)
+  end
+
+  # False once we already know the distance for this exact head/base
+  # pair -- true on the first check for a Job, or the moment either
+  # endpoint moves (a new push, or the base branch advancing).
+  def commits_behind_stale?(previous_head_sha, previous_base_sha)
+    return true if @job.commits_behind_base.nil?
+    return true if previous_head_sha != @job.mergeability_head_sha
+    return true if previous_base_sha != @job.mergeability_base_sha
+
+    false
   end
 
   def compute_commits_behind(pr)

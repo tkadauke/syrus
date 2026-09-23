@@ -724,4 +724,96 @@ RSpec.describe PollMergeStateJob, :ci_only do
       described_class.perform_now(job.id)
     end
   end
+
+  describe "skipping the ancestry git fetch for non-actionable Jobs" do
+    it "does not sync the bare clone when the PR already merged" do
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr(merged: true, state: "closed"))
+
+      expect(RepositoryBareClone).not_to receive(:new)
+
+      described_class.perform_now(job.id)
+    end
+
+    it "does not sync the bare clone when the PR was closed unmerged" do
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr(merged: false, state: "closed"))
+
+      expect(RepositoryBareClone).not_to receive(:new)
+
+      described_class.perform_now(job.id)
+    end
+
+    it "does not sync the bare clone when Syrus does not control the PR head (fork)" do
+      fork_pr = pr
+      fork_pr.head = OpenStruct.new(repo: OpenStruct.new(full_name: "someone-else/widgets"), sha: "abc")
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(fork_pr)
+
+      expect(RepositoryBareClone).not_to receive(:new)
+
+      described_class.perform_now(job.id)
+    end
+
+    it "does not sync the bare clone when the Job itself has already closed" do
+      job.update_columns(state: "closed", closure_reason: "cancelled")
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr(mergeable_state: "dirty", mergeable: false))
+
+      expect(RepositoryBareClone).not_to receive(:new)
+
+      described_class.perform_now(job.id)
+    end
+
+    it "still records mergeability (a cheap GitHub refresh) even when the git fetch is skipped" do
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr(merged: true, state: "closed"))
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.pr_mergeable_checked_at).to be_present
+    end
+  end
+
+  describe "skipping the ancestry git fetch when head/base are unchanged since the last check" do
+    let(:fake_clone) { instance_double(RepositoryBareClone) }
+
+    before do
+      AppSetting.current.update!(proactive_rebase_commit_threshold: 999)
+      allow(RepositoryBareClone).to receive(:new).and_return(fake_clone)
+      allow(fake_clone).to receive(:sync!)
+      allow(fake_clone).to receive(:commits_behind).and_return(5)
+      # Not approved, and mergeable_state stays "clean" -- avoids
+      # dispatching a rebase, which would otherwise make later polls
+      # short-circuit on the active-workflow guard before ever reaching
+      # the ancestry check this describe block is about.
+      allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([])
+    end
+
+    it "does not re-sync the bare clone on a later poll when the PR head and base sha are unchanged" do
+      described_class.perform_now(job.id)
+      expect(job.reload.commits_behind_base).to eq(5)
+
+      expect(RepositoryBareClone).not_to receive(:new)
+
+      described_class.perform_now(job.id)
+    end
+
+    it "re-syncs the bare clone once the PR head sha changes" do
+      described_class.perform_now(job.id)
+
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr(head_sha: "def"))
+      expect(fake_clone).to receive(:commits_behind).with(head_sha: "def", base_sha: "base").and_return(3)
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.commits_behind_base).to eq(3)
+    end
+
+    it "re-syncs the bare clone once the PR base sha changes" do
+      described_class.perform_now(job.id)
+
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr(base_sha: "new-base"))
+      expect(fake_clone).to receive(:commits_behind).with(head_sha: "abc", base_sha: "new-base").and_return(2)
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.commits_behind_base).to eq(2)
+    end
+  end
 end
