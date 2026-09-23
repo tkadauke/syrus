@@ -69,6 +69,9 @@ function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (p
       headerClassName: "px-4 py-2",
       header: t("activity.col_time"),
       key: "time",
+      // Already the first column, so requiring it doesn't reorder anything
+      // -- an activity feed without its ordering anchor isn't usable.
+      required: true,
       sort: "time",
       render: (event) => <RelativeTimestamp value={event.occurred_at} />
     },
@@ -109,7 +112,6 @@ function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (p
       headerClassName: "px-4 py-2",
       header: t("activity.col_message"),
       key: "message",
-      required: true,
       sort: "message",
       render: (event) => (
         <>
