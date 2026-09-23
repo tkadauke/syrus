@@ -92,6 +92,26 @@ bin/test-e2e --project=core      # just e2e/
 bin/test-e2e --project=browser   # just the browser plugin's e2e/
 ```
 
+#### Watching the tests run
+
+The suite is headless by default. To see it:
+
+```sh
+bin/test-e2e --project=core --headed        # a real browser window, live
+bin/test-e2e --project=core --debug         # headed, paused, step through actions
+bin/test-e2e --ui                           # interactive runner: pick tests, re-run, inspect
+E2E_VIDEO=1 bin/test-e2e --project=core     # headless, keeps a .webm per test
+```
+
+`--headed` and `--debug` are worth scoping with `--project` and `-g` (the
+whole suite is 60 specs and about five minutes). Videos land next to their
+test under `test-results/`, which is gitignored.
+
+Playwright's own tracing (`--trace on`, normally the best artifact of the
+three) currently hangs under Node 26, the same way `playwright install` does:
+the test times out having recorded nothing. Use video or a headed run until
+that is fixed.
+
 #### If the Chromium install hangs
 
 `playwright install` downloads to 100% and then hangs in its out-of-process

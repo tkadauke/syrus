@@ -75,7 +75,15 @@ export default defineConfig({
   use: {
     baseURL,
     headless: true,
-    launchOptions
+    launchOptions,
+    // Recording is off by default and costs nothing when off. E2E_VIDEO=1
+    // keeps a .webm per test under test-results/, which is the way to watch a
+    // headless run after the fact -- `--headed` shows it live instead.
+    //
+    // Playwright's own tracing (`--trace on`) is the richer artifact, but it
+    // hangs here under Node 26 the same way `playwright install` does: the
+    // test times out with no action recorded. Use video until that is fixed.
+    video: process.env.E2E_VIDEO ? "on" : "off"
   },
   projects: [{ name: "core", testDir: "./e2e" }, ...pluginProjects]
 })
