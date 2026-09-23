@@ -32,6 +32,7 @@
   "comment": "Comment",
   "comment_drawer_count_one": "{{count}} comment",
   "comment_drawer_count_other": "{{count}} comments",
+  "close_comment_drawer": "Close comments",
   "current": "Current",
   "document_content": "Design doc content",
   "edit": "Edit",
