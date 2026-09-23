@@ -68,7 +68,7 @@ export function SearchRoute() {
   const filters = [{ type: "all", label: "All" }, ...typeFilters]
 
   return (
-    <Page.Root aria-label={t("search_aria")} className="max-w-[72rem]">
+    <Page.Root aria-label={t("search_aria")} className="max-w-[72rem]" gutter="responsive">
       <Page.Header className="space-y-4">
         <div>
           <PageHeading>{t('search.heading')}</PageHeading>

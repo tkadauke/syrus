@@ -34,7 +34,7 @@ export function AdminInsightsRoute() {
 
   if (query.isPending) {
     return (
-      <Page.Root aria-label={t("aria_admin_insights")} size="wide">
+      <Page.Root aria-label={t("aria_admin_insights")} gutter="responsive" size="wide">
         <AdminInsightsHeader />
         <Notice>{t("loading")}</Notice>
       </Page.Root>
@@ -43,7 +43,7 @@ export function AdminInsightsRoute() {
 
   if (query.isError) {
     return (
-      <Page.Root aria-label={t("aria_admin_insights")} size="wide">
+      <Page.Root aria-label={t("aria_admin_insights")} gutter="responsive" size="wide">
         <AdminInsightsHeader />
         <Notice tone="danger">{errorMessage(query.error, t("load_error"))}</Notice>
       </Page.Root>
@@ -108,29 +108,31 @@ function AdminInsightsList({
   const lastItem = Math.min(page * meta.per_page, meta.total)
 
   return (
-    <Page.Root aria-label={t("aria_admin_insights")} size="wide">
+    <Page.Root aria-label={t("aria_admin_insights")} gutter="responsive" size="wide">
       <AdminInsightsHeader />
 
-      <Toolbar className="justify-between gap-4">
-        <SectionHeading>
-          {t("suggestions_heading")}
-        </SectionHeading>
-        <nav aria-label={t("filter_aria")} className="flex gap-1">
-          {filterTabs.map((tab) => (
-            <Button
-              key={tab.key}
-              onClick={() => handleFilterChange(tab.key)}
-              size="sm"
-              variant={stateFilter === tab.key ? "primary" : "secondary"}
-            >
-              {tab.label}
-              <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${stateFilter === tab.key ? "bg-white/20 text-current" : PILL_TONE_CLASSES.gray}`}>
-                {tab.count}
-              </span>
-            </Button>
-          ))}
-        </nav>
-      </Toolbar>
+      <Page.Nav>
+        <Toolbar className="justify-between gap-4">
+          <SectionHeading>
+            {t("suggestions_heading")}
+          </SectionHeading>
+          <nav aria-label={t("filter_aria")} className="flex gap-1">
+            {filterTabs.map((tab) => (
+              <Button
+                key={tab.key}
+                onClick={() => handleFilterChange(tab.key)}
+                size="sm"
+                variant={stateFilter === tab.key ? "primary" : "secondary"}
+              >
+                {tab.label}
+                <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${stateFilter === tab.key ? "bg-white/20 text-current" : PILL_TONE_CLASSES.gray}`}>
+                  {tab.count}
+                </span>
+              </Button>
+            ))}
+          </nav>
+        </Toolbar>
+      </Page.Nav>
 
       {suggestions.length === 0 ? (
         <Notice className="p-8 text-center">

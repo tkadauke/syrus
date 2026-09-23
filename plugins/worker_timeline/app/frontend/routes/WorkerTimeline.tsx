@@ -37,23 +37,25 @@ export function WorkerTimelineMacroView() {
   }
 
   return (
-    <Page.Root aria-label={t("aria_page")} size="wide">
+    <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide">
       <Page.Header className="border-b border-border pb-4">
         <Text className="font-medium uppercase" variant="caption" tone="muted">{t("eyebrow")}</Text>
         <PageHeading>{t("heading")}</PageHeading>
         <Page.Description>{t("description")}</Page.Description>
       </Page.Header>
 
-      <FilterBar
-        filter={macro.data?.filter ?? null}
-        filterSchema={macro.data?.filter_schema ?? []}
-        onFilterApplied={(tree) => {
-          void recordWorkerTimelineFilterUsage({ filter: tree as Record<string, unknown> }).catch(() => {})
-        }}
-        pathname={location.pathname}
-        search={location.search}
-        suggestionSearch={{ surface: "worker_timeline", subject: "worker_timeline" }}
-      />
+      <Page.Nav>
+        <FilterBar
+          filter={macro.data?.filter ?? null}
+          filterSchema={macro.data?.filter_schema ?? []}
+          onFilterApplied={(tree) => {
+            void recordWorkerTimelineFilterUsage({ filter: tree as Record<string, unknown> }).catch(() => {})
+          }}
+          pathname={location.pathname}
+          search={location.search}
+          suggestionSearch={{ surface: "worker_timeline", subject: "worker_timeline" }}
+        />
+      </Page.Nav>
 
       {macro.isPending ? <Notice>{t("loading")}</Notice> : null}
       {macro.isError ? <Notice tone="danger">{errorMessage(macro.error, t("error_loading"))}</Notice> : null}
@@ -127,11 +129,13 @@ function WorkerTimelineWorkflowDetail() {
   })
 
   return (
-    <Page.Root aria-label={t("detail_aria")}>
-      <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix("/worker_timeline", prefix)}>
-        {t("back_to_timeline")}
-      </Link>
-      <PageHeading>{t("detail_heading")}</PageHeading>
+    <Page.Root aria-label={t("detail_aria")} gutter="responsive">
+      <Page.Header className="block space-y-2">
+        <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix("/worker_timeline", prefix)}>
+          {t("back_to_timeline")}
+        </Link>
+        <PageHeading>{t("detail_heading")}</PageHeading>
+      </Page.Header>
 
       {!workflowId ? <Notice>{t("detail_placeholder_no_workflow")}</Notice> : null}
       {detail.isPending && workflowId ? <Notice>{t("loading")}</Notice> : null}

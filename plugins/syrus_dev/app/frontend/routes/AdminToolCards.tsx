@@ -167,7 +167,7 @@ export function AdminToolCards() {
   useCatalogDeepLinkScroll(deepLinkTool ? anchorId(deepLinkTool) : null, filteredEntries)
 
   return (
-    <Page.Root size="wide">
+    <Page.Root gutter="responsive" size="wide">
       <Page.Header>
         <Page.HeadingGroup>
           <Page.Title>{t("tool_cards.heading")}</Page.Title>
@@ -175,18 +175,20 @@ export function AdminToolCards() {
         </Page.HeadingGroup>
       </Page.Header>
 
-      <FilterBar buildLink={catalogFilterLink} filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={search} />
+      <Page.Nav className="space-y-4">
+        <FilterBar buildLink={catalogFilterLink} filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={search} />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Text muted variant="caption">{t("tool_cards.showing", { count: filteredEntries.length, total: allEntries.length })}</Text>
-        <CatalogViewportSwitcher
-          ariaLabel={t("tool_cards.viewport_switcher_aria")}
-          labelFor={(preset) => t(`tool_cards.viewport_${preset.id}`, { width: preset.width })}
-          pathname={location.pathname}
-          search={search}
-          selected={selectedViewport.id}
-        />
-      </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Text muted variant="caption">{t("tool_cards.showing", { count: filteredEntries.length, total: allEntries.length })}</Text>
+          <CatalogViewportSwitcher
+            ariaLabel={t("tool_cards.viewport_switcher_aria")}
+            labelFor={(preset) => t(`tool_cards.viewport_${preset.id}`, { width: preset.width })}
+            pathname={location.pathname}
+            search={search}
+            selected={selectedViewport.id}
+          />
+        </div>
+      </Page.Nav>
 
       {filteredEntries.length === 0 ? (
         <PanelMessage>{t("tool_cards.no_match")}</PanelMessage>
