@@ -47,6 +47,8 @@ export default defineConfig(({ mode }) => {
       // its own local react, triggering the same duplicate-React crash.
       alias: {
         react: `${rootDir}node_modules/react`,
+        "react/jsx-runtime": `${rootDir}node_modules/react/jsx-runtime.js`,
+        "react/jsx-dev-runtime": `${rootDir}node_modules/react/jsx-dev-runtime.js`,
         "react-dom": `${rootDir}node_modules/react-dom`,
         "@app": `${rootDir}app/frontend`,
         "@plugins": `${rootDir}plugins`,
