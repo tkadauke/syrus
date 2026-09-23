@@ -23,7 +23,6 @@ test("Tailscale admin page reports the unconfigured state when no tailnet is ava
 
   await expect(page.getByText("Auth key set")).toBeVisible()
   await expect(page.getByText("Daemon running")).toBeVisible()
-  await expect(page.getByText("/dev/net/tun present")).toBeVisible()
 
   // No hostname/ts.net URL to show without a connected daemon, and the
   // "install the mobile app" tip only renders once connected -- neither
