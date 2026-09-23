@@ -16,12 +16,12 @@ import {
 } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 import { linkFromSearch } from "../components/filterBar/helpers"
-import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import type { AdminSmartFolder } from "../api/adminSmartFolders"
 import { FilterBar } from "../components/FilterBar"
 import { useMediaQuery } from "./dashboard/components"
-import { Button, buttonClasses, Checkbox, DataTable, PanelMessage, Surface, Text, TonePill, type PillTone } from "../components/ui"
+import { ColumnVisibilityMenu } from "../components/ColumnVisibilityMenu"
+import { buttonClasses, DataTable, PanelMessage, Text, TonePill, type PillTone } from "../components/ui"
 
 type ColumnKey =
   | "github_owner"
@@ -58,6 +58,7 @@ const COLUMN_CONFIG: ColumnConfig[] = [
 
 const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = COLUMN_CONFIG.filter((column) => column.defaultVisible).map((column) => column.key)
 const VISIBLE_COLUMNS_STORAGE_KEY = "syrus.repositories.visible_columns"
+const COLUMN_KEYS = new Set<string>(COLUMN_CONFIG.map((column) => column.key))
 
 // A column key maps to the sort key backing it when that column is
 // sortable. Columns absent from this map render a non-interactive header.
@@ -74,8 +75,7 @@ function readVisibleColumns(): ColumnKey[] {
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return DEFAULT_VISIBLE_COLUMNS
 
-    const validKeys = new Set<string>(COLUMN_CONFIG.map((column) => column.key))
-    const filtered = parsed.filter((key): key is ColumnKey => typeof key === "string" && validKeys.has(key))
+    const filtered = parsed.filter((key): key is ColumnKey => typeof key === "string" && COLUMN_KEYS.has(key))
     return filtered.length > 0 || parsed.length === 0 ? filtered : DEFAULT_VISIBLE_COLUMNS
   } catch {
     return DEFAULT_VISIBLE_COLUMNS
@@ -174,6 +174,10 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(() => readVisibleColumns())
+  const columnOptions = useMemo(
+    () => COLUMN_CONFIG.map((column) => ({ key: column.key, title: t(column.labelKey) })),
+    [t]
+  )
   const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT)
 
   const unarchive = useMutation({
@@ -191,12 +195,10 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
     }
   })
 
-  function toggleColumn(column: ColumnKey, visible: boolean) {
-    setVisibleColumns((current) => {
-      const next = visible ? Array.from(new Set([...current, column])) : current.filter((key) => key !== column)
-      writeVisibleColumns(next)
-      return next
-    })
+  function updateVisibleColumns(next: string[]) {
+    const filtered = next.filter((key): key is ColumnKey => COLUMN_KEYS.has(key))
+    setVisibleColumns(filtered)
+    writeVisibleColumns(filtered)
   }
 
   function toggleSortColumn(column: SortColumn) {
@@ -262,7 +264,20 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
           ) : null}
           <div className="flex flex-wrap items-start justify-between gap-3">
             <RepositoryFilterBar payload={payload} pathname={pathname} search={search} />
-            <RepositoryColumnPicker onToggle={toggleColumn} visibleColumns={visibleColumns} />
+            <ColumnVisibilityMenu
+              downLabel={t("repositories.column_down")}
+              menuId="repositories-columns-menu"
+              moveDownLabel={(title) => t("repositories.column_move_down", { title })}
+              moveUpLabel={(title) => t("repositories.column_move_up", { title })}
+              onChange={updateVisibleColumns}
+              optionalColumns={columnOptions}
+              triggerAriaLabel={t("repositories.columns")}
+              triggerClassName="h-[var(--control-height-md)] w-[var(--control-height-md)]"
+              triggerSize="icon"
+              upLabel={t("repositories.column_up")}
+              visibleColumns={visibleColumns}
+              visibleLabel={t("repositories.visible_columns")}
+            />
           </div>
 
           <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -333,43 +348,6 @@ function RepositoryFilterBar({ payload, pathname, search }: { payload: Repositor
   )
 }
 
-function RepositoryColumnPicker({ visibleColumns, onToggle }: { visibleColumns: ColumnKey[]; onToggle: (column: ColumnKey, visible: boolean) => void }) {
-  const { t } = useT("settings")
-  const [open, setOpen] = useState(false)
-  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <Button
-        aria-controls="repositories-columns-menu"
-        aria-expanded={open}
-        aria-haspopup="menu"
-        onClick={() => setOpen((current) => !current)}
-        size="sm"
-        variant="secondary"
-      >
-        {t("repositories.columns")}
-      </Button>
-      {open ? (
-        <Surface className="absolute right-0 z-20 mt-2 w-64 shadow-lg" id="repositories-columns-menu" padding="sm" role="menu">
-          <fieldset className="space-y-2">
-            <Text as="legend" muted variant="label">{t("repositories.visible_columns")}</Text>
-            {COLUMN_CONFIG.map((column) => (
-              <label className="flex items-center gap-2 text-sm text-text-primary" key={column.key}>
-                <Checkbox
-                  checked={visibleColumns.includes(column.key)}
-                  onChange={(event) => onToggle(column.key, event.target.checked)}
-                />
-                <span>{t(column.labelKey)}</span>
-              </label>
-            ))}
-          </fieldset>
-        </Surface>
-      ) : null}
-    </div>
-  )
-}
-
 function RepositoryDataTable({
   repositories,
   visibleColumns,
@@ -390,7 +368,9 @@ function RepositoryDataTable({
   prefix: string
 }) {
   const { t } = useT("settings")
-  const columns = COLUMN_CONFIG.filter((column) => visibleColumns.includes(column.key))
+  const columns = visibleColumns
+    .map((key) => COLUMN_CONFIG.find((column) => column.key === key))
+    .filter((column): column is ColumnConfig => column != null)
 
   return (
     <DataTable.Root>
