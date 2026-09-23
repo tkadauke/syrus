@@ -451,6 +451,7 @@ const MENU_WIDTH_PX = 224
 type MenuPosition = { top: number; left?: number; right?: number }
 
 function HeaderActionsMenu({ actions, command, dataTourFeedback, extraItems, onActionClick }: { actions: HeaderAction[]; command: ReturnType<typeof useJobCommand>; dataTourFeedback?: boolean; extraItems: OverflowExtraItem[]; onActionClick: (action: HeaderAction) => void }) {
+  const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -486,6 +487,7 @@ function HeaderActionsMenu({ actions, command, dataTourFeedback, extraItems, onA
       <Button
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-label={t("more_actions")}
         data-tour={dataTourFeedback ? "job-feedback" : undefined}
         disabled={command.isPending}
         onClick={handleToggle}

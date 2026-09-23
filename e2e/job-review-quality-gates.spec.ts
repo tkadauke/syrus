@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test"
 import { signInAsDemo } from "./support/auth"
+import { removePresetFilter } from "./support/dashboard"
 
 test.slow()
 
@@ -7,7 +8,7 @@ async function openImplementedDemoJob(page: Page) {
   const title = "Inspect preview dashboard states"
 
   await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  await page.getByRole("button", { name: "Remove Preset filter" }).click()
+  await removePresetFilter(page)
   await page.getByRole("row").filter({ has: page.getByRole("link", { name: title, exact: true }) }).getByRole("link", { name: title, exact: true }).click()
   await expect(page.getByRole("heading", { level: 1 })).toContainText(title)
 }
@@ -27,8 +28,9 @@ test("covers review diff, coverage, diff comments, and workflow warning action",
 
   await page.getByLabel("Whole-review comment").fill(commentBody)
   await page.getByRole("button", { name: "Comment", exact: true }).click()
+  // The "Whole-review comment" label belongs to the composer, which closes on
+  // save; the posted comment itself is what survives.
   await expect(page.getByText(commentBody)).toBeVisible()
-  await expect(page.getByText("Whole-review comment")).toBeVisible()
 
   await page.getByRole("button", { name: "Summary", exact: true }).click()
   const coverage = page.getByTestId("coverage-card")

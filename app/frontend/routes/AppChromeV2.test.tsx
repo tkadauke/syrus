@@ -1057,7 +1057,7 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
     try {
       renderAppChrome(<div data-testid="chat-body">Chat body</div>, { initialEntries: ["/chats/5"] })
 
-      const main = screen.getByRole("main")
+      const main = screen.getByTestId("app-scroll-pane")
       expect(main).toHaveClass("flex", "flex-col", "overflow-hidden")
       expect(main).not.toHaveClass("overflow-auto")
     } finally {
@@ -1068,7 +1068,7 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
   it("leaves main as overflow-auto for a chat route at desktop widths", () => {
     renderAppChrome(<div data-testid="chat-body">Chat body</div>, { initialEntries: ["/chats/5"] })
 
-    const main = screen.getByRole("main")
+    const main = screen.getByTestId("app-scroll-pane")
     expect(main).toHaveClass("overflow-auto")
     expect(main).not.toHaveClass("overflow-hidden")
   })
@@ -1079,7 +1079,7 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
     try {
       renderAppChrome(<div>Dashboard</div>, { initialEntries: ["/repositories"] })
 
-      const main = screen.getByRole("main")
+      const main = screen.getByTestId("app-scroll-pane")
       expect(main).toHaveClass("overflow-auto")
       expect(main).not.toHaveClass("overflow-hidden")
     } finally {
@@ -1093,7 +1093,7 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
     try {
       renderAppChrome(<div data-testid="chat-body">Chat body</div>, { initialEntries: ["/chats/5"] })
 
-      const main = screen.getByRole("main")
+      const main = screen.getByTestId("app-scroll-pane")
       fireEvent.scroll(main, { target: { scrollTop: 100 } })
 
       expect(screen.getAllByLabelText("Open sidebar")).toHaveLength(1)
@@ -1144,7 +1144,7 @@ describe("AppChromeV2 mobile header pinning", () => {
     try {
       renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
 
-      const main = screen.getByRole("main")
+      const main = screen.getByTestId("app-scroll-pane")
       fireEvent.scroll(main, { target: { scrollTop: 800 } })
 
       const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden")
@@ -1160,7 +1160,7 @@ describe("AppChromeV2 mobile header pinning", () => {
     try {
       renderAppChrome(<div className="w-[80rem]">Oversized page content</div>, { initialEntries: ["/dashboard/jobs"] })
 
-      const main = screen.getByRole("main")
+      const main = screen.getByTestId("app-scroll-pane")
       fireEvent.scroll(main, { target: { scrollLeft: 320 } })
 
       const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden")

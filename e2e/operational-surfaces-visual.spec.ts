@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 import { signInAsDemo } from "./support/auth"
+import { removePresetFilter, sortDashboardByNewest } from "./support/dashboard"
 
 test.slow()
 
@@ -29,7 +30,9 @@ const SURFACES = [
     open: async (page: Page) => {
       await page.getByRole("link", { name: "Preview walkthrough" }).click()
       await expect(page.getByTestId("chat-message-stream")).toContainText("I checked the representative Jobs through the chat tools.")
-      await page.getByText("List jobs").click()
+      // Exact: the tool card shows both a "List jobs" title and a
+      // "List jobs(preview)" command line, so a substring match is ambiguous.
+      await page.getByText("List jobs", { exact: true }).click()
       await expect(page.getByText("Inspect preview dashboard states").last()).toBeVisible()
       await expect(page.getByText("Repair seeded background workflow").last()).toBeVisible()
     }
@@ -55,8 +58,9 @@ for (const theme of ["light", "dark"] as const) {
 }
 
 async function openSeededJob(page: Page, title: string) {
+  sortDashboardByNewest()
   await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  await page.getByRole("button", { name: "Remove Preset filter" }).click()
+  await removePresetFilter(page)
   await page.getByRole("row").filter({ has: page.getByRole("link", { name: title, exact: true }) }).getByRole("link", { name: title, exact: true }).click()
 }
 

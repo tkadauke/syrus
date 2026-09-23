@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test"
 import { execFileSync } from "node:child_process"
 import { DEMO_USER, signInAsDemo } from "./support/auth"
+import { removePresetFilter, sortDashboardByNewest } from "./support/dashboard"
 
 test.slow()
 
@@ -15,6 +16,7 @@ type DeliveryFixture = {
 test("shows delivery-track configuration and recent external/fork PR ingestion", async ({ page }) => {
   skipWhenRemote()
   const fixture = createDeliveryFixture()
+  sortDashboardByNewest()
 
   await signInAsDemo(page)
 
@@ -62,10 +64,9 @@ test("shows delivery-track configuration and recent external/fork PR ingestion",
 test("shows external PR and delivery-status badges on the dashboard", async ({ page }) => {
   skipWhenRemote()
   const fixture = createDeliveryFixture()
-
   await signInAsDemo(page)
   await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  await page.getByRole("button", { name: "Remove Preset filter" }).click()
+  await removePresetFilter(page)
 
   const promotionRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: fixture.promotionJobTitle, exact: true }) })
   await expect(promotionRow).toContainText("Waiting for promotion")

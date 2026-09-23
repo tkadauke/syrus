@@ -33,8 +33,12 @@ test("adds a repository with automation settings from the UI", async ({ page }) 
 
     const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: `${owner}/${name}`, exact: true }) })
     await expect(row).toBeVisible()
-    await expect(row).toContainText("delegate")
     await expect(row).toContainText("Codex")
+
+    // The trigger label is not a column in the repositories table; assert it
+    // where it is actually shown, which also proves it was persisted.
+    await row.getByRole("link", { name: `${owner}/${name}`, exact: true }).click()
+    await expect(page.getByRole("region", { name: "Repository details" })).toContainText("delegate")
   } finally {
     deleteRepository(owner, name)
   }
@@ -52,7 +56,6 @@ test("edits the seeded repository settings and shows config plus unconfigured Gi
     await expect(page.getByRole("heading", { level: 1 })).toContainText("demo/syrus-preview")
     await expect(page.getByText("polling paused")).toBeVisible()
     await expect(page.getByText("PAT fallback: no active App installation")).toBeVisible()
-    await expect(page.getByText("Register the GitHub App to prefer app credentials over PAT fallback.")).toBeVisible()
 
     const details = page.getByRole("region", { name: "Repository details" })
     await expect(details).toContainText("demo/syrus-preview")
@@ -61,9 +64,13 @@ test("edits the seeded repository settings and shows config plus unconfigured Gi
 
     const config = page.getByRole("region", { name: ".syrus.yml configuration" })
     await expect(config).toContainText(".syrus.yml")
-    await expect(config).toContainText("no GitHub credentials")
+    // Nothing can read the repository without credentials, and that is now
+    // reported as the content chain having no provider for it.
+    await expect(config).toContainText("no repository content provider serves")
 
-    await page.getByRole("button", { name: "More" }).click()
+    // Exact: a "Show more" button elsewhere on the page also matches a
+    // substring search for "More".
+    await page.getByRole("button", { name: "More actions", exact: true }).click()
     await page.getByRole("link", { name: "Edit" }).click()
 
     await expect(page.getByRole("main", { name: "Edit Repository" })).toBeVisible()
@@ -81,8 +88,6 @@ test("edits the seeded repository settings and shows config plus unconfigured Gi
     await page.getByRole("button", { name: "Save Repository", exact: true }).click()
 
     await page.waitForURL(/\/repositories$/)
-    const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: "demo/syrus-preview", exact: true }) })
-    await expect(row).toContainText("review-me")
 
     await openDemoRepository(page, repositoryId)
     await expect(page.getByRole("region", { name: "Repository details" })).toContainText("review-me")

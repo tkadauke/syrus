@@ -23,10 +23,15 @@ test("enables Coding Mode and shows the writable checkout workspace state", asyn
   await page.getByRole("option", { name: "Coding" }).click()
 
   await expect(page.getByRole("button", { name: "Change mode" })).toContainText("Coding")
-  await expect(page.getByText("Unfinished coding session · uncommitted changes.")).toBeVisible()
+  // The dirty checkout used to get its own chat-level banner; it is now a
+  // badge on the attached coding Job's strip (the banner's translation key
+  // is orphaned).
+  await expect(page.getByTestId("attached-coding-job-strip")).toContainText("uncommitted changes")
 
   await page.getByRole("button", { name: "Open workspace panel" }).click()
-  await expect(page.getByRole("button", { name: "Files" })).toBeVisible()
+  // Two controls are named "Files" once the panel is open: the panel's tab
+  // and the strip's quick-open pill. The tab is the one this asserts.
+  await expect(page.getByRole("button", { name: "Files" }).first()).toBeVisible()
 })
 
 test("renders Coding Mode handoff confirmations and moves one into the pending confirmation UI", async ({ page }) => {

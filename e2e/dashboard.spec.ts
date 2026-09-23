@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test"
 import { execFileSync } from "node:child_process"
 import { DEMO_USER, signIn, signInAsDemo } from "./support/auth"
+import { removePresetFilter, sortDashboardByNewest } from "./support/dashboard"
 
 test("dashboard shows the seeded epic", async ({ page }) => {
   await signInAsDemo(page)
@@ -28,7 +29,7 @@ test("switches between the epics, jobs, and workflows dashboard sub-views", asyn
   // default "Inbox" preset filter (see job-lifecycle.spec.ts); removing it
   // is what makes every seeded Job -- regardless of state -- show up here.
   await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  await page.getByRole("button", { name: "Remove Preset filter" }).click()
+  await removePresetFilter(page)
   await expect(page.getByRole("link", { name: "Inspect preview dashboard states", exact: true })).toBeVisible()
   await expect(page.getByRole("link", { name: "Document preview seed guidance", exact: true })).toBeVisible()
 
@@ -54,14 +55,15 @@ test("shows the system readiness panel for a user who has not finished setup", a
   await signIn(page, { email, password })
   await page.goto("/dashboard/jobs")
 
-  // No bin/jobs worker process runs against this preview server, so the
-  // Worker/queue readiness check fails reliably regardless of what other
-  // E2E specs mutate elsewhere (e.g. onboarding.spec.ts registering a
-  // GitHub App, which would otherwise flip the GitHub check to "ok").
+  // Assert a check scoped to this fixture user: it selects Codex and has no
+  // Codex credentials, and no other spec can change that. The instance-wide
+  // checks cannot be used here -- Worker/queue looks green whenever
+  // admin-panel.spec.ts's fake worker row exists, and those files run in
+  // parallel, so asserting it failed roughly half the time.
   const panel = page.getByRole("region", { name: "System readiness" })
   await expect(panel.getByRole("heading", { name: "System readiness needs attention" })).toBeVisible()
-  await expect(panel.getByRole("heading", { name: "Worker/queue" })).toBeVisible()
-  await expect(panel.getByText("No Solid Queue worker processes are registered.")).toBeVisible()
+  await expect(panel.getByRole("heading", { name: "Agent provider" })).toBeVisible()
+  await expect(panel.getByText("Codex is selected but its credentials are missing.")).toBeVisible()
 
   await panel.getByRole("link", { name: "Open settings" }).click()
   await expect(page).toHaveURL(/\/credentials/)
@@ -71,10 +73,11 @@ test("retries a failed job in bulk from the dashboard and reflects it in the das
   skipWhenRemote()
   const title = `E2E bulk retry ${Date.now()}`
   createFailedFixtureJob(title)
+  sortDashboardByNewest()
 
   await signInAsDemo(page)
   await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  await page.getByRole("button", { name: "Remove Preset filter" }).click()
+  await removePresetFilter(page)
 
   const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: title, exact: true }) })
   await expect(row).toContainText("failed")
@@ -142,6 +145,18 @@ function readinessFixtureUserScript(email: string, password: string): string {
 // the bulk-retry test has a deterministic, uniquely-titled target instead of
 // reaching for a seeded Job another spec file might be mutating concurrently
 // (job-lifecycle.spec.ts already retries/approves/cancels the seeded ones).
+// Each run leaves another failed Job behind otherwise. They accumulate across
+// local runs until the newest one is no longer on the first page of the
+// dashboard, and then this spec fails looking for its own row -- green on CI's
+// fresh database, broken on a developer's machine.
+test.afterAll(() => {
+  if (process.env.E2E_BASE_URL) return
+
+  execFileSync("bin/rails", ["runner", `
+    Job.where("issue_title LIKE ?", "E2E bulk retry %").find_each(&:destroy)
+  `], { env: process.env, stdio: "inherit" })
+})
+
 function createFailedFixtureJob(title: string) {
   if (process.env.E2E_BASE_URL) {
     throw new Error("The dashboard bulk-retry E2E fixture can only be created against the local test database.")

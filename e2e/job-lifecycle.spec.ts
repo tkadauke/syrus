@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test"
 import { signInAsDemo } from "./support/auth"
+import { removePresetFilter, sortDashboardByNewest } from "./support/dashboard"
 
 // Exercises Job lifecycle beyond creation using the seeded demo/syrus-preview
 // fixture data from db/seeds.rb (no worker process runs here, so these only
@@ -18,13 +19,14 @@ import { signInAsDemo } from "./support/auth"
 test.slow()
 
 async function dashboardRowFor(page: Page, title: string) {
+  sortDashboardByNewest()
   await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
   // The default "Inbox" preset (a server-supplied "Preset" filter chip on
   // the `attention` field, see app/services/filters/chips/jobs/attention.rb)
   // hides closed/approved/running Jobs; removing it is what makes every
   // seeded Job -- regardless of the state a prior action just moved it to --
   // show up in the list.
-  await page.getByRole("button", { name: "Remove Preset filter" }).click()
+  await removePresetFilter(page)
 
   return page.getByRole("row").filter({ has: page.getByRole("link", { name: title, exact: true }) })
 }
@@ -57,10 +59,13 @@ test("retries a failed job from its failed step and reflects it in the dashboard
   await openJob(page, title)
   await expect(page.getByText("failed", { exact: true }).first()).toBeVisible()
 
-  await page.getByRole("button", { name: "Retry failed step" }).click()
+  // The header keeps one primary action inline and folds the rest into the
+  // "More actions" overflow menu, so retry is reached through the menu.
+  await page.getByRole("button", { name: "More actions" }).click()
+  await page.getByRole("menuitem", { name: "Retry failed step" }).click()
 
   await expect(page.getByText(/Retrying .* for WF-\d+/)).toBeVisible()
-  await expect(page.getByRole("button", { name: "Retry failed step" })).toHaveCount(0)
+  await expect(page.getByRole("menuitem", { name: "Retry failed step" })).toHaveCount(0)
 
   const row = await dashboardRowFor(page, title)
   await expect(row).toContainText("running")
@@ -73,7 +78,7 @@ test("cancels a queued job and reflects it in the dashboard", async ({ page }) =
   await openJob(page, title)
   await expect(page.getByText("queued", { exact: true }).first()).toBeVisible()
 
-  await page.getByRole("button", { name: "⋯" }).click()
+  await page.getByRole("button", { name: "More actions" }).click()
   await page.getByRole("menuitem", { name: "Cancel" }).click()
 
   const dialog = page.getByRole("dialog", { name: "Cancel any running work and close this Job?" })

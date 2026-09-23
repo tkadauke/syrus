@@ -1373,7 +1373,9 @@ describe("App", () => {
       expect(within(mobileTopBar).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications")
       expect(screen.queryByRole("button", { name: "Open settings" })).not.toBeInTheDocument()
 
-      const scrollPane = document.querySelector("main.overflow-auto")
+      // The chrome's scroll container is a div, not a landmark: routes render
+      // the page's own <main> (see AppChromeV2).
+      const scrollPane = screen.getByTestId("app-scroll-pane")
       expect(scrollPane).toBeInstanceOf(HTMLElement)
       Object.defineProperty(scrollPane, "scrollTop", { configurable: true, value: 24 })
       fireEvent.scroll(scrollPane as HTMLElement)
@@ -9560,6 +9562,11 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "+ Add tag" })).toBeInTheDocument()
     expect(screen.getByText("No work claim")).toBeInTheDocument()
 
+    // One landmark per page: the chrome's scroll container used to be a
+    // second <main> wrapped around the route's own, which is invalid HTML and
+    // left getByRole("main") ambiguous.
+    expect(screen.getAllByRole("main")).toHaveLength(1)
+
     fireEvent.click(screen.getByRole("button", { name: "Claim work" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -9569,7 +9576,7 @@ describe("App", () => {
     })
     expect(await screen.findByText("Job claimed.")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
     fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Check feedback" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -10291,7 +10298,7 @@ describe("App", () => {
     expect(await screen.findByRole("button", { name: "Approve" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Start Run" })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
     expect(screen.getByRole("menu")).toBeInTheDocument()
     expect(within(screen.getByRole("menu")).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(overflowLabels)
     expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with feedback" })).toBeInTheDocument()
@@ -10299,7 +10306,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.queryByRole("menu")).not.toBeInTheDocument()
     })
-    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
     expect(screen.getByRole("menu")).toBeInTheDocument()
     fireEvent.pointerDown(document.body)
     await waitFor(() => {
@@ -10314,7 +10321,7 @@ describe("App", () => {
     }
 
     for (const [label, method, path] of overflowCommands) {
-      fireEvent.click(screen.getByRole("button", { name: "⋯" }))
+      fireEvent.click(screen.getByRole("button", { name: "More actions" }))
       fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: label }))
       // Some commands guard with a ConfirmDialog; click through it when present
       const confirmBtn = await screen.findByRole("button", { name: "Confirm" }, { timeout: 200 }).catch(() => null)
@@ -10430,7 +10437,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("button", { name: "Retry implementation" })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
     fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with Codex and feedback" }))
 
     const dialog = screen.getByRole("dialog", { name: "Retry with feedback" })
@@ -11863,9 +11870,11 @@ describe("App", () => {
       expect(screen.queryByRole("navigation", { name: "Chat workspace tabs" })).not.toBeInTheDocument()
       expect(screen.getByRole("main", { name: "Chat" })).toHaveClass("h-full", "lg:[height:100%]")
       expect(screen.getByRole("main", { name: "Chat" })).not.toHaveClass("[height:calc(var(--chat-visual-viewport-height,100dvh)-4.5rem)]")
-      const chromeMain = screen.getAllByRole("main").find((element) => element !== screen.getByRole("main", { name: "Chat" }))
-      expect(chromeMain).toHaveClass("flex", "flex-col", "overflow-hidden")
-      expect(chromeMain).not.toHaveClass("overflow-auto")
+      // The chrome's scroll container is a div now, not a second <main>
+      // nested around the route's own (see AppChromeV2).
+      const chromeScrollPane = screen.getByTestId("app-scroll-pane")
+      expect(chromeScrollPane).toHaveClass("flex", "flex-col", "overflow-hidden")
+      expect(chromeScrollPane).not.toHaveClass("overflow-auto")
       expect(mobileTabs).toHaveClass("min-h-[44px]", "px-[max(0.5rem,env(safe-area-inset-left))]")
       expect(screen.getByTestId("chat-message-stream")).toHaveClass("h-full", "min-h-0", "overflow-y-auto", "overscroll-contain", "p-2")
       expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("min-h-11", "text-base", "sm:min-h-9", "sm:text-sm")

@@ -61,6 +61,7 @@
   "open_terminal_in_workspace": "Terminal im Workspace öffnen",
   "open_in_coding_mode": "Im Coding-Modus öffnen",
   "retry_failed_step": "Fehlgeschlagenen Schritt erneut versuchen",
+  "more_actions": "Weitere Aktionen",
   "push_commits": "Commits pushen",
   "preview_see_more": "Mehr anzeigen",
   "preview_generating_title": "Titel wird generiert…",

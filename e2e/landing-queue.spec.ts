@@ -1,11 +1,12 @@
 import { test, expect, type Page } from "@playwright/test"
 import { signInAsDemo } from "./support/auth"
+import { removePresetFilter } from "./support/dashboard"
 
 test.slow()
 
 async function dashboardRowFor(page: Page, title: string) {
   await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
-  await page.getByRole("button", { name: "Remove Preset filter" }).click()
+  await removePresetFilter(page)
 
   return page.getByRole("row").filter({ has: page.getByRole("link", { name: title, exact: true }) })
 }
@@ -19,8 +20,12 @@ async function openJob(page: Page, title: string) {
 async function openLandingQueue(page: Page) {
   await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
   await page.getByRole("link", { name: /^Landing queue \d+$/ }).click()
+  // The queue-position column, whose sortable header is labelled
+  // "Sort by <label> <direction>" (dashboard.sort_by). There is no separate
+  // "Queue status" column any more: JobsTable filters landing_queue_wait_reason
+  // out and shows blocker messaging on the rows instead, which the tests below
+  // assert.
   await expect(page.getByRole("columnheader", { name: /^Sort by Queue/ })).toBeVisible()
-  await expect(page.getByRole("columnheader", { name: "Queue status" })).toBeVisible()
 }
 
 test("renders approved and landing queue states with blocker messaging", async ({ page }) => {
@@ -45,7 +50,9 @@ test("pauses and resumes landing from the landing queue view", async ({ page }) 
   await signInAsDemo(page)
   await openLandingQueue(page)
 
+  // Pausing asks for confirmation first (resuming does not).
   await page.getByRole("button", { name: "Pause landing" }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Pause landing" }).click()
   await expect(page.getByText("Landing paused.")).toBeVisible()
   await expect(page.getByRole("button", { name: "Resume landing" })).toBeVisible()
 

@@ -335,7 +335,12 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         </div>
       ) : null}
 
-      <main className={`min-w-0 flex-1 ${isMobileChatPage ? "flex flex-col overflow-hidden" : "overflow-auto"}`}>
+      {/* A scroll container, not a landmark. Routes render their own labeled
+          <main> (Page.Root, RepositoryPageShell, and friends), which is what
+          getByRole("main", { name }) finds and what screen readers announce;
+          a <main> here nested a second one inside it on every page, which is
+          invalid and made locator("main") ambiguous. */}
+      <div className={`min-w-0 flex-1 ${isMobileChatPage ? "flex flex-col overflow-hidden" : "overflow-auto"}`} data-testid="app-scroll-pane">
         <div className="sticky left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden">
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -369,7 +374,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           pageContent
         )}
         {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
-      </main>
+      </div>
       {user ? (
         <BugReportButton
           bugReportMode={data?.app?.bug_report_mode ?? null}

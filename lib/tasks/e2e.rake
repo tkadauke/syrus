@@ -110,6 +110,41 @@ namespace :e2e do
     onboarding_user.chat_sessions.where(onboarding: true).destroy_all
     onboarding_user.epics.find_each(&:destroy!)
 
+    # The dashboard remembers its smart folder, sort, and filters per user, in
+    # the database. Nothing resets it, so a run inherits whatever view the
+    # previous run's specs left behind -- the Landing queue folder, a Queue
+    # sort -- and specs that look for a Job by row either find a filtered list
+    # or one ordered so their fixture sits past the first page. Start every
+    # run from the default view a fresh install has.
+    User.where(email_address: [ "demo@syrus.local", "ada@syrus.local" ]).update_all(dashboard_preferences: nil)
+
+    # Specs mutate these seeded fixtures (retry a failed step, cancel a queued
+    # Job, post review comments). db/seeds.rb creates the failed Workflow only
+    # when the Job has none, so a reseed alone does not put any of it back, and
+    # the second local run of the suite fails on fixtures the first one
+    # consumed. Restore them here, which is what makes repeat runs
+    # deterministic.
+    demo_repo = Repository.find_by!(owner: "demo", name: "syrus-preview")
+
+    failed_job = Job.find_by(repository: demo_repo, issue_title: "Repair seeded background workflow")
+    if failed_job
+      failed_job.workflows.order(:id).offset(1).find_each(&:destroy)
+      workflow = failed_job.workflows.order(:id).first
+      workflow&.update_columns(state: "failed", finished_at: 25.minutes.ago)
+      workflow&.steps&.find_each do |step|
+        next unless step.kind == "implement"
+
+        step.update_columns(state: "failed", finished_at: 25.minutes.ago)
+        step.runs.find_each { |run| run.update_columns(state: "failed", finished_at: 25.minutes.ago) }
+      end
+      failed_job.update_columns(state: "failed", closure_reason: nil, finished_at: nil)
+    end
+
+    cancelled_job = Job.find_by(repository: demo_repo, issue_title: "Coordinate scheduled task rollout")
+    cancelled_job&.update_columns(state: "queued", closure_reason: nil, finished_at: nil)
+
+    DiffReviewComment.where(job: demo_repo.jobs).destroy_all
+
     invite_email = "invited-e2e@syrus.local"
     User.find_by(email_address: invite_email)&.destroy!
     Invitation.where(email_address: invite_email).destroy_all

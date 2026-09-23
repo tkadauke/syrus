@@ -12,25 +12,19 @@ test("first-run onboarding checklist updates through the golden path", async ({ 
   await expect(page.getByRole("heading", { name: "Set up Syrus" })).toBeVisible()
 
   await expect(completedStep(page, "Account and admin access")).toBeVisible()
-  await expect(incompleteStep(page, "How do you work?")).toBeVisible()
   await expect(incompleteStep(page, "GitHub integration")).toBeVisible()
   await expect(incompleteStep(page, "Agent credentials and provider")).toBeVisible()
   await expect(incompleteStep(page, "Repository")).toBeVisible()
   await expect(incompleteStep(page, "Meet Syrus")).toBeVisible()
   await expect(incompleteStep(page, "Land your first Epic")).toBeVisible()
 
+  // Unfinished setup is gated: the dashboard bounces back to /onboarding.
   await page.goto("/dashboard/jobs")
   await expect(page).toHaveURL(/\/onboarding$/)
 
-  const modeSaved = page.waitForResponse((response) =>
-    response.url().includes("/api/v1/app/admin/settings") && response.request().method() === "PATCH" && response.ok()
-  )
-  await page.getByRole("button", { name: "Yes, I write code" }).click()
-  await modeSaved
-  await page.goto("/onboarding")
-  await expect(completedStep(page, "How do you work?")).toBeVisible()
-  await expect(incompleteStep(page, "GitHub integration")).toBeVisible()
-
+  // The checklist opened with a "How do you work?" step that set an
+  // instance-wide mode; it went away with Simple Mode, so the golden path
+  // now starts at GitHub integration.
   advanceOnboardingFixture("github")
   await page.goto("/onboarding")
   await expect(completedStep(page, "GitHub integration")).toBeVisible()
@@ -82,6 +76,17 @@ function checklistStep(page: Page, title: string): Locator {
 function skipWhenRemote() {
   test.skip(!!process.env.E2E_BASE_URL, "Onboarding E2E advances local preview fixture data.")
 }
+
+// The "github" step registers a GitHub App in AppSetting, which is
+// instance-wide: left behind, repository-management.spec.ts stops seeing the
+// unregistered state it asserts. Put it back when this file is done.
+test.afterAll(() => {
+  if (process.env.E2E_BASE_URL) return
+
+  execFileSync("bin/rails", ["runner", `
+    AppSetting.current.update!(github_app_id: nil, github_app_slug: nil, github_app_registered_at: nil)
+  `], { env: process.env, stdio: "inherit" })
+})
 
 function advanceOnboardingFixture(step: "github" | "agent" | "repository" | "epic") {
   if (process.env.E2E_BASE_URL) {

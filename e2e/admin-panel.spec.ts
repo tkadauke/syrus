@@ -12,6 +12,19 @@ type AdminPanelFixture = {
   stuckRunLabel: string
 }
 
+// This spec registers a SolidQueue worker process. Left behind, the system
+// readiness check "No Solid Queue worker processes are registered" starts
+// passing, and e2e/dashboard.spec.ts -- which asserts that panel for a user
+// who has not finished setup -- fails depending on which file ran first.
+let createdFixture: (AdminPanelFixture & { stuckDetail: string }) | null = null
+
+test.afterAll(() => {
+  if (!createdFixture) return
+
+  runRailsScript(adminPanelCleanupScript(createdFixture))
+  createdFixture = null
+})
+
 test("admin renders queue, stuck jobs, plugin registry, and process inventory", async ({ page }) => {
   skipWhenRemote()
   const fixture = createAdminPanelFixtures()
@@ -32,7 +45,11 @@ test("admin renders queue, stuck jobs, plugin registry, and process inventory", 
   const stuckRow = page.getByRole("row")
     .filter({ hasText: fixture.stuckRunLabel })
     .filter({ hasText: fixture.stuckKind })
-  await expect(stuckRow).toContainText("Operator needed")
+  // "Auto repairable", not "Operator needed": the fixture's run is stale with
+  // no live worker and is safely fail-able, so the reconciler can repair it on
+  // its own. The detail says "no automatic retry path", which is a different
+  // thing -- the work will not be retried, but failing the Run is automatic.
+  await expect(stuckRow).toContainText("Auto repairable")
   await expect(stuckRow).toContainText(fixture.stuckKind)
   await expect(stuckRow).toContainText("without enough evidence of a live worker")
 
@@ -91,7 +108,16 @@ function createAdminPanelFixtures(): AdminPanelFixture {
     stuckKind: "running_run_without_live_worker_evidence"
   }
 
-  const output = execFileSync("bin/rails", ["runner", adminPanelFixtureScript(fixture)], {
+  const output = runRailsScript(adminPanelFixtureScript(fixture))
+  const metadata = JSON.parse(output.trim().split(/\r?\n/).at(-1) || "{}") as { stuckRunId: number }
+
+  const created = { ...fixture, stuckRunLabel: `Run #${metadata.stuckRunId}` }
+  createdFixture = created
+  return created
+}
+
+function runRailsScript(script: string): string {
+  return execFileSync("bin/rails", ["runner", script], {
     encoding: "utf8",
     env: {
       ...process.env,
@@ -100,9 +126,15 @@ function createAdminPanelFixtures(): AdminPanelFixture {
     },
     stdio: ["ignore", "pipe", "inherit"]
   })
-  const metadata = JSON.parse(output.trim().split(/\r?\n/).at(-1) || "{}") as { stuckRunId: number }
+}
 
-  return { ...fixture, stuckRunLabel: `Run #${metadata.stuckRunId}` }
+function adminPanelCleanupScript(fixture: AdminPanelFixture & { stuckDetail: string }): string {
+  return `
+    SolidQueue::Process.where(hostname: ${JSON.stringify(fixture.processHost)}).find_each(&:destroy)
+    SolidQueue::Job.where(class_name: ${JSON.stringify(fixture.queueClass)}).find_each(&:destroy)
+    SpawnedProcess.where(hostname: ${JSON.stringify(fixture.processHost)}).find_each(&:destroy)
+    Job.where(issue_title: ${JSON.stringify(fixture.stuckDetail)}).find_each(&:destroy)
+  `
 }
 
 function adminPanelFixtureScript(fixture: Omit<AdminPanelFixture, "stuckRunLabel"> & { stuckDetail: string }): string {

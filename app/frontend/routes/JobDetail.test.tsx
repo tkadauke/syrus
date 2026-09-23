@@ -19,7 +19,7 @@ import { readJobNavigationContext, storeJobNavigationContext, type JobNavigation
 // header's "..." overflow menu (only the single most important action stays
 // on the header itself), so exercising them means opening the menu first.
 function openOverflowMenu() {
-  fireEvent.click(screen.getByRole("button", { name: "⋯" }))
+  fireEvent.click(screen.getByRole("button", { name: "More actions" }))
 }
 
 function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
@@ -644,6 +644,14 @@ describe("JobDetailView", () => {
     expect(screen.getByText("92.4%")).toBeInTheDocument()
   })
 
+  // The trigger renders as a bare "⋯" glyph, which is no accessible name at
+  // all for a screen reader (or a test) to go on.
+  it("gives the overflow menu trigger an accessible name", () => {
+    renderJobDetail(jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } }))
+
+    expect(screen.getByRole("button", { name: "More actions" })).toHaveAttribute("aria-haspopup", "menu")
+  })
+
   it.each(["implemented", "failed"])("renders the Give feedback action in the overflow menu for %s jobs", (state) => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state, summary_state: state }
@@ -736,7 +744,7 @@ describe("JobDetailView", () => {
 
   it("opens the overflow menu right-aligned to the button, portaled to the document body, when it fits within the viewport", () => {
     renderJobDetail(jobPayload())
-    const menuButton = screen.getByRole("button", { name: "⋯" })
+    const menuButton = screen.getByRole("button", { name: "More actions" })
 
     vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
       right: 300, left: 260, top: 0, bottom: 36, width: 40, height: 36, x: 260, y: 0, toJSON: () => ({})
@@ -753,7 +761,7 @@ describe("JobDetailView", () => {
 
   it("opens the overflow menu left-aligned to the button when right-aligning would clip off the viewport", () => {
     renderJobDetail(jobPayload())
-    const menuButton = screen.getByRole("button", { name: "⋯" })
+    const menuButton = screen.getByRole("button", { name: "More actions" })
 
     vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
       right: 100, left: 60, top: 0, bottom: 36, width: 40, height: 36, x: 60, y: 0, toJSON: () => ({})
@@ -768,7 +776,7 @@ describe("JobDetailView", () => {
 
   it("dismisses the overflow menu on outside click, Escape, and re-toggling its own button", () => {
     renderJobDetail(jobPayload())
-    const menuButton = screen.getByRole("button", { name: "⋯" })
+    const menuButton = screen.getByRole("button", { name: "More actions" })
     vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
       right: 300, left: 260, top: 0, bottom: 36, width: 40, height: 36, x: 260, y: 0, toJSON: () => ({})
     } as DOMRect)
@@ -800,7 +808,7 @@ describe("JobDetailView", () => {
     const sidebarSection = sidebarHeading.closest("section") as HTMLElement
     expect(sidebarSection).toBeInTheDocument()
 
-    const menuButton = screen.getByRole("button", { name: "⋯" })
+    const menuButton = screen.getByRole("button", { name: "More actions" })
     vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
       right: 300, left: 260, top: 0, bottom: 36, width: 40, height: 36, x: 260, y: 0, toJSON: () => ({})
     } as DOMRect)
@@ -1088,7 +1096,7 @@ describe("JobDetailView", () => {
       actions: { ...jobPayload().actions, can_open_in_coding_mode: true }
     }), { showLocation: true })
 
-    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
     fireEvent.click(screen.getByRole("menuitem", { name: "Open in Coding Mode" }))
 
     await waitFor(() => {
@@ -1284,7 +1292,7 @@ describe("JobDetailView", () => {
     })
 
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
     fireEvent.click(screen.getByRole("menuitem", { name: "Remove from backlog" }))
 
     await waitFor(() => {
@@ -3024,7 +3032,7 @@ describe("Job detail navigation", () => {
       initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
     })
 
-    const overflowMenuButton = screen.getByRole("button", { name: "⋯" })
+    const overflowMenuButton = screen.getByRole("button", { name: "More actions" })
     const jumpButton = screen.getByRole("button", { name: "Jump to Job" })
 
     expect(overflowMenuButton.compareDocumentPosition(jumpButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
