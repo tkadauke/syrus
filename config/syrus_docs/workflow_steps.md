@@ -921,9 +921,14 @@ architecture or commit-history judgments are not sufficient.
 Autonomous rebase dispatch is guarded against retry storms. After three
 consecutive failed `agent_rebase` / `stack_agent_rebase` attempts for the same
 Job and unchanged PR head/base SHA pair, the pollers pause redispatch for
-`AppSetting.rebase_failure_cooldown_minutes`. The block is time-boxed:
-successful rebases, PR head/base changes, cooldown expiry, or an explicit
-operator rebase can allow another attempt.
+`AppSetting.rebase_failure_cooldown_minutes`. The block is normally
+time-boxed: successful rebases, PR head/base changes, cooldown expiry, or an
+explicit operator rebase can allow another attempt. But when the most recent
+matching failure was classified non-retryable by `RunFailureClassifier` (e.g.
+a missing or invalid agent provider credential), nothing about the next
+attempt would differ from the last one, so the block does **not** expire with
+the cooldown timer — only a PR head/base change or an explicit operator
+rebase lifts it. See `RebaseAttemptGuard.permanently_blocked_by?`.
 
 ### force_push
 

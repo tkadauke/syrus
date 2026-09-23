@@ -2,13 +2,14 @@ class RebaseAttemptGuard
   extend RebaseResultLookup
 
   ATTEMPT_CAP = 3
-  BLOCK_REASON = "rebase retry cooldown active; manual rebase, PR update, or cooldown expiry required".freeze
+  BLOCK_REASON = "rebase retry blocked after repeated failures; manual rebase or a PR update is required (cooldown expiry alone won't help if the failure wasn't transient)".freeze
   AGENT_REBASE_STEPS = %w[ agent_rebase stack_agent_rebase ].freeze
   MEMORY_WRITE_RETRY_STORM_THRESHOLD = 2
 
   def self.cap_reached?(job, pr: nil)
-    return true if permanently_blocked?(job, pr: pr)
-    return false unless consecutive_failures(job, pr: pr) >= ATTEMPT_CAP
+    workflows = consecutive_failed_agent_rebase_workflows(job, pr: pr)
+    return true if permanently_blocked_by?(workflows)
+    return false unless workflows.size >= ATTEMPT_CAP
 
     cooldown = AppSetting.rebase_failure_cooldown_minutes.minutes
     return false unless cooldown.positive?
@@ -17,7 +18,7 @@ class RebaseAttemptGuard
   end
 
   def self.cooling_down?(job, pr: nil)
-    return true if permanently_blocked?(job, pr: pr)
+    return true if permanently_blocked_by?(consecutive_failed_agent_rebase_workflows(job, pr: pr))
 
     cooldown = AppSetting.rebase_failure_cooldown_minutes.minutes
     return false unless cooldown.positive?
@@ -34,27 +35,13 @@ class RebaseAttemptGuard
   # same way, forever, at the cooldown cadence. Block indefinitely on the
   # same PR head/base instead; `matches_pr?` already lifts the block the
   # moment the PR actually changes (a new push, a rebased base).
-  def self.permanently_blocked?(job, pr: nil)
-    workflow = latest_failed_agent_rebase_workflow(job, pr: pr)
-    return false unless workflow
+  def self.permanently_blocked_by?(consecutive_workflows)
+    latest = consecutive_workflows.first
+    return false unless latest
 
-    latest_failed_agent_rebase_run(workflow)&.run_failure_classification&.retryable == false
+    latest_failed_agent_rebase_run(latest)&.run_failure_classification&.retryable == false
   end
-  private_class_method :permanently_blocked?
-
-  def self.latest_failed_agent_rebase_workflow(job, pr:)
-    job.workflows.where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS).reorder(id: :desc).each do |workflow|
-      break if workflow.succeeded?
-      next unless workflow.failed?
-
-      break if pr && !matches_pr?(workflow, job, pr)
-      break unless failed_in_agent_rebase?(workflow)
-
-      return workflow
-    end
-    nil
-  end
-  private_class_method :latest_failed_agent_rebase_workflow
+  private_class_method :permanently_blocked_by?
 
   def self.latest_failed_agent_rebase_run(workflow)
     workflow.steps
@@ -72,7 +59,17 @@ class RebaseAttemptGuard
   end
 
   def self.consecutive_failures(job, pr: nil)
-    consecutive = 0
+    consecutive_failed_agent_rebase_workflows(job, pr: pr).size
+  end
+
+  # Shared scan behind `consecutive_failures` and `permanently_blocked_by?`:
+  # the most recent run of failed agent-rebase workflows for this Job (and,
+  # when `pr:` is given, matching its current head/base), most-recent first.
+  # Walks back from the latest workflow and stops at the first success, the
+  # first workflow that didn't fail in the agent-rebase step, or the first
+  # one that no longer matches the PR.
+  def self.consecutive_failed_agent_rebase_workflows(job, pr: nil)
+    workflows = []
     job.workflows.where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS).reorder(id: :desc).each do |workflow|
       break if workflow.succeeded?
       next unless workflow.failed?
@@ -80,10 +77,11 @@ class RebaseAttemptGuard
       break if pr && !matches_pr?(workflow, job, pr)
       break unless failed_in_agent_rebase?(workflow)
 
-      consecutive += 1
+      workflows << workflow
     end
-    consecutive
+    workflows
   end
+  private_class_method :consecutive_failed_agent_rebase_workflows
 
   def self.branch_for(workflow, job)
     stack_entry = Array(workflow.artifact(StackRebasePlan::STACK_ARTIFACT)).find do |entry|
