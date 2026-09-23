@@ -65,6 +65,21 @@ class CodexInvocation
   end
 
   class StartupTiming
+    # Stages that are genuinely filesystem/config-bound "chat startup" work.
+    # Deliberately excludes process_spawn (ProcessRunner instruments that
+    # uniformly across providers -- see
+    # ProcessRunner#record_chat_process_spawn_latency! -- so bridging it here
+    # too would double-count the same stage) and the post-spawn provider
+    # round-trip markers (first_agent_event, mcp_startup, first_agent_message,
+    # usage_probe), which measure waiting on the model or a network API, not
+    # local storage -- folding those into "chat_startup.*" would blur exactly
+    # the provider-vs-storage-latency distinction this instrumentation exists
+    # to draw.
+    CHAT_STARTUP_STAGES = %w[
+      codex_home_prepare config_write transcript_restore
+      auth_refresh_lock auth_prepare auth_persist
+    ].freeze
+
     def initialize(source:, sink: nil, clock: -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) })
       @source = source
       @sink = sink || ->(event) { Rails.logger.info("[codex startup] #{event}") }
@@ -88,8 +103,28 @@ class CodexInvocation
       elapsed_ms = ((now - started_at) * 1000).round(1)
       fields = { source: @source, stage: stage, elapsed_ms: elapsed_ms }.merge(metadata).compact
       @sink.call(fields.map { |key, value| "#{key}=#{value.inspect}" }.join(" "))
+      report_chat_startup_phase(stage, elapsed_ms, metadata)
     rescue StandardError => e
       Rails.logger.warn("[codex startup] timing sink failed: #{e.class}: #{e.message}")
+    end
+
+    private
+
+    # Only chat-scoped timers (source: "codex_chat", see
+    # ChatProviders::Codex#invoke) feed production observability under the
+    # shared "chat_startup.*" phase namespace -- the default workflow-side
+    # timer (source: "codex") keeps logging to Rails.logger only, unchanged.
+    def report_chat_startup_phase(stage, elapsed_ms, metadata)
+      return unless @source == "codex_chat"
+      return unless CHAT_STARTUP_STAGES.include?(stage.to_s)
+
+      chat_session = Thread.current[:syrus_current_chat_session]
+      PerformanceLogging.report_duration(
+        "chat_startup.#{stage}",
+        elapsed_ms,
+        metadata: { provider: "codex", chat_session_id: chat_session&.id }.merge(metadata).compact,
+        capture_host_pressure: true
+      )
     end
   end
 

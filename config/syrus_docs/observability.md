@@ -221,6 +221,42 @@ groups `grouped_browser_traces` by `[name, path]`, or filter
 `PerformanceLogEvent.where(event_name: PerformanceLogging::BROWSER_TRACE_EVENT,
 name: "diff_review.parse_diff")` directly.
 
+### Chat startup latency (`chat_startup.*` phases)
+
+The filesystem-dependent stages that run before a chat turn's agent process
+actually starts working -- workspace/agent-home creation, the per-turn MCP
+config write, provider session/transcript restore, and process spawn -- are
+each wrapped in `PerformanceLogging.phase`/`.report_duration` under the
+`chat_startup.<stage>` phase namespace, so they land in the same
+`performance_log_events` stream (`event_name: "syrus.performance.slow_phase"`)
+as every other phase, gated by the same `slow_phase_threshold_ms` (default
+250ms) and the `performance_logging` feature. Stages: `workspace_ensure`
+(`ChatWorkspace#ensure_root!`), `mcp_config_write` (`ChatTurnJob#with_chat_mcp_config`'s
+tempfile write), `session_restore` (`ChatProviders::Claude#ensure_provider_session_on_disk!`;
+for Codex, `codex_home_prepare`/`config_write`/`transcript_restore`/
+`auth_refresh_lock`/`auth_prepare`/`auth_persist` from `CodexInvocation::StartupTiming`,
+see `codex_agent.md`), and `process_spawn` (`ProcessRunner`, shared by both
+providers, gated on a `chat_session` being attributed to the spawn so
+workflow/grader spawns are unaffected).
+
+Each of these phases opts into `capture_host_pressure: true`, so a slow
+stage's `metadata` additionally carries `io_pressure_some`/`io_pressure_full`
+(from `/proc/pressure/io`, "some"/"full" `avg10`) and
+`data_root_used_percent`/`data_root_filesystem`/`data_root_mounted_on` (from
+`WorkerHostHealthSampler.io_pressure_snapshot`, a lightweight on-demand
+snapshot -- it skips the periodic sampler's blocking CPU-delta read and
+doesn't persist a `WorkerHostHealthSample` row). That snapshot is only taken
+when the phase actually crossed the threshold, so a normal-speed turn never
+pays for a `/proc` read. Deliberately excluded from `chat_startup.*`:
+first-agent-event/MCP-startup/usage-probe markers, which measure waiting on
+the provider or a network call rather than local storage -- folding those in
+would blur the provider-vs-storage-latency distinction this instrumentation
+exists to draw. Database latency for a given stage is visible the normal way,
+via that phase event's `sql_count`/`sql_duration_ms` fields (from `phase`;
+`report_duration` calls -- used where a stage's timer is external to a
+`phase` block, e.g. Codex's own stage timer -- don't carry SQL counts since
+there's no block to instrument).
+
 `operational_log_events` contain structured process/request/job logs. They
 retain 6 hours and can be indexed for full-text search when
 `operational_log_indexing` is enabled.

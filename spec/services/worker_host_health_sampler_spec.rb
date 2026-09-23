@@ -88,6 +88,44 @@ RSpec.describe WorkerHostHealthSampler do
     end
   end
 
+  describe ".io_pressure_snapshot" do
+    it "returns IO pressure and data-root filesystem context" do
+      allow(File).to receive(:read).with("/proc/pressure/io").and_return(<<~PRESSURE)
+        some avg10=1.23 avg60=0.50 avg300=0.10 total=12345
+        full avg10=0.07 avg60=0.03 avg300=0.01 total=456
+      PRESSURE
+      snapshot = DataRootDiskUsage::Snapshot.new(
+        path: "/data", filesystem: "/dev/pvc", total_bytes: 100.gigabytes,
+        used_bytes: 60.gigabytes, available_bytes: 40.gigabytes, used_percent: 60,
+        mounted_on: "/data", observed_at: Time.current
+      )
+      allow(DataRootDiskUsage).to receive(:read).and_return(snapshot)
+
+      expect(described_class.io_pressure_snapshot).to eq(
+        io_pressure_some: 1.23,
+        io_pressure_full: 0.07,
+        data_root_used_percent: 60,
+        data_root_filesystem: "/dev/pvc",
+        data_root_mounted_on: "/data"
+      )
+    end
+
+    it "omits fields it could not read instead of raising" do
+      allow(File).to receive(:read).with("/proc/pressure/io").and_raise(Errno::ENOENT)
+      allow(DataRootDiskUsage).to receive(:read).and_return(nil)
+
+      expect(described_class.io_pressure_snapshot).to eq({})
+    end
+
+    it "does not block on the CPU-delta sample .sample takes" do
+      allow(File).to receive(:read).and_raise(Errno::ENOENT)
+      allow(DataRootDiskUsage).to receive(:read).and_return(nil)
+      expect(described_class).not_to receive(:sleep)
+
+      described_class.io_pressure_snapshot
+    end
+  end
+
   describe ".record!" do
     it "persists one sample row for each worker host observation" do
       allow(described_class).to receive(:sample).and_return(

@@ -78,6 +78,27 @@ class WorkerHostHealthSampler
       CpuSnapshot.new(idle: idle, total: values.sum)
     end
 
+    # Lightweight, on-demand IO-pressure + filesystem context snapshot for
+    # correlating a single slow operation (see PerformanceLogging's
+    # `capture_host_pressure:`) with local storage stalls. Unlike `sample`,
+    # this skips the blocking 50ms CPU-delta read and doesn't persist a
+    # WorkerHostHealthSample row -- callers just want a few bucketed fields
+    # to attach to an already-emitted slow-phase event.
+    def io_pressure_snapshot
+      pressure = read_pressure("/proc/pressure/io")
+      data_root = data_root_metrics
+      {
+        io_pressure_some: pressure[:some],
+        io_pressure_full: pressure[:full],
+        data_root_used_percent: data_root&.used_percent,
+        data_root_filesystem: data_root&.filesystem,
+        data_root_mounted_on: data_root&.mounted_on
+      }.compact
+    rescue StandardError => e
+      Rails.logger.debug { "[WorkerHostHealthSampler] io pressure snapshot failed: #{e.class}: #{e.message}" }
+      {}
+    end
+
     private
 
     def cpu_used_percent
