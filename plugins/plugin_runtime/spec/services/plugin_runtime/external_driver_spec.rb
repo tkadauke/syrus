@@ -17,6 +17,16 @@ RSpec.describe PluginRuntime::ExternalDriver do
   end
   let(:entry) { PluginRuntime::DesiredServices::Entry.new(name: "git-mirror", plugin: "git_mirror", provider: provider) }
 
+  let(:privileged_provider) do
+    Class.new do
+      def self.privileged_service_name = "tailscale"
+      def self.privileged_env = { "TS_AUTHKEY" => "tskey-abc" }
+    end
+  end
+  let(:privileged_entry) do
+    PluginRuntime::DesiredPrivilegedServices::Entry.new(name: "tailscale", plugin: "tailscale", provider: privileged_provider)
+  end
+
   def driver(env, probe: ->(_url) { nil })
     described_class.new(configuration: PluginRuntime::Configuration.new(env), probe: probe)
   end
@@ -53,5 +63,24 @@ RSpec.describe PluginRuntime::ExternalDriver do
     status = PluginRuntime::StatusCache.read("git-mirror")
     expect(status.state).to eq("unhealthy")
     expect(status).not_to be_available
+  end
+
+  it "does not mark a generic service as privileged" do
+    driver({ "SYRUS_PLUGIN_SERVICE_GIT_MIRROR_URL" => "http://git-mirror.syrus:8080" }).reconcile([ entry ])
+
+    expect(PluginRuntime::StatusCache.read("git-mirror").privileged).to eq(false)
+  end
+
+  # An operator running Tailscale as their own Kubernetes workload still needs
+  # to see the "Privileged" badge -- that is precisely the deployment mode
+  # where knowing a self-managed container carries NET_ADMIN/NET_RAW matters
+  # most, since Syrus never created it and cannot vouch for its grants.
+  it "marks a service passed through reconcile's privileged: list as privileged, whatever state it is in" do
+    driver({}).reconcile([], privileged: [ privileged_entry ])
+    expect(PluginRuntime::StatusCache.read("tailscale").privileged).to eq(true)
+
+    driver({ "SYRUS_PLUGIN_SERVICE_TAILSCALE_URL" => "http://tailscale.syrus:8080" })
+      .reconcile([], privileged: [ privileged_entry ])
+    expect(PluginRuntime::StatusCache.read("tailscale").privileged).to eq(true)
   end
 end
