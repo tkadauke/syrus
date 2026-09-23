@@ -70,4 +70,68 @@ RSpec.describe PollAllMergeStatesJob do
   ensure
     AppSetting.current.update!(polling_paused: false)
   end
+
+  describe "merge-state polling cadence" do
+    # Anchored relative to the real `Time.current` captured *before*
+    # `travel_to` -- unlike an epoch-zero anchor, this keeps the
+    # travelled-to instant close enough to "now" (within a few rotation
+    # ticks) that a `2.hours.ago` `updated_at` recorded before travelling
+    # still reads as stale once we jump to it.
+    def slot_time_for(job, aligned:)
+      slots = [ GithubPollingBudget.send(:interval_for, :merge_state).to_i / GithubPollingBudget::BASE_TICK_SECONDS, 1 ].max
+      base_tick = Time.current.to_i / GithubPollingBudget::BASE_TICK_SECONDS
+      target = job.id % slots
+      target = (target + 1) % slots unless aligned
+      delta = (target - (base_tick % slots)) % slots
+      Time.at((base_tick + delta) * GithubPollingBudget::BASE_TICK_SECONDS)
+    end
+
+    it "does not fan out to a stale running Job outside its low-frequency merge-state rotation slot" do
+      stale_running = Factories.job(pr_number: 21, branch_name: "syrus/issue-21-1")
+      stale_running.update_columns(state: "running", updated_at: 2.hours.ago)
+      travel_target = slot_time_for(stale_running, aligned: false)
+
+      travel_to(travel_target) do
+        expect {
+          described_class.perform_now
+        }.not_to have_enqueued_job(PollMergeStateJob).with(stale_running.id)
+      end
+    end
+
+    it "eventually fans out to a stale running Job once its low-frequency rotation slot comes up" do
+      stale_running = Factories.job(pr_number: 23, branch_name: "syrus/issue-23-1")
+      stale_running.update_columns(state: "running", updated_at: 2.hours.ago)
+      travel_target = slot_time_for(stale_running, aligned: true)
+
+      travel_to(travel_target) do
+        expect {
+          described_class.perform_now
+        }.to have_enqueued_job(PollMergeStateJob).with(stale_running.id)
+      end
+    end
+
+    it "still fans out to a stale approved Job (landing-relevant) regardless of rotation slot" do
+      stale_approved = Factories.job(pr_number: 22, branch_name: "syrus/issue-22-1")
+      stale_approved.update_columns(state: "approved", updated_at: 2.hours.ago, approved_at: 2.hours.ago)
+      travel_target = slot_time_for(stale_approved, aligned: false)
+
+      travel_to(travel_target) do
+        expect {
+          described_class.perform_now
+        }.to have_enqueued_job(PollMergeStateJob).with(stale_approved.id)
+      end
+    end
+
+    it "fans out to a recently updated non-landing Job via the change-triggered fast path" do
+      recently_failed = Factories.job(pr_number: 24, branch_name: "syrus/issue-24-1")
+      recently_failed.update_columns(state: "failed", updated_at: 5.minutes.ago)
+      travel_target = slot_time_for(recently_failed, aligned: false)
+
+      travel_to(travel_target) do
+        expect {
+          described_class.perform_now
+        }.to have_enqueued_job(PollMergeStateJob).with(recently_failed.id)
+      end
+    end
+  end
 end
