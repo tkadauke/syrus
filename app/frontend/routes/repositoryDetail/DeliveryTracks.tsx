@@ -16,7 +16,8 @@ import type { RepositoryDeliveryPayload, RepositoryDeliveryPrIngestion, Reposito
 // Shared rendering for this file's three delivery-detail tables (tracks, ref
 // movements, PR ingestions): a column menu next to the section heading plus
 // DataTableColumnHeaderRow/Cells wired to a per-table localStorage
-// preference, mirroring Repositories.tsx and AdminQueue's QueueColumnTable.
+// preference, mirroring Repositories.tsx's direct use of the same
+// DataTableColumnMenu/DataTableColumnHeaderRow/DataTableColumnCells trio.
 function DeliveryColumnTable<Row>({ columns, getRowKey, rows, storageKey, t }: { columns: DataTableColumnDef<Row>[]; getRowKey: (row: Row) => string | number; rows: Row[]; storageKey: string; t: (key: string, options?: Record<string, unknown>) => string }) {
   const preferences = useLocalStorageColumnPreferences({ columns, storageKey })
 
