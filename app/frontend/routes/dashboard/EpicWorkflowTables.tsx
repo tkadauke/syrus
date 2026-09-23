@@ -9,6 +9,7 @@ import { useT } from "../../hooks/useT"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { Checkbox } from "../../components/Checkbox"
 import { DataTable } from "../../components/ui"
+import { useOrderedColumns } from "./useOrderedColumns"
 import { NoticeToast } from "../../components/NoticeToast"
 import { StatusPill } from "../../components/StatusPill"
 import { bulkDashboardEpics, type DashboardBulkEpicAction, type DashboardEpicItem, type DashboardWorkflowItem } from "../../api/dashboard"
@@ -19,13 +20,27 @@ import { errorMessage } from "../../lib/errorMessage"
 // WorkflowsTable with their bulk actions, mobile lists, and per-row cells.
 // Entry points rendered by the table view. Depends only on leaf modules.
 
-export function EpicsTable({ items, columns, prefix, sortState }: { items: DashboardEpicItem[]; columns: string[]; prefix: string; sortState: DashboardSortState }) {
+// Unlike jobs (whose required set varies with landing-queue/blocked-folder
+// smart folders), epics and workflows always require the same columns --
+// see User::DASHBOARD_REQUIRED_COLUMNS plus epicTableColumns' unconditional
+// checkbox prepend -- so these stay static here rather than threading
+// `controls` down from Dashboard.tsx just for this.
+const EPIC_REQUIRED_COLUMNS = [ "checkbox", "epic" ]
+const WORKFLOW_REQUIRED_COLUMNS = [ "workflow", "job" ]
+
+export function EpicsTable({ columns, items, onReorderColumns, prefix, reorderPending, sortState }: { columns: string[]; items: DashboardEpicItem[]; onReorderColumns?: (nextOrder: string[]) => void; prefix: string; reorderPending?: boolean; sortState: DashboardSortState }) {
   const { t } = useT("dashboard")
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const visibleIds = useMemo(() => items.map((item) => item.id), [items])
   const selectedArray = useMemo(() => Array.from(selectedIds), [selectedIds])
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const { dragOverKey, dragProps, draggable, orderedColumns } = useOrderedColumns({
+    columns,
+    onReorderColumns,
+    reorderPending,
+    requiredColumns: EPIC_REQUIRED_COLUMNS
+  })
 
   useEffect(() => {
     setSelectedIds((current) => {
@@ -58,8 +73,14 @@ export function EpicsTable({ items, columns, prefix, sortState }: { items: Dashb
         <DataTable.Root>
           <DataTable.Header>
               <DataTable.Row>
-                {columns.map((column) => (
-                  <DataTable.HeadCell aria-sort={columnAriaSort("epic", column, sortState)} checkbox={column === "checkbox"} key={column}>
+                {orderedColumns.map((column) => (
+                  <DataTable.HeadCell
+                    aria-sort={columnAriaSort("epic", column, sortState)}
+                    checkbox={column === "checkbox"}
+                    className={dragOverKey === column ? "outline outline-2 -outline-offset-2 outline-brand" : undefined}
+                    key={column}
+                    {...(draggable(column) ? dragProps(column) : {})}
+                  >
                     {column === "checkbox" ? <Checkbox aria-label={t("select_all_epics")} checked={allSelected} onChange={toggleAll} /> : <SortableColumnHeader column={column} sortState={sortState} subject="epic" />}
                   </DataTable.HeadCell>
                 ))}
@@ -68,7 +89,7 @@ export function EpicsTable({ items, columns, prefix, sortState }: { items: Dashb
             <DataTable.Body>
               {items.map((epic) => (
                 <DataTable.Row key={epic.id}>
-                  {columns.map((column) => <EpicCell column={column} epic={epic} key={column} onToggleOne={toggleOne} prefix={prefix} selected={selectedIds.has(epic.id)} />)}
+                  {orderedColumns.map((column) => <EpicCell column={column} epic={epic} key={column} onToggleOne={toggleOne} prefix={prefix} selected={selectedIds.has(epic.id)} />)}
                 </DataTable.Row>
               ))}
             </DataTable.Body>
@@ -205,8 +226,14 @@ function epicProgressVisible(epic: DashboardEpicItem) {
   return epic.state === "in_progress" && epic.jobs_count > 0
 }
 
-export function WorkflowsTable({ items, columns, prefix, sortState }: { items: DashboardWorkflowItem[]; columns: string[]; prefix: string; sortState: DashboardSortState }) {
+export function WorkflowsTable({ columns, items, onReorderColumns, prefix, reorderPending, sortState }: { columns: string[]; items: DashboardWorkflowItem[]; onReorderColumns?: (nextOrder: string[]) => void; prefix: string; reorderPending?: boolean; sortState: DashboardSortState }) {
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const { dragOverKey, dragProps, draggable, orderedColumns } = useOrderedColumns({
+    columns,
+    onReorderColumns,
+    reorderPending,
+    requiredColumns: WORKFLOW_REQUIRED_COLUMNS
+  })
 
   if (!isDesktop) return <MobileWorkflowsList items={items} prefix={prefix} />
 
@@ -214,13 +241,22 @@ export function WorkflowsTable({ items, columns, prefix, sortState }: { items: D
     <DataTable.Root>
       <DataTable.Header>
           <DataTable.Row>
-            {columns.map((column) => <DataTable.HeadCell aria-sort={columnAriaSort("workflow", column, sortState)} key={column}><SortableColumnHeader column={column} sortState={sortState} subject="workflow" /></DataTable.HeadCell>)}
+            {orderedColumns.map((column) => (
+              <DataTable.HeadCell
+                aria-sort={columnAriaSort("workflow", column, sortState)}
+                className={dragOverKey === column ? "outline outline-2 -outline-offset-2 outline-brand" : undefined}
+                key={column}
+                {...(draggable(column) ? dragProps(column) : {})}
+              >
+                <SortableColumnHeader column={column} sortState={sortState} subject="workflow" />
+              </DataTable.HeadCell>
+            ))}
           </DataTable.Row>
         </DataTable.Header>
         <DataTable.Body>
           {items.map((workflow) => (
             <DataTable.Row key={workflow.id}>
-              {columns.map((column) => <WorkflowCell column={column} key={column} prefix={prefix} workflow={workflow} />)}
+              {orderedColumns.map((column) => <WorkflowCell column={column} key={column} prefix={prefix} workflow={workflow} />)}
             </DataTable.Row>
           ))}
         </DataTable.Body>

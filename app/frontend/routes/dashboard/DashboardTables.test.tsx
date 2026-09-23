@@ -31,6 +31,28 @@ const controls = {
   filter_suggestions: []
 } satisfies DashboardPayload["controls"]
 
+// A jobs `controls` fixture with a real required/optional split, for the
+// column drag-reorder tests below -- required columns (checkbox, issue)
+// must stay pinned and undraggable regardless of where they sit in the
+// `columns` prop the parent passes.
+const jobControls = {
+  ...controls,
+  columns: {
+    required: [
+      { key: "checkbox", title: "Checkbox" },
+      { key: "issue", title: "Issue" }
+    ],
+    optional: [
+      { key: "state", title: "State" },
+      { key: "repository", title: "Repository" }
+    ]
+  }
+} satisfies DashboardPayload["controls"]
+
+function dataTransfer() {
+  return { dropEffect: "", effectAllowed: "", getData: vi.fn(), setData: vi.fn() }
+}
+
 function renderWithProviders(children: ReactNode) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -442,5 +464,161 @@ describe("job subtitle attention row", () => {
     const rows = attentionRows("Fix widgets")
     expect(rows).toHaveLength(2)
     expect(rows[1]).toHaveTextContent("Manually paused")
+  })
+})
+
+describe("dashboard table header drag reordering", () => {
+  it("reorders job header and body cells together while dragging, and commits once on drop", () => {
+    setDesktop(true)
+    const onReorderColumns = vi.fn()
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["checkbox", "issue", "state", "repository"]}
+        controls={jobControls}
+        items={[job()]}
+        landingQueueEntries={[]}
+        onReorderColumns={onReorderColumns}
+        prefix=""
+        sortState={sortState()}
+        t={(key) => key}
+      />
+    )
+
+    const stateHeader = screen.getByRole("columnheader", { name: /State/ })
+    const repositoryHeader = screen.getByRole("columnheader", { name: /Repository/ })
+    const transfer = dataTransfer()
+
+    fireEvent.dragStart(stateHeader, { dataTransfer: transfer })
+    fireEvent.dragOver(repositoryHeader, { dataTransfer: transfer })
+
+    const headersDuringDrag = screen.getAllByRole("columnheader").map((cell) => cell.textContent)
+    expect(headersDuringDrag).toEqual(["", "Issue↑", "Repository", "State"])
+    expect(onReorderColumns).not.toHaveBeenCalled()
+
+    fireEvent.drop(repositoryHeader, { dataTransfer: transfer })
+    expect(onReorderColumns).toHaveBeenCalledTimes(1)
+    expect(onReorderColumns).toHaveBeenCalledWith(["repository", "state"])
+  })
+
+  it("never attaches drag handlers to a job table's required columns", () => {
+    setDesktop(true)
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["checkbox", "issue", "state"]}
+        controls={jobControls}
+        items={[job()]}
+        landingQueueEntries={[]}
+        onReorderColumns={vi.fn()}
+        prefix=""
+        sortState={sortState()}
+        t={(key) => key}
+      />
+    )
+
+    expect(screen.getByRole("columnheader", { name: /Issue/ })).not.toHaveAttribute("draggable")
+  })
+
+  it("dragging a job header does not trigger a sort, but a plain click still does", () => {
+    setDesktop(true)
+    const onSort = vi.fn()
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["checkbox", "issue", "state"]}
+        controls={jobControls}
+        items={[job()]}
+        landingQueueEntries={[]}
+        onReorderColumns={vi.fn()}
+        prefix=""
+        sortState={sortState({ onSort })}
+        t={(key) => key}
+      />
+    )
+
+    const issueHeader = screen.getByRole("columnheader", { name: /Issue/ })
+    const stateHeader = screen.getByRole("columnheader", { name: /State/ })
+    const transfer = dataTransfer()
+
+    fireEvent.dragStart(stateHeader, { dataTransfer: transfer })
+    fireEvent.dragOver(issueHeader, { dataTransfer: transfer })
+    fireEvent.drop(issueHeader, { dataTransfer: transfer })
+    expect(onSort).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Sort by Issue descending" }))
+    expect(onSort).toHaveBeenCalledWith("issue")
+  })
+
+  it("does not allow dragging when no reorder handler is wired up", () => {
+    setDesktop(true)
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["checkbox", "issue", "state"]}
+        controls={jobControls}
+        items={[job()]}
+        landingQueueEntries={[]}
+        prefix=""
+        sortState={sortState()}
+        t={(key) => key}
+      />
+    )
+
+    expect(screen.getByRole("columnheader", { name: /State/ })).not.toHaveAttribute("draggable")
+  })
+
+  it("reorders epic header and body cells together, keeping checkbox/epic pinned", () => {
+    setDesktop(true)
+    const onReorderColumns = vi.fn()
+
+    renderWithProviders(
+      <EpicsTable
+        columns={["checkbox", "epic", "state", "repository"]}
+        items={[epic()]}
+        onReorderColumns={onReorderColumns}
+        prefix=""
+        sortState={sortState()}
+      />
+    )
+
+    expect(screen.getByRole("columnheader", { name: "Epic" })).not.toHaveAttribute("draggable")
+
+    const stateHeader = screen.getByRole("columnheader", { name: /State/ })
+    const repositoryHeader = screen.getByRole("columnheader", { name: /Repository/ })
+    const transfer = dataTransfer()
+
+    fireEvent.dragStart(stateHeader, { dataTransfer: transfer })
+    fireEvent.dragOver(repositoryHeader, { dataTransfer: transfer })
+    fireEvent.drop(repositoryHeader, { dataTransfer: transfer })
+
+    expect(onReorderColumns).toHaveBeenCalledWith(["repository", "state"])
+  })
+
+  it("reorders workflow header and body cells together", () => {
+    setDesktop(true)
+    const onReorderColumns = vi.fn()
+
+    renderWithProviders(
+      <WorkflowsTable
+        columns={["workflow", "job", "trigger", "agent"]}
+        items={[workflow()]}
+        onReorderColumns={onReorderColumns}
+        prefix=""
+        sortState={sortState()}
+      />
+    )
+
+    expect(screen.getByRole("columnheader", { name: "Workflow" })).not.toHaveAttribute("draggable")
+
+    const triggerHeader = screen.getByRole("columnheader", { name: "Trigger" })
+    const agentHeader = screen.getByRole("columnheader", { name: "Agent" })
+    const transfer = dataTransfer()
+
+    fireEvent.dragStart(triggerHeader, { dataTransfer: transfer })
+    fireEvent.dragOver(agentHeader, { dataTransfer: transfer })
+    fireEvent.drop(agentHeader, { dataTransfer: transfer })
+
+    expect(onReorderColumns).toHaveBeenCalledWith(["agent", "trigger"])
   })
 })
