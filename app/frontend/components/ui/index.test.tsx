@@ -269,6 +269,22 @@ describe("@app/components/ui", () => {
     expect(screen.getByRole("region", { name: "Work attempts" })).toHaveAttribute("data-section-divided", "true")
   })
 
+  it("maps Page.Root size variants to one owned max-width utility", () => {
+    render(
+      <>
+        <Page.Root aria-label="Form page" data-testid="form-page" size="form" />
+        <Page.Root aria-label="Medium page" data-testid="medium-page" size="medium" />
+        <Page.Root aria-label="Large page" data-testid="large-page" size="large" />
+        <Page.Root aria-label="Extra wide page" data-testid="extra-wide-page" size="extra-wide" />
+      </>
+    )
+
+    expect(screen.getByTestId("form-page").className).toContain("max-w-3xl")
+    expect(screen.getByTestId("medium-page").className).toContain("max-w-5xl")
+    expect(screen.getByTestId("large-page").className).toContain("max-w-7xl")
+    expect(screen.getByTestId("extra-wide-page").className).toContain("max-w-[100rem]")
+  })
+
   it("exports DataTable and DescriptionList compound primitives", () => {
     render(
       <>

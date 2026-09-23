@@ -11,6 +11,7 @@ import { ApiError } from "../api/client"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { NoticeToast } from "../components/NoticeToast"
 import { PanelMessage } from "../components/PanelMessage"
+import { Page } from "../components/ui"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 import {
@@ -50,13 +51,13 @@ export function AdminTeamsIndex() {
   })
 
   return (
-    <main aria-label={t("teams.aria_index")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("teams.aria_index")} gutter="responsive" size="wide">
+      <Page.Header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
           <PageHeading className="mt-1">{t("teams.heading")}</PageHeading>
         </div>
-      </header>
+      </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
@@ -76,7 +77,7 @@ export function AdminTeamsIndex() {
           />
         </AdminFiltersLayout>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -161,16 +162,16 @@ export function AdminTeamDetailRoute() {
   })
 
   return (
-    <main aria-label={t("teams.aria_detail")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("teams.aria_detail")} gutter="responsive">
+      <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
         <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to="/admin/teams">{t("teams.heading")}</Link>
         <PageHeading className="mt-2">{team.data?.team.name || `Team #${id}`}</PageHeading>
-      </header>
+      </Page.Header>
 
       {team.isPending ? <PanelMessage>{t("teams.loading_team")}</PanelMessage> : null}
       {team.isError ? <TeamsError error={team.error} /> : null}
       {team.isSuccess ? <TeamDetail payload={team.data} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
