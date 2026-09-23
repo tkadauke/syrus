@@ -36,6 +36,13 @@ export function useDragReorder<TKey extends string>({
   const [ dragOverKey, setDragOverKey ] = useState<TKey | null>(null)
   const dragKeyRef = useRef<TKey | null>(null)
   const liveOrderRef = useRef<TKey[] | null>(null)
+  // Tracks whether `onDragOver` ever produced a genuine reorder during the
+  // current drag gesture -- picking up a row/header and dropping it back
+  // without crossing another item never touches `liveOrderRef` with a new
+  // array, so this flag (rather than an identity check against a `keys`
+  // closure that can go stale across the re-renders a drag triggers) is what
+  // decides whether `onDrop` commits a no-op.
+  const changedRef = useRef(false)
 
   // An external order change while nothing is being dragged (e.g. the
   // persisted preference reloaded) drops any stale live copy.
@@ -46,6 +53,7 @@ export function useDragReorder<TKey extends string>({
   function clear() {
     dragKeyRef.current = null
     liveOrderRef.current = null
+    changedRef.current = false
     setLiveOrder(null)
     setDragOverKey(null)
   }
@@ -58,6 +66,7 @@ export function useDragReorder<TKey extends string>({
       onDragStart: (event: DragEvent<HTMLElement>) => {
         dragKeyRef.current = key
         liveOrderRef.current = keys
+        changedRef.current = false
         event.dataTransfer.effectAllowed = "move"
         event.dataTransfer.setData("text/plain", key)
       },
@@ -75,13 +84,15 @@ export function useDragReorder<TKey extends string>({
         if (next === current) return
 
         liveOrderRef.current = next
+        changedRef.current = true
         setLiveOrder(next)
       },
       onDrop: (event: DragEvent<HTMLElement>) => {
         event.preventDefault()
         const result = liveOrderRef.current
+        const changed = changedRef.current
         clear()
-        if (result) onReorder(result)
+        if (changed && result) onReorder(result)
       },
       onDragEnd: clear
     }
