@@ -14,6 +14,7 @@ module SyrusBrowser
     category "agent_capability"
     default_enabled true
     disableable true
+    optionally_depends_on [ "plugin_runtime" ]
     provides mcp_tool_set: "SyrusBrowser::McpToolSet",
              chat_mcp_tool_set: "SyrusBrowser::ChatToolSet",
              artifact_renderer: "SyrusBrowser::ImageDiffRenderer",
