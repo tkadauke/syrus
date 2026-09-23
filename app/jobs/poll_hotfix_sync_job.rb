@@ -11,9 +11,10 @@ class PollHotfixSyncJob < ApplicationJob
 
   limits_concurrency to: 1, key: ->(repo_id, *) { "poll_hotfix_sync:#{repo_id}" }
 
-  # A relation other than these means `source` has commits `target` lacks --
-  # `:ahead`/`:behind` are from target's point of view, so `source` being
-  # `:ahead` of `target` (or the two having `:diverged`) is what needs a sync.
+  # relation(base: target, head: source): source needs syncing into target
+  # when source has commits target lacks -- source is :ahead of target, or
+  # the two have :diverged (both have commits the other lacks). :identical
+  # and :behind mean target already has everything source does.
   UNSYNCED_RELATIONS = %i[ahead diverged].freeze
 
   def perform(repository_id)

@@ -185,9 +185,11 @@ RSpec.describe GithubHost::ContentProvider do
         .to raise_error(RepositoryContent::Truncated, /250/) { |error| expect(error.partial.commits.map(&:sha)).to eq([ sha ]) }
     end
 
-    it "reports an unknown revision the same way #relation does" do
-      allow(client).to receive(:compare_commits).and_raise(rate_limited)
+    it "reports an unknown revision as UnknownRevision and a rate limit as Unavailable" do
+      allow(client).to receive(:compare_commits).with("acme/widgets", "gone", sha).and_raise(Octokit::NotFound)
+      allow(client).to receive(:compare_commits).with("acme/widgets", "base", sha).and_raise(rate_limited)
 
+      expect { provider.history("gone", sha) }.to raise_error(RepositoryContent::UnknownRevision)
       expect { provider.history("base", sha) }.to raise_error(RepositoryContent::Unavailable)
     end
   end
