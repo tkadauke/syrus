@@ -431,6 +431,90 @@ RSpec.describe CodexInvocation do
           'stage="mcp_startup"',
           'stage="first_agent_message"'
         )
+        mcp_event = events.find { |event| event.include?('stage="mcp_startup"') }
+        expect(mcp_event).to include('status="connected"', 'servers="syrus-chat-sidecar"')
+      end
+    end
+
+    it "does not record MCP startup success from output that arrives before any MCP lifecycle event" do
+      Dir.mktmpdir do |home|
+        events = []
+        timing = described_class::StartupTiming.new(source: "spec", sink: ->(event) { events << event })
+        invocation = described_class.new(
+          "/tmp/wkt",
+          prompt: "P",
+          api_key: "sk-test",
+          codex_home: home,
+          startup_timing: timing,
+          mcp_servers: {
+            "syrus-chat-sidecar" => {
+              command: "/app/bin/syrus-chat-sidecar",
+              args: [],
+              env: {},
+              required: true
+            }
+          }
+        )
+
+        # thread.started arrives first and is unrelated to MCP; the turn
+        # completes without ever exercising the MCP server (no
+        # mcp_tool_call item anywhere in the stream).
+        capture_popen(invocation, lines: [
+          { type: "thread.started", thread_id: "019e-test" },
+          { type: "item.completed", item: { type: "agent_message", text: "done" } },
+          { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 2 } }
+        ])
+
+        first_agent_event = events.find { |event| event.include?('stage="first_agent_event"') }
+        mcp_event = events.find { |event| event.include?('stage="mcp_startup"') }
+
+        expect(first_agent_event).to be_present
+        expect(mcp_event).to be_present
+        expect(mcp_event).not_to include('status="connected"')
+        expect(mcp_event).to include('status="pending"', 'servers="syrus-chat-sidecar"')
+      end
+    end
+
+    it "records MCP startup as failed when the turn errors before any MCP server is ever reached" do
+      Dir.mktmpdir do |home|
+        events = []
+        timing = described_class::StartupTiming.new(source: "spec", sink: ->(event) { events << event })
+        invocation = described_class.new(
+          "/tmp/wkt",
+          prompt: "P",
+          api_key: "sk-test",
+          codex_home: home,
+          startup_timing: timing,
+          mcp_servers: {
+            "syrus-chat-sidecar" => {
+              command: "/app/bin/syrus-chat-sidecar",
+              args: [],
+              env: {},
+              required: true
+            }
+          }
+        )
+
+        capture_popen(invocation, lines: [
+          { type: "thread.started", thread_id: "019e-test" },
+          { type: "turn.failed", error: "mcp server failed to start" }
+        ])
+
+        mcp_event = events.find { |event| event.include?('stage="mcp_startup"') }
+        expect(mcp_event).to include('status="failed"', 'servers="syrus-chat-sidecar"')
+      end
+    end
+
+    it "records MCP startup as missing when no MCP servers are configured" do
+      Dir.mktmpdir do |home|
+        events = []
+        timing = described_class::StartupTiming.new(source: "spec", sink: ->(event) { events << event })
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", codex_home: home, startup_timing: timing)
+
+        capture_popen(invocation)
+
+        mcp_event = events.find { |event| event.include?('stage="mcp_startup"') }
+        expect(mcp_event).to include('status="missing"')
       end
     end
 

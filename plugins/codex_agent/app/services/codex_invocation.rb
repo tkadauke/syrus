@@ -154,20 +154,18 @@ class CodexInvocation
       },
       on_output_line: ->(line) do
         startup_timing.record("first_agent_event", started_at: output_start_requested_at, once: true)
-        if mcp_server_names.any?
-          startup_timing.record(
-            "mcp_startup",
-            started_at: output_start_requested_at,
-            once: true,
-            servers: mcp_server_names.join(",")
-          )
-        end
         update = process_event(line, log_sink)
         if update&.delete(:assistant_text_seen)
           startup_timing.record("first_agent_message", started_at: output_start_requested_at, once: true)
         end
         if update&.delete(:mcp_seen)
-          startup_timing.record("mcp_startup", started_at: output_start_requested_at, once: true, servers: mcp_server_names.join(","))
+          startup_timing.record(
+            "mcp_startup",
+            started_at: output_start_requested_at,
+            once: true,
+            status: "connected",
+            servers: mcp_server_names.join(",")
+          )
         end
         metadata.merge!(update.compact) if update
       end
@@ -178,6 +176,7 @@ class CodexInvocation
       metadata[:final_text] = metadata[:startup_output]
     end
     log_codex_resume_failure(effective_resume_session_id, runner_result, metadata, log_sink)
+    record_mcp_startup_outcome(startup_timing, mcp_server_names, metadata, output_start_requested_at)
 
     # Same cleanup-timeout guard as ClaudeInvocation: if the provider
     # already emitted a successful result, don't fail on cleanup timeouts.
@@ -199,6 +198,28 @@ class CodexInvocation
       output_tokens: metadata[:output_tokens],
       cache_creation_input_tokens: metadata[:cache_creation_input_tokens],
       cache_read_input_tokens: metadata[:cache_read_input_tokens]
+    )
+  end
+
+  # Called once the process has fully exited. `startup_timing.record`'s
+  # `once: true` guard means this is a no-op whenever the in-flight
+  # "connected" event already fired from a real `mcp_tool_call` item — it
+  # only fills in the outcome for a run that never produced that evidence,
+  # so a required-server handshake failure is never misreported as startup
+  # success just because *some* output line arrived first.
+  def record_mcp_startup_outcome(startup_timing, mcp_server_names, metadata, started_at)
+    if mcp_server_names.empty?
+      startup_timing.record("mcp_startup", started_at: started_at, once: true, status: "missing")
+      return
+    end
+
+    status = metadata[:is_error] ? "failed" : "pending"
+    startup_timing.record(
+      "mcp_startup",
+      started_at: started_at,
+      once: true,
+      status: status,
+      servers: mcp_server_names.join(",")
     )
   end
 
