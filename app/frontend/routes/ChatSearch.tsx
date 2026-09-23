@@ -8,6 +8,7 @@ import { fetchChatSearch, fetchChatSearchMessages, type ChatSearchMatch, type Ch
 import { getJson } from "../api/client"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { FilterBar, type FilterLinkBuilder, type FilterOption, type FilterSchemaField } from "../components/FilterBar"
+import { Page } from "../components/ui"
 
 type FilterOptionsPayload = {
   options?: FilterOption[]
@@ -35,21 +36,23 @@ export function ChatSearchRoute() {
   const filterSchema = useMemo(() => chatSearchFilterSchema(filterOptions.data), [filterOptions.data])
 
   return (
-    <main aria-label={t("aria_chat_search")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header>
+    <Page.Root aria-label={t("aria_chat_search")} gutter="responsive" size="wide">
+      <Page.Header>
         <PageHeading>{t('search.heading')}</PageHeading>
-      </header>
+      </Page.Header>
 
-      <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-        <FilterBar
-          buildLink={chatSearchFilterLink}
-          filter={filter}
-          filterSchema={filterSchema}
-          legacyFilterKeys={["repository_id", "epic_id", "job_id"]}
-          pathname={location.pathname}
-          search={location.search}
-        />
-      </section>
+      <Page.Nav>
+        <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+          <FilterBar
+            buildLink={chatSearchFilterLink}
+            filter={filter}
+            filterSchema={filterSchema}
+            legacyFilterKeys={["repository_id", "epic_id", "job_id"]}
+            pathname={location.pathname}
+            search={location.search}
+          />
+        </section>
+      </Page.Nav>
 
       {!hasCriteria ? (
         <PanelMessage>{t('search.empty_prompt')}</PanelMessage>
@@ -60,7 +63,7 @@ export function ChatSearchRoute() {
       ) : (
         <SearchResults payload={results.data} search={search} />
       )}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -297,4 +300,3 @@ function paginationLinkClass() {
 function disabledPaginationClass() {
   return "rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600"
 }
-

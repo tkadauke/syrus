@@ -13,7 +13,7 @@ import { ApiError } from "../api/client"
 import { Button } from "../components/Button"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
-import { DataTable } from "../components/ui"
+import { DataTable, Page } from "../components/ui"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -33,19 +33,19 @@ export function AdminInstallations() {
   })
 
   return (
-    <main aria-label={t("aria_installations")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("aria_installations")} gutter="responsive">
+      <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
         <PageHeading className="mt-1">{t("installations.heading")}</PageHeading>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           {t("installations.description")}
         </p>
-      </header>
+      </Page.Header>
 
       {installations.isPending ? <PanelMessage>{t("installations.loading")}</PanelMessage> : null}
       {installations.isError ? <InstallationsError error={installations.error} /> : null}
       {installations.isSuccess ? <InstallationsView payload={installations.data} prefix={prefix} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 

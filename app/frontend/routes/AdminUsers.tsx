@@ -10,7 +10,7 @@ import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
 import { Select } from "../components/Select"
 import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
-import { DataTable } from "../components/ui"
+import { DataTable, Page } from "../components/ui"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -44,13 +44,13 @@ export function AdminUsersIndex() {
   const activeUserFolderId = users.data?.smart_folders.find((folder) => folder.id === users.data.active_smart_folder_id && folder.kind === "user_defined")?.id
 
   return (
-    <main aria-label={t("users.aria_index")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("users.aria_index")} gutter="responsive" size="wide">
+      <Page.Header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
           <PageHeading className="mt-1">{t("users.heading")}</PageHeading>
         </div>
-      </header>
+      </Page.Header>
 
       {users.isPending ? <PanelMessage>{t("users.loading")}</PanelMessage> : null}
       {users.isError ? <UsersError error={users.error} /> : null}
@@ -90,7 +90,7 @@ export function AdminUsersIndex() {
           </section>
         </AdminFiltersLayout>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -109,16 +109,16 @@ export function AdminUserDetailRoute() {
   })
 
   return (
-    <main aria-label={t("users.aria_detail")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("users.aria_detail")} gutter="responsive">
+      <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
         <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={basePath}>{t("users.heading")}</Link>
         <PageHeading className="mt-2">{user.data?.display_name || `User #${id}`}</PageHeading>
-      </header>
+      </Page.Header>
 
       {user.isPending ? <PanelMessage>{t("users.loading_user")}</PanelMessage> : null}
       {user.isError ? <UsersError error={user.error} /> : null}
       {user.isSuccess ? <UserDetail user={user.data} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 

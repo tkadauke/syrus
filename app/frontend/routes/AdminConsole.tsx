@@ -20,7 +20,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { Select } from "../components/Select"
 import { useT } from "../hooks/useT"
 import { Button } from "../components/Button"
-import { DataTable } from "../components/ui"
+import { DataTable, Page } from "../components/ui"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -37,16 +37,16 @@ export function AdminConsole() {
   })
 
   return (
-    <main aria-label={t("aria_console")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("aria_console")} gutter="responsive">
+      <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
         <PageHeading className="mt-1">{t("console.heading")}</PageHeading>
-      </header>
+      </Page.Header>
 
       {consoleQuery.isPending ? <PanelMessage>{t("console.loading")}</PanelMessage> : null}
       {consoleQuery.isError ? <ConsoleError error={consoleQuery.error} /> : null}
       {consoleQuery.isSuccess ? <ConsoleView payload={consoleQuery.data} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -349,4 +349,3 @@ function ConsoleError({ error }: { error: Error }) {
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
   return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
-
