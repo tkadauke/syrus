@@ -12,6 +12,12 @@ RSpec.describe WorkerTimeline::LiveWorkersPayload do
     clear_solid_queue_test_tables!
   end
 
+  around do |example|
+    travel_to Time.zone.parse("2026-09-24 12:00:00 UTC") do
+      example.run
+    end
+  end
+
   after do
     clear_solid_queue_test_tables!
   end
@@ -52,8 +58,8 @@ RSpec.describe WorkerTimeline::LiveWorkersPayload do
     )
   end
 
-  def running_slot!(hostname:, pid:, command: "codex exec")
-    job = Factories.job_record(user: admin, repository: repository, state: "running", issue_title: "Repair the scheduler")
+  def running_slot!(hostname:, pid:, command: "codex exec", epic: nil)
+    job = Factories.job_record(user: admin, repository: repository, epic: epic, state: "running", issue_title: "Repair the scheduler")
     workflow = Workflow.create!(job: job, user: admin, trigger_kind: "initial", state: "running", started_at: 4.minutes.ago, chain_template: "initial")
     step = workflow.steps.create!(kind: "implement", position: 0, state: "running", started_at: 4.minutes.ago)
     run = Run.create!(job: job, user: admin, step: step, trigger_kind: "initial", agent_provider: "codex", state: "running", started_at: 4.minutes.ago)
@@ -72,25 +78,23 @@ RSpec.describe WorkerTimeline::LiveWorkersPayload do
   end
 
   it "groups multiple running slots under one worker storage identity" do
-    travel_to Time.zone.parse("2026-09-24 12:00:00 UTC") do
-      worker_instance!(hostname: "worker-a", storage_key: "storage-a")
-      pool!(hostname: "worker-a", pid: 100, queues: [ "runs", "maintenance" ], threads: 3)
-      running_slot!(hostname: "worker-a", pid: 201)
-      running_slot!(hostname: "worker-a", pid: 202)
+    worker_instance!(hostname: "worker-a", storage_key: "storage-a")
+    pool!(hostname: "worker-a", pid: 100, queues: [ "runs", "maintenance" ], threads: 3)
+    running_slot!(hostname: "worker-a", pid: 201)
+    running_slot!(hostname: "worker-a", pid: 202)
 
-      host = payload.fetch(:hosts).sole
+    host = payload.fetch(:hosts).sole
 
-      expect(host).to include(
-        key: "storage-a",
-        hostname: "worker-a",
-        worker_storage_key: "storage-a",
-        state: "busy"
-      )
-      expect(host.fetch(:pools).first).to include(queues: [ "runs", "maintenance" ], threads: 3)
-      expect(host.fetch(:slots).map { |slot| slot.dig(:spawned_process, :pid) }).to eq([ 201, 202 ])
-      expect(payload.dig(:summary, :active_slots)).to eq(2)
-      expect(payload.dig(:summary, :total_slots)).to eq(3)
-    end
+    expect(host).to include(
+      key: "storage-a",
+      hostname: "worker-a",
+      worker_storage_key: "storage-a",
+      state: "busy"
+    )
+    expect(host.fetch(:pools).first).to include(queues: [ "runs", "maintenance" ], threads: 3)
+    expect(host.fetch(:slots).map { |slot| slot.dig(:spawned_process, :pid) }).to eq([ 201, 202 ])
+    expect(payload.dig(:summary, :active_slots)).to eq(2)
+    expect(payload.dig(:summary, :total_slots)).to eq(3)
   end
 
   it "includes idle worker hosts with queue pools and no active slots" do
@@ -197,6 +201,19 @@ RSpec.describe WorkerTimeline::LiveWorkersPayload do
     body = payload(filter_tree("and" => [ { "field" => "repository_id", "op" => "is", "value" => repository.id } ]))
 
     expect(body.fetch(:hosts).map { |host| host.fetch(:key) }).to eq([ "storage-a" ])
+  end
+
+  it "hides unrelated idle hosts when an epic filter scopes live workers" do
+    epic = Factories.epic(user: admin, repository: repository)
+    worker_instance!(hostname: "worker-epic", storage_key: "storage-epic")
+    worker_instance!(hostname: "worker-idle", storage_key: "storage-idle")
+    pool!(hostname: "worker-epic", pid: 100, threads: 2)
+    pool!(hostname: "worker-idle", pid: 200, threads: 2)
+    running_slot!(hostname: "worker-epic", pid: 201, epic: epic)
+
+    body = payload(filter_tree("and" => [ { "field" => "epic_id", "op" => "is", "value" => epic.id } ]))
+
+    expect(body.fetch(:hosts).map { |host| host.fetch(:key) }).to eq([ "storage-epic" ])
   end
 
   it "hides unrelated idle hosts when a job type filter scopes live workers" do
