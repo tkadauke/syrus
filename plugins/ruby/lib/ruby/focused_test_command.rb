@@ -28,9 +28,10 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
+      bundler_env = 'BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle"'
       args = explicit_rspec_tag_args
       rspec_args = args.present? ? Shellwords.join([ *args, *files ]) : "#{ci_only_tag_args} #{Shellwords.join(files)}"
-      "#{ci_only_env} COVERAGE=false bundle exec rspec #{rspec_args}"
+      "#{bundler_env} bundle check || #{bundler_env} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\" && #{ci_only_env} COVERAGE=false #{bundler_env} bundle exec rspec #{rspec_args}"
     end
 
     private
