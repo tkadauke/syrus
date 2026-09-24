@@ -21,6 +21,28 @@ RSpec.describe Ruby::FocusedTestCommand do
     expect(command).to eq("bundle exec rspec spec/models/widget_spec.rb")
   end
 
+  it "preserves explicit RSpec tag filters from the grader command" do
+    command = described_class.command_for(
+      grader_name: "rspec-focused",
+      grader_command: "bundle exec rspec --tag ~ci_only",
+      failed_cases: [ { "file_path" => "spec/models/widget_spec.rb" } ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(command).to eq("bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
+  end
+
+  it "preserves RSpec tag filters passed through RSPEC_TAG_ARGS" do
+    command = described_class.command_for(
+      grader_name: "rspec-focused",
+      grader_command: "RSPEC_TAG_ARGS=--tag\\ \\~ci_only bundle exec parallel_rspec --exec-args bin/rspec-worker",
+      failed_cases: [ { "file_path" => "plugins/muse_agent/spec/services/muse_invocation_spec.rb" } ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(command).to eq("bundle exec rspec --tag \\~ci_only plugins/muse_agent/spec/services/muse_invocation_spec.rb")
+  end
+
   it "declines when the grader did not opt into plugin strategy" do
     command = described_class.command_for(
       grader_name: "rspec",
