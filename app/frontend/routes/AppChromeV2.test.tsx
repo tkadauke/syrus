@@ -10,7 +10,7 @@ import * as maintenanceApi from "../api/maintenanceTasks"
 import type { ChatGroupRecord, ChatNavRecord, ChatsIndexPayload, MoreChatsPayload } from "../api/chats"
 import type { MaintenanceTask } from "../api/maintenanceTasks"
 import { AppChromeV2 } from "./AppChromeV2"
-import { adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
+import { SIDEBAR_COLLAPSED_KEY, SIDEBAR_WIDTH_KEY, adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
 import { buildAdminNavItems, filterAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
 
 const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
@@ -1452,6 +1452,94 @@ describe("AppChromeV2 primary nav reordering", () => {
     fireEvent.drop(dashboardRow)
 
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.anything())
+  })
+})
+
+describe("AppChromeV2 desktop sidebar collapse", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it("toggles collapsed mode with a plain separator click and remembers it", () => {
+    renderAppChrome()
+
+    const sidebar = screen.getByTestId("desktop-sidebar")
+    const separator = screen.getByRole("separator", { name: "Resize sidebar" })
+
+    expect(sidebar).toHaveStyle({ width: "240px" })
+
+    fireEvent.click(separator)
+
+    expect(sidebar).toHaveStyle({ width: "60px" })
+    expect(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe("true")
+
+    fireEvent.click(separator)
+
+    expect(sidebar).toHaveStyle({ width: "240px" })
+    expect(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe("false")
+  })
+
+  it("snaps closed and reopens when dragging the separator past the threshold", () => {
+    renderAppChrome()
+
+    const sidebar = screen.getByTestId("desktop-sidebar")
+    const separator = screen.getByRole("separator", { name: "Resize sidebar" })
+
+    fireEvent.mouseDown(separator, { clientX: 240 })
+    fireEvent.mouseMove(window, { clientX: 100 })
+    fireEvent.mouseUp(window, { clientX: 100 })
+
+    expect(sidebar).toHaveStyle({ width: "60px" })
+    expect(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe("true")
+
+    fireEvent.mouseDown(separator, { clientX: 60 })
+    fireEvent.mouseMove(window, { clientX: 210 })
+    fireEvent.mouseUp(window, { clientX: 210 })
+
+    expect(sidebar).toHaveStyle({ width: "208px" })
+    expect(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe("false")
+    expect(window.localStorage.getItem(SIDEBAR_WIDTH_KEY)).toBe("208")
+  })
+
+  it("opens and closes the hover peek with delayed rail hover", () => {
+    vi.useFakeTimers()
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true")
+
+    renderAppChrome()
+
+    const rail = screen.getByTestId("sidebar-rail")
+    const peek = screen.getByTestId("sidebar-peek")
+
+    expect(peek).toHaveAttribute("aria-hidden", "true")
+
+    fireEvent.mouseEnter(rail)
+    act(() => vi.advanceTimersByTime(349))
+    expect(peek).toHaveAttribute("aria-hidden", "true")
+
+    act(() => vi.advanceTimersByTime(1))
+    expect(peek).toHaveAttribute("aria-hidden", "false")
+
+    fireEvent.mouseLeave(rail)
+    act(() => vi.advanceTimersByTime(149))
+    expect(peek).toHaveAttribute("aria-hidden", "false")
+
+    act(() => vi.advanceTimersByTime(1))
+    expect(peek).toHaveAttribute("aria-hidden", "true")
+  })
+
+  it("navigates from a collapsed nav item without expanding the rail", () => {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true")
+
+    renderAppChrome(<LocationProbe />, { initialEntries: ["/settings"] })
+
+    const rail = screen.getByTestId("sidebar-rail")
+    fireEvent.click(within(rail).getByRole("link", { name: "Dashboard" }))
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/dashboard")
+    expect(screen.getByTestId("desktop-sidebar")).toHaveStyle({ width: "60px" })
+    expect(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe("true")
   })
 })
 
