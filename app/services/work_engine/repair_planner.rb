@@ -290,7 +290,7 @@ module WorkEngine
 
           run = primary_run
           quota_reset = ProviderQuotaReset.retry_after_for_run(run, now: now)
-          return quota_reset if provider_quota_classification? && quota_reset
+          return quota_reset if provider_reset_aware_classification? && quota_reset
 
           reset_at = run&.user&.gh_rate_limit_reset_at
           if classification&.classification == "rate_limited" && reset_at&.future?
@@ -300,8 +300,8 @@ module WorkEngine
           end
         end
 
-        def provider_quota_classification?
-          classification&.classification == ProviderUsageLimit::CLASSIFICATION
+        def provider_reset_aware_classification?
+          classification&.classification.in?([ "rate_limited", ProviderUsageLimit::CLASSIFICATION ])
         end
 
         def attempt_number_for_retryable_failure(run)
