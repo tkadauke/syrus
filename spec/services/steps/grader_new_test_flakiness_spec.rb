@@ -118,4 +118,11 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
     expect(TouchedTestRepeatGate).not_to receive(:call)
     handler.send(:check_new_test_flakiness!, name: "lint", definition: definition)
   end
+
+  it "does not attach repeat checks to already-focused test graders" do
+    definition = step.details.merge("grader_mode" => "focused")
+
+    expect(TouchedTestRepeatGate).not_to receive(:call)
+    handler.send(:check_new_test_flakiness!, name: "plugins-example-rspec-focused", definition: definition)
+  end
 end
