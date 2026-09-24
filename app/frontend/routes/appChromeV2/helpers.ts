@@ -8,9 +8,12 @@ import { type ColorTheme } from "../../api/themes"
 // nav/popup class helpers, plus the sidebar-width constants. No JSX or hooks.
 
 export const SIDEBAR_WIDTH_KEY = "syrus.sidebar.width"
+export const SIDEBAR_COLLAPSED_KEY = "syrus.sidebar.collapsed"
 export const SIDEBAR_DEFAULT_WIDTH = 240
 export const SIDEBAR_MIN_WIDTH = 208
 export const SIDEBAR_MAX_WIDTH = 420
+export const SIDEBAR_COLLAPSED_WIDTH = 60
+export const SIDEBAR_SNAP_WIDTH = 130
 
 export function updateBootstrapTheme(payload: BootstrapPayload | undefined, theme: "light" | "dark" | "system") {
   if (!payload?.current_user) return payload
@@ -169,6 +172,14 @@ export function storedSidebarWidth() {
   }
 }
 
+export function storedSidebarCollapsed() {
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true"
+  } catch (_error) {
+    return false
+  }
+}
+
 export function storeSidebarWidth(width: number) {
   try {
     window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width))
@@ -182,8 +193,9 @@ export function clampSidebarWidth(width: number) {
   return Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH)
 }
 
-export function sidebarLinkClass(active: boolean) {
-  return `inline-flex min-h-[44px] w-full items-center gap-2 rounded px-2.5 py-2 font-medium ${active ? "text-brand dark:text-brand-emphasis sm:bg-brand/10 dark:sm:bg-brand/10" : "text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-brand-emphasis"}`
+export function sidebarLinkClass(active: boolean, collapsed = false) {
+  const layout = collapsed ? "h-9 w-9 justify-center p-0" : "min-h-[44px] w-full gap-2 px-2.5 py-2"
+  return `inline-flex items-center rounded font-medium ${layout} ${active ? "text-brand dark:text-brand-emphasis sm:bg-brand/10 dark:sm:bg-brand/10" : "text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-brand-emphasis"}`
 }
 
 export function recentChatLinkClass(active: boolean) {
