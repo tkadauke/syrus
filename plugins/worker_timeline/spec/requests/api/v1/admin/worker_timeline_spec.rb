@@ -158,4 +158,32 @@ RSpec.describe "API: /api/v1/admin/worker_timeline", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "GET /live" do
+    it "requires an API token" do
+      enable_plugin!
+
+      get "/api/v1/admin/worker_timeline/live"
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "answers plugin_disabled while the plugin is disabled" do
+      get "/api/v1/admin/worker_timeline/live", headers: auth
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body.dig("error", "code")).to eq("plugin_disabled")
+    end
+
+    it "returns live workers for an admin token" do
+      enable_plugin!
+      InstanceVersion.create!(hostname: "worker-a", role: "worker", version: "abc123",
+                              started_at: 5.minutes.ago, last_heartbeat_at: 10.seconds.ago)
+
+      get "/api/v1/admin/worker_timeline/live", headers: auth
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.fetch("hosts").first).to include("hostname" => "worker-a")
+    end
+  end
 end

@@ -3,17 +3,20 @@
 Read-only backend data API for a multi-lane worker activity timeline: one
 lane per durable worker process role (`worker_storage_key` + `queue_role`)
 with Job/Workflow spans over time (macro view), plus a per-Workflow
-drill-down of Steps/Runs (micro/waterfall view). `hostname` and `pid` remain
-point-in-time attributes on spans so callers can show where work ran and
-detect process restarts within a durable lane.
+drill-down of Steps/Runs (micro/waterfall view), plus a plugin-owned live
+worker-host view. `hostname` and `pid` remain point-in-time attributes on
+spans so callers can show where work ran and detect process restarts within
+a durable lane.
 
 The only timeline-specific instrumentation is the `queue_role` captured on
 `WorkflowActivityEvent` for `RunJob` executions. The queries otherwise read
 from data Syrus already collects: `Workflow`/`Step`/`Run` timestamps,
 `WorkflowActivityEvent` (see `config/syrus_docs/observability.md`),
-`SpawnedProcess`, and `InstanceVersion`. There is no thread-slot allocator
-or per-thread concurrency instrumentation; overlapping spans inside a lane
-are packed by the frontend from timestamps.
+`SpawnedProcess`, `SolidQueue::Process`, `WorkerHostHealthSample`, and
+`InstanceVersion`. There is no thread-slot allocator or per-thread
+concurrency instrumentation; overlapping spans inside a lane are packed by
+the frontend from timestamps, and live slot occupancy is inferred from
+running processes plus active Run/Workflow/Step records.
 
 ## Endpoints
 
@@ -54,6 +57,12 @@ browser SPA calls.
   in order, each carrying the same worker attribution (Step/Run have no host
   column of their own) and its Runs (`started_at`, `finished_at`,
   `last_heartbeat_at`).
+- `GET /api/v1/admin/worker_timeline/live` —
+  `WorkerTimeline::LiveWorkersPayload`. Returns live worker host/storage
+  identity cards with queue pools, inferred active slots, health state, and
+  CPU/memory/I/O sparklines. Slot attribution is explicitly best-effort:
+  exact per-thread ownership is not instrumented, so each slot includes an
+  `attribution_confidence` and explanatory note.
 
 ## Non-admin session-authenticated waterfall endpoint
 

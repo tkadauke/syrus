@@ -151,4 +151,37 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "GET /live" do
+    it "is disabled by default (plugin disabled)" do
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/worker_timeline/live"
+
+      expect(response).to have_http_status(:not_found)
+      expect(parse_body.dig("error", "code")).to eq("plugin_disabled")
+    end
+
+    it "rejects non-admins" do
+      enable_plugin!
+      sign_in_as(member)
+
+      get "/api/v1/app/admin/worker_timeline/live"
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "returns live workers with the shared FilterBar schema" do
+      enable_plugin!
+      sign_in_as(admin)
+      InstanceVersion.create!(hostname: "worker-a", role: "worker", version: "abc123",
+                              started_at: 5.minutes.ago, last_heartbeat_at: 10.seconds.ago)
+
+      get "/api/v1/app/admin/worker_timeline/live"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("hosts").first).to include("hostname" => "worker-a")
+      expect(parse_body.fetch("filter_schema").map { |field| field.fetch("field") }).to include("hostname")
+    end
+  end
 end
