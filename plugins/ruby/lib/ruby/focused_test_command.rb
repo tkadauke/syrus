@@ -28,11 +28,7 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      [
-        "mkdir -p .syrus/grade-output .syrus/rspec-json",
-        "if [ -x bin/rails ] && [ -f config/database.yml ]; then RAILS_ENV=${RAILS_ENV:-test} bin/rails db:test:prepare; fi",
-        "RUN_CI_ONLY_SPECS=false RAILS_ENV=${RAILS_ENV:-test} COVERAGE=false bundle exec rspec --tag #{Shellwords.escape('~ci_only')} #{Shellwords.join(files)}"
-      ].join(" && ")
+      "RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag #{Shellwords.escape('~ci_only')} #{Shellwords.join(files)}"
     end
 
     private
