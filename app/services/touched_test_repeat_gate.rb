@@ -1,6 +1,7 @@
 require "open3"
 require "shellwords"
 require "timeout"
+require "fileutils"
 
 # Reruns the touched test files TouchedTestFiles finds a few extra times, in
 # the current workspace at the current HEAD, and reports whether the results
@@ -43,7 +44,9 @@ class TouchedTestRepeatGate
     end
 
     @log.call("[flaky_gate:#{grader_name}] rerunning #{@touched_files.join(', ')} #{@repeats}x: #{command}")
-    outcomes = Array.new(@repeats) { run_once(command) }
+    outcomes = with_repeat_lock do
+      Array.new(@repeats) { run_once(command) }
+    end
     pass_count = outcomes.count(&:itself)
     fail_count = outcomes.size - pass_count
     # The owning grader's normal command already passed immediately before
@@ -144,6 +147,18 @@ class TouchedTestRepeatGate
   rescue Timeout::Error
     @log.call("[flaky_gate:#{grader_name}] repeat run timed out after #{TIMEOUT_SECONDS.to_i}s")
     false
+  end
+
+  def with_repeat_lock
+    lock_dir = File.join(@workspace_path, ".syrus")
+    FileUtils.mkdir_p(lock_dir)
+
+    File.open(File.join(lock_dir, "touched-test-repeat-gate.lock"), File::RDWR | File::CREAT, 0o644) do |file|
+      file.flock(File::LOCK_EX)
+      yield
+    ensure
+      file.flock(File::LOCK_UN)
+    end
   end
 
   def grader_name = @grader_step.details.to_h["name"].to_s

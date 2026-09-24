@@ -85,6 +85,27 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(5)
   end
 
+  it "serializes repeat commands in the same workspace" do
+    sentinel = Pathname.new(@dir).join("busy")
+    stub_focused_command(
+      "test ! -e #{sentinel}; touch #{sentinel}; sleep 0.2; rm #{sentinel}"
+    )
+
+    calls = Array.new(2) do
+      Thread.new do
+        described_class.call(
+          grader_step: grader_step,
+          touched_files: [ "spec/stable_spec.rb" ],
+          workspace_path: @dir,
+          repeats: 1
+        )
+      end
+    end
+    results = calls.map(&:value)
+
+    expect(results).to all(have_attributes(ran: true, consistent: true, pass_count: 1, fail_count: 0))
+  end
+
   it "skips without running anything when there are no touched files" do
     expect(Syrus::PluginRegistry).not_to receive(:providers_for)
 
