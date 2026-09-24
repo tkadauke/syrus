@@ -317,7 +317,14 @@ func TestNoRouteAcceptsGitReceivePack(t *testing.T) {
 }
 
 func gitTestEnv() []string {
-	return append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0")
+	return append(
+		os.Environ(),
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_ASKPASS=/bin/false",
+		"SSH_ASKPASS=/bin/false",
+	)
 }
 
 func runGit(t *testing.T, dir string, args ...string) string {
