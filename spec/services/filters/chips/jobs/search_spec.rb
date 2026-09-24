@@ -24,6 +24,17 @@ RSpec.describe Filters::Chips::Jobs::Search do
       expect(apply("nonexistent-term-xyz")).to be_empty
     end
 
+    it "uses the adapter-quoted LIKE escape literal in the MySQL number search branch" do
+      allow(Job.connection).to receive(:adapter_name).and_return("Mysql2")
+      allow(Job.connection).to receive(:quote).and_call_original
+      allow(Job.connection).to receive(:quote).with("\\").and_return("'\\\\'")
+
+      sql = apply("Investigate").to_sql
+
+      expect(sql).to include("CAST(issue_number AS CHAR) LIKE")
+      expect(sql).to include("ESCAPE '\\\\'")
+    end
+
     it "raises for an unsupported operator" do
       Factories.job_record(user: user, repository: repository, issue_number: 4)
       expect { apply("anything", op: :equals) }.to raise_error(ArgumentError)
