@@ -4,7 +4,7 @@ project:
   kind: cli
 
 prepare:
-  - mise exec go@1.26.5 -- go mod download
+  - GOWORK=off mise exec go@1.26.5 -- go mod download
 
 grade:
   - type: go-test
