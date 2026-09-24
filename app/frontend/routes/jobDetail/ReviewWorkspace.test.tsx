@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import * as performanceMarkers from "../../lib/performanceMarkers"
+import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { ReviewWorkspace } from "./ReviewWorkspace"
 
 stubVirtualizerMeasurements()
@@ -39,6 +40,14 @@ vi.mock("../../api/jobs", async (importOriginal) => {
   }
 })
 
+vi.mock("../../api/reviewDiffSettings", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/reviewDiffSettings")>()
+  return {
+    ...actual,
+    fetchReviewDiffSettings: vi.fn()
+  }
+})
+
 beforeEach(() => {
   vi.mocked(createDiffReviewComment).mockReset()
   vi.mocked(deleteDiffReviewComment).mockReset()
@@ -49,6 +58,8 @@ beforeEach(() => {
   vi.mocked(startJobDiscussionChat).mockReset()
   vi.mocked(submitDiffReviewComments).mockReset()
   vi.mocked(updateDiffReviewComment).mockReset()
+  vi.mocked(fetchReviewDiffSettings).mockReset()
+  vi.mocked(fetchReviewDiffSettings).mockResolvedValue({ review_diff_settings: DEFAULT_REVIEW_DIFF_SETTINGS })
   HTMLElement.prototype.scrollIntoView = vi.fn()
 })
 
@@ -114,6 +125,24 @@ describe("ReviewWorkspace", () => {
 
     expect(scrollSpy).toHaveBeenCalled()
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
+  })
+
+  it("applies global review diff settings in the main review workspace", async () => {
+    vi.mocked(fetchReviewDiffSettings).mockResolvedValue({
+      review_diff_settings: {
+        ...DEFAULT_REVIEW_DIFF_SETTINGS,
+        desktop_view: "split",
+        file_list: false
+      }
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Implementation review")
+    expect(screen.queryByRole("button", { name: "Browse changed files" })).not.toBeInTheDocument()
+    await waitFor(() => expect(document.querySelector('[data-diff-split-row="true"]')).toBeInTheDocument())
   })
 
   it("does not render a pending-feedback pill in the summary header", async () => {

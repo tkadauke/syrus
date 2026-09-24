@@ -17,6 +17,7 @@ import {
   type JobDetailPayload,
   type JobWorkflow
 } from "../../api/jobs"
+import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
 import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
@@ -35,6 +36,12 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     queryFn: () => measureAsync("diff_review.fetch_source_diff", () => fetchJobSourceDiff(String(jobId)), { metadata: { job_id: jobId } }),
     placeholderData: keepPreviousData
   })
+  const settingsQuery = useQuery({
+    queryKey: ["review_diff_settings"],
+    queryFn: fetchReviewDiffSettings,
+    staleTime: Infinity
+  })
+  const reviewSettings = settingsQuery.data?.review_diff_settings ?? DEFAULT_REVIEW_DIFF_SETTINGS
   // Paint-phase (not just commit-phase) because the diff view keeps doing
   // virtualizer/Shiki work across several frames after the initial commit;
   // "paint" is a closer proxy for when the reviewer actually sees something.
@@ -224,7 +231,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
         */}
         <Section.Root className={`min-w-0 max-w-full ${SURFACE_CLIP_ROUNDED_CLASS}`} padding="none">
           <ReviewableDiff
-            changedFilesPopup
+            changedFilesPopup={reviewSettings.file_list}
             comments={feedback.diffThreads}
             composingBody={feedback.composingBody}
             composingDiscussError={feedback.discussComposingError}
@@ -253,6 +260,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             renderImageDiff={(file) => (
               <ImageDiffThumbnails baseRef={activeDiff.base_sha ?? activeDiff.base_ref} file={file} headRef={activeDiff.head_sha ?? activeDiff.head_ref} jobId={jobId} />
             )}
+            reviewSettings={reviewSettings}
             scroll="natural"
             selectedPath={selectedPath}
             showFileHeaders

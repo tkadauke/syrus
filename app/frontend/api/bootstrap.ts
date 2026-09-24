@@ -2,6 +2,7 @@ import { getJson } from "./client"
 import type { ProviderAvailability } from "./providerAvailability"
 import type { SetupStatusPayload } from "./setup"
 import type { ColorTheme } from "./themes"
+import type { ReviewDiffSettings } from "./reviewDiffSettings"
 
 export type SystemAlertAction =
   | {
@@ -43,6 +44,7 @@ export type BootstrapPayload = {
     notification_unread_count?: number
     seen_tours?: string[]
     sidebar_nav_order?: string[]
+    review_diff_settings?: ReviewDiffSettings
   } | null
   team_user_count: number
   provider_availability?: Record<string, ProviderAvailability>
