@@ -612,6 +612,19 @@ RSpec.describe "Filters::Chips" do
       expect(results).not_to include(paused)
     end
 
+    it "inbox: claims an approved Job whose upstream reviewer requested changes" do
+      # Landing queue drops this Job on purpose (it is no longer queued to
+      # land), and before this branch nothing else picked it up -- an
+      # approved Job with a mergeable PR matched no folder at all.
+      requested = Factories.job_record(repository: repo, issue_number: 74, state: "approved")
+      requested.update!(needs_attention: true,
+                        needs_attention_reason: Job::REQUESTED_CHANGES_ATTENTION_REASON,
+                        needs_attention_since: 6.weeks.ago)
+
+      expect(run(field: "attention", op: "is", value: "inbox")).to include(requested)
+      expect(run(field: "attention", op: "is", value: "landing_queue")).not_to include(requested)
+    end
+
     it "in_progress: does not claim a running Job whose WorkUnit is blocked" do
       stalled = Factories.job_record(repository: repo, issue_number: 73, state: "running")
       create_blocked_work_unit_for(stalled, blocked_reason: "main_branch_health")

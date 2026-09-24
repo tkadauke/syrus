@@ -207,6 +207,22 @@ module Filters
               .or(open.where(id: landing_failure_ids(eligible_jobs)))
               .or(open.where(id: needs_review_ids(eligible_jobs)))
               .or(open.where(id: awaiting_approval_ids(eligible_jobs)))
+              .or(open.where(id: requested_changes_ids(eligible_jobs)))
+        end
+
+        # An upstream reviewer asked for changes, so the Job is squarely
+        # actionable operator work -- but "Landing queue" deliberately drops
+        # it (Job.without_requested_changes_attention: it is no longer
+        # queued to land), and nothing downstream picked it up. An approved
+        # Job with a mergeable PR matches no other folder: `inbox` wanted
+        # implemented/failed, `blocked` wanted a dependency or an unmergeable
+        # PR, `stale` wanted no update in a week and the row keeps getting
+        # touched. One sat with needs_attention true for six weeks, visible
+        # nowhere.
+        def requested_changes_ids(base = Job.all)
+          base.open_threads
+              .where(needs_attention_reason: Job::REQUESTED_CHANGES_ATTENTION_REASON)
+              .select(:id)
         end
 
         def apply_awaiting_approval

@@ -118,6 +118,23 @@ when Syrus next re-checks, and the Job timeline records one `Blocked: <reason>`
 event per block episode. "Blocked since" measures the episode, not the last
 re-check: a block re-applied every five minutes still reports its true age.
 
+### Upstream changes requested
+
+An approved Job whose upstream reviewer requested changes
+(`needs_attention_reason: upstream_pr_changes_requested`) leaves the **Landing
+queue** folder -- it is no longer queued to land -- and appears in **Inbox**
+instead, which is where actionable operator work belongs.
+
+### Every open Job has a folder
+
+The folders are subtractive: several exclude a Job on the assumption another
+one claims it. Both cases above are exactly that, and both previously left the
+Job in no folder at all, reading as healthy while nothing worked on it. When
+adding a folder exclusion, add the folder that picks the Job up in the same
+change; `spec/services/filters/every_open_job_lands_in_a_folder_spec.rb`
+asserts that every open-Job shape is claimed by at least one folder the
+operator actually sees (`:on_demand` folders behind "More" do not count).
+
 Provider-availability pauses are automatic and reversible. Each user has a
 per-agent pause threshold in Agent Settings; the default is 10%, and 0 disables
 automatic provider-availability pauses for that provider. When a probed
