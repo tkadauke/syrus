@@ -22,13 +22,23 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "bundle exec rspec #{Shellwords.join(files)}"
+      "#{rails_prepare_command} RAILS_ENV=${RAILS_ENV:-test} COVERAGE=false #{rspec_command} #{Shellwords.join(files)}"
     end
 
     private
 
     def rspec_grader?
       @grader_name.include?("rspec") || @grader_command.match?(/\brspec\b/)
+    end
+
+    def rspec_command
+      return "bin/rspec-worker" if @grader_command.match?(/\bbin\/rspec-worker\b/)
+
+      "bundle exec rspec"
+    end
+
+    def rails_prepare_command
+      "if [ -x bin/rails ] && [ -f config/database.yml ] && [ ! -f .syrus/flaky-gate-db-prepared ]; then mkdir -p .syrus && bin/rails db:test:prepare && touch .syrus/flaky-gate-db-prepared; fi &&"
     end
 
     def failed_spec_files

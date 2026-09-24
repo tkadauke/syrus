@@ -12,7 +12,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("bundle exec rspec spec/models/widget_spec.rb")
+    expect(command).to eq("if [ -x bin/rails ] && [ -f config/database.yml ] && [ ! -f .syrus/flaky-gate-db-prepared ]; then mkdir -p .syrus && bin/rails db:test:prepare && touch .syrus/flaky-gate-db-prepared; fi && RAILS_ENV=${RAILS_ENV:-test} COVERAGE=false bundle exec rspec spec/models/widget_spec.rb")
   end
 
   it "declines when the grader did not opt into plugin strategy" do
@@ -24,6 +24,19 @@ RSpec.describe Ruby::FocusedTestCommand do
     )
 
     expect(command).to be_nil
+  end
+
+  it "uses the grader's RSpec worker when the grader command runs through one" do
+    command = described_class.command_for(
+      grader_name: "rspec-focused",
+      grader_command: "bundle exec parallel_rspec --exec-args bin/rspec-worker $(cat .syrus/rspec-focused-files)",
+      failed_cases: [
+        { "suite_name" => "spec/models/widget_spec.rb", "name" => "Widget fails", "file_path" => "spec/models/widget_spec.rb" }
+      ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(command).to eq("if [ -x bin/rails ] && [ -f config/database.yml ] && [ ! -f .syrus/flaky-gate-db-prepared ]; then mkdir -p .syrus && bin/rails db:test:prepare && touch .syrus/flaky-gate-db-prepared; fi && RAILS_ENV=${RAILS_ENV:-test} COVERAGE=false bin/rspec-worker spec/models/widget_spec.rb")
   end
 
   it "declines non-rspec graders" do
