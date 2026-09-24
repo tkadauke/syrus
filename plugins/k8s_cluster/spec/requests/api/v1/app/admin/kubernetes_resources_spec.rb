@@ -213,6 +213,13 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
       expect(parse_body.dig("stateful_sets", 0, "name")).to eq("db")
     end
 
+    it "requires a namespace to describe a specific statefulset" do
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/statefulsets", params: { name: "db" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("namespace_required")
+    end
+
     it "describes a statefulset when both name and namespace are given" do
       stateful_sets = instance_double(K8sCluster::StatefulSets)
       allow(K8sCluster::StatefulSets).to receive(:new).with(cluster).and_return(stateful_sets)
@@ -233,6 +240,13 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.dig("daemon_sets", 0, "name")).to eq("monitoring")
+    end
+
+    it "requires a namespace to describe a specific daemonset" do
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/daemonsets", params: { name: "monitoring" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("namespace_required")
     end
 
     it "describes a daemonset when both name and namespace are given" do
