@@ -208,7 +208,7 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(ws.path.join("agent-output.tmp")).to exist
       end
 
-      it "reclones an invalid workspace from a published run checkpoint after an agentic step succeeded" do
+      it "reclones an invalid workspace from a published run checkpoint after an agentic step succeeded", ci_only: false do
         checkpoint_ref = "refs/syrus/checkpoints/runs/#{SecureRandom.hex(4)}"
         checkpoint_sha = nil
 
@@ -256,7 +256,7 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/issue-7-#{job.id}")
       end
 
-      it "prefers the latest published source snapshot when recovering an invalid checkout after graders passed" do
+      it "prefers the latest published source snapshot when recovering an invalid checkout after graders passed", ci_only: false do
         checkpoint_ref = "refs/syrus/checkpoints/runs/#{SecureRandom.hex(4)}"
         source_ref = "refs/syrus/source-snapshots/runs/#{SecureRandom.hex(4)}"
         checkpoint_sha = nil
