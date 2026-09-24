@@ -193,7 +193,7 @@ module Steps
       result = TouchedTestRepeatGate.call(
         grader_step: step,
         touched_files: touched_files,
-        repeats: repository.new_test_flakiness_gate_repeats.presence || TouchedTestRepeatGate::DEFAULT_REPEATS,
+        repeats: new_test_flakiness_gate_repeats,
         workspace_path: workspace.path,
         env: env,
         log: ->(message) { log(message, kind: "system") }
@@ -217,6 +217,11 @@ module Steps
         "newly touched tests failed intermittently: #{name} (#{result.fail_count}/#{result.repeats} failed)",
         evidence: { new_test_flakiness: true, result: result.to_h }
       )
+    end
+
+    def new_test_flakiness_gate_repeats
+      repeats = repository.new_test_flakiness_gate_repeats
+      repeats.nil? ? TouchedTestRepeatGate::DEFAULT_REPEATS : repeats
     end
 
     def typed_test_grader?(definition)
