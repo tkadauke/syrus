@@ -24,6 +24,16 @@ RSpec.describe Filters::Chips::Epics::Search do
       expect(apply("nonexistent-term-xyz")).to be_empty
     end
 
+    it "uses the adapter-quoted LIKE escape literal" do
+      allow(Epic.connection).to receive(:quote).and_call_original
+      allow(Epic.connection).to receive(:quote).with("\\").and_return("'\\\\'")
+
+      sql = apply("deploy").to_sql
+
+      expect(sql).to include("title LIKE")
+      expect(sql).to include("ESCAPE '\\\\'")
+    end
+
     it "raises for an unsupported operator" do
       Factories.epic(user: user, repository: repository)
       expect { apply("anything", op: :equals) }.to raise_error(ArgumentError)
