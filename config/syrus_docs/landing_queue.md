@@ -155,15 +155,18 @@ no history yet, so neither it nor a plain `InheritedGraderFailure` comparison
 against base can tell a test that is flaky from day one apart from a
 genuinely stable one.
 
-`TouchedTestFiles` closes that gap the other direction, inside
-`Steps::GraderCollect`: once every required grader in an iteration has
-already passed, it looks at the test files this Job's diff added or modified
+`TouchedTestFiles` closes that gap inside each typed test grader. Once that
+grader's normal command passes, it looks at the test files this Job's diff
+added or modified
 relative to its effective base branch (`_spec.rb`, `_test.rb`,
 `.spec`/`.test.ts(x)`, `test_*.py`/`_test.py`, `_test.go` -- not the whole
 suite, and not the untouched majority of an existing spec file). When that
 set is non-empty, `TouchedTestRepeatGate` reruns just those files a few more
-times (default `TouchedTestRepeatGate::DEFAULT_REPEATS`, 5) against every
-required grader that already passed this iteration. Building that "just
+times (default `TouchedTestRepeatGate::DEFAULT_REPEATS`, 5) against that
+grader. Files are first restricted to the grader target's resolved
+`when_files_changed` scope, so nested-project graders only judge tests owned
+by their project. RSpec and Vitest graders perform this work in their normal
+distributed fanout slots; non-test graders do not participate. Building that "just
 these files" command does *not* require the grader to have separately opted
 into `BaseRevisionRetry`'s `base_retry: { strategy: plugin }` -- that would
 make the gate a silent no-op for most repositories, since `base_retry` is a
@@ -180,10 +183,9 @@ JavaScript today) and no explicit `base_retry` command is skipped for that
 grader, logged, rather than guessed at. Results that disagree (some repeats
 pass, some fail) fail the grading iteration with a `grader_failure` Problem
 carrying
-`evidence: { new_test_flakiness: true, results: [...] }`, and a synthetic
-`new-test-flakiness-gate: <grader>` entry is appended to the iteration's
-`iterations` artifact (and to a dedicated `new_test_flakiness_gate` workflow
-artifact) so the repair prompt, the chat report, and the Job page all show
+`evidence: { new_test_flakiness: true, result: {...} }`, and the repeat result
+is stored on that grader Step and included in the iteration rollup so the
+repair prompt, the chat report, and the Job page all show
 "this Job's new test failed N/5 times on repeat" instead of a generic failed
 grader -- the agent or operator sees they introduced flakiness, not that they
 broke an existing check. A stable touched test (repeats all agree, pass or

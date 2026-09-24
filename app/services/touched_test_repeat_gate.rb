@@ -4,17 +4,16 @@ require "timeout"
 
 # Reruns the touched test files TouchedTestFiles finds a few extra times, in
 # the current workspace at the current HEAD, and reports whether the results
-# agreed -- the repeat-run flakiness gate for newly added or modified tests
-# (EPIC-362). A brand-new or freshly-modified test has no run history yet, so
+# agreed -- the repeat-run flakiness gate for newly added or modified tests.
+# A brand-new or freshly-modified test has no run history yet, so
 # Adjudicators::KnownFlakyFailure -- which only has signal once a test has
 # failed at least twice across real workflows -- cannot tell a test that is
 # flaky from day one apart from a genuinely stable one. This asks the
 # question directly, once, before the PR merges.
 #
-# Deliberately outside ProcessRunner/SpawnedProcess, the same tradeoff
-# BaseRevisionRetry already accepts: this is an internal grading-adjacent
-# check on top of a grader Step that already passed, not the tracked grader
-# Step itself.
+# The owning grader invokes this before it completes, so distributed grader
+# fanout naturally spreads repeat checks across the same worker hosts as the
+# normal test commands.
 class TouchedTestRepeatGate
   Result = Data.define(:ran, :consistent, :reason, :grader_name, :command, :files, :repeats, :pass_count, :fail_count) do
     def inconsistent? = ran && !consistent
@@ -47,7 +46,10 @@ class TouchedTestRepeatGate
     outcomes = Array.new(@repeats) { run_once(command) }
     pass_count = outcomes.count(&:itself)
     fail_count = outcomes.size - pass_count
-    consistent = pass_count.zero? || fail_count.zero?
+    # The owning grader's normal command already passed immediately before
+    # this check. Any failed focused rerun therefore disagrees with an observed
+    # pass, including the important case where every repeat fails.
+    consistent = fail_count.zero?
 
     @log.call("[flaky_gate:#{grader_name}] #{pass_count}/#{outcomes.size} passed (#{consistent ? 'consistent' : 'inconsistent'})")
 

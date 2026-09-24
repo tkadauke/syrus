@@ -69,7 +69,7 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(0)
   end
 
-  it "considers a consistently failing test (not merely flaky) stable too -- that's a plain grader failure, not this gate's job" do
+  it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do
     stub_focused_command("false")
 
     result = described_class.call(
@@ -79,7 +79,8 @@ RSpec.describe TouchedTestRepeatGate do
       repeats: 5
     )
 
-    expect(result.consistent).to be(true)
+    expect(result.consistent).to be(false)
+    expect(result.inconsistent?).to be(true)
     expect(result.pass_count).to eq(0)
     expect(result.fail_count).to eq(5)
   end
