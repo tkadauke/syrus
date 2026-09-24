@@ -16,8 +16,15 @@ module KubeApiStubs
     { "name" => "nodes", "namespaced" => false, "kind" => "Node" }
   ].freeze
 
-  APPS_RESOURCES = [ { "name" => "deployments", "namespaced" => true, "kind" => "Deployment" } ].freeze
-  BATCH_RESOURCES = [ { "name" => "cronjobs", "namespaced" => true, "kind" => "CronJob" } ].freeze
+  APPS_RESOURCES = [
+    { "name" => "deployments", "namespaced" => true, "kind" => "Deployment" },
+    { "name" => "statefulsets", "namespaced" => true, "kind" => "StatefulSet" },
+    { "name" => "daemonsets", "namespaced" => true, "kind" => "DaemonSet" }
+  ].freeze
+  BATCH_RESOURCES = [
+    { "name" => "cronjobs", "namespaced" => true, "kind" => "CronJob" },
+    { "name" => "jobs", "namespaced" => true, "kind" => "Job" }
+  ].freeze
 
   def stub_core_discovery(base)
     stub_discovery(base: base, path: "api/v1", group_version: "v1", resources: CORE_RESOURCES)
