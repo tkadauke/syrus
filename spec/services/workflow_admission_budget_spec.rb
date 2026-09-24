@@ -89,7 +89,11 @@ RSpec.describe WorkflowAdmissionBudget do
   end
 
   def seed_low_cost_profiles(except: [], attributed: false)
-    %w[prepare implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan].each do |step_kind|
+    %w[
+      prepare implement adversarial_review visual_review format generate
+      grader_fanout grader_collect coverage_analyze dependency_audit summarize
+      test_plan pr_open review_plan
+    ].each do |step_kind|
       next if except.include?(step_kind)
 
       if attributed
@@ -175,7 +179,22 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.pressure.dig("candidate", "high_cost")).to be(true)
   end
 
+  it "keeps optional review steps from falling back to conservative defaults" do
+    allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_return(
+      RepoAdversarialReviewPlan::Result.new(rounds: 1, source: ".syrus.yml", note: nil, criteria: [])
+    )
+    allow(RepoReviewPlanPlan).to receive(:from_syrus_yml).and_return(
+      RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
+    )
+    WorkflowStepResourceProfile.delete_all
+    seed_low_cost_profiles
 
+    decision = described_class.call(workflow: workflow_for)
+
+    expect(decision.pressure.dig("candidate", "step_kinds")).to include("adversarial_review", "review_plan")
+    expect(decision.pressure.dig("candidate", "missing_profile_count")).to eq(0)
+    expect(decision.pressure.dig("candidate", "primary_prediction_source")).to eq("host_correlated")
+  end
 
   it "does not count queued workflows as active predicted pressure" do
     profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 20.0, io: 10.0, memory: 40.0)
