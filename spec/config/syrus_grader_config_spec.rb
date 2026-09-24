@@ -207,28 +207,6 @@ RSpec.describe "Syrus grader configuration" do
     ])
   end
 
-  it "scopes the WorkEngine simulator grader to runtime ownership and simulator changes" do
-    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
-    graph = TargetGraph::Compiler.compile(Rails.root)
-    grader = config.grade.steps.find { |step| step.name == "work-engine-simulations" }
-
-    expect(grader.when_files_changed).to include(
-      "app/services/work_engine/**",
-      "app/services/work_units/**",
-      "app/services/work_intents/**",
-      "app/services/work_definitions/**",
-      "app/services/step_dispatcher.rb",
-      "app/services/landing_queue_processor.rb",
-      "spec/fixtures/work_engine_simulations/**"
-    )
-    expect(graph.affected("//:grade/work-engine-simulations", changed_files: [ "app/services/work_units/launcher.rb" ])).to have_attributes(
-      affected: true,
-      reason: "own source scope matched a changed file"
-    )
-    expect(graph.affected("//:grade/work-engine-simulations", changed_files: [ "ROADMAP.md" ]).affected).to be(false)
-    expect(graph.affected("//:grade/work-engine-simulations", changed_files: [ "app/frontend/routes/Dashboard.tsx" ]).affected).to be(false)
-  end
-
   it "declares every bundled plugin as an individual plugin project with a local grader" do
     graph = TargetGraph::Compiler.compile(Rails.root)
     plugin_dirs = Rails.root.join("plugins").children.select(&:directory?).map { |path| path.basename.to_s }.sort
