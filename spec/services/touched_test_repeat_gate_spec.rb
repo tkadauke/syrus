@@ -176,6 +176,21 @@ RSpec.describe TouchedTestRepeatGate do
     end
   end
 
+  it "keeps command lookup available when the caller passes a stripped environment" do
+    stub_focused_command('/usr/bin/env ruby -e "exit 0"')
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      env: {},
+      repeats: 1
+    )
+
+    expect(result.consistent).to be(true)
+    expect(result.pass_count).to eq(1)
+  end
+
   describe "building the rerun command without BaseRevisionRetry's base_retry opt-in" do
     # The regression this guards: a repository has never configured
     # `base_retry: { strategy: plugin }` on its rspec grader (most don't --
