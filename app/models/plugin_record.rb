@@ -37,7 +37,7 @@ class PluginRecord < ApplicationRecord
       where("MATCH(#{SEARCH_COLUMNS.join(', ')}) AGAINST (? IN BOOLEAN MODE)", boolean_query)
     else
       like = "%#{sanitize_sql_like(query)}%"
-      where(SEARCH_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE '\\'" }.join(" OR "), *[ like ] * SEARCH_COLUMNS.size)
+      where(SEARCH_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE #{like_escape_sql}" }.join(" OR "), *[ like ] * SEARCH_COLUMNS.size)
     end
   end
 
