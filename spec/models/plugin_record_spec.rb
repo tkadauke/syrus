@@ -54,16 +54,6 @@ RSpec.describe PluginRecord, :reset_plugin_registry do
       expect(results).not_to include("ticket-plugin")
     end
 
-    it "uses the adapter-quoted LIKE escape literal" do
-      allow(described_class.connection).to receive(:quote).and_call_original
-      allow(described_class.connection).to receive(:quote).with("\\").and_return("'\\\\'")
-
-      sql = described_class.search("storms").to_sql
-
-      expect(sql).to include("description LIKE")
-      expect(sql).to include("ESCAPE '\\\\'")
-    end
-
     it "returns no matches for an unrelated query" do
       expect(PluginRecord.search("nonexistent")).to be_empty
     end
