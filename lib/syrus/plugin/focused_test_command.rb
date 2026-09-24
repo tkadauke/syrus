@@ -12,6 +12,14 @@ module Syrus
     #     configuration for the grader; providers should only synthesize a
     #     command for strategies they explicitly own. `failed_cases` are hashes
     #     with string keys: "suite_name", "name", "file_path", and "identity".
+    #
+    # Providers may also define:
+    #
+    #   prepare_command_for(grader_name:, grader_command:) -> String | nil
+    #
+    # The touched-test repeat gate runs this command once before its focused
+    # repeats. Use it for deterministic environment setup that the owning full
+    # grader normally performs, such as preparing a serial test database.
     module FocusedTestCommand
       def self.included(base)
         base.extend(ClassMethods)

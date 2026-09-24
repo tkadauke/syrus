@@ -2,7 +2,22 @@ import "../i18n"
 import "@testing-library/jest-dom/vitest"
 import { cleanup, configure } from "@testing-library/react"
 import { afterEach, vi } from "vitest"
+import { _clearRecentApiRequestsForTest } from "../api/client"
 import "../i18n"
+
+// Components that use the shared Action Cable consumer must not open real
+// sockets from jsdom. Individual cable-focused specs can still provide their
+// own module mock or inject a consumer directly.
+vi.mock("@rails/actioncable", () => ({
+  createConsumer: () => ({
+    subscriptions: {
+      create: () => ({
+        perform: () => undefined,
+        unsubscribe: () => undefined
+      })
+    }
+  })
+}))
 
 // Coverage instrumentation adds ~40% overhead. Raise the default 1000ms
 // asyncUtilTimeout so findBy* queries don't expire before slow components
@@ -64,6 +79,7 @@ Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
 
 afterEach(() => {
   cleanup()
+  _clearRecentApiRequestsForTest()
   vi.clearAllMocks()
   vi.restoreAllMocks()
 })

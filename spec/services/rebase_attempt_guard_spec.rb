@@ -148,10 +148,18 @@ RSpec.describe RebaseAttemptGuard do
     expect(described_class.cooling_down?(job, pr: pr)).to eq(false)
   end
 
-  it "lifts the permanent block once the PR head changes" do
+  it "keeps a permanent provider configuration block when the PR head or base changes" do
     AppSetting.current.update!(rebase_failure_cooldown_minutes: 60)
     failed_agent_rebase_with_classification!(retryable: false, finished_at: 61.minutes.ago, pre_sha: "old-head", base_sha: "base")
 
-    expect(described_class.cooling_down?(job, pr: pr(head_sha: "new-head", base_sha: "base"))).to eq(false)
+    expect(described_class.cooling_down?(job, pr: pr(head_sha: "new-head", base_sha: "new-base"))).to eq(true)
+    expect(described_class.cap_reached?(job, pr: pr(head_sha: "new-head", base_sha: "new-base"))).to eq(true)
+  end
+
+  it "lifts a permanent provider configuration block after a successful rebase" do
+    failed_agent_rebase_with_classification!(retryable: false, finished_at: 61.minutes.ago)
+    Workflows::Rebase.instantiate(job: job).update!(state: "succeeded")
+
+    expect(described_class.cooling_down?(job, pr: pr)).to eq(false)
   end
 end

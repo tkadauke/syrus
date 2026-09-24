@@ -42,6 +42,8 @@ class TouchedTestRepeatGate
       return skipped("no_focused_command")
     end
 
+    return failed_setup(command) unless prepare_repeat_environment
+
     @log.call("[flaky_gate:#{grader_name}] rerunning #{@touched_files.join(', ')} #{@repeats}x: #{command}")
     outcomes = Array.new(@repeats) { run_once(command) }
     pass_count = outcomes.count(&:itself)
@@ -128,21 +130,48 @@ class TouchedTestRepeatGate
         failed_cases: @touched_files.map { |path| { "file_path" => path } },
         base_retry: { "strategy" => "plugin" }
       )
-      return command.to_s.strip if command.to_s.strip.present?
+      if command.to_s.strip.present?
+        @focused_command_provider = provider
+        return command.to_s.strip
+      end
     rescue StandardError => e
       @log.call("[flaky_gate:#{grader_name}] focused_test_command #{provider} declined with #{e.class}: #{e.message}")
     end
     nil
   end
 
+  def prepare_repeat_environment
+    return true unless @focused_command_provider&.respond_to?(:prepare_command_for)
+
+    command = @focused_command_provider.prepare_command_for(
+      grader_name: grader_name,
+      grader_command: grader_command
+    ).to_s.strip
+    return true if command.blank?
+
+    @log.call("[flaky_gate:#{grader_name}] preparing focused repeat environment: #{command}")
+    run_command(command, label: "repeat environment setup")
+  rescue StandardError => e
+    @log.call("[flaky_gate:#{grader_name}] repeat environment setup failed: #{e.class}: #{e.message}")
+    false
+  end
+
   def run_once(command)
+    run_command(command, label: "repeat run")
+  end
+
+  def run_command(command, label:)
     status = nil
     Timeout.timeout(TIMEOUT_SECONDS) do
-      _output, status = Open3.capture2e(@env, "bash", "-c", command, chdir: @workspace_path)
+      output, status = Open3.capture2e(@env, "bash", "-c", command, chdir: @workspace_path)
+      unless status&.success?
+        excerpt = output.to_s.lines.last(20).join.strip
+        @log.call("[flaky_gate:#{grader_name}] #{label} failed (exit #{status&.exitstatus || 'unknown'}):\n#{excerpt}")
+      end
     end
     status&.success? || false
   rescue Timeout::Error
-    @log.call("[flaky_gate:#{grader_name}] repeat run timed out after #{TIMEOUT_SECONDS.to_i}s")
+    @log.call("[flaky_gate:#{grader_name}] #{label} timed out after #{TIMEOUT_SECONDS.to_i}s")
     false
   end
 
@@ -153,6 +182,13 @@ class TouchedTestRepeatGate
     Result.new(
       ran: false, consistent: true, reason: reason, grader_name: grader_name, command: nil,
       files: @touched_files, repeats: 0, pass_count: 0, fail_count: 0
+    )
+  end
+
+  def failed_setup(command)
+    Result.new(
+      ran: true, consistent: false, reason: "repeat_environment_setup_failed", grader_name: grader_name,
+      command: command, files: @touched_files, repeats: 0, pass_count: 0, fail_count: 1
     )
   end
 end

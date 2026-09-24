@@ -1,6 +1,12 @@
 require "rails_helper"
 
 RSpec.describe Ruby::FocusedTestCommand do
+  it "provides a one-time Rails test database setup for focused RSpec repeats" do
+    expect(described_class.prepare_command_for(grader_name: "rspec", grader_command: "bundle exec rspec")).to eq(
+      "if [ -x bin/rails ] && [ -f config/database.yml ]; then RAILS_ENV=test bin/rails db:test:prepare; fi"
+    )
+  end
+
   it "synthesizes a focused RSpec command when the grader opts into plugin strategy" do
     command = described_class.command_for(
       grader_name: "rspec",

@@ -443,8 +443,12 @@ class ImmutableSourceCheckout
   end
 
   def finalize_restored_prepared_archive!(snapshot, prepare_cache)
-    record_prepared!(snapshot, prepare_cache.plan, prepare_cache)
-    prepare_cache.store_from!(path)
+    prepare_cache.with_lock do
+      unless prepare_cache.hit?
+        record_prepared!(snapshot, prepare_cache.plan, prepare_cache)
+        prepare_cache.store_from!(path)
+      end
+    end
     record_prepare_cache!(prepare_cache, "archive_hit")
     log("[immutable_source_checkout] prepare archive hit: #{prepare_cache.short_cache_key}")
   end

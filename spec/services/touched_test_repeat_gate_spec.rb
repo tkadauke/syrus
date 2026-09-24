@@ -69,6 +69,44 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(0)
   end
 
+  it "prepares the focused test environment once before all repeats" do
+    provider = double("focused_test_command_provider")
+    allow(provider).to receive(:command_for).and_return("true")
+    allow(provider).to receive(:prepare_command_for).and_return("printf prepared > prepared")
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 3
+    )
+
+    expect(result.consistent).to be(true)
+    expect(Pathname.new(@dir).join("prepared").read).to eq("prepared")
+    expect(provider).to have_received(:prepare_command_for).once
+  end
+
+  it "reports repeat environment setup output when setup fails" do
+    logs = []
+    provider = double("focused_test_command_provider")
+    allow(provider).to receive(:command_for).and_return("true")
+    allow(provider).to receive(:prepare_command_for).and_return("echo database-not-ready; false")
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 3,
+      log: ->(message) { logs << message }
+    )
+
+    expect(result.reason).to eq("repeat_environment_setup_failed")
+    expect(result.repeats).to eq(0)
+    expect(logs.join("\n")).to include("database-not-ready")
+  end
+
   it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do
     stub_focused_command("false")
 

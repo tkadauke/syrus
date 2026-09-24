@@ -560,9 +560,9 @@ module Steps
         return true unless continue_side_effects?("[grader_fanout] source snapshot publication")
 
         heartbeat!
-        archived = publish_prepared_workspace_archive!(source_snapshot)
+        publish_prepared_workspace_archive!(source_snapshot)
         heartbeat!
-        publish_source_snapshot_ref!(source_snapshot.source_sha, source_snapshot.source_ref) unless archived
+        publish_source_snapshot_ref!(source_snapshot.source_sha, source_snapshot.source_ref)
         heartbeat!
       end
 

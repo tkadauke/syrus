@@ -8,6 +8,12 @@ module Ruby
       new(grader_name: grader_name, grader_command: grader_command, failed_cases: failed_cases, base_retry: base_retry).command
     end
 
+    def self.prepare_command_for(grader_name:, grader_command:)
+      return nil unless grader_name.to_s.include?("rspec") || grader_command.to_s.match?(/\brspec\b/)
+
+      "if [ -x bin/rails ] && [ -f config/database.yml ]; then RAILS_ENV=test bin/rails db:test:prepare; fi"
+    end
+
     def initialize(grader_name:, grader_command:, failed_cases:, base_retry:)
       @grader_name = grader_name.to_s
       @grader_command = grader_command.to_s

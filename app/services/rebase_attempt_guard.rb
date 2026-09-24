@@ -7,6 +7,8 @@ class RebaseAttemptGuard
   MEMORY_WRITE_RETRY_STORM_THRESHOLD = 2
 
   def self.cap_reached?(job, pr: nil)
+    return true if permanently_blocked_by_provider_configuration?(job)
+
     workflows = consecutive_failed_agent_rebase_workflows(job, pr: pr)
     return true if permanently_blocked_by?(workflows)
     return false unless workflows.size >= ATTEMPT_CAP
@@ -18,6 +20,8 @@ class RebaseAttemptGuard
   end
 
   def self.cooling_down?(job, pr: nil)
+    return true if permanently_blocked_by_provider_configuration?(job)
+
     return true if permanently_blocked_by?(consecutive_failed_agent_rebase_workflows(job, pr: pr))
 
     cooldown = AppSetting.rebase_failure_cooldown_minutes.minutes
@@ -42,6 +46,19 @@ class RebaseAttemptGuard
     latest_failed_agent_rebase_run(latest)&.run_failure_classification&.retryable == false
   end
   private_class_method :permanently_blocked_by?
+
+  def self.permanently_blocked_by_provider_configuration?(job)
+    workflow = job.workflows
+      .where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS)
+      .reorder(id: :desc)
+      .first
+    return false unless workflow&.failed? && failed_in_agent_rebase?(workflow)
+
+    classification = latest_failed_agent_rebase_run(workflow)&.run_failure_classification
+
+    classification&.classification == "provider_auth_or_config" && classification.retryable == false
+  end
+  private_class_method :permanently_blocked_by_provider_configuration?
 
   def self.latest_failed_agent_rebase_run(workflow)
     workflow.steps

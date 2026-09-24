@@ -348,7 +348,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(collect.reload.depends_on_step_ids).to eq(grader_steps.map(&:id))
   end
 
-  it "uses the prepared workspace archive without checking or publishing a remote source ref" do
+  it "publishes a remote source ref as fallback when the prepared workspace archive succeeds" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
     write_config(<<~YAML)
@@ -358,8 +358,9 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     YAML
     record_prepared_workspace!
 
-    expect(@git).not_to receive(:run).with("ls-remote", anything, anything, chdir: anything, env: anything)
-    expect(@git).not_to receive(:run).with("push", anything, anything, chdir: anything, env: anything)
+    expect(@git).to receive(:run)
+      .with("push", "file://remote", /\Aabc123:refs\/syrus\/source-snapshots\/runs\/\d+\z/, chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })
+      .and_return("")
 
     handler.call
 
