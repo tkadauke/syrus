@@ -47,6 +47,7 @@ module AgentProviders
       S3_REGION
       S3_ACCESS_KEY_ID
       S3_SECRET_ACCESS_KEY
+      SYRUS_GIT_MIRROR_TOKEN
     ].freeze
 
     def initialize(run:, workspace:, parent_session_id:)

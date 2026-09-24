@@ -115,7 +115,8 @@ RSpec.describe AgentProviders::Claude do
         "S3_ENDPOINT" => "http://minio.minio.svc.cluster.local:9000",
         "S3_REGION" => "us-east-1",
         "S3_ACCESS_KEY_ID" => "ak",
-        "S3_SECRET_ACCESS_KEY" => "sk"
+        "S3_SECRET_ACCESS_KEY" => "sk",
+        "SYRUS_GIT_MIRROR_TOKEN" => "mirror-token"
       }
       saved = ENV.to_h.slice(*stash.keys)
       stash.each { |k, v| ENV[k] = v }
@@ -189,7 +190,8 @@ RSpec.describe AgentProviders::Claude do
         "S3_ENDPOINT" => "http://minio.minio.svc.cluster.local:9000",
         "S3_REGION" => "us-east-1",
         "S3_ACCESS_KEY_ID" => "ak",
-        "S3_SECRET_ACCESS_KEY" => "sk"
+        "S3_SECRET_ACCESS_KEY" => "sk",
+        "SYRUS_GIT_MIRROR_TOKEN" => "mirror-token"
       )
     end
 

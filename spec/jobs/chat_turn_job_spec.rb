@@ -446,7 +446,8 @@ RSpec.describe ChatTurnJob, :ci_only do
       "PATH" => "/opt/ruby/bin:/usr/local/bin:/usr/bin:/bin",
       "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY" => "primary",
       "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY" => "deterministic",
-      "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT" => "salt"
+      "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT" => "salt",
+      "SYRUS_GIT_MIRROR_TOKEN" => "mirror-token"
     }
     saved = ENV.to_h.slice(*host_env.keys)
     host_env.each { |key, value| ENV[key] = value }
