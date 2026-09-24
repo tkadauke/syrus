@@ -209,7 +209,7 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.third.run).not_to include("parallel_rspec")
   end
 
-  it "splits CI into a parallel fast pass plus configured serial tag pass" do
+  it "splits CI into a parallel fast pass plus configured serial tag pass", :ci_only do
     step = described_class.grade_steps(
       config: {
         "tags" => { "ci" => { "include" => [ "ci_only" ] } },
@@ -234,7 +234,7 @@ RSpec.describe Ruby::RspecGraderType do
     expect(status).to be_success, "expected the generated extra-serial status checks to run, got:\n#{stderr}"
   end
 
-  it "supports direct parallel_rspec command generation without a worker wrapper" do
+  it "supports direct parallel_rspec command generation without a worker wrapper", :ci_only do
     step = described_class.grade_steps(
       config: {
         "parallel_rspec" => {
