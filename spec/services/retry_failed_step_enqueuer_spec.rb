@@ -174,6 +174,50 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(workflow.artifact("manual_grade_loop_restarts")).to be_nil
   end
 
+  it "raises a clear retry error when the selected fanout cannot be reopened" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", chain_template: grade_retry_chain_template)
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+
+    fanout = Step.create!(
+      workflow: workflow,
+      kind: "grader_fanout",
+      position: 4,
+      state: "running",
+      iteration: 2,
+      loop_id: "grade-loop"
+    )
+    grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 5,
+      state: "cancelled",
+      iteration: 2,
+      loop_id: "grade-loop",
+      cancellation_reason: "cancel_terminal_workflow_active_descendants",
+      details: { "name" => "tests", "required" => true }
+    )
+    collect = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 6,
+      state: "cancelled",
+      iteration: 2,
+      loop_id: "grade-loop",
+      cancellation_reason: "cancel_terminal_workflow_active_descendants"
+    )
+    fanout.update!(next_step: collect)
+    grader.update!(next_step: collect, depends_on_ids: [ fanout.id ])
+    collect.update!(depends_on_ids: [ grader.id ])
+    fanout.runs.create!(job: job, trigger_kind: "initial", state: "running", started_at: 2.minutes.ago)
+
+    expect(described_class.failed_step_for(workflow)).to eq(fanout)
+
+    expect do
+      described_class.call(workflow: workflow, restart_grade_loop: false)
+    end.to raise_error(described_class::Error, "Step #{fanout.id} cannot be reopened from running")
+  end
+
   it "restarts a cancelled grade loop before retrying a downstream failure" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "initial", chain_template: grade_retry_chain_template)
