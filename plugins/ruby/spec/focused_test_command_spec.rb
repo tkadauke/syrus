@@ -12,7 +12,18 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("bundle exec rspec spec/models/widget_spec.rb")
+    expect(command).to eq("RAILS_ENV=test bundle exec rspec spec/models/widget_spec.rb")
+  end
+
+  it "forces the test Rails environment for reruns launched from Rails workers" do
+    command = described_class.command_for(
+      grader_name: "plugins-ruby-rspec-focused",
+      grader_command: "bundle exec rspec",
+      failed_cases: [ { "file_path" => "plugins/ruby/spec/rspec_grader_type_spec.rb" } ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(command).to start_with("RAILS_ENV=test bundle exec rspec ")
   end
 
   it "declines when the grader did not opt into plugin strategy" do
