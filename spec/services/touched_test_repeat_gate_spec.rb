@@ -27,6 +27,10 @@ RSpec.describe TouchedTestRepeatGate do
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
   end
 
+  def subprocess_env
+    { "PATH" => ENV.fetch("PATH", "") }
+  end
+
   it "flags an intentionally-flaky fixture test as inconsistent across repeats" do
     counter = Pathname.new(@dir).join("counter")
     counter.write("0")
@@ -40,6 +44,7 @@ RSpec.describe TouchedTestRepeatGate do
       grader_step: grader_step,
       touched_files: [ "spec/flaky_spec.rb" ],
       workspace_path: @dir,
+      env: subprocess_env,
       repeats: 5
     )
 
@@ -59,6 +64,7 @@ RSpec.describe TouchedTestRepeatGate do
       grader_step: grader_step,
       touched_files: [ "spec/stable_spec.rb" ],
       workspace_path: @dir,
+      env: subprocess_env,
       repeats: 5
     )
 
@@ -76,6 +82,7 @@ RSpec.describe TouchedTestRepeatGate do
       grader_step: grader_step,
       touched_files: [ "spec/broken_spec.rb" ],
       workspace_path: @dir,
+      env: subprocess_env,
       repeats: 5
     )
 
@@ -111,6 +118,26 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.reason).to eq("no_focused_command")
   end
 
+  it "does not leak the parent Rails environment into repeat commands" do
+    stub_focused_command('test "${RAILS_ENV:-test}" = "test"')
+
+    previous = ENV["RAILS_ENV"]
+    ENV["RAILS_ENV"] = "development"
+    begin
+      result = described_class.call(
+        grader_step: grader_step,
+        touched_files: [ "spec/stable_spec.rb" ],
+        workspace_path: @dir,
+        env: subprocess_env,
+        repeats: 1
+      )
+
+      expect(result.consistent).to be(true)
+    ensure
+      ENV["RAILS_ENV"] = previous
+    end
+  end
+
   describe "building the rerun command without BaseRevisionRetry's base_retry opt-in" do
     # The regression this guards: a repository has never configured
     # `base_retry: { strategy: plugin }` on its rspec grader (most don't --
@@ -128,7 +155,11 @@ RSpec.describe TouchedTestRepeatGate do
       )
 
       expect(result.ran).to be(true)
-      expect(result.command).to eq("bundle exec rspec spec/models/widget_spec.rb")
+      expect(result.command).to eq(
+        "mkdir -p .syrus/grade-output .syrus/rspec-json && " \
+        "if [ -x bin/rails ] && [ -f config/database.yml ]; then RAILS_ENV=${RAILS_ENV:-test} bin/rails db:test:prepare; fi && " \
+        "RAILS_ENV=${RAILS_ENV:-test} COVERAGE=false bundle exec rspec spec/models/widget_spec.rb"
+      )
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do
