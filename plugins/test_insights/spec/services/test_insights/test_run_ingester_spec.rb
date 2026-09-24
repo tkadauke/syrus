@@ -96,7 +96,7 @@ RSpec.describe TestInsights::Ingester do
   end
 
   it "refreshes bounded runtime summaries for each identity and grader" do
-    ingester.ingest!
+    perform_enqueued_jobs(only: RefreshTestRuntimeSummariesJob) { ingester.ingest! }
 
     identity = TestInsights::TestIdentity.find_by!(name: "pass_0")
     grader_summary = TestInsights::RuntimeSummary.find_by!(
@@ -118,6 +118,12 @@ RSpec.describe TestInsights::Ingester do
       p95_duration_ms: 100
     )
     expect(all_summary.sample_count).to eq(1)
+  end
+
+  it "enqueues runtime summary refreshes without holding the grader slot" do
+    expect { ingester.ingest! }
+      .to have_enqueued_job(RefreshTestRuntimeSummariesJob)
+      .on_queue("low_priority_maintenance")
   end
 
   it "links test cases to the repository" do
@@ -281,8 +287,8 @@ RSpec.describe TestInsights::Ingester do
     expect(TestInsights::TestRun.find_by!(run: run, grader_name: "rspec")).to have_attributes(total_count: 3, failed_count: 1)
   end
 
-  it "preserves primary test result rows when runtime summary refresh fails" do
-    allow(TestInsights::RuntimeSummary).to receive(:refresh_many!).and_raise(ArgumentError, "adapter does not support :unique_by")
+  it "preserves primary test result rows when runtime summary refresh enqueue fails" do
+    allow(RefreshTestRuntimeSummariesJob).to receive(:perform_later).and_raise(ArgumentError, "queue unavailable")
     allow(Rails.logger).to receive(:warn)
 
     expect { ingester.ingest! }
@@ -290,7 +296,7 @@ RSpec.describe TestInsights::Ingester do
       .and change(TestInsights::TestCase, :count).by(3)
 
     expect(TestInsights::TestRun.find_by!(run: run, grader_name: "rspec")).to have_attributes(total_count: 3, failed_count: 1)
-    expect(Rails.logger).to have_received(:warn).with(include("runtime summary refresh failed"))
+    expect(Rails.logger).to have_received(:warn).with(include("runtime summary refresh enqueue failed"))
   end
 
   describe "wip repair failure classification" do

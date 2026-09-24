@@ -74,9 +74,11 @@ module TestInsights
     end
 
     def refresh_runtime_summaries(test_identity_ids)
-      RuntimeSummary.refresh_many!(test_identity_ids, grader_names: [ @grader_name ])
+      return if test_identity_ids.empty?
+
+      RefreshTestRuntimeSummariesJob.perform_later(test_identity_ids, @grader_name)
     rescue StandardError => e
-      log_enrichment_failure("runtime summary refresh", e)
+      log_enrichment_failure("runtime summary refresh enqueue", e)
     end
 
     # Enqueued rather than written here: ingestion runs inside a grader step on
