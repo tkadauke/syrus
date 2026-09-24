@@ -1513,13 +1513,16 @@ describe("AppChromeV2 desktop sidebar collapse", () => {
     const peek = screen.getByTestId("sidebar-peek")
 
     expect(peek).toHaveAttribute("aria-hidden", "true")
+    expect(peek).toHaveAttribute("inert")
 
     fireEvent.mouseEnter(rail)
     act(() => vi.advanceTimersByTime(349))
     expect(peek).toHaveAttribute("aria-hidden", "true")
+    expect(peek).toHaveAttribute("inert")
 
     act(() => vi.advanceTimersByTime(1))
     expect(peek).toHaveAttribute("aria-hidden", "false")
+    expect(peek).not.toHaveAttribute("inert")
 
     fireEvent.mouseLeave(rail)
     act(() => vi.advanceTimersByTime(149))
@@ -1527,6 +1530,27 @@ describe("AppChromeV2 desktop sidebar collapse", () => {
 
     act(() => vi.advanceTimersByTime(1))
     expect(peek).toHaveAttribute("aria-hidden", "true")
+    expect(peek).toHaveAttribute("inert")
+  })
+
+  it("does not focus the closed peek search input from the global search shortcut", () => {
+    vi.useFakeTimers()
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true")
+
+    renderAppChrome()
+
+    const rail = screen.getByTestId("sidebar-rail")
+    const peek = screen.getByTestId("sidebar-peek")
+
+    fireEvent.keyDown(window, { key: "/" })
+    expect(document.activeElement).toBe(document.body)
+
+    fireEvent.mouseEnter(rail)
+    act(() => vi.advanceTimersByTime(350))
+
+    const peekSearch = within(peek).getByRole("searchbox", { name: "Search Syrus" })
+    fireEvent.keyDown(window, { key: "/" })
+    expect(document.activeElement).toBe(peekSearch)
   })
 
   it("navigates from a collapsed nav item without expanding the rail", () => {
