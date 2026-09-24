@@ -499,9 +499,13 @@ class ImmutableSourceCheckout
       "worker_storage_key" => WorkerStorageIdentity.queue_key,
       "workflow_id" => @workflow.id,
       "source_sha" => snapshot.source_sha
-    }
+    } && prepared_checkout_complete?(marker_path.dirname.dirname)
   rescue Errno::ENOENT, JSON::ParserError
     false
+  end
+
+  def prepared_checkout_complete?(checkout_path)
+    NodePackageBinValidator.complete?(checkout_path)
   end
 
   def sanitized_worker_storage_key
@@ -563,6 +567,57 @@ class ImmutableSourceCheckout
     )
   end
 
+  class NodePackageBinValidator
+    def self.complete?(checkout_path)
+      new(checkout_path).complete?
+    end
+
+    def initialize(checkout_path)
+      @checkout_path = Pathname.new(checkout_path)
+    end
+
+    def complete?
+      missing_declared_binaries.empty?
+    end
+
+    private
+
+    attr_reader :checkout_path
+
+    def missing_declared_binaries
+      return [] unless checkout_path.join("package-lock.json").file?
+      return [ "node_modules/.package-lock.json" ] unless installed_lock_path.file?
+
+      packages = JSON.parse(installed_lock_path.read).fetch("packages", {})
+      packages.each_with_object([]) do |(package_path, package_details), missing|
+        next unless package_path.start_with?("node_modules/")
+        next unless package_details.is_a?(Hash)
+
+        bin_names(package_path, package_details["bin"]).each do |bin_name|
+          bin_path = checkout_path.join("node_modules", ".bin", bin_name)
+          missing << bin_name unless bin_path.file? || bin_path.symlink?
+        end
+      end.uniq
+    rescue JSON::ParserError
+      []
+    end
+
+    def installed_lock_path
+      checkout_path.join("node_modules", ".package-lock.json")
+    end
+
+    def bin_names(package_path, bin)
+      case bin
+      when Hash
+        bin.keys.map(&:to_s).reject(&:blank?)
+      when String
+        [ package_path.split("/").last.to_s ].reject(&:blank?)
+      else
+        []
+      end
+    end
+  end
+
   class PrepareCache
     attr_reader :workflow, :step, :snapshot, :plan, :worker_storage_key, :prepare_fingerprint
 
@@ -586,7 +641,7 @@ class ImmutableSourceCheckout
     end
 
     def hit?
-      marker_path.file? && marker_matches?
+      marker_path.file? && marker_matches? && prepared_checkout_complete?
     end
 
     def store_from!(checkout_path)
@@ -660,6 +715,10 @@ class ImmutableSourceCheckout
       }
     rescue JSON::ParserError
       false
+    end
+
+    def prepared_checkout_complete?
+      NodePackageBinValidator.complete?(path)
     end
 
     def fingerprint_for(plan)

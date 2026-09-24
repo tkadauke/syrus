@@ -157,6 +157,38 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
+  it "rejects a prepared cache hit when declared npm binaries are missing" do
+    described_class.new(step).setup
+    snapshot.reload.prepared_workspace_archive.purge
+    cache_path = Pathname.new(step.reload.details.fetch("prepare_cache").fetch("cache_path"))
+    File.write(cache_path.join("package.json"), JSON.generate("scripts" => { "typecheck" => "tsc --noEmit" }))
+    lock_json = JSON.pretty_generate(
+      "lockfileVersion" => 3,
+      "packages" => {
+        "" => { "devDependencies" => { "typescript" => "5.9.2", "vitest" => "4.0.0" } },
+        "node_modules/typescript" => { "bin" => { "tsc" => "bin/tsc", "tsserver" => "bin/tsserver" } },
+        "node_modules/vitest" => { "bin" => { "vitest" => "vitest.mjs" } }
+      }
+    )
+    File.write(cache_path.join("package-lock.json"), lock_json)
+    FileUtils.mkdir_p(cache_path.join("node_modules/.bin"))
+    File.write(cache_path.join("node_modules/.package-lock.json"), lock_json)
+    FileUtils.touch(cache_path.join("node_modules/.bin/vitest"))
+
+    second_checkout = described_class.new(second_step)
+    allow(ProcessRunner).to receive(:new).and_call_original
+
+    second_checkout.setup
+
+    expect(second_step.reload.details.fetch("prepare_cache")).to include(
+      "status" => "miss",
+      "worker_storage_key" => "storage-a",
+      "source_snapshot_sha" => main_sha
+    )
+    expect(second_checkout.path.join("package-lock.json")).not_to exist
+    expect(ProcessRunner).to have_received(:new).with(hash_including(kind: "prepare"))
+  end
+
   it "restores prepared state from the source snapshot archive on another worker storage root" do
     described_class.new(step).setup
     first_cache_details = step.reload.details.fetch("prepare_cache")
