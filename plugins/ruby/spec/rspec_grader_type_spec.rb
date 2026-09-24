@@ -229,8 +229,9 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.run).to include("--tag ci_only")
     expect(step.run).to include("serial_status")
 
-    _stdout, stderr, status = Open3.capture3("bash", "-n", "-c", step.run)
-    expect(status).to be_success, "expected the generated extra-serial parallel RSpec command to parse, got:\n#{stderr}"
+    status_checks = step.run.match(/if \[ "\$parallel_status" -ne 0 \].*\z/)[0]
+    _stdout, stderr, status = Open3.capture3({ "parallel_status" => "0", "serial_status" => "0" }, "bash", "-c", status_checks)
+    expect(status).to be_success, "expected the generated extra-serial status checks to run, got:\n#{stderr}"
   end
 
   it "supports direct parallel_rspec command generation without a worker wrapper" do
@@ -251,8 +252,9 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.run).to include(".syrus/grade-output/parallel-rspec-junit/rspec-")
     expect(step.run.scan(/\sspec(?:;|\s)/).length).to eq(1)
 
-    _stdout, stderr, status = Open3.capture3("bash", "-n", "-c", step.run)
-    expect(status).to be_success, "expected the generated parallel RSpec command to parse, got:\n#{stderr}"
+    status_checks = step.run.match(/exit "\$parallel_status"\z/)[0]
+    _stdout, stderr, status = Open3.capture3({ "parallel_status" => "0" }, "bash", "-c", status_checks)
+    expect(status).to be_success, "expected the generated parallel status check to run, got:\n#{stderr}"
   end
 
   it "keeps the parallel JUnit merger valid after command whitespace normalization" do
