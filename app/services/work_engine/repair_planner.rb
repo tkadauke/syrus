@@ -836,6 +836,21 @@ module WorkEngine
         end
       end
 
+      class RepeatedFailureCircuitOpen < Base
+        def plan
+          operator_plan(
+            "operator_review_repeated_failure_circuit",
+            "The same exception fingerprint has exhausted the automatic repeat-failure circuit; a deploy, code fix, or operator decision is required before retrying.",
+            preconditions: {
+              fingerprint: issue.evidence["fingerprint"],
+              app_revision: issue.evidence["app_revision"],
+              streak_count: issue.evidence["streak_count"],
+              threshold: issue.evidence["threshold"]
+            }
+          )
+        end
+      end
+
       class BranchDivergedPrOpen < Base
         def plan
           return retry_budget_exhausted_plan unless retry_budget_available?

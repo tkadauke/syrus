@@ -32,6 +32,7 @@ module SystemAlerts
     out << codex_usage(user, availability: provider_availability["codex"]) if user
     out << data_root_disk_usage if user&.admin?
     out.concat(stuck_main_branch_repairs) if user&.admin?
+    out << urgent_attention_items if user&.admin?
     out
       .compact
       .sort_by { |alert| SEVERITIES.index(alert.severity) || SEVERITIES.length }
@@ -251,6 +252,25 @@ module SystemAlerts
     end
   end
   private_class_method :stuck_main_branch_repairs
+
+  def self.urgent_attention_items
+    count = AttentionItem.operator_queue.open_decisions.unexpired.where(urgency: "urgent").count
+    return if count.zero?
+
+    Alert.new(
+      id: "urgent_attention_items",
+      dismissal_key: "urgent_attention_items:#{count}:#{AttentionItem.operator_queue.open_decisions.unexpired.where(urgency: "urgent").maximum(:updated_at)&.to_i}",
+      severity: :alarm,
+      title: "#{count} urgent operator attention #{'item'.pluralize(count)} open.",
+      message: "Syrus has paused automatic remediation for #{count} urgent #{'problem'.pluralize(count)} that need an operator decision.",
+      action_steps: [
+        "Open Attention Items and decide whether each problem should be retried, dismissed, or deferred."
+      ],
+      cta: { text: "Open Attention Items", path: "/admin/attention_items" },
+      actions: []
+    )
+  end
+  private_class_method :urgent_attention_items
 
   def self.stuck_repair_candidates(repository_ids)
     return Job.none if repository_ids.blank?

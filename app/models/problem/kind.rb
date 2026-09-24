@@ -121,6 +121,10 @@ class Problem
                 default_remediation: :escalate),
       Entry.new(code: "application_error", scope: :run, retryable: false,
                 default_remediation: :escalate),
+      Entry.new(code: "repeated_failure_circuit_open", scope: :workflow, retryable: false,
+                default_remediation: :escalate,
+                issue_kinds: %w[repeated_failure_circuit_open],
+                label: "Repeated failure circuit open"),
 
       # -- The world moved underneath us -------------------------------------
       #
