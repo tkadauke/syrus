@@ -22,13 +22,23 @@ module MaintenanceTasks
         "#{estimate_total_units} historical grader-loop test run(s) have not been reclassified yet."
       end
 
+      def revival_checkpoint(task)
+        after_id = task.checkpoint.to_h["after_id"].to_i
+        after_id.positive? ? { "after_id" => after_id } : {}
+      end
+
       def perform_batch(task)
         return Result.new(done: true, processed: 0, failed: 0, message: "Test Insights is not installed.", level: "info") unless service_class
 
         task.current_step_key = "classify"
         task.current_step_title = "Classify historical grader-loop test runs"
 
-        after_id = task.checkpoint["after_id"].to_i
+        after_id =
+          if task.checkpoint.key?("after_id")
+            task.checkpoint["after_id"].to_i
+          else
+            service_class.completed_after_id.to_i
+          end
         result = service_class.new.call(after_id: after_id, limit: task.batch_size)
 
         task.checkpoint_will_change!
