@@ -153,7 +153,7 @@ RSpec.describe TouchedTestRepeatGate do
       )
 
       expect(result.ran).to be(true)
-      expect(result.command).to eq("(#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false #{bundle_prefix} bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
+      expect(result.command).to eq("export RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false TEST_ENV_NUMBER=${TEST_ENV_NUMBER:-_syrus_flaky_8c116b9c}; (#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && #{bundle_prefix} bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do

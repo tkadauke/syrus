@@ -20,7 +20,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("(#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false #{bundle_prefix} bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
+    expect(command).to eq("export RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false TEST_ENV_NUMBER=${TEST_ENV_NUMBER:-_syrus_flaky_8c116b9c}; (#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && #{bundle_prefix} bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
   end
 
   it "preserves ci_only inclusion for ci-only RSpec graders" do
@@ -31,7 +31,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("(#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && RAILS_ENV=test RUN_CI_ONLY_SPECS=true COVERAGE=false #{bundle_prefix} bundle exec rspec --tag ci_only spec/migrations/widget_spec.rb")
+    expect(command).to eq("export RAILS_ENV=test RUN_CI_ONLY_SPECS=true COVERAGE=false TEST_ENV_NUMBER=${TEST_ENV_NUMBER:-_syrus_flaky_3de88a23}; (#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && #{bundle_prefix} bundle exec rspec --tag ci_only spec/migrations/widget_spec.rb")
   end
 
   it "preserves explicit RSpec tag filters from the grader command" do
@@ -42,7 +42,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("(#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false #{bundle_prefix} bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
+    expect(command).to eq("export RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false TEST_ENV_NUMBER=${TEST_ENV_NUMBER:-_syrus_flaky_f58c1da8}; (#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && #{bundle_prefix} bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
   end
 
   it "preserves RSpec tag filters passed through RSPEC_TAG_ARGS" do
@@ -53,7 +53,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("(#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false #{bundle_prefix} bundle exec rspec --tag \\~ci_only plugins/muse_agent/spec/services/muse_invocation_spec.rb")
+    expect(command).to eq("export RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false TEST_ENV_NUMBER=${TEST_ENV_NUMBER:-_syrus_flaky_9ce22ed4}; (#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && #{bundle_prefix} bundle exec rspec --tag \\~ci_only plugins/muse_agent/spec/services/muse_invocation_spec.rb")
   end
 
   it "declines when the grader did not opt into plugin strategy" do
@@ -65,6 +65,19 @@ RSpec.describe Ruby::FocusedTestCommand do
     )
 
     expect(command).to be_nil
+  end
+
+  it "uses the grader's RSpec worker when the grader command runs through one" do
+    command = described_class.command_for(
+      grader_name: "rspec-focused",
+      grader_command: "bundle exec parallel_rspec --exec-args bin/rspec-worker $(cat .syrus/rspec-focused-files)",
+      failed_cases: [
+        { "suite_name" => "spec/models/widget_spec.rb", "name" => "Widget fails", "file_path" => "spec/models/widget_spec.rb" }
+      ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(command).to eq("export RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false TEST_ENV_NUMBER=${TEST_ENV_NUMBER:-_syrus_flaky_f58c1da8}; (#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && #{bundle_prefix} bin/rspec-worker --tag ~ci_only spec/models/widget_spec.rb")
   end
 
   it "declines non-rspec graders" do
