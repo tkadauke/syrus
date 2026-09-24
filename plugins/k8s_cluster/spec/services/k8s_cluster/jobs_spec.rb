@@ -11,7 +11,7 @@ RSpec.describe K8sCluster::Jobs do
     {
       "metadata" => { "name" => name, "namespace" => "default", "creationTimestamp" => "2026-01-01T00:00:00Z" },
       "spec" => { "completions" => 1, "parallelism" => 1 },
-      "status" => { "active" => [ { "name" => "migrate-123" } ], "succeeded" => 0, "failed" => 0 }
+      "status" => { "active" => 1, "succeeded" => 0, "failed" => 0 }
     }
   end
 
@@ -37,6 +37,18 @@ RSpec.describe K8sCluster::Jobs do
       payload = described_class.new(cluster).list
 
       expect(payload[:jobs].length).to eq(1)
+    end
+
+    it "reports zero active/succeeded/failed counts when the API omits status" do
+      stub_batch_discovery(base)
+      pending = job.merge("status" => {})
+      stub_kube_get("#{base}/apis/batch/v1/namespaces/default/jobs", { "items" => [ pending ] })
+
+      row = described_class.new(cluster).list(namespace: "default")[:jobs].first
+
+      expect(row[:active_count]).to eq(0)
+      expect(row[:succeeded]).to eq(0)
+      expect(row[:failed]).to eq(0)
     end
   end
 

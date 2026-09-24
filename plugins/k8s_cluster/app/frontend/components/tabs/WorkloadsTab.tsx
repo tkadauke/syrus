@@ -70,14 +70,14 @@ function PodsTable({ clusterId, namespace }: { clusterId: number; namespace: str
       <DataTable.Body>
         {pods.data.pods.map((pod) => (
           <DataTable.Row key={`${pod.namespace}/${pod.name}`}>
-            <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{pod.name}</DataTable.Cell>
-            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{pod.namespace}</DataTable.Cell>
+            <DataTable.Cell className="font-medium">{pod.name}</DataTable.Cell>
+            <DataTable.Cell className="text-text-secondary">{pod.namespace}</DataTable.Cell>
             <DataTable.Cell>
               <StatusBadge tone={pod.status === "Running" ? "success" : pod.status === "Failed" ? "error" : "neutral"}>{pod.status || "-"}</StatusBadge>
             </DataTable.Cell>
-            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{pod.ready}</DataTable.Cell>
-            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{pod.restart_count}</DataTable.Cell>
-            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(pod.created_at)}</DataTable.Cell>
+            <DataTable.Cell className="text-text-secondary">{pod.ready}</DataTable.Cell>
+            <DataTable.Cell className="text-text-secondary">{pod.restart_count}</DataTable.Cell>
+            <DataTable.Cell className="text-text-secondary">{formatAge(pod.created_at)}</DataTable.Cell>
           </DataTable.Row>
         ))}
       </DataTable.Body>
@@ -111,14 +111,14 @@ function DeploymentsTable({ clusterId, namespace }: { clusterId: number; namespa
       <DataTable.Body>
         {deployments.data.deployments.map((deployment) => (
           <DataTable.Row key={`${deployment.namespace}/${deployment.name}`}>
-            <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{deployment.name}</DataTable.Cell>
-            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{deployment.namespace}</DataTable.Cell>
-            <DataTable.Cell className="text-gray-700 dark:text-gray-300">
+            <DataTable.Cell className="font-medium">{deployment.name}</DataTable.Cell>
+            <DataTable.Cell className="text-text-secondary">{deployment.namespace}</DataTable.Cell>
+            <DataTable.Cell className="text-text-secondary">
               {deployment.ready_replicas}/{deployment.replicas ?? "-"}
             </DataTable.Cell>
-            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{deployment.available_replicas}</DataTable.Cell>
-            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{deployment.updated_replicas}</DataTable.Cell>
-            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(deployment.created_at)}</DataTable.Cell>
+            <DataTable.Cell className="text-text-secondary">{deployment.available_replicas}</DataTable.Cell>
+            <DataTable.Cell className="text-text-secondary">{deployment.updated_replicas}</DataTable.Cell>
+            <DataTable.Cell className="text-text-secondary">{formatAge(deployment.created_at)}</DataTable.Cell>
           </DataTable.Row>
         ))}
       </DataTable.Body>
@@ -275,16 +275,16 @@ function CronJobsTable({ clusterId, namespace }: { clusterId: number; namespace:
       <DataTable.Body>
         {cronJobs.data.cron_jobs.map((cronJob) => (
           <DataTable.Row key={`${cronJob.namespace}/${cronJob.name}`}>
-            <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{cronJob.name}</DataTable.Cell>
-            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{cronJob.namespace}</DataTable.Cell>
-            <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">
+            <DataTable.Cell className="font-medium">{cronJob.name}</DataTable.Cell>
+            <DataTable.Cell className="text-text-secondary">{cronJob.namespace}</DataTable.Cell>
+            <DataTable.Cell className="font-mono text-text-secondary">
               <CronSchedule schedule={cronJob.schedule} />
             </DataTable.Cell>
             <DataTable.Cell>
               <StatusBadge tone={cronJob.suspended ? "warning" : "success"}>{cronJob.suspended ? t("yes") : t("no")}</StatusBadge>
             </DataTable.Cell>
-            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{cronJob.active_count}</DataTable.Cell>
-            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(cronJob.created_at)}</DataTable.Cell>
+            <DataTable.Cell className="text-text-secondary">{cronJob.active_count}</DataTable.Cell>
+            <DataTable.Cell className="text-text-secondary">{formatAge(cronJob.created_at)}</DataTable.Cell>
           </DataTable.Row>
         ))}
       </DataTable.Body>
