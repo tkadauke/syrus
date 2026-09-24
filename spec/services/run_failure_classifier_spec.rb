@@ -326,6 +326,15 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(false)
   end
 
+  it "classifies Muse oversized workspace rules as non-retryable" do
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: "muse_rules_context_too_large")
+
+    result = classification
+
+    expect(result.classification).to eq("muse_rules_context_too_large")
+    expect(result.retryable).to eq(false)
+  end
+
   it "classifies missing provider resume state as retryable" do
     run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed")
     JobLog.append!(

@@ -149,6 +149,37 @@ RSpec.describe MuseInvocation do
     expect(captured.first[:command]).to include("--trust-workspace")
   end
 
+  it "fails before launch when AGENTS.md exceeds Muse's rules context limit" do
+    events = []
+
+    Dir.mktmpdir("muse-workspace") do |workspace|
+      oversized_rules = "A" * (described_class::MUSE_RULES_CONTEXT_LIMIT_BYTES + 10_000)
+      File.write(File.join(workspace, "CLAUDE.md"), oversized_rules)
+      File.symlink("CLAUDE.md", File.join(workspace, "AGENTS.md"))
+
+      expect(ProcessRunner).not_to receive(:new)
+
+      result = described_class.new(
+        workspace,
+        prompt: "P",
+        api_key: "muse-secret",
+        transcript_policy: :exec_jsonl,
+        log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+      ).run
+
+      expect(result).not_to be_success
+      expect(result.outcome).to eq(described_class::MUSE_RULES_CONTEXT_OUTCOME)
+      expect(result.final_text).to include("exceeds Muse's 65536-byte startup context limit")
+      expect(File.symlink?(File.join(workspace, "AGENTS.md"))).to be true
+      expect(File.readlink(File.join(workspace, "AGENTS.md"))).to eq("CLAUDE.md")
+      expect(File.size(File.join(workspace, "CLAUDE.md"))).to eq(oversized_rules.bytesize)
+      expect(events).to include(a_collection_including(
+        a_string_including("[muse rules]", "exceeds Muse's 65536-byte startup context limit"),
+        { kind: "system" }
+      ))
+    end
+  end
+
   # --yolo would bundle trust, approval, and sandbox behavior together. Keep
   # the flags explicit so a future CLI change does not silently widen what a
   # workflow run is allowed to do.
@@ -582,13 +613,15 @@ RSpec.describe MuseInvocation do
     stub_process_runners(lines: fixture_lines, captured: captured)
 
     Dir.mktmpdir("syrus-muse-home-") do |muse_home|
-      described_class.new(
-        Dir.pwd,
-        prompt: "P",
-        api_key: "muse-secret",
-        transcript_policy: :exec_jsonl,
-        muse_home: muse_home
-      ).run
+      Dir.mktmpdir("muse-workspace") do |workspace|
+        described_class.new(
+          workspace,
+          prompt: "P",
+          api_key: "muse-secret",
+          transcript_policy: :exec_jsonl,
+          muse_home: muse_home
+        ).run
+      end
     end
 
     expect(captured.first[:env]).to include("MUSE_NO_AUTO_UPDATE" => "1")
