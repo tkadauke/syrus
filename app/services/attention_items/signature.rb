@@ -19,7 +19,7 @@ module AttentionItems
     # occurrence of it. Anything not listed here is deliberately ignored.
     SIGNIFICANT_KEYS = %w[
       grader_name check_name step_kind command exit_status
-      error_class provider tool_name branch_kind
+      error_class provider tool_name branch_kind fingerprint app_revision
     ].freeze
 
     DIGEST_LENGTH = 12
