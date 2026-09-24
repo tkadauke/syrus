@@ -165,9 +165,12 @@ set is non-empty, `TouchedTestRepeatGate` reruns just those files a few more
 times (default `TouchedTestRepeatGate::DEFAULT_REPEATS`, 5) against that
 grader. Files are first restricted to the grader target's resolved
 `when_files_changed` scope, so nested-project graders only judge tests owned
-by their project. RSpec and Vitest graders perform this work in their normal
-distributed fanout slots; non-test graders do not participate. Building that "just
-these files" command does *not* require the grader to have separately opted
+by their project. RSpec and Vitest full-suite graders perform this work in
+their normal distributed fanout slots; already-focused grader modes skip it
+because they have just run a file-scoped selection, and rerunning the same
+selection through a second focused-command path adds cost and diagnostic noise
+without increasing coverage. Non-test graders do not participate. Building
+that "just these files" command does *not* require the grader to have separately opted
 into `BaseRevisionRetry`'s `base_retry: { strategy: plugin }` -- that would
 make the gate a silent no-op for most repositories, since `base_retry` is a
 rarely-configured opt-in for a different feature. Instead: an explicit

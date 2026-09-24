@@ -185,6 +185,7 @@ module Steps
     def check_new_test_flakiness!(name:, definition:)
       return unless repository.new_test_flakiness_gate_enabled?
       return unless typed_test_grader?(definition)
+      return if focused_test_grader?(definition)
 
       touched_files = touched_test_files_for(definition)
       return if touched_files.empty?
@@ -237,6 +238,10 @@ module Steps
 
     def typed_test_grader?(definition)
       definition["grader_framework"].to_s.in?(%w[rspec vitest])
+    end
+
+    def focused_test_grader?(definition)
+      definition["grader_mode"].to_s == "focused"
     end
 
     def touched_test_files_for(definition)
