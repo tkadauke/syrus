@@ -22,7 +22,7 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "bundle exec rspec #{Shellwords.join(files)}"
+      "#{setup_prefix} && bundle exec rspec #{Shellwords.join(files)}"
     end
 
     private
@@ -36,6 +36,10 @@ module Ruby
         path = test_case["file_path"].presence || test_case["suite_name"].presence
         path if path.to_s.end_with?("_spec.rb")
       end.uniq.sort
+    end
+
+    def setup_prefix
+      %(export BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle"; bundle check || bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}")
     end
   end
 end

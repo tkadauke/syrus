@@ -69,6 +69,32 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(0)
   end
 
+  it "does not inherit ambient worker environment into repeat runs" do
+    stub_focused_command('test -z "${SYRUS_REPEAT_GATE_LEAK:-}"')
+
+    begin
+      previous = ENV["SYRUS_REPEAT_GATE_LEAK"]
+      ENV["SYRUS_REPEAT_GATE_LEAK"] = "present"
+
+      result = described_class.call(
+        grader_step: grader_step,
+        touched_files: [ "spec/stable_spec.rb" ],
+        workspace_path: @dir,
+        env: { "PATH" => ENV.fetch("PATH") },
+        repeats: 1
+      )
+    ensure
+      if previous.nil?
+        ENV.delete("SYRUS_REPEAT_GATE_LEAK")
+      else
+        ENV["SYRUS_REPEAT_GATE_LEAK"] = previous
+      end
+    end
+
+    expect(result.ran).to be(true)
+    expect(result.consistent).to be(true)
+  end
+
   it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do
     stub_focused_command("false")
 
@@ -128,7 +154,11 @@ RSpec.describe TouchedTestRepeatGate do
       )
 
       expect(result.ran).to be(true)
-      expect(result.command).to eq("bundle exec rspec spec/models/widget_spec.rb")
+      expect(result.command).to eq(
+        'export BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle"; ' \
+          'bundle check || bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && ' \
+          "bundle exec rspec spec/models/widget_spec.rb"
+      )
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do
