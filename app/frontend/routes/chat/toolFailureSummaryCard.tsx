@@ -36,12 +36,12 @@ const NON_RETRYABLE_ERROR_PATTERNS = [
 ]
 
 export function toolFailureCollapsedSummary(context: ToolCardContext, config: ToolFailureConfig) {
-  if (!context.resultError) return null
+  if (!toolFailureDetected(context)) return null
   return `${config.title} failed: ${failureMessage(context)}`
 }
 
 export function ToolFailureSummaryCard({ context, config }: { context: ToolCardContext; config: ToolFailureConfig }) {
-  if (!context.resultError) return null
+  if (!toolFailureDetected(context)) return null
 
   const message = failureMessage(context)
   const errorClass = failureClass(context)
@@ -98,6 +98,10 @@ export function humanizeToolName(name: string) {
   return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : name
 }
 
+export function toolFailureDetected(context: ToolCardContext) {
+  return context.resultError || mcpEnvelopeErrorMessage(context.parsedResult) != null
+}
+
 function retrySafety(context: ToolCardContext, config: ToolFailureConfig) {
   const explicit = explicitRetryable(context.parsedResult)
   const inferred = explicit ?? inferredRetryable(failureMessage(context))
@@ -115,6 +119,9 @@ function retrySafety(context: ToolCardContext, config: ToolFailureConfig) {
 }
 
 function failureMessage(context: ToolCardContext) {
+  const mcpMessage = mcpEnvelopeErrorMessage(context.parsedResult)
+  if (mcpMessage) return mcpMessage
+
   const record = firstObject(context.parsedResult)
   const message = record ? stringFromRecord(record, ["error_message", "message", "error", "detail", "details", "reason"]) : null
   return message || displayValue(context.resultBody) || "Tool call failed."
@@ -197,6 +204,18 @@ function firstObject(value: unknown): Record<string, unknown> | null {
   if (isPlainObject(value)) return value
   if (Array.isArray(value)) return value.find(isPlainObject) ?? null
   return null
+}
+
+function mcpEnvelopeErrorMessage(value: unknown): string | null {
+  if (!isPlainObject(value) || value.structured_content != null || !Array.isArray(value.content)) return null
+
+  const text = value.content.map((item) => {
+    if (!isPlainObject(item) || item.type !== "text" || typeof item.text !== "string") return null
+    return item.text.trim()
+  }).find((item): item is string => !!item)
+
+  const match = text?.match(/^Error:\s*(.+)$/is)
+  return match ? match[1].trim() : null
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
