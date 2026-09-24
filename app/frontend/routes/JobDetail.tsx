@@ -334,8 +334,8 @@ export function JobDetailView({
   return (
     <>
       <SyrusTour onEvent={(data) => handleJoyrideCallback(data)} run={tourRun} steps={tourSteps} />
-      <Page.Header className="block space-y-3">
-        <div className="min-w-0">
+      <Page.Header className="items-start gap-x-6 gap-y-3">
+        <div className="min-w-0 flex-1">
           <PageHeading className="break-words">
             <CopyableSlug slug={jobSlug(payload.job.id)} />
             <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
@@ -421,7 +421,7 @@ export function JobDetailView({
             ) : null}
           </div>
         </div>
-        <div className="flex w-full flex-wrap items-center justify-start gap-3 sm:justify-end" data-testid="job-header-actions">
+        <div className="flex w-full shrink-0 flex-wrap items-center justify-start gap-3 sm:w-auto sm:justify-end" data-testid="job-header-actions">
           <HeaderActions
             command={command}
             onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
