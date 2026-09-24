@@ -22,7 +22,7 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "bundle exec rspec #{Shellwords.join(files)}"
+      "RUN_CI_ONLY_SPECS=false bundle exec rspec --tag ~ci_only #{Shellwords.join(files)}"
     end
 
     private

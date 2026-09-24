@@ -12,7 +12,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("bundle exec rspec spec/models/widget_spec.rb")
+    expect(command).to eq("RUN_CI_ONLY_SPECS=false bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
   end
 
   it "declines when the grader did not opt into plugin strategy" do
