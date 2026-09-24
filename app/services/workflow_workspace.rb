@@ -696,6 +696,8 @@ class WorkflowWorkspace
     return if valid_head?
 
     message = "existing workflow workspace at #{path} has no valid HEAD"
+    required_branch_recovery = required_branch_restorable?
+    recovery_target = invalid_checkout_recovery_target unless required_branch_recovery
     unless safe_to_reclone_existing_workspace?
       raise GitRunner::GitError.new(
         [ "rev-parse", "--verify", "HEAD" ],
@@ -707,6 +709,7 @@ class WorkflowWorkspace
     notify("#{message}; recloning")
     FileUtils.rm_rf(path)
     clone_and_checkout
+    restore_invalid_checkout_recovery_target!(recovery_target) if recovery_target
   end
 
   def valid_head?
@@ -721,11 +724,69 @@ class WorkflowWorkspace
     return true if succeeded_steps.none?
 
     return true if required_branch_restorable?
+    return true if invalid_checkout_recovery_target.present?
 
     # A broken checkout with no valid HEAD cannot preserve meaningful git state.
     # Reclone when only deterministic/read-only setup has succeeded; keep
     # failing loudly if a prior agentic step may have produced unpushed commits.
     succeeded_steps.where(kind: Step::AGENTIC_KINDS).none?
+  end
+
+  def invalid_checkout_recovery_target
+    return @invalid_checkout_recovery_target if defined?(@invalid_checkout_recovery_target)
+
+    @invalid_checkout_recovery_target =
+      current_source_snapshot_recovery_target ||
+      latest_run_checkpoint_recovery_target
+  end
+
+  def current_source_snapshot_recovery_target
+    snapshot = WorkflowSourceSnapshots.current_for(@workflow)
+    return nil unless snapshot
+    return nil unless remote_ref_sha(snapshot.source_ref) == snapshot.source_sha
+
+    {
+      kind: "source snapshot",
+      ref: snapshot.source_ref,
+      sha: snapshot.source_sha
+    }
+  rescue GitRunner::GitError
+    nil
+  end
+
+  def latest_run_checkpoint_recovery_target
+    checkpoint = RunCheckpoint.published
+      .where(workflow_id: @workflow.id)
+      .recent
+      .detect { |candidate| remote_ref_sha(candidate.remote_ref) == candidate.commit_sha }
+    return nil unless checkpoint
+
+    {
+      kind: "run checkpoint",
+      ref: checkpoint.remote_ref,
+      sha: checkpoint.commit_sha
+    }
+  rescue GitRunner::GitError
+    nil
+  end
+
+  def restore_invalid_checkout_recovery_target!(target)
+    authenticated_git("git_workflow_invalid_checkout_recovery") do |url|
+      @git.run("fetch", "--no-tags", url, target.fetch(:ref), chdir: path.to_s, env: @env)
+    end
+
+    fetched_sha = @git.run("rev-parse", "FETCH_HEAD", chdir: path.to_s).strip
+    expected_sha = target.fetch(:sha)
+    unless fetched_sha == expected_sha
+      raise GitRunner::GitError.new(
+        [ "fetch", target.fetch(:ref) ],
+        128,
+        "invalid checkout recovery #{target.fetch(:kind)} #{target.fetch(:ref)} resolved to #{fetched_sha}, expected #{expected_sha}"
+      )
+    end
+
+    @git.run("checkout", "-B", @branch_name, expected_sha, chdir: path.to_s)
+    notify("restored invalid checkout from #{target.fetch(:kind)} #{target.fetch(:ref)} at #{expected_sha.first(12)}")
   end
 
   def required_branch_restorable?
