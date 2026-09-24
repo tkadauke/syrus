@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "rails_helper"
+require "open3"
 
 RSpec.describe "Syrus grader configuration" do
   it "onboards deterministic formatter commands for Syrus workflow autofixes" do
@@ -95,7 +96,7 @@ RSpec.describe "Syrus grader configuration" do
     config = SyrusYml.new(Rails.root.join("cli/.syrus.yml").read).parse
 
     expect(config.project).to have_attributes(id: "cli", label: "CLI", kind: "cli")
-    expect(config.prepare).to eq([ "mise exec go@1.26.5 -- go mod download" ])
+    expect(config.prepare).to eq([ "GOWORK=off mise exec go@1.26.5 -- go mod download" ])
 
     grader = config.grade.steps.find { |step| step.name == "go-tests" }
     expect(grader).to have_attributes(
@@ -136,8 +137,33 @@ RSpec.describe "Syrus grader configuration" do
     cli_prepare = graph.target("//cli:prepare")
     cli_tests = graph.affected("//cli:grade/go-tests", changed_files: [ "cli/cmd/jobs.go" ])
 
-    expect(cli_prepare.command).to eq("mise exec go@1.26.5 -- go mod download")
+    expect(cli_prepare.command).to eq("GOWORK=off mise exec go@1.26.5 -- go mod download")
     expect(cli_tests.affected).to be(true)
+  end
+
+  it "keeps the CLI prepare target from mutating Go workspace sums" do
+    skip "mise is required for the configured CLI prepare target" unless system("command -v mise >/dev/null 2>&1")
+
+    config = SyrusYml.new(Rails.root.join("cli/.syrus.yml").read).parse
+    command = config.prepare.fetch(0)
+
+    Dir.mktmpdir("syrus-cli-prepare-hermetic") do |dir|
+      tmp = Pathname.new(dir)
+      copy_cli_prepare_fixture(tmp)
+
+      system("git", "init", "-q", "-b", "main", chdir: tmp.to_s, exception: true)
+      system("git", "config", "user.email", "test@example.com", chdir: tmp.to_s, exception: true)
+      system("git", "config", "user.name", "Test", chdir: tmp.to_s, exception: true)
+      system("git", "add", ".", chdir: tmp.to_s, exception: true)
+      system("git", "commit", "-q", "-m", "prepare fixture", chdir: tmp.to_s, exception: true)
+
+      output, status = Open3.capture2e("bash", "-lc", command, chdir: tmp.join("cli").to_s)
+      expect(status).to be_success, output
+
+      status_output, status_check = Open3.capture2e("git", "status", "--porcelain", "--", "go.work.sum", "cli/go.sum", chdir: tmp.to_s)
+      expect(status_check).to be_success, status_output
+      expect(status_output).to eq("")
+    end
   end
 
   it "selects the union of Rails app and CLI project primitives for mixed app and CLI changes" do
@@ -339,5 +365,26 @@ RSpec.describe "Syrus grader configuration" do
     expect(missing.map(&:name)).to eq([]),
       "these graders boot Rails but never install a bundle, so they depend on " \
       "another grader having run first: #{missing.map(&:name).join(', ')}"
+  end
+
+  def copy_cli_prepare_fixture(destination)
+    %w[go.work go.work.sum].each do |file|
+      FileUtils.cp(Rails.root.join(file), destination.join(file))
+    end
+
+    copy_files(destination, "cli", %w[go.mod go.sum])
+
+    %w[scheduled_tasks k8s_cluster global_search design_docs spending_insights].each do |plugin|
+      copy_files(destination, "plugins/#{plugin}/cli", %w[go.mod])
+    end
+  end
+
+  def copy_files(destination, directory, filenames)
+    filenames.each do |filename|
+      source = Rails.root.join(directory, filename)
+      target = destination.join(directory, filename)
+      FileUtils.mkdir_p(target.dirname)
+      FileUtils.cp(source, target)
+    end
   end
 end
