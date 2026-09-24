@@ -10,8 +10,8 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
       kind: "grader",
       position: 100,
       details: {
-        "name" => "rspec",
-        "command" => "bundle exec rspec",
+        "name" => "plugins-example-rspec",
+        "command" => 'RAILS_ENV=${RAILS_ENV:-test} COVERAGE=false bundle exec rspec plugins/example/spec',
         "required" => true,
         "grader_framework" => "rspec",
         "when_files_changed" => [ "plugins/example/spec/**/*.rb" ],
@@ -46,15 +46,15 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
   it "runs repeat checks inside the owning typed grader with project-scoped files" do
     result = TouchedTestRepeatGate::Result.new(
       ran: true, consistent: true, reason: "repeat_run_consistent",
-      grader_name: "rspec",
+      grader_name: "plugins-example-rspec",
       command: "bundle exec rspec plugins/example/spec/widget_spec.rb",
-      normal_command: "bundle exec rspec",
+      normal_command: "RAILS_ENV=${RAILS_ENV:-test} COVERAGE=false bundle exec rspec plugins/example/spec",
       files: [ "plugins/example/spec/widget_spec.rb" ],
       repeats: 4,
       pass_count: 4,
       fail_count: 0,
       runs: [],
-      env: {}
+      env: { "RAILS_ENV" => "test", "COVERAGE" => "false" }
     )
     expect(TouchedTestRepeatGate).to receive(:call).with(hash_including(
       grader_step: step,
@@ -63,9 +63,10 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
       workspace_path: @ws_path
     )).and_return(result)
 
-    expect { handler.send(:check_new_test_flakiness!, name: "rspec", definition: step.details) }.not_to raise_error
+    expect { handler.send(:check_new_test_flakiness!, name: "plugins-example-rspec", definition: step.details) }.not_to raise_error
 
     expect(step.reload.details.dig("new_test_flakiness_gate", "consistent")).to be(true)
+    expect(step.details.dig("new_test_flakiness_gate", "env")).to include("RAILS_ENV" => "test", "COVERAGE" => "false")
   end
 
   it "fails the grader itself when repeat results are inconsistent" do
@@ -83,7 +84,7 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
     )
     allow(TouchedTestRepeatGate).to receive(:call).and_return(result)
 
-    expect { handler.send(:check_new_test_flakiness!, name: "rspec", definition: step.details) }
+    expect { handler.send(:check_new_test_flakiness!, name: "plugins-example-rspec", definition: step.details) }
       .to raise_error(Steps::Base::StepFailed) { |error| expect(error.evidence[:new_test_flakiness]).to be(true) }
 
     expect(step.reload.details.dig("new_test_flakiness_gate", "consistent")).to be(false)
@@ -104,7 +105,7 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
     )
     allow(TouchedTestRepeatGate).to receive(:call).and_return(result)
 
-    expect { handler.send(:check_new_test_flakiness!, name: "rspec", definition: step.details) }
+    expect { handler.send(:check_new_test_flakiness!, name: "plugins-example-rspec", definition: step.details) }
       .not_to raise_error
 
     expect(step.reload.details.dig("new_test_flakiness_gate", "reason")).to eq("focused_command_failed_consistently")
