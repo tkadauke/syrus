@@ -256,7 +256,12 @@ class RetryFailedStepEnqueuer
         revived_cancelled_step_attributes(step)
       )
     else
-      raise AASM::InvalidTransition, "Step #{step.id} cannot be reopened from #{step.state}"
+      raise AASM::InvalidTransition.new(
+        step,
+        :reopen,
+        :default,
+        [ "Step #{step.id} cannot be reopened from #{step.state}" ]
+      )
     end
   end
 
@@ -274,7 +279,11 @@ class RetryFailedStepEnqueuer
   # iteration's grader graph. Only an explicit operator retry may append a
   # fresh loop with a new loop_id and reset iteration count.
   def recover_grade_loop_iteration!(fanout)
-    reopen_step!(fanout)
+    if fanout.succeeded?
+      fanout.update_columns(requeued_step_attributes)
+    else
+      reopen_step!(fanout)
+    end
     workflow.steps
       .where(loop_id: fanout.loop_id, iteration: fanout.iteration, state: "cancelled")
       .where(kind: %w[grader grader_collect])
@@ -286,7 +295,14 @@ class RetryFailedStepEnqueuer
 
   def restart_grade_loop!(fanout)
     loop_node = retry_until_loop_node_for(fanout)
-    raise AASM::InvalidTransition, "Step #{fanout.id} is not in a retry-until grade loop" unless loop_node
+    unless loop_node
+      raise AASM::InvalidTransition.new(
+        fanout,
+        :restart_grade_loop,
+        :default,
+        [ "Step #{fanout.id} is not in a retry-until grade loop" ]
+      )
+    end
 
     continuation = grade_loop_continuation_after(fanout)
     anchor = loop_restart_anchor_for(fanout, continuation: continuation)
@@ -498,12 +514,17 @@ class RetryFailedStepEnqueuer
   ].freeze
 
   def revived_cancelled_step_attributes(step)
+    requeued_step_attributes.merge(
+      cancellation_reason: nil,
+      details: step.details.to_h.except(*CANCELLATION_DETAIL_KEYS)
+    )
+  end
+
+  def requeued_step_attributes
     {
       state: "queued",
       started_at: nil,
       finished_at: nil,
-      cancellation_reason: nil,
-      details: step.details.to_h.except(*CANCELLATION_DETAIL_KEYS),
       updated_at: Time.current
     }
   end
