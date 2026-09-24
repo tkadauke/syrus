@@ -2193,8 +2193,8 @@ describe("JobDetailRoute", () => {
     expect(main).not.toHaveClass("px-[var(--space-page-x)]")
 
     const header = main.querySelector("header")
-    expect(header).toHaveClass("px-4", "sm:px-0", "flex", "flex-wrap", "gap-x-6", "gap-y-3")
-    expect(header).not.toHaveClass("block", "space-y-3")
+    expect(header).toHaveClass("px-4", "sm:px-0", "block", "space-y-3")
+    expect(header).not.toHaveClass("gap-x-6", "gap-y-3")
 
     const tabChrome = screen.getByRole("navigation", { name: "Job sections" }).parentElement
     expect(tabChrome).toHaveClass("px-4", "sm:px-0")
@@ -3173,7 +3173,7 @@ describe("Job detail tour", () => {
     expect(document.querySelector("[data-tour='job-approve']")).toBeInTheDocument()
   })
 
-  it("docks header actions in the header's right-side action slot", () => {
+  it("renders header actions in a right-aligned row below the title", () => {
     storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
     renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
       initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
@@ -3184,6 +3184,8 @@ describe("Job detail tour", () => {
 
     expect(header).toContainElement(actionSlot)
     expect(actionSlot.parentElement).toBe(header)
+    expect(Array.from(header?.children ?? []).at(1)).toBe(actionSlot)
+    expect(actionSlot).toHaveClass("w-full")
     expect(actionSlot).toHaveClass("sm:justify-end")
     expect(actionSlot).toContainElement(screen.getByRole("button", { name: "More actions" }))
     expect(actionSlot).toContainElement(screen.getByLabelText("Job navigation"))
