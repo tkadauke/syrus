@@ -5,6 +5,15 @@ RSpec.describe RetryWorkflowEnqueuer do
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job(repository: repository, agent_provider: "claude") }
 
+  before do
+    allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(
+      RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
+    )
+    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
+      RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
+    )
+  end
+
   def finish_current_run!(state: "succeeded")
     run = job.current_run
     run.start! if run.may_start?
