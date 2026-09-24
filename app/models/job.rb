@@ -211,7 +211,7 @@ class Job < ApplicationRecord
     return all if query.blank?
 
     like = "%#{sanitize_sql_like(query)}%"
-    number_conditions = SEARCH_NUMBER_COLUMNS.map { |column| "CAST(#{column} AS CHAR) LIKE ? ESCAPE '\\'" }
+    number_conditions = SEARCH_NUMBER_COLUMNS.map { |column| "CAST(#{column} AS CHAR) LIKE ? ESCAPE #{like_escape_sql}" }
 
     if connection.adapter_name.downcase.include?("mysql")
       where(
@@ -219,7 +219,7 @@ class Job < ApplicationRecord
         query, *([ like ] * SEARCH_NUMBER_COLUMNS.size)
       )
     else
-      text_conditions = SEARCH_TEXT_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE '\\'" }
+      text_conditions = SEARCH_TEXT_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE #{like_escape_sql}" }
       conditions = text_conditions + number_conditions
       where(conditions.join(" OR "), *([ like ] * conditions.size))
     end

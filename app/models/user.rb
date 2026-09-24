@@ -603,7 +603,7 @@ class User < ApplicationRecord
       where("MATCH(#{SEARCH_TEXT_COLUMNS.join(', ')}) AGAINST (?)", query)
     else
       like = "%#{sanitize_sql_like(query)}%"
-      conditions = SEARCH_TEXT_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE '\\'" }
+      conditions = SEARCH_TEXT_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE #{like_escape_sql}" }
       where(conditions.join(" OR "), *([ like ] * conditions.size))
     end
   end
