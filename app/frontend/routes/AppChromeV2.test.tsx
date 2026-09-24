@@ -1463,7 +1463,7 @@ describe("AppChromeV2 desktop sidebar collapse", () => {
   })
 
   it("toggles collapsed mode with a plain separator click and remembers it", () => {
-    renderAppChrome()
+    renderAppChrome(<div>Dashboard</div>, { bootstrap: bootstrapPayload({ team_user_count: 3 }) })
 
     const sidebar = screen.getByTestId("desktop-sidebar")
     const separator = screen.getByRole("separator", { name: "Resize sidebar" })
@@ -1474,6 +1474,16 @@ describe("AppChromeV2 desktop sidebar collapse", () => {
 
     expect(sidebar).toHaveStyle({ width: "60px" })
     expect(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe("true")
+
+    const newChatButton = within(sidebar).getByRole("button", { name: "New Chat" })
+    const newGroupChatButton = within(sidebar).getByRole("button", { name: "New group chat" })
+    expect(newChatButton.className).toContain("p-1")
+    expect(newChatButton.className).not.toContain("px-3")
+    expect(newChatButton.className).not.toContain("h-[var(--control-height-md)]")
+    expect(newChatButton.querySelector("svg")?.className.baseVal).toContain("shrink-0")
+    expect(newGroupChatButton.className).toContain("p-1")
+    expect(newGroupChatButton.className).not.toContain("px-2.5")
+    expect(newGroupChatButton.className).not.toContain("h-[var(--control-height-sm)]")
 
     fireEvent.click(separator)
 

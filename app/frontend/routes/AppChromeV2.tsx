@@ -1082,6 +1082,7 @@ function SidebarContent({
             className={collapsed ? "mx-auto h-9 w-9 px-0" : "w-full"}
             disabled={!user || startingChat}
             onClick={onStartChat}
+            size={collapsed ? "icon" : undefined}
             title={collapsed ? t("nav:new_chat") : undefined}
           >
             <PlusIcon />
@@ -1093,7 +1094,7 @@ function SidebarContent({
               className={collapsed ? "mx-auto h-9 w-9 px-0" : "w-full"}
               disabled={!user}
               onClick={onStartGroupChat}
-              size="sm"
+              size={collapsed ? "icon" : "sm"}
               title={collapsed ? t("nav:new_group_chat") : undefined}
               variant="secondary"
             >
