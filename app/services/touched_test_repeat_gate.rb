@@ -47,15 +47,7 @@ class TouchedTestRepeatGate
     end
 
     @log.call("[flaky_gate:#{grader_name}] rerunning #{@touched_files.join(', ')} #{@repeats}x: #{command}")
-    outcomes = Array.new(@repeats) do
-      outcome = run_once(command)
-      if outcome == :transient_infrastructure_failure
-        @log.call("[flaky_gate:#{grader_name}] repeat run hit transient test infrastructure contention -- skipping")
-        return skipped("repeat_run_infrastructure_error")
-      end
-
-      outcome
-    end
+    outcomes = Array.new(@repeats) { run_once(command) }
     pass_count = outcomes.count(&:itself)
     fail_count = outcomes.size - pass_count
     # The owning grader's normal command already passed immediately before
@@ -155,7 +147,6 @@ class TouchedTestRepeatGate
   end
 
   def run_command(command, label:)
-    output = nil
     status = nil
     Timeout.timeout(TIMEOUT_SECONDS) do
       output, status = Open3.capture2e(command_environment, "bash", "-c", command, chdir: @workspace_path)
@@ -164,17 +155,10 @@ class TouchedTestRepeatGate
         @log.call("[flaky_gate:#{grader_name}] #{label} failed (exit #{status&.exitstatus || 'unknown'}):\n#{excerpt}")
       end
     end
-    return true if status&.success?
-    return :transient_infrastructure_failure if transient_infrastructure_failure?(output)
-
-    false
+    status&.success? || false
   rescue Timeout::Error
     @log.call("[flaky_gate:#{grader_name}] #{label} timed out after #{TIMEOUT_SECONDS.to_i}s")
     false
-  end
-
-  def transient_infrastructure_failure?(output)
-    output.to_s.match?(/SQLite3::BusyException|database is locked|Another bin\/rspec-fast run is already active/i)
   end
 
   def grader_name = @grader_step.details.to_h["name"].to_s
