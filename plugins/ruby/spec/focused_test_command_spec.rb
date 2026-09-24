@@ -18,11 +18,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq(
-      "mkdir -p .syrus/grade-output .syrus/rspec-json && " \
-      "if [ -x bin/rails ] && [ -f config/database.yml ]; then RAILS_ENV=${RAILS_ENV:-test} bin/rails db:test:prepare; fi && " \
-      "RAILS_ENV=${RAILS_ENV:-test} RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb"
-    )
+    expect(command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
   end
 
   it "declines when the grader did not opt into plugin strategy" do

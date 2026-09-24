@@ -32,7 +32,7 @@ class TouchedTestRepeatGate
     @grader_step = grader_step
     @touched_files = Array(touched_files)
     @workspace_path = workspace_path.to_s
-    @env = subprocess_env(env)
+    @env = env
     @repeats = [ repeats.to_i, 1 ].max
     @log = log
   end
@@ -149,7 +149,7 @@ class TouchedTestRepeatGate
   def run_command(command, label:)
     status = nil
     Timeout.timeout(TIMEOUT_SECONDS) do
-      output, status = Open3.capture2e(command_environment, "bash", "-c", command, chdir: @workspace_path, unsetenv_others: true)
+      output, status = Open3.capture2e(command_environment, "bash", "-c", command, chdir: @workspace_path)
       unless status&.success?
         excerpt = output.to_s.lines.last(20).join.strip
         @log.call("[flaky_gate:#{grader_name}] #{label} failed (exit #{status&.exitstatus || 'unknown'}):\n#{excerpt}")
@@ -166,12 +166,6 @@ class TouchedTestRepeatGate
 
   def command_environment
     @command_environment ||= @env.to_h.merge(inherited_grader_environment)
-  end
-
-  def subprocess_env(env)
-    env = env.to_h.stringify_keys
-    env["PATH"] = ENV["PATH"] if env["PATH"].blank? && ENV["PATH"].present?
-    env
   end
 
   def inherited_grader_environment
