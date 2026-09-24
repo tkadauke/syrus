@@ -23,6 +23,8 @@ class MuseInvocation
   # startup instead of silently dropping the sidecar when it can't connect.
   SETTINGS_SCHEMA_VERSION = 1
   REQUIRED_SERVER_MODE = "required"
+  MUSE_RULES_CONTEXT_LIMIT_BYTES = 65_536
+  MUSE_RULES_CONTEXT_OUTCOME = "muse_rules_context_too_large".freeze
 
   def initialize(workspace_path, prompt:, api_key:,
                  log_sink: ->(*, **) { },
@@ -94,6 +96,9 @@ class MuseInvocation
       prompt_path = File.join(tmpdir, "prompt.txt")
       File.write(prompt_path, prompt)
       write_muse_settings!(muse_home: @muse_home, mcp_server: @mcp_server, log_sink: log_sink)
+      if (rules_failure = oversized_muse_rules_failure(workspace_path, session_id, log_sink))
+        return rules_failure
+      end
 
       runner_result = ProcessRunner.new(
         env: muse_env(workspace_path, muse_home: @muse_home),
@@ -231,6 +236,31 @@ class MuseInvocation
         "mode" => REQUIRED_SERVER_MODE
       }
     end
+  end
+
+  def oversized_muse_rules_failure(workspace_path, session_id, log_sink)
+    rules_path = File.join(workspace_path, "AGENTS.md")
+    return nil unless File.exist?(rules_path) || File.symlink?(rules_path)
+
+    rules_size = File.size(rules_path)
+    return nil if rules_size <= MUSE_RULES_CONTEXT_LIMIT_BYTES
+
+    message = "Muse workspace rules file AGENTS.md is #{rules_size} bytes, " \
+      "which exceeds Muse's #{MUSE_RULES_CONTEXT_LIMIT_BYTES}-byte startup context limit. " \
+      "Shorten AGENTS.md or CLAUDE.md for Muse before retrying."
+    log_sink.call(
+      "[muse rules] #{message}",
+      kind: "system"
+    )
+    AgentInvocation::Result.new(
+      turns: nil,
+      exit_status: 1,
+      timed_out: false,
+      is_error: true,
+      outcome: MUSE_RULES_CONTEXT_OUTCOME,
+      final_text: message,
+      session_id: session_id
+    )
   end
 
   def required_mcp_state(metadata)

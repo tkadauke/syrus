@@ -28,7 +28,7 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag #{Shellwords.escape('~ci_only')} #{Shellwords.join(files)}"
+      "RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec #{Shellwords.join([ *rspec_tag_args, *files ])}"
     end
 
     private
@@ -42,6 +42,21 @@ module Ruby
         path = test_case["file_path"].presence || test_case["suite_name"].presence
         path if path.to_s.end_with?("_spec.rb")
       end.uniq.sort
+    end
+
+    def rspec_tag_args
+      args = []
+      tokens = Shellwords.split(@grader_command)
+      tokens.each_with_index do |token, index|
+        if token == "--tag" && tokens[index + 1].present?
+          args.concat([ token, tokens[index + 1] ])
+        elsif token.start_with?("RSPEC_TAG_ARGS=")
+          args.concat(Shellwords.split(token.delete_prefix("RSPEC_TAG_ARGS=")))
+        end
+      end
+      args.presence || [ "--tag", "~ci_only" ]
+    rescue ArgumentError
+      [ "--tag", "~ci_only" ]
     end
   end
 end
