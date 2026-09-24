@@ -97,6 +97,37 @@ const DEFAULT_CRONJOBS = {
   ]
 }
 
+const DEFAULT_STATEFULSETS = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  stateful_sets: [{ name: "db", namespace: "default", replicas: 3, ready_replicas: 3, current_replicas: 3, updated_replicas: 3, created_at: GENERATED_AT }]
+}
+
+const DEFAULT_DAEMONSETS = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  daemon_sets: [
+    {
+      name: "monitoring",
+      namespace: "default",
+      desired_number_scheduled: 3,
+      current_number_scheduled: 3,
+      number_ready: 3,
+      number_available: 3,
+      created_at: GENERATED_AT
+    }
+  ]
+}
+
+const DEFAULT_JOBS = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  jobs: [{ name: "migrate", namespace: "default", completions: 1, parallelism: 1, active_count: 0, succeeded: 1, failed: 0, created_at: GENERATED_AT }]
+}
+
 const DEFAULT_SERVICES = {
   available: true,
   generated_at: GENERATED_AT,
@@ -176,7 +207,21 @@ const DEFAULT_POD_LOGS = {
   log: "line one\nline two\n"
 }
 
-type ResourceKey = "namespaces" | "nodes" | "overview" | "pods" | "deployments" | "cronjobs" | "services" | "endpoints" | "pvcs" | "events" | "podLogs"
+type ResourceKey =
+  | "namespaces"
+  | "nodes"
+  | "overview"
+  | "pods"
+  | "deployments"
+  | "statefulsets"
+  | "daemonsets"
+  | "jobs"
+  | "cronjobs"
+  | "services"
+  | "endpoints"
+  | "pvcs"
+  | "events"
+  | "podLogs"
 
 function setupFetchMock(overrides: Partial<Record<ResourceKey, unknown>> = {}, errors: Partial<Record<ResourceKey, number>> = {}) {
   const calls: string[] = []
@@ -198,6 +243,9 @@ function setupFetchMock(overrides: Partial<Record<ResourceKey, unknown>> = {}, e
     if (/\/pods\/[^/]+\/logs$/.test(path)) return respond("podLogs", DEFAULT_POD_LOGS)
     if (/\/pods$/.test(path)) return respond("pods", DEFAULT_PODS)
     if (/\/deployments$/.test(path)) return respond("deployments", DEFAULT_DEPLOYMENTS)
+    if (/\/statefulsets$/.test(path)) return respond("statefulsets", DEFAULT_STATEFULSETS)
+    if (/\/daemonsets$/.test(path)) return respond("daemonsets", DEFAULT_DAEMONSETS)
+    if (/\/jobs$/.test(path)) return respond("jobs", DEFAULT_JOBS)
     if (/\/cronjobs$/.test(path)) return respond("cronjobs", DEFAULT_CRONJOBS)
     if (/\/services$/.test(path)) return respond("services", DEFAULT_SERVICES)
     if (/\/endpoints$/.test(path)) return respond("endpoints", DEFAULT_ENDPOINTS)
@@ -348,6 +396,65 @@ describe("ClusterBrowser", () => {
       fireEvent.click(await screen.findByRole("option", { name: "CronJobs" }))
       expect(await screen.findByText("nightly")).toBeInTheDocument()
       expect(screen.getByText("0 0 * * *")).toBeInTheDocument()
+    })
+
+    it("switches to statefulsets, daemonsets, and jobs via the workload kind dropdown", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+      await screen.findByText("web-1")
+
+      fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "StatefulSets" }))
+      expect(await screen.findByText("db")).toBeInTheDocument()
+      expect(screen.getByText("3/3")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "DaemonSets" }))
+      expect(await screen.findByText("monitoring")).toBeInTheDocument()
+      expect(screen.getByText("3/3")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Jobs" }))
+      expect(await screen.findByText("migrate")).toBeInTheDocument()
+    })
+
+    it("shows the empty state when there are no statefulsets", async () => {
+      setupFetchMock({ statefulsets: { available: true, generated_at: GENERATED_AT, truncated: false, stateful_sets: [] } })
+      renderBrowser()
+      await switchTab("Workloads")
+
+      fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "StatefulSets" }))
+
+      expect(await screen.findByText("No StatefulSets found.")).toBeInTheDocument()
+    })
+
+    it("shows an error when jobs fail to load", async () => {
+      setupFetchMock({}, { jobs: 502 })
+      renderBrowser()
+      await switchTab("Workloads")
+
+      fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Jobs" }))
+
+      expect(await screen.findByText("boom-jobs")).toBeInTheDocument()
+    })
+
+    it("re-fetches statefulsets scoped to the selected namespace", async () => {
+      const { calls } = setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+
+      fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "StatefulSets" }))
+      await screen.findByText("db")
+
+      fireEvent.click(screen.getByRole("button", { name: "Namespace" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default" }))
+
+      await screen.findByText("db")
+      expect(calls.some((url) => url.includes("/statefulsets?namespace=default"))).toBe(true)
     })
 
     it("shows the empty state when there are no pods", async () => {
