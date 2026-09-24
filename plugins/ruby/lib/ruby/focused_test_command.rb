@@ -22,13 +22,19 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "bundle exec rspec #{Shellwords.join(files)}"
+      "#{rspec_command} #{Shellwords.join(files)}"
     end
 
     private
 
     def rspec_grader?
       @grader_name.include?("rspec") || @grader_command.match?(/\brspec\b/)
+    end
+
+    def rspec_command
+      return "bin/rspec-worker" if @grader_command.match?(/\bbin\/rspec-worker\b/)
+
+      "bundle exec rspec"
     end
 
     def failed_spec_files

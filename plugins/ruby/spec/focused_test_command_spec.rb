@@ -26,6 +26,19 @@ RSpec.describe Ruby::FocusedTestCommand do
     expect(command).to be_nil
   end
 
+  it "uses the grader's RSpec worker when the grader command runs through one" do
+    command = described_class.command_for(
+      grader_name: "rspec-focused",
+      grader_command: "bundle exec parallel_rspec --exec-args bin/rspec-worker $(cat .syrus/rspec-focused-files)",
+      failed_cases: [
+        { "suite_name" => "spec/models/widget_spec.rb", "name" => "Widget fails", "file_path" => "spec/models/widget_spec.rb" }
+      ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(command).to eq("bin/rspec-worker spec/models/widget_spec.rb")
+  end
+
   it "declines non-rspec graders" do
     command = described_class.command_for(
       grader_name: "react-tests",
