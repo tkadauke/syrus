@@ -15,7 +15,7 @@ import { Input } from "../../components/Input"
 import { PinIcon } from "../../components/PinIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { updateChatUnread } from "../../lib/chatCache"
+import { updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
 import { chatQueryKey } from "../Chat"
 
 
@@ -462,7 +462,8 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
 
   const rename = useMutation({
     mutationFn: (title: string) => renameChat(`/api/v1/app/chats/${chat.id}/rename`, title),
-    onSuccess: () => {
+    onSuccess: (payload) => {
+      updateRecentChatCache(queryClient, payload.chat)
       void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
       void queryClient.invalidateQueries({ queryKey: ["chats", String(chat.id)] })
       setRenameOpen(false)
