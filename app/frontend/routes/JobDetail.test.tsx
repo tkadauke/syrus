@@ -2193,7 +2193,8 @@ describe("JobDetailRoute", () => {
     expect(main).not.toHaveClass("px-[var(--space-page-x)]")
 
     const header = main.querySelector("header")
-    expect(header).toHaveClass("px-4", "sm:px-0", "block", "space-y-3")
+    expect(header).toHaveClass("px-4", "sm:px-0", "flex", "flex-wrap", "gap-x-6", "gap-y-3")
+    expect(header).not.toHaveClass("block", "space-y-3")
 
     const tabChrome = screen.getByRole("navigation", { name: "Job sections" }).parentElement
     expect(tabChrome).toHaveClass("px-4", "sm:px-0")
@@ -3170,6 +3171,22 @@ describe("Job detail tour", () => {
     vi.spyOn(useTourModule, "useTour").mockReturnValue({ run: false, handleJoyrideCallback: vi.fn() })
     renderJobDetail(jobPayload())
     expect(document.querySelector("[data-tour='job-approve']")).toBeInTheDocument()
+  })
+
+  it("docks header actions in the header's right-side action slot", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    const actionSlot = screen.getByTestId("job-header-actions")
+    const header = screen.getByText("Add origin chat link").closest("header")
+
+    expect(header).toContainElement(actionSlot)
+    expect(actionSlot.parentElement).toBe(header)
+    expect(actionSlot).toHaveClass("sm:justify-end")
+    expect(actionSlot).toContainElement(screen.getByRole("button", { name: "More actions" }))
+    expect(actionSlot).toContainElement(screen.getByLabelText("Job navigation"))
   })
 
   it("renders the details section tour target", () => {
