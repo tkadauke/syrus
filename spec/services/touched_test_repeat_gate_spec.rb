@@ -105,6 +105,51 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.runs.map { |run| run["exit_status"] }.uniq).to eq([ 127 ])
   end
 
+  it "classifies RSpec focused commands that run zero examples as invalid even when they exit successfully" do
+    stub_focused_command(<<~SH.squish)
+      printf "Run options: exclude {ci_only: true}\\n\\nAll examples were filtered out\\n\\nFinished in 0.01 seconds (files took 2.5 seconds to load)\\n0 examples, 0 failures\\n"
+    SH
+    step = grader_step_with({
+      "name" => "plugins-throughput-rspec",
+      "command" => "bundle exec rspec plugins/throughput/spec",
+      "grader_framework" => "rspec"
+    })
+
+    result = described_class.call(
+      grader_step: step,
+      touched_files: [ "plugins/throughput/spec/metrics_sampler_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 2
+    )
+
+    expect(result.reason).to eq("focused_command_invalid")
+    expect(result.pass_count).to eq(0)
+    expect(result.fail_count).to eq(2)
+    expect(result.runs).to all(include("exit_status" => 0, "no_tests_run" => true, "passed" => false))
+  end
+
+  it "does not treat a parallel RSpec worker with zero examples as invalid when another worker ran examples" do
+    stub_focused_command(<<~SH.squish)
+      printf "Run options: exclude {ci_only: true}\\n\\nAll examples were filtered out\\n\\nFinished in 0.01 seconds\\n0 examples, 0 failures\\n.............\\n\\nFinished in 1.77 seconds\\n13 examples, 0 failures\\n"
+    SH
+    step = grader_step_with({
+      "name" => "plugins-throughput-rspec",
+      "command" => "bundle exec rspec plugins/throughput/spec",
+      "grader_framework" => "rspec"
+    })
+
+    result = described_class.call(
+      grader_step: step,
+      touched_files: [ "plugins/throughput/spec/metrics_sampler_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 1
+    )
+
+    expect(result.reason).to eq("repeat_run_consistent")
+    expect(result.pass_count).to eq(1)
+    expect(result.runs).to all(include("no_tests_run" => false, "passed" => true))
+  end
+
   it "persists only bounded output from failed repeat runs" do
     stub_focused_command("ruby -e 'STDOUT.write(\"x\" * 12000); exit 1'")
 
