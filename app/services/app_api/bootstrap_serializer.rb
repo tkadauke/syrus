@@ -57,7 +57,8 @@ module AppApi
         gemini_configured: user.gemini_configured?,
         notification_unread_count: unread_notifications_count,
         seen_tours: user.seen_tours,
-        sidebar_nav_order: user.sidebar_nav_order
+        sidebar_nav_order: user.sidebar_nav_order,
+        review_diff_settings: user.review_diff_settings
       }
     end
 

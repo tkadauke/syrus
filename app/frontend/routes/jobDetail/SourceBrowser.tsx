@@ -7,6 +7,7 @@ import { useT } from "../../hooks/useT"
 import { CodeBlock, renderCodeLine, useHighlightedLines } from "../../components/CodeBlock"
 import { detectHighlighterLanguage } from "../../lib/highlighter"
 import { fetchJobSource, fetchJobSourceDiff, fetchJobSourceFileContent, fetchWorkflowCoverageHitMap, type CoverageArtifact, type JobSourceDiffPayload, type JobSourcePayload } from "../../api/jobs"
+import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import type { LineAnnotation } from "../../components/diff/diffRendering"
@@ -16,6 +17,7 @@ import { refOptionsFor, sourceDiffSearch, sourceSearch } from "./sourceRefs"
 import { PanelMessage } from "./components"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { DiffReviewVersionSelector } from "./DiffReviewVersionSelector"
+import { ReviewDiffSettingsModal } from "./ReviewDiffSettingsModal"
 import type { SourceTreeNode } from "./sourceTree"
 import { buildSourceTree } from "./sourceTree"
 
@@ -274,8 +276,15 @@ function SourceDiffBrowser({
   showDiffToggle: boolean
 }) {
   const { t } = useT("jobs")
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [renderMode, setRenderMode] = useState<"single-file" | "continuous">("single-file")
+  const settingsQuery = useQuery({
+    queryKey: ["review_diff_settings"],
+    queryFn: fetchReviewDiffSettings,
+    staleTime: Infinity
+  })
+  const reviewSettings = settingsQuery.data?.review_diff_settings ?? DEFAULT_REVIEW_DIFF_SETTINGS
   const selectedFile = selectedPath ? payload.files.find((file) => file.path === selectedPath) || null : null
   const refOptions = refOptionsFor(payload, [payload.base_ref, payload.head_ref])
   const versions = payload.versions || []
@@ -355,11 +364,12 @@ function SourceDiffBrowser({
             </button>
           </div>
           {payload.truncated ? <span className="text-xs text-amber-700">{t("source_diff_truncated")}</span> : null}
+          <Button onClick={() => setSettingsOpen(true)} size="sm" variant="secondary">{t("review_settings_button")}</Button>
         </div>
       </div>
       {feedback.panel}
-      <div className="grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white lg:grid-cols-[20rem_minmax(0,1fr)] dark:border-gray-700 dark:bg-gray-900">
-        <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
+      <div className={`grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white ${reviewSettings.file_list ? "lg:grid-cols-[20rem_minmax(0,1fr)]" : ""} dark:border-gray-700 dark:bg-gray-900`}>
+        {reviewSettings.file_list ? <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
           {payload.files.length > 0 ? payload.files.map((file) => (
             <button
               className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-brand/10 ${selectedFile?.path === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
@@ -373,7 +383,7 @@ function SourceDiffBrowser({
               {feedback.commentCounts[file.path] ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{feedback.commentCounts[file.path]}</span> : null}
             </button>
           )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</p>}
-        </div>
+        </div> : null}
         <div className="min-w-0 overflow-y-auto">
           {renderMode === "continuous" || selectedFile ? (
             <ReviewableDiff
@@ -404,6 +414,7 @@ function SourceDiffBrowser({
               renderImageDiff={(file) => (
                 <ImageDiffThumbnails baseRef={payload.base_sha ?? payload.base_ref} file={file} headRef={payload.head_sha ?? payload.head_ref} jobId={payload.job_id} />
               )}
+              reviewSettings={reviewSettings}
               selectedPath={selectedPath}
               showFileHeaders
               unavailableState={t("source_diff_not_available")}
@@ -411,6 +422,7 @@ function SourceDiffBrowser({
           ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>}
         </div>
       </div>
+      {settingsOpen ? <ReviewDiffSettingsModal initialSettings={reviewSettings} onClose={() => setSettingsOpen(false)} /> : null}
     </SourceShell>
   )
 }

@@ -17,10 +17,12 @@ import {
   type JobDetailPayload,
   type JobWorkflow
 } from "../../api/jobs"
+import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
 import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { DiffReviewVersionSelector, canonicalReviewVersions, type DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
+import { ReviewDiffSettingsModal } from "./ReviewDiffSettingsModal"
 import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import { Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
@@ -35,6 +37,12 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     queryFn: () => measureAsync("diff_review.fetch_source_diff", () => fetchJobSourceDiff(String(jobId)), { metadata: { job_id: jobId } }),
     placeholderData: keepPreviousData
   })
+  const settingsQuery = useQuery({
+    queryKey: ["review_diff_settings"],
+    queryFn: fetchReviewDiffSettings,
+    staleTime: Infinity
+  })
+  const reviewSettings = settingsQuery.data?.review_diff_settings ?? DEFAULT_REVIEW_DIFF_SETTINGS
   // Paint-phase (not just commit-phase) because the diff view keeps doing
   // virtualizer/Shiki work across several frames after the initial commit;
   // "paint" is a closer proxy for when the reviewer actually sees something.
@@ -48,6 +56,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
   const [selectedRange, setSelectedRange] = useState<{ baseSha: string; headSha: string } | null>(null)
   const [pendingCommentFocus, setPendingCommentFocus] = useState<DiffReviewComment | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const versions = sourceDiff.data?.versions || []
   const payloadVersionId = sourceDiff.data?.version?.id ?? null
   const defaultVersionId = preferredReviewVersionId(sourceDiff.data?.version ?? null, versions)
@@ -200,6 +209,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
                 selectedVersionId={activeVersionId}
                 versions={versions.length > 0 ? versions : selectedVersion ? [selectedVersion] : []}
               />
+              <Button onClick={() => setSettingsOpen(true)} size="sm" variant="secondary">{t("review_settings_button")}</Button>
             </div>
           </div>
           {payload.summary ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} /> : <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}
@@ -224,7 +234,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
         */}
         <Section.Root className={`min-w-0 max-w-full ${SURFACE_CLIP_ROUNDED_CLASS}`} padding="none">
           <ReviewableDiff
-            changedFilesPopup
+            changedFilesPopup={reviewSettings.file_list}
             comments={feedback.diffThreads}
             composingBody={feedback.composingBody}
             composingDiscussError={feedback.discussComposingError}
@@ -253,6 +263,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             renderImageDiff={(file) => (
               <ImageDiffThumbnails baseRef={activeDiff.base_sha ?? activeDiff.base_ref} file={file} headRef={activeDiff.head_sha ?? activeDiff.head_ref} jobId={jobId} />
             )}
+            reviewSettings={reviewSettings}
             scroll="natural"
             selectedPath={selectedPath}
             showFileHeaders
@@ -263,6 +274,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
       <div className="min-w-0 max-w-full lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
         {feedback.panel}
       </div>
+      {settingsOpen ? <ReviewDiffSettingsModal initialSettings={reviewSettings} onClose={() => setSettingsOpen(false)} /> : null}
     </div>
   )
 }
