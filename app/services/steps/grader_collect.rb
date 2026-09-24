@@ -337,6 +337,22 @@ module Steps
         end
       end
       workflow.set_artifact!("iterations", iterations)
+      record_new_test_flakiness_artifact!(grader_steps)
+    end
+
+    def record_new_test_flakiness_artifact!(grader_steps)
+      entries = grader_steps.filter_map do |grader|
+        result = grader.details.to_h["new_test_flakiness_gate"].to_h
+        next if result.empty? || result["consistent"]
+
+        {
+          "name" => "new-test-flakiness-gate: #{result['grader_name']}",
+          "status" => result["reason"].to_s.start_with?("focused_command_") ? "warning" : "failed",
+          "required" => grader.details.to_h["required"],
+          "grader_step_id" => grader.id
+        }.merge(result.slice("reason", "command", "normal_command", "files", "repeats", "pass_count", "fail_count"))
+      end
+      workflow.set_artifact!("new_test_flakiness_gate", entries) if entries.any?
     end
 
     def record_grader_loop_metrics!(grader_steps, failed_required:)

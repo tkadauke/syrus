@@ -109,7 +109,7 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
       .not_to raise_error
 
     expect(step.reload.details.dig("new_test_flakiness_gate", "reason")).to eq("focused_command_failed_consistently")
-    expect(step.details["output"]).to include("new-test repeat gate failed: focused_command_failed_consistently")
+    expect(step.details["output"]).to include("new-test repeat gate focused command suspect: focused_command_failed_consistently")
   end
 
   it "does not attach repeat checks to non-test graders" do
@@ -131,5 +131,12 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
 
     expect(TouchedTestRepeatGate).not_to receive(:call)
     handler.send(:check_new_test_flakiness!, name: "plugins-example-rspec-focused", definition: definition)
+  end
+
+  it "does not attach repeat checks to the root focused RSpec grader" do
+    definition = step.details.merge("name" => "rspec-focused", "target_label" => "//:grade/rspec-focused")
+
+    expect(TouchedTestRepeatGate).not_to receive(:call)
+    handler.send(:check_new_test_flakiness!, name: "rspec-focused", definition: definition)
   end
 end

@@ -190,6 +190,38 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "records suspect focused rerun diagnostics as warnings" do
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "succeeded",
+      details: {
+        "name" => "plugins-example-rspec",
+        "required" => true,
+        "new_test_flakiness_gate" => {
+          "consistent" => false,
+          "reason" => "focused_command_failed_consistently",
+          "grader_name" => "plugins-example-rspec",
+          "command" => "bundle exec rspec plugins/example/spec/widget_spec.rb",
+          "normal_command" => "RAILS_ENV=test bundle exec rspec plugins/example/spec",
+          "files" => [ "plugins/example/spec/widget_spec.rb" ],
+          "repeats" => 4,
+          "pass_count" => 0,
+          "fail_count" => 4
+        }
+      }
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    expect(workflow.reload.artifact("new_test_flakiness_gate")).to include(
+      include(
+        "name" => "new-test-flakiness-gate: plugins-example-rspec",
+        "status" => "warning",
+        "reason" => "focused_command_failed_consistently",
+        "normal_command" => "RAILS_ENV=test bundle exec rspec plugins/example/spec"
+      )
+    )
+  end
+
   it "fails collection when a required grader was cancelled" do
     workflow.steps.find_by!(kind: "grader").update!(
       state: "cancelled",
