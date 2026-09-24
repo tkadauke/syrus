@@ -17,6 +17,18 @@ RSpec.describe Job, :ci_only do
     end
   end
 
+  describe "#workflows" do
+    it "orders same-timestamp workflows by id" do
+      job = Factories.job_record(state: "running")
+      timestamp = Time.current.change(usec: 0)
+      older_id = Workflow.create!(job: job, trigger_kind: "initial", created_at: timestamp, updated_at: timestamp)
+      newer_id = Workflow.create!(job: job, trigger_kind: "retry", created_at: timestamp, updated_at: timestamp)
+
+      expect(job.reload.workflows.to_a).to eq([ older_id, newer_id ])
+      expect(job.workflows.last).to eq(newer_id)
+    end
+  end
+
   describe "#discussion_chat" do
     it "returns nil when no chat has been attached" do
       job = Factories.job_record
