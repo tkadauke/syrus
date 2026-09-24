@@ -20,10 +20,16 @@ module App
       # ("Rspec", "Ci") -- everything else falls back to plain capitalization.
       GRADER_NAME_WORD_OVERRIDES = { "rspec" => "RSpec", "ci" => "CI", "api" => "API", "db" => "DB" }.freeze
 
+      def workflows_etag
+        App::JobWorkflowsSnapshotCache.fingerprint(job: @job, page: workflows_page, admin: @user.admin?)
+      end
+
       def workflows_json
-        PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
-          paginated_workflows.map do |workflow|
-            workflow_json(workflow, navigation_page: workflows_page)
+        App::JobWorkflowsSnapshotCache.fetch(job: @job, page: workflows_page, admin: @user.admin?) do
+          PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
+            paginated_workflows.map do |workflow|
+              workflow_json(workflow, navigation_page: workflows_page)
+            end
           end
         end
       end

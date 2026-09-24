@@ -14,6 +14,7 @@
     "queue_throughput": "Queue & Durchsatz",
     "workers_fleet": "Worker & Flotte",
     "resilience_product": "Resilienz & Produkt",
+    "frontend_amplification": "Frontend-Verstärkung",
     "other": "Sonstiges"
   },
   "panels": {
@@ -47,6 +48,14 @@
     "escalations_per_landing": "Eskalationen pro Landung",
     "attention_items_open": "Offene Attention-Items, nach Problemcode",
     "feature_usage": "Feature-Nutzungen, nach Feature",
-    "plugin_enabled": "Aktivierte Plugins"
+    "plugin_enabled": "Aktivierte Plugins",
+    "event_amplification_ratio": "Ereignisverstärkungsverhältnis, nach Ressource",
+    "app_events_delivered": "Zugestellte Anwendungsereignisse, nach Ressource",
+    "detail_snapshot_requests": "Detail-Snapshot-Anfragen, nach Ergebnis",
+    "cable_connections": "Aktive Cable-Verbindungen",
+    "cable_connections_per_user_max": "Meiste aktive Cable-Verbindungen eines Nutzers",
+    "client_entity_patch_applications": "Angewendete Browser-Entity-Patches, nach Tab-Sichtbarkeit",
+    "client_revision_gap_recoveries": "Browser-Revisionslücken-Wiederherstellungen, nach Ressource",
+    "client_hidden_tab_suppressed_fetches": "Von verborgenen Tabs unterdrückte Abrufe, nach Ressource"
   }
 }

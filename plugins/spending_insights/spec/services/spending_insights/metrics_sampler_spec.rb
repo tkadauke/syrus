@@ -8,6 +8,7 @@ RSpec.describe SpendingInsights::MetricsSampler do
   around do |example|
     original = Syrus::Metrics.registry
     Syrus::Metrics.reset!
+    AppEvents.declare_metrics!
     Syrus::Metrics.declare_plugin("spending_insights") do
       counter :run_cost_usd_total, tags: %i[provider trigger_kind]
     end

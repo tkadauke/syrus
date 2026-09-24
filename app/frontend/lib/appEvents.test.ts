@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ChatPayload } from "../api/chats"
 import { applyAppEvent, queryKeysFor, resetAppEventSequenceTracking } from "./appEvents"
 import { readEntity, resetEntityStoreForTest, upsertEntity } from "./entityStore"
+import { flushClientMetricsQueue, resetClientMetricsForTest } from "./clientMetrics"
+import { jsonResponse } from "../testSupport"
 
 const desktopUa = "Mozilla/5.0 (Macintosh) Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.0 Safari/537.36"
 
@@ -31,6 +33,7 @@ afterEach(() => {
   FakeNotification.permission = "granted"
   FakeNotification.instances = []
   resetEntityStoreForTest()
+  resetClientMetricsForTest()
 })
 
 describe("queryKeysFor", () => {
@@ -1222,6 +1225,53 @@ describe("applyAppEvent revisioned event patches", () => {
     })
 
     expect(readEntity("chat_messages", 2)?.fields.text).toBe("final text")
+  })
+})
+
+describe("applyAppEvent client-reported amplification metrics", () => {
+  function sentClientMetrics(fetchSpy: ReturnType<typeof vi.spyOn>): Array<{ name: string; resource: string; by: number }> {
+    flushClientMetricsQueue()
+    return fetchSpy.mock.calls.flatMap((call: unknown[]) => {
+      const init = call[1] as RequestInit
+      return JSON.parse(String(init.body)).client_metrics
+    })
+  }
+
+  it("reports a real entity-store patch, but not a discarded duplicate/stale one", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, { ...event("run", 5), sequence: 1, revision: 2, payload: { fields: { state: "succeeded" } } })
+    // Stale replay of the same revision -- upsertEntity discards it outright.
+    applyAppEvent(queryClient, { ...event("run", 5), sequence: 2, revision: 1, payload: { fields: { state: "cancelled" } } })
+
+    expect(sentClientMetrics(fetchSpy)).toEqual([
+      { name: "entity_patch_applications", resource: "run", visibility_state: "visible", by: 1 }
+    ])
+  })
+
+  it("reports a revision-gap recovery tagged with the resource the gap arrived on", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 1 })
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 5 })
+
+    expect(sentClientMetrics(fetchSpy)).toEqual(expect.arrayContaining([
+      { name: "revision_gap_recoveries", resource: "workflow", by: 1 }
+    ]))
+  })
+
+  it("reports a hidden-tab suppressed fetch tagged by the invalidated query's resource", () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, event("job", 42))
+
+    expect(sentClientMetrics(fetchSpy)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "hidden_tab_suppressed_fetches", resource: "job" })
+    ]))
   })
 })
 

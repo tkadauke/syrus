@@ -1,4 +1,23 @@
 class AppEvents
+  # Deliveries counted by `resource` -- a closed, bounded set of model-ish
+  # names ("job", "workflow", "step", "run", "chat", "epic", "repository",
+  # "notification", ...), the same set app/frontend/lib/appEvents.ts's
+  # `queryKeysFor` switches on -- so it stays a legitimate cardinality-
+  # allowlist entry rather than an identifier. This is the "event" half of
+  # EPIC-392's event-to-request amplification signal: paired with
+  # App::JobWorkflowsSnapshotCache's `detail_snapshot_requests_total`, an
+  # operator can compare how many events a resource generates against how
+  # many requests those events actually cause.
+  def self.declare_metrics!
+    Syrus::Metrics.declare do
+      counter :app_events_delivered_total, tags: %i[resource], cluster: true,
+              comment: "Application events broadcast to a user channel or a Job/Chat resource channel, by resource, " \
+                       "from every process -- the event half of the event-to-request amplification signal " \
+                       "(GLOBAL -- aggregate with max by, never sum; EPIC-392). See Metrics::AmplificationSampler."
+    end
+  end
+  declare_metrics!
+
   # Every event broadcast to a user's app channel is stamped with a
   # per-user monotonically increasing `sequence`, so the frontend can
   # detect a dropped delivery (a sequence gap) and recover with one
@@ -20,6 +39,7 @@ class AppEvents
     event[:payload] = payload if payload
 
     AppUserChannel.broadcast_to(user, event.as_json)
+    record_delivery(resource)
   end
 
   # Detailed per-resource broadcasts, delivered only to JobChannel/ChatChannel
@@ -48,6 +68,7 @@ class AppEvents
       JobChannel.stream_name(job_id),
       resource_event(type: type, resource: resource, id: id, changed: changed, payload: payload, revision: revision, occurred_at: occurred_at)
     )
+    record_delivery(resource)
   end
 
   def self.broadcast_chat_resource(chat_session_id:, type:, resource:, id:, changed: [], payload: nil, revision: nil, occurred_at: Time.current)
@@ -55,7 +76,13 @@ class AppEvents
       ChatChannel.stream_name(chat_session_id),
       resource_event(type: type, resource: resource, id: id, changed: changed, payload: payload, revision: revision, occurred_at: occurred_at)
     )
+    record_delivery(resource)
   end
+
+  def self.record_delivery(resource)
+    Syrus::Metrics.counter(:syrus_app_events_delivered_total).increment(tags: { resource: resource.to_s })
+  end
+  private_class_method :record_delivery
 
   def self.resource_event(type:, resource:, id:, changed:, payload:, revision:, occurred_at:)
     event = {

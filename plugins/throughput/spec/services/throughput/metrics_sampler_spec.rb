@@ -10,6 +10,7 @@ RSpec.describe Throughput::MetricsSampler do
   around do |example|
     original = Syrus::Metrics.registry
     Syrus::Metrics.reset!
+    AppEvents.declare_metrics!
     Syrus::Metrics.declare_plugin("throughput") do
       counter :landing_units_total, tags: %i[unit_type]
       counter :jobs_landed_total

@@ -91,7 +91,7 @@ plausible-but-wrong zero is worse than one that shows nothing.
 
 Each entry in `DashboardPayload::PANELS` declares a `category:` (one of
 `DashboardPayload::CATEGORIES` — `queue_throughput`, `workers_fleet`,
-`resilience_product`). The payload publishes that per panel plus a top-level
+`resilience_product`, `frontend_amplification`). The payload publishes that per panel plus a top-level
 `categories` array in canonical display order, and the page renders one tab
 per category with a panel grid underneath — the window selector and the
 shared crosshair (`hoverIndex`) stay at the page level, above the tabs, since

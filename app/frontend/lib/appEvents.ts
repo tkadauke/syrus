@@ -3,7 +3,8 @@ import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConvers
 import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
 import { replaceProposalInMessages } from "../routes/chat/messageStreamItems"
-import { normalizeChatMessage, upsertEntity, type EntityKind, type EntityRevision } from "./entityStore"
+import { normalizeChatMessage, readEntity, upsertEntity, type EntityKind, type EntityRevision } from "./entityStore"
+import { currentVisibilityState, recordClientMetric, resourceTagFor } from "./clientMetrics"
 
 // A proposal card can live in a chat view's paginated-older-history state,
 // outside the React Query cache the rest of this module patches. Dispatching
@@ -124,7 +125,8 @@ function applyAppEventToEntityStore(event: AppEvent) {
   const fields = entityFieldsFromEventPayload(event.payload)
   if (!fields && event.revision == null) return
 
-  upsertEntity({
+  const before = readEntity(kind, event.id)
+  const after = upsertEntity({
     kind,
     id: event.id,
     fields: fields ?? {},
@@ -132,6 +134,10 @@ function applyAppEventToEntityStore(event: AppEvent) {
     revision: event.revision ?? null,
     source: "app_event"
   })
+  // upsertEntity returns the same object, unchanged, when it rejects a
+  // stale/duplicate revision (see entityStore.ts) -- only a real patch
+  // counts toward the amplification signal, not a discarded duplicate.
+  if (after !== before) recordClientMetric("entity_patch_applications", resourceTagFor(event.resource), currentVisibilityState())
 }
 
 function entityFieldsFromEventPayload(payload: unknown): Record<string, unknown> | null {
@@ -163,7 +169,10 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
   if (sequenceOutcome === "duplicate") return
 
   applyAppEventToEntityStore(event)
-  if (sequenceOutcome === "gap") recoverEventResourceContinuity(queryClient, event)
+  if (sequenceOutcome === "gap") {
+    recordClientMetric("revision_gap_recoveries", resourceTagFor(event.resource))
+    recoverEventResourceContinuity(queryClient, event)
+  }
 
   if (event.type.startsWith("video_walkthrough.")) {
     // The chat composer owns the walkthrough chip; hand it the payload
@@ -289,6 +298,7 @@ export function recoverChatResourceContinuity(queryClient: QueryClient, chatId: 
 
 function invalidateAppQuery(queryClient: QueryClient, target: InvalidationTarget) {
   if (tabIsHidden()) {
+    recordClientMetric("hidden_tab_suppressed_fetches", resourceTagFor(String(target.queryKey[0] ?? "")))
     markHiddenInvalidation(queryClient, target)
     void queryClient.invalidateQueries({ ...queryFilterFor(target), refetchType: "none" })
     return

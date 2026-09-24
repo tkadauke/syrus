@@ -26,6 +26,7 @@ RSpec.describe Metrics::AttentionSampler do
   around do |example|
     original = Syrus::Metrics.registry
     Syrus::Metrics.reset!
+    AppEvents.declare_metrics!
     described_class.declare_metrics!
     example.run
   ensure
