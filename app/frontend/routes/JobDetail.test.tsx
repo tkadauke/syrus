@@ -3173,7 +3173,7 @@ describe("Job detail tour", () => {
     expect(document.querySelector("[data-tour='job-approve']")).toBeInTheDocument()
   })
 
-  it("renders header actions in a right-aligned row below the title", () => {
+  it("keeps header actions in the right side of the header area", () => {
     storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
     renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
       initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
@@ -3181,12 +3181,13 @@ describe("Job detail tour", () => {
 
     const actionSlot = screen.getByTestId("job-header-actions")
     const header = screen.getByText("Add origin chat link").closest("header")
+    const titleBlock = screen.getByText("Add origin chat link").closest("div")
 
     expect(header).toContainElement(actionSlot)
     expect(actionSlot.parentElement).toBe(header)
-    expect(Array.from(header?.children ?? []).at(1)).toBe(actionSlot)
+    expect(actionSlot.previousElementSibling).toBe(titleBlock)
     expect(actionSlot).toHaveClass("w-full")
-    expect(actionSlot).toHaveClass("sm:justify-end")
+    expect(actionSlot).toHaveClass("sm:w-auto", "sm:justify-end", "shrink-0")
     expect(actionSlot).toContainElement(screen.getByRole("button", { name: "More actions" }))
     expect(actionSlot).toContainElement(screen.getByLabelText("Job navigation"))
   })
