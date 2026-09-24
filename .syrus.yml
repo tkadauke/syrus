@@ -322,6 +322,26 @@ grade:
     phases: [review, landing, ci]
     required: true
     timeout_minutes: 30
+    when_files_changed:
+      - "app/jobs/work_engine/**"
+      - "app/jobs/landing_queue_processor_job.rb"
+      - "app/models/work_intent.rb"
+      - "app/models/work_unit.rb"
+      - "app/models/work_unit_lock.rb"
+      - "app/models/work_unit_member.rb"
+      - "app/services/landing_queue_processor.rb"
+      - "app/services/step_dispatcher.rb"
+      - "app/services/work_definitions.rb"
+      - "app/services/work_definitions/**"
+      - "app/services/work_engine.rb"
+      - "app/services/work_engine/**"
+      - "app/services/work_intents/**"
+      - "app/services/work_units/**"
+      - "bin/simulator"
+      - "lib/simulator_test_database_identity.rb"
+      - "spec/fixtures/work_engine_simulations/**"
+      - "spec/services/work_engine/**"
+      - "spec/bin/simulator_spec.rb"
     # Intermittent worker/timing noise here has exhausted a landing attempt's
     # entire repair budget on a spotless 73/73 rerun more than once, with no
     # way for Syrus to tell "flaky today" apart from "genuinely broken" other
