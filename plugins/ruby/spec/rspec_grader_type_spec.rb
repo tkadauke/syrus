@@ -228,6 +228,9 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.run).to include("RUN_CI_ONLY_SPECS=true bundle exec rspec")
     expect(step.run).to include("--tag ci_only")
     expect(step.run).to include("serial_status")
+
+    _stdout, stderr, status = Open3.capture3("bash", "-n", "-c", step.run)
+    expect(status).to be_success, "expected the generated extra-serial parallel RSpec command to parse, got:\n#{stderr}"
   end
 
   it "supports direct parallel_rspec command generation without a worker wrapper" do
@@ -247,6 +250,9 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.run).to include(".syrus/rspec-json/rspec-")
     expect(step.run).to include(".syrus/grade-output/parallel-rspec-junit/rspec-")
     expect(step.run.scan(/\sspec(?:;|\s)/).length).to eq(1)
+
+    _stdout, stderr, status = Open3.capture3("bash", "-n", "-c", step.run)
+    expect(status).to be_success, "expected the generated parallel RSpec command to parse, got:\n#{stderr}"
   end
 
   it "keeps the parallel JUnit merger valid after command whitespace normalization" do
