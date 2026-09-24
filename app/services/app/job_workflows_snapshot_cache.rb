@@ -27,7 +27,7 @@ module App
         counter :detail_snapshot_requests_total, tags: %i[resource outcome], cluster: true,
                 comment: "Requests for a cached detail snapshot (Job workflows tree, ...) by outcome " \
                          "(cache_hit, computed, coalesced), from every process (GLOBAL -- aggregate with max by, " \
-                         "never sum) -- the cache-effectiveness and request-coalescing signal for EPIC-392"
+                         "never sum) -- the cache-effectiveness and request-coalescing signal"
       end
     end
     declare_metrics!

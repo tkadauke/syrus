@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       # Ingests batched frontend-observed counter increments (see
-      # ClientMetrics) -- the browser-side half of EPIC-392's
+      # ClientMetrics) -- the browser-side half of the
       # entity-patch/revision-gap/hidden-tab-suppression metrics, the same
       # "batch of structured events over HTTP" shape PerformanceEventsController
       # already uses for browser traces. Never fails the request over a

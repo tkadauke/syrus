@@ -4,7 +4,7 @@ class AppEvents
   # "notification", ...), the same set app/frontend/lib/appEvents.ts's
   # `queryKeysFor` switches on -- so it stays a legitimate cardinality-
   # allowlist entry rather than an identifier. This is the "event" half of
-  # EPIC-392's event-to-request amplification signal: paired with
+  # the frontend event-to-request amplification signal: paired with
   # App::JobWorkflowsSnapshotCache's `detail_snapshot_requests_total`, an
   # operator can compare how many events a resource generates against how
   # many requests those events actually cause.
@@ -13,7 +13,7 @@ class AppEvents
       counter :app_events_delivered_total, tags: %i[resource], cluster: true,
               comment: "Application events broadcast to a user channel or a Job/Chat resource channel, by resource, " \
                        "from every process -- the event half of the event-to-request amplification signal " \
-                       "(GLOBAL -- aggregate with max by, never sum; EPIC-392). See Metrics::AmplificationSampler."
+                       "(GLOBAL -- aggregate with max by, never sum). See Metrics::AmplificationSampler."
     end
   end
   declare_metrics!
