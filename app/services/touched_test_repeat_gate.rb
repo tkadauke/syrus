@@ -15,6 +15,7 @@ require "timeout"
 # fanout naturally spreads repeat checks across the same worker hosts as the
 # normal test commands.
 class TouchedTestRepeatGate
+  RepeatOutcome = Data.define(:success, :examples_selected)
   Result = Data.define(:ran, :consistent, :reason, :grader_name, :command, :files, :repeats, :pass_count, :fail_count) do
     def inconsistent? = ran && !consistent
   end
@@ -44,7 +45,12 @@ class TouchedTestRepeatGate
 
     @log.call("[flaky_gate:#{grader_name}] rerunning #{@touched_files.join(', ')} #{@repeats}x: #{command}")
     outcomes = Array.new(@repeats) { run_once(command) }
-    pass_count = outcomes.count(&:itself)
+    if outcomes.none?(&:examples_selected)
+      @log.call("[flaky_gate:#{grader_name}] focused reruns selected no examples -- skipping")
+      return skipped("no_examples_selected", command: command)
+    end
+
+    pass_count = outcomes.count(&:success)
     fail_count = outcomes.size - pass_count
     # The owning grader's normal command already passed immediately before
     # this check. Any failed focused rerun therefore disagrees with an observed
@@ -137,21 +143,31 @@ class TouchedTestRepeatGate
 
   def run_once(command)
     status = nil
+    output = nil
     Timeout.timeout(TIMEOUT_SECONDS) do
-      _output, status = Open3.capture2e(@env, "bash", "-c", command, chdir: @workspace_path)
+      output, status = Open3.capture2e(@env, "bash", "-c", command, chdir: @workspace_path)
     end
-    status&.success? || false
+    RepeatOutcome.new(
+      success: status&.success? || false,
+      examples_selected: examples_selected?(output.to_s)
+    )
   rescue Timeout::Error
     @log.call("[flaky_gate:#{grader_name}] repeat run timed out after #{TIMEOUT_SECONDS.to_i}s")
-    false
+    RepeatOutcome.new(success: false, examples_selected: true)
+  end
+
+  def examples_selected?(output)
+    return false if output.include?("All examples were filtered out")
+
+    true
   end
 
   def grader_name = @grader_step.details.to_h["name"].to_s
   def grader_command = @grader_step.details.to_h["command"].to_s
 
-  def skipped(reason)
+  def skipped(reason, command: nil)
     Result.new(
-      ran: false, consistent: true, reason: reason, grader_name: grader_name, command: nil,
+      ran: false, consistent: true, reason: reason, grader_name: grader_name, command: command,
       files: @touched_files, repeats: 0, pass_count: 0, fail_count: 0
     )
   end
