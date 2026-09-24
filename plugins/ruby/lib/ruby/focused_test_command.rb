@@ -22,7 +22,7 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "bundle exec rspec #{Shellwords.join(files)}"
+      "bundle check || bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\" && bundle exec rspec #{Shellwords.join(files)}"
     end
 
     private
