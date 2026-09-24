@@ -75,6 +75,19 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
     expect(step.reload.details.dig("new_test_flakiness_gate", "consistent")).to be(false)
   end
 
+  it "treats a zero-repeat result as inconclusive instead of failing the grader" do
+    result = TouchedTestRepeatGate::Result.new(
+      ran: true, consistent: false, reason: "repeat_run_inconsistent",
+      grader_name: "rspec", command: "bundle exec rspec plugins/example/spec/widget_spec.rb",
+      files: [ "plugins/example/spec/widget_spec.rb" ], repeats: 0, pass_count: 0, fail_count: 1
+    )
+    allow(TouchedTestRepeatGate).to receive(:call).and_return(result)
+
+    expect { handler.send(:check_new_test_flakiness!, name: "rspec", definition: step.details) }.not_to raise_error
+
+    expect(step.reload.details.dig("new_test_flakiness_gate", "repeats")).to eq(0)
+  end
+
   it "does not attach repeat checks to non-test graders" do
     definition = step.details.merge("grader_framework" => nil)
 

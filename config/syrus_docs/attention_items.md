@@ -19,6 +19,13 @@ Two backend producers open items today, each into its own queue
   `IngestionClassifier` cannot place an incoming Job (`state: "triaging"`,
   `triaging_reason: "classifier_uncertain"`). Different audience and SLA from
   operator escalations, hence the separate queue on the same mechanism.
+- **`WorkEngine::RepeatedFailureCircuit`** — opens an urgent `operator` queue
+  item when the reconciler sees the same failed-workflow exception fingerprint
+  three attempts in a row on the same app revision. The item is deliberately
+  distinct from an ordinary failed-Run notification: automatic retry/rebuild is
+  paused, the evidence includes the fingerprint, revision, streak count,
+  exception class/message, and top stack frames, and the admin system-alert
+  banner links operators back to this queue.
 
 ## Operator surface
 
