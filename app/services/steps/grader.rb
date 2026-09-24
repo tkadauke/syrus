@@ -201,7 +201,7 @@ module Steps
       return unless result.ran
 
       details = step.details.to_h.merge("new_test_flakiness_gate" => result.to_h.stringify_keys)
-      if result.consistent
+      if result.consistent || !mixed_repeat_outcomes?(result)
         step.update!(details: details)
         return
       end
@@ -217,6 +217,10 @@ module Steps
         "newly touched tests failed intermittently: #{name} (#{result.fail_count}/#{result.repeats} failed)",
         evidence: { new_test_flakiness: true, result: result.to_h }
       )
+    end
+
+    def mixed_repeat_outcomes?(result)
+      result.pass_count.to_i.positive? && result.fail_count.to_i.positive?
     end
 
     def typed_test_grader?(definition)
