@@ -138,7 +138,7 @@ class TouchedTestRepeatGate
   def run_once(command)
     status = nil
     Timeout.timeout(TIMEOUT_SECONDS) do
-      _output, status = Open3.capture2e(@env, "bash", "-c", command, chdir: @workspace_path)
+      _output, status = Open3.capture2e(@env, "bash", "-c", command, chdir: @workspace_path, unsetenv_others: true)
     end
     status&.success? || false
   rescue Timeout::Error

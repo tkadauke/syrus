@@ -69,6 +69,32 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(0)
   end
 
+  it "does not inherit ambient worker environment into repeat runs" do
+    stub_focused_command('test -z "${SYRUS_REPEAT_GATE_LEAK:-}"')
+
+    begin
+      previous = ENV["SYRUS_REPEAT_GATE_LEAK"]
+      ENV["SYRUS_REPEAT_GATE_LEAK"] = "present"
+
+      result = described_class.call(
+        grader_step: grader_step,
+        touched_files: [ "spec/stable_spec.rb" ],
+        workspace_path: @dir,
+        env: { "PATH" => ENV.fetch("PATH") },
+        repeats: 1
+      )
+    ensure
+      if previous.nil?
+        ENV.delete("SYRUS_REPEAT_GATE_LEAK")
+      else
+        ENV["SYRUS_REPEAT_GATE_LEAK"] = previous
+      end
+    end
+
+    expect(result.ran).to be(true)
+    expect(result.consistent).to be(true)
+  end
+
   it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do
     stub_focused_command("false")
 
