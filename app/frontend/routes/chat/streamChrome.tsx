@@ -1,8 +1,7 @@
-import { useId, useMemo } from "react"
+import { useEffect, useId, useMemo, useState } from "react"
 import "@excalidraw/excalidraw/index.css"
 import type { ChatTurnRetryState } from "../../api/chats"
 import { useT } from "../../hooks/useT"
-import { formatRelativeDate } from "../../lib/relativeTime"
 import { providerLabel } from "./utils"
 
 
@@ -113,7 +112,9 @@ export function AgentActivityIndicator({ running }: { running: boolean }) {
 }
 
 export function TurnRetryIndicator({ retry }: { retry: ChatTurnRetryState }) {
-  const nextRetry = retry.next_auto_retry_at ? formatRelativeDate(new Date(retry.next_auto_retry_at)) : null
+  const nextRetryAt = retry.next_auto_retry_at ? new Date(retry.next_auto_retry_at) : null
+  const now = useTicker(Boolean(nextRetryAt))
+  const nextRetry = nextRetryAt ? formatRetryCountdown(nextRetryAt, now) : null
   const details = [
     retry.classification_label,
     retry.retryable ? "retryable" : "not retryable",
@@ -146,6 +147,37 @@ export function TurnRetryIndicator({ retry }: { retry: ChatTurnRetryState }) {
       </div>
     </div>
   )
+}
+
+function useTicker(active: boolean) {
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!active) return
+
+    setNow(Date.now())
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now())
+    }, 1000)
+
+    return () => window.clearInterval(intervalId)
+  }, [active])
+
+  return now
+}
+
+function formatRetryCountdown(date: Date, now: number) {
+  if (Number.isNaN(date.getTime())) return null
+
+  const seconds = Math.max(0, Math.ceil((date.getTime() - now) / 1000))
+  if (seconds === 0) return "now"
+
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (minutes === 0) return `in ${seconds} ${seconds === 1 ? "second" : "seconds"}`
+  if (remainingSeconds === 0) return `in ${minutes} ${minutes === 1 ? "minute" : "minutes"}`
+
+  return `in ${minutes} ${minutes === 1 ? "minute" : "minutes"} ${remainingSeconds} ${remainingSeconds === 1 ? "second" : "seconds"}`
 }
 
 export function SwitchingProviderIndicator({ provider, providerLabel: labelOverride }: { provider: string; providerLabel?: string }) {
