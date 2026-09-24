@@ -46,10 +46,10 @@ class TouchedTestRepeatGate
     outcomes = Array.new(@repeats) { run_once(command) }
     pass_count = outcomes.count(&:itself)
     fail_count = outcomes.size - pass_count
-    # This gate detects nondeterminism, not focused-command fidelity. A repeat
-    # set that all passes or all fails is stable; only mixed outcomes prove
-    # day-one flakiness.
-    consistent = pass_count.zero? || fail_count.zero?
+    # The owning grader's normal command already passed immediately before
+    # this check. Any failed focused rerun therefore disagrees with an observed
+    # pass, including the important case where every repeat fails.
+    consistent = fail_count.zero?
 
     @log.call("[flaky_gate:#{grader_name}] #{pass_count}/#{outcomes.size} passed (#{consistent ? 'consistent' : 'inconsistent'})")
 
