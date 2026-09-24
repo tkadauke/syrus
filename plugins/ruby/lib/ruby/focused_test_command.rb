@@ -22,10 +22,14 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "bundle exec rspec #{Shellwords.join(files)}"
+      "#{setup_prefix} && bundle exec rspec #{Shellwords.join(files)}"
     end
 
     private
+
+    def setup_prefix
+      %(export BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle"; bundle check || bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}")
+    end
 
     def rspec_grader?
       @grader_name.include?("rspec") || @grader_command.match?(/\brspec\b/)
