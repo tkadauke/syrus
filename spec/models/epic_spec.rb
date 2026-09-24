@@ -1365,6 +1365,17 @@ RSpec.describe Epic, :ci_only do
       expect(described_class.search("Kubernetes worker").pluck(:id)).to include(epic.id)
     end
 
+    it "uses an adapter-quoted LIKE escape literal" do
+      allow(described_class.connection).to receive(:quote).and_call_original
+      allow(described_class.connection).to receive(:quote).with("\\").and_return("'\\\\'")
+
+      sql = described_class.search("Kubernetes").to_sql
+
+      expect(sql).to include("LIKE")
+      expect(sql).to include("ESCAPE '\\\\'")
+      expect(sql).not_to include("ESCAPE '\\')")
+    end
+
     it "returns no matches for an unrelated query" do
       described_class.create!(user: user, repository: repository, title: "Unrelated title")
       expect(described_class.search("nonexistent-term-xyz")).to be_empty

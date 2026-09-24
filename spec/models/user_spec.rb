@@ -29,6 +29,17 @@ RSpec.describe User do
       expect(User.search("widget-repair-bot").pluck(:id)).to include(user.id)
     end
 
+    it "uses an adapter-quoted LIKE escape literal" do
+      allow(described_class.connection).to receive(:quote).and_call_original
+      allow(described_class.connection).to receive(:quote).with("\\").and_return("'\\\\'")
+
+      sql = described_class.search("Grace").to_sql
+
+      expect(sql).to include("LIKE")
+      expect(sql).to include("ESCAPE '\\\\'")
+      expect(sql).not_to include("ESCAPE '\\')")
+    end
+
     it "returns no matches for an unrelated query" do
       Factories.user(name: "Unrelated Name")
       expect(User.search("nonexistent-term-xyz")).to be_empty

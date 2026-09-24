@@ -1935,6 +1935,19 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(Job.search("77007").pluck(:id)).to include(job.id)
       end
 
+      it "uses an adapter-quoted LIKE escape literal for MySQL number searches" do
+        allow(Job.connection).to receive(:adapter_name).and_return("Mysql2")
+        allow(Job.connection).to receive(:quote).and_call_original
+        allow(Job.connection).to receive(:quote).with("\\").and_return("'\\\\'")
+
+        sql = Job.search("Investigate").to_sql
+
+        expect(sql).to include("CAST(issue_number AS CHAR) LIKE")
+        expect(sql).to include("CAST(pr_number AS CHAR) LIKE")
+        expect(sql).to include("ESCAPE '\\\\'")
+        expect(sql).not_to include("ESCAPE '\\')")
+      end
+
       it "deliberately excludes pr_title: Job has no such column to search" do
         expect(Job.column_names).not_to include("pr_title")
         expect(Job::SEARCH_TEXT_COLUMNS + Job::SEARCH_NUMBER_COLUMNS).not_to include("pr_title")
