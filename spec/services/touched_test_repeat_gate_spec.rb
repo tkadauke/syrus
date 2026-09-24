@@ -111,6 +111,21 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.reason).to eq("no_focused_command")
   end
 
+  it "skips when fewer than two repeat runs are configured" do
+    expect(Syrus::PluginRegistry).not_to receive(:providers_for)
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/foo_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 1
+    )
+
+    expect(result.ran).to be(false)
+    expect(result.reason).to eq("repeat_count_too_low")
+    expect(result.repeats).to eq(0)
+  end
+
   describe "building the rerun command without BaseRevisionRetry's base_retry opt-in" do
     # The regression this guards: a repository has never configured
     # `base_retry: { strategy: plugin }` on its rspec grader (most don't --
@@ -124,7 +139,7 @@ RSpec.describe TouchedTestRepeatGate do
         grader_step: step,
         touched_files: [ "spec/models/widget_spec.rb" ],
         workspace_path: @dir,
-        repeats: 1
+        repeats: 2
       )
 
       expect(result.ran).to be(true)
@@ -141,7 +156,7 @@ RSpec.describe TouchedTestRepeatGate do
         grader_step: step,
         touched_files: [ "spec/foo_spec.rb", "spec/bar_spec.rb" ],
         workspace_path: @dir,
-        repeats: 1
+        repeats: 2
       )
 
       expect(result.command).to eq("bin/rspec-fast spec/foo_spec.rb spec/bar_spec.rb")
@@ -158,7 +173,7 @@ RSpec.describe TouchedTestRepeatGate do
         grader_step: step,
         touched_files: [ "spec/foo_spec.rb" ],
         workspace_path: @dir,
-        repeats: 1
+        repeats: 2
       )
 
       expect(result.command).to eq("bin/rspec spec/foo_spec.rb")
@@ -174,7 +189,7 @@ RSpec.describe TouchedTestRepeatGate do
         grader_step: step,
         touched_files: [ "spec/foo_spec.rb" ],
         workspace_path: @dir,
-        repeats: 1
+        repeats: 2
       )
 
       expect(result.ran).to be(false)
