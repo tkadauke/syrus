@@ -88,9 +88,15 @@ RSpec.describe TouchedTestRepeatGate do
   end
 
   it "preserves safe dependency environment from the original grader command" do
+    FileUtils.mkdir_p(File.join(@dir, "vendor/bundle"))
+    FileUtils.mkdir_p(File.join(@dir, ".bundle"))
     provider = double("focused_test_command_provider")
-    allow(provider).to receive(:command_for).and_return('test "$BUNDLE_PATH" = "$PWD/vendor/bundle"')
-    allow(provider).to receive(:prepare_command_for).and_return('test "$BUNDLE_APP_CONFIG" = "$PWD/.bundle"')
+    allow(provider).to receive(:command_for).and_return(
+      'test "$(realpath "$BUNDLE_PATH")" = "$(realpath "$PWD/vendor/bundle")"'
+    )
+    allow(provider).to receive(:prepare_command_for).and_return(
+      'test "$(realpath "$BUNDLE_APP_CONFIG")" = "$(realpath "$PWD/.bundle")"'
+    )
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
     step = grader_step_with({
       "name" => "rspec",

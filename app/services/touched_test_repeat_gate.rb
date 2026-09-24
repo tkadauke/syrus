@@ -194,16 +194,14 @@ class TouchedTestRepeatGate
       name, value = assignment.split("=", 2)
       next unless value && name.in?(INHERITED_ENV_NAMES)
 
-      env[name] = value.gsub(/\$\{?PWD\}?/, canonical_workspace_path)
+      # Keep the logical checkout path. Immutable grader workspaces may be
+      # symlinked into a prepared cache while exposing workspace-local
+      # dependency paths at the symlink, so realpath would point Bundler away
+      # from the dependencies the owning grader just used successfully.
+      env[name] = value.gsub(/\$\{?PWD\}?/, @workspace_path)
     end
   rescue ArgumentError
     {}
-  end
-
-  def canonical_workspace_path
-    @canonical_workspace_path ||= File.realpath(@workspace_path)
-  rescue Errno::ENOENT
-    @workspace_path
   end
 
   def skipped(reason)
