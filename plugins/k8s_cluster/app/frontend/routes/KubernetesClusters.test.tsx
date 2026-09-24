@@ -69,38 +69,46 @@ function setupFetchMock(initial = [stagingCluster()]) {
       return Promise.resolve(jsonResponse({ available: true, generated_at: "2026-01-01T00:00:00Z", truncated: false, nodes: [] }))
     }
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/namespaces$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        available: true,
-        generated_at: "2026-01-01T00:00:00Z",
-        truncated: false,
-        namespaces: [{ name: "default", status: "Active", created_at: "2026-01-01T00:00:00Z" }]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          generated_at: "2026-01-01T00:00:00Z",
+          truncated: false,
+          namespaces: [{ name: "default", status: "Active", created_at: "2026-01-01T00:00:00Z" }]
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/pods$/.test(url) && method === "GET") {
       return Promise.resolve(jsonResponse({ available: true, generated_at: "2026-01-01T00:00:00Z", truncated: false, pods: [] }))
     }
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/cronjobs$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        available: true,
-        generated_at: "2026-01-01T00:00:00Z",
-        truncated: false,
-        cron_jobs: [{
-          name: "nightly-backup",
-          namespace: "default",
-          schedule: "0 2 * * *",
-          suspended: false,
-          active_count: 0,
-          last_schedule_time: null,
-          created_at: "2026-01-01T00:00:00Z"
-        }]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          generated_at: "2026-01-01T00:00:00Z",
+          truncated: false,
+          cron_jobs: [
+            {
+              name: "nightly-backup",
+              namespace: "default",
+              schedule: "0 2 * * *",
+              suspended: false,
+              active_count: 0,
+              last_schedule_time: null,
+              created_at: "2026-01-01T00:00:00Z"
+            }
+          ]
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/overview$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        generated_at: "2026-01-01T00:00:00Z",
-        nodes: { available: false, reason: "metrics_unavailable", message: "no metrics-server" },
-        pods: { available: false, reason: "metrics_unavailable", message: "no metrics-server" }
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          generated_at: "2026-01-01T00:00:00Z",
+          nodes: { available: false, reason: "metrics_unavailable", message: "no metrics-server" },
+          pods: { available: false, reason: "metrics_unavailable", message: "no metrics-server" }
+        })
+      )
     }
 
     throw new Error(`Unhandled fetch: ${method} ${url}`)
@@ -151,23 +159,26 @@ describe("KubernetesClusters", () => {
 
     await screen.findByText("No clusters yet. Add one to get started.")
 
-    fireEvent.change(screen.getByLabelText("Label"), { target: { value: "Prod" } })
-    fireEvent.change(screen.getByLabelText("Kubeconfig"), { target: { value: "current-context: default" } })
     fireEvent.click(screen.getByRole("button", { name: "Add cluster" }))
+
+    const dialog = await screen.findByRole("dialog", { name: "Add cluster" })
+    fireEvent.change(within(dialog).getByLabelText("Label"), { target: { value: "Prod" } })
+    fireEvent.change(within(dialog).getByLabelText("Kubeconfig"), { target: { value: "current-context: default" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add cluster" }))
 
     expect(await screen.findByText("Prod")).toBeInTheDocument()
     expect(await screen.findByText('Cluster "Prod" added.')).toBeInTheDocument()
   })
 
-  it("edits a cluster's label without requiring a new kubeconfig", async () => {
+  it("edits a cluster's label in a modal without requiring a new kubeconfig", async () => {
     setupFetchMock()
     renderClusters()
 
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
 
-    const editRow = (await screen.findByText("Edit cluster")).closest("tr") as HTMLElement
-    fireEvent.change(within(editRow).getByLabelText("Label"), { target: { value: "Staging (renamed)" } })
-    fireEvent.click(within(editRow).getByRole("button", { name: "Save" }))
+    const dialog = await screen.findByRole("dialog", { name: "Edit cluster" })
+    fireEvent.change(within(dialog).getByLabelText("Label"), { target: { value: "Staging (renamed)" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }))
 
     expect(await screen.findByText("Staging (renamed)")).toBeInTheDocument()
     expect(await screen.findByText('Cluster "Staging (renamed)" updated.')).toBeInTheDocument()
@@ -200,9 +211,11 @@ describe("KubernetesClusters", () => {
     renderClusters()
 
     await screen.findByText("No clusters yet. Add one to get started.")
-    fireEvent.click(screen.getByRole("button", { name: "Test" }))
+    fireEvent.click(screen.getByRole("button", { name: "Add cluster" }))
+    const dialog = await screen.findByRole("dialog", { name: "Add cluster" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Test" }))
 
-    expect(await screen.findByText("Connection failed: kubeconfig is not valid YAML")).toBeInTheDocument()
+    expect(await within(dialog).findByText("Connection failed: kubeconfig is not valid YAML")).toBeInTheDocument()
   })
 
   it("browses into the tabbed cluster viewer from the connections list", async () => {
