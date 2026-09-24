@@ -12,7 +12,21 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("bundle exec rspec spec/models/widget_spec.rb")
+    expect(command).to eq(
+      "if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && " \
+        "RAILS_ENV=test COVERAGE=false bundle exec rspec spec/models/widget_spec.rb"
+    )
+  end
+
+  it "forces test env defaults so workflow repeat checks do not inherit development Rails env" do
+    command = described_class.command_for(
+      grader_name: "plugins-ruby-rspec-focused",
+      grader_command: "bundle exec rspec",
+      failed_cases: [ { "file_path" => "plugins/ruby/spec/rspec_grader_type_spec.rb" } ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(command).to start_with("if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && RAILS_ENV=test COVERAGE=false bundle exec rspec ")
   end
 
   it "declines when the grader did not opt into plugin strategy" do
