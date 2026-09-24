@@ -77,7 +77,7 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
 
   it "does not fail the grader when all repeat checks fail consistently" do
     result = TouchedTestRepeatGate::Result.new(
-      ran: true, consistent: false, reason: "repeat_run_inconsistent",
+      ran: true, consistent: true, reason: "repeat_run_consistent",
       grader_name: "rspec", command: "bundle exec rspec plugins/example/spec/widget_spec.rb",
       files: [ "plugins/example/spec/widget_spec.rb" ], repeats: 4, pass_count: 0, fail_count: 4
     )
