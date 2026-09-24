@@ -120,7 +120,8 @@ class Problem
       Entry.new(code: "validation_or_user_error", scope: :run, retryable: false,
                 default_remediation: :escalate),
       Entry.new(code: "application_error", scope: :run, retryable: false,
-                default_remediation: :escalate),
+                default_remediation: :escalate,
+                issue_kinds: %w[repeated_failure_circuit_open]),
 
       # -- The world moved underneath us -------------------------------------
       #

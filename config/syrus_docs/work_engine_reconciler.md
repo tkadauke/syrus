@@ -228,6 +228,29 @@ Planner examples:
   exempt, and that path no longer clears the backoff or re-requests
   reconciliation — both of which belong to a genuine *transition*, not a
   permanent verdict.
+- The repeated-failure circuit is a second backstop for deterministic
+  infrastructure/application crashes that keep rebuilding work but cannot be
+  fixed by trying again. For each failed Run with a `RunDiagnostic`,
+  `WorkEngine::RepeatedFailureCircuit` fingerprints the failure from the
+  captured app revision (`GIT_SHA`), exception class, exception message, and
+  first stack frames. When the latest failed workflow attempt for a Job has
+  three failed attempts in a row with the same fingerprint and app revision,
+  the reconciler emits `repeated_failure_circuit_open` instead of the ordinary
+  retryable or nonretryable failure issue. The planner maps that issue to
+  `operator_review_repeated_failure_circuit`, an operator-only plan: no
+  `AutoRetryAttempt` is created, and rebuild-style remediations such as
+  `rebuild_merge_train` are suppressed. A new deploy naturally resets the
+  streak because the revision is part of the fingerprint; a different
+  exception, message, or top stack frame also starts a new streak.
+
+  The circuit opens an urgent operator `AttentionItem` with the fingerprint,
+  app revision, streak count, threshold, error class/message, top stack frames,
+  and the affected Job/Workflow/Step/Run identifiers. Operators should inspect
+  the evidence, confirm whether a deploy or code fix exists for that exact
+  revision/fingerprint, and only retry manually after the underlying condition
+  has changed or they deliberately decide the evidence was a false positive.
+  The urgent Attention Item also appears through the admin system-alert banner
+  so it is visible outside the stuck-item detail view.
 - Git publication, landing, and semantic failures return operator-review plans
   unless an existing safe rebuild path is declared, such as merge-train rebuild.
 - `branch_diverged_pr_open` is never planned while the same Workflow already

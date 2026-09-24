@@ -48,6 +48,10 @@ RSpec.describe Problem::Kind do
       expect(described_class.resolve("merge_train_base_moved").code).to eq("merge_train_rebuild_required")
     end
 
+    it "maps the repeated-failure circuit issue onto the application error problem" do
+      expect(described_class.resolve("repeated_failure_circuit_open").code).to eq("application_error")
+    end
+
     it "returns nil for a name no plane declares" do
       expect(described_class.resolve("not_a_real_failure")).to be_nil
     end
