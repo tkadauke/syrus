@@ -18,10 +18,12 @@ RSpec.describe "AppEvents.next_sequence concurrency" do
   end
 
   def broadcast_concurrently(user, count:)
-    allow(AppUserChannel).to receive(:broadcast_to)
-
     errors = Queue.new
     results = Queue.new
+    allow(AppUserChannel).to receive(:broadcast_to) do |_target, event|
+      results << event.fetch("sequence")
+    end
+
     ready = Queue.new
     start = Queue.new
 
@@ -30,7 +32,7 @@ RSpec.describe "AppEvents.next_sequence concurrency" do
         ActiveRecord::Base.connection_pool.with_connection do
           ready << true
           start.pop
-          results << AppEvents.next_sequence(user)
+          AppEvents.broadcast(user: user, type: "job.updated", resource: "job", id: i)
         rescue StandardError => e
           errors << e
         end
