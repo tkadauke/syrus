@@ -1,4 +1,5 @@
 import { jsonResponse } from "@app/testSupport"
+import { resetApiClientStateForTests } from "@app/api/clientTestState"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
@@ -74,7 +75,10 @@ function renderRoute(suggestions?: unknown[], metaOverrides?: Record<string, unk
 }
 
 describe("AdminInsightsRoute", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    resetApiClientStateForTests()
+    vi.restoreAllMocks()
+  })
 
   describe("chrome", () => {
     it("renders the page heading and eyebrow while the suggestions are loading", () => {
@@ -85,6 +89,21 @@ describe("AdminInsightsRoute", () => {
       expect(screen.getByRole("heading", { level: 1, name: "Insights" })).toBeInTheDocument()
       expect(screen.getByText("Agent Insights")).toBeInTheDocument()
       expect(screen.getByText("Loading insights…")).toBeInTheDocument()
+    })
+
+    it("fetches fresh data after a same-path loading render leaves a request unresolved", async () => {
+      vi.spyOn(window, "fetch").mockReturnValue(new Promise(() => {}))
+
+      renderInsightsRoute()
+      expect(screen.getByText("Loading insights…")).toBeInTheDocument()
+
+      resetApiClientStateForTests()
+      vi.restoreAllMocks()
+      vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload([makeSuggestion({ title: "Fresh insight" })])))
+
+      renderInsightsRoute()
+
+      expect(await screen.findByText("Fresh insight")).toBeInTheDocument()
     })
 
     it("renders the page heading and eyebrow when the suggestions fail to load", async () => {

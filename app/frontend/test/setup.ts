@@ -1,5 +1,6 @@
 import "../i18n"
 import "@testing-library/jest-dom/vitest"
+import { resetApiClientStateForTests } from "../api/clientTestState"
 import { cleanup, configure } from "@testing-library/react"
 import { afterEach, vi } from "vitest"
 import { _clearRecentApiRequestsForTest } from "../api/client"
@@ -78,6 +79,7 @@ Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
 })
 
 afterEach(() => {
+  resetApiClientStateForTests()
   cleanup()
   _clearRecentApiRequestsForTest()
   vi.clearAllMocks()
