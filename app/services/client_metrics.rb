@@ -1,5 +1,5 @@
 # Turns a small, closed set of frontend-observed events into real Prometheus
-# counters (EPIC-392). Several of the signals that Job wants to measure --
+# counters. Several of the signals worth measuring --
 # an entity-store patch actually landing, a revision-gap recovery firing, a
 # hidden tab suppressing a fetch -- only happen in the browser, and this
 # metrics library has no way to reach into a browser process. This is the
@@ -28,13 +28,13 @@ module ClientMetrics
     Syrus::Metrics.declare do
       counter :client_entity_patch_applications_total, tags: %i[resource visibility_state],
               comment: "Browser entity-store patches applied directly from an application event, by resource and " \
-                       "the tab's visibility state when it applied -- reported by the frontend (EPIC-392)"
+                       "the tab's visibility state when it applied -- reported by the frontend"
       counter :client_revision_gap_recoveries_total, tags: %i[resource],
               comment: "Browser-detected application-event sequence gaps recovered with a targeted refetch, by " \
-                       "resource -- reported by the frontend (EPIC-392)"
+                       "resource -- reported by the frontend"
       counter :client_hidden_tab_suppressed_fetches_total, tags: %i[resource],
               comment: "Refetches a hidden browser tab deferred instead of running immediately, by resource -- " \
-                       "reported by the frontend (EPIC-392)"
+                       "reported by the frontend"
     end
   end
   declare_metrics!

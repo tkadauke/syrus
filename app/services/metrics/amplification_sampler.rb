@@ -1,6 +1,7 @@
 module Metrics
-  # EPIC-392's "one metric": how much backend request work does an
-  # application event cause, by resource. `syrus_app_events_delivered_total`
+  # The frontend event-amplification "one metric": how much backend request
+  # work does an application event cause, by resource.
+  # `syrus_app_events_delivered_total`
   # (AppEvents) and `syrus_detail_snapshot_requests_total{outcome:computed}`
   # (App::JobWorkflowsSnapshotCache) are both cluster counters -- cumulative
   # totals since boot, not per-interval counts -- so this sampler cannot
@@ -35,7 +36,7 @@ module Metrics
         gauge :event_amplification_ratio, tags: %i[resource],
               comment: "Detail-snapshot requests actually computed per application event delivered, over the " \
                        "trailing sampling window, by resource (GLOBAL -- aggregate with max by, never sum) -- " \
-                       "rising means events are causing more backend work per event (EPIC-392). Omitted for a " \
+                       "rising means events are causing more backend work per event. Omitted for a " \
                        "resource with no events in the window, or before the first full sampling window."
       end
     end

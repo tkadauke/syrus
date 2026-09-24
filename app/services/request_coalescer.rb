@@ -4,10 +4,10 @@
 # the underlying computation.
 #
 # This is intentionally per-process, not cluster-wide. The motivating
-# incident (see CLAUDE.md/EPIC-392) was several browser tabs synchronizing on
-# the same expensive Job/Workflow snapshot request; Puma's thread pool means
-# those requests are realistically served by threads inside one process, so
-# an in-process Mutex/ConditionVariable is enough to collapse them. A
+# incident was several browser tabs synchronizing on the same expensive
+# Job/Workflow snapshot request; Puma's thread pool means those requests
+# are realistically served by threads inside one process, so an
+# in-process Mutex/ConditionVariable is enough to collapse them. A
 # cross-process lock (like RepositoryCommitDistance's file lock for bare-clone
 # refreshes) would add real complexity for a case this codebase does not
 # currently need coalesced across processes.
