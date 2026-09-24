@@ -25,6 +25,38 @@ test("covers review diff, coverage, diff comments, and workflow warning action",
   await expect(page.getByText("app/frontend/routes/Dashboard.tsx").first()).toBeVisible()
   await expect(page.getByText("needs_attention_count").first()).toBeVisible()
 
+  await page.locator("[data-testid='diff-file-scroll']").first().evaluate((scrollRegion) => {
+    const codeCell = scrollRegion.querySelector("td.whitespace-pre")
+    if (!codeCell) throw new Error("diff code cell not found")
+    codeCell.textContent = "very_wide_diff_line_" + "x".repeat(360)
+  })
+  await page.getByRole("button", { name: /^Comment on / }).first().click({ force: true })
+
+  const viewportWidth = page.viewportSize()?.width ?? 1280
+  const layout = await page.evaluate(() => {
+    const scroller = document.querySelector("[data-testid='diff-file-scroll']")?.getBoundingClientRect()
+    const composer = document.querySelector("[data-testid='diff-review-composer'] textarea")?.getBoundingClientRect()
+    const grid = document.querySelector("[data-testid='agent-diff-viewer']")?.closest(".grid")
+    const sidebar = grid ? Array.from(grid.children).at(-1)?.getBoundingClientRect() : null
+
+    return {
+      bodyScrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+      composerRight: composer?.right ?? 0,
+      composerWidth: composer?.width ?? 0,
+      scrollerWidth: scroller?.width ?? 0,
+      sidebarRight: sidebar?.right ?? 0,
+      sidebarWidth: sidebar?.width ?? 0
+    }
+  })
+
+  expect(layout.bodyScrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1)
+  expect(layout.sidebarRight).toBeLessThanOrEqual(viewportWidth + 1)
+  expect(layout.sidebarWidth).toBeLessThanOrEqual(384)
+  expect(layout.composerRight).toBeLessThanOrEqual(viewportWidth + 1)
+  expect(layout.composerWidth).toBeLessThanOrEqual(layout.scrollerWidth + 1)
+  await page.getByRole("button", { name: "Cancel" }).click()
+
   await page.getByLabel("Whole-review comment").fill(commentBody)
   await page.getByRole("button", { name: "Comment", exact: true }).click()
   // The "Whole-review comment" label belongs to the composer, which closes on

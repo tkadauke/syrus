@@ -71,6 +71,24 @@ function manyFiles(count: number) {
   }))
 }
 
+function wideLineFile() {
+  const wideToken = "x".repeat(240)
+  return {
+    additions: 1,
+    deletions: 0,
+    patch: [
+      "diff --git a/app/models/wide.rb b/app/models/wide.rb",
+      "--- a/app/models/wide.rb",
+      "+++ b/app/models/wide.rb",
+      "@@ -1,1 +1,2 @@",
+      " keep",
+      `+${wideToken}`
+    ].join("\n"),
+    path: "app/models/wide.rb",
+    status: "modified"
+  }
+}
+
 describe("ReviewableDiff", () => {
   it("renders only the selected file in single-file mode", () => {
     render(<ReviewableDiff files={files} mode="single-file" selectedPath="app/models/run.rb" showFileHeaders />)
@@ -375,7 +393,57 @@ describe("ReviewableDiff", () => {
 
   it("keeps natural-scroll diffs horizontally scrollable within themselves instead of overflowing the page", () => {
     render(<ReviewableDiff files={files} mode="continuous" scroll="natural" />)
-    expect(screen.getByTestId("agent-diff-viewer").querySelector(".overflow-x-auto")).toBeInTheDocument()
+    const viewer = screen.getByTestId("agent-diff-viewer")
+    expect(viewer).toHaveClass("min-w-0", "max-w-full", "[contain:inline-size]")
+    expect(viewer.querySelector("[data-total-file-count]")).toHaveClass("min-w-0", "max-w-full")
+    expect(viewer.querySelector(".overflow-x-auto")).toHaveClass("[container-type:inline-size]")
+  })
+
+  it("keeps wide-line comment composers anchored to the visible horizontal scroll area", () => {
+    const wideFile = wideLineFile()
+
+    render(
+      <ReviewableDiff
+        composingBody="Please keep this visible."
+        composingSelection={{ file: wideFile, line: { code: "x".repeat(240), kind: "add", newLine: 2, oldLine: null, marker: "+", hunkId: -1 }, side: "new" }}
+        files={[wideFile]}
+        mode="continuous"
+        onCommentLine={vi.fn()}
+        scroll="natural"
+        showFileHeaders
+      />
+    )
+
+    const composerCells = screen.getByTestId("diff-review-composer").querySelectorAll("td")
+    const composerCell = composerCells[composerCells.length - 1] as HTMLElement
+    const composerPanel = Array.from(composerCell.children).find((child) => child.tagName === "DIV") as HTMLElement
+    expect(composerCell).toHaveClass("sticky", "left-0", "max-w-[calc(100vw-3rem)]")
+    expect(composerPanel).toHaveClass("w-[min(44rem,100cqw,calc(100vw-3rem))]")
+    expect(within(composerCell).getByLabelText("Comment")).toHaveValue("Please keep this visible.")
+  })
+
+  it("keeps existing review threads viewport-bound when code lines are horizontally scrollable", () => {
+    const wideFile = wideLineFile()
+
+    render(
+      <ReviewableDiff
+        comments={{
+          "app/models/wide.rb": {
+            "right::2": [{ id: 1, author: "Ada", body: "This note should not inherit the long line width.", state: "draft" }]
+          }
+        }}
+        files={[wideFile]}
+        mode="continuous"
+        scroll="natural"
+        showFileHeaders
+      />
+    )
+
+    const threadCells = screen.getByTestId("diff-review-thread").querySelectorAll("td")
+    const threadCell = threadCells[threadCells.length - 1] as HTMLElement
+    expect(threadCell).toHaveClass("sticky", "left-0", "max-w-[calc(100vw-3rem)]")
+    expect(threadCell.querySelector("div")).toHaveClass("w-[min(44rem,100cqw,calc(100vw-3rem))]")
+    expect(screen.getByText("This note should not inherit the long line width.")).toBeInTheDocument()
   })
 
   it("renders natural-scroll file sections in document flow instead of a virtualized height spacer", () => {
