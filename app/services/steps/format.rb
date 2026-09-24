@@ -52,7 +52,7 @@ module Steps
         log("[format] formatters explicitly disabled in .syrus.yml")
         []
       when []
-        plugin_default_commands
+        plugin_default_commands(files)
       when Array
         explicit_commands(formatters, files)
       end
@@ -71,10 +71,14 @@ module Steps
       end
     end
 
-    def plugin_default_commands
+    def plugin_default_commands(files)
       Syrus::PluginRegistry.providers_for(:autofix_command).filter_map do |provider|
         PerformanceLogging.plugin_call(extension_point: :autofix_command, provider: provider, operation: :autofix_command) do
-          provider.autofix_command(workspace_path: workspace.path)
+          method = provider.method(:autofix_command)
+          supports_changed_files = method.parameters.any? { |kind, name| kind == :keyrest || name == :changed_files }
+          kwargs = { workspace_path: workspace.path }
+          kwargs[:changed_files] = files if supports_changed_files
+          method.call(**kwargs)
         end
       end
     end

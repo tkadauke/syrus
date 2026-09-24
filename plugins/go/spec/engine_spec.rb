@@ -154,13 +154,13 @@ RSpec.describe Go::Engine do
     end
 
     it "returns nil for a repo with no go.mod" do
-      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "main.go" ])).to be_nil
     end
 
     it "contributes gofmt -w . when go.mod is present" do
       write("go.mod", "module example.com/foo\n\ngo 1.22\n")
 
-      expect(described_class.autofix_command(workspace_path: @dir)).to eq("gofmt -w .")
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "main.go", "README.md" ])).to eq("gofmt -w main.go")
     end
   end
 end

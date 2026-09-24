@@ -282,7 +282,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       provider = Class.new { include Syrus::Plugin::AutofixCommand }
 
       expect(provider).to respond_to(:autofix_command)
-      expect { provider.autofix_command(workspace_path: "/tmp") }.to raise_error(NotImplementedError, /autofix_command is required/)
+      expect { provider.autofix_command(workspace_path: "/tmp", changed_files: []) }.to raise_error(NotImplementedError, /autofix_command is required/)
     end
 
     it "maps :dependency_audit_command to Syrus::Plugin::DependencyAuditCommand" do

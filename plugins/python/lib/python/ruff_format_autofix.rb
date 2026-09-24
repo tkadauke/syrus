@@ -1,13 +1,18 @@
+require "shellwords"
+
 module Python
   # :autofix_command for `ruff format`. Gated on a ruff config signal — a
   # standalone .ruff.toml/ruff.toml, or a [tool.ruff] table in
   # pyproject.toml — so a repo that never configured ruff doesn't get its
   # formatting opinions applied.
   class RuffFormatAutofix
-    def self.autofix_command(workspace_path:)
+    def self.autofix_command(workspace_path:, changed_files:)
       return nil unless configured?(workspace_path)
 
-      "ruff format ."
+      files = Array(changed_files).select { |file| file.end_with?(".py", ".pyi") }
+      return nil if files.empty?
+
+      "ruff format #{Shellwords.join(files)}"
     end
 
     def self.configured?(workspace_path)

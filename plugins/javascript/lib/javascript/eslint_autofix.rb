@@ -1,3 +1,5 @@
+require "shellwords"
+
 module JavaScript
   # :autofix_command for ESLint's --fix. Gated on the same config-file
   # signals ESLint itself looks for (flat config or legacy .eslintrc*), so a
@@ -8,10 +10,13 @@ module JavaScript
       .eslintrc.js .eslintrc.cjs .eslintrc.json .eslintrc.yml .eslintrc.yaml .eslintrc
     ].freeze
 
-    def self.autofix_command(workspace_path:)
+    def self.autofix_command(workspace_path:, changed_files:)
       return nil unless configured?(workspace_path)
 
-      "npx eslint --fix ."
+      files = Array(changed_files).select { |file| file.match?(/\.(?:[cm]?[jt]sx?)\z/) }
+      return nil if files.empty?
+
+      "npx eslint --fix -- #{Shellwords.join(files)}"
     end
 
     def self.configured?(workspace_path)

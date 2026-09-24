@@ -198,25 +198,25 @@ RSpec.describe Python::Engine do
     end
 
     it "returns nil for a repo with no ruff config" do
-      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "app.py" ])).to be_nil
     end
 
     it "contributes ruff format . when a standalone ruff.toml is present" do
       write("ruff.toml")
 
-      expect(described_class.autofix_command(workspace_path: @dir)).to eq("ruff format .")
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "app.py", "README.md" ])).to eq("ruff format app.py")
     end
 
     it "contributes ruff format . when pyproject.toml has a [tool.ruff] table" do
       write("pyproject.toml", "[tool.ruff]\nline-length = 100\n")
 
-      expect(described_class.autofix_command(workspace_path: @dir)).to eq("ruff format .")
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "app.py" ])).to eq("ruff format app.py")
     end
 
     it "returns nil when pyproject.toml exists but has no [tool.ruff] table" do
       write("pyproject.toml", "[tool.black]\n")
 
-      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "app.py" ])).to be_nil
     end
   end
 
@@ -232,19 +232,19 @@ RSpec.describe Python::Engine do
     end
 
     it "returns nil for a repo with no pyproject.toml" do
-      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "app.py" ])).to be_nil
     end
 
     it "returns nil when pyproject.toml has no [tool.black] table" do
       write("pyproject.toml", "[tool.ruff]\n")
 
-      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "app.py" ])).to be_nil
     end
 
     it "contributes black . when pyproject.toml has a [tool.black] table" do
       write("pyproject.toml", "[tool.black]\nline-length = 88\n")
 
-      expect(described_class.autofix_command(workspace_path: @dir)).to eq("black .")
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "app.py", "README.md" ])).to eq("black app.py")
     end
   end
 end

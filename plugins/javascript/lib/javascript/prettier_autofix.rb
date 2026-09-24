@@ -1,3 +1,5 @@
+require "shellwords"
+
 module JavaScript
   # :autofix_command for Prettier. Gated on a Prettier config signal —
   # running `prettier --write` with no config at all would impose its
@@ -9,10 +11,13 @@ module JavaScript
       prettier.config.js prettier.config.cjs prettier.config.mjs
     ].freeze
 
-    def self.autofix_command(workspace_path:)
+    def self.autofix_command(workspace_path:, changed_files:)
       return nil unless configured?(workspace_path)
 
-      "npx prettier --write ."
+      files = Array(changed_files)
+      return nil if files.empty?
+
+      "npx prettier --write --ignore-unknown -- #{Shellwords.join(files)}"
     end
 
     def self.configured?(workspace_path)

@@ -2891,11 +2891,15 @@ module WorkEngine
     def solid_queue_for_run(run)
       return nil unless solid_queue[:available]
 
-      solid_queue_jobs_for_run(run).first
+      solid_queue[:jobs].find { |job| job[:root_run_id] == run.id }
     end
 
     def solid_queue_execution_live?(run)
-      solid_queue_jobs_for_run(run).any? do |sq|
+      return false unless solid_queue[:available]
+
+      solid_queue[:jobs].any? do |sq|
+        next false unless sq[:root_run_id] == run.id
+
         sq[:claimed] && !sq[:failed] && solid_queue_process_live?(sq[:process_id])
       end
     end

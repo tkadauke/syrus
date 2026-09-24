@@ -2856,6 +2856,39 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  it "does not treat a live sibling Run queue execution as evidence for a detached Run" do
+    ensure_solid_queue_test_tables!
+    heartbeat_at = 4.minutes.ago
+    run.update_columns(state: "running", started_at: 10.minutes.ago, last_heartbeat_at: heartbeat_at)
+    step.update_columns(kind: "implement", state: "running", started_at: run.started_at)
+    workflow.update_columns(state: "running", started_at: run.started_at)
+
+    sibling_step = workflow.steps.create!(kind: "grader", position: 1, state: "running", started_at: 1.minute.ago)
+    sibling_run = Run.create!(
+      job: job,
+      step: sibling_step,
+      trigger_kind: "initial",
+      state: "running",
+      started_at: 1.minute.ago,
+      last_heartbeat_at: 1.minute.ago
+    )
+    solid_queue_run_job(sibling_run, claimed: true, created_at: 1.minute.ago)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :running_run_without_live_worker_evidence)).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_run_as_worker_died"
+    )
+    expect(plan(result, :mark_worker_died_and_retry_failed_step)).to have_attributes(
+      auto_executable: true,
+      target_id: run.id
+    )
+  end
+
   it "auto-repairs a fresh running Run when its latest spawned process is known orphaned" do
     ensure_solid_queue_test_tables!
     run.update_columns(

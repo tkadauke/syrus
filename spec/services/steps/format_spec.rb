@@ -66,7 +66,7 @@ RSpec.describe Steps::Format do
 
   def register_autofix_provider(command)
     provider = Class.new { include Syrus::Plugin::AutofixCommand }
-    provider.define_singleton_method(:autofix_command) { |workspace_path:| command }
+    provider.define_singleton_method(:autofix_command) { |workspace_path:, changed_files:| command }
     Syrus::PluginRegistry.register(:autofix_command, provider)
     provider
   end
@@ -129,6 +129,32 @@ RSpec.describe Steps::Format do
       chunks = run.reload.job_logs.pluck(:chunk).join("\n")
       expect(chunks).to include("(1/2) $ echo first")
       expect(chunks).to include("(2/2) $ echo second")
+    end
+
+    it "passes changed files to plugin formatters" do
+      write_syrus_yml("formatters: []\n")
+      provider = register_autofix_provider("echo fixed")
+
+      expect(provider).to receive(:autofix_command).with(
+        workspace_path: @ws_path,
+        changed_files: %w[app/models/thing.rb]
+      ).and_call_original
+
+      handler.call
+    end
+
+    it "supports legacy plugin formatters without a changed_files keyword" do
+      write_syrus_yml("formatters: []\n")
+      provider = Class.new do
+        def self.autofix_command(workspace_path:)
+          "echo legacy"
+        end
+      end
+      Syrus::PluginRegistry.register(:autofix_command, provider)
+
+      expect { handler.call }.not_to raise_error
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).to include("(1/1) $ echo legacy")
     end
 
     it "soft-fails a failing command instead of raising, and still commits" do

@@ -188,13 +188,15 @@ RSpec.describe Ruby::Engine do
     end
 
     it "returns nil for a repo with no .rubocop.yml" do
-      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "lib/example.rb" ])).to be_nil
     end
 
     it "contributes the autocorrect command when .rubocop.yml is present" do
       FileUtils.touch(File.join(@dir, ".rubocop.yml"))
 
-      expect(described_class.autofix_command(workspace_path: @dir)).to eq("bundle exec rubocop -a")
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "lib/example.rb", "README.md" ])).to eq(
+        "bundle exec rubocop -a -- lib/example.rb"
+      )
     end
   end
 

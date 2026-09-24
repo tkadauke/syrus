@@ -193,19 +193,19 @@ RSpec.describe JavaScript::Engine do
     end
 
     it "returns nil for a repo with no ESLint config file" do
-      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.ts" ])).to be_nil
     end
 
     it "contributes the fix command when a flat eslint.config.js is present" do
       write("eslint.config.js")
 
-      expect(described_class.autofix_command(workspace_path: @dir)).to eq("npx eslint --fix .")
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.ts", "README.md" ])).to eq("npx eslint --fix -- src/app.ts")
     end
 
     it "contributes the fix command when a legacy .eslintrc.json is present" do
       write(".eslintrc.json", "{}")
 
-      expect(described_class.autofix_command(workspace_path: @dir)).to eq("npx eslint --fix .")
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.js" ])).to eq("npx eslint --fix -- src/app.js")
     end
   end
 
@@ -221,25 +221,25 @@ RSpec.describe JavaScript::Engine do
     end
 
     it "returns nil for a repo with no Prettier config" do
-      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.ts" ])).to be_nil
     end
 
     it "contributes the write command when a .prettierrc is present" do
       write(".prettierrc", "{}")
 
-      expect(described_class.autofix_command(workspace_path: @dir)).to eq("npx prettier --write .")
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.ts" ])).to eq("npx prettier --write --ignore-unknown -- src/app.ts")
     end
 
     it "contributes the write command when package.json declares a prettier key" do
       write("package.json", JSON.generate("prettier" => { "singleQuote" => true }))
 
-      expect(described_class.autofix_command(workspace_path: @dir)).to eq("npx prettier --write .")
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.ts" ])).to eq("npx prettier --write --ignore-unknown -- src/app.ts")
     end
 
     it "returns nil for malformed package.json instead of raising" do
       write("package.json", "not json")
 
-      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.ts" ])).to be_nil
     end
   end
 

@@ -2292,7 +2292,7 @@ Include `Syrus::Plugin::AutofixCommand` and implement the class method:
 
 | Method | Signature | Description |
 |---|---|---|
-| `autofix_command` | `(workspace_path:) → String \| nil` | Return the shell command to run, or `nil` when this plugin's fixer doesn't apply to the repo (e.g. no config file for the tool). |
+| `autofix_command` | `(workspace_path:, changed_files:) → String \| nil` | Return a shell command scoped to the changed files, or `nil` when this plugin's fixer doesn't apply. |
 
 A plugin that offers more than one distinct fixer (e.g. ESLint and Prettier)
 registers one provider class per fixer — each independently gated on its own
@@ -2303,10 +2303,13 @@ multi-provider pattern `:grader_augmentor` uses:
 class MyPlugin::AutofixCommand
   include Syrus::Plugin::AutofixCommand
 
-  def self.autofix_command(workspace_path:)
+  def self.autofix_command(workspace_path:, changed_files:)
     return nil unless File.exist?(File.join(workspace_path, "my-linter.toml"))
 
-    "my-linter --fix ."
+    files = changed_files.select { |file| File.extname(file) == ".example" }
+    return nil if files.empty?
+
+    "my-linter --fix -- #{Shellwords.join(files)}"
   end
 end
 

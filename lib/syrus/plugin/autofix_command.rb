@@ -11,7 +11,7 @@ module Syrus
     #
     # Implementations must define:
     #
-    #   autofix_command(workspace_path:) -> String | nil
+    #   autofix_command(workspace_path:, changed_files:) -> String | nil
     #     Return the shell command to run, or nil when this plugin's fixer
     #     does not apply to the repo (e.g. no config file for the tool).
     #     Each provider should return AT MOST ONE command — a plugin that
@@ -30,12 +30,12 @@ module Syrus
       end
 
       module ClassMethods
-        def autofix_command(workspace_path:)
+        def autofix_command(workspace_path:, changed_files:)
           raise NotImplementedError, "#{self}.autofix_command is required"
         end
       end
 
-      def autofix_command(workspace_path:)
+      def autofix_command(workspace_path:, changed_files:)
         raise NotImplementedError, "#{self.class}#autofix_command is required"
       end
     end
