@@ -210,7 +210,7 @@ module Steps
       log_path = workspace.path.join(details["log_path"])
       append_grade_diagnostic(
         log_path,
-        "\n[grader:#{name}] new-test repeat gate failed: #{result.reason} (#{result.fail_count}/#{result.repeats} repeat runs failed)\n"
+        "\n[grader:#{name}] #{new_test_flakiness_diagnostic_message(result)}\n"
       )
       step.update!(details: details.merge("output" => grader_output_excerpt(log_path), "log_bytes" => log_path.size))
       focused_command_suspect = result.reason.to_s.start_with?("focused_command_")
@@ -234,6 +234,15 @@ module Steps
       end
 
       "newly touched tests failed intermittently: #{name} (#{result.fail_count}/#{result.repeats} failed)"
+    end
+
+    def new_test_flakiness_diagnostic_message(result)
+      if result.reason.to_s.start_with?("focused_command_")
+        return "new-test repeat gate focused command suspect: #{result.reason} " \
+          "(#{result.fail_count}/#{result.repeats} repeat runs failed after the owning grader passed)"
+      end
+
+      "new-test repeat gate failed: #{result.reason} (#{result.fail_count}/#{result.repeats} repeat runs failed)"
     end
 
     def typed_test_grader?(definition)

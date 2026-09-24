@@ -348,10 +348,10 @@ module Steps
 
         {
           "name" => "new-test-flakiness-gate: #{result['grader_name']}",
-          "status" => "failed",
+          "status" => result["reason"].to_s.start_with?("focused_command_") ? "warning" : "failed",
           "required" => grader.details.to_h["required"],
           "grader_step_id" => grader.id
-        }.merge(result.slice("command", "files", "repeats", "pass_count", "fail_count"))
+        }.merge(result.slice("reason", "command", "normal_command", "files", "repeats", "pass_count", "fail_count"))
       end
       workflow.set_artifact!("new_test_flakiness_gate", entries) if entries.any?
     end
