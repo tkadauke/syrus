@@ -50,6 +50,8 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.pass_count + result.fail_count).to eq(5)
     expect(result.pass_count).to be > 0
     expect(result.fail_count).to be > 0
+    expect(result.reason).to eq("repeat_run_inconsistent")
+    expect(result.runs).to all(include("exit_status", "output", "passed", "timed_out"))
   end
 
   it "considers a consistently passing test stable" do
@@ -65,12 +67,13 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.ran).to be(true)
     expect(result.consistent).to be(true)
     expect(result.inconsistent?).to be(false)
+    expect(result.reason).to eq("repeat_run_consistent")
     expect(result.pass_count).to eq(5)
     expect(result.fail_count).to eq(0)
   end
 
-  it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do
-    stub_focused_command("false")
+  it "classifies consistently failing repeats as a suspect focused command after the owning grader passed" do
+    stub_focused_command("echo focused rerun cannot boot; exit 42")
 
     result = described_class.call(
       grader_step: grader_step,
@@ -81,8 +84,39 @@ RSpec.describe TouchedTestRepeatGate do
 
     expect(result.consistent).to be(false)
     expect(result.inconsistent?).to be(true)
+    expect(result.reason).to eq("focused_command_failed_consistently")
     expect(result.pass_count).to eq(0)
     expect(result.fail_count).to eq(5)
+    expect(result.runs).to all(include("exit_status" => 42, "output" => include("focused rerun cannot boot")))
+  end
+
+  it "classifies a consistently invalid focused command separately" do
+    stub_focused_command("does-not-exist-for-repeat-gate")
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/broken_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 2
+    )
+
+    expect(result.reason).to eq("focused_command_invalid")
+    expect(result.pass_count).to eq(0)
+    expect(result.runs.map { |run| run["exit_status"] }.uniq).to eq([ 127 ])
+  end
+
+  it "persists only bounded output from failed repeat runs" do
+    stub_focused_command("ruby -e 'STDOUT.write(\"x\" * 12000); exit 1'")
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/noisy_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 1
+    )
+
+    expect(result.runs.first["output"].bytesize).to be <= described_class::OUTPUT_INLINE_BYTES
+    expect(result.runs.first["output"]).to end_with("x" * 100)
   end
 
   it "skips without running anything when there are no touched files" do
@@ -129,6 +163,37 @@ RSpec.describe TouchedTestRepeatGate do
 
       expect(result.ran).to be(true)
       expect(result.command).to eq("bundle exec rspec spec/models/widget_spec.rb")
+    end
+
+    it "builds a single-file command for plugin-scoped RSpec graders and records the grader environment" do
+      step = grader_step_with({
+        "name" => "plugins-throughput-rspec",
+        "command" => "RAILS_ENV=test COVERAGE=false bundle exec rspec plugins/throughput/spec",
+        "grader_framework" => "rspec"
+      })
+
+      result = described_class.call(
+        grader_step: step,
+        touched_files: [ "plugins/throughput/spec/metrics_sampler_spec.rb" ],
+        workspace_path: @dir,
+        env: {
+          "RAILS_ENV" => "test",
+          "COVERAGE" => "false",
+          "BUNDLE_PATH" => "#{@dir}/.syrus/deps/bundle",
+          "BUNDLE_APP_CONFIG" => "#{@dir}/.syrus/deps/bundle-config"
+        },
+        repeats: 1
+      )
+
+      expect(result.ran).to be(true)
+      expect(result.command).to eq("bundle exec rspec plugins/throughput/spec/metrics_sampler_spec.rb")
+      expect(result.normal_command).to include("plugins/throughput/spec")
+      expect(result.env).to include(
+        "RAILS_ENV" => "test",
+        "COVERAGE" => "false",
+        "BUNDLE_PATH" => "#{@dir}/.syrus/deps/bundle",
+        "BUNDLE_APP_CONFIG" => "#{@dir}/.syrus/deps/bundle-config"
+      )
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do
