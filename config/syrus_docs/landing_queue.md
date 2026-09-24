@@ -125,11 +125,12 @@ to the PR's diff.
 `Adjudicators::KnownFlakyFailure` closes it from the other direction: when
 every failing test in a required grader Step already has a confirmed-flaky
 history in Test Insights (`flaky: true`, and a flakiness score at or above a
-configurable floor), the failure is dismissed at rung 0 instead of blocking
-landing or spending a `landing_fix` repair turn. It reuses whatever
-`:test_evidence` plugin already answers "which tests failed in this run" and
-"what is this test's flakiness score" -- with no such plugin, or no scoring
-history yet, it declines rather than guessing.
+configurable floor, but not a mostly-failing recent history), the failure is
+dismissed at rung 0 instead of blocking landing or spending a `landing_fix`
+repair turn. It reuses whatever `:test_evidence` plugin already answers
+"which tests failed in this run" and "what is this test's flakiness score" --
+with no such plugin, or no scoring history yet, it declines rather than
+guessing.
 
 Off by default, opted in per repository via
 `Repository#known_flaky_failure_dismissal_enabled` (same shape as
@@ -139,7 +140,17 @@ required-grader failures waved off silently.
 `Repository#known_flaky_failure_min_score` optionally raises the minimum
 flakiness score a test needs before its failure counts as "confirmed" flaky
 (default `Adjudicators::KnownFlakyFailure::DEFAULT_MIN_SCORE`), guarding
-against a single historical blip looking like a pattern. A dismissal is
+against a single historical blip looking like a pattern. A high score is not
+automatically safer: when a test's recent scored history is mostly
+failed/error rows (currently above
+`Adjudicators::KnownFlakyFailure::MAX_AUTO_DISMISS_SCORE`, `0.5`), the
+adjudicator declines with `too_consistently_failing` instead of dismissing.
+That pushes near-deterministic, currently-broken tests toward repair,
+isolated repro confirmation, or operator escalation rather than allowing them
+to land on reputation alone. Providers that support the optional `workflow:`
+argument should also exclude the workflow currently being adjudicated from
+the score, so retry-loop failures cannot inflate their own dismissal evidence.
+A dismissal is
 recorded as a `known_flaky_grader_failure` workflow artifact (the dismissed
 grader names, the confirmed-flaky tests and their scores) and logged on the
 `grader_collect` Step, the same visibility `record_inherited_main_failure!`

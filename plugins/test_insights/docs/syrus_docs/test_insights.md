@@ -136,6 +136,13 @@ test is flaky if that window contains at least one `passed` row and at least
 one `failed`/`error` row; the score is `failed / total` within the scored
 window.
 
+When the score is used to adjudicate a live workflow,
+`TestInsights::TestEvidence.flakiness_score` receives that workflow and passes
+it through as `exclude_workflow:`. Rows produced by the same workflow are left
+out of the historical window, so a retry loop's own failures cannot inflate the
+score used to decide whether that loop's required-grader failure is safe to
+dismiss.
+
 Scored history deliberately excludes a Job's own self-repaired WIP failures:
 when a failed/error `TestCase` came from a grader Step inside a workflow
 `retry_until` loop and a later grader Step in the same workflow, same loop,
@@ -384,6 +391,8 @@ Core keeps four things:
   reading `TestInsights::TestCase` directly. With the plugin disabled there is
   no provider, so it always declines with `no_flakiness_history` -- the same
   "cannot tell" posture the ladder requires from a rung-0 check with no data.
+  It also declines high failure-rate histories instead of treating "mostly
+  broken recently" as safer than ordinary flakiness.
 - **`Adjudicators::IsolatedReproDismissal`**, a second rung-0 adjudicator (see
   `landing_queue.md`'s `isolated_repro_dismissal_enabled`) that asks
   `:test_evidence` providers whether a failing test has an agent-recorded,

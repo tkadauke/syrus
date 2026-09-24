@@ -116,6 +116,44 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
     expect(verdict.reason).to eq("not_all_confirmed_flaky")
   end
 
+  it "declines when recent history is mostly failures" do
+    stub_provider(fake_provider(
+      failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "mostly broken" } ],
+      scores: {
+        [ "spec/foo_spec.rb", "mostly broken" ] => {
+          score: 0.75,
+          failed_count: 15,
+          total_count: 20,
+          flaky: true
+        }
+      }
+    ))
+
+    verdict = adjudicate
+
+    expect(verdict).to be_inconclusive
+    expect(verdict.reason).to eq("too_consistently_failing")
+  end
+
+  it "passes the current workflow to providers that can exclude it from history" do
+    observed_workflow = nil
+    provider = Module.new do
+      define_singleton_method(:failed_test_cases) do |run:, grader_name:|
+        [ { "suite_name" => "spec/foo_spec.rb", "name" => "self inflated" } ]
+      end
+      define_singleton_method(:flakiness_score) do |repository:, suite_name:, name:, workflow: nil|
+        observed_workflow = workflow
+        { score: 0.4, failed_count: 2, total_count: 5, flaky: true }
+      end
+    end
+    stub_provider(provider)
+
+    verdict = adjudicate
+
+    expect(verdict).to be_dismiss
+    expect(observed_workflow).to eq(workflow)
+  end
+
   it "declines when no test_evidence provider is registered" do
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([])

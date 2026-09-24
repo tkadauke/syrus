@@ -1197,9 +1197,10 @@ own private shapes: `inherited_grader_failure` (`.syrus.yml`'s
 two dismiss a required-grader failure on flakiness grounds, from two
 different kinds of evidence: `known_flaky_failure`
 (`Adjudicators::KnownFlakyFailure`) when every one of its failing tests
-already has a confirmed-flaky history -- the case `inherited_grader_failure`
-cannot catch because the flake reproduces on the base branch too, just
-intermittently -- and `isolated_repro_dismissal`
+already has a confirmed-flaky history that is above the repository's minimum
+score but not mostly failures -- the case `inherited_grader_failure` cannot
+catch because the flake reproduces on the base branch too, just intermittently
+-- and `isolated_repro_dismissal`
 (`Adjudicators::IsolatedReproDismissal`, see `landing_queue.md`'s
 `isolated_repro_dismissal_enabled`) when every one of its failing tests has
 an agent-recorded, same-SHA, pre-fix "did not reproduce in isolation" record
@@ -1211,6 +1212,13 @@ test-history plugin directly, and both are opt-in per repository
 real failure on a flaky reputation is a real risk. A language plugin that can
 tell "this grader was already failing" from its own parsed output is the
 obvious contributor to this extension point.
+
+`:test_evidence` providers that implement `flakiness_score` may accept an
+optional `workflow:` keyword. `KnownFlakyFailure` passes the workflow it is
+currently adjudicating when the provider supports that keyword, and providers
+should exclude that workflow's own attempts from the historical score. A
+test's own retry-loop failures must not become the evidence that dismisses
+the same workflow's required-grader failure.
 
 ## `grade_detector`
 
