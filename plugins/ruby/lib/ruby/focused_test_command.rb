@@ -22,7 +22,7 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "bundle exec rspec #{Shellwords.join(files)}"
+      "#{rails_test_database_prepare}bundle exec rspec #{Shellwords.join(files)}"
     end
 
     private
@@ -36,6 +36,10 @@ module Ruby
         path = test_case["file_path"].presence || test_case["suite_name"].presence
         path if path.to_s.end_with?("_spec.rb")
       end.uniq.sort
+    end
+
+    def rails_test_database_prepare
+      "if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && "
     end
   end
 end
