@@ -54,6 +54,7 @@ module MaintenanceTasks
 
       def pending? = estimate_total_units.positive?
       def pending_reason = "#{estimate_total_units} item(s) need maintenance."
+      def revival_checkpoint(_task) = {}
 
       def estimate_total_units
         raise NotImplementedError
