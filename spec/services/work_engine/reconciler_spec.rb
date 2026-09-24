@@ -5289,6 +5289,41 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(repair_plan.retry_after.to_i).to eq(reset_at.to_i)
   end
 
+  it "plans retryable rate-limit failures for provider-reported reset text instead of fixed backoff" do
+    now = Time.zone.parse("2026-09-18 06:14:12 UTC")
+    reset_at = Time.zone.parse("2026-09-18 06:45:00 UTC")
+    run.update_columns(
+      state: "failed",
+      agent_provider: "claude",
+      agent_outcome: "rate_limit",
+      finished_at: now
+    )
+    step.update_columns(state: "failed", finished_at: now)
+    workflow.update_columns(state: "failed", finished_at: now)
+    RunDiagnostic.create!(
+      run: run,
+      error_class: "AgentInvocation::ProviderRateLimit",
+      error_message: "You've hit your session limit - resets 6:40am (UTC)"
+    )
+    replace_failure_classification!(
+      run,
+      classification: "rate_limited",
+      retryable: true,
+      confidence: 0.9,
+      reason: "The run hit an external rate limit.",
+      classified_at: now
+    )
+
+    result = reconcile(run_id: run.id, now: now)
+    issue = kind(result, :retryable_run_failure)
+    repair_plan = plan(result, :schedule_retry_after_rate_limit)
+
+    expect(issue.retry_after.to_i).to eq(reset_at.to_i)
+    expect(repair_plan).to have_attributes(auto_executable: true, target_id: run.id)
+    expect(repair_plan.retry_after.to_i).to eq(reset_at.to_i)
+    expect(repair_plan.retry_after).to be > now + AutoRetryAttempt::BACKOFFS.first
+  end
+
   it "keeps one delayed retry for repeated rate-limited landing reconciler passes" do
     reset_at = 12.minutes.from_now
     job.user.update!(gh_rate_limit_reset_at: reset_at)

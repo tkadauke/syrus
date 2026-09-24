@@ -28,7 +28,9 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec #{Shellwords.join([ *rspec_tag_args, *files ])}"
+      args = explicit_rspec_tag_args
+      rspec_args = args.present? ? Shellwords.join([ *args, *files ]) : "#{ci_only_tag_args} #{Shellwords.join(files)}"
+      "#{ci_only_env} COVERAGE=false bundle exec rspec #{rspec_args}"
     end
 
     private
@@ -44,7 +46,7 @@ module Ruby
       end.uniq.sort
     end
 
-    def rspec_tag_args
+    def explicit_rspec_tag_args
       args = []
       tokens = Shellwords.split(@grader_command)
       tokens.each_with_index do |token, index|
@@ -54,9 +56,23 @@ module Ruby
           args.concat(Shellwords.split(token.delete_prefix("RSPEC_TAG_ARGS=")))
         end
       end
-      args.presence || [ "--tag", "~ci_only" ]
+      args.presence
     rescue ArgumentError
-      [ "--tag", "~ci_only" ]
+      nil
+    end
+
+    def ci_only_env
+      ci_only_grader? ? "RUN_CI_ONLY_SPECS=true" : "RUN_CI_ONLY_SPECS=false"
+    end
+
+    def ci_only_tag_args
+      ci_only_grader? ? "--tag ci_only" : "--tag ~ci_only"
+    end
+
+    def ci_only_grader?
+      @grader_name.include?("rspec-ci") ||
+        @grader_command.include?("RUN_CI_ONLY_SPECS=true") ||
+        @grader_command.include?("--tag ci_only")
     end
   end
 end
