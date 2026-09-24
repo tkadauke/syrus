@@ -1,4 +1,5 @@
 require "rails_helper"
+require "fileutils"
 require "tmpdir"
 
 RSpec.describe TouchedTestRepeatGate do
@@ -25,6 +26,14 @@ RSpec.describe TouchedTestRepeatGate do
     provider = double("focused_test_command_provider")
     allow(provider).to receive(:command_for).and_return(command)
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+  end
+
+  def write_rails_bin(script)
+    FileUtils.mkdir_p(File.join(@dir, "bin"))
+    FileUtils.mkdir_p(File.join(@dir, "config"))
+    File.write(File.join(@dir, "config/database.yml"), "test:\n  adapter: sqlite3\n")
+    File.write(File.join(@dir, "bin/rails"), "#!/usr/bin/env bash\n#{script}\n")
+    FileUtils.chmod(0o755, File.join(@dir, "bin/rails"))
   end
 
   it "flags an intentionally-flaky fixture test as inconsistent across repeats" do
@@ -81,6 +90,38 @@ RSpec.describe TouchedTestRepeatGate do
     )
 
     expect(result).to have_attributes(ran: true, consistent: true, pass_count: 1, fail_count: 0)
+  end
+
+  it "prepares a Rails test database before repeating focused specs" do
+    prepared = Pathname.new(@dir).join("prepared")
+    write_rails_bin("touch #{prepared}")
+    stub_focused_command("test -f #{prepared}")
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 1
+    )
+
+    expect(result).to have_attributes(ran: true, consistent: true, pass_count: 1, fail_count: 0)
+  end
+
+  it "skips the gate when Rails test database setup fails" do
+    write_rails_bin("echo setup failed >&2; exit 1")
+    stub_focused_command("false")
+    messages = []
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 1,
+      log: ->(message) { messages << message }
+    )
+
+    expect(result).to have_attributes(ran: false, consistent: true, reason: "repeat_environment_setup_failed")
+    expect(messages.join("\n")).to include("repeat environment setup failed")
   end
 
   it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do

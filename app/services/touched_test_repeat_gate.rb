@@ -45,6 +45,8 @@ class TouchedTestRepeatGate
 
     @log.call("[flaky_gate:#{grader_name}] rerunning #{@touched_files.join(', ')} #{@repeats}x: #{command}")
     outcomes = with_repeat_lock do
+      return skipped("repeat_environment_setup_failed") unless prepare_repeat_environment
+
       Array.new(@repeats) { run_once(command) }
     end
     pass_count = outcomes.count(&:itself)
@@ -146,6 +148,24 @@ class TouchedTestRepeatGate
     status&.success? || false
   rescue Timeout::Error
     @log.call("[flaky_gate:#{grader_name}] repeat run timed out after #{TIMEOUT_SECONDS.to_i}s")
+    false
+  end
+
+  def prepare_repeat_environment
+    return true unless File.executable?(File.join(@workspace_path, "bin/rails")) &&
+      File.exist?(File.join(@workspace_path, "config/database.yml"))
+
+    output = nil
+    status = nil
+    Timeout.timeout(TIMEOUT_SECONDS) do
+      output, status = Open3.capture2e(repeat_env, "bash", "-c", "bin/rails db:test:prepare", chdir: @workspace_path)
+    end
+    return true if status&.success?
+
+    @log.call("[flaky_gate:#{grader_name}] repeat environment setup failed:\n#{output.to_s.byteslice(0, 4000)}")
+    false
+  rescue Timeout::Error
+    @log.call("[flaky_gate:#{grader_name}] repeat environment setup timed out after #{TIMEOUT_SECONDS.to_i}s")
     false
   end
 
