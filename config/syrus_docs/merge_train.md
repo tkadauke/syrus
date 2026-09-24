@@ -143,6 +143,15 @@ If the train fails at any phase, `MergeTrainFailureHandler` does **not** blanket
 - A member whose commits are already verifiably on base when the train fails — e.g. GitHub reported the integration merge before a crash partway through closing member PRs — is instead completed retroactively: closed `pr_merged` with the landed SHA recorded, the same as the happy path. Its PR/branch may still need manual GitHub cleanup since the usual comment/close/delete-branch steps did not get to run for it.
 - A 30-minute retry cooldown prevents the landing queue from immediately re-attempting an unrepaired integration conflict.
 - Transient landing-start blockers, such as dependency readiness or admission pressure, do not use that failed-train cooldown. Once the blocker clears, the approved Epic children re-enter the landing queue and Syrus can dispatch a fresh train automatically. Deferred failures — including a member reconciliation that could not verify a landing — are transient in this sense too, so a train that keeps failing that way can rebuild and re-dispatch every few minutes rather than every 30.
+- Deterministic infrastructure/application crashes are bounded by the
+  repeated-failure circuit in `WorkEngine::Reconciler`. If the same
+  exception fingerprint (app revision, exception class/message, and top stack
+  frames) is observed on three failed train attempts in a row, Syrus stops
+  planning `rebuild_merge_train`, opens an urgent operator `AttentionItem`,
+  and shows the admin system-alert banner until an operator decides how to
+  proceed. A deploy that changes the app revision resets the streak, so a
+  fixed worker image can try again without carrying forward the old crash
+  fingerprint.
 - After the cooldown, `LandingQueueProcessor` can assemble a new train.
 - If a member Job's own runaway protection trips (too many consecutive failed Workflows), `WorkIntents::Gates::RunawayProtection` blocks admission of the next WorkIntent for that member's scope (its Job, or the Epic/bundle it belongs to) until an operator retries the Job and clears the flag. This is the backstop for a train that keeps failing for a reason the patch-equivalence check above cannot resolve: without it, a fast-failing deferral loop can keep rebuilding and re-dispatching for hours after runaway protection already flagged the member as needing operator attention, because nothing previously consulted that flag before admitting the next attempt.
 

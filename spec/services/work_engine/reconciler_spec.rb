@@ -72,6 +72,36 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  def failed_workflow_attempt_with_diagnostic(job:, finished_at:, trigger_kind: "retry", step_kind: "grader_fanout", error_class: "NoMethodError", error_message: "undefined method 'id' for an instance of Hash", app_revision: "pre-fix-sha", backtrace: "app/services/target_health_reuse.rb:42:in `block in health_records'\napp/services/steps/grader_fanout.rb:100:in `perform'")
+    workflow = Workflow.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: trigger_kind,
+      agent_provider: job.agent_provider,
+      state: "failed",
+      finished_at: finished_at,
+      cleaned_up_at: nil
+    )
+    step = workflow.steps.create!(kind: step_kind, position: 0, state: "failed", finished_at: finished_at)
+    run = step.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: trigger_kind,
+      agent_provider: job.agent_provider,
+      state: "failed",
+      finished_at: finished_at
+    )
+    RunDiagnostic.create!(
+      run: run,
+      error_class: error_class,
+      error_message: error_message,
+      error_backtrace: backtrace,
+      environment_snapshot: { "GIT_SHA" => app_revision }
+    )
+
+    [ workflow, step, run ]
+  end
+
   def solid_queue_run_job(run, claimed: false, failed: false, ready: false, run_at: nil, queue_name: "runs", error: "worker process failed", process_id: nil, created_at: 10.minutes.ago)
     ensure_solid_queue_test_tables!
     queue_job = SolidQueue::Job.create!(
@@ -5665,6 +5695,83 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "auto_retry_backoff")
     expect(unit.blocked_details).to include("auto_retry_attempt_id" => attempt.id)
     expect(result.repair_executions.map(&:message)).to include(match(/scheduled failed_step auto-retry/))
+  end
+
+  it "opens a repeated-failure circuit instead of rebuilding a merge train after identical diagnostics recur" do
+    now = Time.zone.parse("2026-09-21 12:18:00 UTC")
+    AppSetting.current.update!(merge_train_enabled: true)
+    train = MergeTrain.create!(repository: job.repository, base_branch: job.repository.default_branch, priority: "medium")
+    MergeTrainMember.create!(merge_train: train, job: job, position: 0)
+    job.update_columns(state: "landing")
+    workflow.update_columns(state: "succeeded", finished_at: now - 30.minutes)
+    step.update_columns(state: "succeeded", finished_at: now - 30.minutes)
+    run.update_columns(state: "succeeded", finished_at: now - 30.minutes)
+
+    failed_workflow_attempt_with_diagnostic(job: job, trigger_kind: "merge_train", finished_at: now - 20.minutes)
+    failed_workflow_attempt_with_diagnostic(job: job, trigger_kind: "merge_train", finished_at: now - 10.minutes)
+    latest_workflow, _latest_step, latest_run = failed_workflow_attempt_with_diagnostic(job: job, trigger_kind: "merge_train", finished_at: now)
+    latest_workflow.update!(artifacts: { "merge_train_id" => train.id })
+    attach_work_unit(latest_workflow, kind: "merge_train", state: "failed", member_jobs: [ job ])
+    latest_run.run_failure_classification.update!(
+      classification: "application_error",
+      retryable: false,
+      confidence: 0.9,
+      reason: "application exception",
+      classified_at: now
+    )
+
+    result = reconcile(run_id: latest_run.id, now: now)
+    issue = kind(result, :repeated_failure_circuit_open)
+
+    expect(issue).to have_attributes(
+      severity: "error",
+      safe_to_auto_repair: false,
+      recommended_repair_action: "operator_review_repeated_failure_circuit"
+    )
+    expect(issue.evidence).to include(
+      "streak_count" => 3,
+      "threshold" => WorkEngine::RepeatedFailureCircuit::THRESHOLD,
+      "app_revision" => "pre-fix-sha",
+      "error_class" => "NoMethodError"
+    )
+    expect(kind(result, :nonretryable_semantic_git_failure)).to be_nil
+    expect(plan(result, :rebuild_merge_train)).to be_nil
+    expect(plan(result, :operator_review_repeated_failure_circuit)).to have_attributes(auto_executable: false)
+    attention_item = AttentionItem.open_decisions.find_by!(problem_code: "application_error", job: job)
+    expect(attention_item).to have_attributes(urgency: "urgent", queue: "operator")
+    expect(attention_item.evidence).to include(
+      "fingerprint" => issue.evidence["fingerprint"],
+      "app_revision" => "pre-fix-sha",
+      "streak_count" => 3
+    )
+  end
+
+  it "resets the repeated-failure circuit when the app revision changes" do
+    now = Time.zone.parse("2026-09-21 15:13:00 UTC")
+    job.update_columns(state: "failed")
+    workflow.update_columns(state: "succeeded", finished_at: now - 30.minutes)
+    step.update_columns(state: "succeeded", finished_at: now - 30.minutes)
+    run.update_columns(state: "succeeded", finished_at: now - 30.minutes)
+
+    failed_workflow_attempt_with_diagnostic(job: job, finished_at: now - 20.minutes, app_revision: "pre-fix-sha")
+    failed_workflow_attempt_with_diagnostic(job: job, finished_at: now - 10.minutes, app_revision: "pre-fix-sha")
+    latest_workflow, _latest_step, latest_run = failed_workflow_attempt_with_diagnostic(job: job, finished_at: now, app_revision: "post-fix-sha")
+    latest_run.run_failure_classification.update!(
+      classification: "timeout",
+      retryable: true,
+      confidence: 0.85,
+      reason: "transient timeout",
+      classified_at: now
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(latest_workflow)).and_return(true)
+
+    result = reconcile(run_id: latest_run.id, now: now)
+
+    expect(kind(result, :repeated_failure_circuit_open)).to be_nil
+    expect(kind(result, :retryable_run_failure)).to be_present
+    expect(plan(result, :retry_failed_step)).to have_attributes(auto_executable: true, target_id: latest_workflow.id)
+    expect(AttentionItem.where(problem_code: "application_error", job: job)).to be_empty
   end
 
   it "schedules retryable failures with escalating backoff by attempt number" do

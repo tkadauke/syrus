@@ -201,6 +201,12 @@ module Steps
       return unless result.ran
 
       details = step.details.to_h.merge("new_test_flakiness_gate" => result.to_h.stringify_keys)
+      if result.repeats.to_i.zero?
+        log("[grader:#{name}] flaky_gate: no repeat runs completed; treating as inconclusive", kind: "system")
+        step.update!(details: details)
+        return
+      end
+
       if result.consistent
         step.update!(details: details)
         return

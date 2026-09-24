@@ -260,6 +260,7 @@ module WorkEngine
       issues.concat(classify_workspace_availability)
       issues.concat(classify_resumable_sessions)
       issues.concat(classify_branch_divergence)
+      issues.concat(classify_repeated_failure_circuits)
       issues.concat(classify_retryable_failures)
       issues.concat(classify_nonretryable_failures)
       issues.concat(classify_cleanup_blockers)
@@ -2547,6 +2548,7 @@ module WorkEngine
         next if try_branch_failure_superseded_by_recovery?(run)
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
+        next if repeated_failure_circuit_open?(run)
         definition = work_definition_for(run.workflow)
         next if definition&.suppresses_layered_auto_repair?
         next if definition&.child? && definition.manages_own_job_lifecycle?
@@ -2572,6 +2574,42 @@ module WorkEngine
           explanation: provider_quota_classification?(classification) ?
             "Run ##{run.id} failed because the provider usage quota is exhausted." :
             "Run ##{run.id} failed with a retryable classification."
+        )
+      end
+    end
+
+    def classify_repeated_failure_circuits
+      runs.select(&:failed?).filter_map do |run|
+        next if run.job&.closed?
+        next unless latest_workflow_run?(run) || repair_failure_still_needs_validation?(run)
+        next unless failed_run_still_controls_step?(run)
+        next if step_needs_terminal_run_reconciliation?(run.step)
+        next if retry_until_failure_superseded_by_later_success?(run.step)
+        next if try_branch_failure_superseded_by_recovery?(run)
+        next if recoverable_branch_divergence?(run)
+        next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
+
+        result = repeated_failure_circuit_for(run)
+        next unless result.open?
+
+        WorkEngine::RepeatedFailureCircuit.new(run: run).open_attention_item!(result)
+
+        issue(
+          kind: :repeated_failure_circuit_open,
+          severity: :error,
+          affected_ids: ids_for(run),
+          safe_to_auto_repair: false,
+          recommended_repair_action: "operator_review_repeated_failure_circuit",
+          evidence: run_evidence(run).merge(
+            fingerprint: result.fingerprint,
+            streak_count: result.streak_count,
+            threshold: WorkEngine::RepeatedFailureCircuit::THRESHOLD,
+            app_revision: result.app_revision,
+            error_class: result.error_class,
+            error_message: result.error_message,
+            top_stack_frames: result.top_stack_frames
+          ),
+          explanation: "Run ##{run.id} has failed with the same exception fingerprint #{result.streak_count} times in a row on the same app revision."
         )
       end
     end
@@ -2640,6 +2678,7 @@ module WorkEngine
         next if try_branch_failure_superseded_by_recovery?(run)
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
+        next if repeated_failure_circuit_open?(run)
 
         classification = effective_failure_classification(run)
         next if classification.nil?
@@ -3452,6 +3491,15 @@ module WorkEngine
 
     def provider_quota_classification?(classification)
       classification&.classification == ProviderUsageLimit::CLASSIFICATION
+    end
+
+    def repeated_failure_circuit_open?(run)
+      repeated_failure_circuit_for(run).open?
+    end
+
+    def repeated_failure_circuit_for(run)
+      @repeated_failure_circuits ||= {}
+      @repeated_failure_circuits[run.id] ||= WorkEngine::RepeatedFailureCircuit.call(run: run)
     end
 
     def step_repair_semantics(step)
