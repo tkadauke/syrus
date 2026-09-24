@@ -177,6 +177,7 @@ RSpec.describe "maintenance task definitions" do
       result_struct = Struct.new(:done, :processed, :next_after_id, keyword_init: true)
       stub_const("TestInsights::WipRepairFailureBackfill", Class.new do
         define_singleton_method(:pending_count) { 5 }
+        define_singleton_method(:completed_after_id) { 0 }
 
         define_method(:call) do |after_id: 0, limit:|
           result_struct.new(done: true, processed: 5, next_after_id: after_id + 5)

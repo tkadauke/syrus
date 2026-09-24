@@ -44,7 +44,7 @@ module MaintenanceTasks
             dismissed_at: nil,
             dismissed_by_user: nil,
             last_error: nil,
-            checkpoint: {}
+            checkpoint: definition.revival_checkpoint(task)
           )
         )
         task.log!(task.metadata["pending_reason"].presence || "Maintenance task is pending again.")
