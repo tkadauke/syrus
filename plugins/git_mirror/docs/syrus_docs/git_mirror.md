@@ -73,7 +73,8 @@ commit, so the read falls back to the host.
 ## Clones and fetches
 
 `WorkflowWorkspace`'s initial clone and `ChatWorkspace`'s repository
-attachment try the mirror's smart-HTTP routes
+attachment -- both the first clone and the fast-forward refresh `ChatTurnJob`
+runs before every turn -- try the mirror's smart-HTTP routes
 (`<endpoint>/v1/repositories/<id>`, the same `git clone`/`git fetch` a real
 git remote answers) before the host, authenticated with the same bearer token
 as the JSON API via an `http.extraHeader` -- never embedded in the URL, so it
@@ -82,11 +83,12 @@ has not been told about since it last restarted registers on the spot and
 retries once, the same recovery the content reads use.
 
 A branch tip the mirror hasn't caught up to yet is an accepted staleness
-window, same as any `max_age`-bounded read; but two cases are verified
-explicitly, because silently landing on a stale commit there would be worse
-than falling back: refreshing a Job's already-existing branch checks the
-fetched commit against the exact SHA a `ls-remote` against the host just
-reported, and checking out a Syrus-pinned commit (`main_sha`, `deploy_sha`,
+window, same as any `max_age`-bounded read -- a chat's read-only view of the
+default branch takes it as-is, and the chat agent is told it may `git fetch`
+itself when current state matters. Two cases are verified explicitly, because
+silently landing on a stale commit there would be worse than falling back:
+refreshing a Job's already-existing branch checks the fetched commit against
+the exact SHA a `ls-remote` against the host just reported, and checking out a Syrus-pinned commit (`main_sha`, `deploy_sha`,
 a landed merge commit) fetches that exact commit from the host if the mirror
 didn't have it. Either check failing falls back to the host for that
 operation, transparently.

@@ -984,16 +984,34 @@ class ChatWorkspace
     0
   end
 
+  # ChatTurnJob re-runs this for every attached repository before each turn
+  # (refresh_attached_repository_checkouts!), so it sits directly on the
+  # latency between the operator's message and the agent starting. It is the
+  # most frequently executed git operation in the product and was the one
+  # clone/fetch path still going straight to the host -- `clone!` above has
+  # used the mirror since it was written, and a chat turn was observed
+  # waiting 237s on this fetch while the median fetch on the same host was
+  # 0.31s.
+  #
+  # No verify_sha, unlike WorkflowWorkspace's branch refresh: this is a
+  # read-only view of the default branch for a planning chat, so the
+  # mirror's ~30s sync window is an accepted staleness window rather than
+  # something to fall back over. The agent is separately told it may `git
+  # fetch` / `git pull --ff-only` itself when current state matters
+  # (Prompts::ChatSystem). Verification is reserved for the cases where a
+  # stale commit would be wrong rather than merely old -- a Job's own branch
+  # and Syrus-pinned commits (see git_mirror.md).
   def fast_forward!(repository, path)
     default_branch = repository.default_branch
-    @git.run(
-      "fetch",
-      authenticated_url(repository),
-      "+refs/heads/#{default_branch}:refs/remotes/origin/#{default_branch}",
-      "--prune",
-      chdir: path.to_s,
-      env: @env
-    )
+    refspec = "+refs/heads/#{default_branch}:refs/remotes/origin/#{default_branch}"
+
+    fetch_via_transport!(
+      repository: repository, user: repository.user,
+      refspec: refspec, chdir: path.to_s, env: @env
+    ) do
+      @git.run("fetch", authenticated_url(repository), refspec, "--prune", chdir: path.to_s, env: @env)
+    end
+
     @git.run("checkout", default_branch, chdir: path.to_s)
     @git.run("merge", "--ff-only", "origin/#{default_branch}", chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)

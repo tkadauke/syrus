@@ -111,6 +111,35 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(fetch[:args]).not_to include("origin")
     end
 
+    # The per-turn refresh (ChatTurnJob#refresh_attached_repository_checkouts!)
+    # sits between the operator's message and the agent starting, so it is the
+    # one clone/fetch that most needs the mirror -- and it was the last one
+    # still going straight to the host while `clone!` had used the mirror all
+    # along.
+    it "refreshes an existing checkout through the workspace git transport when one is registered" do
+      path = described_class.repo_path_for(chat_session, repository)
+      FileUtils.mkdir_p(path.join(".git", "info"))
+      transport = Object.new
+      transport.define_singleton_method(:url) { "http://mirror/v1/repositories/7" }
+      transport.define_singleton_method(:env) { { "GIT_MIRROR" => "1" } }
+      transport.define_singleton_method(:register!) { nil }
+      Syrus::PluginRegistry.register(:workspace_git_transport, Class.new do
+        include Syrus::Plugin::WorkspaceGitTransport
+        define_singleton_method(:available_for?) { |_repository| true }
+        define_singleton_method(:build) { |repository:, user:| transport }
+      end)
+      git = ChatWorkspaceRecordingGitRunner.new
+
+      described_class.new(chat_session, git: git).attach_repository!(repository)
+
+      fetches = git.commands.select { |command| command[:args].first == "fetch" }
+      expect(fetches.size).to eq(1)
+      expect(fetches.first[:args]).to eq(
+        [ "fetch", "http://mirror/v1/repositories/7", "+refs/heads/main:refs/remotes/origin/main" ]
+      )
+      expect(fetches.first[:kwargs][:env]).to include("GIT_MIRROR" => "1")
+    end
+
     it "resolves ChatSession#repository (and its file tree) to the most recently attached repository" do
       described_class.attach_repository!(chat_session, repository)
 
