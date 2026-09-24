@@ -177,9 +177,77 @@ module Steps
         raise StepFailed, "grader #{name} failed (exit #{exit_code})"
       end
 
+      check_new_test_flakiness!(name: name, definition: definition)
     end
 
     private
+
+    def check_new_test_flakiness!(name:, definition:)
+      return unless repository.new_test_flakiness_gate_enabled?
+      return unless typed_test_grader?(definition)
+
+      touched_files = touched_test_files_for(definition)
+      return if touched_files.empty?
+
+      log("[grader:#{name}] flaky_gate: checking #{touched_files.join(', ')} for day-one flakiness")
+      result = TouchedTestRepeatGate.call(
+        grader_step: step,
+        touched_files: touched_files,
+        repeats: repository.new_test_flakiness_gate_repeats.presence || TouchedTestRepeatGate::DEFAULT_REPEATS,
+        workspace_path: workspace.path,
+        env: env,
+        log: ->(message) { log(message, kind: "system") }
+      )
+      return unless result.ran
+
+      details = step.details.to_h.merge("new_test_flakiness_gate" => result.to_h.stringify_keys)
+      if result.consistent
+        step.update!(details: details)
+        return
+      end
+
+      log_path = workspace.path.join(details["log_path"])
+      append_grade_diagnostic(
+        log_path,
+        "\n[grader:#{name}] new-test repeat gate failed: #{result.reason} (#{result.fail_count}/#{result.repeats} repeat runs failed)\n"
+      )
+      step.update!(details: details.merge("output" => grader_output_excerpt(log_path), "log_bytes" => log_path.size))
+      focused_command_suspect = result.reason.to_s.start_with?("focused_command_")
+      return if focused_command_suspect
+
+      fail_with!(
+        :grader_failure,
+        new_test_flakiness_failure_message(name, result),
+        evidence: {
+          new_test_flakiness: !focused_command_suspect,
+          focused_command_failure: focused_command_suspect,
+          result: result.to_h
+        }
+      )
+    end
+
+    def new_test_flakiness_failure_message(name, result)
+      if result.reason.to_s.start_with?("focused_command_")
+        return "focused rerun command failed after grader #{name} passed: #{result.reason} " \
+          "(#{result.fail_count}/#{result.repeats} failed)"
+      end
+
+      "newly touched tests failed intermittently: #{name} (#{result.fail_count}/#{result.repeats} failed)"
+    end
+
+    def typed_test_grader?(definition)
+      definition["grader_framework"].to_s.in?(%w[rspec vitest])
+    end
+
+    def touched_test_files_for(definition)
+      files = TouchedTestFiles.call(workspace_path: workspace.path, base_ref: base_revision_sha)
+      patterns = Array(definition["when_files_changed"]).compact_blank
+      return files if patterns.empty?
+
+      files.select do |file|
+        RepositoryContent::Glob.match?(patterns, file)
+      end
+    end
 
     def accept_failure_by_base_retry?(name:, definition:)
       return false unless definition["failures"] == MainBranchFailureClassifier::ALLOW_INHERITED
