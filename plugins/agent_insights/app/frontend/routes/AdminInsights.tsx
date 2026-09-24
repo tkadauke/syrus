@@ -1,16 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button, buttonClasses } from "@app/components/Button"
 import { PILL_TONE_CLASSES, TonePill } from "@app/components/StatusPill"
-import {
-  DataTable,
-  Notice,
-  Page,
-  PageHeading,
-  Section,
-  SectionHeading,
-  Text,
-  Toolbar
-} from "@app/components/ui"
+import { DataTable, Notice, Page, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { withRoutePrefix } from "@app/lib/routing"
@@ -34,7 +25,7 @@ export function AdminInsightsRoute() {
 
   if (query.isPending) {
     return (
-      <Page.Root aria-label={t("aria_admin_insights")} size="wide">
+      <Page.Root aria-label={t("aria_admin_insights")} gutter="responsive" size="wide">
         <AdminInsightsHeader />
         <Notice>{t("loading")}</Notice>
       </Page.Root>
@@ -43,7 +34,7 @@ export function AdminInsightsRoute() {
 
   if (query.isError) {
     return (
-      <Page.Root aria-label={t("aria_admin_insights")} size="wide">
+      <Page.Root aria-label={t("aria_admin_insights")} gutter="responsive" size="wide">
         <AdminInsightsHeader />
         <Notice tone="danger">{errorMessage(query.error, t("load_error"))}</Notice>
       </Page.Root>
@@ -66,7 +57,9 @@ function AdminInsightsHeader() {
   const { t } = useT("agent_insights")
   return (
     <Page.Header className="border-b border-border pb-4">
-      <Text className="font-medium uppercase" variant="caption" tone="muted">{t("admin_eyebrow")}</Text>
+      <Text className="font-medium uppercase" variant="caption" tone="muted">
+        {t("admin_eyebrow")}
+      </Text>
       <PageHeading>{t("admin_title")}</PageHeading>
       <Page.Description>{t("admin_subtitle")}</Page.Description>
     </Page.Header>
@@ -108,34 +101,27 @@ function AdminInsightsList({
   const lastItem = Math.min(page * meta.per_page, meta.total)
 
   return (
-    <Page.Root aria-label={t("aria_admin_insights")} size="wide">
+    <Page.Root aria-label={t("aria_admin_insights")} gutter="responsive" size="wide">
       <AdminInsightsHeader />
 
-      <Toolbar className="justify-between gap-4">
-        <SectionHeading>
-          {t("suggestions_heading")}
-        </SectionHeading>
-        <nav aria-label={t("filter_aria")} className="flex gap-1">
-          {filterTabs.map((tab) => (
-            <Button
-              key={tab.key}
-              onClick={() => handleFilterChange(tab.key)}
-              size="sm"
-              variant={stateFilter === tab.key ? "primary" : "secondary"}
-            >
-              {tab.label}
-              <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${stateFilter === tab.key ? "bg-white/20 text-current" : PILL_TONE_CLASSES.gray}`}>
-                {tab.count}
-              </span>
-            </Button>
-          ))}
-        </nav>
-      </Toolbar>
+      <Page.Nav>
+        <Toolbar className="justify-between gap-4">
+          <SectionHeading>{t("suggestions_heading")}</SectionHeading>
+          <nav aria-label={t("filter_aria")} className="flex gap-1">
+            {filterTabs.map((tab) => (
+              <Button key={tab.key} onClick={() => handleFilterChange(tab.key)} size="sm" variant={stateFilter === tab.key ? "primary" : "secondary"}>
+                {tab.label}
+                <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${stateFilter === tab.key ? "bg-white/20 text-current" : PILL_TONE_CLASSES.gray}`}>
+                  {tab.count}
+                </span>
+              </Button>
+            ))}
+          </nav>
+        </Toolbar>
+      </Page.Nav>
 
       {suggestions.length === 0 ? (
-        <Notice className="p-8 text-center">
-          {t("empty")}
-        </Notice>
+        <Notice className="p-8 text-center">{t("empty")}</Notice>
       ) : (
         <Section.Root className="overflow-hidden p-0">
           <DataTable.Root wrapperClassName="rounded-none border-0">
@@ -168,18 +154,14 @@ function AdminInsightsList({
                 {t("pagination_previous")}
               </Button>
             ) : (
-              <span className={buttonClasses("secondary", "sm", "opacity-50")}>
-                {t("pagination_previous")}
-              </span>
+              <span className={buttonClasses("secondary", "sm", "opacity-50")}>{t("pagination_previous")}</span>
             )}
             {page < meta.total_pages ? (
               <Button onClick={() => onPageChange(page + 1)} size="sm" variant="secondary">
                 {t("pagination_next")}
               </Button>
             ) : (
-              <span className={buttonClasses("secondary", "sm", "opacity-50")}>
-                {t("pagination_next")}
-              </span>
+              <span className={buttonClasses("secondary", "sm", "opacity-50")}>{t("pagination_next")}</span>
             )}
           </div>
         </div>
@@ -227,8 +209,12 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
             >
               {suggestion.title}
             </button>
-            <span className="ml-2"><TonePill tone="gray">{suggestion.category}</TonePill></span>
-            <span className="ml-2"><TonePill tone={suggestion.proposal_type === "remove_memory" ? "red" : "gray"}>{t(`proposal_${suggestion.proposal_type}`)}</TonePill></span>
+            <span className="ml-2">
+              <TonePill tone="gray">{suggestion.category}</TonePill>
+            </span>
+            <span className="ml-2">
+              <TonePill tone={suggestion.proposal_type === "remove_memory" ? "red" : "gray"}>{t(`proposal_${suggestion.proposal_type}`)}</TonePill>
+            </span>
           </div>
         </DataTable.Cell>
         <DataTable.Cell>
@@ -239,15 +225,11 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
             {suggestion.repository.slug}
           </Link>
         </DataTable.Cell>
-        <DataTable.Cell className="text-xs text-text-secondary">
-          {suggestion.user.display_name}
-        </DataTable.Cell>
+        <DataTable.Cell className="text-xs text-text-secondary">{suggestion.user.display_name}</DataTable.Cell>
         <DataTable.Cell>
           <SeverityPill severity={suggestion.severity} />
         </DataTable.Cell>
-        <DataTable.Cell className="text-xs text-text-secondary">
-          {Math.round(suggestion.confidence * 100)}%
-        </DataTable.Cell>
+        <DataTable.Cell className="text-xs text-text-secondary">{Math.round(suggestion.confidence * 100)}%</DataTable.Cell>
         <DataTable.Cell>
           <StatePill state={suggestion.state} />
         </DataTable.Cell>
@@ -260,22 +242,12 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
               {t("view_job")}
             </Link>
             {suggestion.has_memory_suggestion && (
-              <Button
-                disabled={promoteMutation.isPending}
-                onClick={() => promoteMutation.mutate()}
-                size="sm"
-                variant="secondary"
-              >
+              <Button disabled={promoteMutation.isPending} onClick={() => promoteMutation.mutate()} size="sm" variant="secondary">
                 {promoteMutation.isPending ? t("promoting") : t("promote_to_instance")}
               </Button>
             )}
             {suggestion.state === "pending" && suggestion.proposal_type === "remove_memory" && (
-              <Button
-                size="sm"
-                variant="danger"
-                disabled={acceptRemoveMemoryMutation.isPending}
-                onClick={() => acceptRemoveMemoryMutation.mutate()}
-              >
+              <Button size="sm" variant="danger" disabled={acceptRemoveMemoryMutation.isPending} onClick={() => acceptRemoveMemoryMutation.mutate()}>
                 {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
               </Button>
             )}
@@ -305,18 +277,14 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
             )}
             {suggestion.proposal_type === "remove_memory" && (
               <div className="mt-2 rounded border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/20">
-                <p className="text-xs font-medium uppercase text-red-700 dark:text-red-300">
-                  {t("remove_memory_label", { id: suggestion.target_memory_id })}
-                </p>
+                <p className="text-xs font-medium uppercase text-red-700 dark:text-red-300">{t("remove_memory_label", { id: suggestion.target_memory_id })}</p>
                 {suggestion.stale_memory_text && (
                   <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-3 text-xs text-red-900 ring-1 ring-red-100 dark:bg-gray-950 dark:text-red-200 dark:ring-red-900/60">
                     {suggestion.stale_memory_text}
                   </pre>
                 )}
                 {suggestion.stale_memory_evidence && (
-                  <p className="mt-2 whitespace-pre-wrap text-xs text-red-800 dark:text-red-200">
-                    {suggestion.stale_memory_evidence}
-                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-xs text-red-800 dark:text-red-200">{suggestion.stale_memory_evidence}</p>
                 )}
               </div>
             )}
@@ -324,12 +292,8 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
               <div className="mt-2 rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                 <p className="font-medium text-gray-700 dark:text-gray-200">{t("retired_heading")}</p>
                 {suggestion.retired_reason && <p className="mt-1 whitespace-pre-wrap">{suggestion.retired_reason}</p>}
-                {suggestion.superseded_by_insight_id && (
-                  <p className="mt-1">{t("superseded_by_insight_label", { id: suggestion.superseded_by_insight_id })}</p>
-                )}
-                {suggestion.superseded_by_job_slug && (
-                  <p className="mt-1">{t("superseded_by_job_label", { slug: suggestion.superseded_by_job_slug })}</p>
-                )}
+                {suggestion.superseded_by_insight_id && <p className="mt-1">{t("superseded_by_insight_label", { id: suggestion.superseded_by_insight_id })}</p>}
+                {suggestion.superseded_by_job_slug && <p className="mt-1">{t("superseded_by_job_label", { slug: suggestion.superseded_by_job_slug })}</p>}
               </div>
             )}
           </td>

@@ -14,16 +14,23 @@ import {
   type DataTableColumnPin
 } from "./dataTable"
 import { DataTable, type DataTableSortDirection } from "./ui"
+import { classes } from "./ui/classes"
+import { Page, usePageGutterRestoreClassName } from "./ui/Page"
 
 export function AdminEventPanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warn" }) {
-  const toneClass = tone === "error"
-    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
-    : tone === "warn"
-      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-      : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+  const toneClass =
+    tone === "error"
+      ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
+      : tone === "warn"
+        ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+        : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   return <div className={`rounded border p-4 text-sm ${toneClass}`}>{children}</div>
 }
 
+// Uses the responsive gutter primitive: the header keeps the page's normal
+// mobile margin (restored here and, separately, by AdminEventFilterBar
+// below), while children -- normally an AdminEventLogTable-backed section --
+// run edge to edge.
 export function AdminEventPageShell({
   actions,
   ariaLabel,
@@ -38,16 +45,27 @@ export function AdminEventPageShell({
   title: string
 }) {
   return (
-    <main aria-label={ariaLabel} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-gray-700 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{eyebrow}</p>
-          <PageHeading className="mt-1">{title}</PageHeading>
-        </div>
-        {actions}
-      </header>
+    <Page.Root aria-label={ariaLabel} gutter="responsive" size="wide">
+      <AdminEventShellHeader actions={actions} eyebrow={eyebrow} title={title} />
       {children}
-    </main>
+    </Page.Root>
+  )
+}
+
+// Split out so usePageGutterRestoreClassName reads the context Page.Root
+// provides (a hook call from AdminEventPageShell's own body would run before
+// the Provider is mounted). Kept hand-rolled rather than Page.Header so the
+// existing border/responsive-alignment layout survives unchanged.
+function AdminEventShellHeader({ actions, eyebrow, title }: { actions?: ReactNode; eyebrow: string; title: string }) {
+  const restore = usePageGutterRestoreClassName("padding")
+  return (
+    <header className={classes("flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-gray-700 lg:flex-row lg:items-end lg:justify-between", restore)}>
+      <div>
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{eyebrow}</p>
+        <PageHeading className="mt-1">{title}</PageHeading>
+      </div>
+      {actions}
+    </header>
   )
 }
 
@@ -81,9 +99,13 @@ export function AdminEventPagination({
 
   return (
     <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm dark:border-gray-700">
-      <button className={pageButtonClass()} disabled={!pagination.has_previous_page} onClick={() => go(pagination.previous_page)} type="button">{previousLabel}</button>
+      <button className={pageButtonClass()} disabled={!pagination.has_previous_page} onClick={() => go(pagination.previous_page)} type="button">
+        {previousLabel}
+      </button>
       <span className="text-gray-600 dark:text-gray-300">{label}</span>
-      <button className={pageButtonClass()} disabled={!pagination.has_next_page} onClick={() => go(pagination.next_page)} type="button">{nextLabel}</button>
+      <button className={pageButtonClass()} disabled={!pagination.has_next_page} onClick={() => go(pagination.next_page)} type="button">
+        {nextLabel}
+      </button>
     </div>
   )
 }
@@ -150,23 +172,27 @@ export function AdminEventLogTable<Row>({
   // model: `render` needs per-row expand state, which DataTableColumnDef's
   // `renderCell(row)` doesn't carry, so it's closed over here from this
   // component's own expandedKey state instead.
-  const dataTableColumns = useMemo<DataTableColumnDef<Row>[]>(() => columns.map((column) => ({
-    cellClassName: column.className,
-    defaultVisible: column.defaultVisible,
-    headClassName: column.headerClassName || column.className,
-    key: column.key,
-    label: column.label ?? (typeof column.header === "string" ? column.header : column.key),
-    pin: column.pin,
-    renderCell: (row: Row) => {
-      const rowKey = getRowKey(row)
-      const expanded = expandedKey === rowKey
-      const toggleExpanded = () => setExpandedKey((current) => current === rowKey ? null : rowKey)
-      return column.render(row, { expanded, toggleExpanded })
-    },
-    renderHeader: () => column.header,
-    required: column.required,
-    sortKey: column.sort
-  })), [columns, expandedKey, getRowKey])
+  const dataTableColumns = useMemo<DataTableColumnDef<Row>[]>(
+    () =>
+      columns.map((column) => ({
+        cellClassName: column.className,
+        defaultVisible: column.defaultVisible,
+        headClassName: column.headerClassName || column.className,
+        key: column.key,
+        label: column.label ?? (typeof column.header === "string" ? column.header : column.key),
+        pin: column.pin,
+        renderCell: (row: Row) => {
+          const rowKey = getRowKey(row)
+          const expanded = expandedKey === rowKey
+          const toggleExpanded = () => setExpandedKey((current) => (current === rowKey ? null : rowKey))
+          return column.render(row, { expanded, toggleExpanded })
+        },
+        renderHeader: () => column.header,
+        required: column.required,
+        sortKey: column.sort
+      })),
+    [columns, expandedKey, getRowKey]
+  )
 
   const preferences = useLocalStorageColumnPreferences({ columns: dataTableColumns, storageKey })
   const activeSort = parseEventLogSort(search)
@@ -272,11 +298,15 @@ export function AdminEventFilterBar({
   const fallbackFields = fields || []
   const schema = useMemo(() => filterSchema || adminEventFilterSchema(fallbackFields), [fallbackFields, filterSchema])
   const activeFilter = useMemo(() => filter || adminEventFilterTree(fallbackFields, search), [fallbackFields, filter, search])
+  // Restores the mobile gutter AdminEventPageShell's Page.Root drops for its
+  // children, so every consumer's filter bar stays margined like the header
+  // without having to opt in itself.
+  const gutterRestore = usePageGutterRestoreClassName("margin")
 
   return (
     <FilterBar
       buildLink={preserveExplicitEmptyFilter}
-      className="space-y-2"
+      className={classes("space-y-2", gutterRestore)}
       filter={activeFilter}
       filterSchema={schema}
       legacyFilterKeys={fallbackFields.map((field) => field.name)}
@@ -293,9 +323,7 @@ export function AdminEventFilterBar({
 // so an omitted `q` caused the just-removed chip to reappear immediately. Keep
 // `q` present (encoding an empty filter tree) so the empty state sticks.
 function preserveExplicitEmptyFilter(pathname: string, search: string, updates: FilterLinkUpdates) {
-  const nextUpdates = "q" in updates && updates.q == null
-    ? { ...updates, q: encodeFilterTree({ and: [] }) }
-    : updates
+  const nextUpdates = "q" in updates && updates.q == null ? { ...updates, q: encodeFilterTree({ and: [] }) } : updates
   return linkFromSearch(pathname, search, nextUpdates)
 }
 
@@ -305,7 +333,7 @@ function adminEventFilterSchema(fields: AdminEventFilterField[]): FilterSchemaFi
     expansions: field.placeholder ? { placeholder: field.placeholder } : undefined,
     field: field.name,
     label: field.label,
-    operators: [ "is" ],
+    operators: ["is"],
     values: field.options
   }))
 }
@@ -314,7 +342,7 @@ function adminEventFilterTree(fields: AdminEventFilterField[], search: string): 
   const params = new URLSearchParams(search)
   const chips = fields.flatMap((field): FilterChip[] => {
     const value = params.get(field.name) || field.defaultValue || ""
-    return value ? [ { field: field.name, op: "is", value } ] : []
+    return value ? [{ field: field.name, op: "is", value }] : []
   })
   return { and: chips }
 }
@@ -368,7 +396,9 @@ export function DetailBlock({ title, value }: { title: string; value?: string | 
   return (
     <section>
       <h3 className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{title}</h3>
-      <pre className="mt-2 max-h-80 overflow-auto rounded border border-gray-200 bg-white p-3 text-xs leading-5 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">{value || "-"}</pre>
+      <pre className="mt-2 max-h-80 overflow-auto rounded border border-gray-200 bg-white p-3 text-xs leading-5 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+        {value || "-"}
+      </pre>
     </section>
   )
 }

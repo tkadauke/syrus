@@ -5,7 +5,7 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { Button, DataTable, Form } from "@app/components/ui"
+import { Button, DataTable, Form, Page } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
   createKubernetesCluster,
@@ -45,18 +45,20 @@ export function KubernetesClusters() {
 
   if (browsing) {
     return (
-      <main aria-label={t("aria_page")} className="mx-auto flex h-full max-w-[96rem] flex-col gap-6 overflow-hidden p-3 sm:p-6">
+      <Page.Root aria-label={t("aria_page")} className="flex h-full flex-col overflow-hidden" gutter="responsive" size="wide">
         <ClusterBrowser clusterId={browsing.clusterId} label={browsing.label} onBack={() => setBrowsing(null)} />
-      </main>
+      </Page.Root>
     )
   }
 
   return (
-    <main aria-label={t("aria_page")} className="mx-auto max-w-[72rem] space-y-6 p-3 sm:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("heading")}</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("description")}</p>
-      </header>
+    <Page.Root aria-label={t("aria_page")} gutter="responsive">
+      <Page.Header>
+        <Page.HeadingGroup>
+          <Page.Title>{t("heading")}</Page.Title>
+          <Page.Description>{t("description")}</Page.Description>
+        </Page.HeadingGroup>
+      </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
@@ -72,7 +74,7 @@ export function KubernetesClusters() {
           />
         </>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -107,7 +109,11 @@ function ClusterCreateForm({ onNotice }: { onNotice: (message: string | null) =>
           <TestButton onTest={() => testDraftKubernetesCluster(values)} />
         </Form.Actions>
       </form>
-      {create.isError ? <p className="mt-3 text-sm text-danger-text" role="alert">{errorMessage(create.error, t("create_error_fallback"))}</p> : null}
+      {create.isError ? (
+        <p className="mt-3 text-sm text-danger-text" role="alert">
+          {errorMessage(create.error, t("create_error_fallback"))}
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -135,31 +141,23 @@ function ClustersTable({
             <DataTable.HeadCell>{t("col_agentic_access")}</DataTable.HeadCell>
             <DataTable.HeadCell>{t("col_allow_writes")}</DataTable.HeadCell>
             <DataTable.HeadCell>{t("col_insecure_skip_tls_verify")}</DataTable.HeadCell>
-            <DataTable.HeadCell><span className="sr-only">{t("col_actions")}</span></DataTable.HeadCell>
+            <DataTable.HeadCell>
+              <span className="sr-only">{t("col_actions")}</span>
+            </DataTable.HeadCell>
           </DataTable.Row>
         </DataTable.Header>
         <DataTable.Body>
-            {clusters.length === 0 ? (
-              <DataTable.Empty colSpan={7}>{t("empty")}</DataTable.Empty>
-            ) : clusters.map((cluster) => (
+          {clusters.length === 0 ? (
+            <DataTable.Empty colSpan={7}>{t("empty")}</DataTable.Empty>
+          ) : (
+            clusters.map((cluster) =>
               editingId === cluster.id ? (
-                <ClusterEditRow
-                  cluster={cluster}
-                  key={cluster.id}
-                  onCancel={() => setEditingId(null)}
-                  onNotice={onNotice}
-                  onSaved={() => setEditingId(null)}
-                />
+                <ClusterEditRow cluster={cluster} key={cluster.id} onCancel={() => setEditingId(null)} onNotice={onNotice} onSaved={() => setEditingId(null)} />
               ) : (
-                <ClusterRow
-                  cluster={cluster}
-                  key={cluster.id}
-                  onBrowse={() => onBrowse(cluster)}
-                  onEdit={() => setEditingId(cluster.id)}
-                  onNotice={onNotice}
-                />
+                <ClusterRow cluster={cluster} key={cluster.id} onBrowse={() => onBrowse(cluster)} onEdit={() => setEditingId(cluster.id)} onNotice={onNotice} />
               )
-            ))}
+            )
+          )}
         </DataTable.Body>
       </DataTable.Root>
     </section>
@@ -308,12 +306,7 @@ function ClusterEditRow({
       <DataTable.Cell colSpan={7}>
         <form className="space-y-3" onSubmit={submit}>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("edit_heading")}</h3>
-          <ClusterFieldsGrid
-            idPrefix={`edit-cluster-${cluster.id}`}
-            kubeconfigHint={t("field_kubeconfig_hint_edit")}
-            onChange={setValues}
-            values={values}
-          />
+          <ClusterFieldsGrid idPrefix={`edit-cluster-${cluster.id}`} kubeconfigHint={t("field_kubeconfig_hint_edit")} onChange={setValues} values={values} />
           <Form.Actions align="start" className="pt-0">
             <Button disabled={update.isPending} type="submit" variant="primary">
               {update.isPending ? t("saving") : t("save_button")}
@@ -323,7 +316,11 @@ function ClusterEditRow({
             </Button>
             <TestButton onTest={() => testKubernetesCluster(cluster.id, values.kubeconfig || undefined)} />
           </Form.Actions>
-          {update.isError ? <p className="text-sm text-danger-text" role="alert">{errorMessage(update.error, t("update_error_fallback"))}</p> : null}
+          {update.isError ? (
+            <p className="text-sm text-danger-text" role="alert">
+              {errorMessage(update.error, t("update_error_fallback"))}
+            </p>
+          ) : null}
         </form>
       </DataTable.Cell>
     </DataTable.Row>
@@ -353,12 +350,7 @@ function ClusterFieldsGrid({
     <div className="grid gap-3">
       <Form.Field controlId={`${idPrefix}-label`}>
         <Form.Label>{t("field_label")}</Form.Label>
-        <Form.Input
-          onChange={(event) => set("label", event.target.value)}
-          required
-          type="text"
-          value={values.label}
-        />
+        <Form.Input onChange={(event) => set("label", event.target.value)} required type="text" value={values.label} />
       </Form.Field>
       <Form.Field controlId={`${idPrefix}-kubeconfig`}>
         <Form.Label>{t("field_kubeconfig")}</Form.Label>

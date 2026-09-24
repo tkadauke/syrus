@@ -2,7 +2,19 @@ import { useMediaQuery } from "./dashboard/components"
 import { DashboardKanban } from "./dashboard/KanbanBoard"
 import { JobsDashboardTable } from "./dashboard/JobsTable"
 import { EpicsTable, WorkflowsTable } from "./dashboard/EpicWorkflowTables"
-import { dashboardColumnDefs, dashboardEmptyState, dashboardLinkFromSearch, dashboardVisibleColumns, epicTableColumns, pageLink, sortValue, sortableColumnFor, subjectLabel, uniqueValue, withRoutePrefix } from "./dashboard/helpers"
+import {
+  dashboardColumnDefs,
+  dashboardEmptyState,
+  dashboardLinkFromSearch,
+  dashboardVisibleColumns,
+  epicTableColumns,
+  pageLink,
+  sortValue,
+  sortableColumnFor,
+  subjectLabel,
+  uniqueValue,
+  withRoutePrefix
+} from "./dashboard/helpers"
 import type { DashboardSortState } from "./dashboard/helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -22,11 +34,29 @@ import { ColumnsIcon } from "../components/ColumnsIcon"
 import { PageHeading } from "../components/Heading"
 import { TonePill } from "../components/StatusPill"
 import { FilterBar } from "../components/FilterBar"
-import { Notice, Page, Section, Surface, Text } from "../components/ui"
+import { Notice, Page, Section, Surface, Text, usePageGutterRestoreClassName } from "../components/ui"
 import { SyrusTour } from "../components/SyrusTour"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { useTour } from "../hooks/useTour"
-import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChromeWithMeta, fetchDashboardRowsWithMeta, fetchEpicsGraph, fetchJobsGraph, mergeDashboardPayload, recordDashboardFilterUsage, requestDashboardMainBranchRepair, updateDashboardPreferences, type DashboardHealthBlockedRepository, type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
+import {
+  dashboardApiSearch,
+  dashboardChromeSearch,
+  dashboardSubjectFromPath,
+  fetchDashboardChromeWithMeta,
+  fetchDashboardRowsWithMeta,
+  fetchEpicsGraph,
+  fetchJobsGraph,
+  mergeDashboardPayload,
+  recordDashboardFilterUsage,
+  requestDashboardMainBranchRepair,
+  updateDashboardPreferences,
+  type DashboardHealthBlockedRepository,
+  type DashboardEpicItem,
+  type DashboardJobItem,
+  type DashboardPayload,
+  type DashboardSubject,
+  type DashboardWorkflowItem
+} from "../api/dashboard"
 import type { JsonResponseMeta } from "../api/client"
 import { TopoDepGraph } from "../components/TopoDepGraph"
 import { errorMessage } from "../lib/errorMessage"
@@ -92,42 +122,79 @@ export function DashboardRoute() {
     })
   }, [dashboardChrome.data, dashboardRows.data, payload, queryClient, traceKey])
 
-  if (!payload && (dashboardChrome.isPending || dashboardRows.isPending)) return <Page.Root aria-label={t("title")} gutter="responsive"><Text muted>{t("loading")}</Text></Page.Root>
+  if (!payload && (dashboardChrome.isPending || dashboardRows.isPending))
+    return (
+      <Page.Root aria-label={t("title")} gutter="responsive">
+        <Text muted>{t("loading")}</Text>
+      </Page.Root>
+    )
   if (dashboardChrome.isError) return <DashboardError error={dashboardChrome.error} />
   if (dashboardRows.isError) return <DashboardError error={dashboardRows.error} />
-  if (!payload) return <Page.Root aria-label={t("title")} gutter="responsive"><Text muted>{t("loading")}</Text></Page.Root>
+  if (!payload)
+    return (
+      <Page.Root aria-label={t("title")} gutter="responsive">
+        <Text muted>{t("loading")}</Text>
+      </Page.Root>
+    )
 
   return <DashboardView pathname={location.pathname} search={location.search} payload={payload} />
 }
 
-function recordDashboardBrowserTrace({ chromeMeta, loggingEnabled, payload, rowsMeta, startedAt, traceId, tracePath }: { chromeMeta: JsonResponseMeta | null; loggingEnabled: boolean; payload: DashboardPayload; rowsMeta: JsonResponseMeta | null; startedAt: number; traceId: string; tracePath: string }) {
+function recordDashboardBrowserTrace({
+  chromeMeta,
+  loggingEnabled,
+  payload,
+  rowsMeta,
+  startedAt,
+  traceId,
+  tracePath
+}: {
+  chromeMeta: JsonResponseMeta | null
+  loggingEnabled: boolean
+  payload: DashboardPayload
+  rowsMeta: JsonResponseMeta | null
+  startedAt: number
+  traceId: string
+  tracePath: string
+}) {
   const totalDuration = Math.max(0, performance.now() - startedAt)
   const apiRequests = [
     apiRequestTrace("dashboard.chrome", sanitizedDashboardRequestMeta(chromeMeta)),
     apiRequestTrace("dashboard.rows", sanitizedDashboardRequestMeta(rowsMeta))
   ].filter((request): request is NonNullable<typeof request> => request != null)
   const apiDuration = apiRequests.reduce((sum, request) => sum + request.duration_ms, 0)
-  recordBrowserTrace({
-    trace_id: traceId,
-    name: "dashboard.route",
-    path: tracePath,
-    duration_ms: totalDuration,
-    visibility_state: document.visibilityState || "unknown",
-    metadata: {
-      subject: payload.subject,
-      view: payload.view,
-      page: payload.page,
-      rows_count: payload.items?.length ?? 0,
-      total: payload.total,
-      total_estimated: payload.total_estimated === true,
-      smart_folder_id: payload.active_smart_folder_id
+  recordBrowserTrace(
+    {
+      trace_id: traceId,
+      name: "dashboard.route",
+      path: tracePath,
+      duration_ms: totalDuration,
+      visibility_state: document.visibilityState || "unknown",
+      metadata: {
+        subject: payload.subject,
+        view: payload.view,
+        page: payload.page,
+        rows_count: payload.items?.length ?? 0,
+        total: payload.total,
+        total_estimated: payload.total_estimated === true,
+        smart_folder_id: payload.active_smart_folder_id
+      },
+      api_requests: apiRequests,
+      spans: dashboardTraceSpans({ apiRequests, apiDuration, totalDuration })
     },
-    api_requests: apiRequests,
-    spans: dashboardTraceSpans({ apiRequests, apiDuration, totalDuration })
-  }, { enabled: loggingEnabled })
+    { enabled: loggingEnabled }
+  )
 }
 
-function dashboardTraceSpans({ apiDuration, apiRequests, totalDuration }: { apiDuration: number; apiRequests: Array<{ name: string; duration_ms: number }>; totalDuration: number }): BrowserTraceSpan[] {
+function dashboardTraceSpans({
+  apiDuration,
+  apiRequests,
+  totalDuration
+}: {
+  apiDuration: number
+  apiRequests: Array<{ name: string; duration_ms: number }>
+  totalDuration: number
+}): BrowserTraceSpan[] {
   const spans: BrowserTraceSpan[] = apiRequests.map((request) => ({
     name: `api.${request.name}`,
     duration_ms: request.duration_ms
@@ -177,16 +244,21 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   })
   const readiness = bootstrap.data?.setup_status?.readiness
   const { t } = useT("dashboard")
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
 
   return (
     <Page.Root aria-label={t("title")} className="space-y-5" gutter="responsive" size="wide">
-      <Page.Header className="items-center gap-3 px-4 sm:px-0">
+      <Page.Header className="items-center gap-3">
         <PageHeading className="flex-1">{t("title")}</PageHeading>
         {isDesktop ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} isDesktop={isDesktop} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </Page.Header>
-      <ReadinessPanel className="mx-4 sm:mx-0" prefix={prefix} readiness={readiness} />
-      <RepositoryHealthBanners className="mx-4 sm:mx-0" prefix={prefix} repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []} />
+      <ReadinessPanel className={marginGutterRestore} prefix={prefix} readiness={readiness} />
+      <RepositoryHealthBanners
+        className={marginGutterRestore}
+        prefix={prefix}
+        repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []}
+      />
 
       {isDesktop ? (
         <>
@@ -214,33 +286,40 @@ export function DashboardTour() {
       title: t("dashboard.filter_chips_title"),
       content: t("dashboard.filter_chips_content"),
       placement: "bottom" as const,
-      disableBeacon: true,
+      disableBeacon: true
     },
     {
       target: "[data-tour='dashboard-view-switcher']",
       title: t("dashboard.view_switcher_title"),
       content: t("dashboard.view_switcher_content"),
-      placement: "bottom-end" as const,
+      placement: "bottom-end" as const
     },
     {
       target: "[data-tour='dashboard-create-actions']",
       title: t("dashboard.create_actions_title"),
       content: t("dashboard.create_actions_content"),
-      placement: "bottom-end" as const,
+      placement: "bottom-end" as const
     },
     {
       target: "[data-tour='dashboard-table']",
       title: t("dashboard.job_row_title"),
       content: t("dashboard.job_row_content"),
-      placement: "top" as const,
-    },
+      placement: "top" as const
+    }
   ]
 
   return <SyrusTour run={run} steps={steps} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
-
-export function ReadinessPanel({ className = "", prefix, readiness }: { className?: string; prefix: string; readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]> }) {
+export function ReadinessPanel({
+  className = "",
+  prefix,
+  readiness
+}: {
+  className?: string
+  prefix: string
+  readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]>
+}) {
   const { t } = useT("dashboard")
   // While the desktop shell's backend update has the containers down,
   // readiness checks fail because the backend is deliberately unreachable —
@@ -259,8 +338,12 @@ export function ReadinessPanel({ className = "", prefix, readiness }: { classNam
     <Section.Root aria-label={t("system_readiness")} className={className} tone="warning">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Text as="h2" tone="warning" variant="heading-sm">{t("readiness_title")}</Text>
-          <Text className="mt-1" tone="warning">{t("readiness_description")}</Text>
+          <Text as="h2" tone="warning" variant="heading-sm">
+            {t("readiness_title")}
+          </Text>
+          <Text className="mt-1" tone="warning">
+            {t("readiness_description")}
+          </Text>
         </div>
         <Link className={buttonClasses("secondary", "sm")} to={`${prefix}/credentials`}>
           {t("open_settings")}
@@ -271,11 +354,21 @@ export function ReadinessPanel({ className = "", prefix, readiness }: { classNam
           <Surface padding="sm" variant="inset" key={check.key}>
             <div className="flex items-center gap-2">
               <TonePill tone={check.status === "error" ? "red" : "amber"}>{check.status}</TonePill>
-              <Text as="h3" variant="heading-sm">{check.label}</Text>
-              {check.optional ? <Text as="span" muted variant="caption">{t("optional")}</Text> : null}
+              <Text as="h3" variant="heading-sm">
+                {check.label}
+              </Text>
+              {check.optional ? (
+                <Text as="span" muted variant="caption">
+                  {t("optional")}
+                </Text>
+              ) : null}
             </div>
             <Text className="mt-2">{check.message}</Text>
-            {check.remediation ? <Text className="mt-1" muted>{check.remediation}</Text> : null}
+            {check.remediation ? (
+              <Text className="mt-1" muted>
+                {check.remediation}
+              </Text>
+            ) : null}
           </Surface>
         ))}
       </div>
@@ -307,7 +400,15 @@ function writeHealthBannerDismissals(dismissals: Record<string, string>): void {
   }
 }
 
-export function RepositoryHealthBanners({ className = "", prefix, repositories }: { className?: string; prefix: string; repositories: DashboardHealthBlockedRepository[] }) {
+export function RepositoryHealthBanners({
+  className = "",
+  prefix,
+  repositories
+}: {
+  className?: string
+  prefix: string
+  repositories: DashboardHealthBlockedRepository[]
+}) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [dismissals, setDismissals] = useState<Record<string, string>>(() => readHealthBannerDismissals())
@@ -328,25 +429,44 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
         const blockingJob = repair?.blocking_job
         const failedJobs = repair?.failed_jobs ?? []
         const isStartingRepair = requestRepair.isPending && requestRepair.variables === repo.repair_path
-        const repairError = requestRepair.isError && requestRepair.variables === repo.repair_path
-          ? (requestRepair.error instanceof Error ? requestRepair.error.message : t("broken_main_repair_start_failed"))
-          : null
+        const repairError =
+          requestRepair.isError && requestRepair.variables === repo.repair_path
+            ? requestRepair.error instanceof Error
+              ? requestRepair.error.message
+              : t("broken_main_repair_start_failed")
+            : null
 
         return (
-          <Notice className="px-4 py-3" contentClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" key={repo.id} role="alert" tone="danger">
+          <Notice
+            className="px-4 py-3"
+            contentClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+            key={repo.id}
+            role="alert"
+            tone="danger"
+          >
             <div className="min-w-0">
               <span>
                 <span className="font-mono font-medium">{repo.slug}</span>
-                {" — "}{t(repo.main_health === "inconclusive"
-                  ? "main_health_inconclusive_banner_not_held"
-                  : (repo.landing_paused && repo.main_branch_repair_blocks_work ? "broken_main_banner" : "broken_main_banner_not_held")
+                {" — "}
+                {t(
+                  repo.main_health === "inconclusive"
+                    ? "main_health_inconclusive_banner_not_held"
+                    : repo.landing_paused && repo.main_branch_repair_blocks_work
+                      ? "broken_main_banner"
+                      : "broken_main_banner_not_held"
                 )}
               </span>
               {repair ? (
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                   {blockingJob ? (
                     <span>
-                      {t(repair.blocked_reason === "active" ? "broken_main_repair_active" : repair.blocked_reason === "landing" ? "broken_main_repair_landing" : "broken_main_repair_waiting")}{" "}
+                      {t(
+                        repair.blocked_reason === "active"
+                          ? "broken_main_repair_active"
+                          : repair.blocked_reason === "landing"
+                            ? "broken_main_repair_landing"
+                            : "broken_main_repair_waiting"
+                      )}{" "}
                       <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(blockingJob.job_path, prefix)}>
                         {blockingJob.slug}
                       </Link>
@@ -382,20 +502,19 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
                   {isStartingRepair ? t("broken_main_repair_starting") : t("broken_main_repair_start")}
                 </button>
               ) : null}
-              <Link
-                className={buttonClasses("secondary", "sm")}
-                to={withRoutePrefix(repo.repository_path, prefix)}
-              >
+              <Link className={buttonClasses("secondary", "sm")} to={withRoutePrefix(repo.repository_path, prefix)}>
                 {t("broken_main_view_details")}
               </Link>
               <button
                 aria-label={t("broken_main_dismiss")}
                 className="text-danger hover:text-danger-text"
-                onClick={() => setDismissals((prev) => {
-                  const next = { ...prev, [repo.id]: healthBannerEvidenceToken(repo) }
-                  writeHealthBannerDismissals(next)
-                  return next
-                })}
+                onClick={() =>
+                  setDismissals((prev) => {
+                    const next = { ...prev, [repo.id]: healthBannerEvidenceToken(repo) }
+                    writeHealthBannerDismissals(next)
+                    return next
+                  })
+                }
                 type="button"
               >
                 <CloseIcon />
@@ -409,31 +528,46 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
 }
 
 function DesktopDashboardControls({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
-  return <div data-tour="dashboard-filter-bar"><DashboardFilterBar pathname={pathname} search={search} payload={payload} /></div>
+  return (
+    <div data-tour="dashboard-filter-bar">
+      <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
+    </div>
+  )
 }
 
 function MobileDashboardControls({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
   const { t } = useT("dashboard")
   return (
-    <div className="space-y-3 px-4 sm:px-0">
+    <Page.Nav className="space-y-3">
       <div aria-label={t("controls_label")} className="flex items-center justify-between gap-3 pb-1" role="group">
         <div className="min-w-0 flex-1 overflow-x-auto">
-          <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface text-sm" pathname={pathname} payload={payload} prefix={prefix} />
+          <SubjectTabs
+            className="inline-flex w-max flex-nowrap overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface text-sm"
+            pathname={pathname}
+            payload={payload}
+            prefix={prefix}
+          />
         </div>
         <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={false} isDesktop={false} />
       </div>
       <details className="group rounded-[var(--radius-panel)] border border-border bg-surface text-text-primary">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium">
           <span>{t("folders_and_filters")}</span>
-          <Text as="span" className="group-open:hidden" muted variant="caption">{t("show")}</Text>
-          <Text as="span" className="hidden group-open:inline" muted variant="caption">{t("hide")}</Text>
+          <Text as="span" className="group-open:hidden" muted variant="caption">
+            {t("show")}
+          </Text>
+          <Text as="span" className="hidden group-open:inline" muted variant="caption">
+            {t("hide")}
+          </Text>
         </summary>
         <div className="space-y-4 border-t border-border p-4">
-          <div data-tour="dashboard-filter-bar"><DashboardFilterBar pathname={pathname} search={search} payload={payload} /></div>
+          <div data-tour="dashboard-filter-bar">
+            <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
+          </div>
           <DashboardSmartFolderNav payload={payload} prefix={prefix} search={search} />
         </div>
       </details>
-    </div>
+    </Page.Nav>
   )
 }
 
@@ -450,19 +584,19 @@ export function DashboardContent({ payload, pathname, prefix, search }: { payloa
   const setupStatus = useSetupStatus()
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const { t } = useT("dashboard")
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
 
   if (payload.view === "dependencies") {
     if (!isDesktop) {
       return (
         <section className="min-w-0 space-y-4">
-          <Surface className="mx-4 sm:mx-0" padding="lg"><Text muted>{t("dependencies_mobile_unavailable")}</Text></Surface>
+          <Surface className={marginGutterRestore} padding="lg">
+            <Text muted>{t("dependencies_mobile_unavailable")}</Text>
+          </Surface>
         </section>
       )
     }
-    const graphSearch = graphSearchWithSmartFolder(
-      dashboardApiSearch(pathname, search),
-      payload.active_smart_folder_id
-    )
+    const graphSearch = graphSearchWithSmartFolder(dashboardApiSearch(pathname, search), payload.active_smart_folder_id)
     return (
       <section className="min-w-0 space-y-4">
         <DashboardDependencyView payload={payload} graphSearch={graphSearch} />
@@ -484,8 +618,7 @@ export function DashboardDependencyView({ payload, graphSearch }: { payload: Das
 
   const graphQuery = useQuery({
     queryKey: ["dashboard", "graph", subject, graphSearch],
-    queryFn: ({ signal }) =>
-      subject === "job" ? fetchJobsGraph(graphSearch, { signal }) : fetchEpicsGraph(graphSearch, { signal }),
+    queryFn: ({ signal }) => (subject === "job" ? fetchJobsGraph(graphSearch, { signal }) : fetchEpicsGraph(graphSearch, { signal })),
     enabled: subject === "job" || subject === "epic",
     placeholderData: (previousData) => previousData
   })
@@ -493,23 +626,37 @@ export function DashboardDependencyView({ payload, graphSearch }: { payload: Das
   if (subject === "workflow") return null
 
   if (graphQuery.isPending) {
-    return <Surface padding="lg"><Text muted>{t("loading")}</Text></Surface>
+    return (
+      <Surface padding="lg">
+        <Text muted>{t("loading")}</Text>
+      </Surface>
+    )
   }
 
   if (graphQuery.isError) {
-    return <Notice role="alert" tone="danger">{t("load_error")}</Notice>
+    return (
+      <Notice role="alert" tone="danger">
+        {t("load_error")}
+      </Notice>
+    )
   }
 
   const { nodes, edges } = graphQuery.data ?? { nodes: [], edges: [] }
 
   if (nodes.length === 0) {
-    return <Surface padding="lg"><Text muted>{t("no_match", { subject: subjectLabel(subject, 2) })}</Text></Surface>
+    return (
+      <Surface padding="lg">
+        <Text muted>{t("no_match", { subject: subjectLabel(subject, 2) })}</Text>
+      </Surface>
+    )
   }
 
   return (
     <Surface className="overflow-x-auto" padding="lg">
       {edges.length === 0 && (
-        <Text className="mb-3" muted>{t("no_dependency_edges")}</Text>
+        <Text className="mb-3" muted>
+          {t("no_dependency_edges")}
+        </Text>
       )}
       <TopoDepGraph nodes={nodes} edges={edges} />
     </Surface>
@@ -520,13 +667,27 @@ export function DashboardCreateActions({ payload, prefix }: { payload: Dashboard
   const { t } = useT("dashboard")
   return (
     <div className="flex flex-wrap gap-2" data-tour="dashboard-create-actions">
-      <Link className={buttonClasses()} to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{t("new_epic")}</Link>
-      <Link className={buttonClasses("success")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("new_job")}</Link>
+      <Link className={buttonClasses()} to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>
+        {t("new_epic")}
+      </Link>
+      <Link className={buttonClasses("success")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>
+        {t("new_job")}
+      </Link>
     </div>
   )
 }
 
-export function SubjectTabs({ pathname, payload, prefix, className = "inline-flex w-max overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface text-sm" }: { pathname: string; payload: DashboardPayload; prefix: string; className?: string }) {
+export function SubjectTabs({
+  pathname,
+  payload,
+  prefix,
+  className = "inline-flex w-max overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface text-sm"
+}: {
+  pathname: string
+  payload: DashboardPayload
+  prefix: string
+  className?: string
+}) {
   const { t } = useT("dashboard")
   const activeSubject = dashboardSubjectFromPath(pathname) ?? payload.subject
   const subjects: Array<{ key: DashboardSubject; label: string; path: string }> = [
@@ -550,7 +711,19 @@ export function SubjectTabs({ pathname, payload, prefix, className = "inline-fle
   )
 }
 
-export function DashboardToolbar({ payload, pathname, search, showConfiguration = true, isDesktop = true }: { payload: DashboardPayload; pathname: string; search: string; showConfiguration?: boolean; isDesktop?: boolean }) {
+export function DashboardToolbar({
+  payload,
+  pathname,
+  search,
+  showConfiguration = true,
+  isDesktop = true
+}: {
+  payload: DashboardPayload
+  pathname: string
+  search: string
+  showConfiguration?: boolean
+  isDesktop?: boolean
+}) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [lanesOpen, setLanesOpen] = useState(false)
@@ -564,7 +737,7 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
 
   function updateLane(lane: string, checked: boolean) {
     const current = payload.preferences.kanban_lanes
-    const next = checked ? [ ...current, lane ].filter(uniqueValue) : current.filter((value) => value !== lane)
+    const next = checked ? [...current, lane].filter(uniqueValue) : current.filter((value) => value !== lane)
     updatePreferences.mutate({
       subject: payload.subject,
       kanban_lanes: next
@@ -610,7 +783,9 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
             {lanesOpen ? (
               <Surface className="absolute right-0 z-20 mt-2 w-64 shadow-lg" id="dashboard-kanban-lanes-menu" padding="sm" role="menu">
                 <fieldset className="space-y-2">
-                  <Text as="legend" muted variant="label">{t("kanban_lanes")}</Text>
+                  <Text as="legend" muted variant="label">
+                    {t("kanban_lanes")}
+                  </Text>
                   {payload.controls.kanban_lanes.map((lane) => (
                     <label className="flex items-center gap-2 text-sm text-text-primary" key={lane.key}>
                       <Checkbox
@@ -645,7 +820,11 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
           ))}
         </nav>
       </div>
-      {updatePreferences.isError ? <Text as="p" className="mt-1 text-right" role="alert" tone="danger">{errorMessage(updatePreferences.error, t("preferences_error"))}</Text> : null}
+      {updatePreferences.isError ? (
+        <Text as="p" className="mt-1 text-right" role="alert" tone="danger">
+          {errorMessage(updatePreferences.error, t("preferences_error"))}
+        </Text>
+      ) : null}
     </div>
   )
 }
@@ -679,9 +858,22 @@ function DashboardFilterBar({ payload, pathname, search }: { payload: DashboardP
 
 const legacyFilterKeys = ["state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "start_blocked", "tag_ids", "pr", "age"]
 
-export function DashboardTable({ payload, pathname = "", prefix, search = "", setupStatus }: { payload: DashboardPayload; pathname?: string; prefix: string; search?: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
+export function DashboardTable({
+  payload,
+  pathname = "",
+  prefix,
+  search = "",
+  setupStatus
+}: {
+  payload: DashboardPayload
+  pathname?: string
+  prefix: string
+  search?: string
+  setupStatus: ReturnType<typeof useSetupStatus>
+}) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
   const updateSort = useMutation({
     mutationFn: updateDashboardPreferences,
     onSuccess: () => {
@@ -697,9 +889,7 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
   const onReorderColumns = (next: string[]) => updateColumnOrder.mutate({ subject: payload.subject, visible_columns: next })
   const storedSortColumn = sortValue(payload.preferences.sort, "column")
   const storedSortDirection = sortValue(payload.preferences.sort, "direction")
-  const isOnLandingQueueFolder = payload.smart_folders.some(
-    (f) => f.id === payload.active_smart_folder_id && f.attention_preset === "landing_queue"
-  )
+  const isOnLandingQueueFolder = payload.smart_folders.some((f) => f.id === payload.active_smart_folder_id && f.attention_preset === "landing_queue")
   const queueSortOutsideLanding = payload.subject === "job" && storedSortColumn === "landing_queue_position" && !isOnLandingQueueFolder
   const effectiveSortColumn = queueSortOutsideLanding ? "created_at" : storedSortColumn
   const effectiveSortDirection = queueSortOutsideLanding ? "desc" : storedSortDirection
@@ -743,10 +933,15 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
   }
 
   if (payload.rows_current_for_search === false) {
-    return <Surface className="mx-4 sm:mx-0" padding="lg"><Text muted>{t("loading")}</Text></Surface>
+    return (
+      <Surface className={marginGutterRestore} padding="lg">
+        <Text muted>{t("loading")}</Text>
+      </Surface>
+    )
   }
 
-  if (payload.view === "kanban") return <DashboardKanban payload={payload} prefix={prefix} rowsSearch={dashboardApiSearch(pathname, search)} setupStatus={setupStatus} />
+  if (payload.view === "kanban")
+    return <DashboardKanban payload={payload} prefix={prefix} rowsSearch={dashboardApiSearch(pathname, search)} setupStatus={setupStatus} />
 
   if ((payload.items ?? []).length === 0) {
     if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
@@ -763,7 +958,11 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
       )
     }
 
-    return <Surface className="mx-4 sm:mx-0" padding="lg"><Text muted>{t("no_match", { subject: subjectLabel(payload.subject, 2) })}</Text></Surface>
+    return (
+      <Surface className={marginGutterRestore} padding="lg">
+        <Text muted>{t("no_match", { subject: subjectLabel(payload.subject, 2) })}</Text>
+      </Surface>
+    )
   }
 
   const columns = dashboardVisibleColumns(payload)
@@ -785,29 +984,63 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
       />
     )
   }
-  if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} onReorderColumns={onReorderColumns} prefix={prefix} reorderPending={updateColumnOrder.isPending} sortState={sortState} />
+  if (payload.subject === "workflow")
+    return (
+      <WorkflowsTable
+        columns={columns}
+        items={items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")}
+        onReorderColumns={onReorderColumns}
+        prefix={prefix}
+        reorderPending={updateColumnOrder.isPending}
+        sortState={sortState}
+      />
+    )
 
-  return <EpicsTable columns={epicTableColumns(columns)} items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} onReorderColumns={onReorderColumns} prefix={prefix} reorderPending={updateColumnOrder.isPending} sortState={sortState} />
+  return (
+    <EpicsTable
+      columns={epicTableColumns(columns)}
+      items={items.filter((item): item is DashboardEpicItem => item.type === "epic")}
+      onReorderColumns={onReorderColumns}
+      prefix={prefix}
+      reorderPending={updateColumnOrder.isPending}
+      sortState={sortState}
+    />
+  )
 }
 
 function Pagination({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
   const { t } = useT("dashboard")
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
   if (payload.total_pages <= 1) return null
 
   const firstItem = (payload.page - 1) * payload.per_page + 1
   const lastItem = Math.min(payload.page * payload.per_page, payload.total)
 
   return (
-    <div className="mx-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300 sm:mx-0">
-      <span>{payload.total_estimated ? t("showing_pagination_estimated", { first: firstItem, last: lastItem }) : t("showing_pagination", { first: firstItem, last: lastItem, total: payload.total })}</span>
+    <div className={`flex items-center justify-between text-sm text-gray-600 dark:text-gray-300 ${marginGutterRestore}`}>
+      <span>
+        {payload.total_estimated
+          ? t("showing_pagination_estimated", { first: firstItem, last: lastItem })
+          : t("showing_pagination", { first: firstItem, last: lastItem, total: payload.total })}
+      </span>
       <div className="flex gap-2">
         {payload.page > 1 ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page - 1)}>{t("previous")}</Link>
+          <Link
+            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            to={pageLink(pathname, search, payload.page - 1)}
+          >
+            {t("previous")}
+          </Link>
         ) : (
           <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("previous")}</span>
         )}
         {payload.page < payload.total_pages ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page + 1)}>{t("next")}</Link>
+          <Link
+            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            to={pageLink(pathname, search, payload.page + 1)}
+          >
+            {t("next")}
+          </Link>
         ) : (
           <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("next")}</span>
         )}

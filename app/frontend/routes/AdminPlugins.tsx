@@ -20,6 +20,7 @@ import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Markdown } from "../lib/Markdown"
 import * as pageReload from "../lib/pageReload"
+import { Page } from "../components/ui"
 
 export function AdminPlugins() {
   const { t } = useT("admin")
@@ -35,11 +36,11 @@ export function AdminPlugins() {
   const isFiltered = plugins.isSuccess && topFilterChildren(filterTreeFromPayload(plugins.data.filter)).length > 0
 
   return (
-    <main aria-label={t("plugins.aria_plugins")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
+    <Page.Root aria-label={t("plugins.aria_plugins")} gutter="responsive">
+      <Page.Header className="block border-b border-gray-200 pb-4 dark:border-gray-700">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
         <PageHeading className="mt-1">{t("plugins.heading")}</PageHeading>
-      </header>
+      </Page.Header>
 
       {plugins.isPending ? <PanelMessage>{t("plugins.loading")}</PanelMessage> : null}
       {plugins.isError ? <PanelMessage tone="error">{errorMessage(plugins.error, t("plugins.error_load"))}</PanelMessage> : null}
@@ -57,7 +58,7 @@ export function AdminPlugins() {
           <PluginsView isFiltered={isFiltered} plugins={plugins.data.plugins} />
         </AdminFiltersLayout>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -73,12 +74,16 @@ export function AdminPluginDetail() {
   })
 
   return (
-    <main aria-label={t("plugins.detail_aria")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <Link className="text-sm font-medium text-brand hover:underline" to="/admin/plugins">{t("plugins.back_to_plugins")}</Link>
+    <Page.Root aria-label={t("plugins.detail_aria")} gutter="responsive">
+      <Page.Header>
+        <Link className="text-sm font-medium text-brand hover:underline" to="/admin/plugins">
+          {t("plugins.back_to_plugins")}
+        </Link>
+      </Page.Header>
       {plugin.isPending ? <PanelMessage>{t("plugins.detail_loading")}</PanelMessage> : null}
       {plugin.isError ? <PanelMessage tone="error">{errorMessage(plugin.error, t("plugins.detail_error_load"))}</PanelMessage> : null}
       {plugin.isSuccess ? <PluginDetailView plugin={plugin.data.plugin} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -123,7 +128,9 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           <div className="flex flex-wrap items-center gap-2">
             {plugin.icon_url ? <img alt="" aria-hidden="true" className="h-5 w-5 shrink-0" src={plugin.icon_url} /> : null}
             <SectionHeading className="break-words">
-              <Link className="hover:underline" to={`/admin/plugins/${encodeURIComponent(plugin.name)}`}>{plugin.display_name || plugin.name}</Link>
+              <Link className="hover:underline" to={`/admin/plugins/${encodeURIComponent(plugin.name)}`}>
+                {plugin.display_name || plugin.name}
+              </Link>
             </SectionHeading>
             {plugin.display_name && plugin.display_name !== plugin.name ? (
               <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{plugin.name}</span>
@@ -158,8 +165,7 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           </div>
           {plugin.recommendation ? (
             <p className="mt-3 rounded border border-info/25 bg-info/10 px-3 py-2 text-sm leading-6 text-info">
-              <span className="font-medium">{t("plugins.suggested")}</span>{" "}
-              {plugin.recommendation.reason}{" "}
+              <span className="font-medium">{t("plugins.suggested")}</span> {plugin.recommendation.reason}{" "}
               <span className="font-mono text-xs">({plugin.recommendation.evidence})</span>
             </p>
           ) : null}
@@ -185,7 +191,6 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           </ul>
         </details>
       ) : null}
-
     </article>
   )
 }
@@ -210,9 +215,7 @@ function usePluginToggle(plugin: AdminPlugin, onToggled: (nowEnabled: boolean) =
   if (plugin.enabled && !plugin.disableable) {
     disableTooltip = t("plugins.required")
   } else if (disableBlocked) {
-    disableTooltip = disableBlockers.length === 1
-      ? `${disableBlockers[0].label}: ${disableBlockers[0].count}`
-      : t("plugins.disable_blocked_tooltip_many")
+    disableTooltip = disableBlockers.length === 1 ? `${disableBlockers[0].label}: ${disableBlockers[0].count}` : t("plugins.disable_blocked_tooltip_many")
   }
 
   return { toggle, pendingCascade, setPendingCascade, disableTooltip, disableBlocked, disableBlockers }
@@ -303,7 +306,7 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
 
   return (
     <>
-      <header className="border-b border-gray-200 pb-5 dark:border-gray-700">
+      <Page.Header className="block border-b border-gray-200 pb-5 dark:border-gray-700">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
@@ -315,14 +318,19 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
             </div>
             {plugin.health && plugin.health.reasons.length > 0 ? (
               <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-700 dark:text-amber-300">
-                {plugin.health.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+                {plugin.health.reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
               </ul>
             ) : null}
             {plugin.description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-700 dark:text-gray-200">{plugin.description}</p> : null}
-            {plugin.long_description ? <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p> : null}
+            {plugin.long_description ? (
+              <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p>
+            ) : null}
             {plugin.recommendation ? (
               <p className="mt-3 max-w-3xl rounded border border-info/25 bg-info/10 px-3 py-2 text-sm leading-6 text-info">
-                <span className="font-medium">{t("plugins.suggested")}</span> {plugin.recommendation.reason} <span className="font-mono text-xs">({plugin.recommendation.evidence})</span>
+                <span className="font-medium">{t("plugins.suggested")}</span> {plugin.recommendation.reason}{" "}
+                <span className="font-mono text-xs">({plugin.recommendation.evidence})</span>
               </p>
             ) : null}
           </div>
@@ -349,11 +357,13 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
         {visibleLinks.length > 0 ? (
           <div className="mt-4 flex flex-wrap gap-2">
             {visibleLinks.map((link) => (
-              <a className={buttonClasses("primary")} href={link.href} key={`${link.kind}-${link.href}`}>{link.label}</a>
+              <a className={buttonClasses("primary")} href={link.href} key={`${link.kind}-${link.href}`}>
+                {link.label}
+              </a>
             ))}
           </div>
         ) : null}
-      </header>
+      </Page.Header>
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="min-w-0 space-y-6">
@@ -365,14 +375,20 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
                   return <KeyValueLine key={key} label={String(entry["label"] || key)} value={formatConfigValue(plugin.config?.[key])} />
                 })}
               </div>
-            ) : <EmptyText>{t("plugins.no_config")}</EmptyText>}
+            ) : (
+              <EmptyText>{t("plugins.no_config")}</EmptyText>
+            )}
           </DetailSection>
 
           <DetailSection title={t("plugins.docs_heading")}>
             {(plugin.docs || []).length > 0 ? (
               <div className="space-y-4">
                 {(plugin.docs || []).map((doc) => (
-                  <article className="min-w-0 overflow-hidden rounded border border-gray-200 p-4 dark:border-gray-800" data-testid="plugin-doc-card" key={doc.path}>
+                  <article
+                    className="min-w-0 overflow-hidden rounded border border-gray-200 p-4 dark:border-gray-800"
+                    data-testid="plugin-doc-card"
+                    key={doc.path}
+                  >
                     <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2">
                       <SectionHeading className="break-words">{doc.title}</SectionHeading>
                       <span className="max-w-full break-all font-mono text-xs text-gray-500 dark:text-gray-400">{doc.path}</span>
@@ -381,7 +397,9 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
                   </article>
                 ))}
               </div>
-            ) : <EmptyText>{t("plugins.no_docs")}</EmptyText>}
+            ) : (
+              <EmptyText>{t("plugins.no_docs")}</EmptyText>
+            )}
           </DetailSection>
 
           {/* Metrics table left off the shared column-config primitive: this is one
@@ -408,26 +426,43 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
                           {metric.comment ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{metric.comment}</div> : null}
                         </td>
                         <td className="py-3 pr-4 font-mono text-xs text-gray-700 dark:text-gray-200">{metric.type}</td>
-                        <td className="py-3 pr-4 font-mono text-xs text-gray-700 dark:text-gray-200">{metric.tags.length > 0 ? metric.tags.join(", ") : "-"}</td>
-                        <td className="py-3"><StatusBadge status={metric.available ? "available" : "disabled"} label={metric.available ? t("plugins.metric_available") : t("plugins.metric_unavailable")} /></td>
+                        <td className="py-3 pr-4 font-mono text-xs text-gray-700 dark:text-gray-200">
+                          {metric.tags.length > 0 ? metric.tags.join(", ") : "-"}
+                        </td>
+                        <td className="py-3">
+                          <StatusBadge
+                            status={metric.available ? "available" : "disabled"}
+                            label={metric.available ? t("plugins.metric_available") : t("plugins.metric_unavailable")}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            ) : <EmptyText>{t("plugins.no_metrics")}</EmptyText>}
+            ) : (
+              <EmptyText>{t("plugins.no_metrics")}</EmptyText>
+            )}
           </DetailSection>
 
           <DetailSection title={t("plugins.extension_points_heading")}>
-            {plugin.extension_points.length > 0 ? <ExtensionPointsTable extensions={plugin.extension_points} /> : <EmptyText>{t("plugins.no_extension_points")}</EmptyText>}
+            {plugin.extension_points.length > 0 ? (
+              <ExtensionPointsTable extensions={plugin.extension_points} />
+            ) : (
+              <EmptyText>{t("plugins.no_extension_points")}</EmptyText>
+            )}
           </DetailSection>
 
           <DetailSection title={t("plugins.routes_heading")}>
             {(plugin.routes || []).length > 0 ? (
               <div className="space-y-2">
-                {(plugin.routes || []).map((route, index) => <KeyValueLine key={index} label={`${route["verb"] || ""} ${route["path"] || ""}`} value={String(route["controller"] || "")} />)}
+                {(plugin.routes || []).map((route, index) => (
+                  <KeyValueLine key={index} label={`${route["verb"] || ""} ${route["path"] || ""}`} value={String(route["controller"] || "")} />
+                ))}
               </div>
-            ) : <EmptyText>{t("plugins.no_routes")}</EmptyText>}
+            ) : (
+              <EmptyText>{t("plugins.no_routes")}</EmptyText>
+            )}
           </DetailSection>
         </div>
 
@@ -492,7 +527,9 @@ function ExtensionPointsTable({ extensions }: { extensions: AdminPluginExtension
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {extensions.map((extension) => <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />)}
+          {extensions.map((extension) => (
+            <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />
+          ))}
         </tbody>
       </table>
     </div>

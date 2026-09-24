@@ -19,7 +19,31 @@ import { workflowSlug } from "../lib/slugs"
 import { Button } from "../components/Button"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
-import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobWorkflows, ignorePendingFeedback, openJobInCodingMode, replacePendingFeedback, retryPendingFeedback, stopPreview as stopPreviewRequest, submitJobFeedback, updateJobPriority, updateJobProviderSetting, type JobApprovalEvidence, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobPrCheckAttribution, type JobTestPlan, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
+import {
+  applyPendingFeedback,
+  createJobAttachments,
+  deleteJobCommand,
+  fetchJobDependencyOptions,
+  fetchJobDetail,
+  fetchJobWorkflows,
+  ignorePendingFeedback,
+  openJobInCodingMode,
+  replacePendingFeedback,
+  retryPendingFeedback,
+  stopPreview as stopPreviewRequest,
+  submitJobFeedback,
+  updateJobPriority,
+  updateJobProviderSetting,
+  type JobApprovalEvidence,
+  type JobApprovalRecord,
+  type JobApprovalStatus,
+  type JobDeploymentStage,
+  type JobDetailPayload,
+  type JobPrCheckAttribution,
+  type JobTestPlan,
+  type JobWorkflow,
+  type PendingFeedbackComment
+} from "../api/jobs"
 import type { TypedArtifact } from "../api/artifacts"
 import { CoverageCard } from "../components/CoverageCard"
 import { PluginUiSlot, type UiSlotPanel } from "../pluginUiSlots"
@@ -29,11 +53,36 @@ import { useTour } from "../hooks/useTour"
 import { errorMessage } from "../lib/errorMessage"
 import type { JobDetailQueryKey, JobTab, JobWorkflowsQueryKey } from "./jobDetail/queryKeys"
 import { CommandButton, useJobCommand, type JobCommand } from "./jobDetail/command"
-import { TagsPanel, NeedsAttentionBanner, TriageDecisionBanner, FeedbackSourceBadge, EpicSummaryLink, TimelinePanel, AttachmentPreview, AttachmentCard, MergeablePill, JobStateBadge, PendingJobTitle, JobSourceLink, DependencyLink, JobDependencyTargetReference, PanelMessage, SmallPill, jobSourceLabel } from "./jobDetail/components"
+import {
+  TagsPanel,
+  NeedsAttentionBanner,
+  TriageDecisionBanner,
+  FeedbackSourceBadge,
+  EpicSummaryLink,
+  TimelinePanel,
+  AttachmentPreview,
+  AttachmentCard,
+  MergeablePill,
+  JobStateBadge,
+  PendingJobTitle,
+  JobSourceLink,
+  DependencyLink,
+  JobDependencyTargetReference,
+  PanelMessage,
+  SmallPill,
+  jobSourceLabel
+} from "./jobDetail/components"
 import { DeliveryPanel, deliveryPanelRelevant } from "./jobDetail/Delivery"
 import { canSubmitFeedbackDirectly, ChatBubbleIcon, HeaderActions, JobFeedbackPanel } from "./jobDetail/JobHeader"
 import { PreviewPanel, PreviewStopModal } from "../components/PreviewPanel"
-import { diffRefsFromLocation, jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
+import {
+  diffRefsFromLocation,
+  jobDetailQueryKey,
+  jobDetailSearch,
+  jobWorkflowsQueryKey,
+  mergeJobWorkflowsPayload,
+  tabFromLocation
+} from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
 import { ArtifactBody, TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
@@ -47,8 +96,15 @@ import { diffReviewFeedbackAllowed } from "./jobDetail/DiffReviewFeedback"
 import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
 import { scheduleJobDetailInvalidation } from "../lib/appEvents"
-import { Notice, Section } from "../components/ui"
-import { jobNavigationHref, navigationIndex, readJobNavigationContext, storeJobNavigationContext, withUpdatedNavigationItemState, type JobNavigationContext } from "../lib/jobNavigationContext"
+import { Notice, Page, Section } from "../components/ui"
+import {
+  jobNavigationHref,
+  navigationIndex,
+  readJobNavigationContext,
+  storeJobNavigationContext,
+  withUpdatedNavigationItemState,
+  type JobNavigationContext
+} from "../lib/jobNavigationContext"
 import { MetadataLine, OwnerBadge } from "./dashboard/components"
 import { UnderlineTabs } from "../components/Tabs"
 
@@ -78,9 +134,7 @@ export function JobDetailRoute() {
   })
   const payload = detail.isSuccess ? mergeJobWorkflowsPayload(detail.data, workflows.data) : null
   const job = detail.data?.job
-  const pageTitle = job
-    ? (job.issue_title ? `${jobSlug(job.id)}: ${job.issue_title}` : jobSlug(job.id))
-    : (id ? `JOB-${id}` : undefined)
+  const pageTitle = job ? (job.issue_title ? `${jobSlug(job.id)}: ${job.issue_title}` : jobSlug(job.id)) : id ? `JOB-${id}` : undefined
   usePageTitle(pageTitle)
 
   function selectTab(tab: JobTab) {
@@ -93,7 +147,7 @@ export function JobDetailRoute() {
   }
 
   return (
-    <main aria-label={t("aria_job")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <Page.Root aria-label={t("aria_job")} gutter="responsive" size="wide">
       {detail.isPending ? <PanelMessage>{t("loading")}</PanelMessage> : null}
       {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, t("load_error"))}</PanelMessage> : null}
       {payload ? (
@@ -109,11 +163,31 @@ export function JobDetailRoute() {
           workflowsQueryKey={workflowsQueryKey}
         />
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
-export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsLoading = false, workflowsError = null, activeTab, onSelectTab, prefix, initialDiff = null }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; workflowsQueryKey?: JobWorkflowsQueryKey; workflowsLoading?: boolean; workflowsError?: Error | null; activeTab: JobTab; onSelectTab: (tab: JobTab) => void; prefix: string; initialDiff?: { base: string; head: string } | null }) {
+export function JobDetailView({
+  payload,
+  queryKey,
+  workflowsQueryKey,
+  workflowsLoading = false,
+  workflowsError = null,
+  activeTab,
+  onSelectTab,
+  prefix,
+  initialDiff = null
+}: {
+  payload: JobDetailPayload
+  queryKey: JobDetailQueryKey
+  workflowsQueryKey?: JobWorkflowsQueryKey
+  workflowsLoading?: boolean
+  workflowsError?: Error | null
+  activeTab: JobTab
+  onSelectTab: (tab: JobTab) => void
+  prefix: string
+  initialDiff?: { base: string; head: string } | null
+}) {
   const { t } = useT("jobs")
   const { t: tTours } = useT("tours")
   const location = useLocation()
@@ -176,26 +250,26 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       target: "[data-tour='job-timeline']",
       title: tTours("job_detail.timeline_title"),
       content: tTours("job_detail.timeline_content"),
-      placement: "right" as const,
+      placement: "right" as const
     },
     {
       target: "[data-tour='job-approve']",
       title: tTours("job_detail.approve_title"),
       content: tTours("job_detail.approve_content"),
-      placement: "bottom" as const,
+      placement: "bottom" as const
     },
     {
       target: "[data-tour='job-feedback']",
       title: tTours("job_detail.feedback_title"),
       content: tTours("job_detail.feedback_content"),
-      placement: "bottom" as const,
+      placement: "bottom" as const
     },
     {
       target: "[data-tour='job-pr-link']",
       title: tTours("job_detail.pr_title"),
       content: tTours("job_detail.pr_content"),
-      placement: "bottom" as const,
-    },
+      placement: "bottom" as const
+    }
   ]
 
   useEffect(() => {
@@ -241,7 +315,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
   return (
     <>
       <SyrusTour onEvent={(data) => handleJoyrideCallback(data)} run={tourRun} steps={tourSteps} />
-      <header className="space-y-3">
+      <Page.Header className="block space-y-3">
         <div className="min-w-0">
           <PageHeading className="break-words">
             <CopyableSlug slug={jobSlug(payload.job.id)} />
@@ -264,30 +338,49 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">
-              <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>{payload.repository.slug}</Link>
+              <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
+                {payload.repository.slug}
+              </Link>
               <span className="px-2 text-gray-300 dark:text-gray-600">/</span>
               <JobSourceLink payload={payload} prefix={prefix} />
             </p>
-            {payload.job.agent_provider ? <SmallPill title={providerFailoverTooltip(payload.job.provider_failover)}>{payload.job.agent_provider}</SmallPill> : null}
+            {payload.job.agent_provider ? (
+              <SmallPill title={providerFailoverTooltip(payload.job.provider_failover)}>{payload.job.agent_provider}</SmallPill>
+            ) : null}
             <ProviderAvailabilityWarning availability={payload.job.provider_availability} />
             {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
-            <span>{t("workflow_count", { count: payload.job.workflows_count })} · {t("run_count", { count: payload.job.runs_count })}</span>
-            {payload.job.total_cost_usd == null ? null : <span>· <JobCostLink prefix={prefix} value={payload.job.total_cost_usd} /></span>}
+            <span>
+              {t("workflow_count", { count: payload.job.workflows_count })} · {t("run_count", { count: payload.job.runs_count })}
+            </span>
+            {payload.job.total_cost_usd == null ? null : (
+              <span>
+                · <JobCostLink prefix={prefix} value={payload.job.total_cost_usd} />
+              </span>
+            )}
             {payload.job.prepare_skipped ? <span className="font-medium text-amber-700">· {t("prepare_skipped")}</span> : null}
             {payload.job.source_chat ? (
               <span className="inline-flex items-center gap-1">
-                · <SlugHoverCard id={payload.job.source_chat.chat_id} kind="chat">
+                ·{" "}
+                <SlugHoverCard id={payload.job.source_chat.chat_id} kind="chat">
                   <CopyableSlug className="text-xs" slug={`CHAT-${payload.job.source_chat.chat_id}`} />
                 </SlugHoverCard>
-                <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>{payload.job.source_chat.chat_title || t("chat:new_title")}</Link>
+                <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>
+                  {payload.job.source_chat.chat_title || t("chat:new_title")}
+                </Link>
               </span>
             ) : null}
-            {payload.job.goal_provenance ? <span title={payload.job.goal_provenance.prompt_snapshot.prompt || undefined}>· Goal #{payload.job.goal_provenance.chat_goal_id}</span> : null}
+            {payload.job.goal_provenance ? (
+              <span title={payload.job.goal_provenance.prompt_snapshot.prompt || undefined}>· Goal #{payload.job.goal_provenance.chat_goal_id}</span>
+            ) : null}
             {payload.origin_chat ? (
               <span>
-                · <Link className="inline-flex items-center gap-1 font-medium text-brand hover:underline" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>
+                ·{" "}
+                <Link
+                  className="inline-flex items-center gap-1 font-medium text-brand hover:underline"
+                  to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}
+                >
                   <ChatBubbleIcon />
                   <span>{t("view_in_chat")}</span>
                 </Link>
@@ -295,14 +388,24 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
             ) : null}
             {payload.job.discussion_chat ? (
               <span>
-                · <Link className="inline-flex items-center gap-1 font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.discussion_chat.path, prefix)}>
+                ·{" "}
+                <Link
+                  className="inline-flex items-center gap-1 font-medium text-brand hover:underline"
+                  to={withRoutePrefix(payload.job.discussion_chat.path, prefix)}
+                >
                   <ChatBubbleIcon />
                   <span>{payload.job.discussion_chat.chat_title || t("chat_about_this")}</span>
                 </Link>
               </span>
             ) : payload.actions.can_start_chat ? (
               <span>
-                · <button className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: payload.paths.app_start_chat_path })} type="button">
+                ·{" "}
+                <button
+                  className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={command.isPending}
+                  onClick={() => command.mutate({ method: "post", path: payload.paths.app_start_chat_path })}
+                  type="button"
+                >
                   <ChatBubbleIcon />
                   <span>{t("chat_about_this")}</span>
                 </button>
@@ -310,18 +413,22 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
             ) : null}
           </div>
         </div>
-      </header>
+      </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {command.dialog}
-      {payload.job.state === "queued" && payload.repository.landing_paused && payload.repository.main_health === "broken" && payload.repository.main_branch_repair_blocks_work ? (
+      {payload.job.state === "queued" &&
+      payload.repository.landing_paused &&
+      payload.repository.main_health === "broken" &&
+      payload.repository.main_branch_repair_blocks_work ? (
         <Notice className="flex items-center gap-3" role="alert" tone="warning">
-          <span>
-            {payload.job.main_branch_repair ? t("main_branch_repair_active") : t("main_branch_health_waiting")}
-          </span>
+          <span>{payload.job.main_branch_repair ? t("main_branch_repair_active") : t("main_branch_health_waiting")}</span>
           {!payload.job.main_branch_repair ? (
-            <Link className="shrink-0 rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
+            <Link
+              className="shrink-0 rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
+              to={withRoutePrefix(payload.repository.repository_path, prefix)}
+            >
               {t("main_branch_health_view")}
             </Link>
           ) : null}
@@ -343,22 +450,52 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       ) : null}
       {previewStopModal ? (
         <PreviewStopModal
-          onKeepRunning={() => { previewStopModal.onProceed(); setPreviewStopModal(null) }}
+          onKeepRunning={() => {
+            previewStopModal.onProceed()
+            setPreviewStopModal(null)
+          }}
           onStop={() => stopPreview.mutate()}
         />
       ) : null}
 
-      <TabNav active={activeTab} artifactsCount={(payload.typed_artifacts ?? []).length} attachmentsCount={(payload.attachments ?? []).length} investigation={payload.job.investigation} workflowsCount={payload.job.workflows_count} pluginTabs={payload.ui_tabs} onSelect={onSelectTab} />
+      <Page.Nav>
+        <TabNav
+          active={activeTab}
+          artifactsCount={(payload.typed_artifacts ?? []).length}
+          attachmentsCount={(payload.attachments ?? []).length}
+          investigation={payload.job.investigation}
+          workflowsCount={payload.job.workflows_count}
+          pluginTabs={payload.ui_tabs}
+          onSelect={onSelectTab}
+        />
+      </Page.Nav>
 
-      {activeTab === "summary" ? (payload.job.investigation ? <ReportTab payload={payload} /> : <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} withPreviewStop={withPreviewStop} />) : null}
+      {activeTab === "summary" ? (
+        payload.job.investigation ? (
+          <ReportTab payload={payload} />
+        ) : (
+          <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} withPreviewStop={withPreviewStop} />
+        )
+      ) : null}
       {activeTab === "review" && !payload.job.investigation ? <ReviewWorkspace payload={payload} /> : null}
-      {activeTab === "workflows" ? <WorkflowsTab command={command} error={workflowsError} loading={workflowsLoading} payload={payload} prefix={prefix} /> : null}
+      {activeTab === "workflows" ? (
+        <WorkflowsTab command={command} error={workflowsError} loading={workflowsLoading} payload={payload} prefix={prefix} />
+      ) : null}
       {activeTab === "conversation" ? <AgentConversationTab jobId={payload.job.id} prUrl={payload.job.pr_url} /> : null}
-      {activeTab === "timeline" ? <TimelineTab error={workflowsError} jobId={String(payload.job.id)} loading={workflowsLoading} workflows={payload.workflows} /> : null}
+      {activeTab === "timeline" ? (
+        <TimelineTab error={workflowsError} jobId={String(payload.job.id)} loading={workflowsLoading} workflows={payload.workflows} />
+      ) : null}
       {activeTab === "target_graph" ? <JobTargetGraphPanel jobId={payload.job.id} prefix={prefix} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
       {activeTab === "artifacts" ? <ArtifactsTab artifacts={payload.typed_artifacts ?? []} /> : null}
-      {activeTab === "source" ? <SourceTab canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)} initialDiff={initialDiff} jobId={String(payload.job.id)} coverageInfo={payload.coverage ? { workflowId: payload.coverage.workflow_id, coverage: payload.coverage.coverage } : null} /> : null}
+      {activeTab === "source" ? (
+        <SourceTab
+          canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)}
+          initialDiff={initialDiff}
+          jobId={String(payload.job.id)}
+          coverageInfo={payload.coverage ? { workflowId: payload.coverage.workflow_id, coverage: payload.coverage.coverage } : null}
+        />
+      ) : null}
       <PluginUiSlot panels={(payload.ui_tabs ?? []).filter((tab) => tab.key === activeTab)} props={{ job: payload.job }} />
     </>
   )
@@ -368,7 +505,7 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
   const { t } = useT("jobs")
   const location = useLocation()
   const navigate = useNavigate()
-  const activeIndex = useMemo(() => context ? navigationIndex(context, currentJobId) : -1, [context, currentJobId])
+  const activeIndex = useMemo(() => (context ? navigationIndex(context, currentJobId) : -1), [context, currentJobId])
   const previous = context && activeIndex > 0 ? context.items[activeIndex - 1] : null
   const next = context && activeIndex >= 0 && activeIndex < context.items.length - 1 ? context.items[activeIndex + 1] : null
   const current = context && activeIndex >= 0 ? context.items[activeIndex] : null
@@ -435,12 +572,16 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
   }
 
   return (
-    <div className="relative hidden shrink-0 items-center gap-1 rounded border border-gray-200 bg-white p-1 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 md:inline-flex" aria-label={t("navigation_label")} ref={wrapperRef}>
+    <div
+      className="relative hidden shrink-0 items-center gap-1 rounded border border-gray-200 bg-white p-1 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 md:inline-flex"
+      aria-label={t("navigation_label")}
+      ref={wrapperRef}
+    >
       <button
         aria-label={t("navigation_previous")}
         className="flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
         disabled={!previous}
-        onClick={() => previous ? navigateTo(previous.path) : undefined}
+        onClick={() => (previous ? navigateTo(previous.path) : undefined)}
         title={t("navigation_previous_shortcut")}
         type="button"
       >
@@ -457,10 +598,16 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
         type="button"
       >
         <span className="truncate">{current.slug}</span>
-        <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">▾</span>
+        <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">
+          ▾
+        </span>
       </button>
       {jumpOpen ? (
-        <div className="absolute right-0 top-full z-30 mt-1 max-h-80 w-96 max-w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950" id="job-navigation-jump-list" role="listbox">
+        <div
+          className="absolute right-0 top-full z-30 mt-1 max-h-80 w-96 max-w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950"
+          id="job-navigation-jump-list"
+          role="listbox"
+        >
           {context.items.map((item, index) => (
             <button
               aria-label={t("navigation_jump_option", { position: index + 1, slug: item.slug, title: item.title })}
@@ -485,12 +632,14 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
           ))}
         </div>
       ) : null}
-      <span className="whitespace-nowrap px-1 text-gray-400 dark:text-gray-500">{t("navigation_position", { current: activeIndex + 1, total: context.items.length })}</span>
+      <span className="whitespace-nowrap px-1 text-gray-400 dark:text-gray-500">
+        {t("navigation_position", { current: activeIndex + 1, total: context.items.length })}
+      </span>
       <button
         aria-label={t("navigation_next")}
         className="flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
         disabled={!next}
-        onClick={() => next ? navigateTo(next.path) : undefined}
+        onClick={() => (next ? navigateTo(next.path) : undefined)}
         title={t("navigation_next_shortcut")}
         type="button"
       >
@@ -503,12 +652,29 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
 function navigationShortcutBlocked(target: EventTarget | null) {
   if (document.querySelector("[role='dialog'], [aria-modal='true']")) return true
   if (!(target instanceof Element)) return false
-  if (target.closest("input, textarea, select, [contenteditable='true'], [role='textbox'], [role='combobox'], [data-navigation-shortcuts='ignore']")) return true
+  if (target.closest("input, textarea, select, [contenteditable='true'], [role='textbox'], [role='combobox'], [data-navigation-shortcuts='ignore']"))
+    return true
 
   return false
 }
 
-function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, investigation = false, pluginTabs, onSelect }: { active: JobTab; workflowsCount: number; attachmentsCount: number; artifactsCount: number; investigation?: boolean; pluginTabs?: UiSlotPanel[]; onSelect: (tab: JobTab) => void }) {
+function TabNav({
+  active,
+  workflowsCount,
+  attachmentsCount,
+  artifactsCount,
+  investigation = false,
+  pluginTabs,
+  onSelect
+}: {
+  active: JobTab
+  workflowsCount: number
+  attachmentsCount: number
+  artifactsCount: number
+  investigation?: boolean
+  pluginTabs?: UiSlotPanel[]
+  onSelect: (tab: JobTab) => void
+}) {
   const { t } = useT("jobs")
   // Investigation Jobs never reach pr_open, so there is no PR to review --
   // the "review" tab (PR diff + review comments) is hidden entirely rather
@@ -517,7 +683,7 @@ function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, inve
   // deliverable.
   const tabs: Array<{ id: JobTab; label: string }> = [
     { id: "summary", label: investigation ? t("tab_report") : t("tab_summary") },
-    ...(investigation ? [] : [ { id: "review" as JobTab, label: t("tab_review") } ]),
+    ...(investigation ? [] : [{ id: "review" as JobTab, label: t("tab_review") }]),
     { id: "workflows", label: t("tab_workflows", { count: workflowsCount }) },
     { id: "conversation", label: t("tab_conversation") },
     { id: "timeline", label: t("tab_timeline") },
@@ -548,7 +714,19 @@ function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, inve
   )
 }
 
-function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; queryKey: JobDetailQueryKey; withPreviewStop: (proceed: () => void) => void }) {
+function SummaryTab({
+  payload,
+  command,
+  prefix,
+  queryKey,
+  withPreviewStop
+}: {
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  prefix: string
+  queryKey: JobDetailQueryKey
+  withPreviewStop: (proceed: () => void) => void
+}) {
   const { t } = useT("jobs")
   const coverageInfo = payload.coverage
   // Defaulted like the other two read sites: the payload type declares this
@@ -571,18 +749,24 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
               {payload.landing_queue_entry.blocked_reason.key === "auto_merge_not_enabled" ? (
                 <>
                   {" — "}
-                  <Link className="font-medium text-brand underline hover:no-underline" to={withRoutePrefix(`${payload.repository.edit_repository_path}#auto-merge`, prefix)}>
+                  <Link
+                    className="font-medium text-brand underline hover:no-underline"
+                    to={withRoutePrefix(`${payload.repository.edit_repository_path}#auto-merge`, prefix)}
+                  >
                     {t("landing_queue_enable_auto_merge")}
                   </Link>
                 </>
               ) : null}
               {")"}
             </>
-          ) : ""}
+          ) : (
+            ""
+          )}
           {payload.landing_queue_entry.waiting_for_jobs.length > 0 ? (
             <>
               {" "}
-              {t("landing_queue_waiting_for")} {payload.landing_queue_entry.waiting_for_jobs.map((job, index) => (
+              {t("landing_queue_waiting_for")}{" "}
+              {payload.landing_queue_entry.waiting_for_jobs.map((job, index) => (
                 <span key={job.id}>
                   {index > 0 ? ", " : null}
                   <Link className="font-medium text-brand underline hover:no-underline" to={`${prefix}${job.job_path}`}>
@@ -594,7 +778,9 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
           ) : null}
         </PanelMessage>
       ) : null}
-      {payload.job.landing_failure_reason ? <PanelMessage tone="error">{t("landing_failed", { reason: payload.job.landing_failure_reason })}</PanelMessage> : null}
+      {payload.job.landing_failure_reason ? (
+        <PanelMessage tone="error">{t("landing_failed", { reason: payload.job.landing_failure_reason })}</PanelMessage>
+      ) : null}
       <PrChecksBanner command={command} payload={payload} />
       <AdmissionBudgetPanel payload={payload} />
       <RetryStatePanel payload={payload} />
@@ -604,11 +790,19 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
         <div className="min-w-0 space-y-4">
           <Section.Root className="min-w-0 overflow-x-auto">
             <SectionHeading>{t("section_issue")}</SectionHeading>
-            {payload.job.issue_body ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_issue_body")}</p>}
+            {payload.job.issue_body ? (
+              <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} />
+            ) : (
+              <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_issue_body")}</p>
+            )}
           </Section.Root>
           <Section.Root className="min-w-0 overflow-x-auto">
             <SectionHeading>{t("section_agent_summary")}</SectionHeading>
-            {payload.summary ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}
+            {payload.summary ? (
+              <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} />
+            ) : (
+              <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>
+            )}
           </Section.Root>
 
           <TestPlanPanel testPlan={payload.test_plan} />
@@ -648,29 +842,84 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
             <SectionHeading>{t("section_details")}</SectionHeading>
             {payload.deployment_stages?.length ? <DeploymentStagePipeline stages={payload.deployment_stages} /> : null}
             <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
-              <KeyValue label={t("detail_state")}><StatusPill state={payload.job.summary_state} /></KeyValue>
-              <KeyValue label={t("detail_work_claim")}><JobOwnerLabel command={command} payload={payload} prefix={prefix} /></KeyValue>
-              <KeyValue label={t("detail_priority")}><PrioritySelector currentPriority={payload.job.priority} priorityPath={payload.paths.app_priority_path} queryKey={queryKey} /></KeyValue>
-              <KeyValue label={t("detail_provider")}><JobProviderSelector payload={payload} providerPath={payload.paths.app_provider_setting_path || `/api/v1/app/jobs/${payload.job.id}/provider_setting`} queryKey={queryKey} /></KeyValue>
-              <KeyValue label={t("detail_validity")}><span className="capitalize">{payload.job.validity}</span></KeyValue>
-              {payload.job.invalidation_evidence?.length ? <KeyValue label={t("detail_invalidation_evidence")}><InvalidationEvidenceList urls={payload.job.invalidation_evidence} /></KeyValue> : null}
-              {payload.epic ? <KeyValue label={t("detail_epic")}><EpicSummaryLink epic={payload.epic} prefix={prefix} /></KeyValue> : null}
-              {payload.job.branch_name ? <KeyValue label={t("detail_branch")}><code className="break-all">{payload.job.branch_name}</code></KeyValue> : null}
-              <KeyValue label={t("detail_stack_base")}><StackBaseForm command={command} payload={payload} /></KeyValue>
-              {payload.job.pr_number || payload.job.external_pr_number ? <KeyValue label={t("detail_pull_request")}><PullRequestSummary payload={payload} /></KeyValue> : null}
-              {!payload.job.pr_number && !payload.job.external_pr_number && payload.job.no_pr_reason ? <KeyValue label={t("detail_pull_request")}><span className="text-gray-600 dark:text-gray-300">{payload.job.no_pr_reason.message || t("no_pr_opened")}</span></KeyValue> : null}
-              <KeyValue label={t("detail_cost")}>{payload.job.total_cost_usd == null ? "-" : <JobCostLink prefix={prefix} value={payload.job.total_cost_usd} />} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} {t("detail_billed")})</span></KeyValue>
-              <KeyValue label={t("detail_started")}><RelativeTimestamp value={payload.job.started_at} /></KeyValue>
-              {payload.job.finished_at ? <KeyValue label={t("detail_closed")}><RelativeTimestamp value={payload.job.finished_at} /> ({payload.job.closure_reason || "unspecified"})</KeyValue> : null}
+              <KeyValue label={t("detail_state")}>
+                <StatusPill state={payload.job.summary_state} />
+              </KeyValue>
+              <KeyValue label={t("detail_work_claim")}>
+                <JobOwnerLabel command={command} payload={payload} prefix={prefix} />
+              </KeyValue>
+              <KeyValue label={t("detail_priority")}>
+                <PrioritySelector currentPriority={payload.job.priority} priorityPath={payload.paths.app_priority_path} queryKey={queryKey} />
+              </KeyValue>
+              <KeyValue label={t("detail_provider")}>
+                <JobProviderSelector
+                  payload={payload}
+                  providerPath={payload.paths.app_provider_setting_path || `/api/v1/app/jobs/${payload.job.id}/provider_setting`}
+                  queryKey={queryKey}
+                />
+              </KeyValue>
+              <KeyValue label={t("detail_validity")}>
+                <span className="capitalize">{payload.job.validity}</span>
+              </KeyValue>
+              {payload.job.invalidation_evidence?.length ? (
+                <KeyValue label={t("detail_invalidation_evidence")}>
+                  <InvalidationEvidenceList urls={payload.job.invalidation_evidence} />
+                </KeyValue>
+              ) : null}
+              {payload.epic ? (
+                <KeyValue label={t("detail_epic")}>
+                  <EpicSummaryLink epic={payload.epic} prefix={prefix} />
+                </KeyValue>
+              ) : null}
+              {payload.job.branch_name ? (
+                <KeyValue label={t("detail_branch")}>
+                  <code className="break-all">{payload.job.branch_name}</code>
+                </KeyValue>
+              ) : null}
+              <KeyValue label={t("detail_stack_base")}>
+                <StackBaseForm command={command} payload={payload} />
+              </KeyValue>
+              {payload.job.pr_number || payload.job.external_pr_number ? (
+                <KeyValue label={t("detail_pull_request")}>
+                  <PullRequestSummary payload={payload} />
+                </KeyValue>
+              ) : null}
+              {!payload.job.pr_number && !payload.job.external_pr_number && payload.job.no_pr_reason ? (
+                <KeyValue label={t("detail_pull_request")}>
+                  <span className="text-gray-600 dark:text-gray-300">{payload.job.no_pr_reason.message || t("no_pr_opened")}</span>
+                </KeyValue>
+              ) : null}
+              <KeyValue label={t("detail_cost")}>
+                {payload.job.total_cost_usd == null ? "-" : <JobCostLink prefix={prefix} value={payload.job.total_cost_usd} />}{" "}
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  ({payload.job.billed_runs_count} {t("detail_billed")})
+                </span>
+              </KeyValue>
+              <KeyValue label={t("detail_started")}>
+                <RelativeTimestamp value={payload.job.started_at} />
+              </KeyValue>
+              {payload.job.finished_at ? (
+                <KeyValue label={t("detail_closed")}>
+                  <RelativeTimestamp value={payload.job.finished_at} /> ({payload.job.closure_reason || "unspecified"})
+                </KeyValue>
+              ) : null}
               {payload.job.closure_reason === "emergency_landed" ? (
                 <KeyValue label={t("detail_emergency_land")}>
                   <EmergencyLandAudit job={payload.job} />
                 </KeyValue>
               ) : null}
-              {payload.job.runaway_protection ? <KeyValue label={t("detail_runaway_protection")}><span className="text-amber-700 dark:text-amber-400">{payload.job.runaway_protection}</span> — {t("detail_runaway_protection_hint")}</KeyValue> : null}
+              {payload.job.runaway_protection ? (
+                <KeyValue label={t("detail_runaway_protection")}>
+                  <span className="text-amber-700 dark:text-amber-400">{payload.job.runaway_protection}</span> — {t("detail_runaway_protection_hint")}
+                </KeyValue>
+              ) : null}
               {payload.job.landing_blocker_override_requested_at ? (
                 <KeyValue label={t("detail_landing_blocker_override")}>
-                  {t("landing_blocker_override_note", { user: payload.job.landing_blocker_override_requested_by?.display_name ?? payload.job.landing_blocker_override_requested_by?.email_address ?? "?" })} <RelativeTimestamp value={payload.job.landing_blocker_override_requested_at} />
+                  {t("landing_blocker_override_note", {
+                    user:
+                      payload.job.landing_blocker_override_requested_by?.display_name ?? payload.job.landing_blocker_override_requested_by?.email_address ?? "?"
+                  })}{" "}
+                  <RelativeTimestamp value={payload.job.landing_blocker_override_requested_at} />
                 </KeyValue>
               ) : null}
             </div>
@@ -705,7 +954,8 @@ function EmergencyLandAudit({ job }: { job: JobDetailPayload["job"] }) {
     <span className="inline-flex flex-col gap-1 text-sm">
       <span>{job.emergency_landed_at ? <RelativeTimestamp value={job.emergency_landed_at} /> : "Time not recorded"}</span>
       <span className="text-xs text-warning-text">
-        Confirmed by {userLabel}{tier ? ` (${tier})` : ""}
+        Confirmed by {userLabel}
+        {tier ? ` (${tier})` : ""}
       </span>
     </span>
   )
@@ -766,10 +1016,16 @@ function PrioritySelector({ currentPriority, priorityPath, queryKey }: { current
         value={currentPriority}
       >
         {JOB_PRIORITIES.map((p) => (
-          <option key={p} value={p}>{labels[p]}</option>
+          <option key={p} value={p}>
+            {labels[p]}
+          </option>
         ))}
       </Select>
-      {error ? <span className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</span> : null}
+      {error ? (
+        <span className="text-xs text-red-600 dark:text-red-400" role="alert">
+          {error}
+        </span>
+      ) : null}
       {showConfirm ? <UrgentConfirmDialog onCancel={handleCancel} onConfirm={handleConfirm} /> : null}
     </span>
   )
@@ -844,7 +1100,11 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
             value={draft.model}
           >
             <option value="">{t("provider_default_model")}</option>
-            {(selectedOption?.models || []).map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
+            {(selectedOption?.models || []).map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.label}
+              </option>
+            ))}
           </Select>
           <Select
             aria-label={t("provider_effort_label")}
@@ -855,17 +1115,29 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
             value={draft.effortLevel}
           >
             <option value="">{t("provider_default_effort")}</option>
-            {effortOptions.map((effort) => <option key={effort.value} value={effort.value}>{t(`provider_effort_level_${effort.value}`, { defaultValue: effort.label })}</option>)}
+            {effortOptions.map((effort) => (
+              <option key={effort.value} value={effort.value}>
+                {t(`provider_effort_level_${effort.value}`, { defaultValue: effort.label })}
+              </option>
+            ))}
           </Select>
-          <Button className="sm:col-span-2" disabled={mutation.isPending} onClick={() => mutation.mutate()} size="sm" variant="secondary">{t("provider_override_save")}</Button>
+          <Button className="sm:col-span-2" disabled={mutation.isPending} onClick={() => mutation.mutate()} size="sm" variant="secondary">
+            {t("provider_override_save")}
+          </Button>
         </span>
       ) : (
-        <Button disabled={mutation.isPending || currentSetting === "default"} onClick={() => mutation.mutate()} size="sm" variant="secondary">{t("provider_override_default")}</Button>
+        <Button disabled={mutation.isPending || currentSetting === "default"} onClick={() => mutation.mutate()} size="sm" variant="secondary">
+          {t("provider_override_default")}
+        </Button>
       )}
       <span className="text-xs text-gray-500 dark:text-gray-400" id={`job-${payload.job.id}-provider-help`}>
         {t("provider_setting_help", { provider: agentProviderLabel(payload, payload.job.agent_provider || "") })}
       </span>
-      {error ? <span className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</span> : null}
+      {error ? (
+        <span className="text-xs text-red-600 dark:text-red-400" role="alert">
+          {error}
+        </span>
+      ) : null}
     </span>
   )
 }
@@ -890,10 +1162,7 @@ function UrgentConfirmDialog({ onConfirm, onCancel }: { onConfirm: () => void; o
   }, [onCancel])
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onCancel}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onCancel}>
       <section
         aria-labelledby="urgent-confirm-title"
         aria-modal="true"
@@ -902,9 +1171,7 @@ function UrgentConfirmDialog({ onConfirm, onCancel }: { onConfirm: () => void; o
         onClick={(e) => e.stopPropagation()}
       >
         <div className="space-y-4 p-5">
-          <SectionHeading id="urgent-confirm-title">
-            {t("priority_urgent_confirm_title")}
-          </SectionHeading>
+          <SectionHeading id="urgent-confirm-title">{t("priority_urgent_confirm_title")}</SectionHeading>
           <p className="text-sm text-gray-700 dark:text-gray-300">{t("priority_urgent_confirm_body_1")}</p>
           <p className="text-sm text-gray-700 dark:text-gray-300">{t("priority_urgent_confirm_body_2")}</p>
           <div className="flex justify-end gap-3">
@@ -929,7 +1196,11 @@ export function TestPlanPanel({ testPlan }: { testPlan: JobTestPlan | null }) {
     <section className="min-w-0 overflow-x-auto rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <SectionHeading>{t("section_test_plan")}</SectionHeading>
       <ol className="mt-2 min-w-0 max-w-full list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
-        {testPlan.steps.map((step, index) => <li className="min-w-0 break-words [overflow-wrap:anywhere]" key={`${index}-${step}`}>{step}</li>)}
+        {testPlan.steps.map((step, index) => (
+          <li className="min-w-0 break-words [overflow-wrap:anywhere]" key={`${index}-${step}`}>
+            {step}
+          </li>
+        ))}
       </ol>
       {testPlan.notes ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={testPlan.notes} /> : null}
     </section>
@@ -983,18 +1254,26 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
   return (
     <section className="rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/30">
       <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">{t("pending_feedback_title")}</h2>
-      <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-        {t("pending_feedback_description")}
-      </p>
+      <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t("pending_feedback_description")}</p>
       {notice ? (
         <div className="mt-2 flex items-center justify-between gap-2 rounded bg-amber-100 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
           <span>{notice}</span>
-          <button className="ml-2 hover:underline" onClick={() => setNotice(null)} type="button">{t("dismiss")}</button>
+          <button className="ml-2 hover:underline" onClick={() => setNotice(null)} type="button">
+            {t("dismiss")}
+          </button>
         </div>
       ) : null}
-      {(apply.isError || ignore.isError || replace.isError || retry.isError) ? (
+      {apply.isError || ignore.isError || replace.isError || retry.isError ? (
         <p className="mt-2 text-xs text-red-600 dark:text-red-400">
-          {apply.error instanceof Error ? apply.error.message : ignore.error instanceof Error ? ignore.error.message : replace.error instanceof Error ? replace.error.message : retry.error instanceof Error ? retry.error.message : "Action failed."}
+          {apply.error instanceof Error
+            ? apply.error.message
+            : ignore.error instanceof Error
+              ? ignore.error.message
+              : replace.error instanceof Error
+                ? replace.error.message
+                : retry.error instanceof Error
+                  ? retry.error.message
+                  : "Action failed."}
         </p>
       ) : null}
       <div className="mt-3 space-y-3">
@@ -1005,7 +1284,11 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
               <span className="capitalize">{comment.attributed_to}</span>
               <span>·</span>
               <span className="capitalize">{comment.pr_type} PR</span>
-              {comment.comment_created_at ? <span>· <RelativeTimestamp value={comment.comment_created_at} /></span> : null}
+              {comment.comment_created_at ? (
+                <span>
+                  · <RelativeTimestamp value={comment.comment_created_at} />
+                </span>
+              ) : null}
             </div>
             <p className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-300">{comment.body}</p>
             {comment.handling_state === "failed" ? (
@@ -1024,16 +1307,15 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
                   value={replaceBody}
                 />
                 <div className="flex gap-2">
-                  <Button
-                    disabled={isPending || !replaceBody.trim()}
-                    onClick={() => replace.mutate({ commentId: comment.id, body: replaceBody })}
-                    size="sm"
-                  >
+                  <Button disabled={isPending || !replaceBody.trim()} onClick={() => replace.mutate({ commentId: comment.id, body: replaceBody })} size="sm">
                     Submit replacement
                   </Button>
                   <button
                     className="text-xs text-gray-500 hover:underline dark:text-gray-400"
-                    onClick={() => { setReplaceId(null); setReplaceBody("") }}
+                    onClick={() => {
+                      setReplaceId(null)
+                      setReplaceBody("")
+                    }}
                     type="button"
                   >
                     Cancel
@@ -1053,7 +1335,10 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
                     </Button>
                     <Button
                       disabled={isPending}
-                      onClick={() => { setReplaceId(comment.id); setReplaceBody("") }}
+                      onClick={() => {
+                        setReplaceId(comment.id)
+                        setReplaceBody("")
+                      }}
                       size="sm"
                       variant="secondary"
                     >
@@ -1098,7 +1383,9 @@ export function FeedbackHistoryPanel({ entries, prefix }: { entries: JobDetailPa
                   <StatusPill state={entry.state} />
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <span><RelativeTimestamp value={entry.created_at} /></span>
+                  <span>
+                    <RelativeTimestamp value={entry.created_at} />
+                  </span>
                   {entry.workflow_path ? (
                     <Link className="text-brand hover:underline" to={withRoutePrefix(entry.workflow_path, prefix)}>
                       {entry.workflow_slug || (entry.workflow_id ? workflowSlug(entry.workflow_id) : t("workflow"))}
@@ -1170,24 +1457,23 @@ function PrChecksBanner({ command, payload }: { command: JobCommand; payload: Jo
   if (!checks || (checks.state !== "failing" && checks.state !== "pending")) return null
 
   const sha = checks.short_sha || t("pr_checks_unknown_sha")
-  const message = checks.state === "failing"
-    ? t("pr_checks_failing", { sha })
-    : t("pr_checks_pending", { sha })
+  const message = checks.state === "failing" ? t("pr_checks_failing", { sha }) : t("pr_checks_pending", { sha })
 
   const attribution = checks.attribution
   // An inherited failure is not this Job's fault, so it should not be dressed in
   // the same red as one this Job introduced.
   const tone = checks.state !== "failing" || attribution?.verdict === "inherited" ? "muted" : "error"
   const blockerKey = payload.landing_queue_entry?.blocked_reason?.key
-  const prChecksBlocker = blockerKey === "pr_checks_failing_inherited" || blockerKey === "pr_checks_failing_base_unknown" || blockerKey === "pr_checks_failing_base_stale"
+  const prChecksBlocker =
+    blockerKey === "pr_checks_failing_inherited" || blockerKey === "pr_checks_failing_base_unknown" || blockerKey === "pr_checks_failing_base_stale"
   const overridePath = payload.landing_queue_entry?.override_path
   const overrideCommandPath = overridePath || null
   const recheckPath = payload.paths.app_recheck_pr_checks_path
   const canOverride = Boolean(
     prChecksBlocker &&
-      (payload.actions.can_override_pr_checks_landing_blocker || payload.actions.can_override_inherited_pr_checks) &&
-      overrideCommandPath &&
-      blockerKey
+    (payload.actions.can_override_pr_checks_landing_blocker || payload.actions.can_override_inherited_pr_checks) &&
+    overrideCommandPath &&
+    blockerKey
   )
   const canRecheck = Boolean(payload.actions.can_recheck_pr_checks && recheckPath)
 
@@ -1244,11 +1530,12 @@ function PrChecksBanner({ command, payload }: { command: JobCommand; payload: Jo
 // this an operator cannot check the call, and neither can an agent.
 function PrCheckAttributionDetail({ attribution }: { attribution: JobPrCheckAttribution }) {
   const { t } = useT("jobs")
-  const label = attribution.verdict === "inherited"
-    ? t("pr_checks_attribution_inherited")
-    : attribution.verdict === "own"
-      ? t("pr_checks_attribution_own")
-      : t("pr_checks_attribution_unknown")
+  const label =
+    attribution.verdict === "inherited"
+      ? t("pr_checks_attribution_inherited")
+      : attribution.verdict === "own"
+        ? t("pr_checks_attribution_own")
+        : t("pr_checks_attribution_unknown")
 
   return (
     <div className="mt-2 text-xs">
@@ -1268,9 +1555,7 @@ function PrCheckAttributionDetail({ attribution }: { attribution: JobPrCheckAttr
         ) : null}
       </dl>
       {attribution.base_sha ? (
-        <div className="mt-1 text-gray-600 dark:text-gray-400">
-          {t("pr_checks_attribution_base", { sha: attribution.base_sha.slice(0, 7) })}
-        </div>
+        <div className="mt-1 text-gray-600 dark:text-gray-400">{t("pr_checks_attribution_base", { sha: attribution.base_sha.slice(0, 7) })}</div>
       ) : null}
     </div>
   )
@@ -1282,9 +1567,7 @@ function AdmissionBudgetPanel({ payload }: { payload: JobDetailPayload }) {
   if (payload.job.state !== "queued" || payload.job.start_blocked_reason !== "workflow_admission_budget" || !breakdown) return null
 
   const diagnosticsPath = payload.actions.can_view_resource_admission_diagnostics ? payload.paths.admin_resource_admission_path : null
-  const telemetryMessage = breakdown.telemetry_state === "absent"
-    ? t("admission_breakdown_telemetry_absent")
-    : t("admission_breakdown_telemetry_stale")
+  const telemetryMessage = breakdown.telemetry_state === "absent" ? t("admission_breakdown_telemetry_absent") : t("admission_breakdown_telemetry_stale")
 
   return (
     <Notice tone="warning">
@@ -1330,12 +1613,24 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
         <span className="font-semibold">{retry.state_label}</span>
         <SmallPill>{retry.classification_label}</SmallPill>
         <SmallPill>{retry.retryable ? t("run_retryable") : t("run_not_retryable")}</SmallPill>
-        <SmallPill>{retry.retry_attempt_count}/{retry.retry_budget} {t("retry_attempts_label")}</SmallPill>
-        <SmallPill>{retry.retry_budget_remaining} {t("retry_remaining_label")}</SmallPill>
+        <SmallPill>
+          {retry.retry_attempt_count}/{retry.retry_budget} {t("retry_attempts_label")}
+        </SmallPill>
+        <SmallPill>
+          {retry.retry_budget_remaining} {t("retry_remaining_label")}
+        </SmallPill>
       </div>
       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-        {retry.next_auto_retry_at ? <span>{t("retry_state_next_retry")} <RelativeTimestamp value={retry.next_auto_retry_at} /></span> : null}
-        {retry.retry_delayed_until ? <span>{t("retry_state_delayed_until")} <RelativeTimestamp value={retry.retry_delayed_until} /></span> : null}
+        {retry.next_auto_retry_at ? (
+          <span>
+            {t("retry_state_next_retry")} <RelativeTimestamp value={retry.next_auto_retry_at} />
+          </span>
+        ) : null}
+        {retry.retry_delayed_until ? (
+          <span>
+            {t("retry_state_delayed_until")} <RelativeTimestamp value={retry.retry_delayed_until} />
+          </span>
+        ) : null}
         {retry.retry_delay_reason ? <span>{retry.retry_delay_reason}</span> : null}
       </div>
     </Notice>
@@ -1353,16 +1648,34 @@ function JobOwnerLabel({ payload, command, prefix }: { payload: JobDetailPayload
           <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
             {payload.job.claimed_by_current_user ? t("owner_you") : owner.display_name}
           </Link>
-          {payload.job.claimed_at ? <span className="text-xs text-gray-400 dark:text-gray-500"><RelativeTimestamp value={payload.job.claimed_at} /></span> : null}
+          {payload.job.claimed_at ? (
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              <RelativeTimestamp value={payload.job.claimed_at} />
+            </span>
+          ) : null}
         </>
       ) : (
         <span className="text-gray-400 dark:text-gray-500">{t("owner_unclaimed")}</span>
       )}
       {payload.actions.can_claim ? (
-        <button className="text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: payload.paths.app_claim_path })} type="button">{t("owner_claim")}</button>
+        <button
+          className="text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={command.isPending}
+          onClick={() => command.mutate({ method: "post", path: payload.paths.app_claim_path })}
+          type="button"
+        >
+          {t("owner_claim")}
+        </button>
       ) : null}
       {payload.actions.can_unclaim ? (
-        <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: payload.paths.app_claim_path })} type="button">{t("owner_release")}</button>
+        <button
+          className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400"
+          disabled={command.isPending}
+          onClick={() => command.mutate({ method: "delete", path: payload.paths.app_claim_path })}
+          type="button"
+        >
+          {t("owner_release")}
+        </button>
       ) : null}
     </span>
   )
@@ -1387,7 +1700,11 @@ function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPaylo
           <span className="ml-1">{count === 1 ? t("blocked_auto_start_one") : t("blocked_auto_start_other")}</span>
         </div>
         {payload.actions.can_override_dependencies ? (
-          <CommandButton command={command} input={{ method: "post", path: payload.paths.app_dependency_override_path, confirm: t("confirm_override_dependencies") }} tone="danger-outline">
+          <CommandButton
+            command={command}
+            input={{ method: "post", path: payload.paths.app_dependency_override_path, confirm: t("confirm_override_dependencies") }}
+            tone="danger-outline"
+          >
             {t("override_and_force_run")}
           </CommandButton>
         ) : null}
@@ -1403,15 +1720,20 @@ function StackBaseForm({ payload, command }: { payload: JobDetailPayload; comman
   useEffect(() => setStackBase(payload.job.stack_base), [payload.job.stack_base])
 
   return (
-    <form className="flex flex-wrap items-center gap-2" onSubmit={(event) => {
-      event.preventDefault()
-      command.mutate({ method: "patch", path: payload.paths.app_stack_base_path, body: { stack_base: stackBase } })
-    }}>
+    <form
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={(event) => {
+        event.preventDefault()
+        command.mutate({ method: "patch", path: payload.paths.app_stack_base_path, body: { stack_base: stackBase } })
+      }}
+    >
       <Select className="px-2 py-1 text-xs" fullWidth={false} onChange={(event) => setStackBase(event.target.value)} value={stackBase}>
         <option value="auto">auto</option>
         <option value="main">main</option>
       </Select>
-      <button className="text-xs text-brand hover:underline" disabled={command.isPending} type="submit">{t("stack_base_update")}</button>
+      <button className="text-xs text-brand hover:underline" disabled={command.isPending} type="submit">
+        {t("stack_base_update")}
+      </button>
     </form>
   )
 }
@@ -1422,9 +1744,24 @@ function PullRequestSummary({ payload }: { payload: JobDetailPayload }) {
 
   return (
     <div className="space-y-1">
-      {payload.job.pr_number ? <a className="text-brand hover:underline" href={payload.job.pr_url || "#"} rel="noopener" target="_blank">{t("pr_syrus", { number: payload.job.pr_number })}</a> : null}
-      {payload.job.external_pr_number ? <a className="block text-violet-700 hover:underline" href={payload.job.external_pr_url || "#"} rel="noopener" target="_blank">{t("pr_external", { number: payload.job.external_pr_number })}</a> : null}
-      <div><MergeablePill value={payload.job.pr_mergeable} /> {payload.job.pr_mergeable_checked_at ? <span className="text-xs text-gray-400 dark:text-gray-500">{t("pr_checked")} <RelativeTimestamp value={payload.job.pr_mergeable_checked_at} /></span> : null}</div>
+      {payload.job.pr_number ? (
+        <a className="text-brand hover:underline" href={payload.job.pr_url || "#"} rel="noopener" target="_blank">
+          {t("pr_syrus", { number: payload.job.pr_number })}
+        </a>
+      ) : null}
+      {payload.job.external_pr_number ? (
+        <a className="block text-violet-700 hover:underline" href={payload.job.external_pr_url || "#"} rel="noopener" target="_blank">
+          {t("pr_external", { number: payload.job.external_pr_number })}
+        </a>
+      ) : null}
+      <div>
+        <MergeablePill value={payload.job.pr_mergeable} />{" "}
+        {payload.job.pr_mergeable_checked_at ? (
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            {t("pr_checked")} <RelativeTimestamp value={payload.job.pr_mergeable_checked_at} />
+          </span>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -1434,7 +1771,9 @@ function InvalidationEvidenceList({ urls }: { urls: string[] }) {
     <ul className="space-y-0.5">
       {urls.map((url) => (
         <li key={url}>
-          <a className="block truncate text-brand hover:underline" href={url} rel="noopener" target="_blank">{url}</a>
+          <a className="block truncate text-brand hover:underline" href={url} rel="noopener" target="_blank">
+            {url}
+          </a>
         </li>
       ))}
     </ul>
@@ -1466,10 +1805,11 @@ function ApprovalStatusPanel({ payload, prefix }: { payload: JobDetailPayload; p
         {status && (
           <div className="flex items-center justify-between">
             <span className="text-gray-500 dark:text-gray-400">{t("approval_status")}</span>
-            {status.satisfied
-              ? <span className="font-medium text-emerald-600 dark:text-emerald-400">{t("approval_satisfied")}</span>
-              : <span className="text-amber-600 dark:text-amber-400">{status.pending_description ?? t("approval_pending")}</span>
-            }
+            {status.satisfied ? (
+              <span className="font-medium text-emerald-600 dark:text-emerald-400">{t("approval_satisfied")}</span>
+            ) : (
+              <span className="text-amber-600 dark:text-amber-400">{status.pending_description ?? t("approval_pending")}</span>
+            )}
           </div>
         )}
         {job.approval_evidence ? <AutoApprovalEvidenceNote evidence={job.approval_evidence} prefix={prefix} /> : null}
@@ -1480,7 +1820,9 @@ function ApprovalStatusPanel({ payload, prefix }: { payload: JobDetailPayload; p
               {approvals.map((approval) => (
                 <li key={approval.id} className="flex items-center justify-between py-1 text-xs">
                   <span className="truncate text-gray-700 dark:text-gray-300">{approval.user_email}</span>
-                  <span className="ml-2 shrink-0 text-gray-400 dark:text-gray-500"><RelativeTimestamp value={approval.approved_at} /></span>
+                  <span className="ml-2 shrink-0 text-gray-400 dark:text-gray-500">
+                    <RelativeTimestamp value={approval.approved_at} />
+                  </span>
                 </li>
               ))}
             </ul>
@@ -1501,7 +1843,13 @@ function AutoApprovalEvidenceNote({ evidence, prefix }: { evidence: JobApprovalE
       {t("approval_evidence_auto_approved", { rule: evidence.rule })}
       {evidence.source ? <> · {t("approval_evidence_source", { source: evidence.source })}</> : null}
       {evidence.grader_step_workflow_path ? (
-        <> · <Link className="underline hover:no-underline" to={withRoutePrefix(evidence.grader_step_workflow_path, prefix)}>{t("approval_evidence_grader_step_link")}</Link></>
+        <>
+          {" "}
+          ·{" "}
+          <Link className="underline hover:no-underline" to={withRoutePrefix(evidence.grader_step_workflow_path, prefix)}>
+            {t("approval_evidence_grader_step_link")}
+          </Link>
+        </>
       ) : null}
     </p>
   )
@@ -1515,7 +1863,10 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
   const [addingEpicDependency, setAddingEpicDependency] = useState(false)
   const dependencyOptions = useQuery({
     queryKey: ["job", payload.job.id, "dependency_options"],
-    queryFn: () => fetchJobDependencyOptions(payload.paths.app_dependency_options_path || `${payload.paths.app_dependencies_path.replace(/\/dependencies$/, "")}/dependency_options`),
+    queryFn: () =>
+      fetchJobDependencyOptions(
+        payload.paths.app_dependency_options_path || `${payload.paths.app_dependencies_path.replace(/\/dependencies$/, "")}/dependency_options`
+      ),
     enabled: addingDependency || addingEpicDependency,
     staleTime: 30000
   })
@@ -1523,27 +1874,37 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
   const epicDependencyOptions = dependencyOptions.data?.epic_dependency_target_options ?? payload.epic_dependency_target_options
 
   const trimmedQuery = query.trim()
-  const filteredOptions = trimmedQuery.length > 0
-    ? jobDependencyOptions.filter((option) => option.label.toLowerCase().includes(trimmedQuery.toLowerCase()))
-    : jobDependencyOptions
+  const filteredOptions =
+    trimmedQuery.length > 0 ? jobDependencyOptions.filter((option) => option.label.toLowerCase().includes(trimmedQuery.toLowerCase())) : jobDependencyOptions
 
   const trimmedEpicQuery = epicQuery.trim()
-  const filteredEpicOptions = trimmedEpicQuery.length > 0
-    ? epicDependencyOptions.filter((option) => option.label.toLowerCase().includes(trimmedEpicQuery.toLowerCase()))
-    : epicDependencyOptions
+  const filteredEpicOptions =
+    trimmedEpicQuery.length > 0
+      ? epicDependencyOptions.filter((option) => option.label.toLowerCase().includes(trimmedEpicQuery.toLowerCase()))
+      : epicDependencyOptions
 
   function choose(value: string) {
-    command.mutate({ method: "post", path: payload.paths.app_dependencies_path, body: { dependency_target: value } }, { onSuccess: () => {
-      setQuery("")
-      setAddingDependency(false)
-    }})
+    command.mutate(
+      { method: "post", path: payload.paths.app_dependencies_path, body: { dependency_target: value } },
+      {
+        onSuccess: () => {
+          setQuery("")
+          setAddingDependency(false)
+        }
+      }
+    )
   }
 
   function chooseEpic(epicId: number) {
-    command.mutate({ method: "post", path: payload.paths.app_epic_dependencies_path, body: { depends_on_epic_id: epicId } }, { onSuccess: () => {
-      setEpicQuery("")
-      setAddingEpicDependency(false)
-    }})
+    command.mutate(
+      { method: "post", path: payload.paths.app_epic_dependencies_path, body: { depends_on_epic_id: epicId } },
+      {
+        onSuccess: () => {
+          setEpicQuery("")
+          setAddingEpicDependency(false)
+        }
+      }
+    )
   }
 
   function cancelAdding() {
@@ -1567,18 +1928,50 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
               return (
                 <li className="flex flex-wrap items-center justify-between gap-2 py-2" key={dependency.id}>
                   <span className="flex flex-wrap items-center gap-2">
-                    <span><DependencyLink dependency={dependency} /> <span className="text-xs text-gray-400 dark:text-gray-500">({dependency.source})</span></span>
-                    {!dependency.succeeded ? (
-                      <TonePill tone="amber">{t("dependency_not_yet_satisfied")}</TonePill>
-                    ) : null}
+                    <span>
+                      <DependencyLink dependency={dependency} /> <span className="text-xs text-gray-400 dark:text-gray-500">({dependency.source})</span>
+                    </span>
+                    {!dependency.succeeded ? <TonePill tone="amber">{t("dependency_not_yet_satisfied")}</TonePill> : null}
                   </span>
-                  {dependency.manual && !epicTarget ? <button className="text-xs text-red-600 hover:underline" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_dependencies_path}/${dependency.id}`, confirm: t("confirm_remove_dependency") })} type="button">{t("remove_dependency")}</button> : null}
-                  {dependency.manual && epicTarget ? <button className="text-xs text-red-600 hover:underline" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_epic_dependencies_path}/${epicTarget.id}`, confirm: t("confirm_remove_epic_dependency", { slug: epicTarget.slug }) })} type="button">{t("remove_dependency")}</button> : null}
+                  {dependency.manual && !epicTarget ? (
+                    <button
+                      className="text-xs text-red-600 hover:underline"
+                      disabled={command.isPending}
+                      onClick={() =>
+                        command.mutate({
+                          method: "delete",
+                          path: `${payload.paths.app_dependencies_path}/${dependency.id}`,
+                          confirm: t("confirm_remove_dependency")
+                        })
+                      }
+                      type="button"
+                    >
+                      {t("remove_dependency")}
+                    </button>
+                  ) : null}
+                  {dependency.manual && epicTarget ? (
+                    <button
+                      className="text-xs text-red-600 hover:underline"
+                      disabled={command.isPending}
+                      onClick={() =>
+                        command.mutate({
+                          method: "delete",
+                          path: `${payload.paths.app_epic_dependencies_path}/${epicTarget.id}`,
+                          confirm: t("confirm_remove_epic_dependency", { slug: epicTarget.slug })
+                        })
+                      }
+                      type="button"
+                    >
+                      {t("remove_dependency")}
+                    </button>
+                  ) : null}
                 </li>
               )
             })}
           </ul>
-        ) : <p className="mt-2 text-gray-400 dark:text-gray-500">{t("section_no_dependencies")}</p>}
+        ) : (
+          <p className="mt-2 text-gray-400 dark:text-gray-500">{t("section_no_dependencies")}</p>
+        )}
         {addingDependency ? (
           <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
             <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
@@ -1609,11 +2002,20 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                     ))}
                   </div>
                 ) : trimmedQuery.length > 0 ? (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">{t("dependency_no_matches")}</div>
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">
+                    {t("dependency_no_matches")}
+                  </div>
                 ) : null}
               </div>
             </label>
-            <button className="mt-2 text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={cancelAdding} type="button">{t("cancel")}</button>
+            <button
+              className="mt-2 text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={command.isPending}
+              onClick={cancelAdding}
+              type="button"
+            >
+              {t("cancel")}
+            </button>
           </div>
         ) : addingEpicDependency ? (
           <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
@@ -1645,17 +2047,30 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                     ))}
                   </div>
                 ) : trimmedEpicQuery.length > 0 ? (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">{t("epic_dependency_no_matches")}</div>
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">
+                    {t("epic_dependency_no_matches")}
+                  </div>
                 ) : null}
               </div>
             </label>
-            <button className="mt-2 text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={cancelAddingEpic} type="button">{t("cancel")}</button>
+            <button
+              className="mt-2 text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={command.isPending}
+              onClick={cancelAddingEpic}
+              type="button"
+            >
+              {t("cancel")}
+            </button>
           </div>
         ) : (
           <div className="mt-3 flex flex-wrap gap-3 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <button className="text-xs font-medium text-brand hover:underline" onClick={() => setAddingDependency(true)} type="button">{t("add_dependency")}</button>
+            <button className="text-xs font-medium text-brand hover:underline" onClick={() => setAddingDependency(true)} type="button">
+              {t("add_dependency")}
+            </button>
             {epicDependencyOptions.length > 0 || !dependencyOptions.isSuccess ? (
-              <button className="text-xs font-medium text-brand hover:underline" onClick={() => setAddingEpicDependency(true)} type="button">{t("add_epic_dependency")}</button>
+              <button className="text-xs font-medium text-brand hover:underline" onClick={() => setAddingEpicDependency(true)} type="button">
+                {t("add_epic_dependency")}
+              </button>
             ) : null}
           </div>
         )}
@@ -1675,8 +2090,6 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
     </div>
   )
 }
-
-
 
 export function ArtifactsTab({ artifacts }: { artifacts: TypedArtifact[] }) {
   const { t } = useT("jobs")
@@ -1699,7 +2112,15 @@ export function ArtifactsTab({ artifacts }: { artifacts: TypedArtifact[] }) {
   )
 }
 
-function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; onNotice: (message: string | null) => void }) {
+function AttachmentsTab({
+  payload,
+  queryKey,
+  onNotice
+}: {
+  payload: JobDetailPayload
+  queryKey: JobDetailQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const [files, setFiles] = useState<File[]>([])
@@ -1739,9 +2160,17 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
           </label>
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {t("attachment_google_doc_label")}
-            <Input className="mt-1" onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder={t("attachment_google_doc_placeholder")} type="url" value={googleDocUrl} />
+            <Input
+              className="mt-1"
+              onChange={(event) => setGoogleDocUrl(event.target.value)}
+              placeholder={t("attachment_google_doc_placeholder")}
+              type="url"
+              value={googleDocUrl}
+            />
           </label>
-          <Button disabled={add.isPending || (files.length === 0 && googleDocUrl.trim() === "")} type="submit">{t("attachment_add_button")}</Button>
+          <Button disabled={add.isPending || (files.length === 0 && googleDocUrl.trim() === "")} type="submit">
+            {t("attachment_add_button")}
+          </Button>
         </div>
         {add.isError ? <p className="mt-2 text-sm text-red-700">{errorMessage(add.error, t("attachment_add_error"))}</p> : null}
       </form>
@@ -1751,11 +2180,20 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
           {payload.attachments.map((attachment) => (
             <div className="relative" key={attachment.id}>
               <AttachmentCard attachment={attachment} />
-              <button className="absolute right-2 top-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:text-red-300 dark:hover:bg-red-950/40" disabled={remove.isPending} onClick={() => remove.mutate(attachment.app_delete_path)} type="button">{t("attachment_remove")}</button>
+              <button
+                className="absolute right-2 top-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:text-red-300 dark:hover:bg-red-950/40"
+                disabled={remove.isPending}
+                onClick={() => remove.mutate(attachment.app_delete_path)}
+                type="button"
+              >
+                {t("attachment_remove")}
+              </button>
             </div>
           ))}
         </div>
-      ) : <PanelMessage>{t("section_no_attachments")}</PanelMessage>}
+      ) : (
+        <PanelMessage>{t("section_no_attachments")}</PanelMessage>
+      )}
       {remove.isError ? <PanelMessage tone="error">{errorMessage(remove.error, t("attachment_remove_error"))}</PanelMessage> : null}
     </section>
   )

@@ -164,15 +164,15 @@ export function buildArtifactRendererFeedbackPrompt(promptText: string, metadata
 // chat-scoped artifacts generally carry none of these (see TypedArtifact).
 function provenanceItems(artifact: TypedArtifact, t: (key: string, options?: Record<string, unknown>) => string): Array<[string, string]> {
   const fields: Array<[string, unknown]> = [
-    [ t("artifact_renderers.meta_workflow_id"), artifact.workflow_id ],
-    [ t("artifact_renderers.meta_run_id"), artifact.run_id ],
-    [ t("artifact_renderers.meta_step_id"), artifact.step_id ],
-    [ t("artifact_renderers.meta_trigger_kind"), artifact.trigger_kind ],
-    [ t("artifact_renderers.meta_base_sha"), artifact.base_sha ],
-    [ t("artifact_renderers.meta_head_sha"), artifact.head_sha ],
-    [ t("artifact_renderers.meta_diff_review_version_id"), artifact.diff_review_version_id ]
+    [t("artifact_renderers.meta_workflow_id"), artifact.workflow_id],
+    [t("artifact_renderers.meta_run_id"), artifact.run_id],
+    [t("artifact_renderers.meta_step_id"), artifact.step_id],
+    [t("artifact_renderers.meta_trigger_kind"), artifact.trigger_kind],
+    [t("artifact_renderers.meta_base_sha"), artifact.base_sha],
+    [t("artifact_renderers.meta_head_sha"), artifact.head_sha],
+    [t("artifact_renderers.meta_diff_review_version_id"), artifact.diff_review_version_id]
   ]
-  return fields.filter((pair): pair is [string, string | number] => pair[1] !== null && pair[1] !== undefined).map(([ label, value ]) => [ label, String(value) ])
+  return fields.filter((pair): pair is [string, string | number] => pair[1] !== null && pair[1] !== undefined).map(([label, value]) => [label, String(value)])
 }
 
 export function AdminArtifactRenderers() {
@@ -186,35 +186,38 @@ export function AdminArtifactRenderers() {
   const rendererTypeOptions = useMemo(() => {
     const names = Array.from(new Set(allEntries.map((entry) => entry.rendererType))).sort()
     return names.map((name) => ({ value: name, label: name }))
-  }, [ allEntries ])
+  }, [allEntries])
 
   const pluginNameOptions = useMemo(() => {
-    const names = Array.from(new Set(allEntries.flatMap((entry) => (entry.pluginName ? [ entry.pluginName ] : [])))).sort()
+    const names = Array.from(new Set(allEntries.flatMap((entry) => (entry.pluginName ? [entry.pluginName] : [])))).sort()
     return names.map((name) => ({ value: name, label: name }))
-  }, [ allEntries ])
+  }, [allEntries])
 
   const payloadShapeOptions = useMemo(() => {
     const shapes = Array.from(new Set(allEntries.map((entry) => entry.supportedPayloadShape))).sort()
     return shapes.map((shape) => ({ value: shape, label: shape }))
-  }, [ allEntries ])
+  }, [allEntries])
 
-  const filterSchema: FilterSchemaField[] = useMemo(() => [
-    { field: "artifact_type", label: t("artifact_renderers.filter_artifact_type"), bucket: "text", operators: [ "contains" ], values: [] },
-    { field: "renderer_type", label: t("artifact_renderers.filter_renderer_type"), bucket: "select", operators: [ "is" ], values: rendererTypeOptions },
-    { field: "owner_type", label: t("artifact_renderers.filter_owner_type"), bucket: "select", operators: [ "is" ], values: OWNER_TYPE_OPTIONS },
-    { field: "plugin_name", label: t("artifact_renderers.filter_plugin_name"), bucket: "select", operators: [ "is" ], values: pluginNameOptions },
-    { field: "example_label", label: t("artifact_renderers.filter_example_label"), bucket: "text", operators: [ "contains" ], values: [] },
-    { field: "status", label: t("artifact_renderers.filter_status"), bucket: "select", operators: [ "is" ], values: STATUS_OPTIONS },
-    { field: "payload_shape", label: t("artifact_renderers.filter_payload_shape"), bucket: "select", operators: [ "is" ], values: payloadShapeOptions }
-  ], [ t, rendererTypeOptions, pluginNameOptions, payloadShapeOptions ])
+  const filterSchema: FilterSchemaField[] = useMemo(
+    () => [
+      { field: "artifact_type", label: t("artifact_renderers.filter_artifact_type"), bucket: "text", operators: ["contains"], values: [] },
+      { field: "renderer_type", label: t("artifact_renderers.filter_renderer_type"), bucket: "select", operators: ["is"], values: rendererTypeOptions },
+      { field: "owner_type", label: t("artifact_renderers.filter_owner_type"), bucket: "select", operators: ["is"], values: OWNER_TYPE_OPTIONS },
+      { field: "plugin_name", label: t("artifact_renderers.filter_plugin_name"), bucket: "select", operators: ["is"], values: pluginNameOptions },
+      { field: "example_label", label: t("artifact_renderers.filter_example_label"), bucket: "text", operators: ["contains"], values: [] },
+      { field: "status", label: t("artifact_renderers.filter_status"), bucket: "select", operators: ["is"], values: STATUS_OPTIONS },
+      { field: "payload_shape", label: t("artifact_renderers.filter_payload_shape"), bucket: "select", operators: ["is"], values: payloadShapeOptions }
+    ],
+    [t, rendererTypeOptions, pluginNameOptions, payloadShapeOptions]
+  )
 
-  const filters = useMemo(() => catalogFiltersFromSearch(FILTER_FIELDS, search), [ search ])
-  const filterTree = useMemo(() => catalogFilterTreeFromSearch(FILTER_FIELDS, TEXT_FILTER_FIELDS, search), [ search ])
-  const selectedViewport = useMemo(() => viewportPresetFromSearch(search), [ search ])
+  const filters = useMemo(() => catalogFiltersFromSearch(FILTER_FIELDS, search), [search])
+  const filterTree = useMemo(() => catalogFilterTreeFromSearch(FILTER_FIELDS, TEXT_FILTER_FIELDS, search), [search])
+  const selectedViewport = useMemo(() => viewportPresetFromSearch(search), [search])
 
   const filteredEntries = useMemo(
     () => allEntries.filter((entry) => matchesFilters(entry, filters)).sort((left, right) => left.rendererType.localeCompare(right.rendererType)),
-    [ allEntries, filters ]
+    [allEntries, filters]
   )
 
   const params = new URLSearchParams(search)
@@ -224,7 +227,7 @@ export function AdminArtifactRenderers() {
   useCatalogDeepLinkScroll(deepLinkRenderer ? anchorId(deepLinkRenderer) : null, filteredEntries)
 
   return (
-    <Page.Root size="wide">
+    <Page.Root gutter="responsive" size="wide">
       <Page.Header>
         <Page.HeadingGroup>
           <Page.Title>{t("artifact_renderers.heading")}</Page.Title>
@@ -232,18 +235,22 @@ export function AdminArtifactRenderers() {
         </Page.HeadingGroup>
       </Page.Header>
 
-      <FilterBar buildLink={catalogFilterLink} filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={search} />
+      <Page.Nav className="space-y-4">
+        <FilterBar buildLink={catalogFilterLink} filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={search} />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Text muted variant="caption">{t("artifact_renderers.showing", { count: filteredEntries.length, total: allEntries.length })}</Text>
-        <CatalogViewportSwitcher
-          ariaLabel={t("artifact_renderers.viewport_switcher_aria")}
-          labelFor={(preset) => t(`artifact_renderers.viewport_${preset.id}`, { width: preset.width })}
-          pathname={location.pathname}
-          search={search}
-          selected={selectedViewport.id}
-        />
-      </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Text muted variant="caption">
+            {t("artifact_renderers.showing", { count: filteredEntries.length, total: allEntries.length })}
+          </Text>
+          <CatalogViewportSwitcher
+            ariaLabel={t("artifact_renderers.viewport_switcher_aria")}
+            labelFor={(preset) => t(`artifact_renderers.viewport_${preset.id}`, { width: preset.width })}
+            pathname={location.pathname}
+            search={search}
+            selected={selectedViewport.id}
+          />
+        </div>
+      </Page.Nav>
 
       {filteredEntries.length === 0 ? (
         <PanelMessage>{t("artifact_renderers.no_match")}</PanelMessage>
@@ -280,7 +287,7 @@ export function ArtifactCatalogEntry({
   const { t } = useT("syrus_dev")
   const { copied, copy } = useCopyToClipboard()
   const hasInitialMatch = Boolean(initialExampleId && entry.examples.some((example) => example.id === initialExampleId))
-  const [ selectedId, setSelectedId ] = useState<string | null>(hasInitialMatch ? (initialExampleId as string) : entry.examples[0]?.id ?? null)
+  const [selectedId, setSelectedId] = useState<string | null>(hasInitialMatch ? (initialExampleId as string) : (entry.examples[0]?.id ?? null))
   const id = anchorId(entry.rendererType)
   const headingId = `${id}-heading`
   const previewFrameRef = useRef<HTMLDivElement | null>(null)
@@ -308,7 +315,8 @@ export function ArtifactCatalogEntry({
         </div>
         <Section.Actions>
           <Badge tone={ownerTone(entry.ownerType)}>
-            {entry.ownerType}{entry.pluginName ? ` · ${entry.pluginName}` : ""}
+            {entry.ownerType}
+            {entry.pluginName ? ` · ${entry.pluginName}` : ""}
           </Badge>
           {statusFor(entry) === "fallback" ? <Badge tone="warning">{t("artifact_renderers.status_fallback")}</Badge> : null}
           {entry.fallbackOnly ? <Badge tone="warning">{t("artifact_renderers.fallback_only")}</Badge> : null}
@@ -326,7 +334,11 @@ export function ArtifactCatalogEntry({
               selectedId={selectedExample?.id ?? null}
             />
 
-            {selectedExample?.description ? <Text tone="muted" variant="caption">{selectedExample.description}</Text> : null}
+            {selectedExample?.description ? (
+              <Text tone="muted" variant="caption">
+                {selectedExample.description}
+              </Text>
+            ) : null}
             {selectedExample?.expectedFallback ? <Badge tone="warning">{t("artifact_renderers.expected_fallback")}</Badge> : null}
 
             <div className="flex items-center justify-between gap-2">
@@ -339,7 +351,9 @@ export function ArtifactCatalogEntry({
                   selectedArtifact={selectedExample.artifact}
                   viewportPresetId={viewportPresetId}
                 />
-              ) : <span />}
+              ) : (
+                <span />
+              )}
               <button
                 className="text-xs text-brand underline hover:no-underline"
                 onClick={() => selectedExample && copy(deepLinkFor(selectedExample.id))}
@@ -423,14 +437,21 @@ function ArtifactMetadataPanel({ artifact, entry }: { artifact: TypedArtifact; e
   return (
     <DescriptionList.Root density="compact">
       <DescriptionList.Item label={t("artifact_renderers.meta_title")}>{artifact.title}</DescriptionList.Item>
-      <DescriptionList.Item label={t("artifact_renderers.meta_type")}><code>{artifact.type}</code></DescriptionList.Item>
-      <DescriptionList.Item label={t("artifact_renderers.meta_renderer_type")}><code>{entry.rendererType}</code></DescriptionList.Item>
+      <DescriptionList.Item label={t("artifact_renderers.meta_type")}>
+        <code>{artifact.type}</code>
+      </DescriptionList.Item>
+      <DescriptionList.Item label={t("artifact_renderers.meta_renderer_type")}>
+        <code>{entry.rendererType}</code>
+      </DescriptionList.Item>
       <DescriptionList.Item label={t("artifact_renderers.meta_owner")}>
-        {entry.ownerType}{entry.pluginName ? ` · ${entry.pluginName}` : ""}
+        {entry.ownerType}
+        {entry.pluginName ? ` · ${entry.pluginName}` : ""}
       </DescriptionList.Item>
       <DescriptionList.Item label={t("artifact_renderers.meta_created_at")}>{artifact.created_at}</DescriptionList.Item>
-      {provenanceItems(artifact, t).map(([ label, value ]) => (
-        <DescriptionList.Item key={label} label={label}>{value}</DescriptionList.Item>
+      {provenanceItems(artifact, t).map(([label, value]) => (
+        <DescriptionList.Item key={label} label={label}>
+          {value}
+        </DescriptionList.Item>
       ))}
       <DescriptionList.Item label={t("artifact_renderers.meta_payload")}>{payloadSummary(artifact.payload, t)}</DescriptionList.Item>
     </DescriptionList.Root>

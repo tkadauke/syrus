@@ -3,7 +3,14 @@ import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation } from "react-router-dom"
 import { useState } from "react"
-import { fallbackSearchTypeOptions, fetchSearch, type SearchResult, type SearchResultType, type SearchTypeOption, type TestCaseSearchResult } from "../api/search"
+import {
+  fallbackSearchTypeOptions,
+  fetchSearch,
+  type SearchResult,
+  type SearchResultType,
+  type SearchTypeOption,
+  type TestCaseSearchResult
+} from "../api/search"
 import { ChevronIcon } from "@app/components/ChevronIcon"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -68,10 +75,10 @@ export function SearchRoute() {
   const filters = [{ type: "all", label: "All" }, ...typeFilters]
 
   return (
-    <Page.Root aria-label={t("search_aria")} className="max-w-[72rem]">
+    <Page.Root aria-label={t("search_aria")} className="max-w-[72rem]" gutter="responsive">
       <Page.Header className="space-y-4">
         <div>
-          <PageHeading>{t('search.heading')}</PageHeading>
+          <PageHeading>{t("search.heading")}</PageHeading>
           <Page.Description>{query ? `Results for "${query}"` : "Search jobs, epics, chats, and tests."}</Page.Description>
         </div>
         <nav aria-label={t("search_type_filters_aria")} className="flex flex-wrap gap-2">
@@ -96,18 +103,20 @@ export function SearchRoute() {
       </Page.Header>
 
       {query.length === 0 ? (
-        <Notice>{t('search.use_sidebar')}</Notice>
+        <Notice>{t("search.use_sidebar")}</Notice>
       ) : query.length < 2 ? (
-        <Notice>{t('search.min_chars')}</Notice>
+        <Notice>{t("search.min_chars")}</Notice>
       ) : search.isPending ? (
         <SearchSkeleton />
       ) : search.isError ? (
-        <Notice tone="danger">{t('search.error')}</Notice>
+        <Notice tone="danger">{t("search.error")}</Notice>
       ) : results.length === 0 ? (
-        <Notice>{t('search.no_results')}</Notice>
+        <Notice>{t("search.no_results")}</Notice>
       ) : (
         <Section.Root className="divide-y divide-border overflow-hidden p-0">
-          {results.map((result) => <SearchResultRow key={`${result.type}-${result.id}`} result={result} />)}
+          {results.map((result) => (
+            <SearchResultRow key={`${result.type}-${result.id}`} result={result} />
+          ))}
         </Section.Root>
       )}
     </Page.Root>
@@ -132,8 +141,16 @@ function SearchResultRow({ result }: { result: SearchResult }) {
                 <CopyableSlug slug={result.slug} />
               </SlugHoverCard>
             ) : null}
-            {result.repository_slug ? <Text as="span" variant="caption" tone="muted">{result.repository_slug}</Text> : null}
-            {result.state ? <Text as="span" className="capitalize" variant="caption" tone="muted">{result.state.replace(/_/g, " ")}</Text> : null}
+            {result.repository_slug ? (
+              <Text as="span" variant="caption" tone="muted">
+                {result.repository_slug}
+              </Text>
+            ) : null}
+            {result.state ? (
+              <Text as="span" className="capitalize" variant="caption" tone="muted">
+                {result.state.replace(/_/g, " ")}
+              </Text>
+            ) : null}
           </div>
           <SectionHeading className="mt-2">
             <Link className="break-words hover:text-brand hover:underline dark:hover:text-brand-emphasis" to={withRoutePrefix(result.path, prefix)}>
@@ -145,7 +162,9 @@ function SearchResultRow({ result }: { result: SearchResult }) {
           <ResultMetadata result={result} />
           {hasGroupedMatches ? <GroupedChatMatches result={result} routePrefix={prefix} /> : null}
         </div>
-        {result.updated_at || result.created_at ? <RelativeTimestamp className="shrink-0 text-xs text-text-muted" value={result.updated_at || result.created_at} /> : null}
+        {result.updated_at || result.created_at ? (
+          <RelativeTimestamp className="shrink-0 text-xs text-text-muted" value={result.updated_at || result.created_at} />
+        ) : null}
       </div>
     </article>
   )
@@ -163,7 +182,12 @@ function ResultMetadata({ result }: { result: SearchResult }) {
   return (
     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
       {parts.join(" · ")}
-      {result.updated_at ? <> <RelativeTimestamp value={result.updated_at} /></> : null}
+      {result.updated_at ? (
+        <>
+          {" "}
+          <RelativeTimestamp value={result.updated_at} />
+        </>
+      ) : null}
     </p>
   )
 }
@@ -195,9 +219,14 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
         type="button"
       >
         <ChevronIcon className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
-        {expanded ? t('search.hide') : t('search.show')} {groupedMatches.length} {groupedMatches.length === 1 ? t('search.match_more') : t('search.matches_more')}
+        {expanded ? t("search.hide") : t("search.show")} {groupedMatches.length}{" "}
+        {groupedMatches.length === 1 ? t("search.match_more") : t("search.matches_more")}
       </button>
-      {!expanded ? <Text as="span" className="ml-2" variant="caption" tone="muted">{hiddenMatchCount} {t('search.more')} {matchLabel} {t('search.in_this_chat')}</Text> : null}
+      {!expanded ? (
+        <Text as="span" className="ml-2" variant="caption" tone="muted">
+          {hiddenMatchCount} {t("search.more")} {matchLabel} {t("search.in_this_chat")}
+        </Text>
+      ) : null}
       {expanded ? (
         <div className="mt-3 divide-y divide-border border-t border-border">
           {groupedMatches.map((match) => (
@@ -206,7 +235,11 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
               {match.created_at ? <RelativeTimestamp className="mt-1 block text-xs text-text-muted" value={match.created_at} /> : null}
             </Link>
           ))}
-          {result.has_more_matches ? <Text className="py-3" variant="caption" tone="muted">{t('search.top_matches_shown', { count: groupedMatches.length })}</Text> : null}
+          {result.has_more_matches ? (
+            <Text className="py-3" variant="caption" tone="muted">
+              {t("search.top_matches_shown", { count: groupedMatches.length })}
+            </Text>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -317,7 +350,7 @@ function isEncodedFilterTree(value: string) {
   if (!value) return false
 
   try {
-    const padded = value.padEnd(value.length + ((4 - value.length % 4) % 4), "=")
+    const padded = value.padEnd(value.length + ((4 - (value.length % 4)) % 4), "=")
     const json = window.atob(padded.replace(/-/g, "+").replace(/_/g, "/"))
     const parsed = JSON.parse(json)
     return Boolean(parsed && typeof parsed === "object" && !Array.isArray(parsed))

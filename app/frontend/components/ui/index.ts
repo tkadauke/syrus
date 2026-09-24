@@ -13,7 +13,16 @@ export { Cluster, Inline, Stack, Toolbar } from "./Layout"
 export type { ClusterProps, InlineProps, LayoutAlign, LayoutGap, LayoutJustify, StackProps, ToolbarProps } from "./Layout"
 
 export { DataTable } from "./DataTable"
-export type { DataTableAlign, DataTableCellProps, DataTableDensity, DataTableEmptyProps, DataTableHeadCellProps, DataTableRootProps, DataTableRowProps, DataTableSortDirection } from "./DataTable"
+export type {
+  DataTableAlign,
+  DataTableCellProps,
+  DataTableDensity,
+  DataTableEmptyProps,
+  DataTableHeadCellProps,
+  DataTableRootProps,
+  DataTableRowProps,
+  DataTableSortDirection
+} from "./DataTable"
 
 export { CodeSurface } from "./CodeSurface"
 export type { CodeSurfaceMode, CodeSurfaceProps } from "./CodeSurface"
@@ -39,8 +48,8 @@ export type { ModalProps } from "../Modal"
 export { Notice } from "./Notice"
 export type { NoticeProps, NoticeTone } from "./Notice"
 
-export { Page } from "./Page"
-export type { PageRootProps, PageSize } from "./Page"
+export { Page, usePageGutter, usePageGutterRestoreClassName } from "./Page"
+export type { PageGutter, PageRootProps, PageSize } from "./Page"
 
 export { PanelMessage } from "../PanelMessage"
 
@@ -53,12 +62,7 @@ export type { SelectProps } from "../Select"
 export { Section } from "./Section"
 export type { SectionRootProps, SectionTone } from "./Section"
 
-export {
-  BANNER_TONE_CLASSES,
-  PILL_TONE_CLASSES,
-  StatusPill,
-  TonePill
-} from "../StatusPill"
+export { BANNER_TONE_CLASSES, PILL_TONE_CLASSES, StatusPill, TonePill } from "../StatusPill"
 export type { BannerTone, PillTone } from "../StatusPill"
 
 export { Surface, surfaceClasses, SURFACE_CLIP_ROUNDED_CLASS, SURFACE_PADDING_CLASSES, SURFACE_VARIANT_CLASSES } from "./Surface"

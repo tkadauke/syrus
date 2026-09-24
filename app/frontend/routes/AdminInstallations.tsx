@@ -13,7 +13,7 @@ import { ApiError } from "../api/client"
 import { Button } from "../components/Button"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
-import { DataTable } from "../components/ui"
+import { DataTable, Page } from "../components/ui"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -33,19 +33,17 @@ export function AdminInstallations() {
   })
 
   return (
-    <main aria-label={t("aria_installations")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("aria_installations")} gutter="responsive">
+      <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
         <PageHeading className="mt-1">{t("installations.heading")}</PageHeading>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {t("installations.description")}
-        </p>
-      </header>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("installations.description")}</p>
+      </Page.Header>
 
       {installations.isPending ? <PanelMessage>{t("installations.loading")}</PanelMessage> : null}
       {installations.isError ? <InstallationsError error={installations.error} /> : null}
       {installations.isSuccess ? <InstallationsView payload={installations.data} prefix={prefix} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -58,7 +56,12 @@ function InstallationsView({ payload, prefix }: { payload: AdminInstallationsPay
         <section className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
           <div className="font-semibold">{t("installations.app_not_registered_title")}</div>
           <p className="mt-1">{t("installations.app_not_registered_body")}</p>
-          <Link className="mt-3 inline-block rounded bg-amber-600 dark:bg-amber-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500 dark:hover:bg-amber-400" to={withRoutePrefix("/admin/github_app/register", prefix)}>{t("installations.run_manifest_flow")}</Link>
+          <Link
+            className="mt-3 inline-block rounded bg-amber-600 dark:bg-amber-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500 dark:hover:bg-amber-400"
+            to={withRoutePrefix("/admin/github_app/register", prefix)}
+          >
+            {t("installations.run_manifest_flow")}
+          </Link>
         </section>
       ) : null}
 
@@ -71,9 +74,7 @@ function InstallationsView({ payload, prefix }: { payload: AdminInstallationsPay
         <CredentialModeComparison />
       </section>
 
-      {payload.github_app_registered && payload.pat_owner_groups.length > 0 ? (
-        <PatOwnerGroups groups={payload.pat_owner_groups} />
-      ) : null}
+      {payload.github_app_registered && payload.pat_owner_groups.length > 0 ? <PatOwnerGroups groups={payload.pat_owner_groups} /> : null}
 
       <RepositoriesTable repositories={payload.repositories} />
     </>
@@ -90,13 +91,21 @@ function SyncStatus({ payload }: { payload: AdminInstallationsPayload }) {
     t("installations.sync_successful", { value: successful }),
     sync.records_seen == null ? null : t("installations.sync_records", { count: sync.records_seen }),
     sync.duration_ms == null ? null : t("installations.sync_duration", { value: sync.duration_ms })
-  ].filter(Boolean).join(" · ")
+  ]
+    .filter(Boolean)
+    .join(" · ")
 
   return (
-    <div className={`rounded border px-4 py-3 text-sm ${sync.error_class ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"}`}>
+    <div
+      className={`rounded border px-4 py-3 text-sm ${sync.error_class ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"}`}
+    >
       <div className="font-medium text-gray-900 dark:text-gray-100">{t("installations.sync_status")}</div>
       <div className="mt-1">{details}</div>
-      {sync.error_class ? <div className="mt-1 font-mono text-xs">{sync.error_class}: {sync.error_message}</div> : null}
+      {sync.error_class ? (
+        <div className="mt-1 font-mono text-xs">
+          {sync.error_class}: {sync.error_message}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -112,10 +121,7 @@ function RefreshButton() {
   })
 
   return (
-    <Button
-      disabled={refresh.isPending}
-      onClick={() => refresh.mutate()}
-    >
+    <Button disabled={refresh.isPending} onClick={() => refresh.mutate()}>
       {refresh.isPending ? t("installations.refreshing") : t("installations.refresh")}
     </Button>
   )
@@ -171,7 +177,12 @@ function PatOwnerGroups({ groups }: { groups: PatOwnerGroup[] }) {
               <div className="text-xs text-gray-500 dark:text-gray-400">{t("installations.pat_repos_count", { count: group.repository_count })}</div>
             </div>
             {group.install_url ? (
-              <a className="rounded bg-amber-600 dark:bg-amber-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500 dark:hover:bg-amber-400" href={group.install_url} rel="noopener" target="_blank">
+              <a
+                className="rounded bg-amber-600 dark:bg-amber-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500 dark:hover:bg-amber-400"
+                href={group.install_url}
+                rel="noopener"
+                target="_blank"
+              >
                 {t("installations.install_on_all")}
               </a>
             ) : (
@@ -189,23 +200,36 @@ const INSTALLATIONS_REPOSITORIES_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.admin.inst
 function buildInstallationsRepositoriesColumns(t: (key: string) => string): DataTableColumnDef<InstallationRepository>[] {
   return [
     { key: "repository", label: t("installations.col_repository"), required: true, cellClassName: "font-mono", renderCell: (repository) => repository.slug },
-    { key: "syrus_owner", label: t("installations.col_syrus_owner"), cellClassName: "text-gray-600 dark:text-gray-300", renderCell: (repository) => repository.owner_user.email_address },
+    {
+      key: "syrus_owner",
+      label: t("installations.col_syrus_owner"),
+      cellClassName: "text-gray-600 dark:text-gray-300",
+      renderCell: (repository) => repository.owner_user.email_address
+    },
     {
       key: "app_credential",
       label: t("installations.col_app_credential"),
-      renderCell: (repository) => repository.app_credential_active ? (
-        <span className="font-medium text-emerald-700 dark:text-emerald-300">{t("installations.app_active")}</span>
-      ) : (
-        <div>
-          <span className="text-gray-700 dark:text-gray-200">{t("installations.no_active_installation")}</span>
-          {repository.app_credential_inactive_reason ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{fallbackReasonLabel(repository.app_credential_inactive_reason, t)}</div> : null}
-        </div>
-      )
+      renderCell: (repository) =>
+        repository.app_credential_active ? (
+          <span className="font-medium text-emerald-700 dark:text-emerald-300">{t("installations.app_active")}</span>
+        ) : (
+          <div>
+            <span className="text-gray-700 dark:text-gray-200">{t("installations.no_active_installation")}</span>
+            {repository.app_credential_inactive_reason ? (
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{fallbackReasonLabel(repository.app_credential_inactive_reason, t)}</div>
+            ) : null}
+          </div>
+        )
     },
     {
       key: "pat_credential",
       label: t("installations.col_pat_credential"),
-      renderCell: (repository) => repository.app_credential_active ? <span className="text-gray-400">{t("installations.not_used")}</span> : <span className="font-medium text-amber-800 dark:text-amber-200">{t("installations.used_as_fallback")}</span>
+      renderCell: (repository) =>
+        repository.app_credential_active ? (
+          <span className="text-gray-400">{t("installations.not_used")}</span>
+        ) : (
+          <span className="font-medium text-amber-800 dark:text-amber-200">{t("installations.used_as_fallback")}</span>
+        )
     },
     {
       key: "account",
@@ -252,11 +276,13 @@ function RepositoriesTable({ repositories }: { repositories: InstallationReposit
           <DataTable.Body>
             {repositories.length === 0 ? (
               <DataTable.Empty colSpan={colSpan}>{t("installations.no_repositories")}</DataTable.Empty>
-            ) : repositories.map((repository) => (
-              <DataTable.Row key={repository.id}>
-                <DataTableColumnCells columns={columns} order={preferences.order} row={repository} />
-              </DataTable.Row>
-            ))}
+            ) : (
+              repositories.map((repository) => (
+                <DataTable.Row key={repository.id}>
+                  <DataTableColumnCells columns={columns} order={preferences.order} row={repository} />
+                </DataTable.Row>
+              ))
+            )}
           </DataTable.Body>
         </DataTable.Root>
       </div>

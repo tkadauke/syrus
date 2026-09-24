@@ -2,12 +2,26 @@ import { jsonResponse } from "../testSupport"
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 import type { EpicDetailJob, EpicDetailPayload } from "../api/epics"
-import { EpicDetail, JobsSection, ProgressBar, StateChips } from "./EpicDetail"
+import { EpicDetail, EpicDetailRoute, JobsSection, ProgressBar, StateChips } from "./EpicDetail"
 
 function job(state: string, overrides: Partial<EpicDetailJob> = {}): EpicDetailJob {
-  return { id: Math.random(), slug: "JOB-1", label: "JOB-1", title: "A job", path: "/jobs/1", state, landed: false, pr_number: null, pr_url: null, owner_user_id: null, owner_user: null, repository_slug: "owner/repo", ...overrides }
+  return {
+    id: Math.random(),
+    slug: "JOB-1",
+    label: "JOB-1",
+    title: "A job",
+    path: "/jobs/1",
+    state,
+    landed: false,
+    pr_number: null,
+    pr_url: null,
+    owner_user_id: null,
+    owner_user: null,
+    repository_slug: "owner/repo",
+    ...overrides
+  }
 }
 
 function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): EpicDetailPayload {
@@ -77,6 +91,34 @@ function renderDetail(payload: EpicDetailPayload) {
 }
 
 describe("EpicDetail", () => {
+  it("uses responsive page gutters while keeping the header inset", async () => {
+    const payload = detailPayload({ title: "Mobile gutter audit" })
+    payload.jobs = [job("ready")]
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/epics/3"]}>
+          <Routes>
+            <Route element={<EpicDetailRoute />} path="/epics/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Mobile gutter audit")
+    const main = screen.getByRole("main")
+    expect(main).toHaveClass("px-0", "sm:px-[var(--space-page-x)]")
+    expect(main).not.toHaveClass("px-[var(--space-page-x)]")
+
+    const header = main.querySelector("header")
+    expect(header).toHaveClass("px-4", "sm:px-0", "block", "space-y-3")
+
+    const jobsSection = screen.getByRole("heading", { name: "Jobs" }).closest("section")
+    expect(jobsSection).not.toHaveClass("px-4", "sm:px-0")
+  })
+
   it("shows the Epic's own state when no child Job is landing", () => {
     renderDetail(detailPayload({ state: "in_progress", landing: false }))
 
@@ -108,7 +150,6 @@ describe("EpicDetail origin_chat link", () => {
 
     expect(screen.queryByRole("link", { name: /view in chat/i })).not.toBeInTheDocument()
   })
-
 })
 
 describe("EpicDetail state transition confirm", () => {
@@ -141,10 +182,7 @@ describe("EpicDetail state transition confirm", () => {
     await waitFor(() => screen.getByRole("button", { name: "Confirm" }))
     await act(async () => screen.getByRole("button", { name: "Confirm" }).click())
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/epics/3/state",
-      expect.objectContaining({ method: "PATCH" })
-    ))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/epics/3/state", expect.objectContaining({ method: "PATCH" })))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
@@ -227,7 +265,7 @@ describe("EpicDetail dependency graph", () => {
           state: "ready",
           epic_id: null,
           url: "/epics/3",
-          is_focal: true,
+          is_focal: true
         },
         {
           id: "epic_4",
@@ -236,10 +274,10 @@ describe("EpicDetail dependency graph", () => {
           state: "ready",
           epic_id: null,
           url: "/epics/4",
-          is_focal: false,
-        },
+          is_focal: false
+        }
       ],
-      edges: [{ from_id: "epic_3", to_id: "epic_4" }],
+      edges: [{ from_id: "epic_3", to_id: "epic_4" }]
     }
 
     renderDetail(payload)
@@ -476,9 +514,7 @@ describe("EpicDetail deployment stages panel", () => {
 
   it("omits the Jobs table's stage columns now that stages live in the Details panel", () => {
     const payload = detailPayload()
-    payload.deployment_stages = [
-      { name: "staging", label: "On Staging", reached_count: 1, total: 1, reached_at: "2026-07-30T12:00:00Z" }
-    ]
+    payload.deployment_stages = [{ name: "staging", label: "On Staging", reached_count: 1, total: 1, reached_at: "2026-07-30T12:00:00Z" }]
     payload.jobs = [job("closed", { landed: true })]
 
     renderDetail(payload)

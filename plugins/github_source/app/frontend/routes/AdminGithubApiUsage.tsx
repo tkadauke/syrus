@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { Select } from "@app/components/Select"
 import { useState } from "react"
+import { Page } from "@app/components/ui"
 import { fetchGithubApiUsage, type GithubApiUsageOperationRow, type GithubApiUsageRepositoryRow } from "../api/githubApiUsage"
 
 function number(value: number | null | undefined) {
@@ -22,20 +23,15 @@ export default function AdminGithubApiUsage() {
   const payload = query.data
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <Page.Root aria-label="GitHub API Usage" gutter="responsive" size="large">
+      <Page.Header className="items-end">
         <div>
           <h1 className="text-3xl font-semibold text-gray-950 dark:text-gray-50">GitHub API Usage</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Hourly rollups by credential, operation, repository, and rate-limit resource.</p>
         </div>
         <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
           Window
-          <Select
-            className="ml-2"
-            fullWidth={false}
-            value={hours}
-            onChange={(event) => setHours(Number(event.target.value))}
-          >
+          <Select className="ml-2" fullWidth={false} value={hours} onChange={(event) => setHours(Number(event.target.value))}>
             <option value={1}>1 hour</option>
             <option value={6}>6 hours</option>
             <option value={24}>24 hours</option>
@@ -43,7 +39,7 @@ export default function AdminGithubApiUsage() {
             <option value={168}>7 days</option>
           </Select>
         </label>
-      </div>
+      </Page.Header>
 
       {query.isPending ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p> : null}
       {query.isError ? <p className="text-sm text-red-700 dark:text-red-300">Could not load GitHub API usage.</p> : null}
@@ -74,7 +70,7 @@ export default function AdminGithubApiUsage() {
           </section>
         </div>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 

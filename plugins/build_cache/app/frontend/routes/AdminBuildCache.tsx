@@ -26,9 +26,11 @@ export function AdminBuildCache() {
   const query = useQuery({ queryKey: QUERY_KEY, queryFn: fetchAdminBuildCache })
 
   return (
-    <Page.Root aria-label={t("build_cache.aria_main")}>
+    <Page.Root aria-label={t("build_cache.aria_main")} gutter="responsive">
       <Page.Header className="border-b border-border pb-4">
-        <Text className="font-medium uppercase" variant="caption" tone="muted">{t("admin:section_label")}</Text>
+        <Text className="font-medium uppercase" variant="caption" tone="muted">
+          {t("admin:section_label")}
+        </Text>
         <PageHeading>{t("build_cache.heading")}</PageHeading>
         <Page.Description>{t("build_cache.description")}</Page.Description>
       </Page.Header>
@@ -50,11 +52,7 @@ function BuildCacheContent({ payload }: { payload: AdminBuildCachePayload }) {
   return (
     <>
       <StatsCard payload={payload} />
-      {payload.pending_request ? (
-        <PendingRequestCard request={payload.pending_request} />
-      ) : (
-        <ClearRequestForm />
-      )}
+      {payload.pending_request ? <PendingRequestCard request={payload.pending_request} /> : <ClearRequestForm />}
       <RecentRequestsCard requests={payload.recent_requests} />
     </>
   )
@@ -69,7 +67,9 @@ function StatsCard({ payload }: { payload: AdminBuildCachePayload }) {
       <SectionHeading>{t("build_cache.stats_heading")}</SectionHeading>
 
       {payload.stats_error ? (
-        <Text className="mt-2" tone="danger">{payload.stats_error}</Text>
+        <Text className="mt-2" tone="danger">
+          {payload.stats_error}
+        </Text>
       ) : stats ? (
         <>
           <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
@@ -85,11 +85,15 @@ function StatsCard({ payload }: { payload: AdminBuildCachePayload }) {
             />
           </dl>
           {stats.truncated ? (
-            <Text className="mt-3" variant="caption" tone="warning">{t("build_cache.stats_truncated")}</Text>
+            <Text className="mt-3" variant="caption" tone="warning">
+              {t("build_cache.stats_truncated")}
+            </Text>
           ) : null}
         </>
       ) : (
-        <Text className="mt-2" tone="muted">{t("build_cache.stats_unavailable")}</Text>
+        <Text className="mt-2" tone="muted">
+          {t("build_cache.stats_unavailable")}
+        </Text>
       )}
     </Section.Root>
   )
@@ -112,11 +116,12 @@ function ClearRequestForm() {
   const [reason, setReason] = useState("")
 
   const create = useMutation({
-    mutationFn: () => createBuildCacheClearRequest({
-      scope,
-      older_than_days: scope === "partial" ? Number(olderThanDays) : null,
-      reason
-    }),
+    mutationFn: () =>
+      createBuildCacheClearRequest({
+        scope,
+        older_than_days: scope === "partial" ? Number(olderThanDays) : null,
+        reason
+      }),
     onSuccess: (updated) => {
       queryClient.setQueryData(QUERY_KEY, updated)
       setReason("")
@@ -141,7 +146,14 @@ function ClearRequestForm() {
           </label>
           <div className="flex items-center gap-2 text-sm text-text-primary">
             <label className="flex items-center gap-2">
-              <input checked={scope === "partial"} className="h-4 w-4 accent-brand" name="scope" onChange={() => setScope("partial")} type="radio" value="partial" />
+              <input
+                checked={scope === "partial"}
+                className="h-4 w-4 accent-brand"
+                name="scope"
+                onChange={() => setScope("partial")}
+                type="radio"
+                value="partial"
+              />
               {t("build_cache.scope_partial")}
             </label>
             <Form.Field controlId="build-cache-older-than-days">
@@ -172,7 +184,9 @@ function ClearRequestForm() {
         </Form.Field>
 
         {create.isError ? (
-          <Text role="alert" tone="danger">{create.error instanceof ApiError ? create.error.message : t("build_cache.error_generic")}</Text>
+          <Text role="alert" tone="danger">
+            {create.error instanceof ApiError ? create.error.message : t("build_cache.error_generic")}
+          </Text>
         ) : null}
 
         <Button disabled={create.isPending || !reason.trim()} type="submit" variant="primary">
@@ -198,9 +212,7 @@ function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
   })
 
   async function onConfirmClick() {
-    const message = request.scope === "full"
-      ? t("build_cache.confirm_full")
-      : t("build_cache.confirm_partial", { days: request.older_than_days })
+    const message = request.scope === "full" ? t("build_cache.confirm_full") : t("build_cache.confirm_partial", { days: request.older_than_days })
     if (await confirm({ message, destructive: true, confirmLabel: t("build_cache.confirm_button") })) {
       confirmMutation.mutate()
     }
@@ -216,11 +228,15 @@ function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
         <dt className="text-amber-700 dark:text-amber-300">{t("build_cache.pending_reason")}</dt>
         <dd className="whitespace-pre-wrap">{request.reason}</dd>
         <dt className="text-amber-700 dark:text-amber-300">{t("build_cache.pending_requested_by")}</dt>
-        <dd>{request.requested_by ?? "—"} · <RelativeTimestamp value={request.created_at} /></dd>
+        <dd>
+          {request.requested_by ?? "—"} · <RelativeTimestamp value={request.created_at} />
+        </dd>
       </dl>
 
       {confirmMutation.isError ? (
-        <Text className="mt-2" tone="danger">{confirmMutation.error instanceof ApiError ? confirmMutation.error.message : t("build_cache.error_generic")}</Text>
+        <Text className="mt-2" tone="danger">
+          {confirmMutation.error instanceof ApiError ? confirmMutation.error.message : t("build_cache.error_generic")}
+        </Text>
       ) : null}
 
       <div className="mt-3 flex gap-2">
@@ -241,9 +257,7 @@ function RecentRequestsCard({ requests }: { requests: BuildCacheClearRequest[] }
 
   return (
     <Section.Root className="overflow-hidden p-0" data-testid="build-cache-recent-requests">
-      <div className="border-b border-border px-4 py-3 text-sm font-semibold text-text-primary">
-        {t("build_cache.recent_heading")}
-      </div>
+      <div className="border-b border-border px-4 py-3 text-sm font-semibold text-text-primary">{t("build_cache.recent_heading")}</div>
       <ul className="divide-y divide-gray-100 dark:divide-gray-800">
         {requests.map((request) => (
           <li className="px-4 py-3 text-sm" key={request.id}>
@@ -271,15 +285,12 @@ function RecentRequestsCard({ requests }: { requests: BuildCacheClearRequest[] }
 
 function RequestStateBadge({ state }: { state: BuildCacheClearRequest["state"] }) {
   const { t } = useT("build_cache")
-  const classes = state === "confirmed"
-    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900"
-    : "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"
+  const classes =
+    state === "confirmed"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900"
+      : "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"
 
-  return (
-    <span className={`rounded border px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`build_cache.state_${state}`)}
-    </span>
-  )
+  return <span className={`rounded border px-2 py-0.5 text-xs font-medium ${classes}`}>{t(`build_cache.state_${state}`)}</span>
 }
 
 // Default export is what the plugin component loaders require

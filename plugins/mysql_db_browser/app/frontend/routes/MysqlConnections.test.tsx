@@ -77,128 +77,255 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
       return Promise.resolve(new Response(null, { status: 204 }))
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        available: true,
-        generated_at: "2026-01-01T00:00:00Z",
-        databases: [
-          { name: "app_staging", system_schema: false, default_character_set: "utf8mb4", default_collation: "utf8mb4_0900_ai_ci" },
-          { name: "information_schema", system_schema: true, default_character_set: "utf8", default_collation: "utf8_general_ci" }
-        ]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          generated_at: "2026-01-01T00:00:00Z",
+          databases: [
+            { name: "app_staging", system_schema: false, default_character_set: "utf8mb4", default_collation: "utf8mb4_0900_ai_ci" },
+            { name: "information_schema", system_schema: true, default_character_set: "utf8", default_collation: "utf8_general_ci" }
+          ]
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        available: true,
-        generated_at: "2026-01-01T00:00:00Z",
-        database: "app_staging",
-        system_schema: false,
-        truncated: false,
-        tables: [
-          { name: "users", type: "BASE TABLE", engine: "InnoDB", approximate_row_count: 12, data_length_bytes: 1024, index_length_bytes: 512, created_at: null, updated_at: null, comment: null }
-        ]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          generated_at: "2026-01-01T00:00:00Z",
+          database: "app_staging",
+          system_schema: false,
+          truncated: false,
+          tables: [
+            {
+              name: "users",
+              type: "BASE TABLE",
+              engine: "InnoDB",
+              approximate_row_count: 12,
+              data_length_bytes: 1024,
+              index_length_bytes: 512,
+              created_at: null,
+              updated_at: null,
+              comment: null
+            }
+          ]
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/users$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        database: "app_staging",
-        table: "users",
-        system_schema: false,
-        generated_at: "2026-01-01T00:00:00Z",
-        info: { available: true, type: "BASE TABLE", engine: "InnoDB", approximate_row_count: 12, data_length_bytes: 1024, index_length_bytes: 512, auto_increment: 13, created_at: null, updated_at: null, collation: "utf8mb4_0900_ai_ci", comment: null },
-        columns: {
-          available: true,
-          truncated: false,
-          rows: [
-            { name: "id", column_type: "bigint", data_type: "bigint", nullable: false, key: "PRI", default: null, extra: "auto_increment", character_max_length: null, numeric_precision: 20, numeric_scale: 0, comment: null },
-            { name: "email", column_type: "varchar(255)", data_type: "varchar", nullable: true, key: null, default: null, extra: null, character_max_length: 255, numeric_precision: null, numeric_scale: null, comment: null }
-          ]
-        },
-        indexes: {
-          available: true,
-          truncated: false,
-          rows: [ { name: "PRIMARY", unique: true, type: "BTREE", columns: [ "id" ] } ]
-        },
-        foreign_keys: {
-          available: true,
-          truncated: false,
-          rows: [
-            { constraint_name: "fk_users_account", direction: "outgoing", from_table: "users", from_column: "account_id", to_table: "accounts", to_column: "id" }
-          ]
-        }
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          database: "app_staging",
+          table: "users",
+          system_schema: false,
+          generated_at: "2026-01-01T00:00:00Z",
+          info: {
+            available: true,
+            type: "BASE TABLE",
+            engine: "InnoDB",
+            approximate_row_count: 12,
+            data_length_bytes: 1024,
+            index_length_bytes: 512,
+            auto_increment: 13,
+            created_at: null,
+            updated_at: null,
+            collation: "utf8mb4_0900_ai_ci",
+            comment: null
+          },
+          columns: {
+            available: true,
+            truncated: false,
+            rows: [
+              {
+                name: "id",
+                column_type: "bigint",
+                data_type: "bigint",
+                nullable: false,
+                key: "PRI",
+                default: null,
+                extra: "auto_increment",
+                character_max_length: null,
+                numeric_precision: 20,
+                numeric_scale: 0,
+                comment: null
+              },
+              {
+                name: "email",
+                column_type: "varchar(255)",
+                data_type: "varchar",
+                nullable: true,
+                key: null,
+                default: null,
+                extra: null,
+                character_max_length: 255,
+                numeric_precision: null,
+                numeric_scale: null,
+                comment: null
+              }
+            ]
+          },
+          indexes: {
+            available: true,
+            truncated: false,
+            rows: [{ name: "PRIMARY", unique: true, type: "BTREE", columns: ["id"] }]
+          },
+          foreign_keys: {
+            available: true,
+            truncated: false,
+            rows: [
+              {
+                constraint_name: "fk_users_account",
+                direction: "outgoing",
+                from_table: "users",
+                from_column: "account_id",
+                to_table: "accounts",
+                to_column: "id"
+              }
+            ]
+          }
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/accounts$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        database: "app_staging",
-        table: "accounts",
-        system_schema: false,
-        generated_at: "2026-01-01T00:00:00Z",
-        info: { available: true, type: "BASE TABLE", engine: "InnoDB", approximate_row_count: 3, data_length_bytes: 100, index_length_bytes: 50, auto_increment: 4, created_at: null, updated_at: null, collation: "utf8mb4_0900_ai_ci", comment: null },
-        columns: {
-          available: true,
-          truncated: false,
-          rows: [
-            { name: "id", column_type: "bigint", data_type: "bigint", nullable: false, key: "PRI", default: null, extra: "auto_increment", character_max_length: null, numeric_precision: 20, numeric_scale: 0, comment: null },
-            { name: "name", column_type: "varchar(255)", data_type: "varchar", nullable: true, key: null, default: null, extra: null, character_max_length: 255, numeric_precision: null, numeric_scale: null, comment: null }
-          ]
-        },
-        indexes: { available: true, truncated: false, rows: [ { name: "PRIMARY", unique: true, type: "BTREE", columns: [ "id" ] } ] },
-        foreign_keys: { available: true, truncated: false, rows: [] }
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          database: "app_staging",
+          table: "accounts",
+          system_schema: false,
+          generated_at: "2026-01-01T00:00:00Z",
+          info: {
+            available: true,
+            type: "BASE TABLE",
+            engine: "InnoDB",
+            approximate_row_count: 3,
+            data_length_bytes: 100,
+            index_length_bytes: 50,
+            auto_increment: 4,
+            created_at: null,
+            updated_at: null,
+            collation: "utf8mb4_0900_ai_ci",
+            comment: null
+          },
+          columns: {
+            available: true,
+            truncated: false,
+            rows: [
+              {
+                name: "id",
+                column_type: "bigint",
+                data_type: "bigint",
+                nullable: false,
+                key: "PRI",
+                default: null,
+                extra: "auto_increment",
+                character_max_length: null,
+                numeric_precision: 20,
+                numeric_scale: 0,
+                comment: null
+              },
+              {
+                name: "name",
+                column_type: "varchar(255)",
+                data_type: "varchar",
+                nullable: true,
+                key: null,
+                default: null,
+                extra: null,
+                character_max_length: 255,
+                numeric_precision: null,
+                numeric_scale: null,
+                comment: null
+              }
+            ]
+          },
+          indexes: { available: true, truncated: false, rows: [{ name: "PRIMARY", unique: true, type: "BTREE", columns: ["id"] }] },
+          foreign_keys: { available: true, truncated: false, rows: [] }
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/query_builder/.test(url) && method === "GET") {
       const params = new URLSearchParams(url.split("?")[1] || "")
       const spec = JSON.parse(params.get("spec") || "{}")
-      return Promise.resolve(jsonResponse({
-        available: true,
-        statement: `SELECT ... FROM \`${spec.table}\` LIMIT ${spec.limit ?? 100}`,
-        read_only: true,
-        columns: [ "id", "email" ],
-        rows: [ { id: 1, email: "grace@example.com" } ],
-        row_count: 1,
-        truncated: false,
-        duration_ms: 1,
-        generated_at: "2026-01-01T00:00:00Z",
-        filter_schema: [
-          { field: "users.id", label: "Users: Id", bucket: "number", operators: [ "equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset" ] }
-        ],
-        filter: params.get("q") ? { and: [] } : null
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          statement: `SELECT ... FROM \`${spec.table}\` LIMIT ${spec.limit ?? 100}`,
+          read_only: true,
+          columns: ["id", "email"],
+          rows: [{ id: 1, email: "grace@example.com" }],
+          row_count: 1,
+          truncated: false,
+          duration_ms: 1,
+          generated_at: "2026-01-01T00:00:00Z",
+          filter_schema: [
+            {
+              field: "users.id",
+              label: "Users: Id",
+              bucket: "number",
+              operators: ["equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset"]
+            }
+          ],
+          filter: params.get("q") ? { and: [] } : null
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/users\/content/.test(url) && method === "GET") {
       const params = new URLSearchParams(url.split("?")[1] || "")
-      return Promise.resolve(jsonResponse({
-        available: true,
-        statement: "SELECT * FROM `app_staging`.`users` LIMIT 51 OFFSET 0",
-        read_only: true,
-        columns: [ "id", "email" ],
-        rows: [ { id: 1, email: "grace@example.com" }, { id: 2, email: "ada@example.com" } ],
-        row_count: 2,
-        truncated: false,
-        duration_ms: 3,
-        generated_at: "2026-01-01T00:00:00Z",
-        filter_schema: [
-          { field: "id", label: "Id", bucket: "number", operators: [ "equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset" ] },
-          { field: "email", label: "Email", bucket: "string", operators: [ "contains", "does_not_contain", "starts_with", "does_not_start_with", "ends_with", "does_not_end_with", "equals", "not_equals", "is_set", "is_unset" ] }
-        ],
-        filter: params.get("q") ? { and: [] } : null,
-        page: Number(params.get("page")) || 1,
-        per_page: 50,
-        has_more: false
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          statement: "SELECT * FROM `app_staging`.`users` LIMIT 51 OFFSET 0",
+          read_only: true,
+          columns: ["id", "email"],
+          rows: [
+            { id: 1, email: "grace@example.com" },
+            { id: 2, email: "ada@example.com" }
+          ],
+          row_count: 2,
+          truncated: false,
+          duration_ms: 3,
+          generated_at: "2026-01-01T00:00:00Z",
+          filter_schema: [
+            { field: "id", label: "Id", bucket: "number", operators: ["equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset"] },
+            {
+              field: "email",
+              label: "Email",
+              bucket: "string",
+              operators: [
+                "contains",
+                "does_not_contain",
+                "starts_with",
+                "does_not_start_with",
+                "ends_with",
+                "does_not_end_with",
+                "equals",
+                "not_equals",
+                "is_set",
+                "is_unset"
+              ]
+            }
+          ],
+          filter: params.get("q") ? { and: [] } : null,
+          page: Number(params.get("page")) || 1,
+          per_page: 50,
+          has_more: false
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/query$/.test(url) && method === "POST") {
-      return Promise.resolve(jsonResponse({
-        available: true,
-        statement: body?.mysql_query?.sql,
-        read_only: true,
-        columns: [ "id" ],
-        rows: [ { id: 1 } ],
-        row_count: 1,
-        truncated: false,
-        duration_ms: 2,
-        generated_at: "2026-01-01T00:00:00Z"
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          statement: body?.mysql_query?.sql,
+          read_only: true,
+          columns: ["id"],
+          rows: [{ id: 1 }],
+          row_count: 1,
+          truncated: false,
+          duration_ms: 2,
+          generated_at: "2026-01-01T00:00:00Z"
+        })
+      )
     }
 
     throw new Error(`Unhandled fetch: ${method} ${url}`)
@@ -233,10 +360,11 @@ describe("MysqlConnections", () => {
       "flex",
       "h-full",
       "flex-col",
-      "gap-6",
       "overflow-hidden",
-      "p-3",
-      "sm:p-6"
+      "px-0",
+      "py-4",
+      "sm:px-[var(--space-page-x)]",
+      "sm:py-[var(--space-page-y)]"
     )
     expect(await screen.findByText("Staging")).toBeInTheDocument()
     const table = screen.getByRole("table")
@@ -298,7 +426,9 @@ describe("MysqlConnections", () => {
 
   it("wires add-form labels, help text, and pending state through Form primitives", async () => {
     let finishCreate: (() => void) | undefined
-    const createDelay = new Promise<void>((resolve) => { finishCreate = resolve })
+    const createDelay = new Promise<void>((resolve) => {
+      finishCreate = resolve
+    })
     setupFetchMock([], { createDelay })
     renderConnections()
 
@@ -308,11 +438,15 @@ describe("MysqlConnections", () => {
     expect(document.querySelector(`label[for="${label.id}"]`)).toHaveTextContent("Label")
 
     const agenticAccess = screen.getByLabelText("Allow agentic query access")
-    const agenticHint = screen.getByText("Lets workflow and chat agents browse this connection's schema and run queries against it (read-only unless write access is also allowed).")
+    const agenticHint = screen.getByText(
+      "Lets workflow and chat agents browse this connection's schema and run queries against it (read-only unless write access is also allowed)."
+    )
     expect(agenticAccess).toHaveAttribute("aria-describedby", agenticHint.id)
 
     const allowWrites = screen.getByLabelText("Allow write queries")
-    const writesHint = screen.getByText("By default this connection is read-only and rejects any non-SELECT statement. Enable to allow INSERT/UPDATE/DELETE and other writes from the Query tab.")
+    const writesHint = screen.getByText(
+      "By default this connection is read-only and rejects any non-SELECT statement. Enable to allow INSERT/UPDATE/DELETE and other writes from the Query tab."
+    )
     expect(allowWrites).toHaveAttribute("aria-describedby", writesHint.id)
 
     fireEvent.change(label, { target: { value: "Prod" } })
@@ -487,7 +621,14 @@ describe("MysqlConnections", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
 
       expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
-      expect(screen.getByRole("main", { name: "MySQL DB Browser" })).toHaveClass("h-full", "overflow-hidden", "p-3", "sm:p-6")
+      expect(screen.getByRole("main", { name: "MySQL DB Browser" })).toHaveClass(
+        "h-full",
+        "overflow-hidden",
+        "px-0",
+        "py-4",
+        "sm:px-[var(--space-page-x)]",
+        "sm:py-[var(--space-page-y)]"
+      )
 
       const browserSection = screen.getByText("Browsing Staging").closest("section")
       expect(browserSection).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "gap-4")
@@ -513,6 +654,23 @@ describe("MysqlConnections", () => {
       expect(tablist.parentElement?.parentElement).toHaveClass("flex", "h-full", "min-h-0", "min-w-0", "flex-col", "overflow-hidden")
       expect(tablist.nextElementSibling).toHaveClass("min-h-0", "flex-1", "overflow-y-auto")
       expect(screen.getByRole("region", { name: "Table content" })).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
+    })
+
+    it("restores margin on the browser header and tab bar while the surrounding Page.Root stays flush", async () => {
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
+
+      const heading = await screen.findByRole("heading", { name: "Browsing Staging" })
+      const header = heading.closest("header")
+      expect(header?.className).toContain("px-4 sm:px-0")
+
+      const tablist = screen.getByRole("tab", { name: "Browse" }).closest('[role="tablist"]')
+      expect(tablist?.className ?? "").toContain("px-4 sm:px-0")
+
+      const schemaTree = await screen.findByRole("navigation", { name: "Databases and tables" })
+      expect(schemaTree.className).not.toContain("px-4 sm:px-0")
     })
 
     it("constrains the content column so a wide results table scrolls instead of widening the page", async () => {
@@ -640,7 +798,9 @@ describe("MysqlConnections", () => {
       fireEvent.click(screen.getByRole("button", { name: "Add aggregation" }))
 
       await waitFor(() => {
-        const call = calls.find((c) => c.url.includes("/query_builder") && JSON.parse(new URLSearchParams(c.url.split("?")[1]).get("spec") || "{}").aggregations?.length)
+        const call = calls.find(
+          (c) => c.url.includes("/query_builder") && JSON.parse(new URLSearchParams(c.url.split("?")[1]).get("spec") || "{}").aggregations?.length
+        )
         expect(call).toBeTruthy()
       })
     })

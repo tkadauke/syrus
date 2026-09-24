@@ -14,6 +14,7 @@ import { Button } from "../components/Button"
 import { CopyIcon } from "../components/CopyableSlug"
 import { Input } from "../components/Input"
 import { NoticeToast } from "../components/NoticeToast"
+import { Page } from "../components/ui"
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -29,25 +30,25 @@ export function AdminInvitations() {
   })
 
   return (
-    <main aria-label={t("aria_invitations")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("aria_invitations")} gutter="responsive">
+      <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
         <PageHeading className="mt-1">{t("invitations.heading")}</PageHeading>
-        <p className="mt-2 max-w-prose text-sm text-gray-600 dark:text-gray-300">
-          {t("invitations.description")}
-        </p>
-      </header>
+        <p className="mt-2 max-w-prose text-sm text-gray-600 dark:text-gray-300">{t("invitations.description")}</p>
+      </Page.Header>
 
       <CreateInvitationForm onNotice={setNotice} />
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200">{t("invitations.pending")}</div>
+        <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+          {t("invitations.pending")}
+        </div>
         {invitations.isPending ? <PanelMessage>{t("invitations.loading")}</PanelMessage> : null}
         {invitations.isError ? <InvitationsError error={invitations.error} /> : null}
         {invitations.isSuccess ? <InvitationsTable invitations={invitations.data.invitations} onNotice={setNotice} /> : null}
       </section>
-    </main>
+    </Page.Root>
   )
 }
 
@@ -76,23 +77,17 @@ function CreateInvitationForm({ onNotice }: { onNotice: (message: string | null)
       <form className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={submit}>
         <label className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200">
           {t("invitations.email_label")}
-          <Input
-            autoComplete="off"
-            className="mt-1"
-            onChange={(event) => setEmailAddress(event.target.value)}
-            required
-            type="email"
-            value={emailAddress}
-          />
+          <Input autoComplete="off" className="mt-1" onChange={(event) => setEmailAddress(event.target.value)} required type="email" value={emailAddress} />
         </label>
-        <Button
-          disabled={create.isPending}
-          type="submit"
-        >
+        <Button disabled={create.isPending} type="submit">
           {create.isPending ? t("invitations.generating") : t("invitations.generate")}
         </Button>
       </form>
-      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, t("invitations.error_create"))}</p> : null}
+      {create.isError ? (
+        <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(create.error, t("invitations.error_create"))}
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -114,7 +109,9 @@ function InvitationsTable({ invitations, onNotice }: { invitations: AdminInvitat
             <th className="px-4 py-2">{t("invitations.col_share_url")}</th>
             <th className="px-4 py-2">{t("invitations.col_expires")}</th>
             <th className="px-4 py-2">{t("invitations.col_invited_by")}</th>
-            <th className="px-4 py-2"><span className="sr-only">{t("invitations.col_actions")}</span></th>
+            <th className="px-4 py-2">
+              <span className="sr-only">{t("invitations.col_actions")}</span>
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -157,10 +154,14 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
           type="button"
         >
           <span>{invitation.share_url}</span>
-          <CopyIcon className={`h-3.5 w-3.5 shrink-0 no-underline ${copied ? "text-green-600 dark:text-green-300" : "text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300"}`} />
+          <CopyIcon
+            className={`h-3.5 w-3.5 shrink-0 no-underline ${copied ? "text-green-600 dark:text-green-300" : "text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300"}`}
+          />
         </button>
       </td>
-      <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300"><RelativeTimestamp value={invitation.expires_at} /></td>
+      <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300">
+        <RelativeTimestamp value={invitation.expires_at} />
+      </td>
       <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300">{invitation.invited_by_email_address}</td>
       <td className="whitespace-nowrap px-4 py-3 text-right">
         {confirming ? (
@@ -198,7 +199,11 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
             {t("invitations.revoke")}
           </button>
         )}
-        {revoke.isError ? <div className="mt-1 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(revoke.error, t("invitations.error_revoke"))}</div> : null}
+        {revoke.isError ? (
+          <div className="mt-1 text-xs text-red-700 dark:text-red-300" role="alert">
+            {errorMessage(revoke.error, t("invitations.error_revoke"))}
+          </div>
+        ) : null}
       </td>
     </tr>
   )
@@ -212,4 +217,3 @@ function InvitationsError({ error }: { error: Error }) {
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
   return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
-

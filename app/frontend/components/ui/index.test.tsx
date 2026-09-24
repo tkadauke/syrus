@@ -35,7 +35,8 @@ import {
   ToolCard,
   TonePill,
   Toolbar,
-  buttonClasses
+  buttonClasses,
+  usePageGutterRestoreClassName
 } from "@app/components/ui"
 import { MemoryRouter } from "react-router-dom"
 
@@ -189,7 +190,9 @@ describe("@app/components/ui", () => {
         <Surface aria-label="Repository settings" className="min-h-20" data-testid="surface" onClick={onClick} role="region" variant="raised">
           Settings
         </Surface>
-        <Surface data-testid="danger" padding="sm" variant="danger">Failed</Surface>
+        <Surface data-testid="danger" padding="sm" variant="danger">
+          Failed
+        </Surface>
       </>
     )
 
@@ -206,10 +209,18 @@ describe("@app/components/ui", () => {
     render(
       <>
         <Text data-testid="body">Normal</Text>
-        <Text data-testid="muted" muted>Muted</Text>
-        <Text as="code" data-testid="mono" variant="mono">JOB-1</Text>
-        <Text data-testid="caption" variant="caption">Caption</Text>
-        <Text data-testid="danger" tone="danger">Failed</Text>
+        <Text data-testid="muted" muted>
+          Muted
+        </Text>
+        <Text as="code" data-testid="mono" variant="mono">
+          JOB-1
+        </Text>
+        <Text data-testid="caption" variant="caption">
+          Caption
+        </Text>
+        <Text data-testid="danger" tone="danger">
+          Failed
+        </Text>
       </>
     )
 
@@ -249,14 +260,20 @@ describe("@app/components/ui", () => {
             <Page.Title>Dashboard</Page.Title>
             <Page.Description>Queue and work state</Page.Description>
           </Page.HeadingGroup>
-          <Page.Actions><Button>New Job</Button></Page.Actions>
+          <Page.Actions>
+            <Button>New Job</Button>
+          </Page.Actions>
         </Page.Header>
         <Section.Root aria-label="Work attempts" divided tone="subtle">
           <Section.Header>
             <Section.Title>Attempts</Section.Title>
-            <Section.Actions><Button size="sm">Retry</Button></Section.Actions>
+            <Section.Actions>
+              <Button size="sm">Retry</Button>
+            </Section.Actions>
           </Section.Header>
-          <Section.Body padding="sm"><Text muted>No attempts yet.</Text></Section.Body>
+          <Section.Body padding="sm">
+            <Text muted>No attempts yet.</Text>
+          </Section.Body>
         </Section.Root>
       </Page.Root>
     )
@@ -266,6 +283,22 @@ describe("@app/components/ui", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Dashboard" }).closest("header")).toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Work attempts" }).className).toContain("bg-surface-subtle")
     expect(screen.getByRole("region", { name: "Work attempts" })).toHaveAttribute("data-section-divided", "true")
+  })
+
+  it("maps Page.Root size variants to one owned max-width utility", () => {
+    render(
+      <>
+        <Page.Root aria-label="Form page" data-testid="form-page" size="form" />
+        <Page.Root aria-label="Medium page" data-testid="medium-page" size="medium" />
+        <Page.Root aria-label="Large page" data-testid="large-page" size="large" />
+        <Page.Root aria-label="Extra wide page" data-testid="extra-wide-page" size="extra-wide" />
+      </>
+    )
+
+    expect(screen.getByTestId("form-page").className).toContain("max-w-3xl")
+    expect(screen.getByTestId("medium-page").className).toContain("max-w-5xl")
+    expect(screen.getByTestId("large-page").className).toContain("max-w-7xl")
+    expect(screen.getByTestId("extra-wide-page").className).toContain("max-w-[100rem]")
   })
 
   it("exports DataTable and DescriptionList compound primitives", () => {
@@ -298,9 +331,15 @@ describe("@app/components/ui", () => {
     render(
       <>
         <CodeSurface aria-label="Command" code="bundle exec rspec" mode="command" />
-        <Metric.Group aria-label="Metrics"><Metric.Card label="Queued" value={3} /></Metric.Group>
-        <Stat.Group aria-label="Stats"><Stat.Card label="Passed" tone="success" value="99%" /></Stat.Group>
-        <Timeline.Root aria-label="Events"><Timeline.ActivityRow title="Run started" /></Timeline.Root>
+        <Metric.Group aria-label="Metrics">
+          <Metric.Card label="Queued" value={3} />
+        </Metric.Group>
+        <Stat.Group aria-label="Stats">
+          <Stat.Card label="Passed" tone="success" value="99%" />
+        </Stat.Group>
+        <Timeline.Root aria-label="Events">
+          <Timeline.ActivityRow title="Run started" />
+        </Timeline.Root>
         <ActivityRow title="Run finished" />
         <ToolCard.Root aria-label="Tool result" role="region">
           <ToolCard.Header title="Read job" />
@@ -318,7 +357,7 @@ describe("@app/components/ui", () => {
     expect(screen.getByRole("region", { name: "Tool result" })).toBeInTheDocument()
   })
 
-  it("defaults Page.Root to a gutter at every viewport, and drops it below sm when gutter=\"responsive\"", () => {
+  it('defaults Page.Root to a gutter at every viewport, and drops it below sm when gutter="responsive"', () => {
     // A caller can't reliably win a px/py override passed via className --
     // plain string concatenation has no way to guarantee which of two
     // conflicting utilities for the same property wins in the compiled
@@ -345,11 +384,78 @@ describe("@app/components/ui", () => {
     expect(responsiveClasses).not.toContain("px-[var(--space-page-x)]")
   })
 
+  it("auto-restores the mobile inset on Page.Header via the gutter it inherits from Page.Root, with no manual class needed", () => {
+    // The whole point of the context-driven primitive: a caller no longer
+    // hand-writes `px-4 sm:px-0` on Page.Header -- it reads the gutter Page.Root
+    // was given and applies (or skips) the restore class itself.
+    render(
+      <>
+        <Page.Root aria-label="Always gutter" gutter="always">
+          <Page.Header data-testid="always-header" />
+        </Page.Root>
+        <Page.Root aria-label="Responsive gutter" gutter="responsive">
+          <Page.Header data-testid="responsive-header" />
+        </Page.Root>
+      </>
+    )
+
+    const alwaysClasses = screen.getByTestId("always-header").className.split(" ")
+    const responsiveClasses = screen.getByTestId("responsive-header").className.split(" ")
+
+    expect(responsiveClasses).toContain("px-4")
+    expect(responsiveClasses).toContain("sm:px-0")
+    expect(alwaysClasses).not.toContain("px-4")
+    expect(alwaysClasses).not.toContain("sm:px-0")
+  })
+
+  it("applies the same auto gutter restore to Page.Nav, for tab/section-nav bars under the header", () => {
+    render(
+      <>
+        <Page.Root aria-label="Always gutter" gutter="always">
+          <Page.Nav data-testid="always-nav" />
+        </Page.Root>
+        <Page.Root aria-label="Responsive gutter" gutter="responsive">
+          <Page.Nav className="custom-nav" data-testid="responsive-nav" />
+        </Page.Root>
+      </>
+    )
+
+    const alwaysClasses = screen.getByTestId("always-nav").className.split(" ")
+    const responsiveClasses = screen.getByTestId("responsive-nav").className.split(" ")
+
+    expect(responsiveClasses).toContain("px-4")
+    expect(responsiveClasses).toContain("sm:px-0")
+    expect(responsiveClasses).toContain("custom-nav")
+    expect(alwaysClasses).not.toContain("px-4")
+    expect(alwaysClasses).not.toContain("sm:px-0")
+  })
+
+  it("exposes the inherited gutter to arbitrary consumers via usePageGutterRestoreClassName, defaulting to a no-op outside Page.Root", () => {
+    function MarginProbe({ testId }: { testId: string }) {
+      const restore = usePageGutterRestoreClassName("margin")
+      return <div data-testid={testId}>{restore}</div>
+    }
+
+    render(
+      <>
+        <MarginProbe testId="unwrapped-probe" />
+        <Page.Root aria-label="Responsive margin probe" gutter="responsive">
+          <MarginProbe testId="responsive-probe" />
+        </Page.Root>
+      </>
+    )
+
+    expect(screen.getByTestId("unwrapped-probe").textContent).toBe("")
+    expect(screen.getByTestId("responsive-probe").textContent).toBe("mx-4 sm:mx-0")
+  })
+
   it("exports LinkText for router and external anchor links", () => {
     render(
       <MemoryRouter>
         <LinkText to="/jobs/1">JOB-1</LinkText>
-        <LinkText external href="https://example.test">External</LinkText>
+        <LinkText external href="https://example.test">
+          External
+        </LinkText>
       </MemoryRouter>
     )
 
@@ -369,8 +475,12 @@ describe("@app/components/ui", () => {
           <span>Broken</span>
           <button>Repair</button>
         </Notice>
-        <Pill active aria-label="Running" tone="info">Running</Pill>
-        <Badge data-testid="badge" tone="success">primary</Badge>
+        <Pill active aria-label="Running" tone="info">
+          Running
+        </Pill>
+        <Badge data-testid="badge" tone="success">
+          primary
+        </Badge>
       </>
     )
 

@@ -10,7 +10,7 @@ import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
 import { Select } from "../components/Select"
 import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
-import { DataTable } from "../components/ui"
+import { DataTable, Page } from "../components/ui"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -44,13 +44,13 @@ export function AdminUsersIndex() {
   const activeUserFolderId = users.data?.smart_folders.find((folder) => folder.id === users.data.active_smart_folder_id && folder.kind === "user_defined")?.id
 
   return (
-    <main aria-label={t("users.aria_index")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
+    <Page.Root aria-label={t("users.aria_index")} gutter="responsive" size="wide">
+      <Page.Header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
           <PageHeading className="mt-1">{t("users.heading")}</PageHeading>
         </div>
-      </header>
+      </Page.Header>
 
       {users.isPending ? <PanelMessage>{t("users.loading")}</PanelMessage> : null}
       {users.isError ? <UsersError error={users.error} /> : null}
@@ -85,12 +85,14 @@ export function AdminUsersIndex() {
           }
         >
           <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{t("users.matching", { count: users.data.count })}</div>
+            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+              {t("users.matching", { count: users.data.count })}
+            </div>
             <UsersTable basePath={basePath} users={users.data.users} />
           </section>
         </AdminFiltersLayout>
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -109,16 +111,18 @@ export function AdminUserDetailRoute() {
   })
 
   return (
-    <main aria-label={t("users.aria_detail")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={basePath}>{t("users.heading")}</Link>
+    <Page.Root aria-label={t("users.aria_detail")} gutter="responsive">
+      <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
+        <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={basePath}>
+          {t("users.heading")}
+        </Link>
         <PageHeading className="mt-2">{user.data?.display_name || `User #${id}`}</PageHeading>
-      </header>
+      </Page.Header>
 
       {user.isPending ? <PanelMessage>{t("users.loading_user")}</PanelMessage> : null}
       {user.isError ? <UsersError error={user.error} /> : null}
       {user.isSuccess ? <UserDetail user={user.data} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -132,18 +136,24 @@ function buildUsersColumns({ basePath, t }: { basePath: string; t: (key: string)
       required: true,
       renderCell: (user) => (
         <>
-          <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={`${basePath}/${user.id}`}>{user.display_name}</Link>
+          <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={`${basePath}/${user.id}`}>
+            {user.display_name}
+          </Link>
           {user.display_name !== user.email_address ? <div className="text-xs text-gray-500 dark:text-gray-400">{user.email_address}</div> : null}
         </>
       )
     },
-    { key: "github", label: t("users.col_github"), renderCell: (user) => user.github_handle ? `@${user.github_handle}` : "-" },
-    { key: "admin", label: t("users.col_admin"), renderCell: (user) => user.admin ? t("users.yes") : "-" },
+    { key: "github", label: t("users.col_github"), renderCell: (user) => (user.github_handle ? `@${user.github_handle}` : "-") },
+    { key: "admin", label: t("users.col_admin"), renderCell: (user) => (user.admin ? t("users.yes") : "-") },
     { key: "role", label: t("users.col_role"), renderCell: (user) => roleLabel(user.role) },
     { key: "agent", label: t("users.col_agent"), renderCell: (user) => user.agent_provider },
-    { key: "scheduling", label: t("users.col_scheduling"), renderCell: (user) => user.scheduling_paused ? t("users.scheduling_paused") : t("users.scheduling_active") },
+    {
+      key: "scheduling",
+      label: t("users.col_scheduling"),
+      renderCell: (user) => (user.scheduling_paused ? t("users.scheduling_paused") : t("users.scheduling_active"))
+    },
     { key: "tokens", label: t("users.col_tokens"), cellClassName: "font-mono text-xs", renderCell: (user) => tokenSummary(user) },
-    { key: "gh_api", label: t("users.col_gh_api"), renderCell: (user) => user.github_api_blocked ? t("users.blocked") : t("users.ok") },
+    { key: "gh_api", label: t("users.col_gh_api"), renderCell: (user) => (user.github_api_blocked ? t("users.blocked") : t("users.ok")) },
     { key: "gh_rate", label: t("users.col_gh_rate"), renderCell: (user) => rateLimitLabel(user) }
   ]
 }
@@ -212,13 +222,22 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("users.scheduling")}</h2>
         <div className="mt-3 flex items-center gap-4">
-          <span className="text-sm text-gray-700 dark:text-gray-200">{t("users.status_prefix")}<strong>{user.scheduling_paused ? t("users.scheduling_paused") : t("users.scheduling_active")}</strong></span>
+          <span className="text-sm text-gray-700 dark:text-gray-200">
+            {t("users.status_prefix")}
+            <strong>{user.scheduling_paused ? t("users.scheduling_paused") : t("users.scheduling_active")}</strong>
+          </span>
           <SchedulingButton user={user} />
         </div>
       </section>
 
-      <RecentTable title={t("users.recent_jobs")} rows={user.recent_jobs.map((job) => [`#${job.id}`, job.state, job.kind, <RelativeTimestamp value={job.created_at} />])} />
-      <RecentTable title={t("users.recent_runs")} rows={user.recent_runs.map((run) => [`#${run.id}`, run.state, run.trigger_kind, <RelativeTimestamp value={run.started_at} />])} />
+      <RecentTable
+        title={t("users.recent_jobs")}
+        rows={user.recent_jobs.map((job) => [`#${job.id}`, job.state, job.kind, <RelativeTimestamp value={job.created_at} />])}
+      />
+      <RecentTable
+        title={t("users.recent_runs")}
+        rows={user.recent_runs.map((run) => [`#${run.id}`, run.state, run.trigger_kind, <RelativeTimestamp value={run.started_at} />])}
+      />
     </>
   )
 }
@@ -252,7 +271,7 @@ function SchedulingButton({ user }: { user: AdminUserDetail }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
   const mutation = useMutation({
-    mutationFn: () => user.scheduling_paused ? unpauseUserScheduling(user.id) : pauseUserScheduling(user.id),
+    mutationFn: () => (user.scheduling_paused ? unpauseUserScheduling(user.id) : pauseUserScheduling(user.id)),
     onSuccess: (updated) => {
       queryClient.setQueryData(["admin", "users", String(user.id)], updated)
       void queryClient.invalidateQueries({ queryKey: ["admin", "users"] })
@@ -306,7 +325,13 @@ function RecentTable({ title, rows }: { title: string; rows: ReactNode[][] }) {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {rows.map((row, rowIndex) => (
-                <tr key={rowIndex}>{row.map((cell, cellIndex) => <td className="px-4 py-2" key={cellIndex}>{cell}</td>)}</tr>
+                <tr key={rowIndex}>
+                  {row.map((cell, cellIndex) => (
+                    <td className="px-4 py-2" key={cellIndex}>
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
               ))}
             </tbody>
           </table>

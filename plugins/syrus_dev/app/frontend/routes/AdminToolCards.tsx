@@ -9,12 +9,7 @@ import { useT } from "@app/hooks/useT"
 import { toolCardContextForExample } from "@app/pluginToolCards"
 import { ToolGroup } from "@app/routes/chat/MessageCards"
 import { toolResultPresentation } from "@app/routes/chat/toolRendering"
-import {
-  allToolPresentationEntries,
-  type ToolOwnerType,
-  type ToolPresentationEntry,
-  type ToolPresentationExample
-} from "@app/toolPresentationRegistry"
+import { allToolPresentationEntries, type ToolOwnerType, type ToolPresentationEntry, type ToolPresentationExample } from "@app/toolPresentationRegistry"
 import { ToolCardDiscussButton } from "../components/ToolCardDiscussDialog"
 import { CatalogExampleSelector } from "../catalog/CatalogExampleSelector"
 import { buildCatalogFilterLink, catalogFilterTreeFromSearch, catalogFiltersFromSearch } from "../catalog/catalogFilterLink"
@@ -142,14 +137,17 @@ export function AdminToolCards() {
     return names.map((name) => ({ value: name, label: name }))
   }, [allEntries])
 
-  const filterSchema: FilterSchemaField[] = useMemo(() => [
-    { field: "tool_name", label: t("tool_cards.filter_tool_name"), bucket: "text", operators: ["contains"], values: [] },
-    { field: "owner_type", label: t("tool_cards.filter_owner_type"), bucket: "select", operators: ["is"], values: OWNER_TYPE_OPTIONS },
-    { field: "owner_name", label: t("tool_cards.filter_owner_name"), bucket: "select", operators: ["is"], values: ownerNameOptions },
-    { field: "source_type", label: t("tool_cards.filter_source_type"), bucket: "select", operators: ["is"], values: SOURCE_TYPE_OPTIONS },
-    { field: "renderer_type", label: t("tool_cards.filter_renderer_type"), bucket: "select", operators: ["is"], values: RENDERER_TYPE_OPTIONS },
-    { field: "coverage_status", label: t("tool_cards.filter_coverage_status"), bucket: "select", operators: ["is"], values: COVERAGE_STATUS_OPTIONS }
-  ], [t, ownerNameOptions])
+  const filterSchema: FilterSchemaField[] = useMemo(
+    () => [
+      { field: "tool_name", label: t("tool_cards.filter_tool_name"), bucket: "text", operators: ["contains"], values: [] },
+      { field: "owner_type", label: t("tool_cards.filter_owner_type"), bucket: "select", operators: ["is"], values: OWNER_TYPE_OPTIONS },
+      { field: "owner_name", label: t("tool_cards.filter_owner_name"), bucket: "select", operators: ["is"], values: ownerNameOptions },
+      { field: "source_type", label: t("tool_cards.filter_source_type"), bucket: "select", operators: ["is"], values: SOURCE_TYPE_OPTIONS },
+      { field: "renderer_type", label: t("tool_cards.filter_renderer_type"), bucket: "select", operators: ["is"], values: RENDERER_TYPE_OPTIONS },
+      { field: "coverage_status", label: t("tool_cards.filter_coverage_status"), bucket: "select", operators: ["is"], values: COVERAGE_STATUS_OPTIONS }
+    ],
+    [t, ownerNameOptions]
+  )
 
   const filters = useMemo(() => catalogFiltersFromSearch(FILTER_FIELDS, search), [search])
   const filterTree = useMemo(() => catalogFilterTreeFromSearch(FILTER_FIELDS, TEXT_FILTER_FIELDS, search), [search])
@@ -167,7 +165,7 @@ export function AdminToolCards() {
   useCatalogDeepLinkScroll(deepLinkTool ? anchorId(deepLinkTool) : null, filteredEntries)
 
   return (
-    <Page.Root size="wide">
+    <Page.Root gutter="responsive" size="wide">
       <Page.Header>
         <Page.HeadingGroup>
           <Page.Title>{t("tool_cards.heading")}</Page.Title>
@@ -175,18 +173,22 @@ export function AdminToolCards() {
         </Page.HeadingGroup>
       </Page.Header>
 
-      <FilterBar buildLink={catalogFilterLink} filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={search} />
+      <Page.Nav className="space-y-4">
+        <FilterBar buildLink={catalogFilterLink} filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={search} />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Text muted variant="caption">{t("tool_cards.showing", { count: filteredEntries.length, total: allEntries.length })}</Text>
-        <CatalogViewportSwitcher
-          ariaLabel={t("tool_cards.viewport_switcher_aria")}
-          labelFor={(preset) => t(`tool_cards.viewport_${preset.id}`, { width: preset.width })}
-          pathname={location.pathname}
-          search={search}
-          selected={selectedViewport.id}
-        />
-      </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Text muted variant="caption">
+            {t("tool_cards.showing", { count: filteredEntries.length, total: allEntries.length })}
+          </Text>
+          <CatalogViewportSwitcher
+            ariaLabel={t("tool_cards.viewport_switcher_aria")}
+            labelFor={(preset) => t(`tool_cards.viewport_${preset.id}`, { width: preset.width })}
+            pathname={location.pathname}
+            search={search}
+            selected={selectedViewport.id}
+          />
+        </div>
+      </Page.Nav>
 
       {filteredEntries.length === 0 ? (
         <PanelMessage>{t("tool_cards.no_match")}</PanelMessage>
@@ -223,7 +225,7 @@ function ToolCatalogEntry({
   const { t } = useT("syrus_dev")
   const { copied, copy } = useCopyToClipboard()
   const hasInitialMatch = Boolean(initialExampleId && entry.examples.some((example) => example.id === initialExampleId))
-  const [selectedId, setSelectedId] = useState<string | null>(hasInitialMatch ? (initialExampleId as string) : entry.examples[0]?.id ?? null)
+  const [selectedId, setSelectedId] = useState<string | null>(hasInitialMatch ? (initialExampleId as string) : (entry.examples[0]?.id ?? null))
   const id = anchorId(entry.toolName)
   const headingId = `${id}-heading`
   const previewFrameRef = useRef<HTMLDivElement | null>(null)
@@ -252,14 +254,14 @@ function ToolCatalogEntry({
           </Section.Description>
         </div>
         <Section.Actions>
-          <Badge tone={ownerTone(entry.ownerType)}>{entry.ownerType} · {entry.ownerName}</Badge>
+          <Badge tone={ownerTone(entry.ownerType)}>
+            {entry.ownerType} · {entry.ownerName}
+          </Badge>
           <Badge tone="neutral">{entry.sourceType}</Badge>
           <Badge tone={entry.renderer ? "success" : "warning"}>
             {entry.renderer ? t("tool_cards.renderer_custom_card") : t("tool_cards.renderer_generic_fallback")}
           </Badge>
-          <Badge tone={entry.readOnly ? "info" : "warning"}>
-            {entry.readOnly ? t("tool_cards.read_only") : t("tool_cards.side_effecting")}
-          </Badge>
+          <Badge tone={entry.readOnly ? "info" : "warning"}>{entry.readOnly ? t("tool_cards.read_only") : t("tool_cards.side_effecting")}</Badge>
         </Section.Actions>
       </Section.Header>
       <Section.Body className="space-y-3">
@@ -274,7 +276,11 @@ function ToolCatalogEntry({
               selectedId={selectedExample?.id ?? null}
             />
 
-            {selectedExample?.description ? <Text tone="muted" variant="caption">{selectedExample.description}</Text> : null}
+            {selectedExample?.description ? (
+              <Text tone="muted" variant="caption">
+                {selectedExample.description}
+              </Text>
+            ) : null}
 
             <div className="flex items-center justify-between gap-2">
               {selectedExample ? (
@@ -285,7 +291,9 @@ function ToolCatalogEntry({
                   previewRef={previewFrameRef}
                   viewportPresetId={viewportPresetId}
                 />
-              ) : <span />}
+              ) : (
+                <span />
+              )}
               <button
                 className="text-xs text-brand underline hover:no-underline"
                 onClick={() => selectedExample && copy(deepLinkFor(selectedExample.id))}
@@ -296,11 +304,7 @@ function ToolCatalogEntry({
             </div>
 
             {group ? (
-              <CatalogViewportFrame
-                ariaLabel={t("tool_cards.viewport_frame_aria", { width: previewWidth })}
-                ref={previewFrameRef}
-                width={previewWidth}
-              >
+              <CatalogViewportFrame ariaLabel={t("tool_cards.viewport_frame_aria", { width: previewWidth })} ref={previewFrameRef} width={previewWidth}>
                 <ToolGroup item={group} />
               </CatalogViewportFrame>
             ) : null}

@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { AdminEventFilterBar, AdminEventLogTable, adminEventLinkClass } from "./AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventLogTable, AdminEventPageShell, adminEventLinkClass } from "./AdminEventLogPanel"
+import { Page } from "./ui/Page"
 
 function dataTransfer() {
   return { dropEffect: "", effectAllowed: "", getData: vi.fn(), setData: vi.fn() }
@@ -26,10 +27,15 @@ describe("AdminEventFilterBar", () => {
             { name: "query", label: "Search", placeholder: "message or path" },
             { name: "since", label: "Since", defaultValue: "24h", placeholder: "24h" },
             { name: "id", label: "ID", inputMode: "numeric" },
-            { name: "revision_scope", label: "Revision", defaultValue: "current", options: [
-              { value: "current", label: "Current SHA" },
-              { value: "all", label: "All SHAs" }
-            ] }
+            {
+              name: "revision_scope",
+              label: "Revision",
+              defaultValue: "current",
+              options: [
+                { value: "current", label: "Current SHA" },
+                { value: "all", label: "All SHAs" }
+              ]
+            }
           ]}
           search="?query=n.map&revision_scope=all"
           searchLabel="Search"
@@ -47,12 +53,7 @@ describe("AdminEventFilterBar", () => {
   it("builds clear links that remove admin filter params", () => {
     render(
       <MemoryRouter>
-        <AdminEventFilterBar
-          clearLabel="Clear"
-          fields={[{ name: "query", label: "Search" }]}
-          search="?query=boom&sort=time"
-          searchLabel="Search"
-        />
+        <AdminEventFilterBar clearLabel="Clear" fields={[{ name: "query", label: "Search" }]} search="?query=boom&sort=time" searchLabel="Search" />
       </MemoryRouter>
     )
 
@@ -88,6 +89,72 @@ describe("AdminEventFilterBar", () => {
     expect(screen.queryByRole("button", { name: "Per page is 50" })).not.toBeInTheDocument()
     expect(screen.getByTestId("location")).toHaveTextContent("q=eyJhbmQiOltdfQ")
   })
+
+  it("restores the mobile gutter when rendered inside a responsive Page.Root", () => {
+    render(
+      <MemoryRouter>
+        <Page.Root gutter="responsive">
+          <AdminEventFilterBar clearLabel="Clear" fields={[{ name: "query", label: "Search" }]} search="" searchLabel="Search" />
+        </Page.Root>
+      </MemoryRouter>
+    )
+
+    const addFilterButton = screen.getByRole("button", { name: "+ Add filter" })
+    const filterBarRoot = addFilterButton.closest("div")?.parentElement
+    expect(filterBarRoot?.className).toContain("mx-4 sm:mx-0")
+  })
+
+  it("is a no-op outside any Page.Root, or inside one with the default gutter", () => {
+    render(
+      <MemoryRouter>
+        <AdminEventFilterBar clearLabel="Clear" fields={[{ name: "query", label: "Search" }]} search="" searchLabel="Search" />
+      </MemoryRouter>
+    )
+
+    const addFilterButton = screen.getByRole("button", { name: "+ Add filter" })
+    const filterBarRoot = addFilterButton.closest("div")?.parentElement
+    expect(filterBarRoot?.className).not.toContain("mx-4 sm:mx-0")
+  })
+})
+
+describe("AdminEventPageShell", () => {
+  function renderShell(children = <div>Table content</div>) {
+    return render(
+      <MemoryRouter>
+        <AdminEventPageShell actions={<button type="button">Refresh</button>} ariaLabel="Backend exceptions" eyebrow="Admin" title="Backend Exceptions">
+          {children}
+        </AdminEventPageShell>
+      </MemoryRouter>
+    )
+  }
+
+  it("uses the responsive gutter primitive on the page container", () => {
+    renderShell()
+
+    const main = screen.getByRole("main", { name: "Backend exceptions" })
+    expect(main.className).toContain("max-w-[96rem]")
+    expect(main.className).toContain("px-0")
+    expect(main.className).toContain("sm:px-[var(--space-page-x)]")
+  })
+
+  it("restores the mobile gutter on the header but lets children run flush", () => {
+    renderShell(<div data-testid="table-content">Table content</div>)
+
+    const heading = screen.getByRole("heading", { name: "Backend Exceptions" })
+    const header = heading.closest("header")
+    expect(header?.className).toContain("px-4 sm:px-0")
+
+    const content = screen.getByTestId("table-content")
+    expect(content.className).not.toContain("px-4 sm:px-0")
+  })
+
+  it("renders the eyebrow, title, and actions in the header", () => {
+    renderShell()
+
+    expect(screen.getByText("Admin")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Backend Exceptions" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
+  })
 })
 
 describe("AdminEventLogTable", () => {
@@ -105,9 +172,16 @@ describe("AdminEventLogTable", () => {
       <AdminEventLogTable
         columns={[
           { key: "time", header: "Time", sort: "time", className: "px-4 py-2", render: (row: { id: number; message: string }) => row.id },
-          { key: "message", header: "Message", className: "px-4 py-2", render: (row: { id: number; message: string }, state) => (
-            <button onClick={state.toggleExpanded} type="button">{state.expanded ? "Hide" : row.message}</button>
-          ) }
+          {
+            key: "message",
+            header: "Message",
+            className: "px-4 py-2",
+            render: (row: { id: number; message: string }, state) => (
+              <button onClick={state.toggleExpanded} type="button">
+                {state.expanded ? "Hide" : row.message}
+              </button>
+            )
+          }
         ]}
         getRowKey={(row) => row.id}
         rows={[{ id: 7, message: "Show details" }]}
@@ -159,9 +233,16 @@ describe("AdminEventLogTable", () => {
         columns={[
           { key: "time", header: "Time", className: "px-4 py-2", render: (row: { id: number; message: string; owner: string }) => row.id },
           { key: "owner", header: "Owner", className: "px-4 py-2", render: (row: { id: number; message: string; owner: string }) => row.owner },
-          { key: "message", header: "Message", className: "px-4 py-2", render: (row: { id: number; message: string; owner: string }, state) => (
-            <button onClick={state.toggleExpanded} type="button">{state.expanded ? "Hide" : row.message}</button>
-          ) }
+          {
+            key: "message",
+            header: "Message",
+            className: "px-4 py-2",
+            render: (row: { id: number; message: string; owner: string }, state) => (
+              <button onClick={state.toggleExpanded} type="button">
+                {state.expanded ? "Hide" : row.message}
+              </button>
+            )
+          }
         ]}
         getRowKey={(row) => row.id}
         rows={[{ id: 7, message: "Show details", owner: "Alice" }]}
@@ -178,8 +259,10 @@ describe("AdminEventLogTable", () => {
     fireEvent.dragOver(ownerHeader, { dataTransfer: transfer })
     fireEvent.drop(ownerHeader, { dataTransfer: transfer })
 
-    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([ "Owner", "Time", "Message" ])
-    const firstRowCells = within(screen.getAllByRole("row")[1]).getAllByRole("cell").map((cell) => cell.textContent)
+    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Owner", "Time", "Message"])
+    const firstRowCells = within(screen.getAllByRole("row")[1])
+      .getAllByRole("cell")
+      .map((cell) => cell.textContent)
     expect(firstRowCells[0]).toBe("Alice")
 
     // Hiding a column drops the expanded row's colSpan to match the new
@@ -214,7 +297,7 @@ describe("AdminEventLogTable", () => {
       />
     )
 
-    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([ "Summary", "Time", "Owner", "Actions" ])
+    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Summary", "Time", "Owner", "Actions"])
 
     // Required columns never appear in the picker -- only "time" and "owner" do.
     fireEvent.click(screen.getByRole("button", { name: "Columns" }))
