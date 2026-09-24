@@ -151,7 +151,7 @@ RSpec.describe ChatWorkspace, :ci_only do
 
     after { FileUtils.rm_rf(mirror_bare_dir) }
 
-    def register_transport(url:, register_calls: nil)
+    def register_transport(url:, register_calls: nil, register_error: nil)
       Syrus::PluginRegistry.register(:workspace_git_transport, Class.new do
         include Syrus::Plugin::WorkspaceGitTransport
 
@@ -160,7 +160,10 @@ RSpec.describe ChatWorkspace, :ci_only do
           instance = Object.new
           instance.define_singleton_method(:url) { url }
           instance.define_singleton_method(:env) { {} }
-          instance.define_singleton_method(:register!) { register_calls&.push(:called) }
+          instance.define_singleton_method(:register!) do
+            register_calls&.push(:called)
+            raise register_error if register_error
+          end
           instance
         end
       end)
@@ -190,6 +193,18 @@ RSpec.describe ChatWorkspace, :ci_only do
 
       expect(path.join("README.md")).to exist
       expect(register_calls).to eq([ :called ])
+    end
+
+    it "falls back to the hosting platform when mirror registration is unavailable" do
+      register_transport(
+        url: "file://#{mirror_bare_dir}/does-not-exist",
+        register_error: RepositoryContent::Unavailable.new("git mirror: missing or invalid token")
+      )
+
+      path = described_class.attach_repository!(chat_session, repository)
+
+      expect(path.join("README.md")).to exist
+      expect(chat_session.reload.attached_repositories).to contain_exactly(repository)
     end
   end
 

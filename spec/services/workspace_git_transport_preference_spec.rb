@@ -106,6 +106,23 @@ RSpec.describe WorkspaceGitTransportPreference do
     expect(register_calls).to eq([ :called ])
   end
 
+  it "returns false when reactive transport registration is unavailable" do
+    transport = register_transport
+    allow(transport).to receive(:register!).and_raise(
+      RepositoryContent::Unavailable,
+      "git mirror: missing or invalid token"
+    )
+    attempts = 0
+
+    result = includer.try_mirror_transport(repository: repository, user: user) do |_url, _env|
+      attempts += 1
+      raise git_error
+    end
+
+    expect(result).to be(false)
+    expect(attempts).to eq(1)
+  end
+
   describe "verify_sha" do
     it "returns true immediately when the wanted commit is already present after the first attempt" do
       register_transport
@@ -181,6 +198,25 @@ RSpec.describe WorkspaceGitTransportPreference do
 
       expect(includer.git.calls.size).to eq(2)
       expect(fallback_dest_existed).to be(false)
+    end
+
+    it "falls back when mirror registration is unavailable" do
+      transport = register_transport
+      allow(transport).to receive(:register!).and_raise(
+        RepositoryContent::Unavailable,
+        "git mirror: missing or invalid token"
+      )
+      includer.git = WorkspaceGitTransportPreferenceSpecFakeGit.new(fail_times: 1)
+      fallback_calls = 0
+
+      includer.clone_via_transport!(
+        repository: repository,
+        user: user,
+        dest: dest,
+        clone_args: [ "--branch", "main" ]
+      ) { fallback_calls += 1 }
+
+      expect(fallback_calls).to eq(1)
     end
   end
 

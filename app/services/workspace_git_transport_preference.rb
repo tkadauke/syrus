@@ -35,7 +35,7 @@ module WorkspaceGitTransportPreference
         transport.register! if register_first
         op.call(transport.url, transport.env)
         return true if verify_sha.blank? || git_object_present?(verify_sha)
-      rescue GitRunner::GitError
+      rescue GitRunner::GitError, RepositoryContent::Error
         nil
       end
     end
