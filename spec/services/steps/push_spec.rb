@@ -214,4 +214,58 @@ RSpec.describe Steps::Push do
 
     handler.call
   end
+
+  it "force-pushes with a lease when a rebased external PR preserves every remote patch" do
+    external_job = Job.create!(
+      user: user, repository: repository, kind: "external_pr",
+      external_pr_number: 9, external_pr_fork: false,
+      branch_name: "dependabot/bundler/rack-3.1.1", state: "implemented"
+    )
+    ext_workflow = Workflow.create!(job: external_job, trigger_kind: "external_pr_ingest", agent_provider: "claude")
+    ext_step = Step.create!(workflow: ext_workflow, kind: "push", position: 0)
+    ext_run = Run.create!(job: external_job, step: ext_step, trigger_kind: "external_pr_ingest", agent_provider: "claude")
+    handler = described_class.new(ext_run)
+    workspace = instance_double(
+      WorkflowWorkspace,
+      setup: nil,
+      branch_name: "dependabot/bundler/rack-3.1.1",
+      path: Pathname.new("/tmp/workspace")
+    )
+    git = instance_double(GitRunner)
+    client = instance_double(GithubClient, access_token: "token")
+    push_url = "https://push.example/repo.git"
+    push_error = GitRunner::GitError.new(
+      [ "push", push_url, "HEAD:refs/heads/dependabot/bundler/rack-3.1.1" ],
+      1,
+      "! [rejected] HEAD -> dependabot/bundler/rack-3.1.1 (non-fast-forward)"
+    )
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: kind_of(Repository), user: user).and_return(client)
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+
+    expect(git).to receive(:run).with(
+      "push", push_url, "HEAD:refs/heads/dependabot/bundler/rack-3.1.1", chdir: "/tmp/workspace"
+    ).ordered.and_raise(push_error)
+    expect(git).to receive(:run).with(
+      "fetch", push_url,
+      "+refs/heads/dependabot/bundler/rack-3.1.1:refs/remotes/origin/dependabot/bundler/rack-3.1.1",
+      chdir: "/tmp/workspace"
+    ).ordered
+    expect(git).to receive(:run).with(
+      "rev-parse", "refs/remotes/origin/dependabot/bundler/rack-3.1.1", chdir: "/tmp/workspace"
+    ).ordered.and_return("remote123\n")
+    expect(git).to receive(:run).with(
+      "cherry", "HEAD", "refs/remotes/origin/dependabot/bundler/rack-3.1.1", chdir: "/tmp/workspace"
+    ).ordered.and_return("- abc123\n")
+    expect(git).to receive(:run).with(
+      "push", "--force-with-lease=refs/heads/dependabot/bundler/rack-3.1.1:remote123",
+      push_url, "HEAD:refs/heads/dependabot/bundler/rack-3.1.1", chdir: "/tmp/workspace"
+    ).ordered
+
+    handler.call
+
+    expect(ext_run.job_logs.pluck(:chunk).join("\n")).to include("preserves the remote patches")
+  end
 end
