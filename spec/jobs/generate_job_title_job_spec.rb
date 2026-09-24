@@ -22,13 +22,15 @@ RSpec.describe GenerateJobTitleJob, type: :job do
       repository: repository,
       agent_provider: job.agent_provider
     ).and_return(DirectJobTitleGenerator::Result.new(title: "Checkout Flow Repair", error: nil))
-    expect(AppEvents).to receive(:broadcast).with(
+    expect(AppEvents).to receive(:broadcast).with(hash_including(
       user: user,
-      type: "updated",
+      type: "job.updated",
       resource: "job",
       id: job.id,
-      changed: [ "issue_title", "title_pending" ]
-    )
+      revision: kind_of(Integer)
+    )) do |event|
+      expect(event[:changed]).to include("issue_title", "title_pending")
+    end
 
     described_class.perform_now(job)
 
@@ -41,13 +43,15 @@ RSpec.describe GenerateJobTitleJob, type: :job do
     expect(DirectJobTitleGenerator).to receive(:generate).and_return(
       DirectJobTitleGenerator::Result.new(title: nil, error: "provider unavailable")
     )
-    expect(AppEvents).to receive(:broadcast).with(
+    expect(AppEvents).to receive(:broadcast).with(hash_including(
       user: user,
-      type: "updated",
+      type: "job.updated",
       resource: "job",
       id: job.id,
-      changed: [ "issue_title", "title_pending" ]
-    )
+      revision: kind_of(Integer)
+    )) do |event|
+      expect(event[:changed]).to include("issue_title", "title_pending")
+    end
 
     expect {
       described_class.perform_now(job)

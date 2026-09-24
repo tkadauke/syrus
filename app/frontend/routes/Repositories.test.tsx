@@ -1,9 +1,15 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
+import { _clearRecentApiRequestsForTest } from "../api/client"
 import { RepositoriesIndex } from "./Repositories"
+
+beforeEach(() => {
+  _clearRecentApiRequestsForTest()
+  vi.restoreAllMocks()
+})
 
 function repositoryRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -87,6 +93,12 @@ function repositoriesPayload(overrides: Record<string, unknown> = {}) {
     ...overrides
   }
 }
+
+afterEach(() => {
+  cleanup()
+  _clearRecentApiRequestsForTest()
+  vi.restoreAllMocks()
+})
 
 function renderRoute() {
   vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload()))

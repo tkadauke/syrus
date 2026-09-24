@@ -132,6 +132,7 @@ RSpec.describe "App API job metadata commands", type: :request do
     target.advance_after_triage!
     user.update!(global_role: "admin")
     expect(target.runs).to be_empty
+    allow(AppEvents).to receive(:broadcast)
     expect(AppEvents).to receive(:broadcast).with(
       user: user,
       type: "updated",
@@ -161,6 +162,7 @@ RSpec.describe "App API job metadata commands", type: :request do
   end
 
   it "updates stack base" do
+    allow(AppEvents).to receive(:broadcast)
     expect(AppEvents).to receive(:broadcast).with(
       user: user,
       type: "updated",
@@ -187,6 +189,7 @@ RSpec.describe "App API job metadata commands", type: :request do
       invalidation_reason: "Already covered.",
       invalidation_evidence: [ "https://github.com/acme/widgets/issues/2" ]
     )
+    allow(AppEvents).to receive(:broadcast)
     expect(AppEvents).to receive(:broadcast).with(
       user: user,
       type: "updated",

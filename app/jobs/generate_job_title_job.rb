@@ -19,7 +19,6 @@ class GenerateJobTitleJob < ApplicationJob
 
     title = result.title
     job.update!(issue_title: title, title_pending: false)
-    broadcast_title_update(job)
   rescue => e
     clear_pending_title(job)
     raise e
@@ -30,12 +29,10 @@ class GenerateJobTitleJob < ApplicationJob
   def clear_pending_title(job)
     return unless job&.persisted?
 
-    job.update_columns(
+    job.update!(
       issue_title: fallback_title_for(job),
-      title_pending: false,
-      updated_at: Time.current
+      title_pending: false
     )
-    broadcast_title_update(job)
   end
 
   def fallback_title_for(job)
@@ -43,9 +40,5 @@ class GenerateJobTitleJob < ApplicationJob
     return title if title.present? && title != PENDING_TITLE
 
     FALLBACK_TITLE
-  end
-
-  def broadcast_title_update(job)
-    AppEvents.broadcast(user: job.user, type: "updated", resource: "job", id: job.id, changed: [ "issue_title", "title_pending" ])
   end
 end

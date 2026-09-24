@@ -75,17 +75,17 @@ export function resetEntityStoreForTest() {
   emit()
 }
 
-export function upsertEntity<T extends Record<string, unknown>>(input: EntityInput<T>): EntityRecord<T> {
+export function upsertEntity(input: EntityInput<Record<string, unknown>>): EntityRecord {
   const kind = input.kind
   const id = String(input.id)
-  const current = state.entities[kind][id] as EntityRecord<T> | undefined
+  const current = state.entities[kind][id]
   const incomingRevision = input.revision ?? revisionFromFields(input.fields)
 
   if (current && compareRevision(incomingRevision, current.revision) < 0) return current
 
   const fillOnly = current?.revision != null && incomingRevision == null
   const nextFields = fillOnly ? fillUnknownFields(current.fields, input.fields, current.knownFields) : mergeFields(current?.fields, input.fields)
-  const next: EntityRecord<T> = {
+  const next: EntityRecord = {
     id,
     kind,
     revision: fillOnly ? current.revision : freshestRevision(current?.revision ?? null, incomingRevision),
@@ -110,8 +110,8 @@ export function upsertEntity<T extends Record<string, unknown>>(input: EntityInp
   return next
 }
 
-export function readEntity<T extends Record<string, unknown>>(kind: EntityKind, id: string | number): EntityRecord<T> | undefined {
-  return state.entities[kind][String(id)] as EntityRecord<T> | undefined
+export function readEntity(kind: EntityKind, id: string | number): EntityRecord | undefined {
+  return state.entities[kind][String(id)]
 }
 
 export function entityHasFields(kind: EntityKind, id: string | number, fields: readonly string[], completeness?: EntityCompleteness) {
@@ -128,12 +128,12 @@ export function useEntitySelector<T extends Record<string, unknown>, Selected>(
   selector: (entity: EntityRecord<T> | undefined) => Selected,
   equal: (left: Selected, right: Selected) => boolean = Object.is
 ) {
-  let selected = selector(id == null ? undefined : readEntity<T>(kind, id))
+  let selected = selector(id == null ? undefined : readEntity(kind, id) as EntityRecord<T> | undefined)
 
   return useSyncExternalStore(
     subscribeEntityStore,
     () => {
-      const next = selector(id == null ? undefined : readEntity<T>(kind, id))
+      const next = selector(id == null ? undefined : readEntity(kind, id) as EntityRecord<T> | undefined)
       if (equal(selected, next)) return selected
       selected = next
       return next
