@@ -1,4 +1,5 @@
 import { reloadPage } from "../lib/pageReload"
+import { registerApiClientStateResetForTests } from "./clientTestState"
 
 export type ApiErrorPayload = {
   error?: {
@@ -58,6 +59,12 @@ export type RecentApiRequest = {
 }
 
 const recentApiRequests: RecentApiRequest[] = []
+
+function resetInFlightJsonReadsForTests() {
+  inFlightJsonReads.clear()
+}
+
+registerApiClientStateResetForTests(resetInFlightJsonReadsForTests)
 
 export async function getJson<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<T> {
   const { data } = await getJsonWithMeta<T>(path, options)
