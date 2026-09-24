@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { act, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ChatTurnRetryState } from "../../api/chats"
 import { TurnRetryIndicator } from "./streamChrome"
@@ -36,6 +36,27 @@ describe("TurnRetryIndicator", () => {
     expect(screen.getByText("Retry scheduled")).toBeInTheDocument()
     expect(screen.getByText("attempt 2/3")).toBeInTheDocument()
     expect(screen.getByText("next in 5 minutes")).toBeInTheDocument()
+  })
+
+  it("updates the scheduled retry countdown every second", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-18T12:04:35Z"))
+
+    render(<TurnRetryIndicator retry={retryState()} />)
+
+    expect(screen.getByText("next in 25 seconds")).toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+
+    expect(screen.getByText("next in 24 seconds")).toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(24_000)
+    })
+
+    expect(screen.getByText("next now")).toBeInTheDocument()
   })
 
   it("renders an exhausted retry budget without a countdown", () => {

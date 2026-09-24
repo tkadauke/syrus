@@ -31,6 +31,34 @@ describe("attach_repository tool card", () => {
     expect(screen.getByText("/data/workspaces/chat-1/syrus")).toBeInTheDocument()
   })
 
+  it("renders Codex MCP envelope errors as a failure card", () => {
+    const parsedResult = {
+      content: [
+        {
+          text: "Error: failed to attach tkadauke/syrus: git mirror: missing or invalid token",
+          type: "text"
+        }
+      ],
+      structured_content: null
+    }
+
+    const toolContext = context({
+      input: { slug: "tkadauke/syrus" },
+      parsedResult,
+      resultBody: JSON.stringify(parsedResult, null, 2)
+    })
+
+    expect(attachRepositoryToolCard.collapsedSummary?.(toolContext)).toBe(
+      "Repository attach failed: failed to attach tkadauke/syrus: git mirror: missing or invalid token"
+    )
+
+    render(<>{attachRepositoryToolCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByText("Repository attach failed")).toBeInTheDocument()
+    expect(screen.getByText("failed to attach tkadauke/syrus: git mirror: missing or invalid token")).toBeInTheDocument()
+    expect(screen.getByText("Attach tkadauke/syrus")).toBeInTheDocument()
+  })
+
   it("falls back to null for a malformed payload", () => {
     expect(attachRepositoryToolCard.collapsedSummary?.(context({ parsedResult: { oops: true } }))).toBeNull()
     expect(attachRepositoryToolCard.renderExpanded(context({ parsedResult: "not json" }))).toBeNull()

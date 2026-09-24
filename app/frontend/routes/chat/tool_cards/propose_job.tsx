@@ -1,6 +1,6 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { parseProposalOutcome, proposalOutcomeSummary, ProposalOutcomeCard } from "../proposalToolCard"
-import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "../toolFailureSummaryCard"
+import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for propose_job (the pending-action tool-card work).
 const failureConfig: ToolFailureConfig = {
@@ -23,7 +23,7 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (context.resultError) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+  if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
 
   const proposal = parseProposalOutcome(context.parsedResult)
   if (!proposal) return null

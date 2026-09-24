@@ -1,6 +1,6 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, Row } from "../toolCardUi"
-import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "../toolFailureSummaryCard"
+import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for attach_repository (the tool-card work). Shows
 // the resolved repository slug/default branch plus where the chat
@@ -47,7 +47,7 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (context.resultError) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+  if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
 
   const result = parseResult(context)
   if (!result) return null

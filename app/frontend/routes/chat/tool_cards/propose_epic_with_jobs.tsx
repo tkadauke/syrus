@@ -1,6 +1,6 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, StatePill } from "../toolCardUi"
-import { countFromInputArray, stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "../toolFailureSummaryCard"
+import { countFromInputArray, stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for propose_epic_with_jobs (the pending-action tool-card work).
 // Unlike propose_job/propose_epic, this tool's payload has no title and no
@@ -68,7 +68,7 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (context.resultError) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+  if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
 
   const outcome = parseEpicWithJobs(context)
   if (!outcome) return null

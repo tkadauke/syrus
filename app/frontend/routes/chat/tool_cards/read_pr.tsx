@@ -1,7 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, LargeTextPreview, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
-import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "../toolFailureSummaryCard"
+import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for read_pr (the Tier 1 tool-card work). Shows PR title,
 // number (linked to GitHub when a URL is available), state, body preview,
@@ -66,7 +66,7 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (context.resultError) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+  if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
 
   const pr = parsePr(context)
   if (!pr) return null

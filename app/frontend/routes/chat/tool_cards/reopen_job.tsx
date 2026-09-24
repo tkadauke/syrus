@@ -1,6 +1,6 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { jobEpicMaintenanceCollapsedSummary, jobEpicMaintenanceExpandedBody } from "../jobEpicMaintenanceToolCard"
-import { countFromInputArray, stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "../toolFailureSummaryCard"
+import { countFromInputArray, stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 const failureConfig: ToolFailureConfig = {
   title: "Job reopen",
@@ -23,7 +23,7 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (context.resultError) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+  if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
 
   return jobEpicMaintenanceExpandedBody(context)
 }
