@@ -424,7 +424,7 @@ module Ruby
     def database_prepare_command
       return "" unless database_prepare?
 
-      %(if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi &&)
+      %(if [ -x bin/rails ] && [ -f config/database.yml ]; then RAILS_ENV=test bin/rails db:test:prepare; fi &&)
     end
 
     def database_prepare?
