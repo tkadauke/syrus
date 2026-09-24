@@ -8,6 +8,8 @@ class ProviderAuthFailure
     /failed to refresh (?:the )?(?:auth(?:entication)? )?token/i,
     /access token could not be refreshed/i,
     /authentication token (?:is )?expired/i,
+    /(?:api key|auth(?:entication)? token|credentials?) (?:is |are )?not configured/i,
+    /credentials? (?:is |are )?missing/i,
     /sign in again/i,
     /logged out or signed in to another account/i,
     /signed out or signed in to another account/i,

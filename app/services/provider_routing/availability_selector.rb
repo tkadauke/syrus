@@ -22,7 +22,7 @@ module ProviderRouting
           "automatic_failover" => true,
           "manual_override" => false,
           "exhausted" => exhausted?,
-          "unavailable" => unavailable_summary(availability)
+          "unavailable" => unavailable_summary(unavailable_payload)
         }.compact
       end
 
@@ -64,6 +64,10 @@ module ProviderRouting
         }.compact
       end
 
+      def unavailable_payload
+        availability || (candidate_availability if exhausted?)
+      end
+
       def reset_at(usage)
         ProviderRouting::UsageWindows.earliest_reset_at(usage)
       end
@@ -94,15 +98,32 @@ module ProviderRouting
     end
 
     def call
+      first_unavailable_candidate = nil
+      first_unavailable_availability = nil
+
       candidates.each do |candidate|
+        if (credential_availability = credential_unavailability(candidate.provider))
+          first_unavailable_candidate ||= candidate
+          first_unavailable_availability ||= credential_availability
+          next
+        end
+
         refresh_stale_usage(candidate.provider)
         candidate_availability = App::ProviderAvailability.for_user(user, candidate.provider, now: now)
-        next unless available_enough?(candidate.provider, candidate_availability)
+        unless available_enough?(candidate.provider, candidate_availability)
+          first_unavailable_candidate ||= candidate
+          first_unavailable_availability ||= candidate_availability
+          next
+        end
 
         return decision(candidate, candidate_availability: candidate_availability, exhausted: false)
       end
 
-      decision(candidates.first, candidate_availability: nil, exhausted: true)
+      decision(
+        first_unavailable_candidate || candidates.first,
+        candidate_availability: first_unavailable_availability,
+        exhausted: true
+      )
     end
 
     private
@@ -152,6 +173,25 @@ module ProviderRouting
       return true if payload&.dig("state").to_s.in?(%w[open rate_limited exhausted auth_error])
 
       false
+    end
+
+    def credential_unavailability(provider)
+      provider_class = AgentProviders.for(provider)
+      return nil if provider_class.configured_for_user?(user)
+
+      {
+        provider: provider,
+        state: "auth_error",
+        reason: "provider_credentials_missing",
+        message: "#{provider_class.display_name} credentials are not configured."
+      }
+    rescue AgentProviders::ConfigurationError
+      {
+        provider: provider,
+        state: "auth_error",
+        reason: "unknown_provider",
+        message: "Unknown agent provider: #{provider.inspect}."
+      }
     end
 
     def refresh_stale_usage(provider)
