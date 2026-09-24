@@ -27,6 +27,7 @@ class ChatQueuedMessagePromoter
       user_message = chat.messages.create!(
         role: promoted_role,
         content: promoted_content_for(queued_messages),
+        sender_user_id: queued_messages.one? ? queued_messages.first.promoted_sender_user_id : nil,
         skip_turn_trigger: promoted_role == "user" && !turn_triggered
       )
       delivered_at = Time.current

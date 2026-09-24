@@ -28,14 +28,27 @@ class ChatAgentQuestion < ApplicationRecord
     with_lock do
       return false unless active?
 
-      enqueue_turn = !chat_session.agent_busy?
       now = Time.current
-      user_message = chat_session.messages.create!(
-        role: "user",
-        content: { "text" => combined_answer_text(normalized_answers) },
-        sender_user: sender_user
-      )
-      user_message_id = user_message.id
+      answer_content = {
+        "text" => combined_answer_text(normalized_answers),
+        "source" => "agent_question_answer",
+        "agent_question_id" => id
+      }
+      busy = chat_session.turn_in_flight? || chat_session.agent_busy?
+
+      if busy
+        chat_session.chat_queued_messages.create!(
+          content: answer_content.merge(ChatQueuedMessage::INTERNAL_SENDER_USER_ID_KEY => sender_user&.id)
+        )
+      else
+        user_message = chat_session.messages.create!(
+          role: "user",
+          content: answer_content,
+          sender_user: sender_user
+        )
+        user_message_id = user_message.id
+        enqueue_turn = true
+      end
       chat_session.update!(last_message_at: now, title: chat_session.title.presence)
       chat_session.pin_chat_provider!
       update!(answers: normalized_answers, answered_at: now)

@@ -995,6 +995,32 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(chat.reload.queued_messages).to be_empty
   end
 
+  it "promotes a question answer received during the active turn" do
+    question = chat.agent_questions.create!(
+      questions: [ { "question" => "Which layout?", "options" => nil, "multiple" => false } ],
+      asked_at: Time.current
+    )
+    ChatTurnJob.agent_runner = ->(**_) {
+      expect {
+        expect(question.answer_and_record!([ "Compact" ], sender_user: user)).to eq(true)
+      }.not_to have_enqueued_job(described_class)
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    expect {
+      described_class.perform_now(chat.id, user_message.id)
+    }.to have_enqueued_job(described_class).with(chat.id, kind_of(Integer)).once
+
+    delivered = chat.messages.order(:created_at, :id).last
+    expect(delivered).to have_attributes(role: "user", sender_user: user)
+    expect(delivered.content).to include(
+      "text" => "Q1: Which layout?\nA1: Compact",
+      "source" => "agent_question_answer",
+      "agent_question_id" => question.id
+    )
+    expect(chat.reload.queued_messages).to be_empty
+  end
+
   it "promotes the next queued message after a provider failure finalizes the turn" do
     queued_message = chat.chat_queued_messages.create!(content: { "text" => "Recover from the failure" })
     ChatTurnJob.agent_runner = ->(**_) { raise "provider unavailable" }

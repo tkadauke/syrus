@@ -34,6 +34,7 @@ RSpec.describe ChatAgentQuestion do
     message = chat_session.messages.sole
     expect(message.role).to eq("user")
     expect(message.sender_user_id).to eq(user.id)
+    expect(message.content).to include("source" => "agent_question_answer", "agent_question_id" => question.id)
     expect(message.content["text"]).to eq(<<~TEXT.strip)
       Q1: Which path?
       A1: Careful
@@ -92,7 +93,7 @@ RSpec.describe ChatAgentQuestion do
     expect(question.reload.answered_at).to be_nil
   end
 
-  it "does not enqueue a ChatTurnJob when an agent turn is already running" do
+  it "queues an answer submitted while an agent turn is running" do
     SpawnedProcess.create!(
       kind: "agent",
       command: "claude --print",
@@ -105,6 +106,12 @@ RSpec.describe ChatAgentQuestion do
 
     expect { question.answer_and_record!([ "Yes" ]) }.not_to have_enqueued_job(ChatTurnJob)
     expect(question.reload.answers).to eq([ "Yes" ])
+    expect(chat_session.messages).to be_empty
+    expect(chat_session.queued_messages.sole.content).to include(
+      "text" => "Q1: Deploy now?\nA1: Yes",
+      "source" => "agent_question_answer",
+      "agent_question_id" => question.id
+    )
   end
 
   it "expires an unanswered question" do

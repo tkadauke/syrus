@@ -1,5 +1,6 @@
 class ChatQueuedMessage < ApplicationRecord
   INTERNAL_ROLE_KEY = "_role".freeze
+  INTERNAL_SENDER_USER_ID_KEY = "_sender_user_id".freeze
   PROMOTABLE_ROLES = %w[ user system ].freeze
 
   belongs_to :chat_session
@@ -36,7 +37,13 @@ class ChatQueuedMessage < ApplicationRecord
   def promoted_content
     return content unless content.is_a?(Hash)
 
-    content.except(INTERNAL_ROLE_KEY)
+    content.except(INTERNAL_ROLE_KEY, INTERNAL_SENDER_USER_ID_KEY)
+  end
+
+  def promoted_sender_user_id
+    return unless promoted_role == "user" && content.is_a?(Hash)
+
+    content[INTERNAL_SENDER_USER_ID_KEY]
   end
 
   def visible_queued_draft?
