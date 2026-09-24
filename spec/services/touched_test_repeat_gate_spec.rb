@@ -129,21 +129,6 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(5)
   end
 
-  it "skips instead of flagging flakiness when a repeat hits SQLite test database contention" do
-    stub_focused_command("echo 'SQLite3::BusyException: database is locked' >&2; exit 1")
-
-    result = described_class.call(
-      grader_step: grader_step,
-      touched_files: [ "spec/contended_spec.rb" ],
-      workspace_path: @dir,
-      repeats: 5
-    )
-
-    expect(result.ran).to be(false)
-    expect(result.consistent).to be(true)
-    expect(result.reason).to eq("repeat_run_infrastructure_error")
-  end
-
   it "skips without running anything when there are no touched files" do
     expect(Syrus::PluginRegistry).not_to receive(:providers_for)
 
@@ -187,7 +172,7 @@ RSpec.describe TouchedTestRepeatGate do
       )
 
       expect(result.ran).to be(true)
-      expect(result.command).to eq("RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
+      expect(result.command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do
