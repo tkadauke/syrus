@@ -420,6 +420,7 @@ describe("ReviewableDiff", () => {
     expect(composerCell).toHaveClass("max-w-[calc(100vw-3rem)]")
     expect(composerCell).not.toHaveClass("sticky")
     expect(composerPanel).toHaveClass("sticky", "left-0", "w-[min(44rem,100cqw,calc(100vw-3rem))]")
+    expect(composerPanel).not.toHaveClass("max-md:static")
     expect(within(composerCell).getByLabelText("Comment")).toHaveValue("Please keep this visible.")
   })
 
@@ -445,7 +446,7 @@ describe("ReviewableDiff", () => {
     const threadPanel = threadCell.querySelector("div")
     expect(threadCell).toHaveClass("max-w-[calc(100vw-3rem)]")
     expect(threadCell).not.toHaveClass("sticky")
-    expect(threadPanel).toHaveClass("sticky", "left-0", "w-[min(44rem,100cqw,calc(100vw-3rem))]")
+    expect(threadPanel).toHaveClass("sticky", "left-0", "w-[min(44rem,100cqw,calc(100vw-3rem))]", "max-md:static")
     expect(screen.getByText("This note should not inherit the long line width.")).toBeInTheDocument()
   })
 
