@@ -18,6 +18,10 @@ RSpec.describe "App API investigation report", type: :request do
 
   def parse_body = JSON.parse(response.body)
 
+  def investigation_workflow_for(job)
+    job.workflows.where(trigger_kind: "investigation").reorder(created_at: :desc, id: :desc).first!
+  end
+
   it "returns investigation:true and a nil report before submit_report runs" do
     get "/api/v1/app/jobs/#{job.id}"
 
@@ -28,7 +32,7 @@ RSpec.describe "App API investigation report", type: :request do
   end
 
   it "exposes the submitted report, including resolved artifact references, in the job detail payload" do
-    workflow = job.workflows.last
+    workflow = investigation_workflow_for(job)
     submit_report_step = workflow.steps.find_by!(kind: "submit_report")
     run = submit_report_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
     run.workflow.set_typed_artifact!(

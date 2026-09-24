@@ -35,6 +35,17 @@ RSpec.describe Workflow, :ci_only do
     unit
   end
 
+  describe "#first_step" do
+    it "chooses the lowest-id step when duplicate first-step positions exist" do
+      workflow = described_class.create!(job: job, trigger_kind: "initial")
+      first = Step.create!(workflow: workflow, kind: "prepare", position: 0)
+      duplicate = Step.create!(workflow: workflow, kind: "implement", position: 0)
+
+      expect(workflow.first_step).to eq(first)
+      expect(workflow.steps.to_a).to eq([ first, duplicate ])
+    end
+  end
+
   describe "validations" do
     it "is valid with a known trigger_kind" do
       expect(build_wf(trigger_kind: "initial")).to be_valid

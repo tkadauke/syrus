@@ -23,7 +23,7 @@ class Workflow < ApplicationRecord
   has_many :target_health_records, dependent: :nullify
   has_one :work_unit, dependent: nil, inverse_of: :workflow
   has_many :source_snapshots, class_name: "WorkflowSourceSnapshot", dependent: :destroy
-  has_many :steps, -> { order(:position) }, dependent: :destroy
+  has_many :steps, -> { order(:position, :id) }, dependent: :destroy
   has_many :spawned_processes, dependent: :nullify
   has_many :run_resource_summaries, dependent: :destroy
   has_many :mcp_tool_usages, dependent: :nullify
@@ -589,7 +589,7 @@ class Workflow < ApplicationRecord
   end
 
   def first_step
-    steps.find_by(position: 0)
+    steps.where(position: 0).first
   end
 
   def current_step

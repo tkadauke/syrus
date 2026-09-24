@@ -56,7 +56,7 @@ RSpec.describe Job do
 
       job.advance_after_triage! if job.may_advance_after_triage?
 
-      workflow = job.reload.workflows.last
+      workflow = job.reload.latest_workflow
       expect(workflow.trigger_kind).to eq("investigation")
       expect(workflow.work_unit).to be_present
     end
@@ -74,7 +74,7 @@ RSpec.describe Job do
 
       job.advance_after_triage! if job.may_advance_after_triage?
 
-      first_run = job.reload.workflows.last.first_step.runs.first
+      first_run = job.reload.latest_workflow.first_step.runs.first
       expect(first_run.prompt.to_s).to be_blank
     end
 
@@ -90,7 +90,7 @@ RSpec.describe Job do
 
       job.advance_after_triage! if job.may_advance_after_triage?
 
-      expect(job.reload.workflows.last.trigger_kind).to eq("initial")
+      expect(job.reload.latest_workflow.trigger_kind).to eq("initial")
     end
   end
 end
