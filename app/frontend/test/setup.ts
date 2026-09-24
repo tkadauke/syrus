@@ -1,5 +1,6 @@
 import "../i18n"
 import "@testing-library/jest-dom/vitest"
+import { resetInFlightJsonReadsForTests } from "../api/client"
 import { cleanup, configure } from "@testing-library/react"
 import { afterEach, vi } from "vitest"
 import "../i18n"
@@ -63,6 +64,7 @@ Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
 })
 
 afterEach(() => {
+  resetInFlightJsonReadsForTests()
   cleanup()
   vi.clearAllMocks()
   vi.restoreAllMocks()

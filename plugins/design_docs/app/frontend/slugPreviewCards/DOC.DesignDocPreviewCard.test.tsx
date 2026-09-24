@@ -1,4 +1,5 @@
 import { jsonResponse } from "@app/testSupport"
+import { resetInFlightJsonReadsForTests } from "@app/api/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
@@ -17,12 +18,43 @@ function renderCard(id: number, compact = false) {
 }
 
 describe("DesignDocPreviewCard", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    resetInFlightJsonReadsForTests()
+    vi.restoreAllMocks()
+  })
 
   it("shows a skeleton while the preview is loading", () => {
     vi.spyOn(window, "fetch").mockReturnValue(new Promise(() => {}))
     renderCard(20)
     expect(document.querySelector(".animate-pulse")).toBeInTheDocument()
+  })
+
+  it("fetches fresh preview data after a same-path loading render leaves a request unresolved", async () => {
+    vi.spyOn(window, "fetch").mockReturnValue(new Promise(() => {}))
+
+    renderCard(20)
+    expect(document.querySelector(".animate-pulse")).toBeInTheDocument()
+
+    resetInFlightJsonReadsForTests()
+    vi.restoreAllMocks()
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      design_doc: {
+        id: 20,
+        display_id: "DOC-20",
+        accessible: true,
+        title: "Fresh Target Graphs",
+        owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
+        collaborators: [],
+        comments_count: 0,
+        latest_version_number: 1,
+        updated_at: "2026-09-01T12:00:00Z",
+        preview_text: "Fresh body"
+      }
+    }))
+
+    renderCard(20)
+
+    expect(await screen.findByRole("link", { name: "Fresh Target Graphs" })).toBeInTheDocument()
   })
 
   it("renders the copyable slug, linked title, preview text, owner, comment count, version, and updated time", async () => {

@@ -59,6 +59,10 @@ export type RecentApiRequest = {
 
 const recentApiRequests: RecentApiRequest[] = []
 
+export function resetInFlightJsonReadsForTests() {
+  inFlightJsonReads.clear()
+}
+
 export async function getJson<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<T> {
   const { data } = await getJsonWithMeta<T>(path, options)
   return data
