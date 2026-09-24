@@ -149,7 +149,14 @@ class TouchedTestRepeatGate
   def run_command(command, label:)
     status = nil
     Timeout.timeout(TIMEOUT_SECONDS) do
-      output, status = Open3.capture2e(command_environment, "bash", "-c", command, chdir: @workspace_path)
+      output, status = Open3.capture2e(
+        command_environment,
+        "bash",
+        "-c",
+        command,
+        chdir: @workspace_path,
+        unsetenv_others: true
+      )
       unless status&.success?
         excerpt = output.to_s.lines.last(20).join.strip
         @log.call("[flaky_gate:#{grader_name}] #{label} failed (exit #{status&.exitstatus || 'unknown'}):\n#{excerpt}")
