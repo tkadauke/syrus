@@ -80,9 +80,17 @@ class AppEvents
   end
 
   def self.record_delivery(resource)
-    Syrus::Metrics.counter(:syrus_app_events_delivered_total).increment(tags: { resource: resource.to_s })
+    app_events_delivered_counter.increment(tags: { resource: resource.to_s })
   end
   private_class_method :record_delivery
+
+  def self.app_events_delivered_counter
+    Syrus::Metrics.counter(:syrus_app_events_delivered_total)
+  rescue Syrus::Metrics::UnknownMetric
+    declare_metrics!
+    Syrus::Metrics.counter(:syrus_app_events_delivered_total)
+  end
+  private_class_method :app_events_delivered_counter
 
   def self.resource_event(type:, resource:, id:, changed:, payload:, revision:, occurred_at:)
     event = {
