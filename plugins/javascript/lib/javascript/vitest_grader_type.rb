@@ -258,10 +258,19 @@ module JavaScript
 
     def setup_prefix
       <<~BASH.squish
-        if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile;
-        elif [ -f yarn.lock ]; then yarn install --frozen-lockfile;
-        elif [ -f package-lock.json ]; then npm ci;
-        elif [ ! -d node_modules ]; then npm install;
+        local_node_bin_missing() {
+          for bin_name in "$@"; do
+            [ -x "./node_modules/.bin/$bin_name" ] || return 0;
+          done;
+          return 1;
+        };
+        if [ -f pnpm-lock.yaml ]; then
+          if local_node_bin_missing vitest#{typecheck? ? " tsc" : ""}; then pnpm install --frozen-lockfile; fi;
+        elif [ -f yarn.lock ]; then
+          if local_node_bin_missing vitest#{typecheck? ? " tsc" : ""}; then yarn install --frozen-lockfile; fi;
+        elif [ -f package-lock.json ]; then
+          if [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ] || [ package.json -nt node_modules/.package-lock.json ] || local_node_bin_missing vitest#{typecheck? ? " tsc" : ""}; then npm ci; fi;
+        elif [ ! -d node_modules ] || local_node_bin_missing vitest#{typecheck? ? " tsc" : ""}; then npm install;
         fi;
         run_package_script() {
           if [ -f pnpm-lock.yaml ]; then pnpm run "$@";

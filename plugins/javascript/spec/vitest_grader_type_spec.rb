@@ -40,6 +40,7 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.map(&:name)).to eq(%w[vitest vitest-focused vitest-ci])
     expect(steps.first.run).to include("run_vitest run app/frontend src test tests __tests__")
     expect(steps.first.run).to include("run_package_script typecheck")
+    expect(steps.first.run).to include("local_node_bin_missing vitest tsc")
     expect(steps.first.phases).to eq(%w[landing])
     expect(steps.first.junit_output).to eq(".syrus/grade-output/vitest-junit.xml")
     expect(steps.first.base_retry).to eq(SyrusYml::BaseRetry.new(strategy: "plugin", command: nil))
@@ -119,6 +120,35 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(script).to include("exit 0 unless base\nscope =")
   end
 
+  it "reinstalls package-lock dependencies when node_modules exists without the typecheck binary" do
+    Dir.mktmpdir do |dir|
+      fake_bin = File.join(dir, "fake-bin")
+      FileUtils.mkdir_p([ fake_bin, File.join(dir, "node_modules/.bin") ])
+      File.write(File.join(dir, "package.json"), JSON.generate("scripts" => { "typecheck" => "tsc --noEmit" }))
+      File.write(File.join(dir, "package-lock.json"), JSON.generate("lockfileVersion" => 3, "packages" => {}))
+      File.write(File.join(dir, "node_modules/.package-lock.json"), "{}")
+      File.write(File.join(fake_bin, "npm"), <<~BASH)
+        #!/usr/bin/env bash
+        printf '%s\\n' "$*" >> npm-calls.log
+        if [ "$1" = "ci" ]; then
+          mkdir -p node_modules/.bin
+          printf '{}' > node_modules/.package-lock.json
+          printf '#!/usr/bin/env bash\\nexit 0\\n' > node_modules/.bin/tsc
+          printf '#!/usr/bin/env bash\\nprintf "%%s\\\\n" "$*" >> vitest-calls.log\\nexit 0\\n' > node_modules/.bin/vitest
+          chmod +x node_modules/.bin/tsc node_modules/.bin/vitest
+        fi
+      BASH
+      FileUtils.chmod("+x", File.join(fake_bin, "npm"))
+
+      command = described_class.grade_steps(config: {}, default_failures: "strict").first.run
+      _stdout, stderr, status = Open3.capture3({ "PATH" => "#{fake_bin}:#{ENV.fetch("PATH")}" }, "bash", "-c", command, chdir: dir)
+
+      expect(status).to be_success, stderr
+      expect(File.read(File.join(dir, "npm-calls.log"))).to eq("ci\nrun typecheck\n")
+      expect(File.read(File.join(dir, "vitest-calls.log"))).to include("run app/frontend src test tests __tests__")
+    end
+  end
+
   it "passes configured target dependencies through to every generated grader" do
     steps = described_class.grade_steps(
       config: { "deps" => [ "//plugins/browser:grade/vitest" ] },
@@ -163,6 +193,8 @@ RSpec.describe JavaScript::VitestGraderType do
     ).first
 
     expect(step.run).not_to include("run_package_script typecheck")
+    expect(step.run).to include("local_node_bin_missing vitest")
+    expect(step.run).not_to include("local_node_bin_missing vitest tsc")
     expect(step.run).to include("--coverage")
     expect(step.metadata["coverage_outputs"]).to eq([
       { "artifact" => "coverage/lcov.info", "format" => "lcov" }
