@@ -3,6 +3,8 @@ import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConvers
 import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
 import { replaceProposalInMessages } from "../routes/chat/messageStreamItems"
+import { normalizeChatMessage, readEntity, upsertEntity, type EntityKind, type EntityRevision } from "./entityStore"
+import { currentVisibilityState, recordClientMetric, resourceTagFor } from "./clientMetrics"
 
 // A proposal card can live in a chat view's paginated-older-history state,
 // outside the React Query cache the rest of this module patches. Dispatching
@@ -27,6 +29,13 @@ const JOB_DETAIL_INVALIDATION_RETRY_MS = 1_000
 const CHAT_DETAIL_INVALIDATION_MIN_INTERVAL_MS = 5_000
 const CHAT_DETAIL_INVALIDATION_RETRY_MS = 1_000
 
+type InvalidationTarget = {
+  exact?: boolean
+  key?: string
+  predicate?: (query: { queryKey: QueryKey }) => boolean
+  queryKey: QueryKey
+}
+
 type DashboardInvalidationState = {
   lastInvalidatedAt: number
   pending: boolean
@@ -36,15 +45,106 @@ type DashboardInvalidationState = {
 const dashboardInvalidations = new WeakMap<QueryClient, DashboardInvalidationState>()
 const jobDetailInvalidations = new WeakMap<QueryClient, Map<string, DashboardInvalidationState>>()
 const chatDetailInvalidations = new WeakMap<QueryClient, Map<string, DashboardInvalidationState>>()
+const hiddenInvalidations = new WeakMap<QueryClient, Map<string, InvalidationTarget>>()
+const visibilityListeners = new WeakSet<QueryClient>()
 
 export type AppEvent = {
   type: string
   resource?: string
   id?: number | string | null
+  // Per-user, monotonically increasing across every AppEvents.broadcast
+  // call regardless of resource -- lets the client detect a dropped
+  // delivery (a gap) or a network-level duplicate/replay without relying
+  // on wall-clock occurred_at. Absent on the handful of broadcast paths
+  // that don't yet route through AppEvents.broadcast; such events are
+  // always applied and never participate in gap/duplicate detection.
+  sequence?: number
+  // The broadcasting resource's own revision counter (Job/Workflow/Step/
+  // Run/ChatSession/ChatMessage#entity_revision), when the caller has one. Lets
+  // entityStore.upsertEntity ignore this specific event outright if a
+  // newer revision for the same entity is already known -- independent of
+  // the stream-level sequence check above, and independent of arrival
+  // order relative to a REST snapshot fetch (see applyAppEventToEntityStore).
+  revision?: EntityRevision
   changed?: string[]
   occurred_at?: string
   payload?: unknown
   unread_count?: number
+}
+
+// Resources that map onto a normalized entityStore kind and so can be
+// patched directly from an event's payload.fields, in addition to
+// whatever React Query cache invalidation already happens below.
+const EVENT_RESOURCE_ENTITY_KIND: Partial<Record<string, EntityKind>> = {
+  job: "jobs",
+  workflow: "workflows",
+  step: "steps",
+  run: "runs",
+  chat: "chat_sessions"
+}
+
+type AppEventSequenceOutcome = "ok" | "duplicate" | "gap"
+
+const lastAppEventSequence = new WeakMap<QueryClient, number>()
+
+export function resetAppEventSequenceTracking(queryClient: QueryClient) {
+  lastAppEventSequence.delete(queryClient)
+}
+
+// Stream-level ordering check, independent of any single resource: every
+// event sharing one per-user sequence counter means a gap here means
+// *something* was missed, not necessarily the resource this event is
+// about, so the caller recovers just the resource this event names --
+// bounded and targeted rather than a blanket refresh.
+function trackAppEventSequence(queryClient: QueryClient, event: AppEvent): AppEventSequenceOutcome {
+  if (typeof event.sequence !== "number") return "ok"
+
+  const previous = lastAppEventSequence.get(queryClient)
+  if (previous === undefined || event.sequence > previous) {
+    lastAppEventSequence.set(queryClient, event.sequence)
+    return previous !== undefined && event.sequence > previous + 1 ? "gap" : "ok"
+  }
+
+  return "duplicate"
+}
+
+// Patches the normalized entity store directly from an event's payload,
+// when the event carries one. This is the "snapshot race" seam: an event
+// applied here while a REST snapshot fetch for the same entity is still
+// in flight is not lost (upsertEntity applies it immediately), and is not
+// clobbered once that snapshot resolves (upsertEntity's own revision
+// comparison -- see entityStore.ts -- refuses to let an older revision
+// overwrite a newer one, regardless of which one lands first). There is
+// no separate buffer-then-replay queue because that revision comparison
+// already makes the merge order-independent and so deterministic by
+// construction, for both directions of the race.
+function applyAppEventToEntityStore(event: AppEvent) {
+  const kind = event.resource ? EVENT_RESOURCE_ENTITY_KIND[event.resource] : undefined
+  if (!kind || event.id == null) return
+
+  const fields = entityFieldsFromEventPayload(event.payload)
+  if (!fields && event.revision == null) return
+
+  const before = readEntity(kind, event.id)
+  const after = upsertEntity({
+    kind,
+    id: event.id,
+    fields: fields ?? {},
+    completeness: "partial",
+    revision: event.revision ?? null,
+    source: "app_event"
+  })
+  // upsertEntity returns the same object, unchanged, when it rejects a
+  // stale/duplicate revision (see entityStore.ts) -- only a real patch
+  // counts toward the amplification signal, not a discarded duplicate.
+  if (after !== before) recordClientMetric("entity_patch_applications", resourceTagFor(event.resource), currentVisibilityState())
+}
+
+function entityFieldsFromEventPayload(payload: unknown): Record<string, unknown> | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const fields = (payload as { fields?: unknown }).fields
+  return fields && typeof fields === "object" && !Array.isArray(fields) ? fields as Record<string, unknown> : null
 }
 
 type NotificationsCache = {
@@ -65,6 +165,15 @@ type NotificationReadPayload = {
 }
 
 export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
+  const sequenceOutcome = trackAppEventSequence(queryClient, event)
+  if (sequenceOutcome === "duplicate") return
+
+  applyAppEventToEntityStore(event)
+  if (sequenceOutcome === "gap") {
+    recordClientMetric("revision_gap_recoveries", resourceTagFor(event.resource))
+    recoverEventResourceContinuity(queryClient, event)
+  }
+
   if (event.type.startsWith("video_walkthrough.")) {
     // The chat composer owns the walkthrough chip; hand it the payload
     // directly (a chat-scoped query invalidation would not carry state).
@@ -92,7 +201,7 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
         total_pages: 0
       }
     })
-    void queryClient.invalidateQueries({ queryKey: ["notifications"] })
+    invalidateAppQuery(queryClient, { queryKey: ["notifications"], exact: true })
 
     const nativePayload = notificationCreatedNativePayload(event.payload)
     if (nativePayload) dispatchNativeNotification(nativePayload)
@@ -120,7 +229,7 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
         })
       }
     })
-    void queryClient.invalidateQueries({ queryKey: ["notifications"] })
+    invalidateAppQuery(queryClient, { queryKey: ["notifications"], exact: true })
     return
   }
 
@@ -143,9 +252,105 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
       continue
     }
 
-    void queryClient.invalidateQueries({ queryKey })
+    invalidateAppQuery(queryClient, exactListTarget(queryKey))
   }
   if (dashboardChanged) scheduleDashboardInvalidation(queryClient)
+}
+
+// A detected sequence gap means *some* event for this user was dropped --
+// not necessarily one about this resource -- but the only resource we
+// know for sure might be stale is the one this event names, so recovery
+// is bounded to exactly its query keys rather than the full continuity
+// sweep recoverAppEventContinuity does on reconnect.
+function recoverEventResourceContinuity(queryClient: QueryClient, event: AppEvent) {
+  for (const queryKey of queryKeysFor(event)) {
+    invalidateAppQuery(queryClient, { queryKey })
+  }
+}
+
+export function recoverAppEventContinuity(queryClient: QueryClient) {
+  if (tabIsHidden()) {
+    for (const query of queryClient.getQueryCache().findAll({ type: "active", predicate: continuityRecoveryQuery })) {
+      invalidateAppQuery(queryClient, { queryKey: query.queryKey, exact: true })
+    }
+    return
+  }
+
+  void queryClient.refetchQueries({ type: "active", predicate: continuityRecoveryQuery })
+}
+
+// Bounded reconnect recovery for a resource-scoped (JobChannel/ChatChannel)
+// subscription: unlike recoverAppEventContinuity's full sweep of every active
+// query, a resource channel only ever carried events for this one Job or
+// Chat, so a reconnect can only have missed events about that one resource --
+// recovery is scoped to it instead of the whole app. Reuses invalidateAppQuery
+// so hidden tabs still defer to a catch-up-on-visible refetch rather than
+// fetching in the background (see markHiddenInvalidation/flushHiddenInvalidations).
+export function recoverJobResourceContinuity(queryClient: QueryClient, jobId: string | number) {
+  const id = String(jobId)
+  invalidateAppQuery(queryClient, { queryKey: [ "jobs", id, "detail" ] })
+  invalidateAppQuery(queryClient, { queryKey: [ "jobs", id, "workflows" ] })
+}
+
+export function recoverChatResourceContinuity(queryClient: QueryClient, chatId: string | number) {
+  invalidateAppQuery(queryClient, { queryKey: [ "chats", String(chatId) ] })
+}
+
+function invalidateAppQuery(queryClient: QueryClient, target: InvalidationTarget) {
+  if (tabIsHidden()) {
+    recordClientMetric("hidden_tab_suppressed_fetches", resourceTagFor(String(target.queryKey[0] ?? "")))
+    markHiddenInvalidation(queryClient, target)
+    void queryClient.invalidateQueries({ ...queryFilterFor(target), refetchType: "none" })
+    return
+  }
+
+  void queryClient.invalidateQueries(queryFilterFor(target))
+}
+
+function markHiddenInvalidation(queryClient: QueryClient, target: InvalidationTarget) {
+  let pending = hiddenInvalidations.get(queryClient)
+  if (!pending) {
+    pending = new Map()
+    hiddenInvalidations.set(queryClient, pending)
+  }
+  pending.set(invalidationTargetKey(target), target)
+  ensureVisibilityListener(queryClient)
+}
+
+function ensureVisibilityListener(queryClient: QueryClient) {
+  if (typeof document === "undefined") return
+  if (visibilityListeners.has(queryClient)) return
+
+  visibilityListeners.add(queryClient)
+  document.addEventListener("visibilitychange", () => {
+    if (tabIsHidden()) return
+    flushHiddenInvalidations(queryClient)
+  })
+}
+
+function flushHiddenInvalidations(queryClient: QueryClient) {
+  const pending = hiddenInvalidations.get(queryClient)
+  if (!pending || pending.size === 0) return
+
+  const targets = Array.from(pending.values())
+  pending.clear()
+  for (const target of targets) {
+    void queryClient.refetchQueries({ ...queryFilterFor(target), type: "active" })
+  }
+}
+
+function invalidationTargetKey(target: InvalidationTarget) {
+  if (target.key) return target.key
+  return `${target.exact === true ? "exact" : "prefix"}:${JSON.stringify(target.queryKey)}`
+}
+
+function tabIsHidden() {
+  return typeof document !== "undefined" && document.visibilityState === "hidden"
+}
+
+function queryFilterFor(target: InvalidationTarget) {
+  const base = target.exact === true ? { queryKey: target.queryKey, exact: true } : { queryKey: target.queryKey }
+  return target.predicate ? { ...base, predicate: target.predicate } : base
 }
 
 function emptyNotificationsCache(unreadCount: number): NotificationsCache {
@@ -282,7 +487,7 @@ function flushDashboardInvalidation(queryClient: QueryClient) {
 
   state.pending = false
   state.lastInvalidatedAt = Date.now()
-  void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+  invalidateAppQuery(queryClient, exactListTarget(["dashboard"]))
 }
 
 export function scheduleJobDetailInvalidation(queryClient: QueryClient, queryKey: QueryKey) {
@@ -323,7 +528,7 @@ function flushJobDetailInvalidation(queryClient: QueryClient, queryKey: QueryKey
 
   state.pending = false
   state.lastInvalidatedAt = Date.now()
-  void queryClient.invalidateQueries({ queryKey })
+  invalidateAppQuery(queryClient, { queryKey })
 }
 
 function scheduleChatDetailInvalidation(queryClient: QueryClient, queryKey: QueryKey) {
@@ -364,14 +569,91 @@ function flushChatDetailInvalidation(queryClient: QueryClient, queryKey: QueryKe
 
   state.pending = false
   state.lastInvalidatedAt = Date.now()
-  void queryClient.invalidateQueries({ queryKey })
+  invalidateAppQuery(queryClient, { queryKey })
+}
+
+function exactListTarget(queryKey: QueryKey): InvalidationTarget {
+  const listTarget = listFamilyTarget(queryKey)
+  if (listTarget) return listTarget
+
+  return queryKey.length === 1 && exactListRoots.has(String(queryKey[0])) ? { queryKey, exact: true } : { queryKey }
+}
+
+function listFamilyTarget(queryKey: QueryKey): InvalidationTarget | null {
+  const root = queryKey[0]
+
+  if (queryKey.length !== 1) return null
+  if (root === "dashboard") {
+    return { queryKey, key: "list-family:dashboard", predicate: dashboardListQuery }
+  }
+  if (root === "repositories") {
+    return { queryKey, key: "list-family:repositories", predicate: repositoryListQuery }
+  }
+  return null
+}
+
+const exactListRoots = new Set([
+  "chats",
+  "dashboard",
+  "design_docs",
+  "epics",
+  "job_run_artifacts",
+  "jobs",
+  "notifications",
+  "repositories",
+  "workflows"
+])
+
+function continuityRecoveryQuery(query: { queryKey: QueryKey }) {
+  const queryKey = query.queryKey
+  const root = queryKey[0]
+
+  if (dashboardListQuery(query) || repositoryListQuery(query)) return true
+  if (queryKey.length === 1 && exactListRoots.has(String(root))) return true
+  if (root === "bootstrap") return true
+  if (root === "admin" && (queryKey[1] === "overview" || queryKey[1] === "stuck")) return true
+  if (root === "chats" && queryKey.length >= 2) return true
+  if (root === "epics" && queryKey.length >= 2) return true
+  if (root === "repositories" && queryKey.length >= 2) return true
+  if (root === "workflows" && queryKey.length >= 2) return true
+  if (root !== "jobs") return false
+
+  const jobQueryKind = queryKey[2]
+  return jobQueryKind === "detail" || jobQueryKind === "workflows"
+}
+
+function dashboardListQuery(query: { queryKey: QueryKey }) {
+  const queryKey = query.queryKey
+  return queryKey[0] === "dashboard" &&
+    (queryKey[1] === "chrome" || queryKey[1] === "rows" || queryKey[1] === "graph")
+}
+
+function repositoryListQuery(query: { queryKey: QueryKey }) {
+  const queryKey = query.queryKey
+  if (queryKey[0] !== "repositories") return false
+  if (queryKey.length === 1) return true
+  return queryKey.length === 2 && typeof queryKey[1] === "string" && (queryKey[1] === "" || queryKey[1].startsWith("?"))
 }
 
 function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   if (event.resource !== "chat" || event.id == null) return false
 
+  const turnState = chatUpdateTurnStatePayload(event.payload)
+  if (turnState) {
+    updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: turnState.turn_in_flight, agent_busy: turnState.agent_busy })
+    return true
+  }
+
   const replaceTail = chatReplaceTailPayload(event.payload)
   if (replaceTail) {
+    // Route each message through the same revision-gated entity merge as
+    // everywhere else (see applyAppEventToEntityStore) instead of a
+    // chat-tail-specific path, so a duplicate/out-of-order delivery of the
+    // same tail can't move a message backward, and so any other surface
+    // that reads a message by ID through the entity store (not just the
+    // ChatPayload query below) also sees it.
+    replaceTail.messages.forEach((message) => normalizeChatMessage(message, "app_event"))
+
     let patched = false
     if (typeof replaceTail.turn_in_flight === "boolean") updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: replaceTail.turn_in_flight, agent_busy: replaceTail.agent_busy })
     queryClient.setQueriesData<ChatPayload>(
@@ -513,7 +795,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     // same "extend the existing chat-payload handling" pattern as the
     // bookmark/header/controls branches above, just invalidate-based since
     // pins live in their own query cache, not on ChatPayload itself.
-    void queryClient.invalidateQueries({ queryKey: ["chat-pins", String(event.id)] })
+    invalidateAppQuery(queryClient, { queryKey: ["chat-pins", String(event.id)], exact: true })
     return true
   }
 
@@ -556,7 +838,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
   const updateProposal = chatUpdateProposalPayload(event.payload)
   if (updateProposal) {
-    void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+    invalidateAppQuery(queryClient, { queryKey: ["chats", "recent"], exact: true })
 
     if (updateProposal.job_status_proposal) {
       patchChatJobStatusPendingProposal(queryClient, event.id, updateProposal.job_status_proposal)
@@ -607,6 +889,26 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   }
 
   return false
+}
+
+type ChatUpdateTurnStatePayload = {
+  action: "update_turn_state"
+  turn_in_flight: boolean
+  agent_busy?: boolean
+}
+
+function chatUpdateTurnStatePayload(payload: unknown): ChatUpdateTurnStatePayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatUpdateTurnStatePayload>
+  if (candidate.action !== "update_turn_state") return null
+  if (typeof candidate.turn_in_flight !== "boolean") return null
+
+  return {
+    action: "update_turn_state",
+    turn_in_flight: candidate.turn_in_flight,
+    agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined
+  }
 }
 
 type ChatReplaceTailPayload = {
@@ -932,7 +1234,7 @@ function patchChatJobStatusPendingProposal(queryClient: QueryClient, chatSession
     }
   )
   if (proposal.state !== "proposed") {
-    void queryClient.invalidateQueries({ queryKey })
+    invalidateAppQuery(queryClient, { queryKey, exact: true })
   }
 }
 

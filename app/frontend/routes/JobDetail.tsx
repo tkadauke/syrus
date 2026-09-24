@@ -1,6 +1,7 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { DeploymentStagePipeline } from "../components/DeploymentStagePipeline"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { subscribeToJobResourceEvents } from "../lib/actionCable"
 import type { FormEvent } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
@@ -107,28 +108,46 @@ import {
 } from "../lib/jobNavigationContext"
 import { MetadataLine, OwnerBadge } from "./dashboard/components"
 import { UnderlineTabs } from "../components/Tabs"
+import { normalizeJobDetailPayload } from "../lib/entityStore"
 
 export function JobDetailRoute() {
   const { t } = useT("jobs")
   const params = useParams()
   const location = useLocation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const id = params.id || ""
   const initialDiff = diffRefsFromLocation(location.search)
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const detailSearch = jobDetailSearch(location.search)
   const queryKey = jobDetailQueryKey(id, detailSearch)
   const workflowsQueryKey = jobWorkflowsQueryKey(id, detailSearch)
+
+  // Job-scoped Action Cable subscription: only an actively-viewed Job's
+  // detailed Workflow/Step/Run events reach this tab (see JobChannel). Route
+  // changes (navigating to a different Job, or away from this page) release
+  // the subscription via this effect's cleanup.
+  useEffect(() => {
+    if (!id) return
+
+    const subscription = subscribeToJobResourceEvents(id, queryClient)
+    return () => subscription.unsubscribe()
+  }, [ id, queryClient ])
+
   const detail = useQuery({
     queryKey,
-    queryFn: () => fetchJobDetail(id, detailSearch),
+    queryFn: async () => normalizeJobDetailPayload(await fetchJobDetail(id, detailSearch)),
     enabled: id.length > 0
   })
   const pluginTabKeys = (detail.data?.ui_tabs ?? []).map((tab) => tab.key).filter((key): key is string => Boolean(key))
   const activeTab = tabFromLocation(location.pathname, location.search, pluginTabKeys)
   const workflows = useQuery({
     queryKey: workflowsQueryKey,
-    queryFn: () => fetchJobWorkflows(id, detailSearch),
+    queryFn: async () => {
+      const payload = await fetchJobWorkflows(id, detailSearch)
+      if (detail.data) normalizeJobDetailPayload(mergeJobWorkflowsPayload(detail.data, payload), "job_workflows")
+      return payload
+    },
     enabled: id.length > 0 && (activeTab === "workflows" || activeTab === "timeline") && detail.isSuccess,
     placeholderData: keepPreviousData
   })

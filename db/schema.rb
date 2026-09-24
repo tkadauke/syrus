@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_23_153451) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_23_223311) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -520,6 +520,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_153451) do
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.integer "deleted_by_user_id"
+    t.bigint "entity_revision", default: 0, null: false
     t.string "parent_tool_use_id"
     t.bigint "pending_action_id"
     t.integer "proposal_id"
@@ -731,6 +732,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_153451) do
     t.decimal "daily_cost_usd", precision: 12, scale: 6, default: "0.0", null: false
     t.datetime "deleted_at"
     t.integer "deleted_by_user_id"
+    t.bigint "entity_revision", default: 0, null: false
     t.datetime "hidden_at"
     t.datetime "last_message_at"
     t.datetime "last_read_at"
@@ -1489,6 +1491,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_153451) do
     t.datetime "emergency_landed_at"
     t.string "emergency_landed_by_membership_tier"
     t.bigint "emergency_landed_by_user_id"
+    t.bigint "entity_revision", default: 0, null: false
     t.integer "epic_id"
     t.string "epic_title"
     t.string "external_pr_author"
@@ -2546,6 +2549,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_153451) do
     t.datetime "created_at", null: false
     t.datetime "effective_at", null: false
     t.string "effort_level"
+    t.bigint "entity_revision", default: 0, null: false
     t.datetime "finished_at"
     t.string "head_sha"
     t.bigint "input_tokens"
@@ -2818,6 +2822,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_153451) do
     t.datetime "created_at", null: false
     t.json "depends_on_ids", null: false
     t.json "details", null: false
+    t.bigint "entity_revision", default: 0, null: false
     t.datetime "finished_at"
     t.integer "iteration", default: 1, null: false
     t.string "kind", null: false
@@ -3061,6 +3066,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_153451) do
     t.integer "agent_max_turns", default: 200, null: false
     t.string "agent_provider", default: "claude", null: false
     t.text "api_token"
+    t.bigint "app_event_sequence", default: 0, null: false
     t.string "auto_approve_mode", default: "never", null: false
     t.string "avatar_url"
     t.string "chat_provider"
@@ -3469,6 +3475,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_153451) do
     t.datetime "cleaned_up_at"
     t.datetime "created_at", null: false
     t.string "effort_level"
+    t.bigint "entity_revision", default: 0, null: false
     t.integer "failure_count", default: 0, null: false
     t.string "failure_reason"
     t.datetime "finished_at"

@@ -1790,6 +1790,7 @@ module Api
 
           {
             id: chat_session.id,
+            entity_revision: chat_session.entity_revision,
             current_user_id: Current.user.id,
             title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
             title_pending: chat_session.title_pending?,

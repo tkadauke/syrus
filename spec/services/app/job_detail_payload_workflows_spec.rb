@@ -64,6 +64,21 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       AppSetting.current.update!(show_work_unit_debug: true)
     end
 
+    it "includes the workflow/step/run revision so the frontend entity store can order/dedupe events against this snapshot" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "running")
+      run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "running")
+
+      workflow_payload = workflows_payload_for(job).fetch(:workflows).first
+      step_payload = workflow_payload.fetch(:steps).first
+      run_payload = step_payload.fetch(:runs).first
+
+      expect(workflow_payload.fetch(:entity_revision)).to eq(workflow.entity_revision)
+      expect(step_payload.fetch(:entity_revision)).to eq(step.entity_revision)
+      expect(run_payload.fetch(:entity_revision)).to eq(run.entity_revision)
+    end
+
     it "includes the active work intent in the default job detail payload" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

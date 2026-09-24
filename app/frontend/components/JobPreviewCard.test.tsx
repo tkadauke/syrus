@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { resetEntityStoreForTest, upsertEntity } from "../lib/entityStore"
 import { JobCompactCard, JobPreviewCard, JobPreviewSkeleton } from "./JobPreviewCard"
 
 function client() {
@@ -20,7 +21,10 @@ function renderCard(id: number) {
 }
 
 describe("JobPreviewCard", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    resetEntityStoreForTest()
+    vi.restoreAllMocks()
+  })
 
   it("shows skeleton while data is loading", () => {
     vi.spyOn(window, "fetch").mockReturnValue(new Promise(() => {}))
@@ -36,6 +40,35 @@ describe("JobPreviewCard", () => {
     await waitFor(() => expect(screen.getByText("Add dark mode")).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("open")).toBeInTheDocument()
+  })
+
+  it("renders from the normalized entity store without refetching when preview fields are already known", () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+    upsertEntity({
+      kind: "jobs",
+      id: 42,
+      fields: {
+        id: 42,
+        state: "open",
+        issue_title: "Already loaded",
+        issue_body: "Loaded from the job detail route.",
+        title_pending: false,
+        start_blocked_reason: null,
+        start_blocked_count: null,
+        start_blocked_details: null,
+        start_blocked_next_check_at: null,
+        start_blocked_at: null,
+        updated_at: "2026-09-01T00:00:00Z"
+      },
+      completeness: "detail",
+      source: "test"
+    })
+
+    renderCard(42)
+
+    expect(screen.getByText("Already loaded")).toBeInTheDocument()
+    expect(screen.getByText("Loaded from the job detail route.")).toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it("shows detailed start-block context in the queued-job pill tooltip", async () => {

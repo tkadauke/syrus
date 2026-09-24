@@ -1,4 +1,5 @@
 class ChatMessage < ApplicationRecord
+  include Revisionable
   include EnqueuesSearchIndex
 
   ROLES = %w[ user assistant tool_use tool_result system ].freeze
@@ -96,7 +97,7 @@ class ChatMessage < ApplicationRecord
     chat = chat_session
     tail_payload = realtime_tail_payload(chat)
 
-    payload = if tail_payload
+    detail_payload = if tail_payload
       {
         action: "replace_tail",
         replace_from_id: tail_payload.fetch(:replace_from_id),
@@ -119,15 +120,33 @@ class ChatMessage < ApplicationRecord
       }
     end
 
-    event_args = {
+    # Message content (and everything else only the open Chat view needs --
+    # queued messages, retry state) is detail-only: it goes exclusively to
+    # ChatChannel subscribers actively viewing this chat, not to every tab
+    # the owner/participants have open. The recent-chats sidebar only needs
+    # turn_in_flight/agent_busy, broadcast separately below on the global
+    # per-user channel so it keeps updating for chats nobody has open.
+    AppEvents.broadcast_chat_resource(
+      chat_session_id: chat_session_id,
       type: "updated",
       resource: "chat",
       id: chat_session_id,
       changed: [ "messages" ],
-      payload: payload
-    }
+      payload: detail_payload
+    )
 
-    chat.send(:broadcast_to_participants, **event_args)
+    chat.send(
+      :broadcast_to_participants,
+      type: "updated",
+      resource: "chat",
+      id: chat_session_id,
+      changed: [ "messages" ],
+      payload: {
+        action: "update_turn_state",
+        turn_in_flight: chat.turn_in_flight?,
+        agent_busy: chat.agent_busy?
+      }
+    )
   end
 
   def realtime_tail_payload(chat)

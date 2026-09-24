@@ -33,6 +33,8 @@ RSpec.describe ChatWorkEvents, type: :service do
     job = Factories.job_record(user: admin, repository: repository, issue_number: 45, pr_number: 17)
     chat_proposal(chat_session: chat, slug: "merge-job", title: "Merge job", job: job)
 
+    expect(AppEvents).not_to receive(:broadcast)
+
     described_class.publish!(
       kind: "pr_merged",
       severity: "info",
@@ -76,7 +78,6 @@ RSpec.describe ChatWorkEvents, type: :service do
       last_message_at: original_last_message_at,
       last_read_at: original_last_read_at
     )
-    expect(AppEvents).not_to have_received(:broadcast)
   end
 
   it "delivers Job failure events from related Runs to the originating ordinary chat" do

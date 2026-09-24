@@ -114,6 +114,7 @@ import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProvider
 import { Compose } from "./chat/Compose"
 import { ThemePreviewModal } from "./chat/ThemePreviewModal"
 import { routePrefix } from "../lib/routing"
+import { useConnectionContext } from "../lib/connectionContext"
 import type { ChatSystemCommandHandlers } from "./chat/composeTypes"
 import { chatStreamItemsSignature, maxMessageId, mergeChatMessages, mergeMessageTail, oldestMessageId, renderItemKey, replaceProposalInMessages } from "./chat/messageStreamItems"
 import { PROPOSAL_UPDATED_EVENT, type ProposalUpdatedDetail } from "../lib/appEvents"
@@ -123,8 +124,8 @@ import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage
 import { availableWorkspaceTabs, clampWorkspaceWidth, defaultWorkspaceTab, mobileChatTabLabel, storeWorkspacePreference, storedWorkspaceCollapsed, storedWorkspaceTab, storedWorkspaceWidth } from "./chat/workspaceTabs"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
-import { useChatControlsRefetchOnReconnect } from "../hooks/useChatControlsRefetchOnReconnect"
-
+import { normalizeChatPayload } from "../lib/entityStore"
+import { subscribeToChatResourceEvents } from "../lib/actionCable"
 const ChatWorkspacePanel = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatWorkspacePanel })))
 const ChatSettingsDialog = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatSettingsDialog })))
 
@@ -150,6 +151,7 @@ export function ChatRoute() {
   const location = useLocation()
   const id = params.id || ""
   const queryClient = useQueryClient()
+  const { isDisconnected } = useConnectionContext()
   const queryKey = chatQueryKey(id, location.search)
   const prefix = routePrefix(location.pathname)
   const viewportStyle = useChatVisualViewportStyle()
@@ -158,19 +160,20 @@ export function ChatRoute() {
     queryKey,
     queryFn: async () => {
       const fetched = await fetchChat(id, location.search)
+      normalizeChatPayload(fetched)
       const cached = queryClient.getQueryData<ChatPayload>(queryKey)
       if (!cached || !Array.isArray(cached.messages)) return fetched
 
-      return { ...fetched, messages: mergeMessageTail(cached.messages, fetched.messages) }
+      const merged = { ...fetched, messages: mergeMessageTail(cached.messages, fetched.messages) }
+      normalizeChatPayload(merged)
+      return merged
     },
     enabled: id.length > 0,
-    refetchInterval: 30_000,
+    refetchInterval: () => (isDisconnected && document.visibilityState === "visible" ? 30_000 : false),
     placeholderData: (previousData, previousQuery) => (
       previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined
     )
   })
-
-  useChatControlsRefetchOnReconnect(id)
 
   usePageTitle(chat.isSuccess ? chatDisplayTitle(chat.data.chat) : undefined)
 
@@ -180,6 +183,17 @@ export function ChatRoute() {
     void markChatRead(id).then(() => {
       refreshRecentChats(queryClient)
     }).catch(() => undefined)
+  }, [id, queryClient])
+
+  // Chat-scoped Action Cable subscription: message content and other
+  // detail-only payloads (see ChatChannel, ChatMessage#broadcast_app_event)
+  // only reach this tab while this Chat is the one being viewed. Navigating
+  // to a different chat, or away from this page, releases it.
+  useEffect(() => {
+    if (!id) return
+
+    const subscription = subscribeToChatResourceEvents(id, queryClient)
+    return () => subscription.unsubscribe()
   }, [id, queryClient])
 
   return (

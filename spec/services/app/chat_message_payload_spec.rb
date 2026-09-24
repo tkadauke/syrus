@@ -14,6 +14,15 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:content)).to eq({ "text" => "Hello legacy." })
   end
 
+  it "includes the message's revision so the frontend entity store can order/dedupe events against this snapshot" do
+    message = chat.messages.create!(role: "assistant", content: { "text" => "Hello." })
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:entity_revision)).to eq(message.entity_revision)
+    expect(payload.fetch(:entity_revision)).to be > 0
+  end
+
   it "extracts text from canonical content-blocks assistant messages for the text field" do
     message = chat.messages.create!(role: "assistant", content: [
       { "type" => "thinking", "thinking" => "Let me think...", "signature" => "sig" },

@@ -113,6 +113,23 @@ RSpec.describe BroadcastsJobProgress do
     )
   end
 
+  it "broadcasts the resource-specific field patch on the job-scoped channel, not the user channel" do
+    allow(ActionCable.server).to receive(:broadcast)
+
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+
+    expect(ActionCable.server).to have_received(:broadcast).with(
+      JobChannel.stream_name(job.id),
+      hash_including(
+        "type" => "workflow.created",
+        "resource" => "workflow",
+        "id" => workflow.id,
+        "payload" => hash_including("fields")
+      )
+    )
+    expect(AppUserChannel).not_to have_received(:broadcast_to).with(user, hash_including("resource" => "workflow"))
+  end
+
   describe "chat session broadcasts" do
     it "broadcasts a chat.updated event to confirmed chat sessions linked to the job" do
       ChatProposal.create!(

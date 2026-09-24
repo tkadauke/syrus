@@ -1,7 +1,10 @@
 import { QueryClient } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ChatPayload } from "../api/chats"
-import { applyAppEvent, queryKeysFor } from "./appEvents"
+import { applyAppEvent, queryKeysFor, resetAppEventSequenceTracking } from "./appEvents"
+import { readEntity, resetEntityStoreForTest, upsertEntity } from "./entityStore"
+import { flushClientMetricsQueue, resetClientMetricsForTest } from "./clientMetrics"
+import { jsonResponse } from "../testSupport"
 
 const desktopUa = "Mozilla/5.0 (Macintosh) Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.0 Safari/537.36"
 
@@ -29,6 +32,8 @@ afterEach(() => {
   vi.restoreAllMocks()
   FakeNotification.permission = "granted"
   FakeNotification.instances = []
+  resetEntityStoreForTest()
+  resetClientMetricsForTest()
 })
 
 describe("queryKeysFor", () => {
@@ -67,7 +72,7 @@ describe("applyAppEvent", () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs"] })
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
   })
 
   it("updates and invalidates notification cache when a notification is created", () => {
@@ -80,7 +85,7 @@ describe("applyAppEvent", () => {
       notifications: [],
       unread_count: 3
     })
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"], exact: true })
   })
 
   it("dispatches a native browser notification when permission is granted", () => {
@@ -176,7 +181,7 @@ describe("applyAppEvent", () => {
         { id: 2, read_at: "2026-06-25T12:01:00Z" }
       ]
     })
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"], exact: true })
   })
 
   it("marks all cached notifications read when a bulk read event arrives", () => {
@@ -211,13 +216,52 @@ describe("applyAppEvent", () => {
 
     applyAppEvent(queryClient, event("job", 42))
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["job_run_artifacts", "42"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"] })
 
     vi.runOnlyPendingTimers()
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"] })
+  })
+
+  it("does not fan out a job event to source diff or review comment queries under the jobs prefix", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["jobs"], { jobs: [] })
+    queryClient.setQueryData(["jobs", "42", "detail", ""], { job: { id: 42 } })
+    queryClient.setQueryData(["jobs", "42", "source_diff", ""], { files: [] })
+    queryClient.setQueryData(["jobs", "42", "diff_review_comments", "job_source_diff", ""], { comments: [] })
+
+    applyAppEvent(queryClient, event("job", 42))
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs"] })
+    expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["jobs", "42", "source_diff", ""] }))
+    expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["jobs", "42", "diff_review_comments", "job_source_diff", ""] }))
+  })
+
+  it("marks hidden-tab event invalidations stale without immediate REST catch-up, then refetches each stale target once on visibility", () => {
+    vi.useFakeTimers()
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const refetch = vi.spyOn(queryClient, "refetchQueries").mockResolvedValue(undefined as never)
+
+    applyAppEvent(queryClient, event("job", 42))
+    applyAppEvent(queryClient, event("job", 42))
+    vi.runOnlyPendingTimers()
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true, refetchType: "none" })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"], refetchType: "none" })
+    expect(refetch).not.toHaveBeenCalled()
+
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
+    document.dispatchEvent(new Event("visibilitychange"))
+
+    expect(refetch).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true, type: "active" })
+    expect(refetch).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"], type: "active" })
+    expect(refetch.mock.calls.filter(([arg]) => JSON.stringify(arg) === JSON.stringify({ queryKey: ["jobs", "42", "detail"], type: "active" }))).toHaveLength(1)
   })
 
   it("coalesces dashboard invalidations from event bursts", () => {
@@ -229,7 +273,7 @@ describe("applyAppEvent", () => {
     applyAppEvent(queryClient, event("job", 42))
     applyAppEvent(queryClient, event("workflow", 7))
 
-    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["dashboard"] })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["dashboard"], exact: true })
 
     vi.runOnlyPendingTimers()
 
@@ -244,6 +288,38 @@ describe("applyAppEvent", () => {
     vi.advanceTimersByTime(1)
 
     expect(dashboardInvalidationCount(invalidate)).toBe(2)
+  })
+
+  it("targets mounted dashboard list queries instead of an unused exact root key", () => {
+    vi.useFakeTimers()
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, event("job", 42))
+    vi.runOnlyPendingTimers()
+
+    const predicate = invalidationPredicate(invalidate, ["dashboard"])
+    expect(predicate).toBeDefined()
+    expect(predicate?.({ queryKey: ["dashboard", "chrome", "?state=open"] })).toBe(true)
+    expect(predicate?.({ queryKey: ["dashboard", "rows", "?state=open"] })).toBe(true)
+    expect(predicate?.({ queryKey: ["dashboard", "graph", "jobs", "?state=open"] })).toBe(true)
+    expect(predicate?.({ queryKey: ["jobs", "42", "source_diff", ""] })).toBe(false)
+  })
+
+  it("targets repository index list queries without invalidating repository detail or plugin tab queries", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, event("repository", 3))
+
+    const predicate = invalidationPredicate(invalidate, ["repositories"])
+    expect(predicate).toBeDefined()
+    expect(predicate?.({ queryKey: ["repositories"] })).toBe(true)
+    expect(predicate?.({ queryKey: ["repositories", ""] })).toBe(true)
+    expect(predicate?.({ queryKey: ["repositories", "?archived=true"] })).toBe(true)
+    expect(predicate?.({ queryKey: ["repositories", "3"] })).toBe(false)
+    expect(predicate?.({ queryKey: ["repositories", "3", "tests", ""] })).toBe(false)
+    expect(predicate?.({ queryKey: ["repositories", "owners"] })).toBe(false)
   })
 
   it("applies chat replace-tail payloads directly to cached chat data", () => {
@@ -299,7 +375,7 @@ describe("applyAppEvent", () => {
       }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
 
     vi.runOnlyPendingTimers()
@@ -355,7 +431,7 @@ describe("applyAppEvent", () => {
       }
     })).not.toThrow()
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
 
     vi.runOnlyPendingTimers()
@@ -378,12 +454,44 @@ describe("applyAppEvent", () => {
       }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
 
     vi.runOnlyPendingTimers()
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
+  })
+
+  it("applies a lightweight turn-state payload to the recent-chats sidebar without touching the open chat detail query", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "recent"], {
+      groups: [{
+        key: "general",
+        label: "General",
+        repository_id: null,
+        chats: [{ ...chatPayload([]).chat, turn_in_flight: false, agent_busy: false, current: false, last_message_at: "2026-05-30T11:00:00Z", unread: false }],
+        has_more: false
+      }],
+      repositories: []
+    })
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "update_turn_state", turn_in_flight: true, agent_busy: true }
+    })
+
+    expect(invalidate).not.toHaveBeenCalled()
+    const recent = queryClient.getQueryData<{ groups: Array<{ chats: Array<{ id: number; turn_in_flight?: boolean; agent_busy?: boolean }> }> }>(["chats", "recent"])
+    expect(recent?.groups[0].chats[0].turn_in_flight).toBe(true)
+    expect(recent?.groups[0].chats[0].agent_busy).toBe(true)
+    // Unlike update_controls/replace_tail, this lightweight payload (sent to
+    // every tab over AppUserChannel, not just ChatChannel subscribers
+    // actively viewing this chat) never carries message content or touches
+    // the open chat-detail query -- that only comes from ChatChannel.
+    const detail = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    expect(detail?.turn_in_flight).toBe(true)
   })
 
   it("applies chat controls payloads directly to cached chat data", () => {
@@ -685,7 +793,7 @@ describe("applyAppEvent", () => {
       payload: { action: "upsert_pin", pin: { id: 1, chat_message_id: 3 } }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ], exact: true })
     const untouched = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
     expect(untouched?.bookmarks).toEqual([])
   })
@@ -700,7 +808,7 @@ describe("applyAppEvent", () => {
       payload: { action: "remove_pin", pin: { id: 1, chat_message_id: 3 } }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ], exact: true })
   })
 
   it("applies chat agent question payloads directly to cached chat data", () => {
@@ -791,7 +899,7 @@ describe("applyAppEvent", () => {
       }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"], exact: true })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats"] })
 
@@ -824,7 +932,7 @@ describe("applyAppEvent", () => {
     expect(patched?.messages[0].proposal?.state).toBe("confirmed")
     expect(patched?.pending_proposal_count).toBe(3)
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"], exact: true })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
 
     expect(dispatched).toHaveLength(1)
@@ -980,6 +1088,193 @@ describe("applyAppEvent", () => {
   })
 })
 
+describe("applyAppEvent revisioned event patches", () => {
+  it("patches the normalized entity store from a resource event's payload.fields", () => {
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, {
+      ...event("workflow", 100),
+      sequence: 1,
+      revision: 3,
+      payload: { fields: { state: "running", started_at: "2026-09-23T00:00:00.000Z" } }
+    })
+
+    const workflow = readEntity("workflows", 100)
+    expect(workflow?.fields.state).toBe("running")
+    expect(workflow?.fields.started_at).toBe("2026-09-23T00:00:00.000Z")
+    expect(workflow?.revision).toBe(3)
+  })
+
+  it("ignores a duplicate or replayed event outright, including its entity patch", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { ...event("run", 5), sequence: 4, revision: 2, payload: { fields: { state: "succeeded" } } })
+    invalidate.mockClear()
+
+    applyAppEvent(queryClient, { ...event("run", 5), sequence: 4, revision: 2, payload: { fields: { state: "queued" } } })
+    applyAppEvent(queryClient, { ...event("run", 5), sequence: 3, revision: 1, payload: { fields: { state: "cancelled" } } })
+
+    expect(readEntity("runs", 5)?.fields.state).toBe("succeeded")
+    expect(invalidate).not.toHaveBeenCalled()
+  })
+
+  it("applies an unsequenced event (no sequence field) without disturbing gap tracking", () => {
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, { ...event("job", 1), sequence: 1 })
+    applyAppEvent(queryClient, { ...event("epic", 2) }) // no sequence -- e.g. a bypass broadcaster
+    applyAppEvent(queryClient, { ...event("job", 1), sequence: 2, revision: 5, payload: { fields: { state: "running" } } })
+
+    expect(readEntity("jobs", 1)?.revision).toBe(5)
+  })
+
+  it("recovers with one bounded, targeted refresh scoped to the resource a detected gap arrived on", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 1 })
+    invalidate.mockClear()
+
+    // Sequence jumps from 1 to 5: at least three broadcasts for this user
+    // were dropped somewhere in between.
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 5 })
+
+    expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["dashboard"] }))
+    expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["workflows"] }))
+    expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["workflows", "7"] }))
+  })
+
+  it("does not treat a merely in-order event as a gap", () => {
+    // A routine (non-gap) event already invalidates queryKeysFor's keys on
+    // every delivery -- gap detection must not add an extra recovery pass
+    // on top of that, so the in-order second call should invalidate no
+    // more than the same first call already did.
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 1 })
+    const routineCallCount = invalidate.mock.calls.length
+    invalidate.mockClear()
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 2 })
+
+    expect(invalidate).toHaveBeenCalledTimes(routineCallCount)
+  })
+
+  it("resumes normal in-order tracking after resetAppEventSequenceTracking (e.g. on reconnect)", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 1 })
+    const routineCallCount = invalidate.mock.calls.length
+    resetAppEventSequenceTracking(queryClient)
+    invalidate.mockClear()
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 40 })
+
+    expect(invalidate).toHaveBeenCalledTimes(routineCallCount)
+  })
+
+  it("makes a snapshot race deterministic regardless of arrival order", () => {
+    // Event arrives first (e.g. while a REST snapshot fetch for the same
+    // Job is still in flight): applied immediately, not buffered/lost.
+    upsertEntity({ kind: "jobs", id: 42, fields: { state: "running" }, revision: 5, source: "app_event" })
+    // The in-flight snapshot resolves after, but is older than what the
+    // event already established -- it must not move state backward.
+    upsertEntity({ kind: "jobs", id: 42, fields: { state: "queued" }, revision: 3, source: "job_detail" })
+    expect(readEntity("jobs", 42)?.fields.state).toBe("running")
+
+    // Reverse order: an older event lands after a newer snapshot already
+    // resolved -- the stale event must not overwrite it either.
+    upsertEntity({ kind: "jobs", id: 43, fields: { state: "running" }, revision: 5, source: "job_detail" })
+    upsertEntity({ kind: "jobs", id: 43, fields: { state: "queued" }, revision: 3, source: "app_event" })
+    expect(readEntity("jobs", 43)?.fields.state).toBe("running")
+  })
+
+  it("folds chat message tail patches into the common entity-store mechanism", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      sequence: 1,
+      payload: {
+        action: "replace_tail",
+        replace_from_id: 2,
+        messages: [{ ...message(2, "assistant", "hi there"), entity_revision: 6 }]
+      }
+    })
+
+    const stored = readEntity("chat_messages", 2)
+    expect(stored?.fields.text).toBe("hi there")
+    expect(stored?.revision).toBe(6)
+  })
+
+  it("does not let an older duplicate chat-tail delivery move a message backward through the entity store", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "replace_tail", replace_from_id: 2, messages: [{ ...message(2, "assistant", "final text"), entity_revision: 6 }] }
+    })
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "replace_tail", replace_from_id: 2, messages: [{ ...message(2, "assistant", "stale replay"), entity_revision: 4 }] }
+    })
+
+    expect(readEntity("chat_messages", 2)?.fields.text).toBe("final text")
+  })
+})
+
+describe("applyAppEvent client-reported amplification metrics", () => {
+  function sentClientMetrics(fetchSpy: ReturnType<typeof vi.spyOn>): Array<{ name: string; resource: string; by: number }> {
+    flushClientMetricsQueue()
+    return fetchSpy.mock.calls.flatMap((call: unknown[]) => {
+      const init = call[1] as RequestInit
+      return JSON.parse(String(init.body)).client_metrics
+    })
+  }
+
+  it("reports a real entity-store patch, but not a discarded duplicate/stale one", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, { ...event("run", 5), sequence: 1, revision: 2, payload: { fields: { state: "succeeded" } } })
+    // Stale replay of the same revision -- upsertEntity discards it outright.
+    applyAppEvent(queryClient, { ...event("run", 5), sequence: 2, revision: 1, payload: { fields: { state: "cancelled" } } })
+
+    expect(sentClientMetrics(fetchSpy)).toEqual([
+      { name: "entity_patch_applications", resource: "run", visibility_state: "visible", by: 1 }
+    ])
+  })
+
+  it("reports a revision-gap recovery tagged with the resource the gap arrived on", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 1 })
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 5 })
+
+    expect(sentClientMetrics(fetchSpy)).toEqual(expect.arrayContaining([
+      { name: "revision_gap_recoveries", resource: "workflow", by: 1 }
+    ]))
+  })
+
+  it("reports a hidden-tab suppressed fetch tagged by the invalidated query's resource", () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, event("job", 42))
+
+    expect(sentClientMetrics(fetchSpy)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "hidden_tab_suppressed_fetches", resource: "job" })
+    ]))
+  })
+})
+
 function event(resource: string, id: number | string | null) {
   return {
     type: `${resource}.updated`,
@@ -1000,6 +1295,14 @@ function dashboardInvalidationCount(invalidate: { mock: { calls: unknown[][] } }
       args.queryKey[0] === "dashboard"
     )
   }).length
+}
+
+function invalidationPredicate(invalidate: { mock: { calls: unknown[][] } }, queryKey: unknown[]) {
+  const call = invalidate.mock.calls.find(([arg]) => {
+    const candidate = arg as { queryKey?: unknown } | undefined
+    return JSON.stringify(candidate?.queryKey) === JSON.stringify(queryKey)
+  })
+  return (call?.[0] as { predicate?: (query: { queryKey: unknown[] }) => boolean } | undefined)?.predicate
 }
 
 function notificationsCache(notifications: Array<ReturnType<typeof notification>>, unreadCount: number) {

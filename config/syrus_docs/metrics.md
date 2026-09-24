@@ -462,6 +462,113 @@ It is a cluster counter (below): reads made on workers -- the pre-workflow
 `.syrus.yml` read, most of the volume -- are counted along with web's, and the
 series is cluster-wide, so aggregate it with `max by`, never `sum`.
 
+### Frontend event amplification
+
+| Metric | Meaning |
+|---|---|
+| `syrus_app_events_delivered_total{resource}` | Application events broadcast to a user channel or a Job/Chat resource channel |
+| `syrus_detail_snapshot_requests_total{resource,outcome}` | Requests for a cached detail snapshot, by outcome (`cache_hit`, `computed`, `coalesced`) |
+| `syrus_event_amplification_ratio{resource}` | Computed requests per event delivered, over the trailing sampling window |
+| `syrus_cable_connections` | Live Action Cable connections held by this process |
+| `syrus_cable_connections_per_user_max` | Busiest single user's live connection count on this process |
+| `syrus_client_entity_patch_applications_total{resource,visibility_state}` | Browser entity-store patches applied directly from an event |
+| `syrus_client_revision_gap_recoveries_total{resource}` | Browser-detected event sequence gaps recovered with a targeted refetch |
+| `syrus_client_hidden_tab_suppressed_fetches_total{resource}` | Refetches a hidden browser tab deferred instead of running immediately |
+
+This group answers "does receiving an event cost more than one event's worth
+of backend work?" -- the question behind the production incident that
+motivated it (synchronized groups of identical requests from several open
+tabs). It splits into a server half and a browser half, because the
+interesting failure modes live on both sides of the WebSocket.
+
+**Server half.** `AppEvents.broadcast`/`broadcast_job_resource`/
+`broadcast_chat_resource` (`app/services/app_events.rb`) each increment
+`app_events_delivered_total`, tagged by the same closed `resource` vocabulary
+`app/frontend/lib/appEvents.ts`'s `queryKeysFor` switches on (`job`,
+`workflow`, `step`, `run`, `chat`, ...) -- allowlisted despite naming a
+resource type because the set is closed and small, not because it names an
+instance. It is a cluster counter: `BroadcastsJobProgress` fires from
+Workflow/Step/Run saves, which happen on worker processes, not the web
+process that serves `/metrics`.
+
+`App::JobWorkflowsSnapshotCache` (`app/services/app/job_workflows_snapshot_cache.rb`)
+caches the Job workflows tree -- the ~100-query nested Workflow/Step/Run
+serialization job detail polling was paying for on every event -- keyed by a
+cheap fingerprint (a `COUNT`/`MAX(entity_revision)` aggregate per table, plus
+page and admin-flag, three small indexed queries instead of the full
+serialization) rather than the Job's own `entity_revision`, which only bumps
+on the Job row's own save, not a child's. Concurrent requests for an
+uncached fingerprint collapse through `RequestCoalescer`
+(`app/services/request_coalescer.rb`, an in-process Mutex/ConditionVariable
+single-flight -- deliberately not cluster-wide, since Puma's thread pool is
+what actually serves several tabs' identical requests) into one computation,
+and every request records its outcome onto `detail_snapshot_requests_total`:
+`cache_hit` (served from Rails.cache with no computation), `computed` (this
+request actually ran the serialization), or `coalesced` (this request waited
+on another one's in-flight computation instead of repeating it). `cache_hit`
+and `coalesced` together are the cache-effectiveness and request-coalescing
+signal; `computed` is what actually costs a database round trip. The same
+fingerprint also backs an HTTP conditional GET on
+`GET /api/v1/app/jobs/:id/workflows` (`stale?(etag: ...)` in
+`JobsController#workflows`) so an unchanged poll gets a bodyless 304 without
+even reaching the cache layer.
+
+`Metrics::AmplificationSampler` (`app/services/metrics/amplification_sampler.rb`)
+turns those two cluster counters' cumulative totals into
+`event_amplification_ratio`: each tick it snapshots both totals (via
+`Metrics::ClusterCounters.totals`, since the sampler runs on whichever
+process `SampleGlobalMetricsJob` lands on, not necessarily one that served
+any of these requests itself) and divides the *deltas* since the previous
+tick's snapshot -- `computed` requests caused per event delivered, in the
+trailing sampling window. The first tick ever only records a baseline and
+reports no ratio, the same "bootstrap to now" instinct
+`Metrics::LandingSampler`'s cursor and `Metrics::ProductUsage`'s zero-preset
+use: dividing by the all-time-since-boot total would read as a ratio for a
+window that never happened. A resource with no events in the window is
+omitted rather than reported as `0`/`Infinity`, and a dead sampler (expired
+cache) clears every ratio it previously reported rather than leaving it
+rendering forever -- the same posture as `escalations_per_landing_ratio`.
+
+**Client half.** Several of the signals only happen in the browser, and this
+metrics library cannot reach into a browser process. `ClientMetrics`
+(`app/services/client_metrics.rb`) is the one narrow bridge:
+`app/frontend/lib/clientMetrics.ts` batches occurrences in memory (flushed on
+a timer, a size cap, or page-hide via `sendBeacon`, the same shape
+`performanceMarkers.ts` already uses) and posts them to
+`POST /api/v1/app/client_metrics`, which calls `ClientMetrics.record`. Both
+`name` and `resource` are closed enums -- `ClientMetrics::REPORTABLE` and
+`::RESOURCES` -- because this is a public, authenticated HTTP boundary: an
+unrecognized value is silently dropped (mapped to a `resource="unknown"`
+tag, or ignored entirely for an unknown `name`) in every environment, unlike
+`Metrics::ProductUsage`, which only takes calls from trusted server code and
+can afford to raise on an unknown key in development/test. `by` is clamped
+(`ClientMetrics::MAX_BY`) so one misbehaving tab cannot skew a counter by an
+implausible amount in a single request.
+
+- `entity_patch_applications` fires from `app/frontend/lib/appEvents.ts`'s
+  `applyAppEventToEntityStore` whenever `upsertEntity` actually changes a
+  record (compared by object identity -- `upsertEntity` returns the same,
+  unchanged object when it rejects a stale/duplicate revision, so a
+  discarded replay is not double-counted as a patch). It is the only client
+  metric tagged by `visibility_state` (`visible`/`hidden`/`unknown`, read
+  from `document.visibilityState`) as well as `resource`, since "are patches
+  piling up in hidden tabs" is a real question this dimension answers on its
+  own, unlike the other two client metrics.
+- `revision_gap_recoveries` fires when `trackAppEventSequence` detects a
+  dropped delivery and `applyAppEvent` triggers the bounded, resource-scoped
+  recovery refetch.
+- `hidden_tab_suppressed_fetches` fires from `invalidateAppQuery` whenever a
+  hidden tab defers a fetch instead of running it immediately (the "Stop
+  frontend event invalidation and hidden-tab request storms" mechanism) --
+  this is what makes that suppression's actual volume visible instead of
+  only inferable from its absence.
+
+`visibility_state` and `resource` are both on `Syrus::Metrics::TagAllowlist`
+as deliberate additions for the same reason `credential_mode`/`problem_code`/
+`unit_type` already are: each is a small, closed, code-defined set (event
+resource kinds; `visible`/`hidden`/`unknown`), not an identifier that grows
+with the amount of work Syrus does.
+
 ## Aggregating: `max by`, never `sum`
 
 Metrics prefixed `syrus_global_` are **one fact about the whole cluster**, not a
@@ -480,15 +587,18 @@ but it is not the only signal: `job_state`, `landing_queue_depth`,
 `spawned_processes`, `provider_circuit_state`, `github_rate_limit_remaining`,
 `repositories_main_branch_broken_count`, `recurring_job_last_success_seconds`,
 `provider_sessions_bytes`, `provider_sessions_rows`,
-`escalations_per_landing_ratio`, and `attention_items_open_total` are every
-bit as GLOBAL and cache-mediated as the `syrus_global_*` gauges, just declared
-without the prefix -- their
+`escalations_per_landing_ratio`, `attention_items_open_total`,
+`app_events_delivered_total`, `detail_snapshot_requests_total`, and
+`event_amplification_ratio` are every bit as GLOBAL and cache-mediated as the
+`syrus_global_*` gauges, just declared without the prefix -- their
 `docs/metrics-catalog.md` description ends in `(GLOBAL -- aggregate with max
 by...)` instead. Treat that annotation, not the name, as authoritative.
 
-Non-global metrics (`syrus_admission_decisions_total` and every `*_total`
-counter/histogram not listed above) are per-process and aggregate normally
-with `sum`.
+Non-global metrics (`syrus_admission_decisions_total`, the `syrus_cable_*`
+and `syrus_client_*` metrics -- genuinely per-process, since each web
+process holds its own distinct WebSocket connections and serves its own
+requests -- and every other `*_total` counter/histogram not listed above)
+are per-process and aggregate normally with `sum`.
 
 ## Staleness
 
@@ -556,6 +666,13 @@ work Syrus does.
 `unit_type` is on the allowlist for the `throughput` plugin's
 `syrus_throughput_landing_units_total` -- a closed two-value set (`"auto_merge"`/
 `"merge_train"`), not an identifier.
+
+`resource` is on the allowlist for the frontend event-amplification metrics
+(above) -- the same closed vocabulary (`job`, `workflow`, `step`, `run`,
+`chat`, ...) `app/frontend/lib/appEvents.ts`'s `queryKeysFor` already
+switches on, not a per-instance identifier. `visibility_state` is on the
+allowlist for the same group -- `visible`/`hidden`/`unknown`, a fixed
+three-value set read from `document.visibilityState`.
 
 High-cardinality detail belongs in the event tables that already exist for it —
 `mcp_tool_usages`, `performance_log_events` and friends. Metrics do not replace

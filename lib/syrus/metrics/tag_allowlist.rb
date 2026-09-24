@@ -55,6 +55,8 @@ module Syrus
         skip_reason
         problem_code
         unit_type
+        resource
+        visibility_state
       ].freeze
 
       # Named explicitly so the error message can say *why*, rather than just

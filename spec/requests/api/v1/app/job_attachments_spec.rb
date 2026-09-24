@@ -161,6 +161,7 @@ RSpec.describe "App API job attachments", type: :request do
   end
 
   it "rejects empty attachment submissions" do
+    job
     expect(AppEvents).not_to receive(:broadcast)
 
     expect {

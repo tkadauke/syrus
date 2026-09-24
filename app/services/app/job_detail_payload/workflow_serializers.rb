@@ -20,10 +20,16 @@ module App
       # ("Rspec", "Ci") -- everything else falls back to plain capitalization.
       GRADER_NAME_WORD_OVERRIDES = { "rspec" => "RSpec", "ci" => "CI", "api" => "API", "db" => "DB" }.freeze
 
+      def workflows_etag
+        App::JobWorkflowsSnapshotCache.fingerprint(job: @job, page: workflows_page, admin: @user.admin?)
+      end
+
       def workflows_json
-        PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
-          paginated_workflows.map do |workflow|
-            workflow_json(workflow, navigation_page: workflows_page)
+        App::JobWorkflowsSnapshotCache.fetch(job: @job, page: workflows_page, admin: @user.admin?) do
+          PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
+            paginated_workflows.map do |workflow|
+              workflow_json(workflow, navigation_page: workflows_page)
+            end
           end
         end
       end
@@ -231,6 +237,7 @@ module App
           workflow_job_id = workflow.job_id || @job.id
           {
             id: workflow.id,
+            entity_revision: workflow.entity_revision,
             slug: workflow.slug,
             path: workflow_navigation_path(workflow, page: navigation_page),
             trigger_kind: workflow.trigger_kind,
@@ -421,6 +428,7 @@ module App
           projection = step_state_projection(step, runs: runs)
           {
             id: step.id,
+            entity_revision: step.entity_revision,
             kind: step.kind,
             agentic: step.agentic?,
             display_name: step_display_name(step, workflow: workflow),
@@ -660,6 +668,7 @@ module App
         step_agent_diff_bytes = projected_byte_size(run, "step_agent_diff")
         {
           id: run.id,
+          entity_revision: run.entity_revision,
           state: run.state,
           trigger_kind: run.trigger_kind,
           agent_provider: run.agent_provider,
@@ -863,6 +872,7 @@ module App
             .where(id: run_ids)
             .select(
               :id,
+              :entity_revision,
               :job_id,
               :step_id,
               :state,

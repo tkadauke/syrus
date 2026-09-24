@@ -51,6 +51,7 @@ Rails.application.routes.draw do
         post "browser_errors", to: "browser_errors#create"
         post "event_actions/file_job", to: "event_actions#file_job"
         post "performance_events", to: "performance_events#create"
+        post "client_metrics", to: "client_metrics#create"
         post "report_issue", to: "report_issue#create"
         get "sidebar_pages", to: "sidebar_pages#index"
         patch "sidebar_nav_order", to: "sidebar_nav_order#update"

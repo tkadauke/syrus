@@ -1093,6 +1093,17 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body.dig("error", "message")).to eq("Chat provider is not configured.")
   end
 
+  it "includes the chat session's revision so the frontend entity store can order/dedupe events against this snapshot" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "entity_revision")).to eq(chat.reload.entity_revision)
+    expect(parse_body.dig("chat", "entity_revision")).to be > 0
+  end
+
   it "returns provider switch metadata for configured explicit providers" do
     sign_in_as(user)
     user.update!(codex_api_key: "sk-test")

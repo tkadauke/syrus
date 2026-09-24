@@ -1,8 +1,9 @@
 import { forwardRef, type KeyboardEvent, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
-import { fetchJobDetail } from "../api/jobs"
+import { fetchJobDetail, type JobDetailPayload, type JobRecord } from "../api/jobs"
 import { useT } from "../hooks/useT"
+import { entityHasFields, normalizeJobDetailPayload, useEntitySelector } from "../lib/entityStore"
 import { renderLightMarkdown } from "../lib/Markdown"
 import { Card, Skeleton } from "./Card"
 import { CopyableSlug } from "./CopyableSlug"
@@ -12,16 +13,25 @@ import { StatusPill } from "./StatusPill"
 
 export function JobPreviewCard({ id, compact = false }: { id: number; compact?: boolean }) {
   const { t } = useT("jobs")
+  const cachedJob = useEntitySelector<JobRecord & { deployment_stages?: JobDetailPayload["deployment_stages"] }, JobPreviewFields | null>(
+    "jobs",
+    id,
+    (entity) => entity ? previewFields(entity.fields) : null,
+    shallowPreviewEqual
+  )
+  const hasPreviewFields = entityHasFields("jobs", id, PREVIEW_JOB_FIELDS)
   const { data, isPending } = useQuery({
     queryKey: ["jobs", String(id)],
-    queryFn: () => fetchJobDetail(String(id)),
+    queryFn: async ({ signal }) => normalizeJobDetailPayload(await fetchJobDetail(String(id), "", { signal }), "job_preview"),
+    enabled: !hasPreviewFields,
     staleTime: 30_000,
   })
 
-  if (isPending) return <JobPreviewSkeleton />
-  if (!data) return null
+  const job = cachedJob ?? (data ? previewFields({ ...data.job, deployment_stages: data.deployment_stages }) : null)
 
-  const { job } = data
+  if (!job && isPending) return <JobPreviewSkeleton />
+  if (!job) return null
+
   const body = job.issue_body ?? ""
   const title = job.issue_title ?? (job.title_pending ? t("preview_generating_title") : "")
 
@@ -42,8 +52,8 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
           {title}
         </Link>
       )}
-      {!compact && data.deployment_stages?.length ? (
-        <DeploymentStagePipeline stages={data.deployment_stages} />
+      {!compact && job.deployment_stages?.length ? (
+        <DeploymentStagePipeline stages={job.deployment_stages} />
       ) : null}
       {!compact && body && (
         <div className="mb-3 line-clamp-6 break-words text-xs text-gray-600 dark:text-gray-400">
@@ -57,6 +67,55 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
       )}
     </Card>
   )
+}
+
+const PREVIEW_JOB_FIELDS = [
+  "state",
+  "start_blocked_reason",
+  "start_blocked_count",
+  "start_blocked_details",
+  "start_blocked_next_check_at",
+  "start_blocked_at",
+  "issue_title",
+  "title_pending",
+  "issue_body"
+] as const
+
+type JobPreviewFields = Pick<
+  JobRecord,
+  | "state"
+  | "start_blocked_reason"
+  | "start_blocked_count"
+  | "start_blocked_details"
+  | "start_blocked_next_check_at"
+  | "start_blocked_at"
+  | "issue_title"
+  | "title_pending"
+  | "issue_body"
+> & {
+  deployment_stages?: JobDetailPayload["deployment_stages"]
+}
+
+function previewFields(job: Partial<JobRecord> & { deployment_stages?: JobDetailPayload["deployment_stages"] }): JobPreviewFields {
+  return {
+    state: job.state ?? "unknown",
+    start_blocked_reason: job.start_blocked_reason ?? null,
+    start_blocked_count: job.start_blocked_count ?? null,
+    start_blocked_details: job.start_blocked_details ?? null,
+    start_blocked_next_check_at: job.start_blocked_next_check_at ?? null,
+    start_blocked_at: job.start_blocked_at ?? null,
+    issue_title: job.issue_title ?? null,
+    title_pending: job.title_pending ?? false,
+    issue_body: job.issue_body ?? null,
+    deployment_stages: job.deployment_stages
+  }
+}
+
+function shallowPreviewEqual(left: JobPreviewFields | null, right: JobPreviewFields | null) {
+  if (left === right) return true
+  if (!left || !right) return false
+
+  return PREVIEW_JOB_FIELDS.every((field) => left[field] === right[field]) && left.deployment_stages === right.deployment_stages
 }
 
 // Compact variant for use in graph/dependency views. Fixed width, 1-line

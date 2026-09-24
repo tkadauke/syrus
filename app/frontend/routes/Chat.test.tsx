@@ -37,6 +37,15 @@ afterEach(() => {
   __resetDraftAttachmentsForTests()
 })
 
+// ChatRoute always opens a resource-scoped ChatChannel subscription (see
+// subscribeToChatResourceEvents) alongside whatever dictation streaming
+// subscription a given test triggers, so tests that need the dictation
+// subscription specifically must filter it out rather than assume it's the
+// only (or first) entry in actionCableSubscriptions.
+function dictationSubscription() {
+  return actionCableSubscriptions.find((subscription) => subscription.params.channel !== "ChatChannel")
+}
+
 describe("storedWorkspaceCollapsed", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -367,7 +376,7 @@ describe("chat message tail refetch", () => {
     function Harness({ reconnectAt }: { reconnectAt: number | null }) {
       return (
         <QueryClientProvider client={queryClient}>
-          <ConnectionContext.Provider value={{ reconnectAt }}>
+          <ConnectionContext.Provider value={{ isDisconnected: false, reconnectAt }}>
             <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
               <Routes>
                 <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
@@ -383,14 +392,13 @@ describe("chat message tail refetch", () => {
     expect(await screen.findByText("What did the aqueduct plan say?")).toBeInTheDocument()
     expect(screen.getByText("Discuss aqueducts.")).toBeInTheDocument()
 
-    // Simulate the Action Cable ConnectionMonitor reopening a stale connection after the
-    // tab was backgrounded (e.g. by the OS screenshot tool) — exactly what drives
-    // useChatControlsRefetchOnReconnect's real refetchQueries call on reconnect.
+    // Reconnect catch-up is owned by the shared Action Cable event layer now;
+    // ChatRoute itself must not issue an overlapping detail refetch.
     await act(async () => {
       rerender(<Harness reconnectAt={1000} />)
     })
 
-    await waitFor(() => expect(chatGetCount).toBe(2))
+    expect(chatGetCount).toBe(1)
     expect(screen.getByText("Discuss aqueducts.")).toBeInTheDocument()
     expect(screen.getByText("What did the aqueduct plan say?")).toBeInTheDocument()
   })
@@ -414,11 +422,13 @@ describe("chat message tail refetch", () => {
 
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
-            <Routes>
-              <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
-            </Routes>
-          </MemoryRouter>
+          <ConnectionContext.Provider value={{ isDisconnected: true, reconnectAt: null }}>
+            <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+              <Routes>
+                <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+              </Routes>
+            </MemoryRouter>
+          </ConnectionContext.Provider>
         </QueryClientProvider>
       )
 
@@ -432,6 +442,45 @@ describe("chat message tail refetch", () => {
 
       await act(async () => { await vi.advanceTimersByTimeAsync(1) })
       expect(chatGetCount).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("does not run the chat polling fallback while Action Cable is connected", async () => {
+    vi.useFakeTimers()
+
+    try {
+      let chatGetCount = 0
+      vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const path = String(input)
+        if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+          return Promise.resolve(new Response(null, { status: 204 }))
+        }
+        if (path === "/api/v1/app/chats/8") {
+          chatGetCount += 1
+        }
+
+        return Promise.resolve(jsonResponse(chatPayload()))
+      })
+
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ConnectionContext.Provider value={{ isDisconnected: false, reconnectAt: null }}>
+            <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+              <Routes>
+                <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+              </Routes>
+            </MemoryRouter>
+          </ConnectionContext.Provider>
+        </QueryClientProvider>
+      )
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      expect(chatGetCount).toBe(1)
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+      expect(chatGetCount).toBe(1)
     } finally {
       vi.useRealTimers()
     }
@@ -810,11 +859,11 @@ describe("chat composer dictation", () => {
     fireEvent.change(textarea, { target: { value: "Review" } })
     fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
 
-    await waitFor(() => expect(actionCableSubscriptions).toHaveLength(1))
+    await waitFor(() => expect(dictationSubscription()).toBeDefined())
     await act(async () => {
-      actionCableSubscriptions[0].mixin.connected?.()
-      actionCableSubscriptions[0].mixin.received({ type: "transcript_delta", text: "the failing grader", final: true })
-      actionCableSubscriptions[0].mixin.received({ type: "done" })
+      dictationSubscription()?.mixin.connected?.()
+      dictationSubscription()?.mixin.received({ type: "transcript_delta", text: "the failing grader", final: true })
+      dictationSubscription()?.mixin.received({ type: "done" })
     })
 
     await waitFor(() => expect(textarea).toHaveValue("Review the failing grader"))
@@ -855,10 +904,10 @@ describe("chat composer dictation", () => {
     const textarea = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
 
-    await waitFor(() => expect(actionCableSubscriptions).toHaveLength(1))
+    await waitFor(() => expect(dictationSubscription()).toBeDefined())
     await act(async () => {
-      actionCableSubscriptions[0].mixin.connected?.()
-      actionCableSubscriptions[0].mixin.received({ type: "error", message: "stream unavailable" })
+      dictationSubscription()?.mixin.connected?.()
+      dictationSubscription()?.mixin.received({ type: "error", message: "stream unavailable" })
     })
 
     await waitFor(() => expect(textarea).toHaveValue("batch fallback text"))

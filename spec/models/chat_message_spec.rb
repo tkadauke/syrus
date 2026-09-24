@@ -126,17 +126,18 @@ RSpec.describe ChatMessage do
   describe "after_create_commit :broadcast_app_event" do
     it "does not ask Rails to server-render chat controls for message updates" do
       allow(AppEvents).to receive(:broadcast)
+      allow(AppEvents).to receive(:broadcast_chat_resource)
       expect(session).not_to receive(:broadcast_controls)
 
       described_class.create!(chat_session: session, role: "user", content: { "text" => "Hi" })
     end
 
-    it "broadcasts a typed replace-tail payload for React chat rendering" do
+    it "broadcasts a typed replace-tail payload to the chat-scoped channel for React chat rendering" do
       described_class.create!(chat_session: session, role: "user", content: { "text" => "Hi" })
       expect(session).not_to receive(:broadcast_controls)
 
-      expect(AppEvents).to receive(:broadcast) do |user:, type:, resource:, id:, changed:, payload:|
-        expect(user).to eq(session.user)
+      expect(AppEvents).to receive(:broadcast_chat_resource) do |chat_session_id:, type:, resource:, id:, changed:, payload:|
+        expect(chat_session_id).to eq(session.id)
         expect(type).to eq("updated")
         expect(resource).to eq("chat")
         expect(id).to eq(session.id)
@@ -155,11 +156,11 @@ RSpec.describe ChatMessage do
       described_class.create!(chat_session: session, role: "assistant", content: { "text" => "Hello from React." })
     end
 
-    it "falls back to invalidating messages when the realtime tail payload cannot be loaded" do
+    it "falls back to invalidating messages on the chat-scoped channel when the realtime tail payload cannot be loaded" do
       allow_any_instance_of(described_class).to receive(:realtime_tail_payload).and_return(nil)
 
-      expect(AppEvents).to receive(:broadcast) do |user:, type:, resource:, id:, changed:, payload:|
-        expect(user).to eq(session.user)
+      expect(AppEvents).to receive(:broadcast_chat_resource) do |chat_session_id:, type:, resource:, id:, changed:, payload:|
+        expect(chat_session_id).to eq(session.id)
         expect(type).to eq("updated")
         expect(resource).to eq("chat")
         expect(id).to eq(session.id)
@@ -175,6 +176,21 @@ RSpec.describe ChatMessage do
       expect {
         described_class.create!(chat_session: session, role: "assistant", content: { "text" => "Hello from fallback." })
       }.not_to raise_error
+    end
+
+    it "broadcasts a lightweight turn-state event to the global per-user channel for the recent-chats sidebar" do
+      allow(AppEvents).to receive(:broadcast_chat_resource)
+
+      expect(AppEvents).to receive(:broadcast) do |user:, type:, resource:, id:, changed:, payload:|
+        expect(user).to eq(session.user)
+        expect(type).to eq("updated")
+        expect(resource).to eq("chat")
+        expect(id).to eq(session.id)
+        expect(changed).to eq([ "messages" ])
+        expect(payload).to eq(action: "update_turn_state", turn_in_flight: true, agent_busy: false)
+      end
+
+      described_class.create!(chat_session: session, role: "user", content: { "text" => "Hi" })
     end
   end
 

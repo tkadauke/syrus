@@ -43,8 +43,9 @@ module MetricsDashboard
     CATEGORY_QUEUE_THROUGHPUT = "queue_throughput".freeze
     CATEGORY_WORKERS_FLEET = "workers_fleet".freeze
     CATEGORY_RESILIENCE_PRODUCT = "resilience_product".freeze
+    CATEGORY_FRONTEND_AMPLIFICATION = "frontend_amplification".freeze
     CATEGORY_OTHER = "other".freeze
-    CATEGORIES = [ CATEGORY_QUEUE_THROUGHPUT, CATEGORY_WORKERS_FLEET, CATEGORY_RESILIENCE_PRODUCT ].freeze
+    CATEGORIES = [ CATEGORY_QUEUE_THROUGHPUT, CATEGORY_WORKERS_FLEET, CATEGORY_RESILIENCE_PRODUCT, CATEGORY_FRONTEND_AMPLIFICATION ].freeze
 
     # `aggregate` is the honest part for gauges: syrus_global_* series are one
     # cluster-wide fact rendered identically by every recorder, so summing them
@@ -129,7 +130,27 @@ module MetricsDashboard
       { key: "feature_usage", metric: "syrus_feature_used_total",
         group_by: "feature", mode: :rate, unit: "uses", category: CATEGORY_RESILIENCE_PRODUCT },
       { key: "plugin_enabled", metric: "syrus_global_plugin_enabled",
-        group_by: "plugin", mode: :value, aggregate: :max, unit: "enabled", category: CATEGORY_RESILIENCE_PRODUCT }
+        group_by: "plugin", mode: :value, aggregate: :max, unit: "enabled", category: CATEGORY_RESILIENCE_PRODUCT },
+
+      # Frontend Amplification -- how much backend/event work does
+      # one browser event cause, and how effective are the defenses against
+      # it (caching, coalescing, hidden-tab suppression) at absorbing it.
+      { key: "event_amplification_ratio", metric: "syrus_event_amplification_ratio",
+        group_by: "resource", mode: :value, aggregate: :max, unit: "ratio", category: CATEGORY_FRONTEND_AMPLIFICATION },
+      { key: "app_events_delivered", metric: "syrus_app_events_delivered_total",
+        group_by: "resource", mode: :rate, unit: "events", category: CATEGORY_FRONTEND_AMPLIFICATION },
+      { key: "detail_snapshot_requests", metric: "syrus_detail_snapshot_requests_total",
+        group_by: "outcome", mode: :rate, unit: "requests", category: CATEGORY_FRONTEND_AMPLIFICATION },
+      { key: "cable_connections", metric: "syrus_cable_connections",
+        group_by: nil, mode: :value, aggregate: :max, unit: "connections", category: CATEGORY_FRONTEND_AMPLIFICATION },
+      { key: "cable_connections_per_user_max", metric: "syrus_cable_connections_per_user_max",
+        group_by: nil, mode: :value, aggregate: :max, unit: "connections", category: CATEGORY_FRONTEND_AMPLIFICATION },
+      { key: "client_entity_patch_applications", metric: "syrus_client_entity_patch_applications_total",
+        group_by: "visibility_state", mode: :rate, unit: "patches", category: CATEGORY_FRONTEND_AMPLIFICATION },
+      { key: "client_revision_gap_recoveries", metric: "syrus_client_revision_gap_recoveries_total",
+        group_by: "resource", mode: :rate, unit: "recoveries", category: CATEGORY_FRONTEND_AMPLIFICATION },
+      { key: "client_hidden_tab_suppressed_fetches", metric: "syrus_client_hidden_tab_suppressed_fetches_total",
+        group_by: "resource", mode: :rate, unit: "fetches", category: CATEGORY_FRONTEND_AMPLIFICATION }
     ].freeze
 
     # A panel that forgets to set `category:` must not silently disappear from

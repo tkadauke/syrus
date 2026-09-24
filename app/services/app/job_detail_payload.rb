@@ -16,6 +16,15 @@ module App
       new(job: job, user: user, params: params).workflows_payload
     end
 
+    # A cheap freshness token for the workflows payload -- the same
+    # fingerprint App::JobWorkflowsSnapshotCache keys its cache on -- so a
+    # controller can answer a conditional GET (If-None-Match) with 304
+    # without ever building or serializing the response body. See
+    # JobsController#workflows.
+    def self.workflows_etag(job:, user:, params: {})
+      new(job: job, user: user, params: params).workflows_etag
+    end
+
     def self.timeline(job:)
       new(job: job, user: job.user).timeline_payload
     end
@@ -187,6 +196,7 @@ module App
 
       {
         id: @job.id,
+        entity_revision: @job.entity_revision,
         slug: @job.slug,
         kind: @job.kind,
         investigation: @job.investigation?,

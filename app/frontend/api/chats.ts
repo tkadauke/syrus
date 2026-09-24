@@ -20,6 +20,7 @@ export type ChatParticipant = {
 
 export type ChatRecord = {
   id: number
+  entity_revision?: number
   current_user_id?: number
   title: string | null
   title_pending: boolean
@@ -348,6 +349,7 @@ export type ChatCrossChatBridge = {
 export type ChatMessageItem = {
   type: "message"
   id: number
+  entity_revision?: number
   role: "user" | "assistant" | "tool_use" | "tool_result" | "system"
   tool_name?: string | null
   content?: unknown
@@ -958,8 +960,8 @@ export type ChatPreviewPayload = {
   pending_actions_count: number
 }
 
-export function fetchChatPreview(id: string) {
-  return getJson<ChatPreviewPayload>(`/api/v1/app/chats/${id}/preview`)
+export function fetchChatPreview(id: string, options: { signal?: AbortSignal } = {}) {
+  return getJson<ChatPreviewPayload>(`/api/v1/app/chats/${id}/preview`, options)
 }
 
 export function fetchChatBookmarks(path: string, options: { signal?: AbortSignal } = {}) {
