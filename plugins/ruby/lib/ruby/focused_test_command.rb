@@ -22,7 +22,9 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "bundle exec rspec #{Shellwords.join(files)}"
+      'export BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle"; ' \
+        'bundle check || bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && ' \
+        "RAILS_ENV=test COVERAGE=false bundle exec rspec #{Shellwords.join(files)}"
     end
 
     private
