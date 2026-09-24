@@ -177,6 +177,20 @@ RSpec.describe TouchedTestRepeatGate do
       )
     end
 
+    it "preserves RSpec tag filters when building the real Ruby focused command" do
+      step = grader_step_with({ "name" => "rspec", "command" => "bundle exec rspec --tag ~ci_only" })
+
+      result = described_class.call(
+        grader_step: step,
+        touched_files: [ "spec/models/widget_spec.rb" ],
+        workspace_path: @dir,
+        repeats: 1
+      )
+
+      expect(result.ran).to be(true)
+      expect(result.command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
+    end
+
     it "honors an explicit files_as_args base_retry without involving any plugin" do
       expect(Syrus::PluginRegistry).not_to receive(:providers_for)
       step = grader_step_with({
