@@ -425,6 +425,54 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(snapshot.source_ref).to match(%r{\Arefs/syrus/source-snapshots/runs/\d+\z})
   end
 
+  it "does not expose grader steps until the source snapshot ref is durable" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+
+    expect(@git).to receive(:run)
+      .with("push", "file://remote", /\Aabc123:refs\/syrus\/source-snapshots\/runs\/\d+\z/, chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })
+      .ordered
+      .and_raise(GitRunner::GitError.new([ "push" ], 128, "connection lost"))
+    expect(@git).to receive(:run)
+      .with("push", "file://remote", /\Aabc123:refs\/syrus\/source-snapshots\/runs\/\d+\z/, chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })
+      .ordered
+      .and_return("")
+
+    expect { handler.call }
+      .to raise_error(WorkflowSourceSnapshots::InfrastructureStateError, /ref publish failed/)
+    expect(workflow.steps.where(kind: "grader")).to be_empty
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    expect(workflow.source_snapshots.count).to eq(1)
+  end
+
+  it "republishes the source snapshot when retrying an already-materialized fanout" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+
+    expect(@git).to receive(:run)
+      .with("push", "file://remote", /\Aabc123:refs\/syrus\/source-snapshots\/runs\/\d+\z/, chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })
+      .twice
+      .and_return("")
+
+    handler.call
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+  end
+
   it "reuses the current workflow source snapshot for all materialized graders when distributed workflows are enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)

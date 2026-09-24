@@ -111,6 +111,7 @@ module Steps
       end
 
       if materialized_grader_steps.exists?
+        publish_materialized_source_snapshot!
         log("[grader_fanout] grader Steps already materialized for iteration #{step.iteration}; reusing existing Step chain")
         return
       end
@@ -511,6 +512,9 @@ module Steps
 
       return false unless continue_side_effects?("[grader_fanout] materialization")
 
+      source_snapshot = current_source_snapshot_for_projection
+      publish_source_snapshot!(source_snapshot) if source_snapshot
+
       with_materialization_lock_retries do
         heartbeat!
         Step.transaction do
@@ -518,9 +522,6 @@ module Steps
             source_snapshot = nil
             next
           end
-
-          source_snapshot = current_source_snapshot_for_projection
-          heartbeat!
 
           workflow.steps.where("position >= ?", insertion_position).update_all(
             [ "position = position + ?", offset ]
@@ -556,17 +557,26 @@ module Steps
         end
       end
 
-      if source_snapshot
-        return true unless continue_side_effects?("[grader_fanout] source snapshot publication")
-
-        heartbeat!
-        publish_prepared_workspace_archive!(source_snapshot)
-        heartbeat!
-        publish_source_snapshot_ref!(source_snapshot.source_sha, source_snapshot.source_ref)
-        heartbeat!
-      end
-
       materialized
+    end
+
+    def publish_materialized_source_snapshot!
+      snapshot_id = materialized_grader_steps.find_each.lazy
+        .map { |grader_step| grader_step.details.to_h["source_snapshot_id"] }
+        .find(&:present?)
+      return if snapshot_id.blank?
+
+      publish_source_snapshot!(workflow.source_snapshots.find(snapshot_id))
+    end
+
+    def publish_source_snapshot!(source_snapshot)
+      return unless continue_side_effects?("[grader_fanout] source snapshot publication")
+
+      heartbeat!
+      publish_prepared_workspace_archive!(source_snapshot)
+      heartbeat!
+      publish_source_snapshot_ref!(source_snapshot.source_sha, source_snapshot.source_ref)
+      heartbeat!
     end
 
     def with_materialization_lock_retries
