@@ -2193,8 +2193,7 @@ describe("JobDetailRoute", () => {
     expect(main).not.toHaveClass("px-[var(--space-page-x)]")
 
     const header = main.querySelector("header")
-    expect(header).toHaveClass("px-4", "sm:px-0", "block", "space-y-3")
-    expect(header).not.toHaveClass("gap-x-6", "gap-y-3")
+    expect(header).toHaveClass("px-4", "sm:px-0", "flex", "flex-wrap", "items-start", "justify-between", "gap-x-6", "gap-y-3")
 
     const tabChrome = screen.getByRole("navigation", { name: "Job sections" }).parentElement
     expect(tabChrome).toHaveClass("px-4", "sm:px-0")
