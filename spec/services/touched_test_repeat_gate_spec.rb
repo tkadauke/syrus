@@ -71,6 +71,28 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(0)
   end
 
+  it "defaults repeat subprocesses to the test Rails environment" do
+    original_rails_env = ENV["RAILS_ENV"]
+    ENV["RAILS_ENV"] = "development"
+    stub_focused_command('[ "$RAILS_ENV" = "test" ]')
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/request_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 1
+    )
+
+    expect(result.consistent).to be(true)
+    expect(result.pass_count).to eq(1)
+  ensure
+    if original_rails_env.nil?
+      ENV.delete("RAILS_ENV")
+    else
+      ENV["RAILS_ENV"] = original_rails_env
+    end
+  end
+
   it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do
     stub_focused_command("false")
 
