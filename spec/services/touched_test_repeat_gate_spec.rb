@@ -149,6 +149,25 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(5)
   end
 
+  it "skips when the focused command selects no examples for the touched files" do
+    stub_focused_command("printf 'Run options: exclude {ci_only: true}\\n\\nAll examples were filtered out\\n'; exit 1")
+    messages = []
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "plugins/ruby/spec/focused_test_command_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 2,
+      log: ->(message) { messages << message }
+    )
+
+    expect(result.ran).to be(false)
+    expect(result.consistent).to be(true)
+    expect(result.reason).to eq("no_examples_selected")
+    expect(result.command).to be_present
+    expect(messages.join("\n")).to include("focused reruns selected no examples")
+  end
+
   it "skips without running anything when there are no touched files" do
     expect(Syrus::PluginRegistry).not_to receive(:providers_for)
 
@@ -191,8 +210,8 @@ RSpec.describe TouchedTestRepeatGate do
         repeats: 1
       )
 
-      expect(result.ran).to be(true)
-      expect(result.command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
+      expect(result.command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
+      expect(result.reason).to eq("no_examples_selected")
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do
