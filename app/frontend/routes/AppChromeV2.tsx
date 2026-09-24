@@ -278,6 +278,8 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     clearSidebarPeekTimer(sidebarPeekCloseTimerRef)
   }
 
+  const sidebarPeekInertAttributes = sidebarPeekOpen ? {} : { inert: "" }
+
   return (
     <ShortcutsProvider>
     <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>
@@ -312,6 +314,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         />
         {sidebarSplitter.collapsed ? (
           <div
+            {...sidebarPeekInertAttributes}
             aria-hidden={!sidebarPeekOpen}
             className={`absolute bottom-0 left-0 top-0 z-30 shadow-xl transition-all duration-200 ease-out ${sidebarPeekOpen ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0 pointer-events-none"}`}
             data-testid="sidebar-peek"
@@ -332,6 +335,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
               onStartChat={startChat}
               onStartGroupChat={startGroupChat}
               prefix={prefix}
+              searchShortcutsEnabled={sidebarPeekOpen}
               showTeamProfile={(data?.team_user_count || 0) > 1}
               startingChat={startingChat}
               user={user}
@@ -933,6 +937,7 @@ function SidebarContent({
   onStartChat,
   onStartGroupChat,
   prefix,
+  searchShortcutsEnabled = true,
   showTeamProfile,
   startingChat,
   user,
@@ -951,6 +956,7 @@ function SidebarContent({
   onStartChat: () => void
   onStartGroupChat: () => void
   prefix: string
+  searchShortcutsEnabled?: boolean
   showTeamProfile: boolean
   startingChat: boolean
   user: BootstrapPayload["current_user"] | undefined
@@ -1095,7 +1101,7 @@ function SidebarContent({
               {collapsed ? null : <span>{t("nav:new_group_chat")}</span>}
             </Button>
           ) : null}
-          <SidebarSearchForm collapsed={collapsed} onCloseDrawer={onCloseDrawer} prefix={prefix} />
+          <SidebarSearchForm collapsed={collapsed} onCloseDrawer={onCloseDrawer} prefix={prefix} searchShortcutsEnabled={searchShortcutsEnabled} />
           {collapsed ? null : <SidebarMaintenanceTasks prefix={prefix} signedIn={Boolean(user)} />}
         </div>
         <div className={`${collapsed ? "px-0" : "px-3"} pb-4`}>
@@ -1182,7 +1188,17 @@ function isCoarsePointer() {
   )
 }
 
-function SidebarSearchForm({ collapsed, onCloseDrawer, prefix }: { collapsed: boolean; onCloseDrawer: () => void; prefix: string }) {
+function SidebarSearchForm({
+  collapsed,
+  onCloseDrawer,
+  prefix,
+  searchShortcutsEnabled
+}: {
+  collapsed: boolean
+  onCloseDrawer: () => void
+  prefix: string
+  searchShortcutsEnabled: boolean
+}) {
   const location = useLocation()
   const navigate = useNavigate()
   const { t } = useTranslation("nav")
@@ -1208,16 +1224,18 @@ function SidebarSearchForm({ collapsed, onCloseDrawer, prefix }: { collapsed: bo
   }, [location.search, location.pathname])
 
   useEffect(() => {
-    if (!userEditedRef.current || isCoarsePointer()) return
+    if (!searchShortcutsEnabled || !userEditedRef.current || isCoarsePointer()) return
 
     const timer = window.setTimeout(() => {
       navigateToSearch(query)
     }, 300)
 
     return () => window.clearTimeout(timer)
-  }, [query])
+  }, [query, searchShortcutsEnabled])
 
   useEffect(() => {
+    if (!searchShortcutsEnabled) return
+
     function focusSearch(event: globalThis.KeyboardEvent) {
       const target = event.target
       const targetElement = target instanceof HTMLElement ? target : null
@@ -1234,7 +1252,7 @@ function SidebarSearchForm({ collapsed, onCloseDrawer, prefix }: { collapsed: bo
 
     window.addEventListener("keydown", focusSearch)
     return () => window.removeEventListener("keydown", focusSearch)
-  }, [])
+  }, [searchShortcutsEnabled])
 
   if (collapsed) {
     return (
