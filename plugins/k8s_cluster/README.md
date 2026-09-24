@@ -7,7 +7,7 @@ K8s Cluster Viewer lets admins register external Kubernetes/k3s clusters, parsed
 - Admin UI and API endpoints for Kubernetes/k3s cluster connection management.
 - A kubeconfig parser that resolves the current-context's cluster/user and extracts only the connection info Syrus needs (server URL, bearer token or client-certificate/key, CA data).
 - A lightweight connection test (`GET /version`) before saving.
-- A `kubeclient`-backed API client and one read-only service per resource kind (namespaces, pods, deployments, services, events, PersistentVolumeClaims, nodes, CronJobs), plus a `metrics.k8s.io`-backed cluster overview that soft-fails when metrics-server isn't installed.
+- A `kubeclient`-backed API client and one read-only service per resource kind (namespaces, pods, deployments, StatefulSets, DaemonSets, Jobs, services, events, PersistentVolumeClaims, nodes, CronJobs), plus a `metrics.k8s.io`-backed cluster overview that soft-fails when metrics-server isn't installed.
 - Admin-only JSON API endpoints for all of the above under `/api/v1/app/admin/kubernetes_clusters/:id/...`.
 - A tabbed cluster-browsing UI (Overview/Workloads/Services/Storage/Nodes/Events/Logs/Live) reached via a **Browse** action per registered cluster.
 - Four gated write/mutating MCP tools (`k8s_cluster_restart_rollout`, `k8s_cluster_scale_deployment`, `k8s_cluster_delete_pod`, `k8s_cluster_set_node_cordon`), each requiring both `agentic_access_enabled` and `allow_writes` on the target cluster, with a curated before/after audit line per call.

@@ -202,6 +202,79 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
       expect(parse_body.dig("cron_jobs", 0, "name")).to eq("nightly")
     end
 
+    it "lists statefulsets" do
+      stateful_sets = instance_double(K8sCluster::StatefulSets)
+      allow(K8sCluster::StatefulSets).to receive(:new).with(cluster).and_return(stateful_sets)
+      allow(stateful_sets).to receive(:list).with(namespace: nil).and_return(available: true, stateful_sets: [ { name: "db" } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/statefulsets"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("stateful_sets", 0, "name")).to eq("db")
+    end
+
+    it "describes a statefulset when both name and namespace are given" do
+      stateful_sets = instance_double(K8sCluster::StatefulSets)
+      allow(K8sCluster::StatefulSets).to receive(:new).with(cluster).and_return(stateful_sets)
+      allow(stateful_sets).to receive(:describe).with("db", namespace: "default").and_return(available: true, stateful_set: { "metadata" => { "name" => "db" } })
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/statefulsets", params: { name: "db", namespace: "default" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("stateful_set", "metadata", "name")).to eq("db")
+    end
+
+    it "lists daemonsets" do
+      daemon_sets = instance_double(K8sCluster::DaemonSets)
+      allow(K8sCluster::DaemonSets).to receive(:new).with(cluster).and_return(daemon_sets)
+      allow(daemon_sets).to receive(:list).with(namespace: nil).and_return(available: true, daemon_sets: [ { name: "monitoring" } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/daemonsets"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("daemon_sets", 0, "name")).to eq("monitoring")
+    end
+
+    it "describes a daemonset when both name and namespace are given" do
+      daemon_sets = instance_double(K8sCluster::DaemonSets)
+      allow(K8sCluster::DaemonSets).to receive(:new).with(cluster).and_return(daemon_sets)
+      allow(daemon_sets).to receive(:describe).with("monitoring", namespace: "default").and_return(available: true, daemon_set: { "metadata" => { "name" => "monitoring" } })
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/daemonsets", params: { name: "monitoring", namespace: "default" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("daemon_set", "metadata", "name")).to eq("monitoring")
+    end
+
+    it "lists jobs" do
+      jobs = instance_double(K8sCluster::Jobs)
+      allow(K8sCluster::Jobs).to receive(:new).with(cluster).and_return(jobs)
+      allow(jobs).to receive(:list).with(namespace: nil).and_return(available: true, jobs: [ { name: "migrate" } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/jobs"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("jobs", 0, "name")).to eq("migrate")
+    end
+
+    it "requires a namespace to describe a specific job" do
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/jobs", params: { name: "migrate" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("namespace_required")
+    end
+
+    it "describes a job when both name and namespace are given" do
+      jobs = instance_double(K8sCluster::Jobs)
+      allow(K8sCluster::Jobs).to receive(:new).with(cluster).and_return(jobs)
+      allow(jobs).to receive(:describe).with("migrate", namespace: "default").and_return(available: true, job: { "metadata" => { "name" => "migrate" } })
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/jobs", params: { name: "migrate", namespace: "default" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("job", "metadata", "name")).to eq("migrate")
+    end
+
     it "returns the cluster overview" do
       overview = instance_double(K8sCluster::Overview)
       allow(K8sCluster::Overview).to receive(:new).with(cluster).and_return(overview)

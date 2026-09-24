@@ -5,18 +5,24 @@ import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
   fetchKubernetesCronJobs,
+  fetchKubernetesDaemonSets,
   fetchKubernetesDeployments,
+  fetchKubernetesJobs,
   fetchKubernetesPods,
+  fetchKubernetesStatefulSets,
   type KubernetesCronJobRow,
+  type KubernetesDaemonSetRow,
   type KubernetesDeploymentRow,
-  type KubernetesPodRow
+  type KubernetesJobRow,
+  type KubernetesPodRow,
+  type KubernetesStatefulSetRow
 } from "../../api/kubernetesResources"
 import { explainCronSchedule, formatAge, type CronScheduleExplanation } from "../../lib/k8sFormat"
 import { Dropdown } from "../Dropdown"
 import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
 import { StatusBadge } from "../StatusBadge"
 
-type WorkloadKind = "pods" | "deployments" | "cronjobs"
+type WorkloadKind = "pods" | "deployments" | "statefulsets" | "daemonsets" | "jobs" | "cronjobs"
 
 export function WorkloadsTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
@@ -25,6 +31,9 @@ export function WorkloadsTab({ clusterId, namespace }: { clusterId: number; name
   const kindOptions = [
     { value: "pods" as const, label: t("workload_kind_pods") },
     { value: "deployments" as const, label: t("workload_kind_deployments") },
+    { value: "statefulsets" as const, label: t("workload_kind_statefulsets") },
+    { value: "daemonsets" as const, label: t("workload_kind_daemonsets") },
+    { value: "jobs" as const, label: t("workload_kind_jobs") },
     { value: "cronjobs" as const, label: t("workload_kind_cronjobs") }
   ]
 
@@ -33,6 +42,9 @@ export function WorkloadsTab({ clusterId, namespace }: { clusterId: number; name
       <Dropdown ariaLabel={t("workload_kind_label")} onChange={setKind} options={kindOptions} value={kind} />
       {kind === "pods" ? <PodsTable clusterId={clusterId} namespace={namespace} /> : null}
       {kind === "deployments" ? <DeploymentsTable clusterId={clusterId} namespace={namespace} /> : null}
+      {kind === "statefulsets" ? <StatefulSetsTable clusterId={clusterId} namespace={namespace} /> : null}
+      {kind === "daemonsets" ? <DaemonSetsTable clusterId={clusterId} namespace={namespace} /> : null}
+      {kind === "jobs" ? <JobsTable clusterId={clusterId} namespace={namespace} /> : null}
       {kind === "cronjobs" ? <CronJobsTable clusterId={clusterId} namespace={namespace} /> : null}
     </div>
   )
@@ -82,6 +94,78 @@ function DeploymentsTable({ clusterId, namespace }: { clusterId: number; namespa
       rows={deployments.data.deployments}
       storageKey="syrus.k8s_cluster.deployments.columns"
       summary={t("workload_kind_deployments")}
+    />
+  )
+}
+
+function StatefulSetsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
+  const { t } = useT("k8s_cluster")
+  const statefulSets = useQuery({
+    queryKey: ["k8s_cluster", "statefulsets", clusterId, namespace],
+    queryFn: () => fetchKubernetesStatefulSets(clusterId, namespace)
+  })
+
+  if (statefulSets.isPending) return <PanelMessage>{t("workloads_loading_statefulsets")}</PanelMessage>
+  if (statefulSets.isError) return <PanelMessage tone="error">{errorMessage(statefulSets.error, t("workloads_error_loading_statefulsets"))}</PanelMessage>
+  if (statefulSets.data.stateful_sets.length === 0) return <PanelMessage>{t("workloads_empty_statefulsets")}</PanelMessage>
+
+  return (
+    <KubernetesResourceTable
+      columns={statefulSetColumns(t)}
+      defaultSort={{ column: "name", direction: "asc" }}
+      empty={<PanelMessage>{t("workloads_empty_statefulsets")}</PanelMessage>}
+      getRowKey={(statefulSet) => `${statefulSet.namespace}/${statefulSet.name}`}
+      rows={statefulSets.data.stateful_sets}
+      storageKey="syrus.k8s_cluster.stateful_sets.columns"
+      summary={t("workload_kind_statefulsets")}
+    />
+  )
+}
+
+function DaemonSetsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
+  const { t } = useT("k8s_cluster")
+  const daemonSets = useQuery({
+    queryKey: ["k8s_cluster", "daemonsets", clusterId, namespace],
+    queryFn: () => fetchKubernetesDaemonSets(clusterId, namespace)
+  })
+
+  if (daemonSets.isPending) return <PanelMessage>{t("workloads_loading_daemonsets")}</PanelMessage>
+  if (daemonSets.isError) return <PanelMessage tone="error">{errorMessage(daemonSets.error, t("workloads_error_loading_daemonsets"))}</PanelMessage>
+  if (daemonSets.data.daemon_sets.length === 0) return <PanelMessage>{t("workloads_empty_daemonsets")}</PanelMessage>
+
+  return (
+    <KubernetesResourceTable
+      columns={daemonSetColumns(t)}
+      defaultSort={{ column: "name", direction: "asc" }}
+      empty={<PanelMessage>{t("workloads_empty_daemonsets")}</PanelMessage>}
+      getRowKey={(daemonSet) => `${daemonSet.namespace}/${daemonSet.name}`}
+      rows={daemonSets.data.daemon_sets}
+      storageKey="syrus.k8s_cluster.daemon_sets.columns"
+      summary={t("workload_kind_daemonsets")}
+    />
+  )
+}
+
+function JobsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
+  const { t } = useT("k8s_cluster")
+  const jobs = useQuery({
+    queryKey: ["k8s_cluster", "jobs", clusterId, namespace],
+    queryFn: () => fetchKubernetesJobs(clusterId, namespace)
+  })
+
+  if (jobs.isPending) return <PanelMessage>{t("workloads_loading_jobs")}</PanelMessage>
+  if (jobs.isError) return <PanelMessage tone="error">{errorMessage(jobs.error, t("workloads_error_loading_jobs"))}</PanelMessage>
+  if (jobs.data.jobs.length === 0) return <PanelMessage>{t("workloads_empty_jobs")}</PanelMessage>
+
+  return (
+    <KubernetesResourceTable
+      columns={jobColumns(t)}
+      defaultSort={{ column: "name", direction: "asc" }}
+      empty={<PanelMessage>{t("workloads_empty_jobs")}</PanelMessage>}
+      getRowKey={(job) => `${job.namespace}/${job.name}`}
+      rows={jobs.data.jobs}
+      storageKey="syrus.k8s_cluster.jobs.columns"
+      summary={t("workload_kind_jobs")}
     />
   )
 }
@@ -217,6 +301,178 @@ function deploymentColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesRes
       render: (deployment) => formatAge(deployment.created_at),
       sort: "created_at",
       sortValue: (deployment) => deployment.created_at
+    }
+  ]
+}
+
+function statefulSetColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResourceTableColumn<KubernetesStatefulSetRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (statefulSet) => statefulSet.name,
+      required: true,
+      sort: "name",
+      sortValue: (statefulSet) => statefulSet.name
+    },
+    {
+      key: "namespace",
+      header: t("col_namespace"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (statefulSet) => statefulSet.namespace,
+      sort: "namespace",
+      sortValue: (statefulSet) => statefulSet.namespace
+    },
+    {
+      key: "ready",
+      header: t("col_ready"),
+      className: "text-gray-700 dark:text-gray-300",
+      filterValue: (statefulSet) => `${statefulSet.ready_replicas}/${statefulSet.replicas ?? "-"}`,
+      render: (statefulSet) => `${statefulSet.ready_replicas}/${statefulSet.replicas ?? "-"}`,
+      sort: "ready",
+      sortValue: (statefulSet) => statefulSet.ready_replicas
+    },
+    {
+      key: "current_replicas",
+      header: t("col_current"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (statefulSet) => statefulSet.current_replicas,
+      sort: "current_replicas",
+      sortValue: (statefulSet) => statefulSet.current_replicas
+    },
+    {
+      key: "updated_replicas",
+      header: t("col_updated"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (statefulSet) => statefulSet.updated_replicas,
+      sort: "updated_replicas",
+      sortValue: (statefulSet) => statefulSet.updated_replicas
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (statefulSet) => formatAge(statefulSet.created_at),
+      sort: "created_at",
+      sortValue: (statefulSet) => statefulSet.created_at
+    }
+  ]
+}
+
+function daemonSetColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResourceTableColumn<KubernetesDaemonSetRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (daemonSet) => daemonSet.name,
+      required: true,
+      sort: "name",
+      sortValue: (daemonSet) => daemonSet.name
+    },
+    {
+      key: "namespace",
+      header: t("col_namespace"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (daemonSet) => daemonSet.namespace,
+      sort: "namespace",
+      sortValue: (daemonSet) => daemonSet.namespace
+    },
+    {
+      key: "scheduled",
+      header: t("col_scheduled"),
+      className: "text-gray-700 dark:text-gray-300",
+      filterValue: (daemonSet) => `${daemonSet.current_number_scheduled}/${daemonSet.desired_number_scheduled}`,
+      render: (daemonSet) => `${daemonSet.current_number_scheduled}/${daemonSet.desired_number_scheduled}`,
+      sort: "scheduled",
+      sortValue: (daemonSet) => daemonSet.current_number_scheduled
+    },
+    {
+      key: "number_ready",
+      header: t("col_ready"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (daemonSet) => daemonSet.number_ready,
+      sort: "number_ready",
+      sortValue: (daemonSet) => daemonSet.number_ready
+    },
+    {
+      key: "number_available",
+      header: t("col_available"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (daemonSet) => daemonSet.number_available,
+      sort: "number_available",
+      sortValue: (daemonSet) => daemonSet.number_available
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (daemonSet) => formatAge(daemonSet.created_at),
+      sort: "created_at",
+      sortValue: (daemonSet) => daemonSet.created_at
+    }
+  ]
+}
+
+function jobColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResourceTableColumn<KubernetesJobRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (job) => job.name,
+      required: true,
+      sort: "name",
+      sortValue: (job) => job.name
+    },
+    {
+      key: "namespace",
+      header: t("col_namespace"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (job) => job.namespace,
+      sort: "namespace",
+      sortValue: (job) => job.namespace
+    },
+    {
+      key: "completions",
+      header: t("col_completions"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (job) => job.completions ?? "-",
+      sort: "completions",
+      sortValue: (job) => job.completions
+    },
+    {
+      key: "active_count",
+      header: t("col_active"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (job) => job.active_count,
+      sort: "active_count",
+      sortValue: (job) => job.active_count
+    },
+    {
+      key: "succeeded",
+      header: t("col_succeeded"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (job) => job.succeeded,
+      sort: "succeeded",
+      sortValue: (job) => job.succeeded
+    },
+    {
+      key: "failed",
+      header: t("col_failed"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (job) => job.failed,
+      sort: "failed",
+      sortValue: (job) => job.failed
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (job) => formatAge(job.created_at),
+      sort: "created_at",
+      sortValue: (job) => job.created_at
     }
   ]
 }
