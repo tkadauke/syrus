@@ -6,6 +6,7 @@ import { ChevronIcon } from "../ChevronIcon"
 import { CloseIcon } from "../CloseIcon"
 import { renderCodeLine } from "../CodeBlock"
 import { CopyIcon } from "../CopyableSlug"
+import { DEFAULT_REVIEW_DIFF_SETTINGS, type ReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
@@ -110,6 +111,7 @@ export type ReviewableDiffProps = {
   selectedPath?: string | null
   showFileHeaders?: boolean | "continuous"
   unavailableState?: ReactNode
+  reviewSettings?: ReviewDiffSettings
   wordHighlighting?: boolean
 }
 
@@ -210,11 +212,12 @@ export function ReviewableDiff({
   onSelectFile,
   onStartEditThread,
   renderImageDiff,
+  reviewSettings,
   scroll = "bounded",
   selectedPath,
   showFileHeaders = "continuous",
   unavailableState = "Diff not available",
-  wordHighlighting = true
+  wordHighlighting
 }: ReviewableDiffProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -226,6 +229,8 @@ export function ReviewableDiff({
   const filesMenuMarkerRef = useRef<PerformanceMarkerHandle | null>(null)
   const [highlightedToken, setHighlightedToken] = useState<string | null>(null)
   const isMobileFilesMenu = useIsMobileViewport()
+  const effectiveReviewSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, ...reviewSettings }
+  const wordHighlightingEnabled = wordHighlighting ?? effectiveReviewSettings.intraline_highlighting === "word"
   // Per-file cache (parsed context state, fetched Shiki tokens) keyed by file
   // path -- survives a file section unmounting when it scrolls out of the
   // virtualized window. Reset below whenever the diff itself changes.
@@ -375,7 +380,7 @@ export function ReviewableDiff({
 
   return (
     <div className="relative min-w-0 max-w-full [contain:inline-size]" data-testid="agent-diff-viewer" ref={containerRef}>
-      <div className={containerClass} data-rendered-file-count={renderedFileCount} data-total-file-count={visibleFiles.length} onClick={wordHighlighting ? clearHighlightOnDiffBackgroundClick : undefined} ref={scrollContainerRef}>
+      <div className={containerClass} data-rendered-file-count={renderedFileCount} data-total-file-count={visibleFiles.length} onClick={wordHighlightingEnabled ? clearHighlightOnDiffBackgroundClick : undefined} ref={scrollContainerRef}>
         {scroll === "natural" ? (
           visibleFiles.map((file, index) => renderFileSection(file, index))
         ) : (
@@ -447,7 +452,7 @@ export function ReviewableDiff({
           editingThreadBody={editingThreadBody}
           editingThreadId={editingThreadId}
           file={file}
-          highlightedToken={wordHighlighting ? highlightedToken : null}
+          highlightedToken={wordHighlightingEnabled ? highlightedToken : null}
           largeFileRowThreshold={largeFileRowThreshold}
           onCancelComposing={onCancelComposing}
           onCancelEditThread={onCancelEditThread}
@@ -461,8 +466,9 @@ export function ReviewableDiff({
           onSaveEditThread={onSaveEditThread}
           onStartEditThread={onStartEditThread}
           onToggleFilesPopup={changedFilesPopup ? toggleFilesPopup : undefined}
-          onToggleHighlightToken={wordHighlighting ? toggleHighlightToken : undefined}
+          onToggleHighlightToken={wordHighlightingEnabled ? toggleHighlightToken : undefined}
           renderImageDiff={renderImageDiff}
+          reviewSettings={effectiveReviewSettings}
           selected={selectedPath === file.path}
           showFilesPopupTrigger={changedFilesPopup}
           showHeader={showHeader}
@@ -680,6 +686,7 @@ function DiffFileSection({
   onToggleFilesPopup,
   onToggleHighlightToken,
   renderImageDiff,
+  reviewSettings,
   selected,
   showFilesPopupTrigger,
   showHeader,
@@ -713,6 +720,7 @@ function DiffFileSection({
   onToggleFilesPopup?: (event: MouseEvent<HTMLButtonElement>) => void
   onToggleHighlightToken?: (token: string) => void
   renderImageDiff?: (file: ReviewableDiffFile) => ReactNode
+  reviewSettings: ReviewDiffSettings
   selected: boolean
   showFilesPopupTrigger?: boolean
   showHeader: boolean
@@ -880,6 +888,7 @@ function DiffFileSection({
           onSaveEditThread={onSaveEditThread}
           onStartEditThread={onStartEditThread}
           onToggleHighlightToken={onToggleHighlightToken}
+          reviewSettings={reviewSettings}
           tokenCache={cacheEntry.tokensByHunk}
         />
       ) : file.is_image && renderImageDiff ? (
@@ -1022,6 +1031,7 @@ export function UnifiedDiffTable({
   onSaveEditThread,
   onStartEditThread,
   onToggleHighlightToken,
+  reviewSettings = DEFAULT_REVIEW_DIFF_SETTINGS,
   testId,
   tokenCache: tokenCacheProp
 }: {
@@ -1050,6 +1060,7 @@ export function UnifiedDiffTable({
   onSaveEditThread?: () => void
   onStartEditThread?: (thread: DiffReviewThread) => void
   onToggleHighlightToken?: (token: string) => void
+  reviewSettings?: ReviewDiffSettings
   testId?: string
   // Optional external Shiki-token cache keyed by hunk id (see
   // useHighlightedDiffLines) -- DiffFileSection passes its per-file cache
@@ -1062,7 +1073,9 @@ export function UnifiedDiffTable({
 }) {
   const lines = useMemo(() => linesProp ?? parseUnifiedDiff(file.patch || ""), [linesProp, file.patch])
   const { t } = useT("common")
-  const lang = detectHighlighterLanguage(file.path)
+  const isMobileViewport = useIsMobileViewport()
+  const lineWrapping = isMobileViewport ? "wrap" : reviewSettings.line_wrapping
+  const lang = reviewSettings.syntax_highlighting ? detectHighlighterLanguage(file.path) : null
   const localTokenCache = useRef<{ patch: string | null; tokens: Map<number, ThemedToken[][]> }>({ patch: file.patch, tokens: new Map() })
   if (localTokenCache.current.patch !== file.patch) localTokenCache.current = { patch: file.patch, tokens: new Map() }
   const tokenCache = tokenCacheProp ?? localTokenCache.current.tokens
@@ -1071,9 +1084,10 @@ export function UnifiedDiffTable({
   const activeHighlight = highlightedToken !== undefined ? highlightedToken : localHighlight
   const toggleHighlight = onToggleHighlightToken ?? ((token: string) => setLocalHighlight((current) => (current === token ? null : token)))
   const composingKey = composingSelection ? anchorKeyForLine(composingSelection.line, composingSelection.side) : null
-  const isMobileViewport = useIsMobileViewport()
   const hideOldLineGutter = isAddedFileDiff(file)
-  const gutterColSpan = hideOldLineGutter ? 1 : 2
+  const showLineNumbers = reviewSettings.line_numbers
+  const gutterColSpan = showLineNumbers ? (hideOldLineGutter ? 1 : 2) : 1
+  const codeCellClass = diffCodeCellClass(reviewSettings, lineWrapping)
 
   let hunkIndex = -1
 
@@ -1098,15 +1112,15 @@ export function UnifiedDiffTable({
   }
 
   return (
-    <div className="overflow-x-auto [container-type:inline-size]" data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
-      <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid={testId}>
+    <div className={`${lineWrapping === "scroll" ? "overflow-x-auto" : "overflow-x-hidden"} [container-type:inline-size]`} data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
+      <table className={diffTableClass(reviewSettings)} data-review-diff-view={isMobileViewport ? "unified" : reviewSettings.desktop_view} style={{ tabSize: reviewSettings.tab_width }} data-testid={testId}>
         <tbody>
           {lines.map((line, index) => {
             if (line.kind === "hunk") {
               hunkIndex += 1
               const controls = hunkControls?.[hunkIndex]
               if (controls && !controls.up && !controls.down) return null
-              return <HunkRow controls={controls} hideOldLineGutter={hideOldLineGutter} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} />
+              return <HunkRow controls={controls} hideOldLineGutter={hideOldLineGutter} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} showLineNumbers={showLineNumbers} />
             }
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
@@ -1125,7 +1139,7 @@ export function UnifiedDiffTable({
                 data-diff-kind={line.kind}
                 onClickCapture={commentSelection ? (event) => handleLineTap(event, commentSelection) : undefined}
               >
-                {hideOldLineGutter ? null : (
+                {hideOldLineGutter || !showLineNumbers ? null : (
                   <td className={`relative ${diffGutterClass(line.kind)}`}>
                     {commentSide === "old" && canComment ? (
                       <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" />
@@ -1133,16 +1147,16 @@ export function UnifiedDiffTable({
                     {line.oldLine ?? ""}
                   </td>
                 )}
-                <td className={`relative ${diffGutterClass(line.kind)}`}>
+                {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)}`}>
                   {commentSide === "new" && canComment ? (
                     <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="new" />
                   ) : null}
                   {line.newLine ?? ""}
-                </td>
+                </td> : null}
                 <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
-                <td className={`min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200 ${diffCoverageBorderClass(annotation)}`}>
+                <td className={`${codeCellClass} ${diffCoverageBorderClass(annotation)}`}>
                   <DiffCode
-                    code={line.code}
+                    code={reviewDisplayCode(line.code, reviewSettings)}
                     highlightedToken={activeHighlight}
                     kind={line.kind}
                     onMobileTokenTap={commentSelection ? (event) => handleTokenTap(event, commentSelection) : undefined}
@@ -1364,17 +1378,33 @@ function DiffCode({
   )
 }
 
-function HunkRow({ controls, hideOldLineGutter, line }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine }) {
+function diffTableClass(settings: ReviewDiffSettings) {
+  const densityClass = settings.density === "compact" ? "text-2xs" : settings.density === "spacious" ? "text-sm" : "text-xs"
+  return `min-w-full border-separate border-spacing-0 font-mono ${densityClass}`
+}
+
+function diffCodeCellClass(settings: ReviewDiffSettings, lineWrapping: ReviewDiffSettings["line_wrapping"]) {
+  const densityClass = settings.density === "compact" ? "px-2 py-0" : settings.density === "spacious" ? "px-4 py-1" : "px-3 py-0.5"
+  const wrapClass = lineWrapping === "wrap" ? "min-w-0 whitespace-pre-wrap break-words" : "min-w-[40rem] whitespace-pre"
+  return `${wrapClass} ${densityClass} text-gray-900 dark:text-gray-200`
+}
+
+function reviewDisplayCode(code: string, settings: ReviewDiffSettings) {
+  if (settings.whitespace === "trim_trailing") return code.replace(/[ \t]+$/u, "")
+  return code
+}
+
+function HunkRow({ controls, hideOldLineGutter, line, showLineNumbers = true }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine; showLineNumbers?: boolean }) {
   return (
     <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk">
-      {hideOldLineGutter ? null : (
+      {hideOldLineGutter || !showLineNumbers ? null : (
         <td className={diffGutterClass("hunk")}>
           {controls?.up ? <HunkContextButton direction="up" loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
         </td>
       )}
-      <td className={diffGutterClass("hunk")}>
+      {showLineNumbers ? <td className={diffGutterClass("hunk")}>
         {controls?.down ? <HunkContextButton direction="down" loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
-      </td>
+      </td> : null}
       <td className={diffMarkerClass("hunk")}>{line.marker}</td>
       <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200">{line.code}</td>
       <td className="w-4 select-none px-1 text-center" />

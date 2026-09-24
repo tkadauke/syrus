@@ -376,6 +376,14 @@ class User < ApplicationRecord
     update!(ui_preferences: ui_preferences.merge("sidebar_nav_order" => Array(order).map(&:to_s).uniq))
   end
 
+  def review_diff_settings
+    ReviewDiffSettings.normalize(ui_preferences["review_diff_settings"])
+  end
+
+  def update_review_diff_settings!(settings)
+    update!(ui_preferences: ui_preferences.merge("review_diff_settings" => ReviewDiffSettings.normalize(review_diff_settings.merge(settings))))
+  end
+
   def notification_preferences
     NOTIFICATION_PREFERENCES_DEFAULTS.merge(normalized_notification_preferences(read_attribute(:notification_preferences)))
   end

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import * as highlighterLib from "../../lib/highlighter"
 import * as performanceMarkers from "../../lib/performanceMarkers"
+import { DEFAULT_REVIEW_DIFF_SETTINGS } from "../../api/reviewDiffSettings"
 import { AgentDiff, DiffHunkSnippet, ReviewableDiff, annotationsForFile, filesFromUnifiedDiff, isLineAnnotations } from "./ReviewableDiff"
 
 stubVirtualizerMeasurements()
@@ -105,6 +106,15 @@ describe("ReviewableDiff", () => {
     expect(screen.getByTitle("app/models/run.rb")).toHaveClass("sticky")
     expect(screen.getByText("new")).toBeInTheDocument()
     expect(screen.getByText("added")).toBeInTheDocument()
+  })
+
+  it("applies persisted review rendering settings", () => {
+    render(<ReviewableDiff files={files} mode="continuous" reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "scroll", line_numbers: false, tab_width: 4, density: "compact", intraline_highlighting: "off" }} showFileHeaders />)
+
+    const table = screen.getAllByRole("table")[0]
+    expect(table).toHaveAttribute("data-review-diff-view", "split")
+    expect(table).toHaveStyle({ tabSize: "4" })
+    expect(screen.getAllByTestId("diff-file-scroll")[0]).toHaveClass("overflow-x-auto")
   })
 
   it("copies a file's repository-relative path from the diff header", async () => {
