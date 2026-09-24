@@ -9,6 +9,7 @@ RSpec.describe RunHostAdmission do
 
   before do
     allow(SyrusVersion).to receive(:hostname).and_return("worker-a")
+    allow(RunProcessParallelism).to receive(:host_capacity).and_return(6)
     workflow.update!(worker_hostname: "worker-a")
   end
 
@@ -72,7 +73,7 @@ RSpec.describe RunHostAdmission do
     expect(decision).to be_defer
     expect(decision.reason).to eq("host_resource_semaphore_busy")
     expect(decision.details).to include(
-      "active_guarded_run_count" => RunHostAdmission::GUARDED_RUNS_PER_HOST
+      "active_guarded_run_count" => 3
     )
   end
 
@@ -171,7 +172,7 @@ RSpec.describe RunHostAdmission do
 
   # The per-host slot count is a lag backstop, not a capacity model, so a spec
   # that wants "the host is full" has to actually fill it.
-  def saturate_guarded_slots!(count: RunHostAdmission::GUARDED_RUNS_PER_HOST)
+  def saturate_guarded_slots!(count: 3)
     count.times do |i|
       other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 500 + i)
       other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
@@ -202,10 +203,6 @@ RSpec.describe RunHostAdmission do
 
   def low_cost_profile(step_kind:, grader_name: "")
     create_profile(step_kind: step_kind, grader_name: grader_name, duration: 10, cpu: 1.0)
-  end
-
-  def high_cost_grader_profile(grader_name:)
-    create_profile(step_kind: "grader", grader_name: grader_name, duration: 2_700, cpu: 80.0)
   end
 
   def process_attributed_grader_profile(grader_name:, io_bytes:, memory_bytes:)
@@ -289,30 +286,36 @@ RSpec.describe RunHostAdmission do
       step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
     end
 
-    it "guards agentic steps separately from high-cost graders" do
+    it "guards agentic steps separately from graders" do
       expect(described_class::ALWAYS_GUARDED_STEP_KINDS).not_to include("grader", "preflight_grader")
       expect(described_class::ALWAYS_GUARDED_STEP_KINDS).to include("implement")
-      expect(described_class::HIGH_COST_GRADER_RUNS_PER_HOST).to eq(1)
+      worker_sample(cpu_pressure_some: 1.0)
+      expect(described_class.call(run: grader_run).reason).to eq("host_capacity_available")
     end
 
-    it "admits a grader on a healthy host regardless of what else is running" do
+    it "uses the same host budget for graders and agentic runs" do
       worker_sample(cpu_pressure_some: 1.0)
       saturate_guarded_slots!
 
       decision = described_class.call(run: grader_run)
 
-      expect(decision).to be_admit
-      expect(decision.reason).to eq("resource_guard_not_needed")
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect(decision.details).to include(
+        "active_compute_units" => 6,
+        "candidate_compute_units" => 1,
+        "host_compute_capacity" => 6
+      )
     end
 
-    it "admits a cheap grader on a warning host without consuming high-cost grader slots" do
+    it "admits a cheap grader on a warning host while grader slots remain" do
       worker_sample(cpu_pressure_some: 25.0)
       low_cost_profile(step_kind: "grader", grader_name: "rspec")
 
       decision = described_class.call(run: grader_run)
 
       expect(decision).to be_admit
-      expect(decision.reason).to eq("resource_guard_not_needed")
+      expect(decision.reason).to eq("host_capacity_available")
     end
 
     it "defers background main-health graders on a warning host while landing work is active" do
@@ -374,22 +377,22 @@ RSpec.describe RunHostAdmission do
       decision = described_class.call(run: landing_run)
 
       expect(decision).to be_admit
-      expect(decision.reason).to eq("resource_guard_not_needed")
+      expect(decision.reason).to eq("host_capacity_available")
     end
 
-    it "defers a second high-cost grader on a warning host" do
-      worker_sample(cpu_pressure_some: 25.0)
-      high_cost_grader_profile(grader_name: "rspec")
-      running_grader_run(name: "rspec")
+    it "defers the next grader when graders consume the host budget" do
+      worker_sample(cpu_pressure_some: 1.0)
+      6.times { running_grader_run(name: "rspec") }
 
       decision = described_class.call(run: grader_run(name: "rspec"))
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_resource_semaphore_busy")
       expect(decision.details).to include(
-        "resource_guard_kind" => "high_cost_grader",
-        "active_high_cost_grader_run_count" => 1,
-        "guarded_runs_per_host" => 1
+        "resource_guard_kind" => "grader",
+        "active_grader_run_count" => 6,
+        "guarded_runs_per_host" => 6,
+        "host_compute_capacity" => 6
       )
     end
 
@@ -407,14 +410,18 @@ RSpec.describe RunHostAdmission do
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_resource_semaphore_busy")
       expect(decision.details).to include(
-        "resource_guard_kind" => "high_cost_grader",
-        "active_high_cost_grader_run_count" => 1
+        "resource_guard_kind" => "io_intensive_grader",
+        "active_io_intensive_grader_run_count" => 1
       )
     end
 
     it "counts live distributed grader processes on this host even when their workflow owner is elsewhere" do
       worker_sample(cpu_pressure_some: 25.0)
-      high_cost_grader_profile(grader_name: "rspec")
+      process_attributed_grader_profile(
+        grader_name: "rspec",
+        io_bytes: 2.gigabytes,
+        memory_bytes: 128.megabytes
+      )
       active_run = running_grader_run(name: "rspec")
       active_run.workflow.update!(worker_hostname: "worker-b")
       active_run.spawned_processes.create!(
@@ -429,7 +436,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_resource_semaphore_busy")
-      expect(decision.details).to include("active_high_cost_grader_run_count" => 1)
+      expect(decision.details).to include("active_io_intensive_grader_run_count" => 1)
     end
 
     # The landing step that deferred 73 times in 36 minutes on an idle fleet.

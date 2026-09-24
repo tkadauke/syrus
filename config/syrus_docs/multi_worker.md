@@ -228,28 +228,31 @@ The pickup guard applies to Runs whose workflow template uses the `:runs` or
 queues. It uses the current worker hostname (`SyrusVersion.hostname`), fresh
 `worker_host_health_samples`, `workflows.worker_hostname` on already running
 workflows, and command-attributed `workflow_step_resource_profiles` for the
-narrow high-cost grader guard.
+narrow high-IO grader guard.
 
 - If the selected host's latest fresh sample is critical, `RunJob` leaves the
   Run queued and re-enqueues it after `RunHostAdmission::RETRY_DELAY`.
-- Agentic Steps are resource-guarded on sight. If the same host already has
-  `RunHostAdmission::GUARDED_RUNS_PER_HOST` guarded agentic Runs executing,
-  `RunJob` defers the pickup.
-- `grader` and `preflight_grader` Steps are resource-guarded only when the
-  selected host is already at warning pressure **and** the matching
-  grader-specific profile has command-attributed evidence showing high cost
-  (for example a long `rspec` command span). Host-correlated profile values and
-  missing/default-only profiles do not make a grader guarded. These costly
-  graders are capped separately by `HIGH_COST_GRADER_RUNS_PER_HOST` so multiple
-  full-suite jobs are not admitted onto a contended host at once.
+- Agentic Steps are resource-guarded on sight. Their host limit is derived from
+  80% of the container's effective cgroup CPU quota, with each agentic Run
+  consuming two capacity units. `SYRUS_AGENTIC_CAPACITY_UNITS` can tune that
+  weight for a deployment.
+- Every `grader` and `preflight_grader` Step consumes one host capacity unit.
+  This matters for parallel fanout: sibling graders are independent Runs and
+  cannot all pass admission against one stale idle sample. Each grader also
+  receives `SYRUS_PROCESS_PARALLELISM`, its share of the same CPU budget, so a
+  tool such as `parallel_rspec` cannot create an unbounded second fanout layer.
+  `SYRUS_GRADER_CAPACITY_UNITS` can tune the default one-unit grader weight.
+- A grader with command-attributed evidence of at least 1 GiB of IO also uses
+  a narrower IO lane. Its automatic width scales slowly with host compute;
+  `SYRUS_IO_INTENSIVE_RUNS_PER_HOST` can state the storage system's real
+  concurrency when CPU count is a poor proxy. Host-correlated profile values
+  never classify a grader as IO-intensive.
 - Non-critical hosts with no existing guarded Run admit the pickup normally.
   Missing host telemetry is reported as `unknown`; it is not treated as either
   healthy or critical by this host-local guard.
-- `visual_diff` Steps get a narrower guard than the general agentic one once
-  the selected host is already at warning pressure or worse: at most
-  `RunHostAdmission::VISUAL_DIFF_PREVIEW_RUNS_PER_HOST` (currently `1`)
-  concurrent `visual_diff` Runs are admitted per host, regardless of how much
-  general agentic headroom (`GUARDED_RUNS_PER_HOST`) remains. A `visual_diff`
+- `visual_diff` Steps use the same narrower, host-scaled IO lane once the
+  selected host is already at warning pressure or worse, regardless of how
+  much general agentic headroom remains. A `visual_diff`
   Run drives a headless-browser preview on top of the agent turn itself, so
   colocating a second one on an already-loaded host is the kind of IO burst
   that produced critical pressure in past incidents. On a healthy host this
@@ -490,13 +493,14 @@ spans identify an individual costly grader.
 
 - **`RunHostAdmission`** (per Run, on the compute queues) defers anything when
   the worker's own health sample reads critical — grader, agent or otherwise.
-  Beyond that it rations *agentic* runs, `GUARDED_RUNS_PER_HOST` at a time, and
-  high-cost command-attributed graders, `HIGH_COST_GRADER_RUNS_PER_HOST` at a
-  time, only while the selected host is already warning. It leaves
-  `STAGGER_INTERVAL` between guarded admissions on a host so each decision sees
-  a sample that reflects the previous one. Host readings lag the work that
-  produced them; the slot counts and stagger are there to bound that lag, not
-  to model full capacity.
+  Beyond that it derives a capacity budget from 80% of the container's
+  effective cgroup CPU quota. Agentic Runs consume two units and grader Runs
+  consume one. Command-attributed high-IO graders use an additional narrower
+  IO lane. It leaves
+  `STAGGER_INTERVAL` between agentic admissions on a host so each decision sees
+  a sample that reflects the previous one. Grader fanout is not staggered; it
+  uses the shared capacity and subprocess budgets. Pressure only defers new
+  work; it never terminates an admitted process.
 - **`WorkflowAdmissionBudget`** (per Workflow/phase) keeps the hard
   memory/disk gates, the urgent override, the landing-queue reservation, the
   minimum-progress floor, and one soft gate: `soft_host_pressure?`, which is a

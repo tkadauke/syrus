@@ -7,18 +7,10 @@ class RunHostAdmission
   HOST_SAMPLE_WINDOW = WorkflowAdmissionBudget::HOST_SAMPLE_WINDOW
   RETRY_DELAY = 30.seconds
 
-  # A backstop for measurement lag, not a capacity model. Host readings trail
-  # by a sample interval, so a burst can be admitted against a stale "idle"
-  # reading; this bounds how far that can overshoot before the next sample
-  # lands. Sized to the `runs` thread pool -- the plumbing already allows this
-  # many, and 24h of production peaked at 2-4 agents per host.
-  #
-  # It was 1, which made this a strict per-host mutex and was the single
-  # binding constraint on throughput: a 52-second GitHub API call using 2.7%
-  # CPU held the only slot on its pod, deferring landing 73 times in 36
-  # minutes while every host sat below 45% CPU.
-  GUARDED_RUNS_PER_HOST = 3
-  HIGH_COST_GRADER_RUNS_PER_HOST = 1
+  # Host readings trail by a sample interval, so admission also budgets active
+  # work against the container's effective CPU quota. This scales from laptops
+  # to large workers instead of imposing one fleet-wide concurrency constant.
+  IO_INTENSIVE_GRADER_BYTES = 1.gigabyte
 
   # visual_diff previews drive a headless browser against a spawned preview
   # app -- IO-heavy on top of the agent turn itself. Colocating more than one
@@ -27,16 +19,16 @@ class RunHostAdmission
   # 2026-09-14 batches, so this step kind gets a narrower cap than the general
   # agentic guard once the host stops looking idle.
   VISUAL_DIFF_STEP_KIND = "visual_diff"
-  VISUAL_DIFF_PREVIEW_RUNS_PER_HOST = 1
 
-  # The other half of the lag defence: after admitting, leave a gap so the next
-  # decision on this host sees a sample that reflects it. Cheaper and more
-  # honest than predicting what the admitted work will cost.
+  # Agentic starts are staggered so the next decision sees a sample reflecting
+  # the previous one. Grader fanout is not staggered; its shared capacity budget
+  # and inner process allocation provide the bound without serial startup.
   STAGGER_INTERVAL = 20.seconds
 
   # Agentic steps are the expensive ones by nature and are guarded on sight.
-  # High-cost grader runs are guarded separately under local warning pressure
-  # when command-attributed profiles show they are expensive.
+  # Grader runs are guarded on sight because fanout can make several siblings
+  # ready against the same stale health sample. Command-attributed high-IO
+  # graders use a narrower semaphore.
   #
   # Everything else is judged by the host's *current* state rather than by a
   # prediction of what the step will cost. We only trust command-attributed
@@ -66,10 +58,8 @@ class RunHostAdmission
     return defer("local_worker_pressure_critical") if critical_local_pressure?
     return defer("landing_work_has_priority") if background_work_should_yield?
 
-    # Beyond that, agentic runs are rationed per host to bound how far a burst
-    # can overshoot a stale sample. High-cost graders get a narrower guard only
-    # when the host is already warning, using command-attributed profiles rather
-    # than ambient host-correlated profiles.
+    # Beyond that, agentic and grader runs are rationed per host to bound how
+    # far a burst can overshoot a stale sample.
     return admit("resource_guard_not_needed") unless resource_guarded?(run)
     return defer("host_resource_semaphore_busy") if resource_guard_full?
     return defer("host_admission_staggering") if admitted_within_stagger_window?
@@ -94,9 +84,13 @@ class RunHostAdmission
   def details(reason)
     basic_details(reason).merge(
       "active_guarded_run_count" => active_guarded_run_count,
+      "active_compute_units" => active_compute_units,
+      "candidate_compute_units" => candidate_compute_units,
       "guarded_runs_per_host" => guarded_runs_per_host,
+      "host_compute_capacity" => host_compute_capacity,
       "resource_guard_kind" => resource_guard_kind,
-      "active_high_cost_grader_run_count" => high_cost_grader_guard? ? active_high_cost_grader_run_count : nil,
+      "active_grader_run_count" => grader_guard? ? active_grader_run_count : nil,
+      "active_io_intensive_grader_run_count" => io_intensive_grader_guard? ? active_io_intensive_grader_run_count : nil,
       "active_visual_diff_preview_run_count" => resource_guard_kind == "visual_diff_preview" ? active_visual_diff_preview_run_count : nil
     ).compact
   end
@@ -132,6 +126,8 @@ class RunHostAdmission
   # ledger: the runs themselves are the record, so there is no new state to
   # keep consistent, and a worker restart cannot lose it.
   def admitted_within_stagger_window?
+    return false if grader_guard?
+
     last_started = active_always_guarded_run_scope.maximum(:started_at)
     return false if last_started.blank?
 
@@ -192,45 +188,81 @@ class RunHostAdmission
   end
 
   def resource_guard_full?
-    case resource_guard_kind
-    when "agentic"
-      active_guarded_run_count >= GUARDED_RUNS_PER_HOST
-    when "high_cost_grader"
-      active_high_cost_grader_run_count >= HIGH_COST_GRADER_RUNS_PER_HOST
-    when "visual_diff_preview"
-      active_visual_diff_preview_run_count >= VISUAL_DIFF_PREVIEW_RUNS_PER_HOST
-    else
-      false
-    end
+    return true if active_compute_units + candidate_compute_units > host_compute_capacity
+    return active_io_intensive_grader_run_count >= io_intensive_runs_per_host if io_intensive_grader_guard?
+    return active_visual_diff_preview_run_count >= io_intensive_runs_per_host if resource_guard_kind == "visual_diff_preview"
+
+    false
   end
 
   def guarded_runs_per_host
     case resource_guard_kind
-    when "high_cost_grader" then HIGH_COST_GRADER_RUNS_PER_HOST
-    when "visual_diff_preview" then VISUAL_DIFF_PREVIEW_RUNS_PER_HOST
-    else GUARDED_RUNS_PER_HOST
+    when "grader" then grader_runs_per_host
+    when "io_intensive_grader", "visual_diff_preview" then io_intensive_runs_per_host
+    else agentic_runs_per_host
     end
   end
 
-  def high_cost_grader_guard?
-    resource_guard_kind == "high_cost_grader"
+  def host_compute_capacity
+    @host_compute_capacity ||= RunProcessParallelism.host_capacity
   end
 
-  # visual_diff is itself agentic, so it would otherwise be caught by the
-  # plain "agentic" guard (rationed to GUARDED_RUNS_PER_HOST) before ever
-  # reaching the narrower per-host preview cap below. Check it first so a
-  # host that is already showing warning-or-worse pressure never colocates a
-  # second preview, regardless of how much agentic headroom remains.
+  # Agent turns have substantial memory and subprocess overhead even when the
+  # provider call itself is mostly waiting on the network. Give them two units
+  # of the same host budget a grader consumes.
+  def agentic_runs_per_host
+    [ host_compute_capacity / agentic_capacity_units, 1 ].max
+  end
+
+  def grader_runs_per_host
+    [ host_compute_capacity / grader_capacity_units, 1 ].max
+  end
+
+  def agentic_capacity_units
+    ENV.fetch("SYRUS_AGENTIC_CAPACITY_UNITS", 2).to_i.clamp(1, host_compute_capacity)
+  end
+
+  def grader_capacity_units
+    ENV.fetch("SYRUS_GRADER_CAPACITY_UNITS", 1).to_i.clamp(1, host_compute_capacity)
+  end
+
+  def candidate_compute_units
+    resource_guard_kind == "agentic" || resource_guard_kind == "visual_diff_preview" ? agentic_capacity_units : grader_capacity_units
+  end
+
+  def active_compute_units
+    (active_guarded_run_count * agentic_capacity_units) + (active_grader_run_count * grader_capacity_units)
+  end
+
+  # Storage topology is not discoverable portably from inside every worker.
+  # Operators can state it directly; the automatic default scales slowly with
+  # compute capacity instead of imposing one fleet-wide constant.
+  def io_intensive_runs_per_host
+    configured = ENV["SYRUS_IO_INTENSIVE_RUNS_PER_HOST"].to_i
+    return configured if configured.positive?
+
+    [ (host_compute_capacity / 8.0).ceil, 1 ].max
+  end
+
+  def grader_guard?
+    resource_guard_kind.in?(%w[grader io_intensive_grader])
+  end
+
+  def io_intensive_grader_guard?
+    resource_guard_kind == "io_intensive_grader"
+  end
+
+  # visual_diff is itself agentic, so check it before the general agentic
+  # budget and apply the narrower host-scaled IO budget when pressure warns.
   def resource_guard_kind(candidate = run)
     candidate_step = candidate.step
     return unless candidate_step
     return "visual_diff_preview" if visual_diff_preview_step?(candidate_step) && local_health_warning?
     return "agentic" if candidate_step.agentic?
-    return unless local_health_warning?
-    return unless high_cost_grader_step?(candidate_step)
-    return unless high_cost_command_profile?(candidate_step)
+    return unless grader_step?(candidate_step)
+    return "io_intensive_grader" if io_intensive_command_profile?(candidate_step)
 
-    "high_cost_grader"
+    "grader"
   end
 
   def visual_diff_preview_step?(candidate_step)
@@ -242,24 +274,15 @@ class RunHostAdmission
       WorkerHealthSampleAnalysis::LEVEL_ORDER.fetch("warning")
   end
 
-  def high_cost_grader_step?(candidate_step)
+  def grader_step?(candidate_step)
     candidate_step.kind.in?(%w[grader preflight_grader])
   end
 
-  def high_cost_command_profile?(candidate_step)
-    high_cost_profile_for(candidate_step).present?
-  end
-
-  def high_cost_profile_for(candidate_step)
-    matching_profiles_for(candidate_step).find do |profile|
+  def io_intensive_command_profile?(candidate_step)
+    matching_profiles_for(candidate_step).any? do |profile|
       prediction = profile.conservative_prediction
       prediction.fetch(:prediction_source) == "command_attributed" &&
-        (
-          prediction.fetch(:duration_seconds).to_f >= WorkflowAdmissionBudget::HIGH_COST_SECONDS ||
-          prediction.fetch(:cpu_pressure).to_f >= WorkflowAdmissionBudget::CPU_BUDGET ||
-          prediction.fetch(:io_pressure).to_f >= WorkflowAdmissionBudget::IO_BUDGET ||
-          prediction.fetch(:memory_used_percent).to_f >= WorkflowAdmissionBudget::MEMORY_BUDGET
-        )
+        prediction.fetch(:process_attributed_io_bytes).to_f >= IO_INTENSIVE_GRADER_BYTES
     end
   end
 
@@ -288,11 +311,15 @@ class RunHostAdmission
     [ [ candidate_step.kind, "" ] ]
   end
 
-  def active_high_cost_grader_run_count
-    @active_high_cost_grader_run_count ||= active_run_scope
+  def active_grader_run_count
+    @active_grader_run_count ||= active_run_scope.where(steps: { kind: %w[grader preflight_grader] }).count
+  end
+
+  def active_io_intensive_grader_run_count
+    @active_io_intensive_grader_run_count ||= active_run_scope
       .where(steps: { kind: %w[grader preflight_grader] })
       .includes(step: { workflow: :job })
-      .select { |active_run| high_cost_command_profile?(active_run.step) }
+      .select { |active_run| io_intensive_command_profile?(active_run.step) }
       .size
   end
 

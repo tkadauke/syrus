@@ -197,13 +197,15 @@ RSpec.describe Ruby::RspecGraderType do
       default_failures: "strict"
     )
 
-    expect(steps.first.run).to include("bundle exec parallel_rspec -n 4 --quiet")
+    expect(steps.first.run).to include('RSPEC_PARALLEL_PROCESSES="${SYRUS_PROCESS_PARALLELISM:-}"')
+    expect(steps.first.run).to include('RSPEC_PARALLEL_PROCESSES=4')
+    expect(steps.first.run).to include('bundle exec parallel_rspec -n "$RSPEC_PARALLEL_PROCESSES" --quiet')
     expect(steps.first.run).to include("--exec-args bin/rspec-worker spec")
     expect(steps.first.run).to include("bundle exec rake parallel:prepare")
     expect(steps.first.run).to include("RSPEC_TAG_ARGS=--tag\\ \\~ci_only")
     expect(steps.first.run).to include("RSPEC_OUTPUT_PREFIX=rspec")
     expect(steps.first.run).to include("parallel-rspec-junit")
-    expect(steps.second.run).to include("bundle exec parallel_rspec -n 4 --quiet")
+    expect(steps.second.run).to include('bundle exec parallel_rspec -n "$RSPEC_PARALLEL_PROCESSES" --quiet')
     expect(steps.second.run).to include("--exec-args bin/rspec-worker $(cat .syrus/rspec-focused-files)")
     expect(steps.third.run).to include("bundle exec rspec")
     expect(steps.third.run).not_to include("parallel_rspec")
@@ -223,7 +225,7 @@ RSpec.describe Ruby::RspecGraderType do
     ).third
 
     expect(step.run).to include("RUN_CI_ONLY_SPECS=false")
-    expect(step.run).to include("bundle exec parallel_rspec --quiet")
+    expect(step.run).to include('bundle exec parallel_rspec -n "$RSPEC_PARALLEL_PROCESSES" --quiet')
     expect(step.run).to include("RSPEC_TAG_ARGS=--tag\\ \\~ci_only")
     expect(step.run).to include("RUN_CI_ONLY_SPECS=true bundle exec rspec")
     expect(step.run).to include("--tag ci_only")
@@ -242,7 +244,9 @@ RSpec.describe Ruby::RspecGraderType do
       default_failures: "strict"
     ).first
 
-    expect(step.run).to include("bundle exec parallel_rspec -n 2 --quiet")
+    expect(step.run).to include('RSPEC_PARALLEL_PROCESSES="${SYRUS_PROCESS_PARALLELISM:-}"')
+    expect(step.run).to include('RSPEC_PARALLEL_PROCESSES=2')
+    expect(step.run).to include('bundle exec parallel_rspec -n "$RSPEC_PARALLEL_PROCESSES" --quiet')
     expect(step.run).to include("--test-options")
     expect(step.run).to include(".syrus/rspec-json/rspec-")
     expect(step.run).to include(".syrus/grade-output/parallel-rspec-junit/rspec-")

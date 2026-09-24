@@ -79,6 +79,21 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(log_entries.first).to eq("...")
   end
 
+  it "passes the application-computed subprocess budget to grader commands" do
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 0, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+    allow(RunProcessParallelism).to receive(:for).with(run: run).and_return(3)
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      expect(kwargs.fetch(:env)).to include("SYRUS_PROCESS_PARALLELISM" => "3")
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    handler.call
+  end
+
   it "flushes a trailing partial line after the process exits" do
     fake_result = ProcessRunner::Result.new(
       exit_status: 0, timed_out: false, stopped: false,

@@ -288,6 +288,11 @@ grade:
 result-shard merging. A repository can ask the Ruby plugin to use
 `parallel_rspec` for selected RSpec modes (`full`, `focused`, `ci`) and, when
 needed, provide a worker command that writes per-worker JSON/JUnit artifacts.
+`parallel_rspec.processes` is a ceiling, not a reservation: Syrus passes each
+grader its current share of the worker container's cgroup CPU budget and the
+plugin uses the smaller value. Without an explicit `processes`, Syrus's
+application-provided budget is authoritative; when the generated command is
+run outside Syrus it falls back to the machine's reported processor count.
 Those RSpec modes are generated command variants; they are separate from
 workflow `phases`, which decide when each generated grader runs. If CI tags are
 configured and the CI mode is parallelized, Syrus runs the normal fast pass in

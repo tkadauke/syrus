@@ -553,7 +553,9 @@ module Steps
       extra_env = Prepare.prep_extra_env(scope: PrepareScope.for_workflow(workflow), workspace_path: workspace.path)
       ProcessRunner.forwarded_env(
         Prepare.prep_env_forward,
-        extra: workspace_dependency_env.merge(extra_env)
+        extra: workspace_dependency_env.merge(extra_env).merge(
+          "SYRUS_PROCESS_PARALLELISM" => RunProcessParallelism.for(run: run).to_s
+        )
       )
     end
   end

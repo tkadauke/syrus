@@ -334,6 +334,7 @@ module Ruby
         rm -f #{junit} #{json} #{shard_junit_dir}/#{junit_prefix}-*.xml #{json_dir}/#{output_prefix}-*.json &&
         #{database_prepare_command}
         #{parallel_prepare_command}
+        #{parallel_process_setup}
         set +e;
         #{env_prefix} #{parallel_command};
         parallel_status="$?";
@@ -367,11 +368,15 @@ module Ruby
     end
 
     def parallel_shell_command(parallel_args, shell_expand_args:)
-      return "#{parallel_rspec_binary} #{Shellwords.join(parallel_args)}" unless shell_expand_args && parallel_exec_args.present?
+      unless shell_expand_args && parallel_exec_args.present?
+        rendered = Shellwords.join(parallel_args).gsub(PARALLEL_PROCESS_PLACEHOLDER) { '"$RSPEC_PARALLEL_PROCESSES"' }
+        return "#{parallel_rspec_binary} #{rendered}"
+      end
 
       expandable = parallel_args.last
       quoted = Shellwords.join(parallel_args[0...-1])
-      "#{parallel_rspec_binary} #{quoted} #{expandable}"
+      rendered = quoted.gsub(PARALLEL_PROCESS_PLACEHOLDER) { '"$RSPEC_PARALLEL_PROCESSES"' }
+      "#{parallel_rspec_binary} #{rendered} #{expandable}"
     end
 
     def serial_extra_command(extra_serial)
@@ -470,8 +475,20 @@ module Ruby
     end
 
     def parallel_process_args
-      processes = parallel_config["processes"].to_s.strip.presence
-      processes ? [ "-n", processes ] : []
+      [ "-n", PARALLEL_PROCESS_PLACEHOLDER ]
+    end
+
+    PARALLEL_PROCESS_PLACEHOLDER = "__SYRUS_RSPEC_PROCESSES__"
+
+    def parallel_process_setup
+      configured = parallel_config["processes"].to_s.strip.presence
+      commands = [
+        'RSPEC_PARALLEL_PROCESSES="${SYRUS_PROCESS_PARALLELISM:-}"',
+        "if [ -z \"$RSPEC_PARALLEL_PROCESSES\" ]; then RSPEC_PARALLEL_PROCESSES=#{configured || '$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 1)'}; fi"
+      ]
+      commands << "if [ \"$RSPEC_PARALLEL_PROCESSES\" -gt #{configured} ]; then RSPEC_PARALLEL_PROCESSES=#{configured}; fi" if configured
+      commands << 'if [ "$RSPEC_PARALLEL_PROCESSES" -lt 1 ]; then RSPEC_PARALLEL_PROCESSES=1; fi'
+      "#{commands.join('; ')};"
     end
 
     def parallel_runtime_log(mode)
