@@ -40,7 +40,7 @@ RSpec.describe Ruby::RspecGraderType do
 
     expect(steps.map(&:name)).to eq(%w[rspec rspec-focused rspec-ci])
     expect(steps.first.run).to include("bundle exec rspec")
-    expect(steps.first.run).to include("RAILS_ENV=${RAILS_ENV:-test} bin/rails db:test:prepare")
+    expect(steps.first.run).to include("bin/rails db:test:prepare")
     expect(steps.first.run).to include("--tag \\~ci_only")
     expect(steps.first.run).to include("spec")
     expect(steps.first.run).to include(".syrus/rspec-json/rspec.json")

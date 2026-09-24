@@ -28,11 +28,7 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      [
-        "mkdir -p .syrus/grade-output .syrus/rspec-json",
-        "if [ -x bin/rails ] && [ -f config/database.yml ]; then RAILS_ENV=${RAILS_ENV:-test} bin/rails db:test:prepare; fi",
-        "RAILS_ENV=${RAILS_ENV:-test} COVERAGE=false bundle exec rspec #{Shellwords.join(files)}"
-      ].join(" && ")
+      "bundle exec rspec #{Shellwords.join(files)}"
     end
 
     private
