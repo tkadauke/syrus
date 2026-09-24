@@ -462,7 +462,7 @@ It is a cluster counter (below): reads made on workers -- the pre-workflow
 `.syrus.yml` read, most of the volume -- are counted along with web's, and the
 series is cluster-wide, so aggregate it with `max by`, never `sum`.
 
-### Frontend event amplification (EPIC-392)
+### Frontend event amplification
 
 | Metric | Meaning |
 |---|---|
@@ -476,10 +476,10 @@ series is cluster-wide, so aggregate it with `max by`, never `sum`.
 | `syrus_client_hidden_tab_suppressed_fetches_total{resource}` | Refetches a hidden browser tab deferred instead of running immediately |
 
 This group answers "does receiving an event cost more than one event's worth
-of backend work?" -- the question behind EPIC-392's production incident
-(synchronized groups of identical requests from several open tabs). It splits
-into a server half and a browser half, because the interesting failure modes
-live on both sides of the WebSocket.
+of backend work?" -- the question behind the production incident that
+motivated it (synchronized groups of identical requests from several open
+tabs). It splits into a server half and a browser half, because the
+interesting failure modes live on both sides of the WebSocket.
 
 **Server half.** `AppEvents.broadcast`/`broadcast_job_resource`/
 `broadcast_chat_resource` (`app/services/app_events.rb`) each increment
@@ -667,7 +667,7 @@ work Syrus does.
 `syrus_throughput_landing_units_total` -- a closed two-value set (`"auto_merge"`/
 `"merge_train"`), not an identifier.
 
-`resource` is on the allowlist for the EPIC-392 event-amplification metrics
+`resource` is on the allowlist for the frontend event-amplification metrics
 (above) -- the same closed vocabulary (`job`, `workflow`, `step`, `run`,
 `chat`, ...) `app/frontend/lib/appEvents.ts`'s `queryKeysFor` already
 switches on, not a per-instance identifier. `visibility_state` is on the

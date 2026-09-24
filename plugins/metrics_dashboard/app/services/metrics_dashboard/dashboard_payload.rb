@@ -132,7 +132,7 @@ module MetricsDashboard
       { key: "plugin_enabled", metric: "syrus_global_plugin_enabled",
         group_by: "plugin", mode: :value, aggregate: :max, unit: "enabled", category: CATEGORY_RESILIENCE_PRODUCT },
 
-      # Frontend Amplification -- EPIC-392: how much backend/event work does
+      # Frontend Amplification -- how much backend/event work does
       # one browser event cause, and how effective are the defenses against
       # it (caching, coalescing, hidden-tab suppression) at absorbing it.
       { key: "event_amplification_ratio", metric: "syrus_event_amplification_ratio",

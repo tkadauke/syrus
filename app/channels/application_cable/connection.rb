@@ -2,17 +2,20 @@ module ApplicationCable
   class Connection < ActionCable::Connection::Base
     identified_by :current_user
 
-    # Per-process live connection counts, so "five tabs from one user" (the
-    # motivating EPIC-392 incident) is visible on the dashboard instead of
-    # inferred from request-rate spikes after the fact. `cable_connections`
-    # is this process's own live count -- not GLOBAL like the sampled
-    # queue-health gauges, since each web pod really does hold a distinct set
-    # of WebSocket connections; Prometheus sums it across pods normally.
-    # `cable_connections_per_user_max` reports the busiest single user this
-    # process currently has connected, deliberately never a per-user label
-    # (see Syrus::Metrics::TagAllowlist -- `user_id` is forbidden as
-    # unbounded), which is what actually shows multi-tab fan-out without
-    # creating one series per user.
+    # Per-process live connection counts, so "five tabs from one user" is
+    # visible on the dashboard instead of inferred from request-rate spikes
+    # after the fact. `cable_connections` is this process's own live count --
+    # not GLOBAL like the sampled queue-health gauges, since each web pod
+    # really does hold a distinct set of WebSocket connections. A real
+    # Prometheus scrape sums it across pods correctly (each pod exports its
+    # own value); the in-app metrics_dashboard chart currently only samples
+    # whichever single process runs its periodic recorder, so it reflects
+    # that one process's count rather than a fleet-wide sum until a
+    # multi-process recorder exists. `cable_connections_per_user_max` reports
+    # the busiest single user this process currently has connected,
+    # deliberately never a per-user label (see Syrus::Metrics::TagAllowlist --
+    # `user_id` is forbidden as unbounded), which is what actually shows
+    # multi-tab fan-out without creating one series per user.
     CONNECTIONS_MUTEX = Mutex.new
     CONNECTIONS_PER_USER = Hash.new(0)
 
@@ -20,7 +23,7 @@ module ApplicationCable
       Syrus::Metrics.declare do
         gauge :cable_connections, comment: "Live Action Cable connections held by this process"
         gauge :cable_connections_per_user_max, comment: "Busiest single user's live connection count on this process " \
-                                                         "(never per-user labeled -- see EPIC-392 multi-tab fan-out)"
+                                                         "(never per-user labeled -- shows multi-tab fan-out instead)"
       end
     end
     declare_metrics!

@@ -1,7 +1,7 @@
 // Bridges a small, closed set of browser-observed events (see
 // app/services/client_metrics.rb) into real Prometheus counters. Several of
-// EPIC-392's amplification signals -- an entity-store patch landing, a
-// revision-gap recovery firing, a hidden tab suppressing a fetch -- only
+// the frontend event-amplification signals -- an entity-store patch landing,
+// a revision-gap recovery firing, a hidden tab suppressing a fetch -- only
 // happen in the browser, and the backend metrics library has no way to see
 // them directly. This is the one narrow bridge: callers record an
 // occurrence, increments batch in memory, and the batch posts to
