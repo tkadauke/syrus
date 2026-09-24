@@ -15,12 +15,19 @@ require "timeout"
 # fanout naturally spreads repeat checks across the same worker hosts as the
 # normal test commands.
 class TouchedTestRepeatGate
-  Result = Data.define(:ran, :consistent, :reason, :grader_name, :command, :files, :repeats, :pass_count, :fail_count) do
+  Result = Data.define(
+    :ran, :consistent, :reason, :grader_name, :command, :normal_command,
+    :files, :repeats, :pass_count, :fail_count, :runs, :env
+  ) do
     def inconsistent? = ran && !consistent
   end
 
   DEFAULT_REPEATS = 5
   TIMEOUT_SECONDS = 10.minutes
+  OUTPUT_INLINE_BYTES = 8 * 1024
+  DIAGNOSTIC_ENV_KEYS = %w[
+    RAILS_ENV COVERAGE BUNDLE_PATH BUNDLE_APP_CONFIG BUNDLE_USER_HOME
+  ].freeze
 
   def self.call(...) = new(...).call
 
@@ -42,27 +49,31 @@ class TouchedTestRepeatGate
       return skipped("no_focused_command")
     end
 
-    @log.call("[flaky_gate:#{grader_name}] rerunning #{@touched_files.join(', ')} #{@repeats}x: #{command}")
+    @log.call("[flaky_gate:#{grader_name}] rerunning #{@touched_files.join(', ')} #{@repeats}x: #{redacted_command(command)}")
     outcomes = Array.new(@repeats) { run_once(command) }
-    pass_count = outcomes.count(&:itself)
+    pass_count = outcomes.count { |outcome| outcome.fetch("passed") }
     fail_count = outcomes.size - pass_count
     # The owning grader's normal command already passed immediately before
     # this check. Any failed focused rerun therefore disagrees with an observed
     # pass, including the important case where every repeat fails.
     consistent = fail_count.zero?
+    reason = classify_outcome(outcomes, consistent: consistent)
 
-    @log.call("[flaky_gate:#{grader_name}] #{pass_count}/#{outcomes.size} passed (#{consistent ? 'consistent' : 'inconsistent'})")
+    @log.call("[flaky_gate:#{grader_name}] #{pass_count}/#{outcomes.size} passed (#{reason})")
 
     Result.new(
       ran: true,
       consistent: consistent,
-      reason: consistent ? "repeat_run_consistent" : "repeat_run_inconsistent",
+      reason: reason,
       grader_name: grader_name,
-      command: command,
+      command: redacted_command(command),
+      normal_command: redacted_command(grader_command),
       files: @touched_files,
       repeats: outcomes.size,
       pass_count: pass_count,
-      fail_count: fail_count
+      fail_count: fail_count,
+      runs: outcomes,
+      env: diagnostic_env
     )
   end
 
@@ -137,22 +148,101 @@ class TouchedTestRepeatGate
 
   def run_once(command)
     status = nil
+    output = +""
+    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     Timeout.timeout(TIMEOUT_SECONDS) do
-      _output, status = Open3.capture2e(@env, "bash", "-c", command, chdir: @workspace_path)
+      output, status = Open3.capture2e(repeat_env, "bash", "-c", command, chdir: @workspace_path)
     end
-    status&.success? || false
+    diagnostic_for(status: status, output: output, duration_s: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at)
   rescue Timeout::Error
     @log.call("[flaky_gate:#{grader_name}] repeat run timed out after #{TIMEOUT_SECONDS.to_i}s")
-    false
+    diagnostic_for(status: nil, output: "[flaky_gate] timed out after #{TIMEOUT_SECONDS.to_i}s\n", timed_out: true, duration_s: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at)
   end
 
   def grader_name = @grader_step.details.to_h["name"].to_s
   def grader_command = @grader_step.details.to_h["command"].to_s
 
+  def diagnostic_for(status:, output:, timed_out: false, duration_s:)
+    {
+      "passed" => status&.success? || false,
+      "exit_status" => status&.exitstatus,
+      "timed_out" => timed_out,
+      "duration_s" => duration_s.round(3),
+      "output" => output_tail(output)
+    }
+  end
+
+  def classify_outcome(outcomes, consistent:)
+    return "repeat_run_consistent" if consistent
+
+    timed_out_consistently = outcomes.all? { |outcome| outcome.fetch("timed_out") }
+    return "focused_command_timed_out_consistently" if timed_out_consistently
+
+    failed = outcomes.reject { |outcome| outcome.fetch("passed") }
+    statuses = failed.map { |outcome| outcome["exit_status"] }.compact.uniq
+    return "focused_command_invalid" if failed.size == outcomes.size && (statuses & [ 126, 127 ]).any?
+    return "focused_command_failed_consistently" if failed.size == outcomes.size
+
+    "repeat_run_inconsistent"
+  end
+
+  def repeat_env
+    @repeat_env ||= @env.merge(grader_inline_env)
+  end
+
+  def grader_inline_env
+    Shellwords.split(grader_command).each_with_object({}) do |token, env|
+      match = token.match(/\A([A-Z_][A-Z0-9_]*)=(.*)\z/)
+      next unless match
+
+      key = match[1]
+      next unless DIAGNOSTIC_ENV_KEYS.include?(key)
+
+      env[key] = expand_inline_env_value(key, match[2])
+    end
+  rescue ArgumentError => e
+    @log.call("[flaky_gate:#{grader_name}] could not parse grader env assignments: #{e.message}")
+    {}
+  end
+
+  def expand_inline_env_value(key, value)
+    default_match = value.match(/\A\$\{#{Regexp.escape(key)}:-(.*)\}\z/)
+    return (@env[key].presence || default_match[1]) if default_match
+
+    value.gsub("${PWD}", @workspace_path).gsub("$PWD", @workspace_path)
+  end
+
+  def diagnostic_env
+    DIAGNOSTIC_ENV_KEYS.each_with_object({}) do |key, env|
+      value = repeat_env[key]
+      env[key] = redact_env_value(key, value) if value.present?
+    end
+  end
+
+  def redact_env_value(key, value)
+    return "[REDACTED]" if key.match?(/TOKEN|PASSWORD|SECRET|KEY/i)
+
+    value.to_s
+  end
+
+  def output_tail(output)
+    text = output.to_s
+    text = text.safe_byteslice(-OUTPUT_INLINE_BYTES, OUTPUT_INLINE_BYTES) if text.bytesize > OUTPUT_INLINE_BYTES
+    text
+      .to_s
+      .encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "?")
+  end
+
+  def redacted_command(command)
+    command.to_s.gsub(/(token|password|secret|key)=\S+/i, '\1=[REDACTED]')
+  end
+
   def skipped(reason)
     Result.new(
-      ran: false, consistent: true, reason: reason, grader_name: grader_name, command: nil,
-      files: @touched_files, repeats: 0, pass_count: 0, fail_count: 0
+      ran: false, consistent: true, reason: reason, grader_name: grader_name,
+      command: nil, normal_command: redacted_command(grader_command),
+      files: @touched_files, repeats: 0, pass_count: 0, fail_count: 0,
+      runs: [], env: diagnostic_env
     )
   end
 end

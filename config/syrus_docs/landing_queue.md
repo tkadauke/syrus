@@ -180,16 +180,29 @@ build a file-scoped rerun command for this grader," independent of whatever
 `base_retry` the grader has (or doesn't have) configured. A grader whose
 language has no registered `:focused_test_command` provider (only Ruby and
 JavaScript today) and no explicit `base_retry` command is skipped for that
-grader, logged, rather than guessed at. Results that disagree (some repeats
-pass, some fail) fail the grading iteration with a `grader_failure` Problem
-carrying
-`evidence: { new_test_flakiness: true, result: {...} }`, and the repeat result
-is stored on that grader Step and included in the iteration rollup so the
-repair prompt, the chat report, and the Job page all show
-"this Job's new test failed N/5 times on repeat" instead of a generic failed
-grader -- the agent or operator sees they introduced flakiness, not that they
-broke an existing check. A stable touched test (repeats all agree, pass or
-fail) leaves the iteration's outcome untouched.
+grader, logged, rather than guessed at. Focused commands run with the same
+relevant environment the owning grader declared inline (`RAILS_ENV`,
+`COVERAGE`, Bundler paths) plus the normal grader subprocess environment, so a
+plugin-scoped focused rerun is not silently stripped of the prefix the full
+plugin grader just used.
+
+Mixed repeat results (some pass, some fail) fail the grading iteration with a
+`grader_failure` Problem carrying
+`evidence: { new_test_flakiness: true, focused_command_failure: false, result:
+{...} }`, and the repeat result is stored on that grader Step and included in
+the iteration rollup so the repair prompt, the chat report, and the Job page
+all show "this Job's new test failed N/5 times on repeat" instead of a generic
+failed grader -- the agent or operator sees they introduced flakiness, not that
+they broke an existing check. A stable touched test (all repeats pass) leaves
+the iteration's outcome untouched. If every repeat fails after the owning full
+grader passed, the gate classifies that separately as a suspect focused rerun
+(`focused_command_failed_consistently`, `focused_command_invalid`, or
+`focused_command_timed_out_consistently`) and carries `evidence:
+{ new_test_flakiness: false, focused_command_failure: true, result: {...} }`.
+Each failed repeat stores bounded combined stdout/stderr, exit status, timeout
+state, duration, focused command, normal command, and diagnostic environment,
+so operators and repair agents can see whether the file-scoped command or its
+environment is the failing surface.
 
 Off by default, opted in per repository via
 `Repository#new_test_flakiness_gate_enabled` (same shape as

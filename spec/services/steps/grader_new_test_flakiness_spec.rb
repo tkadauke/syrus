@@ -46,8 +46,15 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
   it "runs repeat checks inside the owning typed grader with project-scoped files" do
     result = TouchedTestRepeatGate::Result.new(
       ran: true, consistent: true, reason: "repeat_run_consistent",
-      grader_name: "rspec", command: "bundle exec rspec plugins/example/spec/widget_spec.rb",
-      files: [ "plugins/example/spec/widget_spec.rb" ], repeats: 4, pass_count: 4, fail_count: 0
+      grader_name: "rspec",
+      command: "bundle exec rspec plugins/example/spec/widget_spec.rb",
+      normal_command: "bundle exec rspec",
+      files: [ "plugins/example/spec/widget_spec.rb" ],
+      repeats: 4,
+      pass_count: 4,
+      fail_count: 0,
+      runs: [],
+      env: {}
     )
     expect(TouchedTestRepeatGate).to receive(:call).with(hash_including(
       grader_step: step,
@@ -64,8 +71,15 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
   it "fails the grader itself when repeat results are inconsistent" do
     result = TouchedTestRepeatGate::Result.new(
       ran: true, consistent: false, reason: "repeat_run_inconsistent",
-      grader_name: "rspec", command: "bundle exec rspec plugins/example/spec/widget_spec.rb",
-      files: [ "plugins/example/spec/widget_spec.rb" ], repeats: 4, pass_count: 2, fail_count: 2
+      grader_name: "rspec",
+      command: "bundle exec rspec plugins/example/spec/widget_spec.rb",
+      normal_command: "bundle exec rspec",
+      files: [ "plugins/example/spec/widget_spec.rb" ],
+      repeats: 4,
+      pass_count: 2,
+      fail_count: 2,
+      runs: [],
+      env: {}
     )
     allow(TouchedTestRepeatGate).to receive(:call).and_return(result)
 
@@ -73,6 +87,31 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
       .to raise_error(Steps::Base::StepFailed) { |error| expect(error.evidence[:new_test_flakiness]).to be(true) }
 
     expect(step.reload.details.dig("new_test_flakiness_gate", "consistent")).to be(false)
+  end
+
+  it "classifies all-repeat failed focused reruns separately from true intermittent flakiness" do
+    result = TouchedTestRepeatGate::Result.new(
+      ran: true, consistent: false, reason: "focused_command_failed_consistently",
+      grader_name: "rspec",
+      command: "bundle exec rspec plugins/example/spec/widget_spec.rb",
+      normal_command: "bundle exec rspec",
+      files: [ "plugins/example/spec/widget_spec.rb" ],
+      repeats: 4,
+      pass_count: 0,
+      fail_count: 4,
+      runs: [ { "exit_status" => 1, "output" => "boot failed", "passed" => false, "timed_out" => false } ],
+      env: { "RAILS_ENV" => "test" }
+    )
+    allow(TouchedTestRepeatGate).to receive(:call).and_return(result)
+
+    expect { handler.send(:check_new_test_flakiness!, name: "rspec", definition: step.details) }
+      .to raise_error(Steps::Base::StepFailed) do |error|
+        expect(error.message).to include("focused rerun command failed")
+        expect(error.evidence[:new_test_flakiness]).to be(false)
+        expect(error.evidence[:focused_command_failure]).to be(true)
+      end
+
+    expect(step.reload.details.dig("new_test_flakiness_gate", "reason")).to eq("focused_command_failed_consistently")
   end
 
   it "does not attach repeat checks to non-test graders" do
