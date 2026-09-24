@@ -141,12 +141,16 @@ class TouchedTestRepeatGate
   def run_once(command)
     status = nil
     Timeout.timeout(TIMEOUT_SECONDS) do
-      _output, status = Open3.capture2e(@env, "bash", "-c", command, chdir: @workspace_path)
+      _output, status = Open3.capture2e(repeat_env, "bash", "-c", command, chdir: @workspace_path)
     end
     status&.success? || false
   rescue Timeout::Error
     @log.call("[flaky_gate:#{grader_name}] repeat run timed out after #{TIMEOUT_SECONDS.to_i}s")
     false
+  end
+
+  def repeat_env
+    @env.to_h.stringify_keys.merge("RAILS_ENV" => "test")
   end
 
   def with_repeat_lock
