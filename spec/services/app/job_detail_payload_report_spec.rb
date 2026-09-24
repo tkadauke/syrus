@@ -19,10 +19,6 @@ RSpec.describe "investigation report in job detail payload" do
     )
   end
 
-  def investigation_workflow_for(job)
-    job.workflows.where(trigger_kind: "investigation").reorder(created_at: :desc, id: :desc).first!
-  end
-
   it "marks the job as an investigation job and has no report before submit_report runs" do
     job = investigation_job
 
@@ -34,7 +30,7 @@ RSpec.describe "investigation report in job detail payload" do
 
   it "exposes the submitted report, resolving references against typed_artifacts" do
     job = investigation_job
-    workflow = investigation_workflow_for(job)
+    workflow = job.workflows.last
     submit_report_step = workflow.steps.find_by!(kind: "submit_report")
     run = submit_report_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
     run.workflow.set_typed_artifact!(type: "dashboard_screenshot", title: "Dashboard screenshot", payload: { image_url: "https://example.com/shot.png" }, renderer_type: :image_diff)
