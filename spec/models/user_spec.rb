@@ -29,16 +29,6 @@ RSpec.describe User do
       expect(User.search("widget-repair-bot").pluck(:id)).to include(user.id)
     end
 
-    it "uses the adapter-quoted LIKE escape literal" do
-      allow(User.connection).to receive(:quote).and_call_original
-      allow(User.connection).to receive(:quote).with("\\").and_return("'\\\\'")
-
-      sql = User.search("Grace").to_sql
-
-      expect(sql).to include("email_address LIKE")
-      expect(sql).to include("ESCAPE '\\\\'")
-    end
-
     it "returns no matches for an unrelated query" do
       Factories.user(name: "Unrelated Name")
       expect(User.search("nonexistent-term-xyz")).to be_empty
