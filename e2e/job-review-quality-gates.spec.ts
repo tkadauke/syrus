@@ -31,6 +31,13 @@ test("covers review diff, coverage, diff comments, and workflow warning action",
     codeCell.textContent = "very_wide_diff_line_" + "x".repeat(360)
   })
   await page.getByRole("button", { name: /^Comment on / }).first().click({ force: true })
+  await page.locator("[data-testid='diff-file-scroll']").first().evaluate((scrollRegion) => {
+    scrollRegion.scrollLeft = scrollRegion.scrollWidth
+  })
+  await page.waitForFunction(() => {
+    const scrollRegion = document.querySelector("[data-testid='diff-file-scroll']")
+    return Boolean(scrollRegion && scrollRegion.scrollLeft > 0)
+  })
 
   const viewportWidth = page.viewportSize()?.width ?? 1280
   const layout = await page.evaluate(() => {

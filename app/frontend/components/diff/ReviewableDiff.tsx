@@ -130,8 +130,8 @@ const FILES_POPUP_MARGIN = 8
 const FILES_POPUP_MIN_HEIGHT = 200
 const DIFF_FILE_PATH_COPY_CLASS = "group flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-surface-raised hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-brand"
 const DIFF_FILE_HEADER_CONTROL_CLASS = "shrink-0 rounded border border-border px-2 py-0.5 font-sans text-2xs font-medium text-text-secondary hover:bg-surface-raised disabled:opacity-50"
-const DIFF_INLINE_REVIEW_CELL_CLASS = "sticky left-0 z-[1] w-[min(44rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] px-3 py-2 align-top max-md:static max-md:w-auto max-md:max-w-none max-md:p-0"
-const DIFF_INLINE_REVIEW_PANEL_CLASS = "w-[min(44rem,100cqw,calc(100vw-3rem))] max-w-[min(44rem,100cqw,calc(100vw-3rem))] max-md:w-auto max-md:max-w-none"
+const DIFF_INLINE_REVIEW_CELL_CLASS = "w-[min(44rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] px-3 py-2 align-top max-md:w-auto max-md:max-w-none max-md:p-0"
+const DIFF_INLINE_REVIEW_PANEL_CLASS = "sticky left-0 z-[1] w-[min(44rem,100cqw,calc(100vw-3rem))] max-w-[min(44rem,100cqw,calc(100vw-3rem))] max-md:static max-md:w-auto max-md:max-w-none"
 
 // Per-file state that must survive a file section unmounting and remounting
 // as the user scrolls it out of, then back into, the virtualized window --
@@ -1161,7 +1161,7 @@ export function UnifiedDiffTable({
                   <td className="border-r border-amber-200 dark:border-amber-900" colSpan={gutterColSpan} />
                   <td className="text-amber-700 dark:text-amber-300">*</td>
                   <td className={`${DIFF_INLINE_REVIEW_CELL_CLASS} text-xs text-amber-950 dark:text-amber-100`} colSpan={2}>
-                    <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} space-y-2`}>
+                    <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} space-y-2 bg-amber-50/70 dark:bg-amber-950/30`}>
                       {threads.map((thread) => (
                         <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
                           <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
@@ -1215,8 +1215,8 @@ export function UnifiedDiffTable({
                 <tr className="font-sans" data-testid="diff-review-composer">
                   <td className="border-r border-brand/20 max-md:hidden" colSpan={gutterColSpan} />
                   <td className="text-brand max-md:hidden">*</td>
-                  <td className={`${DIFF_INLINE_REVIEW_CELL_CLASS} bg-brand/5`} colSpan={2}>
-                    <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:bg-white max-md:dark:bg-gray-950`}>
+                  <td className={DIFF_INLINE_REVIEW_CELL_CLASS} colSpan={2}>
+                    <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} bg-brand/5 max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:bg-white max-md:dark:bg-gray-950`}>
                       <div className="hidden shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2 max-md:flex dark:border-gray-700">
                         <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("diff_review_composer.title")}</h4>
                         <button aria-label={t("diff_review_composer.close")} className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onCancelComposing} type="button">

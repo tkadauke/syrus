@@ -417,8 +417,9 @@ describe("ReviewableDiff", () => {
     const composerCells = screen.getByTestId("diff-review-composer").querySelectorAll("td")
     const composerCell = composerCells[composerCells.length - 1] as HTMLElement
     const composerPanel = Array.from(composerCell.children).find((child) => child.tagName === "DIV") as HTMLElement
-    expect(composerCell).toHaveClass("sticky", "left-0", "max-w-[calc(100vw-3rem)]")
-    expect(composerPanel).toHaveClass("w-[min(44rem,100cqw,calc(100vw-3rem))]")
+    expect(composerCell).toHaveClass("max-w-[calc(100vw-3rem)]")
+    expect(composerCell).not.toHaveClass("sticky")
+    expect(composerPanel).toHaveClass("sticky", "left-0", "w-[min(44rem,100cqw,calc(100vw-3rem))]")
     expect(within(composerCell).getByLabelText("Comment")).toHaveValue("Please keep this visible.")
   })
 
@@ -441,8 +442,10 @@ describe("ReviewableDiff", () => {
 
     const threadCells = screen.getByTestId("diff-review-thread").querySelectorAll("td")
     const threadCell = threadCells[threadCells.length - 1] as HTMLElement
-    expect(threadCell).toHaveClass("sticky", "left-0", "max-w-[calc(100vw-3rem)]")
-    expect(threadCell.querySelector("div")).toHaveClass("w-[min(44rem,100cqw,calc(100vw-3rem))]")
+    const threadPanel = threadCell.querySelector("div")
+    expect(threadCell).toHaveClass("max-w-[calc(100vw-3rem)]")
+    expect(threadCell).not.toHaveClass("sticky")
+    expect(threadPanel).toHaveClass("sticky", "left-0", "w-[min(44rem,100cqw,calc(100vw-3rem))]")
     expect(screen.getByText("This note should not inherit the long line width.")).toBeInTheDocument()
   })
 
