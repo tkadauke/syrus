@@ -28,7 +28,7 @@ class TouchedTestRepeatGate
     @grader_step = grader_step
     @touched_files = Array(touched_files)
     @workspace_path = workspace_path.to_s
-    @env = env
+    @env = subprocess_env(env)
     @repeats = [ repeats.to_i, 1 ].max
     @log = log
   end
@@ -148,6 +148,12 @@ class TouchedTestRepeatGate
 
   def grader_name = @grader_step.details.to_h["name"].to_s
   def grader_command = @grader_step.details.to_h["command"].to_s
+
+  def subprocess_env(env)
+    env = env.to_h.stringify_keys
+    env["PATH"] = ENV["PATH"] if env["PATH"].blank? && ENV["PATH"].present?
+    env
+  end
 
   def skipped(reason)
     Result.new(
