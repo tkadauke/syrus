@@ -163,10 +163,12 @@ class TouchedTestRepeatGate
   def grader_command = @grader_step.details.to_h["command"].to_s
 
   def diagnostic_for(status:, output:, timed_out: false, duration_s:)
+    no_tests_run = no_tests_run?(output)
     {
-      "passed" => status&.success? || false,
+      "passed" => (status&.success? || false) && !no_tests_run,
       "exit_status" => status&.exitstatus,
       "timed_out" => timed_out,
+      "no_tests_run" => no_tests_run,
       "duration_s" => duration_s.round(3),
       "output" => output_tail(output)
     }
@@ -179,12 +181,28 @@ class TouchedTestRepeatGate
     return "focused_command_timed_out_consistently" if timed_out_consistently
 
     failed = outcomes.reject { |outcome| outcome.fetch("passed") }
+    return "focused_command_invalid" if failed.size == outcomes.size && failed.all? { |outcome| outcome["no_tests_run"] }
+
     statuses = failed.map { |outcome| outcome["exit_status"] }.compact.uniq
     return "focused_command_invalid" if failed.size == outcomes.size && (statuses & [ 126, 127 ]).any?
     return "focused_command_failed_consistently" if failed.size == outcomes.size
 
     "repeat_run_inconsistent"
   end
+
+  def no_tests_run?(output)
+    return false unless grader_framework == "rspec"
+
+    text = output.to_s
+    example_counts = text.scan(/(?:^|\n)\s*(\d+) examples?, \d+ failures\b/).flatten.map(&:to_i)
+    return false if example_counts.any?(&:positive?)
+    return true if example_counts.any?
+
+    text.include?("All examples were filtered out") ||
+      text.match?(/(?:^|\n)\s*0 examples?, 0 failures\b/)
+  end
+
+  def grader_framework = @grader_step.details.to_h["grader_framework"].to_s
 
   def repeat_env
     @repeat_env ||= @env.merge(grader_inline_env)

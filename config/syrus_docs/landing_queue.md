@@ -200,9 +200,11 @@ they broke an existing check. A stable touched test (all repeats pass) leaves
 the iteration's outcome untouched. If every repeat fails after the owning full
 grader passed, the gate classifies that separately as a suspect focused rerun
 (`focused_command_failed_consistently`, `focused_command_invalid`, or
-`focused_command_timed_out_consistently`), records it on the grader Step, emits
-a warning entry in the `new_test_flakiness_gate` artifact, and does not fail
-the already-passing owning grader. Each failed repeat stores bounded combined
+`focused_command_timed_out_consistently`; RSpec commands that exit 0 after
+filtering out every example count as `focused_command_invalid`), records it on
+the grader Step, emits a warning entry in the `new_test_flakiness_gate`
+artifact, and does not fail the already-passing owning grader. Each failed
+repeat stores bounded combined
 stdout/stderr, exit status, timeout state, duration, focused command, normal
 command, and diagnostic environment, so operators can see whether the
 file-scoped command or its environment is the failing surface without blocking
