@@ -157,6 +157,26 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
+  it "rejects a prepared cache hit when declared npm binaries are missing" do
+    described_class.new(step).setup
+    snapshot.reload.prepared_workspace_archive.purge
+    cache_path = Pathname.new(step.reload.details.fetch("prepare_cache").fetch("cache_path"))
+    write_incomplete_node_install(cache_path)
+
+    second_checkout = described_class.new(second_step)
+    allow(ProcessRunner).to receive(:new).and_call_original
+
+    second_checkout.setup
+
+    expect(second_step.reload.details.fetch("prepare_cache")).to include(
+      "status" => "miss",
+      "worker_storage_key" => "storage-a",
+      "source_snapshot_sha" => main_sha
+    )
+    expect(second_checkout.path.join("package-lock.json")).not_to exist
+    expect(ProcessRunner).to have_received(:new).with(hash_including(kind: "prepare"))
+  end
+
   it "restores prepared state from the source snapshot archive on another worker storage root" do
     described_class.new(step).setup
     first_cache_details = step.reload.details.fetch("prepare_cache")
@@ -184,6 +204,30 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       "prepare_cache_status" => "archive_hit"
     )
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
+  end
+
+  it "rejects a prepared archive restore when declared npm binaries are missing" do
+    first_checkout = described_class.new(step)
+    first_checkout.setup
+    first_cache_details = step.reload.details.fetch("prepare_cache")
+    metadata = snapshot.reload.prepared_workspace_archive.blob.metadata
+    write_incomplete_node_install(first_checkout.path)
+    replace_prepared_archive_from!(first_checkout.path, metadata: metadata)
+
+    File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-b\n")
+    second_checkout = described_class.new(second_step)
+    allow(ProcessRunner).to receive(:new).and_call_original
+
+    second_checkout.setup
+
+    expect(second_step.reload.details.fetch("prepare_cache")).to include(
+      "status" => "miss",
+      "worker_storage_key" => "storage-b",
+      "source_snapshot_sha" => main_sha,
+      "prepare_fingerprint" => first_cache_details.fetch("prepare_fingerprint")
+    )
+    expect(second_checkout.path.join("package-lock.json")).not_to exist
+    expect(ProcessRunner).to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
   it "restores the source checkout from the prepared archive before fetching on a fresh worker" do
@@ -308,6 +352,45 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
 
   def feature_tree_sha
     @feature_tree_sha ||= sh("git --git-dir=#{bare_remote_dir} rev-parse refs/syrus/source-snapshots/runs/123^{tree}").strip
+  end
+
+  def write_incomplete_node_install(path)
+    path = Pathname.new(path)
+    File.write(path.join("package.json"), JSON.generate("scripts" => { "typecheck" => "tsc --noEmit" }))
+    lock_json = JSON.pretty_generate(
+      "lockfileVersion" => 3,
+      "packages" => {
+        "" => { "devDependencies" => { "typescript" => "5.9.2", "vitest" => "4.0.0" } },
+        "node_modules/typescript" => { "bin" => { "tsc" => "bin/tsc", "tsserver" => "bin/tsserver" } },
+        "node_modules/vitest" => { "bin" => { "vitest" => "vitest.mjs" } }
+      }
+    )
+    File.write(path.join("package-lock.json"), lock_json)
+    FileUtils.mkdir_p(path.join("node_modules/.bin"))
+    File.write(path.join("node_modules/.package-lock.json"), lock_json)
+    FileUtils.touch(path.join("node_modules/.bin/vitest"))
+    FileUtils.rm_f(path.join("node_modules/.bin/tsc"))
+    FileUtils.rm_f(path.join("node_modules/.bin/tsserver"))
+  end
+
+  def replace_prepared_archive_from!(source_path, metadata:)
+    Dir.mktmpdir("syrus-corrupt-prepared-archive") do |dir|
+      archive_path = Pathname.new(dir).join("prepared.tar.gz")
+      _stdout, stderr, status = Open3.capture3(
+        "tar", "--exclude=./.syrus/immutable-checkouts", "-czf", archive_path.to_s, "-C", source_path.to_s, "."
+      )
+      raise "tar failed: #{stderr.presence || status.exitstatus}" unless status.success?
+
+      snapshot.prepared_workspace_archive.purge
+      File.open(archive_path, "rb") do |archive|
+        snapshot.prepared_workspace_archive.attach(
+          io: archive,
+          filename: "prepared.tar.gz",
+          content_type: described_class::PREPARED_ARCHIVE_CONTENT_TYPE,
+          metadata: metadata
+        )
+      end
+    end
   end
 
   def seed_remote(bare_path)
