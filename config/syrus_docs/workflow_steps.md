@@ -39,7 +39,7 @@ them. The Steps still get immutable-source placement and per-Run Solid Queue
 keys — everything *looks* configured for parallelism — and they still run
 strictly one at a time. `preflight_grader_fanout` shipped in exactly that state
 and ran 14 graders single-file, about a second apart, with the gate fully on
-(WF-28163). Both grader fanouts now do the same two things: link graders to the
+in production. Both grader fanouts now do the same two things: link graders to the
 shared continuation when the gate is on, and state the fan-out/fan-in as
 `depends_on_ids` edges.
 

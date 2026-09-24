@@ -107,8 +107,8 @@ module Steps
           # *parallel*: with no edges, Step#dependencies_settled? falls back to
           # the linked-list predecessor, so grader N waits on grader N-1 and the
           # batch runs single-file no matter what the placement policy or the
-          # Solid Queue concurrency key allow (WF-28163 ran 14 of them one at a
-          # time, ~1s apart, with the distributed gate fully on).
+          # Solid Queue concurrency key allow (a production workflow ran 14 of
+          # them one at a time, ~1s apart, with the distributed gate fully on).
           new_steps.each { |grader| grader.update!(depends_on_ids: [ step.id ]) }
           continuation&.update!(depends_on_ids: new_steps.map(&:id))
           materialized = true

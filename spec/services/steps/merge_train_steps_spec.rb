@@ -1340,7 +1340,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         .and_raise(missing_object_error([ "cat-file", "-e", "trainsha789^{commit}" ], "trainsha789"))
       # Even after the fetch attempt, this workspace still can't resolve the
       # commit (e.g. the fetch itself failed, or objects were pruned) --
-      # production evidence: WF-252/train 5067 logged exactly this message
+      # production evidence: a real merge train logged exactly this message
       # for every member.
       allow(git).to receive(:run)
         .with("merge-base", "--is-ancestor", "a-landed-1", "trainsha789", chdir: "/tmp/ws")

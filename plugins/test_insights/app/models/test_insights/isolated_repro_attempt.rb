@@ -1,7 +1,7 @@
 module TestInsights
   # A single agent-run "I ran this exact failing example against this exact
-  # failing SHA in isolation, and it did/did not reproduce" record
-  # (EPIC-362). Backs Adjudicators::IsolatedReproDismissal.
+  # failing SHA in isolation, and it did/did not reproduce" record.
+  # Backs Adjudicators::IsolatedReproDismissal.
   #
   # Deliberately its own table, not a TestCase row: TestCase.flakiness_score
   # reads TestCase.scored, the aggregate statistical history built from real

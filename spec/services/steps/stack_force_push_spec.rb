@@ -21,7 +21,7 @@ RSpec.describe Steps::StackForcePush do
     allow(job.repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
   end
 
-  # RUN-145012 (WF-28645, JOB-5003): the old shared PUSH_REJECTED_PATTERN's
+  # The old shared PUSH_REJECTED_PATTERN's
   # bare /rejected/i matched the "rejected" token inside a server-side
   # "[remote rejected] ... (Internal Server Error)" refusal too, so a
   # transient GitHub 500 was misdiagnosed as a force-with-lease conflict and

@@ -219,7 +219,7 @@ RSpec.describe MetricsDashboard::DashboardPayload do
   end
 
   describe "panel categories" do
-    # A panel EPIC-359 named slightly differently than guessed ahead of time is
+    # A panel named slightly differently than guessed ahead of time is
     # exactly the drift this guards against: every real panel must declare a
     # real category, not quietly ride the "other" fallback.
     it "assigns every panel a real category, not the fallback" do

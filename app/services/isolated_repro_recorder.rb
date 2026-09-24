@@ -1,4 +1,4 @@
-# Validates and records one agent-run isolated repro attempt (EPIC-362):
+# Validates and records one agent-run isolated repro attempt:
 # "I ran this exact failing example against this exact failing SHA in
 # isolation, and it did/did not reproduce." Backs the record_isolated_repro
 # MCP tool.

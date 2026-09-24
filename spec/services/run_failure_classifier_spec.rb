@@ -931,7 +931,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
 
   it "classifies a GitHub 5xx '[remote rejected]' push failure as retryable, not git_state_corrupt" do
     run.update!(state: "failed")
-    # Same shape as the JOB-330 empty_commit regression above: a
+    # Same shape as the empty_commit regression above: a
     # GitRunner::GitError whose error_class alone would match
     # git_state_corrupt?, but the message is a transient server-side push
     # refusal (not a real non-fast-forward/lease conflict, and not corrupt

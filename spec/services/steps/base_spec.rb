@@ -844,7 +844,7 @@ RSpec.describe Steps::Base, :ci_only do
       expect(run.reload.agent_outcome).to eq("git_state_corrupt")
     end
 
-    # Regression for JOB-5006/WF-28504: a stack-child Job's base_ref is the
+    # Regression: a stack-child Job's base_ref is the
     # parent Job's branch, resolved fresh on every new WorkflowWorkspace
     # instance. A workspace that's reused across Runs within the same
     # Workflow is never re-fetched, so a ref that genuinely exists on origin

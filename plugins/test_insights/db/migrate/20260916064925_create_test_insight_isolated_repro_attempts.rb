@@ -1,5 +1,5 @@
 class CreateTestInsightIsolatedReproAttempts < ActiveRecord::Migration[8.1]
-  # Backs Adjudicators::IsolatedReproDismissal (EPIC-362): a structured,
+  # Backs Adjudicators::IsolatedReproDismissal: a structured,
   # auditable record of an agent-run isolated repro attempt -- the exact
   # command and raw output, keyed by the exact commit SHA that was actually
   # graded -- kept entirely separate from test_insight_cases/test_insight_runs

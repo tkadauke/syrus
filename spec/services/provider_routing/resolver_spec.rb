@@ -155,10 +155,10 @@ RSpec.describe ProviderRouting::Resolver do
   end
 
   describe "explicit repository provider vs. user-scoped routing rules" do
-    # JOB-5393 / WF-29556: a repository configured with an explicit
-    # agent_provider (the real-world story used "muse"; these specs use
-    # "codex" as a stand-in registered provider) must not be quietly routed
-    # to a user's personal default-routing-rule provider.
+    # A repository configured with an explicit agent_provider (the original
+    # report used a different provider; these specs use "codex" as a stand-in
+    # registered provider) must not be quietly routed to a user's personal
+    # default-routing-rule provider.
     it "puts the repository's explicit agent_provider ahead of a user-scoped default routing rule" do
       repository.update!(agent_provider: "codex")
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")

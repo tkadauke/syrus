@@ -245,8 +245,8 @@ RSpec.describe Steps::PreflightGraderFanout do
   # linked list. With no edges, Step#dependencies_settled? falls back to the
   # linked-list predecessor, so grader N waits on grader N-1 and
   # StepDispatcher#distributed_ready_set can only ever collect one of them.
-  # WF-28163 ran 14 preflight graders strictly single-file, ~1s apart, with the
-  # gate fully on.
+  # A production workflow ran 14 preflight graders strictly single-file, ~1s
+  # apart, with the gate fully on.
   it "projects preflight graders as parallel siblings behind the collect barrier when distributed workflows are enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)

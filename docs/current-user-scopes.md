@@ -1,7 +1,7 @@
 # Current.user Scope Audit
 
 Audited for epic #780. Most `Current.user` scoping is per-user/private or
-admin-only; see [Teams](#teams) for the first-class team scope EPIC-27 added
+admin-only; see [Teams](#teams) for the first-class team scope the access-control work added
 (`Team`/`TeamMembership`/`TeamRepository`), which now additively widens
 repository access alongside direct `RepositoryMembership` rows.
 
@@ -11,8 +11,8 @@ private user data separated.
 
 ## Policy layer (Repository/Job/Epic)
 
-EPIC-27 (global roles, repository role tiers, teams, and GitHub permission
-parity) replaces this convention-based, per-controller scoping with policy
+The access-control work (global roles, repository role tiers, teams, and GitHub
+permission parity) replaces this convention-based, per-controller scoping with policy
 objects one resource at a time. The first step introduced the `pundit` gem
 and `RepositoryPolicy`, `JobPolicy`, and `EpicPolicy` under `app/policies/`,
 wrapping the access rules documented in this file for
@@ -260,7 +260,7 @@ admin-only:
 
 ## Teams
 
-EPIC-27's final step added `Team` (name), `TeamMembership` (user_id,
+The access-control work's final step added `Team` (name), `TeamMembership` (user_id,
 team_id, role: `member`/`owner`), and `TeamRepository` (team_id,
 repository_id, role: `read`/`write`/`admin`) so one repository can be
 granted to multiple teams at potentially different tiers — a bulk-grant

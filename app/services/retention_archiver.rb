@@ -4,7 +4,7 @@
 # rows to a gzip-compressed JSONL Active Storage attachment and records
 # exactly one RetentionArchive row for the sweep before the caller proceeds
 # with its existing delete. No-ops (never touches RetentionArchive or Active
-# Storage) when the setting is off, matching JOB-5025's delete-only behavior
+# Storage) when the setting is off, matching the previous delete-only behavior
 # exactly — see config/syrus_docs/app_settings.md's "Archive-before-delete
 # storage" section.
 class RetentionArchiver

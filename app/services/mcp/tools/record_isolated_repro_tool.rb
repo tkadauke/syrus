@@ -4,7 +4,7 @@ module Mcp::Tools
   # MCP tool for an agent investigating a required-grader failure to record
   # a structured, auditable "I ran this exact failing example against this
   # exact failing SHA in isolation, and it did/did not reproduce" fact --
-  # before making any fix commits (EPIC-362).
+  # before making any fix commits.
   #
   # This is deliberately not a place to self-report an opinion that a test is
   # flaky (Syrus already rejected that idea elsewhere as unverifiable and

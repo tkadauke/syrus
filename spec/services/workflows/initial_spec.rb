@@ -280,8 +280,8 @@ RSpec.describe Workflows::Initial do
     expect(workflow.reload.agent_provider).to eq("claude")
   end
 
-  it "selects the repository's explicit agent_provider over a user-scoped default routing rule (JOB-5393)" do
-    # Regression for WF-29556: the repo was pinned to a provider, the user
+  it "selects the repository's explicit agent_provider over a user-scoped default routing rule" do
+    # Regression: the repo was pinned to a provider, the user
     # had a default-routing rule favoring Claude, and the workflow was
     # incorrectly created with Claude instead of the repo's provider.
     repository.update!(agent_provider: "codex")

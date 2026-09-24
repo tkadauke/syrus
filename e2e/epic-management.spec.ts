@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test"
 import { signInAsDemo } from "./support/auth"
 
-// Builds on the seeded demo Epic (JOB-4413) by exercising the operator-facing
+// Builds on the seeded demo Epic by exercising the operator-facing
 // Epic creation and management flows end to end: creating an Epic, adding
 // child Jobs to it, chaining their dependencies (and getting rejected when
 // that would break the linear-chain policy -- see JobDependency#linear_chain_within_epic),

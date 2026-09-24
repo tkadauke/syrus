@@ -813,8 +813,8 @@ to one (an operator's `capture` click, or the agent's `runtime_snapshot`/
 `runtime_capture_artifact`/`browser_screenshot`), stamps
 `latest_frame_url`/`latest_frame_at` on that session pointing at the `frame`
 endpoint so the panel's periodic-screenshot polling has something to show for
-browser-like providers -- those two columns existed on `RuntimeSession` since
-JOB-572 but were never written until this wiring landed.
+browser-like providers -- those two columns existed on `RuntimeSession` from
+the start but were never written until this wiring landed.
 
 ## `mcp_tool_set` / `chat_mcp_tool_set`
 

@@ -71,9 +71,9 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
     end
 
     describe "explicit repository provider vs. user-scoped routing rules" do
-      # JOB-5393 / WF-29556: the repository is configured for a specific
-      # provider ("codex" here, standing in for the real-world "muse"), but
-      # the user also has a routing rule favoring another provider. The
+      # The repository is configured for a specific provider ("codex" here,
+      # standing in for the provider the original report used), but the user
+      # also has a routing rule favoring another provider. The
       # repository provider must win while it's healthy, and a real failover
       # away from it must still be attributed to the repository provider as
       # the original choice.
