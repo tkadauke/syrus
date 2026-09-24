@@ -31,6 +31,15 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result.reason).to eq("agent exhausted max turns")
   end
 
+  it "classifies oversized Muse workspace rules as non-retryable" do
+    fail_run!(agent_outcome: "muse_rules_context_too_large")
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_retryable
+    expect(result.classification).to eq("muse_rules_context_too_large")
+  end
+
   it "does not retry known code/config failures from diagnostics" do
     fail_run!(error_class: "Steps::Base::StepFailed", error_message: "agent produced no changes")
 
