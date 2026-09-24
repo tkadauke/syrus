@@ -1,5 +1,5 @@
 # Short-lived signed context envelope for MCP tool dispatch under the
-# persistent MCP sidecar daemon (the relevant change, PersistentMcpDaemon).
+# persistent MCP sidecar daemon (PersistentMcpDaemon).
 #
 # Stdio-mode sidecars (Mcp::Sidecar, bin/syrus-mcp-sidecar,
 # bin/syrus-chat-sidecar) get a fresh subprocess per run or chat turn, so

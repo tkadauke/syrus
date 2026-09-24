@@ -146,7 +146,7 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(replacement_workflow.work_unit.reload).to be_running
     end
 
-    # Regression for the the relevant change incident: a land step that crashes AFTER
+    # Regression for a production incident: a land step that crashes AFTER
     # GitHub genuinely merged the integration branch (e.g. between
     # record_integration_merge_commit! and reconcile_members! finishing for
     # every member) must not blanket-revert members whose commits are

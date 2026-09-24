@@ -1,4 +1,4 @@
-# Checked-in source of truth for the built-in Theme rows (the relevant change job 1,
+# Checked-in source of truth for the built-in Theme rows (theme work job 1,
 # syntax tokens added `db/seeds.rb` calls `Seeds::Themes.seed!`
 # to upsert these into the `themes` table, and `bin/generate-theme-css`
 # compiles the resulting `built_in: true` rows into scoped CSS

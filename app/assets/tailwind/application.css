@@ -47,7 +47,7 @@
  * alias in config/tailwind.config.js — semantic "info" should stay
  * independent of the brand color once components migrate to it.
  *
- * `on-brand` (13th token, added for the relevant change's multi-theme system) is the
+ * `on-brand` (13th token, added for the multi-theme system) is the
  * text/icon color for content painted on top of `brand` — e.g. Button's
  * primary variant. It used to be hardcoded `text-white` in Button.tsx,
  * which is fine for Terracotta (whose `brand` stays dark in both light and

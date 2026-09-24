@@ -878,7 +878,7 @@ RSpec.describe Steps::Base, :ci_only do
     end
   end
 
-  # the relevant change regression: Steps::Summarize amends the implement commit's
+  # Regression: Steps::Summarize amends the implement commit's
   # placeholder message to the agent-authored pr_title (`git commit --amend`),
   # which replaces its SHA with a sibling sharing the same parent. Steps::PrOpen's
   # opportunistic `restore_validated_implementation_if_missing!` then asked

@@ -3,7 +3,7 @@ require "tmpdir"
 require "open3"
 
 # Integration coverage for the repo-local `.syrus/skills/promote/SKILL.md`
-# skill , reusing the Steps::RunSkill harness the relevant change established
+# skill, reusing the Steps::RunSkill harness established
 # for the built-in `investigate` seed skill (spec/services/steps/run_skill_spec.rb).
 #
 # The skill itself is prose an LLM agent follows, not Ruby code — there is

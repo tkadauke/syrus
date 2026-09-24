@@ -9,7 +9,7 @@
 # config/syrus_docs/epicless_job_bundling.md). The only real difference is
 # candidate scope, so it lives here as a Scope strategy
 # (LandingBundleAssembler::Scopes::Epic / ::PriorityTier) rather than as two
-# near-duplicate classes. See the relevant change.
+# near-duplicate classes.
 class LandingBundleAssembler
   Result = Data.define(:ready, :reason, :priority, :members) do
     def ready? = ready

@@ -210,7 +210,7 @@ module Admin
     end
 
     # Stdio (transcript-derived) vs. persistent (PersistentMcpDaemon dispatch
-    # boundary, the relevant change) call/error volumes side by side, so tool
+    # boundary) call/error volumes side by side, so tool
     # consolidation work can tell whether the persistent daemon path is
     # actually taking traffic and whether it fails more or less often than
     # stdio. `sidecar_mode` is nil on rows recorded before this column

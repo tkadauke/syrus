@@ -262,7 +262,7 @@ class RunFailureClassifier
   # self-reinforcing: the heavier the rollout, the more runs it kills and the
   # more of them it marks unretryable.
   #
-  # the relevant change and the relevant change both died that way in the 08:25-08:27 Eastern
+  # Two Jobs both died that way in the 08:25-08:27 Eastern
   # rollout on 2026-09-06, recorded as `cpu 100.0% >= 98%` and
   # `IO pressure 72.66% >= 50%`.
   #

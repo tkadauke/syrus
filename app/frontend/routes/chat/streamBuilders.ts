@@ -16,7 +16,7 @@ import { isReadOnlyToolName } from "../../toolPresentationRegistry"
 // Groups are tracked per "parent" tool_use id rather than a single global
 // "last open group": a nested Agent/Task call's own tool_use/tool_result
 // pair interleaves with the still-open outer call, so pairing by adjacency
-// alone (the pre-the relevant change behavior) orphaned the outer group. ROOT_KEY is
+// alone (the previous behavior) orphaned the outer group. ROOT_KEY is
 // the bucket for calls with no parent (message.parent_tool_use_id unset).
 const ROOT_KEY = "\0root"
 

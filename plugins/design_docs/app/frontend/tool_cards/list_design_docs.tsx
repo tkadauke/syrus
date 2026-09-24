@@ -3,7 +3,7 @@ import { CardShell, FilterableList, StatePill } from "@app/routes/chat/toolCardU
 import { t } from "../designDocToolCard"
 
 // Demonstrates the plugin-owned tool-card extension point (the Tier 1 tool-card work /
-// the relevant change): this file lives entirely inside the design_docs plugin and is
+// the plugin boundary): this file lives entirely inside the design_docs plugin and is
 // discovered by core's directory-convention glob (see
 // app/frontend/pluginToolCards.tsx) — core never imports this module by
 // name, so this card can be added, changed, or removed without touching any

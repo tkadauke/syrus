@@ -22,7 +22,7 @@
 # Distinct from the contributor-facing `.claude/skills/*/SKILL.md` files
 # already in this repo (see lib/agent_skills/, AgentSkillsSyncer) — those
 # drive Claude Code's own skill system and are being cleaned up in
-# the relevant change/the relevant change. Do not conflate the two or reuse that directory.
+# separate work. Do not conflate the two or reuse that directory.
 module Skills
   REPO_LOCAL_DIR = ".syrus/skills".freeze
   NAME_PATTERN = /\A[a-z0-9][a-z0-9_-]*\z/

@@ -94,7 +94,7 @@ RSpec.describe Steps::Implement do
       # Regression: job_commit_subject used to be evaluated as an eagerly-computed
       # keyword argument before persist_prompt_if_needed fetched the issue and
       # populated job.issue_title, so job.title fell back to job.slug and produced
-      # "Implement: the relevant change" instead of "Implement: Add greeting helper".
+      # "Implement: JOB-123" instead of "Implement: Add greeting helper".
       expect(handler).to receive(:commit_agent_changes)
         .with("Implement: #{job.slug}: Add greeting helper")
 

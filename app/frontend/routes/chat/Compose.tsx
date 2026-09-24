@@ -124,7 +124,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   // the chat shell-command cancellation feature `!` command mode (Coding Mode and Local Mode): the shell command
   // this composer instance is tracking, seeded from the payload's
   // `chat_shell_command_in_flight` so a Compose remount (e.g. crossing the
-  // desktop/mobile layout breakpoint mid-command, the relevant change visual review)
+  // desktop/mobile layout breakpoint mid-command)
   // rehydrates the stop control instead of losing it. Local state still
   // drives the UI moment-to-moment (immediate feedback on submit/cancel,
   // before the next full payload refetch); cleared once the completion

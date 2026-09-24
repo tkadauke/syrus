@@ -37,7 +37,7 @@ module PersistentMcpDaemon::ChatToolDispatch
   end
 
   module Dispatch
-    # Records MCP usage (McpToolUsageRecorder, the relevant change authoritative
+    # Records MCP usage (McpToolUsageRecorder, the authoritative
     # persistent-mode logging) right at this dispatch boundary instead of
     # relying on the calling agent's own transcript, which is what
     # ChatTurnJob#record_agent_event does for stdio-mode calls (see

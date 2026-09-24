@@ -90,7 +90,7 @@ describe("read_job tool card", () => {
 
     render(<>{readJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    // Falls back to "the relevant change" for both the header pill and the title when
+    // Falls back to the Job slug for both the header pill and the title when
     // issue_title is absent, so it legitimately appears twice.
     expect(screen.getAllByText("JOB-4048")).toHaveLength(2)
     expect(screen.queryByText("Dependencies")).not.toBeInTheDocument()

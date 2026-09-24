@@ -11,7 +11,7 @@ require "net/http"
 #
 # Kept as a standalone twin of WorkflowMcpTransportSelector rather than a
 # shared base class: the two selectors gate on different capabilities and
-# evolve independently (chat and workflow tool wiring are separate the relevant change
+# evolve independently (chat and workflow tool wiring are separate
 # milestones), so sharing the ~80 lines of HTTP/health-check plumbing would
 # couple two still-moving pieces for little benefit.
 class ChatMcpTransportSelector

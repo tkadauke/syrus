@@ -521,7 +521,7 @@ RSpec.describe RetryWorkflowEnqueuer do
     # A rebase whose force_push failed used to be "retried" by re-running the
     # entire initial chain -- prepare, implement, both reviews, every grader,
     # pr_open -- discarding a finished, PR-opened implementation to recover
-    # from a failed push. the relevant change did exactly that in production.
+    # from a failed push. A production Job did exactly that.
     def add_failed_workflow!(trigger_kind)
       Workflow.create!(
         job: job, user: job.user, trigger_kind: trigger_kind,

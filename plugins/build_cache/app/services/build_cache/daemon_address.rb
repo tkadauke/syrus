@@ -11,7 +11,7 @@
 # effectively a long-lived, host-scoped singleton: it keeps serving
 # whatever env its very first invocation (on this pod, ever) happened to
 # have, indefinitely, across unrelated Jobs, chat sessions, and
-# repositories. That is the root cause behind the relevant change's
+# repositories. That is the root cause behind the reported
 # captured stats showing `basedirs: []` and a local-disk `cache_location`
 # despite that specific grader command's env being correct -- the daemon
 # actually answering requests had already been started, by something else,

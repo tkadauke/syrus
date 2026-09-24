@@ -3,7 +3,7 @@ require "rails_helper"
 # `Factories.job` (unlike `Factories.job_record`) drives the real
 # create_initial_run path, so it already owns one active "initial"
 # WorkUnit before these specs attach a second, manually-controlled
-# Workflow to exercise StepDispatcher in isolation. Since the relevant change made
+# Workflow to exercise StepDispatcher in isolation. Since the change that made
 # active_dedup_key unique per (scope, kind), that stale sibling must be
 # cancelled through a real `update!` (not `update_columns`, which would
 # skip the callback that clears the key) before attaching the new one.

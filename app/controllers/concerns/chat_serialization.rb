@@ -50,7 +50,7 @@ module ChatSerialization
         # The composer's `!` command mode rehydrates its running/cancellable
         # state from this field on mount so a remount (e.g. crossing the
         # desktop/mobile layout breakpoint) doesn't silently drop an
-        # in-flight ChatShellCommand's stop control (the relevant change visual review).
+        # in-flight ChatShellCommand's stop control.
         chat_shell_command_in_flight: chat_shell_command_in_flight,
         switching_provider: false,
         has_more_older: has_more_older,

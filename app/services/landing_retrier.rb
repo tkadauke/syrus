@@ -7,7 +7,7 @@
 # MergeTrainFailureHandler; the only real difference is which Jobs are in
 # scope for recovery/re-approval and which dispatcher restarts the train,
 # so that lives here as a Scope strategy (LandingRetrier::Scopes::Epic /
-# ::Bundle) rather than as two near-duplicate classes. See the relevant change.
+# ::Bundle) rather than as two near-duplicate classes.
 class LandingRetrier
   Result = Data.define(:reapproved_jobs, :recovered_jobs, :workflow) do
     def jobs = reapproved_jobs

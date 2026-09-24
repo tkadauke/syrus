@@ -87,7 +87,7 @@ class SmartFolder < ApplicationRecord
     { key: "blocked",          name: "Blocked",                visibility: :when_present, filter: user_job_attention_preset_filter("blocked") },
     { key: "investigations",   name: "Investigations",         visibility: :when_present, filter: user_job_attention_preset_filter("investigations") },
 
-    # Tier 2.5: the relevant change delivery-track surfaces. Only ever populated for
+    # Tier 2.5: delivery-track surfaces. Only ever populated for
     # repositories that have opted into `delivery.promotion`/`hotfix_sync`/
     # `upstream_export` — invisible (:when_present) on every other repository.
     { key: "waiting_for_upstream",     name: "Waiting for upstream",     visibility: :when_present, filter: user_job_attention_preset_filter("waiting_for_upstream") },

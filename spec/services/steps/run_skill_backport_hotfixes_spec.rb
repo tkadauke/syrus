@@ -4,7 +4,7 @@ require "open3"
 
 # Integration coverage for the repo-local
 # `.syrus/skills/backport-hotfixes/SKILL.md` skill , reusing the
-# Steps::RunSkill harness the relevant change established for the `promote` skill
+# Steps::RunSkill harness established for the `promote` skill
 # (spec/services/steps/run_skill_promote_spec.rb) and the built-in
 # `investigate` seed skill before it.
 #

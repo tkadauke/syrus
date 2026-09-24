@@ -110,7 +110,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
   # A rolling deploy drains workers with SIGTERM and spikes CPU/IO across every
   # node at the same time, so it both kills the run and manufactures the
   # "critical" reading that used to downgrade a retryable worker death into a
-  # permanent one. the relevant change and the relevant change were stranded exactly that way.
+  # permanent one. Two production Jobs were stranded exactly that way.
   describe "a worker death during a rolling deploy" do
     def rollout!(at:, versions: %w[oldsha1 newsha2])
       versions.each_with_index do |version, index|

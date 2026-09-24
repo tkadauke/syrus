@@ -183,7 +183,7 @@ describe("renderChatMessages tool grouping", () => {
       raw_name: "syrus-chat-sidecar.list_chat_media",
       detail: "No arguments",
       raw_payload: {},
-      // The list_chat_media tool card (routes/chat/tool_cards/, the relevant change)
+      // The list_chat_media tool card (routes/chat/tool_cards/)
       // supplies this summary now, taking priority over the generic
       // count-based heuristic — see toolResultPresentation.
       result_kind: "text",

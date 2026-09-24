@@ -603,7 +603,7 @@ class Job < ApplicationRecord
     # any generic caller of mark_implemented! (e.g. the reconciler's
     # catch-all queued/succeeded and running/succeeded repair cases,
     # which aren't scoped by Job#kind) would strand these Jobs at
-    # :implemented forever — see the relevant change.
+    # :implemented forever.
     event :mark_implemented do
       transitions from: [ :queued, :running ], to: :closed, guard: :infrastructure_job?, after: :mark_infrastructure_job_closed
       transitions from: [ :queued, :running ], to: :implemented, after: :notify_job_implemented
