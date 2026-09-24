@@ -37,10 +37,13 @@ module Mcp::Tools
       the mockup in the Job description as reference material describing the
       intended look and behavior for the implementing agent to adapt to the
       target repo's own conventions -- not boilerplate to copy verbatim.
-      Format description as normal Markdown with real newline characters
-      between paragraphs, lists, and code fences. Do not write literal
-      backslash-n sequences (`\\n`) into the description; those are plain
-      text and will render as one long unreadable line.
+      description is stored and rendered as Markdown after JSON decoding of
+      this tool call, so write it as plain Markdown prose: real newline characters
+      between paragraphs, lists, and code fences, and normal quote characters
+      around quoted text. Do not write literal backslash-n sequences (`\\n`)
+      into the description; those are plain text and will render as one long
+      unreadable line. Do not write JSON-style escaped quotes (`\\"`, `\\'`)
+      around quoted text either; write plain `"` and `'` characters.
       Set for_active_goal=true only when this proposed Job is directly in
       service of the currently active goal. Leave it false for opportunistic
       or unrelated follow-up work so that Job state changes do not wake the
@@ -65,7 +68,7 @@ module Mcp::Tools
         epic_id: { type: "integer", description: "Optional target Epic id." },
         repo: { type: "string", description: "Repository id, name, or owner/name slug." },
         title: { type: "string", description: "Job title." },
-        description: { type: "string", description: "Markdown Job description. Use real newline characters for paragraphs, lists, and code fences; do not include literal backslash-n sequences (`\\n`)." },
+        description: { type: "string", description: "Markdown Job description, stored and rendered as Markdown after JSON decoding. Use real newline characters for paragraphs, lists, and code fences, and plain `\"`/`'` quote characters for quoted text; do not include literal backslash-n sequences (`\\n`) or JSON-style escaped quotes (`\\\"`, `\\'`)." },
         depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Epic IDs this Job depends on." },
         depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Job depends on. Required to include one of the target Epic's existing Jobs when epic_id targets a non-empty Epic — this is how a new Job chains onto that Epic's stack instead of becoming a disconnected parallel branch." },
         depends_on: { type: "array", items: { type: "string" }, description: "Optional Job proposal slugs from this chat session. Prefer declaring a dependency when this job builds on or needs to be tested against another proposal in the same session; omit only when the work is genuinely independent. The operator can instruct otherwise." },
@@ -87,7 +90,7 @@ module Mcp::Tools
         chat_session = server_context.fetch(:chat_session)
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
-        description = normalize_line_breaks(description).strip
+        description = normalize_proposal_markdown(description).strip
         depends_on_epic_ids = normalize_integer_list(depends_on_epic_ids)
         depends_on_job_ids = normalize_integer_list(depends_on_job_ids)
 

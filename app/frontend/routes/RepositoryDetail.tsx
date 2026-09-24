@@ -614,9 +614,9 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
 const RECENT_JOBS_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.repository_detail.jobs.visible_columns"
 
 // State and Issue together are this table's row identity (status + what the
-// job is about); Actions is required too since it's the only affordance
-// pinned to the row rather than folded into the Issue cell's inline links.
-// Runs/Last activity are the only genuinely optional columns.
+// job is about); the Issue cell's own inline link already opens the job, so
+// there is no separate row-level affordance. Runs/Last activity are the only
+// genuinely optional columns.
 function buildRecentJobsColumns({ prefix, t }: { prefix: string; t: (key: string, options?: Record<string, unknown>) => string }): DataTableColumnDef<RepositoryDetailJob>[] {
   return [
     {
@@ -666,16 +666,6 @@ function buildRecentJobsColumns({ prefix, t }: { prefix: string; t: (key: string
       responsiveClassName: "hidden sm:table-cell",
       cellClassName: "text-gray-500 dark:text-gray-400",
       renderCell: (job) => <RelativeTimestamp value={job.updated_at} />
-    },
-    {
-      key: "actions",
-      label: t('repository.col_actions'),
-      required: true,
-      pin: "end",
-      align: "right",
-      responsiveClassName: "hidden sm:table-cell",
-      renderHeader: () => <span className="sr-only">{t("repository.col_actions")}</span>,
-      renderCell: (job) => <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(job.job_path, prefix)}>{t('repository.view')}</Link>
     }
   ]
 }

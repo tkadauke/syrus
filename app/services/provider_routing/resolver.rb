@@ -29,9 +29,7 @@ module ProviderRouting
       job_override_candidates ||
         rule_candidates(scope_type: "repository", scope_id: repository_id, task_key: task_key) ||
         rule_candidates(scope_type: "repository", scope_id: repository_id, task_key: ProviderRoutingRule::DEFAULT_TASK_KEY) ||
-        rule_candidates(scope_type: "user", scope_id: effective_user&.id, task_key: task_key) ||
-        rule_candidates(scope_type: "user", scope_id: effective_user&.id, task_key: ProviderRoutingRule::DEFAULT_TASK_KEY) ||
-        default_provider_candidates ||
+        repository_and_user_candidates.presence ||
         HARDCODED_FALLBACK
     end
 
@@ -50,15 +48,40 @@ module ProviderRouting
       [ Candidate.new(provider: job.workflow_agent_provider, model: job.model, effort_level: job.effort_level) ]
     end
 
-    # No explicit job pin and no repository/user routing rule matched. Fall
-    # back to the pre-routing-rule single-value default
-    # (Repository#effective_agent_provider / User#agent_provider, via
-    # Job::ProviderSetting::Default#resolve) before the last-resort hardcoded
-    # candidate, so a repository/user that hasn't authored a routing rule yet
-    # keeps its existing default provider instead of silently landing on
-    # HARDCODED_FALLBACK's "claude".
+    # No explicit job pin and no repository-scoped routing rule matched (a
+    # repo rule -- task-specific or default-task -- is authored repo-level
+    # configuration and stays authoritative on its own, handled above). From
+    # here, an explicit repository/membership provider is still repo-level
+    # configuration and must outrank user-scoped routing rules -- a repo
+    # pinned to Muse must not be quietly routed to Claude just because the
+    # user has a personal default-routing rule. But it must not foreclose
+    # failover: if the repo's provider becomes unavailable, user-scoped rules
+    # (and the user's own default provider) still act as the fallback chain,
+    # so we concatenate rather than short-circuit. #uniq dedupes when the same
+    # provider shows up in both the repo and user layers.
+    def repository_and_user_candidates
+      ((repository_explicit_candidates || []) + (user_scoped_candidates || [])).uniq(&:provider)
+    end
+
+    def repository_explicit_candidates
+      provider = job.repository&.explicit_agent_provider(user: effective_user)
+      return nil if provider.blank?
+
+      [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level) ]
+    end
+
+    def user_scoped_candidates
+      rule_candidates(scope_type: "user", scope_id: effective_user&.id, task_key: task_key) ||
+        rule_candidates(scope_type: "user", scope_id: effective_user&.id, task_key: ProviderRoutingRule::DEFAULT_TASK_KEY) ||
+        default_provider_candidates
+    end
+
+    # No routing rule at any scope, and no explicit repository/membership
+    # provider either. Fall back to the user's own default provider (the
+    # pre-routing-rule single-value default, via User#agent_provider) before
+    # the last-resort hardcoded candidate.
     def default_provider_candidates
-      provider = job.workflow_agent_provider
+      provider = effective_user&.agent_provider
       return nil if provider.blank?
 
       [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level) ]

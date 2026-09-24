@@ -1638,9 +1638,12 @@ RSpec.describe "Work engine reconciler chaos simulation" do
 
     # Step kinds no core workflow template materializes statically: legacy
     # compatibility kinds and kinds only a fanout creates at runtime.
-    # auto_close is now covered by Workflows::Investigation.
+    # auto_close is only used by the agent_insights plugin's Workflow
+    # (disabled by default, so not in this spec's registered set) --
+    # Workflows::Investigation no longer auto-closes (investigation Jobs
+    # reach :implemented for operator review instead, like a PR-based Job).
     missing_from_templates = Step::Kind.values - static_step_kinds.to_a
-    expect(missing_from_templates).to contain_exactly("apply_suggestions", "grade", "grader", "preflight_grader")
+    expect(missing_from_templates).to contain_exactly("apply_suggestions", "auto_close", "grade", "grader", "preflight_grader")
 
     job = Factories.job_record(user: user, repository: repository, issue_number: 21_000, state: "queued")
     workflow = Workflow.create!(job: job, trigger_kind: "manual", agent_provider: job.agent_provider)

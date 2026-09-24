@@ -18,7 +18,9 @@ import {
   CHAT_FILES_TREE_DEFAULT_WIDTH,
   CHAT_FILES_TREE_MAX_WIDTH,
   CHAT_FILES_TREE_MIN_WIDTH,
-  CHAT_FILES_TREE_WIDTH_KEY
+  CHAT_FILES_TREE_WIDTH_KEY,
+  CHAT_DIFF_FILES_COLLAPSED_KEY,
+  CHAT_DIFF_FILES_WIDTH_KEY
 } from "./constants"
 import { codingFilesTabVisible, jobsTabVisible, localDiffTabVisible, readOnlyFilesTabVisible, runtimeTabVisible } from "./utils"
 
@@ -184,6 +186,26 @@ export function storedFilesTreeCollapsed(): boolean {
 export function storedFilesTreeWidth() {
   try {
     return clampFilesTreeWidth(Number.parseInt(window.localStorage.getItem(CHAT_FILES_TREE_WIDTH_KEY) || "", 10) || CHAT_FILES_TREE_DEFAULT_WIDTH)
+  } catch (_error) {
+    return CHAT_FILES_TREE_DEFAULT_WIDTH
+  }
+}
+
+// Diff tab file list uses its own persisted preference keys (separate from
+// the Files tree above) so resizing/collapsing one pane doesn't affect the
+// other, while sharing the same width bounds and default for a consistent
+// affordance.
+export function storedDiffFilesCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(CHAT_DIFF_FILES_COLLAPSED_KEY) === "true"
+  } catch (_error) {
+    return false
+  }
+}
+
+export function storedDiffFilesWidth() {
+  try {
+    return clampFilesTreeWidth(Number.parseInt(window.localStorage.getItem(CHAT_DIFF_FILES_WIDTH_KEY) || "", 10) || CHAT_FILES_TREE_DEFAULT_WIDTH)
   } catch (_error) {
     return CHAT_FILES_TREE_DEFAULT_WIDTH
   }

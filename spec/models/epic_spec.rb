@@ -244,9 +244,8 @@ RSpec.describe Epic, :ci_only do
       expect(epic.reload).not_to be_stuck
     end
 
-    it "is false for a jobless in-progress Epic (awaiting children, not stalled)" do
-      epic = described_class.create!(user: user, repository: repository, title: "Fresh forum", state: "backlog")
-      epic.start_implementing!(actor: user)
+    it "is false for a historical jobless in-progress Epic (awaiting children, not stalled)" do
+      epic = described_class.create!(user: user, repository: repository, title: "Fresh forum", state: "in_progress")
 
       expect(epic.reload).to be_in_progress
       expect(epic).not_to be_stuck
@@ -767,15 +766,27 @@ RSpec.describe Epic, :ci_only do
       expect(job.reload).to be_queued
     end
 
-    it "starts a jobless backlog Epic via the override path so later children dispatch immediately" do
+    it "refuses a jobless backlog Epic" do
       epic = described_class.create!(user: user, repository: repository, title: "Planless", state: "backlog")
 
+      expect(epic.may_start_implementing?(actor: user)).to be(false)
       expect {
         epic.start_implementing!(actor: user)
-      }.to change { epic.reload.state }.from("backlog").to("in_progress")
+      }.to raise_error(Epic::NotStartable, /at least one child Job/)
 
-      expect(epic.owner_user).to eq(user)
-      expect(epic.releases_jobs_for_execution?).to be(true)
+      expect(epic.reload).to be_backlog
+      expect(epic.releases_jobs_for_execution?).to be(false)
+    end
+
+    it "refuses a jobless ready Epic" do
+      epic = described_class.create!(user: user, repository: repository, title: "Planless", state: "ready")
+
+      expect(epic.may_start_implementing?(actor: user)).to be(false)
+      expect {
+        epic.start_implementing!(actor: user)
+      }.to raise_error(Epic::NotStartable, /at least one child Job/)
+
+      expect(epic.reload).to be_ready
     end
 
     it "releases dependency-gated children without starting their Runs" do
@@ -810,6 +821,7 @@ RSpec.describe Epic, :ci_only do
         user: user, repository: repository, title: "Claimed", state: "ready",
         owner: claimant, owner_user: claimant, claimed_at: Time.current
       )
+      Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
 
       expect(epic.may_start_implementing?(actor: user)).to be(false)
       expect {
@@ -878,7 +890,9 @@ RSpec.describe Epic, :ci_only do
 
     it "becomes startable once the blocking Epic completes" do
       blocker = described_class.create!(user: user, repository: repository, title: "Pave the road first", state: "backlog")
-      epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "backlog")
+      epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "ready")
+      Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
+      epic.move_to_backlog!
       epic.dependencies.create!(depends_on_epic: blocker)
 
       expect(epic.may_start_implementing?(actor: user)).to be(false)

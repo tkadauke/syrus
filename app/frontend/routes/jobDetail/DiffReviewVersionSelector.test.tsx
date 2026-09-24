@@ -57,6 +57,38 @@ function ControlledSelector({ latestVersionId, versions }: { latestVersionId: nu
   )
 }
 
+// Mirrors ReviewWorkspace.tsx's real wiring: `selectedVersionId` is driven by
+// a backend-resolved "active version" (`rangeDiff.data?.version?.id`), which can
+// legitimately disagree with the range's own base/head shas the user just picked
+// via chip clicks (e.g. a repository whose diff payload short-circuits to a fixed
+// version regardless of requested range). `staleVersionId` fixes that resolved id
+// to something unrelated to the clicked range, so the harness can reproduce the
+// divergence instead of only ever seeing `range.versionId` (always null, per
+// selectEndpoint).
+function StaleBackendSelector({ latestVersionId, staleVersionId, versions }: { latestVersionId: number | null; staleVersionId: number; versions: DiffReviewVersion[] }) {
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(latestVersionId)
+  const [selectedRange, setSelectedRange] = useState<{ baseSha: string; headSha: string } | null>(null)
+
+  function handleRangeChange(range: DiffReviewRangeSelection) {
+    setSelectedVersionId(staleVersionId)
+    setSelectedRange({ baseSha: range.baseSha, headSha: range.headSha })
+  }
+
+  return (
+    <DiffReviewVersionSelector
+      latestVersionId={latestVersionId}
+      onChange={(id) => {
+        setSelectedVersionId(id)
+        setSelectedRange(null)
+      }}
+      onRangeChange={handleRangeChange}
+      selectedRange={selectedRange}
+      selectedVersionId={selectedVersionId}
+      versions={versions}
+    />
+  )
+}
+
 function allChangesVersion(overrides: Partial<DiffReviewVersion>): DiffReviewVersion {
   return {
     id: 1,
@@ -250,5 +282,22 @@ describe("DiffReviewVersionSelector", () => {
 
     expect(highlightedChips(/^From/)).toHaveLength(1)
     expect(highlightedChips(/^To/)).toHaveLength(1)
+  })
+
+  it("highlights only the clicked range's own row when the backend-resolved active version disagrees with it", () => {
+    const first = rangeVersion({ id: 1, version_index: 1, workflow_id: 10, run_id: 100, base_sha: "a", head_sha: "b" })
+    const second = rangeVersion({ id: 2, version_index: 2, workflow_id: 11, run_id: 101, base_sha: "b", head_sha: "c" })
+    const third = rangeVersion({ id: 3, version_index: 3, workflow_id: 12, run_id: 102, base_sha: "c", head_sha: "d" })
+
+    render(<StaleBackendSelector latestVersionId={1} staleVersionId={1} versions={[ first, second, third ]} />)
+
+    fireEvent.click(screen.getByRole("button", { name: /Version/ }))
+    fireEvent.click(screen.getByRole("button", { name: /^From.*v2/ }))
+
+    fireEvent.click(screen.getByRole("button", { name: /Version/ }))
+
+    expect(highlightedChips(/^From/)).toHaveLength(1)
+    expect(highlightedChips(/^To/)).toHaveLength(1)
+    expect(highlightedChips(/v1/)).toHaveLength(0)
   })
 })

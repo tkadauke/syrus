@@ -354,12 +354,22 @@ class Repository < ApplicationRecord
   end
 
   def effective_agent_provider(user: nil)
+    explicit_agent_provider(user: user) || (user || self.user)&.agent_provider
+  end
+
+  # The repo-level piece of #effective_agent_provider, without the final
+  # fallback to the user's own default provider. Lets callers (like
+  # ProviderRouting::Resolver) distinguish "this repository/membership has an
+  # explicit provider configured" from "nothing is configured here, so we
+  # inherited the user's default" -- the former must outrank user-scoped
+  # routing rules, the latter must not.
+  def explicit_agent_provider(user: nil)
     if user
       membership = membership_for(user)
       membership_provider = membership.agent_provider.presence if membership&.at_least?("write")
       return membership_provider if membership_provider
     end
-    agent_provider.presence || (user || self.user)&.agent_provider
+    agent_provider.presence
   end
 
   def membership_for(user)

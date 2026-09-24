@@ -136,7 +136,7 @@ module App
         provider_availability: PerformanceLogging.phase("dashboard_chrome.provider_availability", subject: subject) { provider_availability_by_provider },
         broken_repositories: health_blocked_repositories,
         health_blocked_repositories: health_blocked_repositories,
-        untagged_issues: PerformanceLogging.phase("dashboard_chrome.untagged_issues", subject: subject) { untagged_issues_json },
+        ui_panels: PerformanceLogging.phase("dashboard_chrome.ui_panels", subject: subject) { ui_panels_json },
         smart_folders: PerformanceLogging.phase("dashboard_chrome.smart_folders", subject: subject) { smart_folders_json },
         active_smart_folder_id: active_smart_folder&.id,
         setup: PerformanceLogging.phase("dashboard_chrome.setup", subject: subject) { ::App::SetupStatus.call(user: user) },
@@ -159,7 +159,7 @@ module App
         preferences: PerformanceLogging.phase("dashboard_rows.preferences", subject: subject) { preferences_json },
         controls: PerformanceLogging.phase("dashboard_rows.controls", subject: subject) { rows_controls_json },
         landing_queue: PerformanceLogging.phase("dashboard_rows.landing_queue", subject: subject, view: view) { landing_queue_json },
-        untagged_issues: PerformanceLogging.phase("dashboard_rows.untagged_issues", subject: subject, view: view) { untagged_issues_json },
+        ui_panels: PerformanceLogging.phase("dashboard_rows.ui_panels", subject: subject, view: view) { ui_panels_json },
         items: result.fetch(:items),
         lanes: PerformanceLogging.phase("dashboard_rows.lanes", subject: subject, view: view) { lanes_json },
         kanban_limit: view == "kanban" ? kanban_limit : nil
@@ -245,6 +245,19 @@ module App
       return Repository.active if mine_scope? || team_scope? || user_scope? || claimable_scope?
 
       Repository.active.where(user_id: user.id)
+    end
+
+    def ui_panels_json
+      @ui_panels_json ||= ::App::UiSlotsPayload.panels_for(
+        slot: "dashboard.jobs.notice",
+        context: {
+          user: user,
+          subject: subject,
+          view: view,
+          active_smart_folder: active_smart_folder,
+          active_repositories_scope: active_repositories_scope
+        }
+      )
     end
 
     def jobs_base_scope

@@ -4,13 +4,6 @@ class ChatWorkspacePrepareJob < ApplicationJob
 
   PER_COMMAND_TIMEOUT = 10.minutes.to_i
 
-  # Same scrubbed environment as Steps::Prepare — prevents the worker
-  # pod's bundler/npm config from polluting the target repo's install.
-  PREP_ENV_FORWARD = %w[
-    HOME USER LOGNAME PATH TERM LANG LC_ALL LC_CTYPE TZ HOSTNAME TMPDIR SHELL
-    MISE_DATA_DIR
-  ].freeze
-
   def perform(chat_session_id, repository_id)
     chat_session = ChatSession.find(chat_session_id)
     repository = Repository.find(repository_id)
@@ -38,7 +31,7 @@ class ChatWorkspacePrepareJob < ApplicationJob
 
     plan.commands.each_with_index do |cmd, i|
       Rails.logger.info("[ChatWorkspacePrepareJob] (#{i + 1}/#{plan.commands.size}) $ #{cmd}")
-      success = run_prep_command(cmd, path, chat_session)
+      success = run_prep_command(cmd, path, chat_session, repository)
       next if success
 
       if plan.guessed?
@@ -62,10 +55,9 @@ class ChatWorkspacePrepareJob < ApplicationJob
 
   private
 
-  def run_prep_command(cmd, path, chat_session)
-    env = ProcessRunner.forwarded_env(PREP_ENV_FORWARD)
+  def run_prep_command(cmd, path, chat_session, repository)
     result = ProcessRunner.new(
-      env: env,
+      env: env(chat_session, repository, path),
       command: [ "bash", "-c", cmd ],
       chdir: path,
       timeout: PER_COMMAND_TIMEOUT,
@@ -76,6 +68,15 @@ class ChatWorkspacePrepareJob < ApplicationJob
   rescue StandardError => e
     Rails.logger.error("[ChatWorkspacePrepareJob] command raised #{e.class}: #{e.message}")
     false
+  end
+
+  # This used to build off a hardcoded copy of Steps::Prepare::BASE_ENV_FORWARD
+  # with no plugin keys merged in, so a Coding Mode `bundle install` compiling
+  # a native extension never reached the sccache S3 backend or its per-scope
+  # daemon port that a normal workflow prepare/grader step gets. See
+  # ChatWorkspaceEnv.
+  def env(chat_session, repository, path)
+    ChatWorkspaceEnv.for(chat_session: chat_session, repository: repository, workspace_path: path)
   end
 
   def mark_prepare_running!(chat_session)

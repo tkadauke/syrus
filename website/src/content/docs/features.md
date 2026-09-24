@@ -342,14 +342,16 @@ at least one child Job is landing (typically all of them are, though not
 always), the dashboard and Epic detail page show `landing` as the Epic's
 apparent status in place of its underlying `in_progress` state, so an Epic
 about to merge doesn't look indistinguishable from one still mid-implementation.
-An Epic that has been created or approved does not run work by itself — a
-**Start implementing** action on the Epic detail page (and a
-**Create Epic & Start Implementing** button on the new-Epic form and chat
-Epic proposal cards) moves the Epic to `in_progress` in one click and
-dispatches its ready child Jobs. In linear Epics, children with same-Epic
-parents can keep implementing down the stack once the immediate parent has
-an implemented PR branch; approval and landing order still waits for the
-normal dependency gates.
+An Epic that has been created or approved does not run work by itself, and
+an empty Epic cannot start implementing until it has at least one child Job.
+The new-Epic form only creates the Epic shell; after child Jobs exist, the
+**Start implementing** action on the Epic detail page moves the Epic to
+`in_progress` and dispatches its ready child Jobs. Chat Epic proposal cards
+can still offer **Create Epic & Start Implementing** because those proposals
+include child Jobs up front. In linear Epics, children with same-Epic parents
+can keep implementing down the stack once the immediate parent has an
+implemented PR branch; approval and landing order still waits for the normal
+dependency gates.
 For a handful of older Epics whose child Jobs still branch or fan in (from
 before same-Epic dependencies were required to form a single chain), Syrus
 can prepare a combined execution base from approved dependency PR branches

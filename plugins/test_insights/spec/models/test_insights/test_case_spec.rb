@@ -64,7 +64,7 @@ RSpec.describe TestInsights::TestCase do
       error_count: status == "error" ? 1 : 0
     )
 
-    TestInsights::TestCase.create!(
+    test_case = TestInsights::TestCase.create!(
       test_run: grader_run,
       repository: repo,
       test_identity: identity,
@@ -74,6 +74,14 @@ RSpec.describe TestInsights::TestCase do
       created_at: Time.current + iteration.seconds,
       updated_at: Time.current + iteration.seconds
     )
+
+    # Mirrors what TestInsights::Ingester does after a real grader ingestion:
+    # a later pass retroactively excludes earlier same-loop failures from the
+    # scored pool. This helper builds cases directly (skipping Ingester/JUnit
+    # parsing) so it must trigger that same classification step itself.
+    TestInsights::WipRepairFailureClassifier.mark_superseded!(test_run: grader_run, step: step) if status == "passed"
+
+    test_case
   end
 
   def backfill_test_identities

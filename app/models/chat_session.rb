@@ -209,12 +209,18 @@ class ChatSession < ApplicationRecord
     @initial_repository = repository
   end
 
+  # The most recently attached repository is the operator's current intent
+  # (e.g. attaching repo B after repo A is a correction, not an addition) --
+  # this is the effective repository for the Files tab, coding checkouts,
+  # and relay routing. attached_repositories itself stays in attachment
+  # order for context/prompt surfaces that intentionally show every
+  # attached repository.
   def repository
     if association(:repository_attachments).loaded?
-      return repository_attachments.first&.attachable || @initial_repository
+      return repository_attachments.last&.attachable || @initial_repository
     end
 
-    attached_repositories.first || @initial_repository
+    attached_repositories.last || @initial_repository
   end
 
   def repository_id

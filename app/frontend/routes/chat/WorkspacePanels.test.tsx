@@ -9,7 +9,7 @@ import { ApiError } from "../../api/client"
 import type { WorkspaceTab } from "./workspaceTabs"
 import { attachMediaLibraryImage } from "./attachMediaLibraryImage"
 import { chatPinsQueryKey } from "./pins"
-import { CHAT_FILES_TREE_COLLAPSED_KEY, CHAT_FILES_TREE_WIDTH_KEY } from "./constants"
+import { CHAT_DIFF_FILES_COLLAPSED_KEY, CHAT_DIFF_FILES_WIDTH_KEY, CHAT_FILES_TREE_COLLAPSED_KEY, CHAT_FILES_TREE_WIDTH_KEY } from "./constants"
 
 vi.mock("./attachMediaLibraryImage", () => ({
   attachMediaLibraryImage: vi.fn()
@@ -297,6 +297,8 @@ describe("ChatWorkspacePanel coding files", () => {
     vi.clearAllMocks()
     window.localStorage.removeItem(CHAT_FILES_TREE_COLLAPSED_KEY)
     window.localStorage.removeItem(CHAT_FILES_TREE_WIDTH_KEY)
+    window.localStorage.removeItem(CHAT_DIFF_FILES_COLLAPSED_KEY)
+    window.localStorage.removeItem(CHAT_DIFF_FILES_WIDTH_KEY)
     vi.mocked(fetchChatMessagePins).mockResolvedValue({ pins: [] })
     vi.mocked(fetchCodingCommits).mockResolvedValue({ commits: [] })
   })
@@ -540,6 +542,219 @@ describe("ChatWorkspacePanel coding files", () => {
     const codeCellText = (text: string) => screen.queryByText((_, element) => Boolean(element && element.tagName === "TD" && element.textContent === text))
     expect(codeCellText("export const b = 2")).toBeInTheDocument()
     expect(codeCellText("export const a = 2")).not.toBeInTheDocument()
+  })
+
+  function mockTwoFileDiff() {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: [] })
+    vi.mocked(fetchCodingDiff).mockResolvedValue({
+      checkout_branch: "syrus/chat-1",
+      mode: "cumulative",
+      diff: [
+        "diff --git a/app/a.ts b/app/a.ts",
+        "index 1111111..2222222 100644",
+        "--- a/app/a.ts",
+        "+++ b/app/a.ts",
+        "@@ -1 +1 @@",
+        "-export const a = 1",
+        "+export const a = 2",
+        "diff --git a/app/b.ts b/app/b.ts",
+        "new file mode 100644",
+        "index 0000000..3333333",
+        "--- /dev/null",
+        "+++ b/app/b.ts",
+        "@@ -0,0 +1 @@",
+        "+export const b = 2"
+      ].join("\n")
+    })
+  }
+
+  it("renders the Diff file list divider with an accessible label", async () => {
+    mockTwoFileDiff()
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    expect(await screen.findByRole("separator", { name: "Resize diff file list" })).toBeInTheDocument()
+  })
+
+  it("resizes the Diff file list when dragging the divider", async () => {
+    mockTwoFileDiff()
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    const fileButton = await screen.findByRole("button", { name: /app\/a\.ts/ })
+    const filesPane = fileButton.parentElement as HTMLElement
+    const divider = screen.getByRole("separator", { name: "Resize diff file list" })
+
+    expect(filesPane).toHaveStyle({ width: "192px" })
+
+    fireEvent.mouseDown(divider, { clientX: 192 })
+    fireEvent.mouseMove(window, { clientX: 252 })
+    fireEvent.mouseUp(window)
+
+    expect(filesPane).toHaveStyle({ width: "252px" })
+    expect(divider).toHaveAttribute("aria-valuenow", "252")
+  })
+
+  it("allows a later click after a drag ends away from the Diff divider", async () => {
+    mockTwoFileDiff()
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    expect(await screen.findByRole("button", { name: /app\/a\.ts/ })).toBeInTheDocument()
+    const divider = screen.getByRole("separator", { name: "Resize diff file list" })
+
+    fireEvent.mouseDown(divider, { clientX: 192 })
+    fireEvent.mouseMove(window, { clientX: 252 })
+    fireEvent.mouseUp(window)
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+
+    fireEvent.click(divider)
+
+    expect(screen.queryByRole("button", { name: /app\/a\.ts/ })).not.toBeInTheDocument()
+  })
+
+  it("snaps the Diff file list closed when dragged below the close threshold", async () => {
+    mockTwoFileDiff()
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    const divider = await screen.findByRole("separator", { name: "Resize diff file list" })
+
+    fireEvent.mouseDown(divider, { clientX: 192 })
+    fireEvent.mouseMove(window, { clientX: 80 })
+    fireEvent.mouseUp(window)
+
+    expect(screen.queryByRole("button", { name: /app\/a\.ts/ })).not.toBeInTheDocument()
+    expect(divider).toHaveAttribute("aria-valuenow", "0")
+  })
+
+  it("keeps a snapped Diff file list closed until the same drag crosses the reopen threshold", async () => {
+    mockTwoFileDiff()
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    const divider = await screen.findByRole("separator", { name: "Resize diff file list" })
+
+    fireEvent.mouseDown(divider, { clientX: 192 })
+    fireEvent.mouseMove(window, { clientX: 80 })
+    expect(screen.queryByRole("button", { name: /app\/a\.ts/ })).not.toBeInTheDocument()
+
+    fireEvent.mouseMove(window, { clientX: 110 })
+    expect(screen.queryByRole("button", { name: /app\/a\.ts/ })).not.toBeInTheDocument()
+
+    fireEvent.mouseMove(window, { clientX: 140 })
+    fireEvent.mouseUp(window)
+
+    expect(await screen.findByRole("button", { name: /app\/a\.ts/ })).toBeInTheDocument()
+    expect(divider).toHaveAttribute("aria-valuenow", "144")
+  })
+
+  it("reopens the Diff file list to a useful width when clicking the closed divider", async () => {
+    window.localStorage.setItem(CHAT_DIFF_FILES_COLLAPSED_KEY, "true")
+    mockTwoFileDiff()
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    const divider = await screen.findByRole("separator", { name: "Resize diff file list" })
+    expect(screen.queryByRole("button", { name: /app\/a\.ts/ })).not.toBeInTheDocument()
+
+    fireEvent.click(divider)
+
+    expect(await screen.findByRole("button", { name: /app\/a\.ts/ })).toBeInTheDocument()
+    expect(divider).toHaveAttribute("aria-valuenow", "192")
+  })
+
+  it("closes the Diff file list when clicking the open divider", async () => {
+    mockTwoFileDiff()
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    expect(await screen.findByRole("button", { name: /app\/a\.ts/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("separator", { name: "Resize diff file list" }))
+
+    expect(screen.queryByRole("button", { name: /app\/a\.ts/ })).not.toBeInTheDocument()
+  })
+
+  it("resizes the Diff file list with the keyboard and can collapse it at the lower bound", async () => {
+    mockTwoFileDiff()
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    const fileButton = await screen.findByRole("button", { name: /app\/a\.ts/ })
+    const filesPane = fileButton.parentElement as HTMLElement
+    const divider = screen.getByRole("separator", { name: "Resize diff file list" })
+    divider.focus()
+
+    fireEvent.keyDown(divider, { key: "ArrowRight" })
+    expect(filesPane).toHaveStyle({ width: "208px" })
+
+    for (let i = 0; i < 5; i += 1) fireEvent.keyDown(divider, { key: "ArrowLeft" })
+    expect(screen.queryByRole("button", { name: /app\/a\.ts/ })).not.toBeInTheDocument()
+    expect(divider).toHaveAttribute("aria-valuenow", "0")
+
+    fireEvent.keyDown(divider, { key: "Enter" })
+    expect(await screen.findByRole("button", { name: /app\/a\.ts/ })).toBeInTheDocument()
+  })
+
+  it("keeps the Files tree and Diff file list widths independently persisted", async () => {
+    window.localStorage.setItem(CHAT_FILES_TREE_WIDTH_KEY, "300")
+    window.localStorage.setItem(CHAT_DIFF_FILES_WIDTH_KEY, "220")
+    mockTwoFileDiff()
+
+    renderWorkspacePanel(makeCodingPayload())
+
+    const filesTreeDivider = await screen.findByRole("separator", { name: "Resize file tree" })
+    expect(filesTreeDivider).toHaveAttribute("aria-valuenow", "300")
+
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    const diffDivider = await screen.findByRole("separator", { name: "Resize diff file list" })
+    expect(diffDivider).toHaveAttribute("aria-valuenow", "220")
+  })
+
+  function mockViewportMatches(matches: boolean) {
+    const original = window.matchMedia
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: vi.fn((query: string) => ({
+        matches,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }))
+    })
+    return () => {
+      Object.defineProperty(window, "matchMedia", { configurable: true, writable: true, value: original })
+    }
+  }
+
+  it("stacks the Diff file list above the diff content below the lg breakpoint, without the drag splitter", async () => {
+    mockTwoFileDiff()
+    const restoreViewport = mockViewportMatches(false)
+
+    try {
+      renderWorkspacePanel(makeCodingPayload())
+      fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+      expect(await screen.findByRole("button", { name: /app\/a\.ts/ })).toBeInTheDocument()
+      expect(screen.queryByRole("separator", { name: "Resize diff file list" })).not.toBeInTheDocument()
+    } finally {
+      restoreViewport()
+    }
   })
 
   it("renders a commit selector and passes ref to file and diff fetches", async () => {

@@ -1,8 +1,9 @@
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, beforeEach } from "vitest"
-import { AttachmentCard } from "./components"
-import type { JobAttachment } from "../../api/jobs"
+import { AttachmentCard, EpicSummaryLink } from "./components"
+import type { JobAttachment, JobEpic } from "../../api/jobs"
 import { fetchJobAttachmentContent } from "../../api/jobs"
 
 vi.mock("../../api/jobs", async (importOriginal) => {
@@ -116,5 +117,55 @@ describe("AttachmentCard", () => {
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument()
     expect(fetchJobAttachmentContent).not.toHaveBeenCalled()
+  })
+})
+
+describe("EpicSummaryLink", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
+  function epic(overrides: Partial<JobEpic> = {}): JobEpic {
+    return {
+      id: 385,
+      number: 385,
+      display_number: "EPIC-385",
+      title: "Tailscale Privileged Service Migration",
+      state: "in_progress",
+      epic_path: "/epics/EPIC-385",
+      ...overrides
+    }
+  }
+
+  it("renders the epic slug as a copyable button separate from the title link", () => {
+    render(
+      <MemoryRouter>
+        <EpicSummaryLink epic={epic()} prefix="/app-shell" />
+      </MemoryRouter>
+    )
+
+    const copyButton = screen.getByRole("button", { name: "Copy EPIC-385 to clipboard" })
+    expect(copyButton).toBeInTheDocument()
+
+    const titleLink = screen.getByRole("link", { name: "Tailscale Privileged Service Migration" })
+    expect(titleLink).toHaveAttribute("href", "/app-shell/epics/EPIC-385")
+  })
+
+  it("copies the epic slug to the clipboard when clicked", async () => {
+    render(
+      <MemoryRouter>
+        <EpicSummaryLink epic={epic()} prefix="/app-shell" />
+      </MemoryRouter>
+    )
+
+    const copyButton = screen.getByRole("button", { name: "Copy EPIC-385 to clipboard" })
+    fireEvent.click(copyButton)
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("EPIC-385")
+    // Wait out the async clipboard-write resolution so its state update lands
+    // before this test (and its clipboard mock) tears down -- otherwise the
+    // update fires during a later test and can flip that test's outcome.
+    await waitFor(() => expect(copyButton).toHaveAttribute("title", "Copied"))
   })
 })

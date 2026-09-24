@@ -176,7 +176,7 @@ module App
         trigger_label: repository.trigger_label,
         credential_mode: repository.credential_mode,
         repository_path: routes.repository_path(repository),
-        issues_path: routes.repository_path(repository, tab: "github_issues")
+        issues_path: "/repositories/#{repository.id}/plugin/issues"
       }
     end
 

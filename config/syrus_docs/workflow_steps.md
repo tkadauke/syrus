@@ -268,8 +268,21 @@ timeout.
 
 **Provider routing and availability failover:** `ProviderRouting::Resolver`
 chooses ordered provider/model/effort candidates for a Workflow from explicit
-Job pins, repository rules, user rules, and the hardcoded fallback. Workflow
-creation records the chosen candidate in `agent_provider_routing_decision`.
+Job pins, repository routing rules, an explicit repository/membership
+provider (`Repository#agent_provider` or a write/admin member's override,
+via `Repository#explicit_agent_provider`), user routing rules, the user's own
+default provider, and the hardcoded fallback, in that order. A repository (or
+write/admin membership) provider outranks user-scoped routing rules even when
+no repository routing rule exists for the task -- a repository pinned to a
+specific provider is not silently routed to a user's personal default-routing
+rule. It does not foreclose failover, though: the repository provider is
+prepended to the user-scoped candidate chain rather than replacing it, so a
+real outage still fails over into the user's rules/default (deduplicated by
+provider), and the failover artifact still records the repository provider as
+the original choice. A repository-scoped routing rule (task-specific or
+default-task) still overrides the repository's explicit provider outright,
+the same as before. Workflow creation records the chosen candidate in
+`agent_provider_routing_decision`.
 Before the first Run starts, `ProviderRouting::AvailabilitySelector` walks
 that ordered candidate list and chooses the first one that is not exhausted,
 rate-limited, in an auth-error state, or manually overridden -- this basic
@@ -389,8 +402,11 @@ time. Skips the agent call when the report is already present
 (`skip_if_artifact: "investigation_report"` on the `Step::Kind` entry mirrors
 `test_plan`'s `skip_if_artifact: "test_plan"`). Raises `Steps::Base::StepFailed`
 if the agent never calls the tool. The stored report lands on
-`Workflow#artifacts["investigation_report"]`; `auto_close` then closes the Job
-with `closure_reason: "investigation_reported"`.
+`Workflow#artifacts["investigation_report"]`; `submit_report` is the chain's
+last step -- a successful workflow then carries the Job to `:implemented`
+through the ordinary `Workflows::JobLifecyclePropagation` success path (no
+`auto_close` step here; see the `investigation` trigger kind above), where it
+waits for the operator to review the report and close it.
 
 ### respond
 
@@ -691,6 +707,31 @@ there is nothing for an agent to fix when the diagnosis is already known,
 only a regrade to retry. The skip is still bounded by the loop's
 `max_iterations`, and each skip is recorded on the workflow's
 `transient_grader_repair_skips` artifact for operator visibility.
+
+`grader_collect` also consults the same deterministic rung-0 adjudicator
+ladder (`Adjudicators`, see `app/services/adjudicators.rb`) that decides
+whether a required-grader failure is already known to be inherited from
+base, confirmed-flaky, or dismissed by an isolated repro before ever raising
+a workflow failure. `Adjudicators::ReportedMainConcern` is one such
+adjudicator: an agent's `report_main_concern` call is a claim, not evidence,
+so this dismisses a required-grader failure only when BOTH are true for this
+exact loop iteration — an agent filed `report_main_concern`, AND a live
+`BaseRevisionRetry` independently confirms every currently-failing required
+grader also fails when rerun against the base revision (using the grader's
+configured `base_retry`, including the custom-grader default described
+above). `failures: strict` graders are never eligible, and a `report_main_concern`
+call with no matching base-revision failure changes nothing — the required
+grader still blocks the iteration. A dismissal here is recorded the same way
+`inherited_grader_failure` is: the grader Step's `details["accepted_failure"]`
+is stamped and `Workflow#artifacts["main_concern_verified_grader_failure"]`
+records the grader names, the base SHA, and the base_retry results, so the
+job detail UI shows the required grader as `warning` rather than `failed`
+while preserving its original failing output. Because the workspace tree did
+not change to produce that no-op repair (that is exactly what `report_main_concern`
+plus a no-diff repair agent turn means), a later regrade of the same
+iteration's other, still-passing graders is skipped the same way an
+infrastructure-only retry skips them — see `retrying_no_change_repair?` in
+`Steps::GraderFanout`.
 
 When `grader_collect` records a grader conclusion, it also records a persistent
 `TargetHealthRecord` for each materialized grader target. The record stores the

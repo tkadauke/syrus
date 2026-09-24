@@ -208,9 +208,16 @@ class User < ApplicationRecord
   # genuinely-stuck agent doesn't run forever even with no turn cap.
   AGENT_MAX_TURNS_RANGE = (0..1000)
 
+  # How many chats are shown per repository group (and the "General" group)
+  # in the recent-chats sidebar before a "Show more" toggle appears.
+  RECENT_CHATS_GROUP_SIZE_RANGE = (1..50)
+
   validates :agent_max_turns,
             presence: true,
             numericality: { only_integer: true, in: AGENT_MAX_TURNS_RANGE }
+  validates :recent_chats_group_size,
+            presence: true,
+            numericality: { only_integer: true, in: RECENT_CHATS_GROUP_SIZE_RANGE }
   validates_agent_provider
   validates :chat_provider, inclusion: { in: -> { User.chat_providers } }, allow_nil: true
   validates :theme, presence: true, inclusion: { in: THEMES }

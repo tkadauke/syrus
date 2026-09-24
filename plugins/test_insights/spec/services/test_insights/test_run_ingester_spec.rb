@@ -293,6 +293,109 @@ RSpec.describe TestInsights::Ingester do
     expect(Rails.logger).to have_received(:warn).with(include("runtime summary refresh failed"))
   end
 
+  describe "wip repair failure classification" do
+    def single_case_parsed_run(name:, status:)
+      JunitXmlParser::ParsedRun.new(
+        total_count: 1,
+        passed_count: status == "passed" ? 1 : 0,
+        failed_count: status == "failed" ? 1 : 0,
+        skipped_count: 0,
+        error_count: 0,
+        duration_ms: 100,
+        cases: [ parsed_case(name, status) ]
+      )
+    end
+
+    def create_prior_failure(name:, workflow:, iteration:, loop_id: "grade-loop", grader_name: "rspec")
+      identity = TestInsights::TestIdentity.find_or_create_by!(
+        repository: repo,
+        fingerprint: TestInsights::TestIdentity.fingerprint_for(suite_name: "MySpec", name: name)
+      ) { |i| i.suite_name = "MySpec"; i.name = name }
+
+      step = Step.create!(
+        workflow: workflow, kind: "grader", position: iteration, iteration: iteration,
+        loop_id: loop_id, state: "failed", details: { "name" => grader_name }
+      )
+      prior_run = Run.create!(
+        job: workflow.job, user: workflow.user, step: step,
+        trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider, state: "failed"
+      )
+      prior_test_run = TestInsights::TestRun.create!(
+        run: prior_run, repository: repo, grader_name: grader_name,
+        total_count: 1, passed_count: 0, failed_count: 1, skipped_count: 0, error_count: 0
+      )
+      TestInsights::TestCase.create!(
+        test_run: prior_test_run, repository: repo, test_identity: identity,
+        name: name, suite_name: "MySpec", status: "failed"
+      )
+    end
+
+    def grader_step_run(workflow:, iteration:, loop_id: "grade-loop", grader_name: "rspec")
+      step = Step.create!(
+        workflow: workflow, kind: "grader", position: iteration, iteration: iteration,
+        loop_id: loop_id, state: "succeeded", details: { "name" => grader_name }
+      )
+      Run.create!(
+        job: workflow.job, user: workflow.user, step: step,
+        trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider, state: "succeeded"
+      )
+    end
+
+    it "retroactively excludes an earlier same-loop failure once a later grader iteration passes" do
+      workflow = run.workflow
+      failing_case = create_prior_failure(name: "flaky_case", workflow: workflow, iteration: 1)
+
+      later_run = grader_step_run(workflow: workflow, iteration: 2)
+      later_ingester = described_class.new(
+        run: later_run, grader_name: "rspec",
+        parsed_run: single_case_parsed_run(name: "flaky_case", status: "passed")
+      )
+
+      expect { later_ingester.ingest! }
+        .to change { failing_case.reload.wip_repair_failure }.from(false).to(true)
+    end
+
+    it "does not mark a failure in a different loop_id as superseded" do
+      workflow = run.workflow
+      failing_case = create_prior_failure(name: "flaky_case", workflow: workflow, iteration: 1, loop_id: "first-loop")
+
+      later_run = grader_step_run(workflow: workflow, iteration: 2, loop_id: "second-loop")
+      later_ingester = described_class.new(
+        run: later_run, grader_name: "rspec",
+        parsed_run: single_case_parsed_run(name: "flaky_case", status: "passed")
+      )
+      later_ingester.ingest!
+
+      expect(failing_case.reload.wip_repair_failure).to be(false)
+    end
+
+    it "does not mark an earlier passing iteration's own failures as superseded before a later run exists" do
+      workflow = run.workflow
+      failing_case = create_prior_failure(name: "flaky_case", workflow: workflow, iteration: 1)
+
+      # A non-grader step (e.g. the initial `implement` run) ingesting an
+      # unrelated passing case must not retroactively classify anything.
+      expect { ingester.ingest! }
+        .not_to change { failing_case.reload.wip_repair_failure }
+    end
+
+    it "logs and continues ingestion when classification fails" do
+      allow(TestInsights::WipRepairFailureClassifier).to receive(:mark_superseded!).and_raise(StandardError, "boom")
+      allow(Rails.logger).to receive(:warn)
+
+      workflow = run.workflow
+      later_run = grader_step_run(workflow: workflow, iteration: 2)
+      later_ingester = described_class.new(
+        run: later_run, grader_name: "rspec",
+        parsed_run: single_case_parsed_run(name: "flaky_case", status: "passed")
+      )
+
+      expect { later_ingester.ingest! }.not_to raise_error
+      expect(TestInsights::TestCase.where(status: "passed", name: "flaky_case")).to exist
+      expect(Rails.logger).to have_received(:warn).with(include("wip repair failure classification failed"))
+    end
+  end
+
   def prepare_search_tables
     SearchRecord.connection.execute("DROP TABLE IF EXISTS test_identity_fts")
     SearchRecord.connection.execute(<<~SQL)

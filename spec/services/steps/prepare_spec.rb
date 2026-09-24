@@ -286,13 +286,16 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
 
   describe ".prep_extra_env" do
     # A :step_environment provider only needs #forwarded_env_keys; #extra_env
-    # is the optional companion for values a plugin computes per Workflow
-    # rather than merely forwards from the worker pod's own ENV.
+    # is the optional companion for values a plugin computes per scope
+    # (PrepareScope) rather than merely forwards from the worker pod's own
+    # ENV. `scope` generalizes beyond Workflow so ChatWorkspacePrepareJob's
+    # chat-session-scoped prepare can supply the same hook — see
+    # PrepareScope and Syrus::Plugin::StepEnvironment.
     let(:computing_provider) do
       Class.new do
         include Syrus::Plugin::StepEnvironment
         def self.forwarded_env_keys = []
-        def self.extra_env(workflow:, workspace_path:) = { "FAKE_COMPUTED" => "workflow-#{workflow.id}-#{workspace_path}" }
+        def self.extra_env(scope:, workspace_path:) = { "FAKE_COMPUTED" => "#{scope.cache_key}-#{workspace_path}" }
       end
     end
 
@@ -307,30 +310,42 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
       Class.new do
         include Syrus::Plugin::StepEnvironment
         def self.forwarded_env_keys = []
-        def self.extra_env(workflow:, workspace_path:) = raise("boom")
+        def self.extra_env(scope:, workspace_path:) = raise("boom")
       end
     end
+
+    let(:scope) { PrepareScope.for_workflow(workflow) }
 
     after { Syrus::PluginRegistry.reset! }
 
     it "merges computed values from a provider that implements #extra_env" do
       Syrus::PluginRegistry.register(name: "fake_extra_env", version: "1.0.0", provides: { step_environment: computing_provider })
 
-      extra = described_class.prep_extra_env(workflow: workflow, workspace_path: @ws_path)
+      extra = described_class.prep_extra_env(scope: scope, workspace_path: @ws_path)
 
-      expect(extra["FAKE_COMPUTED"]).to eq("workflow-#{workflow.id}-#{@ws_path}")
+      expect(extra["FAKE_COMPUTED"]).to eq("workflow:#{workflow.id}-#{@ws_path}")
     end
 
     it "is a no-op for a provider that only implements #forwarded_env_keys" do
       Syrus::PluginRegistry.register(name: "fake_silent", version: "1.0.0", provides: { step_environment: silent_provider })
 
-      expect(described_class.prep_extra_env(workflow: workflow, workspace_path: @ws_path)).not_to have_key("FAKE_COMPUTED")
+      expect(described_class.prep_extra_env(scope: scope, workspace_path: @ws_path)).not_to have_key("FAKE_COMPUTED")
     end
 
     it "logs and continues when a provider's #extra_env raises" do
       Syrus::PluginRegistry.register(name: "fake_raising", version: "1.0.0", provides: { step_environment: raising_provider })
 
-      expect { described_class.prep_extra_env(workflow: workflow, workspace_path: @ws_path) }.not_to raise_error
+      expect { described_class.prep_extra_env(scope: scope, workspace_path: @ws_path) }.not_to raise_error
+    end
+
+    it "computes distinct values for a chat-session scope on the same repository" do
+      Syrus::PluginRegistry.register(name: "fake_extra_env", version: "1.0.0", provides: { step_environment: computing_provider })
+      chat_session = ChatSession.create!(user: job.user)
+      chat_scope = PrepareScope.for_chat_session(chat_session, repository: job.repository)
+
+      extra = described_class.prep_extra_env(scope: chat_scope, workspace_path: @ws_path)
+
+      expect(extra["FAKE_COMPUTED"]).to eq("chat:#{chat_session.id}-#{@ws_path}")
     end
   end
 

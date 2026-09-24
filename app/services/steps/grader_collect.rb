@@ -102,17 +102,19 @@ module Steps
     # Rung 0 of the attention ladder: free, deterministic adjudication before
     # the failure costs anyone anything.
     #
-    # Only `inherited_grader_failure`, `known_flaky_failure`, and
-    # `isolated_repro_dismissal` are pre-authorized here. Other adjudicators
-    # still run and their verdicts are still recorded, but acting on one
-    # would be a behavior change in when graders are treated as authoritative
-    # -- the plan's "an adjudication never applies itself" guardrail.
+    # Only `inherited_grader_failure`, `reported_main_concern`,
+    # `known_flaky_failure`, and `isolated_repro_dismissal` are pre-authorized
+    # here. Other adjudicators still run and their verdicts are still
+    # recorded, but acting on one would be a behavior change in when graders
+    # are treated as authoritative -- the plan's "an adjudication never
+    # applies itself" guardrail.
     def dismissed_by_rung_zero?(failed_required)
       verdict = Adjudicators.call(
         problem: Problem[:grader_failure, evidence: { grader_names: grader_names(failed_required) }],
         workflow: workflow,
         step: failed_required,
-        authorized: %w[inherited_grader_failure known_flaky_failure isolated_repro_dismissal]
+        base_sha: landing_base_sha,
+        authorized: %w[inherited_grader_failure reported_main_concern known_flaky_failure isolated_repro_dismissal]
       )
       workflow.set_artifact!("rung_zero_adjudication", verdict.to_h.merge("adjudicated_at" => Time.current.iso8601))
       return false unless verdict.dismiss?
@@ -122,6 +124,8 @@ module Steps
       case verdict.adjudicator
       when Adjudicators::InheritedGraderFailure.name
         record_inherited_main_failure!(failed_required, verdict.evidence)
+      when Adjudicators::ReportedMainConcern.name
+        record_main_concern_verified_failure!(failed_required, verdict.evidence)
       when Adjudicators::KnownFlakyFailure.name
         record_known_flaky_failure!(failed_required, verdict.evidence)
       when Adjudicators::IsolatedReproDismissal.name
@@ -167,6 +171,30 @@ module Steps
       log(
         "[grader_collect] required grader failures match broken-main evidence; " \
         "treating as inherited: #{inherited_names.join(', ')}"
+      )
+    end
+
+    # Surfaces an Adjudicators::ReportedMainConcern dismissal the same way
+    # record_inherited_main_failure! surfaces one -- an operator looking at
+    # why a red required grader did not block this iteration must be able to
+    # see both halves of the evidence: the agent's report_main_concern claim
+    # AND the independent base_retry confirmation that actually authorized
+    # treating it as pre-existing, not just the claim by itself.
+    def record_main_concern_verified_failure!(failed_required, verdict_evidence)
+      verdict_evidence = verdict_evidence.to_h
+      base_sha = verdict_evidence[:base_sha] || verdict_evidence["base_sha"]
+      base_retry_results = verdict_evidence[:base_retry_results] || verdict_evidence["base_retry_results"] || []
+      names = verdict_evidence[:grader_names] || verdict_evidence["grader_names"] || grader_names(failed_required)
+      workflow.set_artifact!("main_concern_verified_grader_failure", {
+        "grader_step_ids" => failed_required.map(&:id),
+        "grader_names" => names,
+        "base_sha" => base_sha,
+        "base_retry_results" => base_retry_results,
+        "classified_at" => Time.current.iso8601
+      })
+      log(
+        "[grader_collect] required grader failures were reported via report_main_concern and confirmed by an " \
+        "independent base-revision retry against #{base_sha.to_s.first(9)}; treating as a warning: #{names.join(', ')}"
       )
     end
 
@@ -302,9 +330,10 @@ module Steps
     end
 
     def env
+      extra_env = Prepare.prep_extra_env(scope: PrepareScope.for_workflow(workflow), workspace_path: workspace.path)
       ProcessRunner.forwarded_env(
         Prepare.prep_env_forward,
-        extra: workspace_dependency_env.merge(Prepare.prep_extra_env(workflow: workflow, workspace_path: workspace.path))
+        extra: workspace_dependency_env.merge(extra_env)
       )
     end
 

@@ -628,9 +628,10 @@ module Api
           RepositoryMembership.at_least("write").exists?(repository_id: repository_id, user: Current.user)
         end
 
-        # Best-effort start after a "Create Epic & Start Implementing" create:
+        # Best-effort start after a start=true create:
         # the Epic row is already saved, so a non-startable Epic (e.g. product
-        # owner actor) degrades to a plain create instead of failing the request.
+        # owner actor, empty Epic) degrades to a plain create instead of failing
+        # the request.
         def start_created_epic!(epic)
           return false unless epic.may_start_implementing?(actor: Current.user)
 

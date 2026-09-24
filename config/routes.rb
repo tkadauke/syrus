@@ -156,6 +156,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/unpause", to: "job_lifecycle#unpause", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/approve", to: "job_lifecycle#approve", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/unapprove", to: "job_lifecycle#unapprove", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/close_investigation", to: "job_lifecycle#close_investigation", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/reopen", to: "job_lifecycle#reopen", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/open_in_coding_mode", to: "job_coding_mode#open", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/open_in_local_mode", to: "job_lifecycle#open_in_local_mode", constraints: { job_id: /[a-zA-Z0-9_-]+/ }

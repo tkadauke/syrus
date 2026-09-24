@@ -7,7 +7,8 @@ module MaintenanceTasks
           Definitions::LandedCommitsBackfill.new,
           Definitions::PreemptedExternalPrBackfill.new,
           Definitions::SearchDatabaseRebuild.new,
-          Definitions::StaleInsightBacklogRetirement.new
+          Definitions::StaleInsightBacklogRetirement.new,
+          Definitions::TestInsightsWipRepairFailureBackfill.new
         ].index_by(&:key)
       end
 

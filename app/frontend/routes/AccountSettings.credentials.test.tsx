@@ -50,6 +50,7 @@ function makePayload(overrides: {
       chat_provider: null,
       codex_auth_mode: overrides.codex_auth_mode ?? "api_key",
       agent_max_turns: 200,
+      recent_chats_group_size: 10,
       provider_availability_pause_thresholds: { agy: 10, claude: 10, codex: 10 },
       provider_availability_overrides: {},
       scheduling_paused: false,
@@ -78,6 +79,7 @@ function makePayload(overrides: {
       roles: ["developer", "product_owner"],
       codex_auth_modes: ["api_key", "chatgpt_login"],
       agent_max_turns: { min: 0, max: 1000 },
+      recent_chats_group_size: { min: 1, max: 50 },
       clearable_credentials: [],
       auto_approve_modes: [{ value: "never", label: "Never", preview: "No auto-approval." }],
       provider_routing_options: { agent_providers: [], effort_levels: [] }

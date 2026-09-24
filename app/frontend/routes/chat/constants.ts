@@ -25,6 +25,10 @@ export const CHAT_FILES_TREE_WIDTH_KEY = "syrus.chat.files.tree.width"
 
 export const CHAT_FILES_TREE_COLLAPSED_KEY = "syrus.chat.files.tree.collapsed"
 
+export const CHAT_DIFF_FILES_WIDTH_KEY = "syrus.chat.diff.files.width"
+
+export const CHAT_DIFF_FILES_COLLAPSED_KEY = "syrus.chat.diff.files.collapsed"
+
 export const CHAT_DRAFT_KEY_PREFIX = "syrus.chat.draft."
 
 // Tab only accepts the ghost suggestion after this grace period. A

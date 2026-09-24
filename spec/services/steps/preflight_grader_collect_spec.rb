@@ -56,6 +56,24 @@ RSpec.describe Steps::PreflightGraderCollect do
     end
   end
 
+  # Mirrors the real retry_until loop shape (Workflows::Base.materialize_steps!):
+  # implement/grader_fanout/grader_collect share one loop_id, the way
+  # grader_retry_loop materializes them.
+  def create_downstream_steps_with_retry_until_loop
+    loop_id = SecureRandom.uuid
+    [
+      Step.create!(workflow: workflow, kind: "implement",      position: 103, iteration: 1, loop_id: loop_id, next_step_id: nil),
+      Step.create!(workflow: workflow, kind: "grader_fanout",  position: 104, iteration: 1, loop_id: loop_id, next_step_id: nil),
+      Step.create!(workflow: workflow, kind: "grader_collect", position: 105, iteration: 1, loop_id: loop_id, next_step_id: nil),
+      Step.create!(workflow: workflow, kind: "summarize",      position: 106, iteration: 1, next_step_id: nil),
+      Step.create!(workflow: workflow, kind: "test_plan",      position: 107, iteration: 1, next_step_id: nil),
+      Step.create!(workflow: workflow, kind: "pr_open",        position: 108, iteration: 1, next_step_id: nil)
+    ].tap do |steps|
+      step.update!(next_step_id: steps.first.id)
+      steps.each_cons(2) { |a, b| a.update!(next_step_id: b.id) }
+    end
+  end
+
   context "when all required preflight graders passed" do
     before do
       create_preflight_grader(name: "rspec",  required: true,  state: "succeeded")
@@ -88,6 +106,28 @@ RSpec.describe Steps::PreflightGraderCollect do
       log_text = run.reload.job_logs.pluck(:chunk).join
       expect(log_text).to include("all required graders passed")
       expect(log_text).to include("skipping implement")
+    end
+
+    it "marks the skipped grade-loop retry_until barrier as superseded so the workflow can still succeed" do
+      downstream = create_downstream_steps_with_retry_until_loop
+      grader_collect = downstream.find { |s| s.kind == "grader_collect" }
+
+      handler.call
+
+      expect(grader_collect.reload).to be_skipped
+      expect(grader_collect.retry_until_barrier_superseded?).to be true
+      expect(workflow.reload.uncleared_retry_until_barrier?).to be false
+    end
+
+    it "does not mark non-barrier downstream steps as retry_until_barrier_superseded" do
+      downstream = create_downstream_steps_with_retry_until_loop
+      implement = downstream.find { |s| s.kind == "implement" }
+      summarize = downstream.find { |s| s.kind == "summarize" }
+
+      handler.call
+
+      expect(implement.reload.retry_until_barrier_superseded?).to be false
+      expect(summarize.reload.retry_until_barrier_superseded?).to be false
     end
   end
 

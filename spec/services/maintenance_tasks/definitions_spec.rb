@@ -170,6 +170,42 @@ RSpec.describe "maintenance task definitions" do
     end
   end
 
+  describe MaintenanceTasks::Definitions::TestInsightsWipRepairFailureBackfill do
+    let(:definition) { described_class.new }
+
+    before do
+      result_struct = Struct.new(:done, :processed, :next_after_id, keyword_init: true)
+      stub_const("TestInsights::WipRepairFailureBackfill", Class.new do
+        define_singleton_method(:pending_count) { 5 }
+
+        define_method(:call) do |after_id: 0, limit:|
+          result_struct.new(done: true, processed: 5, next_after_id: after_id + 5)
+        end
+      end)
+    end
+
+    it "wraps the plugin backfill service when Test Insights is installed" do
+      expect(definition.estimate_total_units).to eq(5)
+
+      task = maintenance_task_for(definition)
+      result = definition.perform_batch(task)
+
+      expect(result.done).to be(true)
+      expect(result.processed).to eq(5)
+      expect(task.checkpoint["after_id"]).to eq(5)
+    end
+
+    it "reports not installed when Test Insights is unavailable" do
+      hide_const("TestInsights::WipRepairFailureBackfill")
+
+      result = definition.perform_batch(maintenance_task_for(definition))
+
+      expect(result.done).to be(true)
+      expect(result.processed).to eq(0)
+      expect(result.message).to include("not installed")
+    end
+  end
+
   describe MaintenanceTasks::Definitions::SearchDatabaseRebuild do
     let(:definition) { described_class.new }
 

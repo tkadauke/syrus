@@ -342,7 +342,7 @@ class ImmutableSourceCheckout
     ProcessRunner.forwarded_env(
       Steps::Prepare.prep_env_forward,
       extra: WorkspaceDependencyEnv.for(path).merge(
-        Steps::Prepare.prep_extra_env(workflow: @workflow, workspace_path: path)
+        Steps::Prepare.prep_extra_env(scope: PrepareScope.for_workflow(@workflow), workspace_path: path)
       )
     )
   end

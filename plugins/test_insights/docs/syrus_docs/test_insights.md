@@ -146,6 +146,39 @@ and `last_failed_at` calculations. Cross-workflow and cross-Job mixed
 pass/fail history still counts normally, so true nondeterministic flakes keep
 their `flaky` signal.
 
+`wip_repair_failure` is a persisted `test_insight_cases` boolean column, not a
+read-time computation. The only writer is
+`TestInsights::WipRepairFailureClassifier`, called from `TestInsights::Ingester`
+right after a grader run is ingested: it looks at the cases that just passed
+and retroactively flags any earlier, still-`scored`, failed/error case in the
+same workflow/loop/grader/identity as superseded. `TestCase.scored` is then
+just `where(wip_repair_failure: false)` -- a plain indexed filter. This
+replaced an equivalent-but-far-more-expensive `scored`/`wip_repair_failures`
+scope that ran a correlated `EXISTS` across
+`test_insight_cases`/`test_insight_runs`/`runs`/`steps` on every read; MySQL 8's
+optimizer flattened that `EXISTS` into a semi-join across all four tables and
+picked a join order that ignored the `test_identity_id` index, so a query that
+should have touched a handful of rows for one `TestIdentity` instead examined
+millions of rows (production: 4,000+ calls/day averaging ~10M rows examined,
+up to 67s). `TestInsights::WipRepairFailureBackfill`, wrapped by the
+`test_insights_wip_repair_failure_backfill` maintenance task
+(`MaintenanceTasks::Definitions::TestInsightsWipRepairFailureBackfill`), replays
+the same classifier over historical `test_insight_runs` for rows ingested
+before the column existed; it's idempotent (only ever flips `false` -> `true`)
+and safe to run repeatedly or resume after a pause. `MaintenanceTasks::Discovery`
+surfaces it as a pending admin task automatically once there is backfill work
+to do -- start it from the Maintenance Tasks admin page (or the
+`admin_maintenance_tasks` MCP tool) if older history's flakiness/failure-rate
+numbers need to reflect it.
+
+Every `TestCase`/`TestIdentity`/`RecentStats` query built on `.scored` is
+wrapped in `PerformanceLogging.phase("test_insights.<name>", ...)`
+(`app/services/performance_logging.rb`), the same slow-phase/slow-SQL
+instrumentation used elsewhere in Syrus. A regression that makes any of these
+queries slow again surfaces as a `syrus.performance.slow_phase` /
+`syrus.performance.slow_sql` event (Admin Performance UI, `read_performance_diagnostics`)
+instead of silently degrading.
+
 `TestCase.top_flaky_tests(repository:, lookback:, limit:)` runs the same scored
 logic as a single SQL query (window functions) to rank the flakiest tests
 repository-wide. `TestCase.batch_flakiness` does the same scored lookup for an

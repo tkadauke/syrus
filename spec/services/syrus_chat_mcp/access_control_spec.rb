@@ -54,6 +54,18 @@ RSpec.describe "Mcp::Tools access control" do
     expect(chat_session.attached_repositories).not_to include(other_repository)
   end
 
+  it "cannot detach a repository attached only to another chat session" do
+    unattached_repository = Factories.repository(user: user, owner: "acme", name: "gizmos")
+    other_chat_session = ChatSession.create!(user: user)
+    other_chat_session.chat_attachments.create!(attachable: unattached_repository)
+
+    response = call_tool(Mcp::Tools::DetachRepositoryTool, "detach_repository", slug: unattached_repository.slug)
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(text(response)).to include("is not attached to this chat")
+    expect(other_chat_session.reload.attached_repositories).to include(unattached_repository)
+  end
+
   it "cannot attach another user's Epic to a chat session" do
     epic = Factories.epic(user: Factories.user)
 

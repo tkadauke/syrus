@@ -31,10 +31,10 @@ RSpec.describe Steps::Investigate do
     allow(handler).to receive(:run_agent)
   end
 
-  it "dispatches into the investigation trigger_kind's prepare → investigate → submit_report → auto_close chain" do
+  it "dispatches into the investigation trigger_kind's prepare → investigate → submit_report chain" do
     expect(workflow.trigger_kind).to eq("investigation")
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-      %w[prepare investigate submit_report auto_close]
+      %w[prepare investigate submit_report]
     )
   end
 

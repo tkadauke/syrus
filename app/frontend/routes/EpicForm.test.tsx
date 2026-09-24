@@ -41,19 +41,11 @@ function renderForm(mode: "new" | "edit", payload = formPayload()) {
 describe("EpicForm create buttons", () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it("submits create-and-start with the start flag", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "Epic created and started — child Jobs will dispatch as they are added.", redirect_to: "/epics/3", epic: formPayload().epic })
-    )
+  it("does not offer create-and-start for a new empty Epic", () => {
     renderForm("new")
 
-    fireEvent.click(screen.getByRole("button", { name: "Create Epic & Start Implementing" }))
-
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalled())
-    const [url, init] = fetchSpy.mock.calls[0]
-    expect(url).toBe("/api/v1/app/epics")
-    expect(init?.method).toBe("POST")
-    expect(JSON.parse(init?.body as string)).toMatchObject({ start: true, epic: { title: "Raise the forum" } })
+    expect(screen.queryByRole("button", { name: "Create Epic & Start Implementing" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Create Epic" })).toHaveAttribute("type", "submit")
   })
 
   it("submits a plain create without the start flag", async () => {
@@ -75,9 +67,6 @@ describe("EpicForm create buttons", () => {
     )
     renderForm("new")
 
-    // The start button must not be a submit button, so the form's default
-    // (implicit Enter-key) submission can only ever plain-create.
-    expect(screen.getByRole("button", { name: "Create Epic & Start Implementing" })).toHaveAttribute("type", "button")
     expect(screen.getByRole("button", { name: "Create Epic" })).toHaveAttribute("type", "submit")
 
     const form = screen.getByRole("button", { name: "Create Epic" }).closest("form")

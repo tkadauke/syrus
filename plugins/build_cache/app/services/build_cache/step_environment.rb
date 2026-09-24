@@ -24,12 +24,15 @@ module BuildCache
 
     def self.forwarded_env_keys = KEYS
 
-    # Values computed per Workflow rather than merely forwarded from the
-    # worker pod's own ENV -- see RuntimeEnv. Consumed by
+    # Values computed per scope rather than merely forwarded from the
+    # worker pod's own ENV -- see RuntimeEnv. `scope` is a PrepareScope
+    # (workflow-scoped for Steps::Prepare/Steps::Grader, chat-session-scoped
+    # for ChatWorkspacePrepareJob's Coding Mode prepare) so the same daemon
+    # isolation and basedirs opt-in apply to both. Consumed by
     # Steps::Prepare.prep_extra_env (the optional companion to
     # #forwarded_env_keys on Syrus::Plugin::StepEnvironment).
-    def self.extra_env(workflow:, workspace_path:)
-      RuntimeEnv.for(workflow: workflow, workspace_path: workspace_path)
+    def self.extra_env(scope:, workspace_path:)
+      RuntimeEnv.for(scope: scope, workspace_path: workspace_path)
     end
   end
 end

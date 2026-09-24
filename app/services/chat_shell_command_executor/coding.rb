@@ -20,9 +20,8 @@ module ChatShellCommandExecutor
       return Result.new(outcome: "error", output: "Coding checkout not found at #{path}.") unless path.join(".git").directory?
 
       output = +""
-      env = ProcessRunner.forwarded_env(ChatWorkspacePrepareJob::PREP_ENV_FORWARD)
       result = ProcessRunner.new(
-        env: env,
+        env: ChatWorkspaceEnv.for(chat_session: chat_session, repository: repository, workspace_path: path),
         command: [ "bash", "-c", command_record.command ],
         chdir: path,
         timeout: ChatShellCommandJob::MAX_RUNTIME_SECONDS,

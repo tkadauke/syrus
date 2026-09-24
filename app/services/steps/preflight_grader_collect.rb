@@ -8,6 +8,10 @@ module Steps
   #   skipped steps and marks the workflow succeeded.
   #   Workflows::MainBranchRepair#after_success detects the artifact and
   #   marks the repository healthy without the agent ever running.
+  #   The downstream grade loop's own retry_until barrier (grader_collect)
+  #   is one of the skipped steps; cancel_downstream! marks it
+  #   retry_until_barrier_superseded so Workflow#uncleared_retry_until_barrier?
+  #   doesn't hard-fail this otherwise-successful workflow.
   #
   # - Any required preflight grader failed: logs the failures and returns
   #   normally so the chain continues to implement → grade loop.
@@ -26,7 +30,10 @@ module Steps
       if failed_required.empty?
         log("[preflight_grader_collect] all required graders passed (#{preflight_steps.size} grader step(s)) — skipping implement")
         workflow.set_artifact!("preflight_passed", true)
-        cancel_downstream!(reason: "preflight graders passed — main is already healthy")
+        cancel_downstream!(
+          reason: "preflight graders passed — main is already healthy",
+          supersede_retry_until_barriers: true
+        )
       else
         workflow.set_artifact!("preflight_failures", preflight_failure_entries(failed_required))
         failed_names = failed_required.map { |g| g.details["name"] }.join(", ")

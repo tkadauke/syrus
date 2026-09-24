@@ -9809,7 +9809,8 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("link", { name: "EPIC-7 Raise the aqueduct" })).toHaveAttribute("href", "/app-shell/epics/7")
+    expect(await screen.findByRole("link", { name: "Raise the aqueduct" })).toHaveAttribute("href", "/app-shell/epics/7")
+    expect(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" })).toBeInTheDocument()
   })
 
   it("keeps the admin-only Job timeline collapsed until opened", async () => {
@@ -15248,6 +15249,7 @@ function credentialsPayload(overrides: {
       chat_provider: overrides.chatProvider ?? null,
       codex_auth_mode: overrides.codexAuthMode ?? "api_key",
       agent_max_turns: 200,
+      recent_chats_group_size: 10,
       scheduling_paused: overrides.schedulingPaused ?? false,
       auto_approve_mode: "never"
     },
@@ -15270,6 +15272,7 @@ function credentialsPayload(overrides: {
       chat_providers: overrides.chatProviders ?? ["claude"],
       codex_auth_modes: ["api_key", "chatgpt_login"],
       agent_max_turns: { min: 0, max: 1000 },
+      recent_chats_group_size: { min: 1, max: 50 },
       clearable_credentials: [
         { value: "github_token", label: "GitHub token" },
         { value: "claude_oauth_token", label: "Claude OAuth token" }
@@ -15475,7 +15478,7 @@ function repositoriesPayload(overrides: {
           trigger_label: "syrus",
           credential_mode: "pat",
           repository_path: "/repositories/3",
-          issues_path: "/repositories/3?tab=github_issues"
+          issues_path: "/repositories/3/plugin/issues"
         }
       }
     }),

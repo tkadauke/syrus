@@ -178,6 +178,7 @@ function toolArgumentSummary(name: string, input: Record<string, unknown>) {
       detail = stringValue(input.query) || stringValue(input.pattern)
       break
     case "attach_repository":
+    case "detach_repository":
       detail = stringValue(input.slug)
       break
     default:

@@ -158,11 +158,6 @@
   "broken_main_repair_starting": "Incipit...",
   "broken_main_repair_start_failed": "Reparatio incipi non potuit.",
   "broken_main_dismiss": "Dimitte",
-  "untagged_issues_summary_one": "{{count}} negotium apertum non signatum",
-  "untagged_issues_summary_other": "{{count}} negotia aperta non signata",
-  "untagged_issues_repo_count_one": "in {{count}} repositorio",
-  "untagged_issues_repo_count_other": "in {{count}} repositoriis",
-  "untagged_issues_dismiss": "Dimitte",
   "needs_attention_aria": "Attentionem requirit",
   "delivery_status": {
     "waiting_for_local_approval": "Probationem localem exspectat",

@@ -3158,6 +3158,26 @@ describe("Job Detail keyboard shortcuts", () => {
     })
   })
 
+  it("shows Close instead of Approve for a reviewable investigation job, and confirms before closing", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Investigation closed as reviewed." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented", investigation: true } })
+    renderJobDetail({ ...payload, actions: { ...payload.actions, can_approve: false, can_close_investigation: true } })
+
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    expect(screen.getByText("Close this investigation as reviewed?")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/close_investigation",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
   it("arms a confirmation before reopening on the shortcut path and executes on confirm", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job reopened." }))
     const payload = jobPayload({ job: { ...baseJob(), state: "closed", summary_state: "closed" } })
@@ -3592,6 +3612,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       can_stop_landing: false,
       can_approve: false,
       can_unapprove: false,
+      can_close_investigation: false,
       can_reopen: false,
       can_mark_valid: false,
       can_claim: false,
@@ -3630,6 +3651,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_stop_landing_path: "/api/v1/app/jobs/1/stop_landing",
       app_approve_path: "/api/v1/app/jobs/1/approve",
       app_unapprove_path: "/api/v1/app/jobs/1/unapprove",
+      app_close_investigation_path: "/api/v1/app/jobs/1/close_investigation",
       app_reopen_path: "/api/v1/app/jobs/1/reopen",
       app_poll_feedback_path: "/api/v1/app/jobs/1/poll_feedback",
       app_rebase_path: "/api/v1/app/jobs/1/rebase",

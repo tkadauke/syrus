@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_23_022221) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_23_153451) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2951,11 +2951,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_022221) do
     t.integer "test_identity_id"
     t.bigint "test_run_id", null: false
     t.datetime "updated_at", null: false
+    t.boolean "wip_repair_failure", default: false, null: false
     t.index ["repository_id", "test_identity_id", "id"], name: "idx_test_cases_repo_identity_id"
     t.index ["test_identity_id", "created_at", "id"], name: "idx_test_cases_identity_created_id"
     t.index ["test_identity_id", "duration_ms", "created_at", "id"], name: "idx_test_cases_identity_duration_created_id"
     t.index ["test_identity_id", "id"], name: "idx_test_cases_identity_id_latest"
     t.index ["test_identity_id", "status", "created_at"], name: "idx_test_cases_identity_status_created"
+    t.index ["test_identity_id", "wip_repair_failure", "created_at", "id"], name: "idx_test_cases_identity_scored_created_id"
     t.index ["test_run_id", "status", "suite_name", "name"], name: "idx_test_cases_run_status_case"
     t.index ["test_run_id", "test_identity_id"], name: "idx_test_cases_run_identity"
   end
@@ -3099,6 +3101,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_022221) do
     t.string "profile_website"
     t.json "provider_availability_overrides"
     t.json "provider_availability_pause_thresholds"
+    t.integer "recent_chats_group_size", default: 10, null: false
     t.string "role", default: "developer", null: false
     t.boolean "scheduling_paused", default: false, null: false
     t.string "theme", default: "light", null: false
