@@ -10,5 +10,13 @@
 
 require_relative "../config/environment"
 
+# Metrics are declared in class bodies (`declare_metrics!` at load time), so
+# the registry only contains what has actually been autoloaded. Without this,
+# running the generator in an environment that does not eager load silently
+# omits every metric whose class nothing happened to reference --
+# `syrus_repository_commit_distance_lookups_total` was missing from the
+# committed catalog for exactly that reason.
+Rails.application.eager_load!
+
 path = Syrus::Metrics::Catalog.write!
 puts "Wrote #{path} (#{Syrus::Metrics.definitions.count(&:core?)} core metrics)"

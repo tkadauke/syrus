@@ -54,6 +54,7 @@ are computed at read time with `rate()`.
 | `syrus_queue_table_rows` | gauge | — | no | Total Solid Queue row count across every table, the table-level companion to syrus_global_queue_orphaned_rows (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_recurring_job_last_success_seconds` | gauge | `job` | no | Seconds since a config/recurring.yml job last completed successfully -- a job that stops succeeding grows this instead of vanishing (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_repositories_main_branch_broken_count` | gauge | — | no | Repositories whose default branch health is currently broken -- StepDispatcher pauses every workflow instance-wide, including landing, while this is nonzero (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_repository_commit_distance_lookups_total` | counter | `outcome` | no | Repository commit-distance lookups by outcome (cache_hit, cache_miss, refreshed, coalesced_wait), from every process (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_repository_content_reads_total` | counter | `provider`, `kind`, `outcome` | no | Repository content reads by provider asked (or cache), operation, and outcome, from every process (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_run_duration_seconds` | histogram | `step_kind` | no | Run wall clock by step kind |
 | `syrus_runs_total` | counter | `state`, `trigger_kind` | no | Runs by terminal state |

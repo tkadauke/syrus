@@ -63,13 +63,17 @@ RSpec.describe Mcp::Tools::DetachRepositoryTool do
     expect(chat_session.attached_jobs).to contain_exactly(job)
   end
 
+  # The effective repository is the most recently attached one
+  # (ChatSession#repository), so `other_repository` -- attached second -- is
+  # the one whose removal changes what is effective. These two examples had
+  # the slugs the other way round and were asserting the opposite rule.
   it "notes that another repository is now effective when the effective repository is detached" do
     chat_session.chat_attachments.create!(attachable: repository)
     chat_session.chat_attachments.create!(attachable: other_repository)
 
-    response = described_class.call(slug: "tkadauke/syrus", server_context: { chat_session: chat_session })
+    response = described_class.call(slug: "tkadauke/other", server_context: { chat_session: chat_session })
 
-    expect(payload(response).fetch("note")).to include(other_repository.slug)
+    expect(payload(response).fetch("note")).to include(repository.slug)
   end
 
   it "notes that no repository remains effective when the only attached repository is detached" do
@@ -84,7 +88,7 @@ RSpec.describe Mcp::Tools::DetachRepositoryTool do
     chat_session.chat_attachments.create!(attachable: repository)
     chat_session.chat_attachments.create!(attachable: other_repository)
 
-    response = described_class.call(slug: "tkadauke/other", server_context: { chat_session: chat_session })
+    response = described_class.call(slug: "tkadauke/syrus", server_context: { chat_session: chat_session })
 
     expect(payload(response)["note"]).to be_nil
   end

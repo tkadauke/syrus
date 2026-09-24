@@ -1,6 +1,13 @@
 require "rails_helper"
 
 RSpec.describe "Metrics catalog" do
+  # Metrics are declared in class bodies, so the registry holds only what has
+  # been autoloaded. Without eager loading these examples pass or fail by
+  # whatever earlier specs happened to reference -- which is how a metric
+  # stayed missing from the committed catalog while this spec was green in
+  # isolation and red in a full run.
+  before { Rails.application.eager_load! }
+
   # Distributed declaration means there is no single file listing the metrics,
   # so the list is generated instead of maintained. A generated list nobody
   # regenerates is worse than none, which is what this guards.

@@ -1,5 +1,6 @@
 require "rails_helper"
 require "tmpdir"
+require "tmpdir"
 
 RSpec.describe PreparedWorkspaceArchive do
   let(:user) { Factories.user }
@@ -54,12 +55,30 @@ RSpec.describe PreparedWorkspaceArchive do
     described_class.new(workflow: workflow, snapshot: snapshot, step: creator_step, path: missing_path, plan: plan)
   end
 
-  # Scoped to archive-shaped filenames rather than the whole tmpdir tree:
-  # this box runs other unrelated processes that constantly churn /tmp, so
-  # diffing the entire directory listing is flaky. The regression this
-  # guards against is specifically a materialized `*.tar.gz` archive file
-  # (the old `temporary_archive_path` used a `syrus-prepared-workspace-*`
-  # prefix) -- that shape can't collide with unrelated background churn.
+  # The regression this guards against is a materialized `*.tar.gz` archive
+  # file (the old `temporary_archive_path` used a
+  # `syrus-prepared-workspace-*` prefix) -- the archiver is supposed to
+  # stream and never touch local disk.
+  #
+  # Redirect Dir.tmpdir at an empty directory of our own for the duration of
+  # an example. Snapshotting the real tmpdir was both host-dependent (macOS
+  # keeps directories under /var/folders the running user cannot enter, and
+  # Dir.glob raises EPERM rather than skipping them) and slow enough to
+  # matter, since every example snapshots twice. A private tmpdir is exact:
+  # anything the archiver materializes through Tempfile/Dir.tmpdir lands
+  # here and nothing else does.
+  around do |example|
+    Dir.mktmpdir("syrus-archive-spec") do |dir|
+      original = ENV["TMPDIR"]
+      ENV["TMPDIR"] = dir
+      begin
+        example.run
+      ensure
+        ENV["TMPDIR"] = original
+      end
+    end
+  end
+
   def tmp_snapshot
     Dir.glob(File.join(Dir.tmpdir, "**", "*.tar.gz")).to_set
   end

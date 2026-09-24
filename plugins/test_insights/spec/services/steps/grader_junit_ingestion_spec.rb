@@ -2,6 +2,8 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe "Steps::Grader JUnit XML ingestion" do
+  include ActiveJob::TestHelper
+
   let(:job) { Factories.job }
   let(:workflow) { job.workflows.last }
 
@@ -220,6 +222,11 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
 
       test_run = TestInsights::TestRun.find_by!(run: run, grader_name: "tests")
       expect(test_run).to have_attributes(total_count: 2, passed_count: 2, failed_count: 0)
+
+      # Summary refresh moved off the grader's landing slot into
+      # RefreshTestRuntimeSummariesJob, so it no longer happens inline with
+      # ingestion -- drain the queue before asserting on derived rows.
+      perform_enqueued_jobs(only: RefreshTestRuntimeSummariesJob)
       expect(TestInsights::RuntimeSummary.where(repository: job.repository).count).to eq(4)
     end
   end
