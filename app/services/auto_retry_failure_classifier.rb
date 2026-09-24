@@ -17,6 +17,7 @@ class AutoRetryFailureClassifier
     ProviderUsageLimit::OUTCOME => "provider usage limit or model quota exhausted",
     "error_max_turns" => "agent exhausted max turns",
     "git_state_corrupt" => "agent corrupted git state",
+    "muse_rules_context_too_large" => "Muse workspace rules file exceeds the provider startup context limit",
     "operator_cancelled" => "operator cancelled the run",
     "success" => "run succeeded"
   }.freeze

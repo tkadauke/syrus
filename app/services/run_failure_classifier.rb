@@ -74,6 +74,8 @@ class RunFailureClassifier
       result("timeout", 0.85, true, "The run failed because an operation timed out.")
     when provider_prompt_too_long?
       result("provider_prompt_too_long", 0.95, false, "The provider rejected the request because the prompt exceeded the model context budget.")
+    when muse_rules_context_too_large?
+      result("muse_rules_context_too_large", 1.0, false, "Muse refused to start because the workspace rules file exceeds its startup context limit.")
     when stdin_race_failed?
       result("stdin_race_failed", 0.90, true, "The agent process started before its stdin prompt was delivered; retrying should rerun the invocation with the same prompt.")
     when test_checkout_contention?
@@ -450,6 +452,11 @@ class RunFailureClassifier
       text_match?(
         /\[mcp_servers\].*failed|No such tool available: mcp__syrus-mcp-sidecar|mcp.*sidecar.*failed|sidecar.*failed|initialize response|connection closed: initialize/i
       )
+  end
+
+  def muse_rules_context_too_large?
+    run.agent_outcome == "muse_rules_context_too_large" ||
+      text_match?(/Muse workspace rules file AGENTS\.md is \d+ bytes, which exceeds Muse's \d+-byte startup context limit/i)
   end
 
   def git_failure?
