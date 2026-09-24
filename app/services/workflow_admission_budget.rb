@@ -275,13 +275,14 @@ class WorkflowAdmissionBudget
 
   def profiles_for(candidate_workflow, step_kinds:)
     base = profile_scope_for(candidate_workflow)
-    profile_keys = step_kinds.flat_map { |step_kind| resource_profile_keys_for_kind(step_kind) }
+    profile_keys = step_kinds.flat_map { |step_kind| resource_profile_lookup_groups_for_kind(step_kind).flatten(1) }
     profiles_matching_keys(base, profile_keys)
   end
 
   def profiles_for_step(candidate_step)
     base = profile_scope_for(workflow)
-    profiles_matching_keys(base, resource_profile_keys_for_step(candidate_step))
+    profile_keys = resource_profile_lookup_groups_for_step(candidate_step).flatten(1)
+    profiles_matching_keys(base, profile_keys)
   end
 
   def profiles_matching_keys(base, profile_keys)
@@ -293,16 +294,16 @@ class WorkflowAdmissionBudget
     end
   end
 
-  def resource_profile_keys_for_kind(step_kind)
-    Step::Kind.fetch(step_kind).resource_profile_keys_for
+  def resource_profile_lookup_groups_for_kind(step_kind)
+    Step::Kind.fetch(step_kind).resource_profile_lookup_groups_for
   rescue ArgumentError
-    [ [ step_kind, "" ] ]
+    [ [ [ step_kind, "" ] ] ]
   end
 
-  def resource_profile_keys_for_step(candidate_step)
-    Step::Kind.fetch(candidate_step.kind).resource_profile_keys_for(candidate_step)
+  def resource_profile_lookup_groups_for_step(candidate_step)
+    Step::Kind.fetch(candidate_step.kind).resource_profile_lookup_groups_for(candidate_step)
   rescue ArgumentError
-    [ [ candidate_step.kind, "" ] ]
+    [ [ [ candidate_step.kind, "" ] ] ]
   end
 
   def profile_scope_for(candidate_workflow)
@@ -316,17 +317,38 @@ class WorkflowAdmissionBudget
   end
 
   def predictions_for(step_kinds, profiles)
-    grouped_profiles = profiles.group_by(&:step_kind)
+    matched_profile_ids = []
     step_predictions = step_kinds.flat_map do |step_kind|
-      matching = grouped_profiles.fetch(step_kind, [])
+      matching = matching_profiles_for_lookup_groups(
+        profiles,
+        resource_profile_lookup_groups_for_kind(step_kind)
+      )
+      matching.each { |profile| matched_profile_ids << profile.id }
       matching = [ missing_profile_prediction(step_kind) ] if matching.empty?
       matching.map { |profile| profile.respond_to?(:conservative_prediction) ? profile.conservative_prediction : profile }
     end
     extra_dynamic_predictions = profiles
-      .reject { |profile| step_kinds.include?(profile.step_kind) }
+      .reject { |profile| step_kinds.include?(profile.step_kind) || matched_profile_ids.include?(profile.id) }
       .map(&:conservative_prediction)
 
     step_predictions + extra_dynamic_predictions
+  end
+
+  def matching_profiles_for_lookup_groups(profiles, lookup_groups)
+    lookup_groups.each do |profile_keys|
+      matching = profiles_matching_profile_keys(profiles, profile_keys)
+      return matching if matching.any?
+    end
+
+    []
+  end
+
+  def profiles_matching_profile_keys(profiles, profile_keys)
+    profiles.select do |profile|
+      profile_keys.any? do |step_kind, grader_name|
+        profile.step_kind == step_kind && (grader_name.nil? || profile.grader_name.to_s == grader_name)
+      end
+    end
   end
 
   def missing_profile_prediction(step_kind)

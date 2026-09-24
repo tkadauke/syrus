@@ -48,7 +48,7 @@ class Step
                         :skip_if_artifact, :triggers_auto_approval, :repair_semantics,
                         :advance_handler, :agent_role,
                         :resource_profile_step_kinds, :resource_profile_grader_name_key,
-                        :resource_profile_default_overrides, :waits_for_terminal_step_kind,
+                        :resource_profile_fallback_step_kinds, :resource_profile_default_overrides, :waits_for_terminal_step_kind,
                         :review_gate, :runtime_inserted, :placement_policy) do
       def initialize(kind:, handler:, label:, style:, agentic:,
                      required_mcp_tools: [],
@@ -61,6 +61,7 @@ class Step
                      agent_role: nil,
                      resource_profile_step_kinds: nil,
                      resource_profile_grader_name_key: nil,
+                     resource_profile_fallback_step_kinds: nil,
                      resource_profile_default_overrides: nil,
                      waits_for_terminal_step_kind: nil,
                      review_gate: nil,
@@ -68,6 +69,7 @@ class Step
                      placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
         repair_semantics ||= agentic ? :agentic : :operator_review
         resource_profile_step_kinds ||= [ kind ]
+        resource_profile_fallback_step_kinds ||= []
         super
       end
 
@@ -107,6 +109,13 @@ class Step
         end
       end
 
+      def resource_profile_lookup_groups_for(step = nil)
+        [
+          resource_profile_keys_for(step),
+          resource_profile_fallback_step_kinds.map { |profile_step_kind| [ profile_step_kind, nil ] }
+        ].reject(&:empty?)
+      end
+
       def resource_profile_defaults
         return nil if resource_profile_default_overrides.blank?
 
@@ -137,6 +146,7 @@ class Step
                 skip_if_artifact: "investigation_report"),
       Entry.new(kind: "adversarial_review", handler: "AdversarialReview",  label: "Adversarial review",        style: "bg-rose-100 text-rose-700",   agentic: true,
                 required_mcp_tools: %w[submit_adversarial_review],
+                resource_profile_fallback_step_kinds: %w[implement],
                 review_gate: {
                   artifact_key: "adversarial_review_iterations",
                   exit_verdicts: %w[approved],
@@ -148,6 +158,7 @@ class Step
       # address.
       Entry.new(kind: "visual_review",      handler: "VisualReview",      label: "Visual review",             style: "bg-pink-100 text-pink-700",   agentic: true,
                 required_mcp_tools: %w[submit_visual_review],
+                resource_profile_fallback_step_kinds: %w[implement],
                 review_gate: {
                   artifact_key: "visual_review_iterations",
                   exit_verdicts: %w[approved skipped],
@@ -166,6 +177,7 @@ class Step
       Entry.new(kind: "review_plan",        handler: "ReviewPlan",         label: "Review plan",                style: "bg-orange-100 text-orange-700", agentic: true,
                 required_mcp_tools: %w[submit_review_plan],
                 fail_policy: :advance,
+                resource_profile_fallback_step_kinds: %w[implement],
                 skip_if_artifact: "review_plan"),
       Entry.new(kind: "respond",            handler: "Respond",            label: "Address feedback",           style: "bg-cyan-100 text-cyan-700",   agentic: true),
       Entry.new(kind: "summarize_amend",    handler: "SummarizeAmend",     label: "Summarize",                  style: "bg-indigo-100 text-indigo-700", agentic: true,
