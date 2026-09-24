@@ -182,7 +182,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   if (activeDiff.diff_error) return <PanelMessage tone="error">{activeDiff.diff_error}</PanelMessage>
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+    <div className="grid min-w-0 max-w-full gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start">
       <div className="min-w-0 space-y-4">
         <Section.Root>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -222,7 +222,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
           `SURFACE_CLIP_ROUNDED_CLASS` clips the diff's square corners to the
           panel's rounded corners without that side effect.
         */}
-        <Section.Root className={SURFACE_CLIP_ROUNDED_CLASS} padding="none">
+        <Section.Root className={`min-w-0 max-w-full ${SURFACE_CLIP_ROUNDED_CLASS}`} padding="none">
           <ReviewableDiff
             changedFilesPopup
             comments={feedback.diffThreads}
@@ -260,7 +260,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
           />
         </Section.Root>
       </div>
-      <div className="min-w-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
+      <div className="min-w-0 max-w-full lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
         {feedback.panel}
       </div>
     </div>
