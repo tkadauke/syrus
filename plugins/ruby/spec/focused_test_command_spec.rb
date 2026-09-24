@@ -19,10 +19,7 @@ RSpec.describe Ruby::FocusedTestCommand do
     )
 
     expect(command).to eq(
-      'if [ -x bin/rails ] && [ -f config/database.yml ]; ' \
-      "then RAILS_ENV=test bin/rails db:test:prepare; fi && " \
-      "RAILS_ENV=test " \
-      "RUN_CI_ONLY_SPECS=false COVERAGE=false " \
+      "RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false " \
       "bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb"
     )
   end
