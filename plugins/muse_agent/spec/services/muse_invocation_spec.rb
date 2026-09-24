@@ -149,6 +149,51 @@ RSpec.describe MuseInvocation do
     expect(captured.first[:command]).to include("--trust-workspace")
   end
 
+  it "temporarily bounds oversized AGENTS.md content for Muse and restores the rules file" do
+    events = []
+    observed_rules_size = nil
+    observed_rules_content = nil
+
+    Dir.mktmpdir("muse-workspace") do |workspace|
+      oversized_rules = "A" * (described_class::MUSE_RULES_CONTEXT_LIMIT_BYTES + 10_000)
+      File.write(File.join(workspace, "CLAUDE.md"), oversized_rules)
+      File.symlink("CLAUDE.md", File.join(workspace, "AGENTS.md"))
+
+      allow(ProcessRunner).to receive(:new) do |**kwargs|
+        instance_double(ProcessRunner).tap do |runner|
+          allow(runner).to receive(:run) do
+            if kwargs[:command][0, 2] == %w[muse exec]
+              rules_path = File.join(workspace, "AGENTS.md")
+              observed_rules_size = File.size(rules_path)
+              observed_rules_content = File.read(rules_path)
+              completed_lines_with.each { |line| kwargs[:on_output_line].call(line) }
+            end
+            process_result
+          end
+        end
+      end
+
+      result = described_class.new(
+        workspace,
+        prompt: "P",
+        api_key: "muse-secret",
+        transcript_policy: :exec_jsonl,
+        log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+      ).run
+
+      expect(result).to be_success
+      expect(observed_rules_size).to be <= described_class::MUSE_RULES_CONTEXT_LIMIT_BYTES
+      expect(observed_rules_content).to start_with(described_class::MUSE_RULES_HEADER)
+      expect(File.symlink?(File.join(workspace, "AGENTS.md"))).to be true
+      expect(File.readlink(File.join(workspace, "AGENTS.md"))).to eq("CLAUDE.md")
+      expect(File.size(File.join(workspace, "CLAUDE.md"))).to eq(oversized_rules.bytesize)
+      expect(events).to include(a_collection_including(
+        a_string_including("[muse rules] shortened AGENTS.md"),
+        { kind: "system" }
+      ))
+    end
+  end
+
   # --yolo would bundle trust, approval, and sandbox behavior together. Keep
   # the flags explicit so a future CLI change does not silently widen what a
   # workflow run is allowed to do.

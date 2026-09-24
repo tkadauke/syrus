@@ -23,6 +23,15 @@ class MuseInvocation
   # startup instead of silently dropping the sidecar when it can't connect.
   SETTINGS_SCHEMA_VERSION = 1
   REQUIRED_SERVER_MODE = "required"
+  MUSE_RULES_CONTEXT_LIMIT_BYTES = 65_536
+  MUSE_RULES_HEADER = <<~TEXT.freeze
+    # Muse Workspace Instructions (Bounded)
+
+    Syrus shortened this rules file for Muse because the original AGENTS.md
+    exceeds Muse's startup context limit. The full repository guide remains
+    available in CLAUDE.md; inspect focused sections there when needed.
+
+  TEXT
 
   def initialize(workspace_path, prompt:, api_key:,
                  log_sink: ->(*, **) { },
@@ -95,34 +104,36 @@ class MuseInvocation
       File.write(prompt_path, prompt)
       write_muse_settings!(muse_home: @muse_home, mcp_server: @mcp_server, log_sink: log_sink)
 
-      runner_result = ProcessRunner.new(
-        env: muse_env(workspace_path, muse_home: @muse_home),
-        command: muse_exec_command(
-          workspace_path: workspace_path,
-          prompt_path: prompt_path,
-          session_id: session_id,
-          model: model,
-          reasoning_effort: reasoning_effort,
-          max_model_steps: max_model_steps
-        ),
-        stdin_data: api_key,
-        chdir: workspace_path,
-        timeout: timeout,
-        silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,
-        kind: "agent",
-        run: current_run,
-        workflow: current_run&.workflow,
-        chat_session: current_chat_session,
-        agent: current_agent,
-        stop_requested: -> { stop_requested.call || @required_mcp_failed },
-        on_spawned_process: process_started,
-        on_output_line: ->(line) do
-          exec_jsonl << line
-          exec_jsonl << "\n" unless line.end_with?("\n")
-          update = process_event(line, log_sink)
-          metadata.merge!(update.compact) if update
-        end
-      ).run
+      runner_result = with_bounded_muse_rules_file(workspace_path, log_sink) do
+        ProcessRunner.new(
+          env: muse_env(workspace_path, muse_home: @muse_home),
+          command: muse_exec_command(
+            workspace_path: workspace_path,
+            prompt_path: prompt_path,
+            session_id: session_id,
+            model: model,
+            reasoning_effort: reasoning_effort,
+            max_model_steps: max_model_steps
+          ),
+          stdin_data: api_key,
+          chdir: workspace_path,
+          timeout: timeout,
+          silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,
+          kind: "agent",
+          run: current_run,
+          workflow: current_run&.workflow,
+          chat_session: current_chat_session,
+          agent: current_agent,
+          stop_requested: -> { stop_requested.call || @required_mcp_failed },
+          on_spawned_process: process_started,
+          on_output_line: ->(line) do
+            exec_jsonl << line
+            exec_jsonl << "\n" unless line.end_with?("\n")
+            update = process_event(line, log_sink)
+            metadata.merge!(update.compact) if update
+          end
+        ).run
+      end
 
       apply_missing_terminal_failure!(metadata, runner_result) if metadata[:outcome].blank?
       apply_required_mcp_failure!(metadata, log_sink)
@@ -230,6 +241,53 @@ class MuseInvocation
         "env" => server["env"] || {},
         "mode" => REQUIRED_SERVER_MODE
       }
+    end
+  end
+
+  def with_bounded_muse_rules_file(workspace_path, log_sink)
+    rules_path = File.join(workspace_path, "AGENTS.md")
+    return yield unless File.exist?(rules_path) || File.symlink?(rules_path)
+
+    rules_content = File.binread(rules_path)
+    return yield if rules_content.bytesize <= MUSE_RULES_CONTEXT_LIMIT_BYTES
+
+    original = capture_rules_file_state(rules_path)
+    FileUtils.rm_f(rules_path)
+    File.write(rules_path, bounded_muse_rules_content(rules_content), mode: "wb")
+    log_sink.call(
+      "[muse rules] shortened AGENTS.md from #{rules_content.bytesize} bytes " \
+        "to #{File.size(rules_path)} bytes for Muse startup",
+      kind: "system"
+    )
+    yield
+  ensure
+    restore_rules_file_state(rules_path, original) if original
+  end
+
+  def bounded_muse_rules_content(content)
+    budget = MUSE_RULES_CONTEXT_LIMIT_BYTES - MUSE_RULES_HEADER.bytesize
+    MUSE_RULES_HEADER.b + content.byteslice(0, budget)
+  end
+
+  def capture_rules_file_state(path)
+    if File.symlink?(path)
+      { kind: :symlink, target: File.readlink(path) }
+    elsif File.file?(path)
+      { kind: :file, content: File.binread(path) }
+    else
+      { kind: :other }
+    end
+  end
+
+  def restore_rules_file_state(path, state)
+    return if state[:kind] == :other
+
+    FileUtils.rm_f(path)
+    case state[:kind]
+    when :symlink
+      File.symlink(state.fetch(:target), path)
+    when :file
+      File.write(path, state.fetch(:content), mode: "wb")
     end
   end
 

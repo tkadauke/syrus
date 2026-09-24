@@ -98,6 +98,13 @@ appropriate Syrus stdio MCP sidecar before launching `muse exec`. Muse
 required-tool workflow steps fail fast with `mcp_sidecar_failed` when the JSONL
 stream does not show the required Syrus MCP tools as available or called.
 
+Muse also reads the trusted workspace's `AGENTS.md` as its rules file. When
+that file is larger than Muse's startup context limit, Syrus temporarily
+replaces only Muse's view of `AGENTS.md` with a bounded copy for the process
+launch and restores the original file or symlink immediately afterward. MCP
+server configuration still comes from the isolated Muse settings file, not from
+the rules file.
+
 The adapter streams Muse JSONL envelopes to the run log and parses terminal
 events such as `run.terminal.completed` and `run.terminal.failed` into
 `AgentInvocation::Result`. Internal `task.lifecycle.failed` events are logged

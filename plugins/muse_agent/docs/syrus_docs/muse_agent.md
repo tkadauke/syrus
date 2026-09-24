@@ -93,6 +93,13 @@ what an existing (or legacy) settings file on disk looked like —
 `schema_version` or isn't valid JSON rather than crashing, and preserves any
 unrelated top-level settings already present.
 
+Muse's trusted-workspace startup also ingests `AGENTS.md` as rules content. If
+that file exceeds Muse's known 65,536-byte startup context limit, Syrus
+temporarily swaps in a bounded `AGENTS.md` copy for the Muse process and
+restores the original file or symlink after the process exits. MCP sidecar
+configuration remains in `settings.json`; it is not appended to the truncatable
+rules file.
+
 Syrus Chat can use Muse as an enabled `chat_provider` when the user has a saved
 Muse API key. Chat turns use a per-chat Muse home and stdio chat sidecar
 configuration. Stale Muse chat session resumes retry once as a fresh session
