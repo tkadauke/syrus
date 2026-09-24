@@ -230,6 +230,70 @@ export function fetchKubernetesDeployments(clusterId: number, namespace?: string
   return getJson<KubernetesDeploymentsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/deployments`, namespace))
 }
 
+export type KubernetesStatefulSetRow = {
+  name: string
+  namespace: string
+  replicas: number | null
+  ready_replicas: number
+  current_replicas: number
+  updated_replicas: number
+  created_at: string | null
+}
+
+export type KubernetesStatefulSetsResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  stateful_sets: KubernetesStatefulSetRow[]
+}
+
+export type KubernetesDaemonSetRow = {
+  name: string
+  namespace: string
+  desired_number_scheduled: number
+  current_number_scheduled: number
+  number_ready: number
+  number_available: number
+  created_at: string | null
+}
+
+export type KubernetesDaemonSetsResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  daemon_sets: KubernetesDaemonSetRow[]
+}
+
+export type KubernetesJobRow = {
+  name: string
+  namespace: string
+  completions: number | null
+  parallelism: number | null
+  active_count: number
+  succeeded: number
+  failed: number
+  created_at: string | null
+}
+
+export type KubernetesJobsResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  jobs: KubernetesJobRow[]
+}
+
+export function fetchKubernetesStatefulSets(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesStatefulSetsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/statefulsets`, namespace))
+}
+
+export function fetchKubernetesDaemonSets(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesDaemonSetsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/daemonsets`, namespace))
+}
+
+export function fetchKubernetesJobs(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesJobsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/jobs`, namespace))
+}
+
 export function fetchKubernetesCronJobs(clusterId: number, namespace?: string | null) {
   return getJson<KubernetesCronJobsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/cronjobs`, namespace))
 }

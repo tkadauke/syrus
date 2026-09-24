@@ -13,7 +13,8 @@ The foundation Jobs scaffolded connection management (register a cluster
 from a pasted kubeconfig, test the connection, edit, and delete), the
 read-only Kubernetes API client - one service object per resource kind, and
 the JSON API endpoints those services back: namespaces, pods (including
-per-container log tail), deployments, services, events,
+per-container log tail), deployments, StatefulSets, DaemonSets, Jobs,
+services, events,
 PersistentVolumeClaims, nodes, CronJobs, and a cluster overview backed by
 the `metrics.k8s.io` API. A follow-up Job added the tabbed cluster-browsing
 UI that consumes those endpoints - see "Cluster-browsing UI" below, then a
@@ -115,8 +116,9 @@ it never raises out to the controller.
 `K8sCluster::ApiClient` builds authenticated `Kubeclient::Client` instances
 (the `kubeclient` gem) per Kubernetes API group for a `KubernetesCluster`:
 `#core` (`/api`, `v1` - namespaces, pods, services, events,
-PersistentVolumeClaims, nodes), `#apps` (`apis/apps/v1` - deployments),
-`#batch` (`apis/batch/v1` - CronJobs), and `#metrics`
+PersistentVolumeClaims, nodes), `#apps` (`apis/apps/v1` - deployments,
+StatefulSets, DaemonSets),
+`#batch` (`apis/batch/v1` - CronJobs, Jobs), and `#metrics`
 (`apis/metrics.k8s.io/v1beta1` - see Overview below). Each client is built
 with `as: :parsed`, so entity calls (`get_pods`, `get_deployment`, ...) hand
 back plain parsed JSON hashes instead of `RecursiveOpenStruct` wrappers -
@@ -148,7 +150,8 @@ resource kind gets its own read-only service class under
 DNS/connection-refused - the same two-outcome shape `SchemaInspector` uses):
 
 - `Namespaces`, `Nodes` - cluster-scoped: `#list` and `#describe(name)`.
-- `Pods`, `Deployments`, `Services`, `Endpoints`, `PersistentVolumeClaims`,
+- `Pods`, `Deployments`, `StatefulSets`, `DaemonSets`, `Jobs`, `Services`,
+  `Endpoints`, `PersistentVolumeClaims`,
   `CronJobs` - namespace-scoped: `#list(namespace: nil)` (omitting
   `namespace` lists across every namespace, matching `kubectl get <kind>
   -A`) and `#describe(name, namespace:)` (namespace is required to describe
@@ -217,6 +220,9 @@ GET .../kubernetes_clusters/:id/namespaces[?name=]
 GET .../kubernetes_clusters/:id/pods[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/pods/:name/logs?namespace=[&container=&tail_lines=&previous=&timestamps=]
 GET .../kubernetes_clusters/:id/deployments[?namespace=][?name=&namespace=]
+GET .../kubernetes_clusters/:id/statefulsets[?namespace=][?name=&namespace=]
+GET .../kubernetes_clusters/:id/daemonsets[?namespace=][?name=&namespace=]
+GET .../kubernetes_clusters/:id/jobs[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/services[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/endpoints[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/events[?namespace=]
@@ -246,9 +252,13 @@ mirroring `mysql_db_browser`'s connections-list-to-schema-browser flow:
   plus aggregate node/pod CPU and memory (from `Overview#call`), with a
   graceful "metrics unavailable" message per section instead of an error
   when `metrics.k8s.io` isn't installed.
-- **Workloads** - a workload-kind switcher (Pods/Deployments/CronJobs) over
+- **Workloads** - a workload-kind switcher
+  (Pods/Deployments/StatefulSets/DaemonSets/Jobs/CronJobs) over
   the shared namespace filter, with status/ready/restart-count (pods),
-  ready/available/updated replica counts (deployments), or
+  ready/available/updated replica counts (deployments),
+  ready/current/updated replica counts (StatefulSets),
+  scheduled/ready/available counts (DaemonSets),
+  completions/active/succeeded/failed counts (Jobs), or
   schedule/suspended/active-count (CronJobs) columns, plus an age column
   computed client-side from `created_at`.
 - **Services** - namespaced services with type, cluster IP, and ports, plus
@@ -291,7 +301,7 @@ Each `KubernetesCluster` carries its own `agentic_access_enabled` opt-in
 (surfaced as a checkbox on the connection create/edit form, default `false`),
 independent of the plugin's own enable/disable toggle. When set, that
 specific cluster becomes browsable read-only by workflow and chat agents
-through eleven read-only MCP tools (plus four write tools gated separately -
+through fourteen read-only MCP tools (plus four write tools gated separately -
 see "Write-capable agentic tools" below) exposed via `mcp_tool_set`/`chat_mcp_tool_set`
 (`K8sCluster::WorkflowToolSet` / `K8sCluster::ChatToolSet`,
 `plugins/k8s_cluster/app/services/k8s_cluster/{workflow,chat}_tool_set.rb`),
@@ -305,7 +315,9 @@ mirroring `mysql_db_browser`'s own MCP tool sets:
 - `k8s_cluster_namespaces` / `k8s_cluster_nodes` - list or describe the two
   cluster-scoped kinds. Omitting `name` lists; passing `name` describes that
   one object.
-- `k8s_cluster_pods` / `k8s_cluster_deployments` / `k8s_cluster_services` /
+- `k8s_cluster_pods` / `k8s_cluster_deployments` /
+  `k8s_cluster_statefulsets` / `k8s_cluster_daemonsets` / `k8s_cluster_jobs` /
+  `k8s_cluster_services` /
   `k8s_cluster_pvcs` / `k8s_cluster_cronjobs` - list or describe the
   namespace-scoped kinds. Omitting `namespace` lists across every namespace
   (matching `kubectl get <kind> -A`); passing `name` describes a single
@@ -326,7 +338,8 @@ mirroring `mysql_db_browser`'s own MCP tool sets:
 
 Every tool call takes a `cluster_id` param and every read wraps the matching
 `K8sCluster::` resource service directly (`Namespaces`, `Pods`,
-`Deployments`, `Services`, `Events`, `PersistentVolumeClaims`, `Nodes`,
+`Deployments`, `StatefulSets`, `DaemonSets`, `Jobs`, `Services`, `Events`,
+`PersistentVolumeClaims`, `Nodes`,
 `CronJobs`, `Overview`) - no separate agentic-only code path, so the agent
 sees exactly what the browsing UI sees.
 
