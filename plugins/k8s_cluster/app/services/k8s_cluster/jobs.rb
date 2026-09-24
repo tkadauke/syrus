@@ -29,7 +29,7 @@ module K8sCluster
         namespace: item.dig("metadata", "namespace"),
         completions: integer(item.dig("spec", "completions")),
         parallelism: integer(item.dig("spec", "parallelism")),
-        active_count: (item.dig("status", "active") || []).length,
+        active_count: integer(item.dig("status", "active")).to_i,
         succeeded: integer(item.dig("status", "succeeded")).to_i,
         failed: integer(item.dig("status", "failed")).to_i,
         created_at: item.dig("metadata", "creationTimestamp")
