@@ -12,7 +12,18 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("bundle exec rspec spec/models/widget_spec.rb")
+    expect(command).to eq('export TEST_ENV_NUMBER="_focused_$$"; if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && bundle exec rspec spec/models/widget_spec.rb')
+  end
+
+  it "isolates and prepares the Rails test database before running focused specs" do
+    command = described_class.command_for(
+      grader_name: "rspec",
+      grader_command: "bin/rspec",
+      failed_cases: [ { "file_path" => "spec/services/retry_failed_step_enqueuer_spec.rb" } ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(command).to start_with('export TEST_ENV_NUMBER="_focused_$$"; if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && ')
   end
 
   it "declines when the grader did not opt into plugin strategy" do

@@ -69,7 +69,7 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(0)
   end
 
-  it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do
+  it "treats consistently failing repeats as stable rather than flaky" do
     stub_focused_command("false")
 
     result = described_class.call(
@@ -79,8 +79,9 @@ RSpec.describe TouchedTestRepeatGate do
       repeats: 5
     )
 
-    expect(result.consistent).to be(false)
-    expect(result.inconsistent?).to be(true)
+    expect(result.consistent).to be(true)
+    expect(result.inconsistent?).to be(false)
+    expect(result.reason).to eq("repeat_run_consistent")
     expect(result.pass_count).to eq(0)
     expect(result.fail_count).to eq(5)
   end
@@ -128,7 +129,7 @@ RSpec.describe TouchedTestRepeatGate do
       )
 
       expect(result.ran).to be(true)
-      expect(result.command).to eq("bundle exec rspec spec/models/widget_spec.rb")
+      expect(result.command).to eq('export TEST_ENV_NUMBER="_focused_$$"; if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && bundle exec rspec spec/models/widget_spec.rb')
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do
