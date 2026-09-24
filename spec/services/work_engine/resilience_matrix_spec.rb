@@ -509,6 +509,41 @@ RSpec.describe "Work engine resilience regression matrix" do
     end
   end
 
+  it "plans retryable rate-limit failures for the provider-reported reset time when present" do
+    now = Time.zone.parse("2026-09-18 06:14:12 UTC")
+    reset_at = Time.zone.parse("2026-09-18 06:45:00 UTC")
+    _job, workflow, step, run = matrix_graph
+    step.update_columns(state: "failed", finished_at: now)
+    workflow.update_columns(state: "failed", finished_at: now, cleaned_up_at: nil)
+    run.update_columns(
+      state: "failed",
+      agent_provider: "claude",
+      agent_outcome: "rate_limit",
+      finished_at: now
+    )
+    RunDiagnostic.create!(
+      run: run,
+      error_class: "AgentInvocation::ProviderRateLimit",
+      error_message: "You've hit your session limit - resets 6:40am (UTC)"
+    )
+    replace_failure_classification!(
+      run,
+      classification: "rate_limited",
+      retryable: true,
+      confidence: 0.9,
+      reason: "The run hit an external rate limit.",
+      classified_at: now
+    )
+
+    result = WorkEngine::Reconciler.call(source: "resilience_matrix_spec", run_id: run.id, now: now)
+    repair_plan = plan(result, :schedule_retry_after_rate_limit)
+
+    expect(issue(result, :retryable_run_failure)).to be_present
+    expect(repair_plan).to have_attributes(auto_executable: true, retry_after: be_present)
+    expect(repair_plan.retry_after.to_i).to eq(reset_at.to_i)
+    expect(repair_plan.retry_after).to be > now + AutoRetryAttempt::BACKOFFS.first
+  end
+
   it "workflow failure triggers WorkEngine::ReconcileJob directly" do
     _job, workflow, step, run = matrix_graph
     fail_run!(workflow, step, run, classification: "worker_died", retryable: true, agent_outcome: "worker_died")

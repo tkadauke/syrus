@@ -5238,8 +5238,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     run.update_columns(state: "failed", finished_at: Time.current)
     step.update_columns(state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current)
-    replace_failure_classification!(
-      run,
+    RunFailureClassification.create!(
+      run: run,
       classification: "rate_limited",
       retryable: true,
       confidence: 0.9,
@@ -5271,8 +5271,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     step.update_columns(kind: "merge_train_land", state: "failed", finished_at: Time.current)
     run.update_columns(state: "failed", agent_provider: "claude", finished_at: Time.current)
     attach_work_unit(workflow, kind: "merge_train", state: "failed", member_jobs: [ job ])
-    replace_failure_classification!(
-      run,
+    RunFailureClassification.create!(
+      run: run,
       classification: "rate_limited",
       retryable: true,
       confidence: 0.9,
@@ -5299,42 +5299,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       3.times { reconcile_and_execute(run_id: run.id) }
     }.not_to change { AutoRetryAttempt.where(workflow: workflow, run: run, failure_classification: "rate_limited").count }
     expect(AutoRetryAttempt.pending.where(workflow: workflow, run: run, failure_classification: "rate_limited").count).to eq(1)
-  end
-
-  it "schedules retryable rate-limit failures for the provider-reported reset time when present" do
-    now = Time.zone.parse("2026-09-18 06:14:12 UTC")
-    reset_at = Time.find_zone("UTC").parse("2026-09-18 06:45:00")
-    run.update_columns(
-      state: "failed",
-      agent_provider: "claude",
-      agent_outcome: "rate_limit",
-      finished_at: now
-    )
-    step.update_columns(state: "failed", finished_at: now)
-    workflow.update_columns(state: "failed", finished_at: now)
-    RunDiagnostic.create!(
-      run: run,
-      error_class: "AgentInvocation::ProviderRateLimit",
-      error_message: "You've hit your session limit · resets 6:40am (UTC)"
-    )
-    replace_failure_classification!(
-      run,
-      classification: "rate_limited",
-      retryable: true,
-      confidence: 0.9,
-      reason: "The run hit an external rate limit.",
-      classified_at: now
-    )
-
-    expect {
-      reconcile_and_execute(run_id: run.id, now: now)
-    }.to change { AutoRetryAttempt.where(failure_classification: "rate_limited").count }.by(1)
-      .and have_enqueued_job(AutoRetryJob)
-
-    attempt = AutoRetryAttempt.last
-    expect(attempt).to have_attributes(workflow: workflow, run: run, retry_kind: "failed_step")
-    expect(attempt.scheduled_at.to_i).to eq(reset_at.to_i)
-    expect(attempt.scheduled_at).to be > now + AutoRetryAttempt::BACKOFFS.first
   end
 
   it "refreshes stale provider-delay classifications before planning retry loops" do
