@@ -252,7 +252,14 @@ module Steps
     def focused_test_grader?(name:, definition:)
       definition["grader_mode"].to_s == "focused" ||
         name.to_s.end_with?("-focused") ||
-        definition["target_label"].to_s.end_with?("/focused")
+        focused_target_labels(definition).any? { |label| label.end_with?("/focused", "-focused") }
+    end
+
+    def focused_target_labels(definition)
+      [
+        definition["target_label"],
+        definition["projected_target_label"]
+      ].compact_blank.map(&:to_s)
     end
 
     def touched_test_files_for(definition)
