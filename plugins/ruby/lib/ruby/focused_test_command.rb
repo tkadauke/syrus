@@ -30,7 +30,7 @@ module Ruby
 
       args = explicit_rspec_tag_args
       rspec_args = args.present? ? Shellwords.join([ *args, *files ]) : "#{ci_only_tag_args} #{Shellwords.join(files)}"
-      "#{ci_only_env} COVERAGE=false bundle exec rspec #{rspec_args}"
+      "RAILS_ENV=test #{ci_only_env} COVERAGE=false bundle exec rspec #{rspec_args}"
     end
 
     private
