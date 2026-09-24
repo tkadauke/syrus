@@ -3,6 +3,9 @@ require "shellwords"
 module Ruby
   class FocusedTestCommand
     include Syrus::Plugin::FocusedTestCommand
+    RAILS_ENV_PREFIX = "RAILS_ENV=test".freeze
+    RAILS_TEST_PREPARE_COMMAND = "if [ -x bin/rails ] && [ -f config/database.yml ]; " \
+      "then #{RAILS_ENV_PREFIX} bin/rails db:test:prepare; fi".freeze
 
     def self.command_for(grader_name:, grader_command:, failed_cases:, base_retry:)
       new(grader_name: grader_name, grader_command: grader_command, failed_cases: failed_cases, base_retry: base_retry).command
@@ -22,7 +25,10 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "bundle exec rspec #{Shellwords.join(files)}"
+      [
+        RAILS_TEST_PREPARE_COMMAND,
+        "#{RAILS_ENV_PREFIX} bundle exec rspec #{Shellwords.join(files)}"
+      ].join(" && ")
     end
 
     private

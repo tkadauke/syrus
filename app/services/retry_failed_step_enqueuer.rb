@@ -1,4 +1,6 @@
 class RetryFailedStepEnqueuer
+  Error = Class.new(StandardError)
+
   # Genuine last-resort case: the workflow workspace is gone, so there is no
   # in-place recovery left and Start Over really is the only path forward.
   WORKSPACE_CLEANED_UP_MESSAGE = "Workspace already cleaned up - use Start over.".freeze
@@ -256,7 +258,7 @@ class RetryFailedStepEnqueuer
         revived_cancelled_step_attributes(step)
       )
     else
-      raise AASM::InvalidTransition, "Step #{step.id} cannot be reopened from #{step.state}"
+      raise Error, "Step #{step.id} cannot be reopened from #{step.state}"
     end
   end
 
@@ -286,7 +288,7 @@ class RetryFailedStepEnqueuer
 
   def restart_grade_loop!(fanout)
     loop_node = retry_until_loop_node_for(fanout)
-    raise AASM::InvalidTransition, "Step #{fanout.id} is not in a retry-until grade loop" unless loop_node
+    raise Error, "Step #{fanout.id} is not in a retry-until grade loop" unless loop_node
 
     continuation = grade_loop_continuation_after(fanout)
     anchor = loop_restart_anchor_for(fanout, continuation: continuation)
