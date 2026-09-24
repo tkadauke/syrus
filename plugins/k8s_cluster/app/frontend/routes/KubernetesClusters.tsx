@@ -5,7 +5,7 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { Button, DataTable, Form, Page } from "@app/components/ui"
+import { Button, DataTable, Form, Modal, Page } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
   createKubernetesCluster,
@@ -24,6 +24,10 @@ import { StatusBadge } from "../components/StatusBadge"
 const queryKey = ["k8s_cluster", "clusters"] as const
 
 type BrowseTarget = { clusterId: number; label: string }
+type ConnectionModalState = { mode: "create" } | { mode: "edit"; cluster: KubernetesClusterRow }
+
+const CONNECTION_MODAL_PANEL_CLASS =
+  "flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[var(--radius-panel)] bg-surface shadow-[var(--shadow-panel)]"
 
 const EMPTY_FORM: KubernetesClusterInput = {
   label: "",
@@ -38,6 +42,7 @@ export function KubernetesClusters() {
   usePageTitle(t("heading"))
   const [notice, setNotice] = useState<string | null>(null)
   const [browsing, setBrowsing] = useState<BrowseTarget | null>(null)
+  const [connectionModal, setConnectionModal] = useState<ConnectionModalState | null>(null)
   const clusters = useQuery({
     queryKey,
     queryFn: fetchKubernetesClusters
@@ -52,12 +57,17 @@ export function KubernetesClusters() {
   }
 
   return (
-    <Page.Root aria-label={t("aria_page")} gutter="responsive">
-      <Page.Header>
+    <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide">
+      <Page.Header className="border-b border-border pb-4">
         <Page.HeadingGroup>
           <Page.Title>{t("heading")}</Page.Title>
           <Page.Description>{t("description")}</Page.Description>
         </Page.HeadingGroup>
+        <Page.Actions>
+          <Button onClick={() => setConnectionModal({ mode: "create" })} type="button" variant="primary">
+            {t("create_button")}
+          </Button>
+        </Page.Actions>
       </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -66,69 +76,130 @@ export function KubernetesClusters() {
       {clusters.isError ? <PanelMessage tone="error">{errorMessage(clusters.error, t("error_loading"))}</PanelMessage> : null}
       {clusters.isSuccess ? (
         <>
-          <ClusterCreateForm onNotice={setNotice} />
           <ClustersTable
             clusters={clusters.data.kubernetes_clusters}
             onBrowse={(cluster) => setBrowsing({ clusterId: cluster.id, label: cluster.label })}
+            onEdit={(cluster) => setConnectionModal({ mode: "edit", cluster })}
             onNotice={setNotice}
           />
+          {connectionModal ? (
+            <ClusterConnectionModal
+              key={connectionModal.mode === "edit" ? `edit-${connectionModal.cluster.id}` : "create"}
+              modal={connectionModal}
+              onClose={() => setConnectionModal(null)}
+              onNotice={setNotice}
+            />
+          ) : null}
         </>
       ) : null}
     </Page.Root>
   )
 }
 
-function ClusterCreateForm({ onNotice }: { onNotice: (message: string | null) => void }) {
+function ClusterConnectionModal({
+  modal,
+  onClose,
+  onNotice
+}: {
+  modal: ConnectionModalState
+  onClose: () => void
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("k8s_cluster")
   const queryClient = useQueryClient()
-  const [values, setValues] = useState<KubernetesClusterInput>(EMPTY_FORM)
+  const editing = modal.mode === "edit"
+  const cluster = editing ? modal.cluster : null
+  const [values, setValues] = useState<KubernetesClusterInput>(
+    cluster
+      ? {
+          label: cluster.label,
+          agentic_access_enabled: cluster.agentic_access_enabled,
+          allow_writes: cluster.allow_writes,
+          insecure_skip_tls_verify: cluster.insecure_skip_tls_verify,
+          kubeconfig: ""
+        }
+      : EMPTY_FORM
+  )
   const create = useMutation({
     mutationFn: () => createKubernetesCluster(values),
     onSuccess: (payload) => {
       void queryClient.invalidateQueries({ queryKey })
       onNotice(t("created_notice", { label: payload.kubernetes_cluster.label }))
-      setValues(EMPTY_FORM)
+      onClose()
+    }
+  })
+  const update = useMutation({
+    mutationFn: () => updateKubernetesCluster(cluster?.id ?? 0, values),
+    onSuccess: (payload) => {
+      void queryClient.invalidateQueries({ queryKey })
+      onNotice(t("updated_notice", { label: payload.kubernetes_cluster.label }))
+      onClose()
     }
   })
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     onNotice(null)
-    create.mutate()
+    if (editing) {
+      update.mutate()
+    } else {
+      create.mutate()
+    }
   }
 
+  const busy = create.isPending || update.isPending
+  const error = create.error ?? update.error
+  const fallback = editing ? t("update_error_fallback") : t("create_error_fallback")
+  const title = editing ? t("edit_heading") : t("add_heading")
+
   return (
-    <section className="rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("add_heading")}</h2>
-      <form className="mt-3 space-y-3" onSubmit={submit}>
-        <ClusterFieldsGrid idPrefix="new-cluster" kubeconfigRequired onChange={setValues} values={values} />
-        <Form.Actions align="start" className="pt-0">
-          <Button disabled={create.isPending} type="submit" variant="primary">
-            {create.isPending ? t("creating") : t("create_button")}
+    <Modal className={CONNECTION_MODAL_PANEL_CLASS} label={title} onClose={onClose} open>
+      <form className="flex min-h-0 flex-col" onSubmit={submit}>
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+        </div>
+        <div className="min-h-0 overflow-y-auto px-5 py-4">
+          <ClusterFieldsGrid
+            idPrefix={editing ? `edit-cluster-${cluster?.id}` : "new-cluster"}
+            kubeconfigHint={editing ? t("field_kubeconfig_hint_edit") : undefined}
+            kubeconfigRequired={!editing}
+            onChange={setValues}
+            values={values}
+          />
+          {error ? (
+            <p className="mt-3 text-sm text-danger-text" role="alert">
+              {errorMessage(error, fallback)}
+            </p>
+          ) : null}
+        </div>
+        <Form.Actions align="start" className="border-t border-border px-5 py-4">
+          <Button disabled={busy} type="submit" variant="primary">
+            {busy ? (editing ? t("saving") : t("creating")) : editing ? t("save_button") : t("create_button")}
           </Button>
-          <TestButton onTest={() => testDraftKubernetesCluster(values)} />
+          <Button onClick={onClose} type="button" variant="secondary">
+            {t("cancel_button")}
+          </Button>
+          <TestButton
+            onTest={() => (editing && cluster ? testKubernetesCluster(cluster.id, values.kubeconfig || undefined) : testDraftKubernetesCluster(values))}
+          />
         </Form.Actions>
       </form>
-      {create.isError ? (
-        <p className="mt-3 text-sm text-danger-text" role="alert">
-          {errorMessage(create.error, t("create_error_fallback"))}
-        </p>
-      ) : null}
-    </section>
+    </Modal>
   )
 }
 
 function ClustersTable({
   clusters,
   onBrowse,
+  onEdit,
   onNotice
 }: {
   clusters: KubernetesClusterRow[]
   onBrowse: (cluster: KubernetesClusterRow) => void
+  onEdit: (cluster: KubernetesClusterRow) => void
   onNotice: (message: string | null) => void
 }) {
   const { t } = useT("k8s_cluster")
-  const [editingId, setEditingId] = useState<number | null>(null)
 
   return (
     <section>
@@ -150,13 +221,9 @@ function ClustersTable({
           {clusters.length === 0 ? (
             <DataTable.Empty colSpan={7}>{t("empty")}</DataTable.Empty>
           ) : (
-            clusters.map((cluster) =>
-              editingId === cluster.id ? (
-                <ClusterEditRow cluster={cluster} key={cluster.id} onCancel={() => setEditingId(null)} onNotice={onNotice} onSaved={() => setEditingId(null)} />
-              ) : (
-                <ClusterRow cluster={cluster} key={cluster.id} onBrowse={() => onBrowse(cluster)} onEdit={() => setEditingId(cluster.id)} onNotice={onNotice} />
-              )
-            )
+            clusters.map((cluster) => (
+              <ClusterRow cluster={cluster} key={cluster.id} onBrowse={() => onBrowse(cluster)} onEdit={() => onEdit(cluster)} onNotice={onNotice} />
+            ))
           )}
         </DataTable.Body>
       </DataTable.Root>
@@ -263,67 +330,6 @@ function ClusterActions({
       ) : null}
       {dialog}
     </div>
-  )
-}
-
-function ClusterEditRow({
-  cluster,
-  onCancel,
-  onNotice,
-  onSaved
-}: {
-  cluster: KubernetesClusterRow
-  onCancel: () => void
-  onNotice: (message: string | null) => void
-  onSaved: () => void
-}) {
-  const { t } = useT("k8s_cluster")
-  const queryClient = useQueryClient()
-  const [values, setValues] = useState<KubernetesClusterInput>({
-    label: cluster.label,
-    agentic_access_enabled: cluster.agentic_access_enabled,
-    allow_writes: cluster.allow_writes,
-    insecure_skip_tls_verify: cluster.insecure_skip_tls_verify,
-    kubeconfig: ""
-  })
-  const update = useMutation({
-    mutationFn: () => updateKubernetesCluster(cluster.id, values),
-    onSuccess: (payload) => {
-      void queryClient.invalidateQueries({ queryKey })
-      onNotice(t("updated_notice", { label: payload.kubernetes_cluster.label }))
-      onSaved()
-    }
-  })
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    onNotice(null)
-    update.mutate()
-  }
-
-  return (
-    <DataTable.Row>
-      <DataTable.Cell colSpan={7}>
-        <form className="space-y-3" onSubmit={submit}>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("edit_heading")}</h3>
-          <ClusterFieldsGrid idPrefix={`edit-cluster-${cluster.id}`} kubeconfigHint={t("field_kubeconfig_hint_edit")} onChange={setValues} values={values} />
-          <Form.Actions align="start" className="pt-0">
-            <Button disabled={update.isPending} type="submit" variant="primary">
-              {update.isPending ? t("saving") : t("save_button")}
-            </Button>
-            <Button onClick={onCancel} type="button" variant="secondary">
-              {t("cancel_button")}
-            </Button>
-            <TestButton onTest={() => testKubernetesCluster(cluster.id, values.kubeconfig || undefined)} />
-          </Form.Actions>
-          {update.isError ? (
-            <p className="text-sm text-danger-text" role="alert">
-              {errorMessage(update.error, t("update_error_fallback"))}
-            </p>
-          ) : null}
-        </form>
-      </DataTable.Cell>
-    </DataTable.Row>
   )
 }
 
