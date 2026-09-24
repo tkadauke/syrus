@@ -10,6 +10,8 @@ RSpec.describe RunHostAdmission do
   before do
     allow(SyrusVersion).to receive(:hostname).and_return("worker-a")
     allow(RunProcessParallelism).to receive(:host_capacity).and_return(6)
+    allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(16.gigabytes)
+    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(2.gigabytes)
     workflow.update!(worker_hostname: "worker-a")
   end
 
@@ -90,17 +92,13 @@ RSpec.describe RunHostAdmission do
     expect(decision).to be_admit
   end
 
-  # Admission no longer consults resource profiles at all -- it measures the
-  # host instead of predicting the step. Recorded profiles were ambient host
-  # readings rather than step demand, so a 52-second API call using 2.7% CPU
-  # profiled at 84 cpu_pressure and was rationed like an agent.
-  it "never loads resource profiles" do
+  # Host-correlated profile pressure remains unsuitable for admission. Only
+  # command-attributed memory bytes may increase the reservation.
+  it "does not let host-correlated profiles tighten admission" do
     worker_sample(cpu_pressure_some: 1.0)
     saturate_guarded_slots!
     workflow.update!(state: "running")
     run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-    expect(WorkflowStepResourceProfile).not_to receive(:where)
 
     expect(described_class.call(run: run)).to be_defer
   end
@@ -291,6 +289,46 @@ RSpec.describe RunHostAdmission do
       expect(described_class::ALWAYS_GUARDED_STEP_KINDS).to include("implement")
       worker_sample(cpu_pressure_some: 1.0)
       expect(described_class.call(run: grader_run).reason).to eq("host_capacity_available")
+    end
+
+    it "guards deterministic compute steps that can spawn memory-heavy tools" do
+      worker_sample(cpu_pressure_some: 1.0)
+      format_step = Step.create!(workflow: workflow, kind: "format", position: 98)
+      format_run = format_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+
+      decision = described_class.call(run: format_run)
+
+      expect(decision).to be_admit
+      expect(decision.reason).to eq("host_capacity_available")
+    end
+
+    it "defers compute when measured container memory leaves no room for the candidate" do
+      worker_sample(cpu_pressure_some: 1.0)
+      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(13.gigabytes)
+
+      decision = described_class.call(run: grader_run)
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect(decision.details).to include(
+        "host_memory_limit_bytes" => 16.gigabytes,
+        "current_memory_bytes" => 13.gigabytes
+      )
+    end
+
+    it "uses command-attributed memory to reserve multiple host-scaled units" do
+      worker_sample(cpu_pressure_some: 1.0)
+      process_attributed_grader_profile(
+        grader_name: "rspec",
+        io_bytes: 1.megabyte,
+        memory_bytes: 6.gigabytes
+      )
+      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(8.gigabytes)
+
+      decision = described_class.call(run: grader_run(name: "rspec"))
+
+      expect(decision).to be_defer
+      expect(decision.details.fetch("candidate_reserved_memory_bytes")).to eq(6.gigabytes)
     end
 
     it "uses the same host budget for graders and agentic runs" do

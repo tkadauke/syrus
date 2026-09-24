@@ -13,6 +13,15 @@ class RunProcessParallelism
     cgroup_v2_cpu_count || cgroup_v1_cpu_count || Etc.nprocessors
   end
 
+  def self.effective_memory_limit_bytes
+    limits = [ cgroup_v2_memory_limit, cgroup_v1_memory_limit, proc_memory_total ].compact
+    limits.min
+  end
+
+  def self.current_memory_bytes
+    cgroup_v2_memory_current || cgroup_v1_memory_current
+  end
+
   def initialize(run:, hostname: SyrusVersion.hostname)
     @run = run
     @hostname = hostname
@@ -62,5 +71,44 @@ class RunProcessParallelism
     return if period.to_f <= 0
 
     [ (quota.to_f / period.to_f).ceil, 1 ].max
+  end
+
+  def self.cgroup_v2_memory_limit
+    value = File.read("/sys/fs/cgroup/memory.max").strip
+    return if value == "max"
+
+    positive_bytes(value)
+  rescue Errno::ENOENT, Errno::EACCES
+    nil
+  end
+
+  def self.cgroup_v1_memory_limit
+    positive_bytes(File.read("/sys/fs/cgroup/memory/memory.limit_in_bytes").strip)
+  rescue Errno::ENOENT, Errno::EACCES
+    nil
+  end
+
+  def self.cgroup_v2_memory_current
+    positive_bytes(File.read("/sys/fs/cgroup/memory.current").strip)
+  rescue Errno::ENOENT, Errno::EACCES
+    nil
+  end
+
+  def self.cgroup_v1_memory_current
+    positive_bytes(File.read("/sys/fs/cgroup/memory/memory.usage_in_bytes").strip)
+  rescue Errno::ENOENT, Errno::EACCES
+    nil
+  end
+
+  def self.proc_memory_total
+    kibibytes = File.read("/proc/meminfo")[/^MemTotal:\s+(\d+)\s+kB$/, 1]
+    positive_bytes(kibibytes.to_i * 1024)
+  rescue Errno::ENOENT, Errno::EACCES
+    nil
+  end
+
+  def self.positive_bytes(value)
+    bytes = value.to_i
+    bytes if bytes.positive?
   end
 end

@@ -87,6 +87,26 @@ RSpec.describe TouchedTestRepeatGate do
     expect(provider).to have_received(:prepare_command_for).once
   end
 
+  it "preserves safe dependency environment from the original grader command" do
+    provider = double("focused_test_command_provider")
+    allow(provider).to receive(:command_for).and_return('test "$BUNDLE_PATH" = "$PWD/vendor/bundle"')
+    allow(provider).to receive(:prepare_command_for).and_return('test "$BUNDLE_APP_CONFIG" = "$PWD/.bundle"')
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    step = grader_step_with({
+      "name" => "rspec",
+      "command" => 'export BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle"; bundle exec rspec'
+    })
+
+    result = described_class.call(
+      grader_step: step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 1
+    )
+
+    expect(result.consistent).to be(true)
+  end
+
   it "reports repeat environment setup output when setup fails" do
     logs = []
     provider = double("focused_test_command_provider")

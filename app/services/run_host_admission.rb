@@ -11,6 +11,7 @@ class RunHostAdmission
   # work against the container's effective CPU quota. This scales from laptops
   # to large workers instead of imposing one fleet-wide concurrency constant.
   IO_INTENSIVE_GRADER_BYTES = 1.gigabyte
+  MEMORY_UTILIZATION = 0.8
 
   # visual_diff previews drive a headless browser against a spawned preview
   # app -- IO-heavy on top of the agent turn itself. Colocating more than one
@@ -19,6 +20,7 @@ class RunHostAdmission
   # 2026-09-14 batches, so this step kind gets a narrower cap than the general
   # agentic guard once the host stops looking idle.
   VISUAL_DIFF_STEP_KIND = "visual_diff"
+  LIGHTWEIGHT_STEP_KINDS = %w[mergeability_preflight].freeze
 
   # Agentic starts are staggered so the next decision sees a sample reflecting
   # the previous one. Grader fanout is not staggered; its shared capacity budget
@@ -88,6 +90,11 @@ class RunHostAdmission
       "candidate_compute_units" => candidate_compute_units,
       "guarded_runs_per_host" => guarded_runs_per_host,
       "host_compute_capacity" => host_compute_capacity,
+      "host_memory_limit_bytes" => host_memory_limit_bytes,
+      "host_memory_budget_bytes" => host_memory_budget_bytes,
+      "current_memory_bytes" => current_memory_bytes,
+      "active_reserved_memory_bytes" => active_reserved_memory_bytes,
+      "candidate_reserved_memory_bytes" => candidate_reserved_memory_bytes,
       "resource_guard_kind" => resource_guard_kind,
       "active_grader_run_count" => grader_guard? ? active_grader_run_count : nil,
       "active_io_intensive_grader_run_count" => io_intensive_grader_guard? ? active_io_intensive_grader_run_count : nil,
@@ -126,7 +133,7 @@ class RunHostAdmission
   # ledger: the runs themselves are the record, so there is no new state to
   # keep consistent, and a worker restart cannot lose it.
   def admitted_within_stagger_window?
-    return false if grader_guard?
+    return false if grader_guard? || resource_guard_kind == "compute"
 
     last_started = active_always_guarded_run_scope.maximum(:started_at)
     return false if last_started.blank?
@@ -189,6 +196,7 @@ class RunHostAdmission
 
   def resource_guard_full?
     return true if active_compute_units + candidate_compute_units > host_compute_capacity
+    return true if memory_capacity_full?
     return active_io_intensive_grader_run_count >= io_intensive_runs_per_host if io_intensive_grader_guard?
     return active_visual_diff_preview_run_count >= io_intensive_runs_per_host if resource_guard_kind == "visual_diff_preview"
 
@@ -199,7 +207,8 @@ class RunHostAdmission
     case resource_guard_kind
     when "grader" then grader_runs_per_host
     when "io_intensive_grader", "visual_diff_preview" then io_intensive_runs_per_host
-    else agentic_runs_per_host
+    when "agentic" then agentic_runs_per_host
+    else host_compute_capacity
     end
   end
 
@@ -231,7 +240,64 @@ class RunHostAdmission
   end
 
   def active_compute_units
-    (active_guarded_run_count * agentic_capacity_units) + (active_grader_run_count * grader_capacity_units)
+    @active_compute_units ||= active_run_scope.includes(:step).sum { |active_run| compute_units_for(active_run.step) }
+  end
+
+  def compute_units_for(candidate_step)
+    candidate_step&.agentic? ? agentic_capacity_units : grader_capacity_units
+  end
+
+  def host_memory_limit_bytes
+    @host_memory_limit_bytes ||= RunProcessParallelism.effective_memory_limit_bytes
+  end
+
+  def host_memory_budget_bytes
+    return unless host_memory_limit_bytes
+
+    (host_memory_limit_bytes * MEMORY_UTILIZATION).floor
+  end
+
+  def current_memory_bytes
+    @current_memory_bytes ||= RunProcessParallelism.current_memory_bytes
+  end
+
+  def memory_unit_bytes
+    return unless host_memory_limit_bytes
+
+    [ host_memory_limit_bytes / host_compute_capacity, 1 ].max
+  end
+
+  def candidate_reserved_memory_bytes
+    memory_reservation_for(step)
+  end
+
+  def active_reserved_memory_bytes
+    @active_reserved_memory_bytes ||= active_run_scope.includes(step: { workflow: :job }).sum do |active_run|
+      memory_reservation_for(active_run.step)
+    end
+  end
+
+  def memory_capacity_full?
+    return false unless host_memory_budget_bytes
+
+    reservation_full = active_reserved_memory_bytes + candidate_reserved_memory_bytes > host_memory_budget_bytes
+    measured_full = current_memory_bytes && current_memory_bytes + candidate_reserved_memory_bytes > host_memory_budget_bytes
+    reservation_full || measured_full
+  end
+
+  def memory_reservation_for(candidate_step)
+    fallback = memory_unit_bytes.to_i * compute_units_for(candidate_step)
+    attributed = process_attributed_memory_bytes_for(candidate_step)
+    [ attributed.to_i, fallback, 1 ].max
+  end
+
+  def process_attributed_memory_bytes_for(candidate_step)
+    matching_profiles_for(candidate_step).filter_map do |profile|
+      prediction = profile.conservative_prediction
+      next unless prediction.fetch(:prediction_source) == "command_attributed"
+
+      prediction.fetch(:process_attributed_memory_bytes)
+    end.max
   end
 
   # Storage topology is not discoverable portably from inside every worker.
@@ -257,9 +323,10 @@ class RunHostAdmission
   def resource_guard_kind(candidate = run)
     candidate_step = candidate.step
     return unless candidate_step
+    return if candidate_step.kind.in?(LIGHTWEIGHT_STEP_KINDS)
     return "visual_diff_preview" if visual_diff_preview_step?(candidate_step) && local_health_warning?
     return "agentic" if candidate_step.agentic?
-    return unless grader_step?(candidate_step)
+    return "compute" unless grader_step?(candidate_step)
     return "io_intensive_grader" if io_intensive_command_profile?(candidate_step)
 
     "grader"
@@ -287,9 +354,12 @@ class RunHostAdmission
   end
 
   def matching_profiles_for(candidate_step)
+    @matching_profiles ||= {}
+    return @matching_profiles[candidate_step.id] if @matching_profiles.key?(candidate_step.id)
+
     profile_keys = resource_profile_keys_for(candidate_step)
     step_kinds = profile_keys.map(&:first).uniq
-    WorkflowStepResourceProfile
+    @matching_profiles[candidate_step.id] = WorkflowStepResourceProfile
       .where(
         repository: candidate_step.workflow.job.repository,
         agent_provider: candidate_step.workflow.agent_provider,

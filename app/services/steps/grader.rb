@@ -206,16 +206,28 @@ module Steps
         return
       end
 
+      setup_failed = result.reason == "repeat_environment_setup_failed"
+      diagnostic = if setup_failed
+        "newly touched test repeat setup failed before any repeat ran"
+      else
+        "newly touched tests were flaky: #{result.fail_count}/#{result.repeats} repeat runs failed"
+      end
+      failure_message = if setup_failed
+        "could not prepare focused repeats for #{name}"
+      else
+        "newly touched tests failed intermittently: #{name} (#{result.fail_count}/#{result.repeats} failed)"
+      end
+
       log_path = workspace.path.join(details["log_path"])
       append_grade_diagnostic(
         log_path,
-        "\n[grader:#{name}] newly touched tests were flaky: #{result.fail_count}/#{result.repeats} repeat runs failed\n"
+        "\n[grader:#{name}] #{diagnostic}\n"
       )
       step.update!(details: details.merge("output" => grader_output_excerpt(log_path), "log_bytes" => log_path.size))
       fail_with!(
         :grader_failure,
-        "newly touched tests failed intermittently: #{name} (#{result.fail_count}/#{result.repeats} failed)",
-        evidence: { new_test_flakiness: true, result: result.to_h }
+        failure_message,
+        evidence: { new_test_flakiness: !setup_failed, repeat_environment_setup_failed: setup_failed, result: result.to_h }
       )
     end
 

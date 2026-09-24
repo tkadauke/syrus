@@ -75,6 +75,27 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
     expect(step.reload.details.dig("new_test_flakiness_gate", "consistent")).to be(false)
   end
 
+  it "reports repeat setup failures without calling them flaky tests" do
+    result = TouchedTestRepeatGate::Result.new(
+      ran: true, consistent: false, reason: "repeat_environment_setup_failed",
+      grader_name: "rspec", command: "bundle exec rspec plugins/example/spec/widget_spec.rb",
+      files: [ "plugins/example/spec/widget_spec.rb" ], repeats: 0, pass_count: 0, fail_count: 1
+    )
+    allow(TouchedTestRepeatGate).to receive(:call).and_return(result)
+
+    expect { handler.send(:check_new_test_flakiness!, name: "rspec", definition: step.details) }
+      .to raise_error(Steps::Base::StepFailed) do |error|
+        expect(error.message).to eq("could not prepare focused repeats for rspec")
+        expect(error.evidence).to include(
+          new_test_flakiness: false,
+          repeat_environment_setup_failed: true
+        )
+      end
+
+    expect(@ws_path.join(".syrus/grade-output/rspec.log").read)
+      .to include("repeat setup failed before any repeat ran")
+  end
+
   it "does not attach repeat checks to non-test graders" do
     definition = step.details.merge("grader_framework" => nil)
 

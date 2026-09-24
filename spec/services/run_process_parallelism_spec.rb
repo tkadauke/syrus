@@ -54,4 +54,21 @@ RSpec.describe RunProcessParallelism do
 
     expect(described_class.for(run: run, hostname: "worker-a")).to eq(6)
   end
+
+  it "reads the cgroup v2 memory limit and current usage" do
+    allow(File).to receive(:read).and_call_original
+    allow(File).to receive(:read).with("/sys/fs/cgroup/memory.max").and_return("17179869184\n")
+    allow(File).to receive(:read).with("/sys/fs/cgroup/memory.current").and_return("4294967296\n")
+
+    expect(described_class.effective_memory_limit_bytes).to eq(16.gigabytes)
+    expect(described_class.current_memory_bytes).to eq(4.gigabytes)
+  end
+
+  it "ignores a cgroup v1 unlimited sentinel larger than physical memory" do
+    allow(described_class).to receive(:cgroup_v2_memory_limit).and_return(nil)
+    allow(described_class).to receive(:cgroup_v1_memory_limit).and_return(8.exabytes)
+    allow(described_class).to receive(:proc_memory_total).and_return(16.gigabytes)
+
+    expect(described_class.effective_memory_limit_bytes).to eq(16.gigabytes)
+  end
 end

@@ -21,6 +21,10 @@ class TouchedTestRepeatGate
 
   DEFAULT_REPEATS = 5
   TIMEOUT_SECONDS = 10.minutes
+  INHERITED_ENV_NAMES = %w[
+    BUNDLE_APP_CONFIG BUNDLE_GEMFILE BUNDLE_PATH
+    COVERAGE NODE_ENV RACK_ENV RAILS_ENV RUN_CI_ONLY_SPECS
+  ].freeze
 
   def self.call(...) = new(...).call
 
@@ -163,7 +167,7 @@ class TouchedTestRepeatGate
   def run_command(command, label:)
     status = nil
     Timeout.timeout(TIMEOUT_SECONDS) do
-      output, status = Open3.capture2e(@env, "bash", "-c", command, chdir: @workspace_path)
+      output, status = Open3.capture2e(command_environment, "bash", "-c", command, chdir: @workspace_path)
       unless status&.success?
         excerpt = output.to_s.lines.last(20).join.strip
         @log.call("[flaky_gate:#{grader_name}] #{label} failed (exit #{status&.exitstatus || 'unknown'}):\n#{excerpt}")
@@ -177,6 +181,30 @@ class TouchedTestRepeatGate
 
   def grader_name = @grader_step.details.to_h["name"].to_s
   def grader_command = @grader_step.details.to_h["command"].to_s
+
+  def command_environment
+    @command_environment ||= @env.to_h.merge(inherited_grader_environment)
+  end
+
+  def inherited_grader_environment
+    export_arguments = grader_command[/\A\s*export\s+(.+?);/, 1]
+    return {} if export_arguments.blank?
+
+    Shellwords.split(export_arguments).each_with_object({}) do |assignment, env|
+      name, value = assignment.split("=", 2)
+      next unless value && name.in?(INHERITED_ENV_NAMES)
+
+      env[name] = value.gsub(/\$\{?PWD\}?/, canonical_workspace_path)
+    end
+  rescue ArgumentError
+    {}
+  end
+
+  def canonical_workspace_path
+    @canonical_workspace_path ||= File.realpath(@workspace_path)
+  rescue Errno::ENOENT
+    @workspace_path
+  end
 
   def skipped(reason)
     Result.new(
