@@ -55,6 +55,33 @@ describe("updateRecentChatCache", () => {
 
     vi.useRealTimers()
   })
+
+  it("replaces a cached recent chat title from a rename response", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "recent"], {
+      repositories: [],
+      groups: [
+        {
+          key: "general",
+          label: "General",
+          repository_id: null,
+          chats: [
+            chatRecord({ id: 1, title: "Newer", lastMessageAt: "2026-06-25T11:00:00Z" }),
+            chatRecord({ id: 2, title: "Roadmap sync", lastMessageAt: "2026-06-24T11:00:00Z" })
+          ],
+          has_more: false
+        }
+      ]
+    })
+
+    updateRecentChatCache(queryClient, {
+      ...chatRecord({ id: 2, title: "Launch review", lastMessageAt: "2026-06-24T11:00:00Z" }),
+      title_pending: false
+    })
+
+    const updated = queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])
+    expect(updated?.groups[0]?.chats.map((chat) => chat.title)).toEqual(["Launch review", "Newer"])
+  })
 })
 
 function chatRecord({ id, title, lastMessageAt, updatedAt }: { id: number; title: string; lastMessageAt: string | null; updatedAt?: string }): ChatNavRecord {
