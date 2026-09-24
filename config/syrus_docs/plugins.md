@@ -1282,11 +1282,15 @@ graders that should rerun the complete command at the base revision, and
 per-grader `base_retry: { command: ... }` templates for repositories whose
 test runner needs a custom wrapper.
 
-The built-in Ruby plugin provides focused commands for ordinary RSpec projects
-and contributes rich default grade candidates through `:grade_detector`: full
-RSpec for landing/CI, focused RSpec for review, `failures: allow_inherited`,
-and plugin-backed BRR. The built-in JavaScript plugin provides focused commands
-for Vitest test files when a configured grader opts into plugin-backed BRR.
+The built-in Ruby plugin provides focused commands for ordinary RSpec projects;
+when the checkout looks like a Rails app, it gives the focused run its own
+test database suffix and prepares that database before running the focused
+specs, even if the command is launched from an existing parallel test worker.
+It also contributes rich default grade candidates through
+`:grade_detector`: full RSpec for landing/CI, focused RSpec for review,
+`failures: allow_inherited`, and plugin-backed BRR. The built-in JavaScript
+plugin provides focused commands for Vitest test files when a configured grader
+opts into plugin-backed BRR.
 
 ## `chat_media_source`
 
