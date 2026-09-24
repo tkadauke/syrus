@@ -22,10 +22,7 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      [
-        "if [ -x bin/rails ] && [ -f config/database.yml ]; then RAILS_ENV=test bin/rails db:test:prepare; fi",
-        "RAILS_ENV=test COVERAGE=false bundle exec rspec #{Shellwords.join(files)}"
-      ].join(" && ")
+      "RAILS_ENV=test COVERAGE=false bundle exec rspec #{Shellwords.join(files)}"
     end
 
     private
