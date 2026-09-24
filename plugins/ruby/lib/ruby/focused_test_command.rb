@@ -22,7 +22,7 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "RAILS_ENV=${RAILS_ENV:-test} COVERAGE=${COVERAGE:-false} bundle exec rspec #{Shellwords.join(files)}"
+      "RAILS_ENV=test COVERAGE=false bundle exec rspec #{Shellwords.join(files)}"
     end
 
     private

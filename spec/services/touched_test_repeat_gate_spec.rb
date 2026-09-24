@@ -128,7 +128,7 @@ RSpec.describe TouchedTestRepeatGate do
       )
 
       expect(result.ran).to be(true)
-      expect(result.command).to eq("RAILS_ENV=${RAILS_ENV:-test} COVERAGE=${COVERAGE:-false} bundle exec rspec spec/models/widget_spec.rb")
+      expect(result.command).to eq("RAILS_ENV=test COVERAGE=false bundle exec rspec spec/models/widget_spec.rb")
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do
