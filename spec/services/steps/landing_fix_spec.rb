@@ -160,7 +160,64 @@ RSpec.describe Steps::LandingFix, :ci_only do
     expect { handler.call }.not_to raise_error
 
     expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
-      "no changes were needed -- report_main_concern was filed for this run"
+      "no changes were needed -- report_main_concern was filed for this repair lineage"
+    )
+  end
+
+  it "treats a later no-op repair as successful when an earlier landing_fix iteration reported the same main concern", ci_only: false do
+    step.update!(iteration: 3)
+    prior_step = Step.create!(
+      workflow: workflow,
+      kind: "landing_fix",
+      position: step.position - 1,
+      iteration: 2,
+      loop_id: step.loop_id
+    )
+    prior_run = prior_step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      iteration: prior_step.iteration
+    )
+    MainConcernReport.create!(
+      repository: repository,
+      job: job,
+      workflow: workflow,
+      run: prior_run,
+      reason: "required graders reproduce on the base branch and are unrelated to this landing attempt",
+      failing_tests: [ "spec/models/widget_spec.rb" ]
+    )
+    run.create_provider_session!(
+      provider: run.agent_provider,
+      session_id: "resumed-background-wait",
+      transcript_jsonl: [
+        {
+          "type" => "assistant",
+          "message" => {
+            "content" => [
+              { "type" => "tool_use", "name" => "Bash", "id" => "u1", "input" => { "command" => "bin/rspec spec/models/widget_spec.rb &" } }
+            ]
+          }
+        }.to_json,
+        {
+          "type" => "assistant",
+          "message" => {
+            "content" => [
+              { "type" => "text", "text" => "I'll wait for the completion notification." }
+            ]
+          }
+        }.to_json
+      ].join("\n")
+    )
+    allow(handler).to receive(:diff_against_default).and_return("diff --git a/app.rb b/app.rb\n+existing")
+    allow(handler).to receive(:diff_against_sha).and_return("")
+
+    expect(AgenticWaitingNoDiffDetector.detect?(run)).to be(true)
+
+    expect { handler.call }.not_to raise_error
+
+    expect(run.job_logs.pluck(:chunk).join("\n")).to include(
+      "no changes were needed -- report_main_concern was filed for this repair lineage"
     )
   end
 
