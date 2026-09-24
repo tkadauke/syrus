@@ -181,6 +181,75 @@ module Steps
 
     private
 
+    def check_new_test_flakiness!(name:, definition:)
+      return unless repository.new_test_flakiness_gate_enabled?
+      return unless typed_test_grader?(definition)
+
+      touched_files = touched_test_files_for(definition)
+      return if touched_files.empty?
+
+      log("[grader:#{name}] flaky_gate: checking #{touched_files.join(', ')} for day-one flakiness")
+      result = TouchedTestRepeatGate.call(
+        grader_step: step,
+        touched_files: touched_files,
+        repeats: repository.new_test_flakiness_gate_repeats.presence || TouchedTestRepeatGate::DEFAULT_REPEATS,
+        workspace_path: workspace.path,
+        env: env,
+        log: ->(message) { log(message, kind: "system") }
+      )
+      return unless result.ran
+
+      details = step.details.to_h.merge("new_test_flakiness_gate" => result.to_h.stringify_keys)
+      if result.repeats.to_i.zero?
+        log("[grader:#{name}] flaky_gate: no repeat runs completed; treating as inconclusive", kind: "system")
+        step.update!(details: details)
+        return
+      end
+
+      if result.consistent
+        step.update!(details: details)
+        return
+      end
+
+      setup_failed = result.reason == "repeat_environment_setup_failed"
+      diagnostic = if setup_failed
+        "newly touched test repeat setup failed before any repeat ran"
+      else
+        "newly touched tests were flaky: #{result.fail_count}/#{result.repeats} repeat runs failed"
+      end
+      failure_message = if setup_failed
+        "could not prepare focused repeats for #{name}"
+      else
+        "newly touched tests failed intermittently: #{name} (#{result.fail_count}/#{result.repeats} failed)"
+      end
+
+      log_path = workspace.path.join(details["log_path"])
+      append_grade_diagnostic(
+        log_path,
+        "\n[grader:#{name}] #{diagnostic}\n"
+      )
+      step.update!(details: details.merge("output" => grader_output_excerpt(log_path), "log_bytes" => log_path.size))
+      fail_with!(
+        :grader_failure,
+        failure_message,
+        evidence: { new_test_flakiness: !setup_failed, repeat_environment_setup_failed: setup_failed, result: result.to_h }
+      )
+    end
+
+    def typed_test_grader?(definition)
+      definition["grader_framework"].to_s.in?(%w[rspec vitest])
+    end
+
+    def touched_test_files_for(definition)
+      files = TouchedTestFiles.call(workspace_path: workspace.path, base_ref: base_revision_sha)
+      patterns = Array(definition["when_files_changed"]).compact_blank
+      return files if patterns.empty?
+
+      files.select do |file|
+        RepositoryContent::Glob.match?(patterns, file)
+      end
+    end
+
     def accept_failure_by_base_retry?(name:, definition:)
       return false unless definition["failures"] == MainBranchFailureClassifier::ALLOW_INHERITED
       return false if definition["base_retry"].blank?
