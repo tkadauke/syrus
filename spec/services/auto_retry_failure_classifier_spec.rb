@@ -166,6 +166,20 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result.classification).to eq("provider_auth_expired")
   end
 
+  it "classifies locally missing Codex credentials as non-retryable before generic turn_failed" do
+    fail_run!(
+      agent_outcome: "turn_failed",
+      error_class: "AgentProviders::ConfigurationError",
+      error_message: "Codex API key is not configured"
+    )
+    run.update!(agent_provider: "codex")
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_retryable
+    expect(result.classification).to eq("provider_auth_expired")
+  end
+
   it "classifies Codex websocket 401 logs as non-retryable before generic turn_failed" do
     fail_run!(agent_outcome: "turn_failed")
     run.update!(agent_provider: "codex")
