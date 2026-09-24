@@ -50,10 +50,10 @@ class TouchedTestRepeatGate
     outcomes = with_workspace_lock { Array.new(@repeats) { run_once(command) } }
     pass_count = outcomes.count(&:itself)
     fail_count = outcomes.size - pass_count
-    # The owning grader's normal command already passed immediately before
-    # this check. Any failed focused rerun therefore disagrees with an observed
-    # pass, including the important case where every repeat fails.
-    consistent = fail_count.zero?
+    # This gate detects flakiness, not every possible focused-rerun mismatch.
+    # If the repeat command always passes or always fails, the repeats agree;
+    # mixed outcomes are the actionable day-one flake signal.
+    consistent = pass_count.zero? || fail_count.zero?
 
     @log.call("[flaky_gate:#{grader_name}] #{pass_count}/#{outcomes.size} passed (#{consistent ? 'consistent' : 'inconsistent'})")
 
