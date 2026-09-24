@@ -25,8 +25,8 @@ test("signed-in user finds the seeded demo Epic from the sidebar search box", as
 })
 
 // The demo Epic's slug is its id, which depends on what else the database
-// has seen -- it is EPIC-1 only on a database where it happened to be the
-// first Epic. Ask for it rather than assuming.
+// has seen -- it is the first slug only on a database where it happened to be
+// the first Epic. Ask for it rather than assuming.
 function demoEpicSlug(): string {
   const output = execFileSync("bin/rails", ["runner", `
     puts Epic.find_by!(title: "Preview the operator workflow").slug

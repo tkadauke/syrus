@@ -223,8 +223,8 @@ describe("DiffReviewVersionSelector", () => {
     )
 
     // The selected/collapsed label on the closed button must not read the
-    // bare "RUN-149674" for the currently selected (later) version -- that
-    // is indistinguishable from what the earlier version would also show.
+    // bare run label for the currently selected (later) version -- that is
+    // indistinguishable from what the earlier version would also show.
     expect(screen.getByText("RUN-149674 (bbbbbbb)")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: /Version/ }))

@@ -7,13 +7,38 @@ and `ROADMAP.md` for milestone planning.
 
 ## Repository hygiene
 
-Never commit references to a private Syrus instance's internal identifiers
-(`JOB-<id>`, `EPIC-<id>`, `WF-<id>`, `RUN-<id>`, chat IDs, private instance
-hostnames, or private repository incident labels) as historical breadcrumbs in
-code, tests, fixtures, or documentation. Use descriptive names for regression
-fixtures and small, obviously fictional placeholder identifiers in product
-examples. Instance-specific evidence belongs in the operator conversation or
-in `docs/plans`, not in the codebase.
+**Never name a private Syrus instance's records in prose.** `JOB-<id>`,
+`EPIC-<id>`, `WF-<id>`, `RUN-<id>`, chat IDs, private instance hostnames, and
+private repository incident labels must not appear in comments, spec
+descriptions, commit-adjacent docs, or any file under `config/syrus_docs/` /
+`website/` / a plugin's `docs/`. They mean nothing to anyone outside that one
+instance, and they go stale the moment the record is archived.
+
+The moment this bites is right after you debug a production incident, when
+the natural thing to write is `# Regression for WF-29556:` or
+`# this was JOB-409's root cause`. Write the *explanation* instead — the
+identifier was only ever standing in for it:
+
+```ruby
+# Bad                                  # Good
+# Regression for WF-29556: ...         # Regression: ...
+# the WF-480 run storm                 # a production run storm
+# matching JOB-5025's delete-only …    # matching the previous delete-only …
+# WF-28163 ran 14 of them one at a …   # a production workflow ran 14 of them …
+# Part of EPIC-27: groundwork for …    # Part of the access-control work: …
+```
+
+This is about prose, **not** about identifier-shaped strings:
+
+- Test fixture values are fine as-is. `run_id: 149674`, `slug: "JOB-874"`,
+  `EPIC-7` in a component test — leave them alone, don't renumber them.
+- Format examples are fine: `syrus checkout JOB-<id>`, "accepts `JOB-123`,
+  `job-123`, or `123`", `JOB-42` in a CLI doc.
+- `docs/plans/**` is exempt — it is the designated home for
+  instance-specific evidence, alongside the operator conversation.
+
+`spec/architecture/no_private_instance_identifiers_spec.rb` enforces the
+comment half of this mechanically; the docs half is on you.
 
 ## Stack
 
