@@ -1,4 +1,3 @@
-require "digest"
 require "shellwords"
 
 module Ruby
@@ -23,28 +22,13 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "export RAILS_ENV=test COVERAGE=false TEST_ENV_NUMBER=${TEST_ENV_NUMBER:-#{test_env_number(files)}}; " \
-        "#{rails_prepare_command} #{rspec_command} #{Shellwords.join(files)}"
+      "bundle exec rspec #{Shellwords.join(files)}"
     end
 
     private
 
     def rspec_grader?
       @grader_name.include?("rspec") || @grader_command.match?(/\brspec\b/)
-    end
-
-    def rspec_command
-      return "bin/rspec-worker" if @grader_command.match?(/\bbin\/rspec-worker\b/)
-
-      "bundle exec rspec"
-    end
-
-    def rails_prepare_command
-      "if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi &&"
-    end
-
-    def test_env_number(files)
-      "_syrus_flaky_#{Digest::SHA1.hexdigest(([@grader_name] + files).join("\0"))[0, 8]}"
     end
 
     def failed_spec_files
