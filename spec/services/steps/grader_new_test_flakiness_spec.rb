@@ -125,4 +125,11 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
     expect(TouchedTestRepeatGate).not_to receive(:call)
     handler.send(:check_new_test_flakiness!, name: "plugins-example-rspec-focused", definition: definition)
   end
+
+  it "does not attach repeat checks to focused graders missing mode metadata" do
+    definition = step.details.merge("target_label" => "//plugins/example:grade/rspec-focused")
+
+    expect(TouchedTestRepeatGate).not_to receive(:call)
+    handler.send(:check_new_test_flakiness!, name: "plugins-example-rspec-focused", definition: definition)
+  end
 end
