@@ -3398,7 +3398,7 @@ module WorkEngine
 
     def retry_after_for(run, classification)
       quota_reset = ProviderQuotaReset.retry_after_for_run(run, now: now)
-      return quota_reset if provider_quota_classification?(classification) && quota_reset
+      return quota_reset if provider_reset_aware_classification?(classification) && quota_reset
       return run.user.gh_rate_limit_reset_at if classification.classification == "rate_limited" && run.user.gh_rate_limit_reset_at&.future?
 
       nil
@@ -3442,12 +3442,17 @@ module WorkEngine
     def trusted_provider_delay_classification?(run, classification)
       case classification.classification
       when "rate_limited"
-        run.user&.gh_rate_limit_reset_at&.future?
+        run.user&.gh_rate_limit_reset_at&.future? ||
+          ProviderQuotaReset.retry_after_for_run(run, now: now).present?
       when ProviderUsageLimit::CLASSIFICATION
         ProviderQuotaReset.retry_after_for_run(run, now: now).present?
       else
         false
       end
+    end
+
+    def provider_reset_aware_classification?(classification)
+      classification&.classification.in?([ "rate_limited", ProviderUsageLimit::CLASSIFICATION ])
     end
 
     def provider_quota_classification?(classification)

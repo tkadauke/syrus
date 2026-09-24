@@ -28,7 +28,8 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "bundle exec rspec #{Shellwords.join([ *rspec_tag_args, *files ])}"
+      tag_args = rspec_tag_args.presence || ci_only_tag_args
+      "#{ci_only_env} COVERAGE=false bundle exec rspec #{Shellwords.join([ *tag_args, *files ])}"
     end
 
     private
@@ -57,6 +58,20 @@ module Ruby
       args
     rescue ArgumentError
       []
+    end
+
+    def ci_only_env
+      ci_only_grader? ? "RUN_CI_ONLY_SPECS=true" : "RUN_CI_ONLY_SPECS=false"
+    end
+
+    def ci_only_tag_args
+      ci_only_grader? ? [ "--tag", "ci_only" ] : [ "--tag", "~ci_only" ]
+    end
+
+    def ci_only_grader?
+      @grader_name.include?("rspec-ci") ||
+        @grader_command.include?("RUN_CI_ONLY_SPECS=true") ||
+        @grader_command.include?("--tag ci_only")
     end
   end
 end
