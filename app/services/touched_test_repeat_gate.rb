@@ -1,3 +1,4 @@
+require "fileutils"
 require "open3"
 require "shellwords"
 require "timeout"
@@ -18,6 +19,9 @@ class TouchedTestRepeatGate
   Result = Data.define(:ran, :consistent, :reason, :grader_name, :command, :files, :repeats, :pass_count, :fail_count) do
     def inconsistent? = ran && !consistent
   end
+
+  LOCKS_MUTEX = Mutex.new
+  LOCKS = Hash.new { |locks, key| locks[key] = Mutex.new }
 
   DEFAULT_REPEATS = 5
   TIMEOUT_SECONDS = 10.minutes
@@ -43,7 +47,7 @@ class TouchedTestRepeatGate
     end
 
     @log.call("[flaky_gate:#{grader_name}] rerunning #{@touched_files.join(', ')} #{@repeats}x: #{command}")
-    outcomes = Array.new(@repeats) { run_once(command) }
+    outcomes = with_workspace_lock { Array.new(@repeats) { run_once(command) } }
     pass_count = outcomes.count(&:itself)
     fail_count = outcomes.size - pass_count
     # The owning grader's normal command already passed immediately before
@@ -144,6 +148,24 @@ class TouchedTestRepeatGate
   rescue Timeout::Error
     @log.call("[flaky_gate:#{grader_name}] repeat run timed out after #{TIMEOUT_SECONDS.to_i}s")
     false
+  end
+
+  def with_workspace_lock
+    lock_dir = File.join(@workspace_path, ".syrus")
+    FileUtils.mkdir_p(lock_dir)
+    lock_path = File.join(lock_dir, "touched_test_repeat_gate.lock")
+    mutex_for(lock_path).synchronize do
+      File.open(lock_path, File::RDWR | File::CREAT, 0o644) do |lock|
+        lock.flock(File::LOCK_EX)
+        yield
+      ensure
+        lock.flock(File::LOCK_UN) if lock
+      end
+    end
+  end
+
+  def mutex_for(lock_path)
+    LOCKS_MUTEX.synchronize { LOCKS[lock_path] }
   end
 
   def grader_name = @grader_step.details.to_h["name"].to_s

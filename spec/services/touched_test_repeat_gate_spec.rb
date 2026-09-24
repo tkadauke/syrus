@@ -1,4 +1,5 @@
 require "rails_helper"
+require "shellwords"
 require "tmpdir"
 
 RSpec.describe TouchedTestRepeatGate do
@@ -83,6 +84,42 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.inconsistent?).to be(true)
     expect(result.pass_count).to eq(0)
     expect(result.fail_count).to eq(5)
+  end
+
+  it "serializes repeat runs within a workspace" do
+    active_path = File.join(@dir, "active")
+    max_path = File.join(@dir, "max_active")
+    script = "active_path, max_path = ARGV; " \
+      "active = File.exist?(active_path) ? File.read(active_path).to_i : 0; " \
+      "active += 1; " \
+      "File.write(active_path, active); " \
+      "max_active = File.exist?(max_path) ? File.read(max_path).to_i : 0; " \
+      "File.write(max_path, [ max_active, active ].max); " \
+      "sleep 0.2; " \
+      "File.write(active_path, [ File.read(active_path).to_i - 1, 0 ].max)"
+    command = [
+      "ruby",
+      "-e",
+      script,
+      active_path,
+      max_path
+    ].shelljoin
+    stub_focused_command(command)
+
+    threads = 2.times.map do
+      Thread.new do
+        described_class.call(
+          grader_step: grader_step,
+          touched_files: [ "spec/stable_spec.rb" ],
+          workspace_path: @dir,
+          repeats: 1
+        )
+      end
+    end
+    results = threads.map(&:value)
+
+    expect(results).to all(have_attributes(consistent: true))
+    expect(File.read(max_path).to_i).to eq(1)
   end
 
   it "skips without running anything when there are no touched files" do
