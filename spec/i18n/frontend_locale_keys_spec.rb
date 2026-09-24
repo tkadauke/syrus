@@ -27,6 +27,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
     ],
     "common" => %w[
       status.skipped
+      status.warning
       blocked_reasons.pr_checks_failing_base_unknown
       blocked_reasons.pr_checks_failing_base_stale
     ],
