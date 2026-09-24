@@ -68,6 +68,7 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
       files: [ "plugins/example/spec/widget_spec.rb" ], repeats: 4, pass_count: 2, fail_count: 2
     )
     allow(TouchedTestRepeatGate).to receive(:call).and_return(result)
+    allow(handler).to receive(:log)
 
     expect { handler.send(:check_new_test_flakiness!, name: "rspec", definition: step.details) }
       .to raise_error(Steps::Base::StepFailed) { |error| expect(error.evidence[:new_test_flakiness]).to be(true) }
