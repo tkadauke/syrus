@@ -149,6 +149,45 @@ RSpec.describe MuseInvocation do
     expect(captured.first[:command]).to include("--trust-workspace")
   end
 
+  it "fails before launch when AGENTS.md exceeds Muse's rules context limit" do
+    events = []
+
+    Dir.mktmpdir("muse-workspace") do |workspace|
+      oversized_rules = "A" * (described_class::MUSE_RULES_CONTEXT_LIMIT_BYTES + 10_000)
+      File.write(File.join(workspace, "CLAUDE.md"), oversized_rules)
+      File.symlink("CLAUDE.md", File.join(workspace, "AGENTS.md"))
+      system("git", "-C", workspace, "init", "--quiet")
+      system("git", "-C", workspace, "config", "user.email", "spec@example.test")
+      system("git", "-C", workspace, "config", "user.name", "Spec")
+      system("git", "-C", workspace, "add", "CLAUDE.md", "AGENTS.md")
+      system("git", "-C", workspace, "commit", "--quiet", "-m", "rules")
+
+      expect(ProcessRunner).not_to receive(:new)
+
+      result = described_class.new(
+        workspace,
+        prompt: "P",
+        api_key: "muse-secret",
+        transcript_policy: :exec_jsonl,
+        log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+      ).run
+
+      expect(result).not_to be_success
+      expect(result.outcome).to eq(described_class::MUSE_RULES_CONTEXT_OUTCOME)
+      expect(result.final_text).to include("exceeds Muse's 65536-byte startup context limit")
+      expect(File.symlink?(File.join(workspace, "AGENTS.md"))).to be true
+      expect(File.readlink(File.join(workspace, "AGENTS.md"))).to eq("CLAUDE.md")
+      expect(File.size(File.join(workspace, "CLAUDE.md"))).to eq(oversized_rules.bytesize)
+      status_output, status = Open3.capture2("git", "-C", workspace, "status", "--porcelain")
+      expect(status).to be_success
+      expect(status_output).to be_empty
+      expect(events).to include(a_collection_including(
+        a_string_including("[muse rules]", "exceeds Muse's 65536-byte startup context limit"),
+        { kind: "system" }
+      ))
+    end
+  end
+
   # --yolo would bundle trust, approval, and sandbox behavior together. Keep
   # the flags explicit so a future CLI change does not silently widen what a
   # workflow run is allowed to do.
@@ -582,13 +621,15 @@ RSpec.describe MuseInvocation do
     stub_process_runners(lines: fixture_lines, captured: captured)
 
     Dir.mktmpdir("syrus-muse-home-") do |muse_home|
-      described_class.new(
-        Dir.pwd,
-        prompt: "P",
-        api_key: "muse-secret",
-        transcript_policy: :exec_jsonl,
-        muse_home: muse_home
-      ).run
+      Dir.mktmpdir("muse-workspace") do |workspace|
+        described_class.new(
+          workspace,
+          prompt: "P",
+          api_key: "muse-secret",
+          transcript_policy: :exec_jsonl,
+          muse_home: muse_home
+        ).run
+      end
     end
 
     expect(captured.first[:env]).to include("MUSE_NO_AUTO_UPDATE" => "1")
@@ -943,39 +984,38 @@ RSpec.describe MuseInvocation do
   # settings file we generate -- this is what actually caught the original
   # bug (`missing field schema_version`), which no amount of pure-Ruby JSON
   # parsing coverage would have caught on its own.
-  it "produces a settings.json the installed muse binary does not reject as malformed" do
-    muse_path = `which muse 2>/dev/null`.strip
-    skip("muse binary not found on PATH; skipping CLI smoke test, deterministic Ruby coverage above stands alone") if muse_path.empty?
+  if system("which muse >/dev/null 2>&1")
+    it "produces a settings.json the installed muse binary does not reject as malformed" do
+      Dir.mktmpdir("muse-home") do |muse_home|
+        Dir.mktmpdir("muse-workspace") do |workspace|
+          invocation = described_class.new(workspace, prompt: "P", api_key: "muse-secret")
+          invocation.send(
+            :write_muse_settings!,
+            muse_home: muse_home,
+            mcp_server: { "syrus-mcp-sidecar" => { command: "/bin/echo", args: [ "hi" ], env: {} } },
+            log_sink: ->(*, **) { }
+          )
 
-    Dir.mktmpdir("muse-home") do |muse_home|
-      Dir.mktmpdir("muse-workspace") do |workspace|
-        invocation = described_class.new(workspace, prompt: "P", api_key: "muse-secret")
-        invocation.send(
-          :write_muse_settings!,
-          muse_home: muse_home,
-          mcp_server: { "syrus-mcp-sidecar" => { command: "/bin/echo", args: [ "hi" ], env: {} } },
-          log_sink: ->(*, **) { }
-        )
+          prompt_path = File.join(workspace, "prompt.txt")
+          File.write(prompt_path, "say hi, then stop")
+          env = {
+            "HOME" => muse_home,
+            "XDG_CONFIG_HOME" => File.join(muse_home, ".config"),
+            "MUSE_NO_AUTO_UPDATE" => "1"
+          }
 
-        prompt_path = File.join(workspace, "prompt.txt")
-        File.write(prompt_path, "say hi, then stop")
-        env = {
-          "HOME" => muse_home,
-          "XDG_CONFIG_HOME" => File.join(muse_home, ".config"),
-          "MUSE_NO_AUTO_UPDATE" => "1"
-        }
+          settings = JSON.parse(File.read(File.join(muse_home, ".config", "muse", "settings.json")))
+          expect(settings).to include("mcpServers")
+          expect(settings).not_to include("mcp_servers")
 
-        settings = JSON.parse(File.read(File.join(muse_home, ".config", "muse", "settings.json")))
-        expect(settings).to include("mcpServers")
-        expect(settings).not_to include("mcp_servers")
+          _stdout, stderr, = Open3.capture3(
+            env, "muse", "exec", "--json", "--provider", "echo", "--workspace", workspace,
+            "--approval-mode", "never", "--disable-approval", "--disable-sandbox", "--prompt-file", prompt_path
+          )
 
-        _stdout, stderr, = Open3.capture3(
-          env, "muse", "exec", "--json", "--provider", "echo", "--workspace", workspace,
-          "--approval-mode", "never", "--disable-approval", "--disable-sandbox", "--prompt-file", prompt_path
-        )
-
-        expect(stderr).not_to include("malformed settings file")
-        expect(stderr).not_to include("missing field `schema_version`")
+          expect(stderr).not_to include("malformed settings file")
+          expect(stderr).not_to include("missing field `schema_version`")
+        end
       end
     end
   end
