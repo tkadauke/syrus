@@ -3,7 +3,6 @@ require "shellwords"
 module Ruby
   class FocusedTestCommand
     include Syrus::Plugin::FocusedTestCommand
-    RAILS_ENV_PREFIX = "RAILS_ENV=test".freeze
 
     def self.command_for(grader_name:, grader_command:, failed_cases:, base_retry:)
       new(grader_name: grader_name, grader_command: grader_command, failed_cases: failed_cases, base_retry: base_retry).command
@@ -29,7 +28,7 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "#{RAILS_ENV_PREFIX} RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag #{Shellwords.escape('~ci_only')} #{Shellwords.join(files)}"
+      "RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag #{Shellwords.escape('~ci_only')} #{Shellwords.join(files)}"
     end
 
     private
