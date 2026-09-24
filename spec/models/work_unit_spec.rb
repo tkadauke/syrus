@@ -197,6 +197,53 @@ RSpec.describe WorkUnit do
     }.to raise_error(ArgumentError, /terminal/)
   end
 
+  describe "blocked_at" do
+    # `blocked since` used to be read off updated_at, which every re-check
+    # bumped: main-branch health re-polls every five minutes, so a block in
+    # force for thirteen hours reported five minutes and no staleness
+    # heuristic keyed on it could ever fire.
+    it "keeps the original timestamp when the same reason is re-applied" do
+      unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
+
+      unit.block!(reason: "main_branch_health", blocked_until: 5.minutes.from_now)
+      first = unit.reload.blocked_at
+      expect(first).to be_present
+
+      travel_to(20.minutes.from_now) do
+        unit.block!(reason: "main_branch_health", blocked_until: 5.minutes.from_now)
+      end
+
+      expect(unit.reload.blocked_at).to be_within(1.second).of(first)
+      expect(unit.updated_at).to be > first
+    end
+
+    it "starts a new episode when the reason changes" do
+      unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
+
+      unit.block!(reason: "main_branch_health")
+      first = unit.reload.blocked_at
+
+      travel_to(20.minutes.from_now) do
+        unit.block!(reason: "admission_control")
+        expect(unit.reload.blocked_at).to be > first
+      end
+    end
+
+    it "clears on unblock, run and terminal transitions" do
+      unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
+
+      unit.block!(reason: "main_branch_health")
+      expect(unit.reload.blocked_at).to be_present
+
+      unit.unblock!
+      expect(unit.reload.blocked_at).to be_nil
+
+      unit.block!(reason: "admission_control")
+      unit.mark_running!
+      expect(unit.reload.blocked_at).to be_nil
+    end
+  end
+
   it "records manual pause intent separately from blocked state" do
     unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
 

@@ -272,7 +272,18 @@
     "main_branch_broken": "Hauptbranch defekt",
     "urgent_job_active": "Dringende Aufgabe läuft",
     "workflow_admission_budget": "Workflow-Zulassung verzögert",
-    "provider_availability": "Provider-Verfügbarkeit pausiert"
+    "provider_availability": "Provider-Verfügbarkeit pausiert",
+    "admission_control": "Workflow-Zulassung verzögert",
+    "manual_pause": "Von Operator pausiert",
+    "main_branch_health": "Hauptbranch defekt",
+    "epic_wide_workflow_active": "Epic-Arbeit läuft",
+    "resource_safety": "Worker-Kapazität",
+    "ci_repair_safety": "CI-Reparatur läuft",
+    "active_work_lock": "Wartet auf eine Sperre",
+    "auto_retry_backoff": "Wiederholungs-Wartezeit",
+    "visual_diff_obsolete": "Vergleich nicht mehr nötig",
+    "preempted": "Verdrängt",
+    "landing_paused": "Landing pausiert"
   },
   "start_blocked_reason_tooltips": {
     "dependency_failed": "Eine erforderliche Job- oder Epic-Abhängigkeit endete ohne erfolgreiche Auflösung. Überschreibe oder entferne die Abhängigkeit, um fortzufahren.",
@@ -282,7 +293,18 @@
     "main_branch_broken": "Landing ist pausiert, weil der Hauptbranch des Repositorys nicht gesund ist.",
     "urgent_job_active": "Ein nicht dringender Job wartet, solange in diesem Repository ein dringender Job aktiv ist.",
     "workflow_admission_budget": "Syrus hat vorhergesagt, dass dieser Workflow die Worker jetzt zu stark belasten würde.",
-    "provider_availability": "Dieser Job ist pausiert, bis der konfigurierte Agent-Provider genug verfügbare Nutzung hat oder ein Operator ihn trotzdem fortsetzt."
+    "provider_availability": "Dieser Job ist pausiert, bis der konfigurierte Agent-Provider genug verfügbare Nutzung hat oder ein Operator ihn trotzdem fortsetzt.",
+    "admission_control": "Syrus hat diesen Workflow verzögert, um im Worker-Ressourcenbudget zu bleiben.",
+    "manual_pause": "Ein Operator hat diesen Job pausiert. Setze ihn fort, um weiterzumachen.",
+    "main_branch_health": "Die Arbeit an diesem Repository ist pausiert, weil sein Standardbranch die erforderlichen Prüfungen nicht besteht. Sie wird fortgesetzt, sobald ein Hauptbranch-Graderlauf erfolgreich ist.",
+    "epic_wide_workflow_active": "Ein anderer Workflow dieses Epics hält die Epic-weite Sperre.",
+    "resource_safety": "Die Auslastung der Worker-Hosts ist zu hoch, um diese Arbeit sicher zu starten.",
+    "ci_repair_safety": "Ein CI-Reparatur-Workflow bearbeitet diesen Basis-Commit bereits.",
+    "active_work_lock": "Eine andere Arbeitseinheit hält die benötigte Sperre.",
+    "auto_retry_backoff": "Syrus wartet das Backoff-Fenster vor dem nächsten automatischen Versuch ab.",
+    "visual_diff_obsolete": "Der Job hat den Zustand überschritten, für den dieser Vergleich eingeplant war.",
+    "preempted": "Eine Arbeitseinheit mit höherer Priorität hat diese ersetzt.",
+    "landing_paused": "Landing ist für dieses Repository pausiert."
   },
   "admission_diagnostics_link": "Druckdiagnose anzeigen",
   "blocked_reasons": {

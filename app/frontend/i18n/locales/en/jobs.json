@@ -789,5 +789,7 @@
   "pr_checks_attribution_unknown": "Not yet attributable",
   "pr_checks_attribution_base": "Compared against base {{sha}}",
   "pr_checks_attribution_failing": "Failing here",
-  "pr_checks_attribution_base_failing": "Failing on base"
+  "pr_checks_attribution_base_failing": "Failing on base",
+  "start_blocked_title": "Waiting to continue",
+  "start_blocked_generic": "Syrus has paused work on this job. It resumes automatically once the blocker clears."
 }

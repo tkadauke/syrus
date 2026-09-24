@@ -36,6 +36,7 @@ module Jobs
       out.concat(creation_events)
       out.concat(transition_events)
       out.concat(retry_decision_events)
+      out.concat(work_unit_block_events)
       out.concat(feedback_iteration_events)
       out.compact.sort_by { |e| [ e.at || Time.zone.at(0), source_order(e.source) ] }
     end
@@ -77,6 +78,41 @@ module Jobs
     def transition_events
       transitions = fetch_transitions
       transitions.map { |t| event_for_transition(t) }
+    end
+
+    # A WorkUnit block is the one way a Job stops making progress without
+    # anything failing: the last event is a successful Step, and then
+    # nothing. Without this the feed simply ends, and the operator has no
+    # record that Syrus decided to wait or why. Stamped from `blocked_at`,
+    # which tracks the episode rather than the last re-check, so a block
+    # contributes one event instead of one per poll.
+    def work_unit_block_events
+      blocked_work_units.filter_map do |unit|
+        next if unit.blocked_reason.blank?
+
+        Event.new(
+          at: unit.blocked_at || unit.updated_at,
+          kind: :info,
+          source: "workflow",
+          transition_source: "system",
+          title: "Blocked: #{unit.blocked_reason.humanize.downcase}",
+          detail: block_detail(unit),
+          ref: { workflow_id: unit.workflow_id }.compact
+        )
+      end
+    end
+
+    def blocked_work_units
+      WorkUnits::Ownership.blocked_units_for_job(@job)
+    end
+
+    def block_detail(unit)
+      parts = []
+      details = unit.blocked_details.to_h
+      parts << details["repository_slug"] if details["repository_slug"].present?
+      parts << details["message"] if details["message"].present?
+      parts << "next check #{unit.blocked_until.utc.iso8601}" if unit.blocked_until
+      parts.presence&.join(" · ")
     end
 
     def retry_decision_events

@@ -273,5 +273,46 @@ RSpec.describe Jobs::Timeline do
         )
       end
     end
+
+    describe "WorkUnit blocks" do
+      # A block is the one way a Job stops without anything failing: the
+      # last event is a successful Step and then the feed simply ends, with
+      # no record that Syrus decided to wait or why.
+      it "records why the job stopped making progress" do
+        unit = job.workflows.last.work_unit
+        unit.block!(
+          reason: "main_branch_health",
+          blocked_until: 5.minutes.from_now,
+          details: { "repository_slug" => "acme/widgets" }
+        )
+
+        events = described_class.for(job.reload)
+        block_event = events.find { |e| e.title.start_with?("Blocked:") }
+
+        expect(block_event).to be_present
+        expect(block_event.title).to eq("Blocked: main branch health")
+        expect(block_event.detail).to include("acme/widgets")
+        expect(block_event.at).to be_within(2.seconds).of(unit.reload.blocked_at)
+      end
+
+      it "contributes one event per episode, not one per re-check" do
+        unit = job.workflows.last.work_unit
+        3.times { unit.block!(reason: "main_branch_health", blocked_until: 5.minutes.from_now) }
+
+        blocks = described_class.for(job.reload).select { |e| e.title.start_with?("Blocked:") }
+
+        expect(blocks.size).to eq(1)
+      end
+
+      it "records nothing once the block clears" do
+        unit = job.workflows.last.work_unit
+        unit.block!(reason: "main_branch_health")
+        unit.unblock!
+
+        blocks = described_class.for(job.reload).select { |e| e.title.start_with?("Blocked:") }
+
+        expect(blocks).to be_empty
+      end
+    end
   end
 end

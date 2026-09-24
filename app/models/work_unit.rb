@@ -85,12 +85,20 @@ class WorkUnit < ApplicationRecord
     "WU-#{id || 'new'}"
   end
 
+  # `blocked_at` measures the block episode, not the last time anything
+  # touched the row. Re-checks (main-branch health re-polls, admission
+  # control on every dispatcher tick) call block! again with the same
+  # reason; carrying the original timestamp forward is what keeps a
+  # thirteen-hour block from reporting five minutes. A reason change starts
+  # a new episode.
   def block!(reason:, blocked_until: nil, details: {}, user: nil)
     transaction do
       reactivate_work_intent!
+      continuing = blocked? && blocked_reason == reason.to_s && blocked_at.present?
       update!(
         state: "blocked",
         blocked_reason: reason,
+        blocked_at: continuing ? blocked_at : Time.current,
         blocked_until: blocked_until,
         blocked_details: details || {},
         blocked_by_user: user
@@ -104,6 +112,7 @@ class WorkUnit < ApplicationRecord
       update!(
         state: "queued",
         blocked_reason: nil,
+        blocked_at: nil,
         blocked_until: nil,
         blocked_details: {},
         blocked_by_user: nil
@@ -120,6 +129,7 @@ class WorkUnit < ApplicationRecord
         started_at: started_at || Time.current,
         finished_at: nil,
         blocked_reason: nil,
+        blocked_at: nil,
         blocked_until: nil,
         blocked_details: {},
         blocked_by_user: nil
@@ -135,6 +145,7 @@ class WorkUnit < ApplicationRecord
         state: state.to_s,
         finished_at: finished_at || Time.current,
         blocked_reason: nil,
+        blocked_at: nil,
         blocked_until: nil,
         blocked_details: {},
         blocked_by_user: nil
@@ -161,6 +172,7 @@ class WorkUnit < ApplicationRecord
           state: "cancelled",
           finished_at: finished_at || Time.current,
           blocked_reason: nil,
+        blocked_at: nil,
           blocked_until: nil,
           blocked_details: {},
           blocked_by_user: nil,

@@ -437,10 +437,7 @@ export function JobDetailView({
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {command.dialog}
-      {payload.job.state === "queued" &&
-      payload.repository.landing_paused &&
-      payload.repository.main_health === "broken" &&
-      payload.repository.main_branch_repair_blocks_work ? (
+      {mainHealthBannerVisible(payload) ? (
         <Notice className="flex items-center gap-3" role="alert" tone="warning">
           <span>{payload.job.main_branch_repair ? t("main_branch_repair_active") : t("main_branch_health_waiting")}</span>
           {!payload.job.main_branch_repair ? (
@@ -801,7 +798,7 @@ function SummaryTab({
         <PanelMessage tone="error">{t("landing_failed", { reason: payload.job.landing_failure_reason })}</PanelMessage>
       ) : null}
       <PrChecksBanner command={command} payload={payload} />
-      <AdmissionBudgetPanel payload={payload} />
+      <StartBlockedPanel payload={payload} />
       <RetryStatePanel payload={payload} />
       {showUnsatisfiedDependencies ? <UnsatisfiedDependencies command={command} payload={payload} /> : null}
 
@@ -1580,27 +1577,59 @@ function PrCheckAttributionDetail({ attribution }: { attribution: JobPrCheckAttr
   )
 }
 
-function AdmissionBudgetPanel({ payload }: { payload: JobDetailPayload }) {
-  const { t } = useT("jobs")
-  const breakdown = payload.job.start_blocked_breakdown
-  if (payload.job.state !== "queued" || payload.job.start_blocked_reason !== "workflow_admission_budget" || !breakdown) return null
+// The main-branch-health banner above carries its own copy and a link to the
+// repository, so it owns that reason wherever it renders.
+//
+// It used to require `state === "queued"`, which is only true before the
+// Workflow starts. A Job blocked mid-chain -- after an implement step, say --
+// is `running`, so the one banner that would have explained the wait was the
+// one surface guaranteed not to show it. The gate is now the block itself.
+const MAIN_HEALTH_REASONS = [ "main_branch_health", "main_branch_broken" ]
 
+function mainHealthBannerVisible(payload: JobDetailPayload) {
+  if (payload.job.state === "closed" || payload.job.state === "failed") return false
+  if (!payload.repository.landing_paused) return false
+  if (payload.repository.main_health !== "broken") return false
+  if (!payload.repository.main_branch_repair_blocks_work) return false
+
+  return payload.job.state === "queued" || MAIN_HEALTH_REASONS.includes(payload.job.start_blocked_reason ?? "")
+}
+
+// Every reason Syrus is not working on this job, not just admission budget.
+// This panel used to return null unless the job was `queued` AND blocked on
+// `workflow_admission_budget`, so a job stopped mid-chain for any other
+// reason -- main-branch health being the one that strands jobs for hours --
+// rendered no explanation at all on its own detail page. The admission
+// breakdown is now the optional extra, not the price of admission.
+function StartBlockedPanel({ payload }: { payload: JobDetailPayload }) {
+  const { t } = useT("jobs")
+  const reason = payload.job.start_blocked_reason
+  if (!reason) return null
+  if (mainHealthBannerVisible(payload)) return null
+
+  const breakdown = payload.job.start_blocked_breakdown
+  const showBreakdown = reason === "workflow_admission_budget" && !!breakdown
   const diagnosticsPath = payload.actions.can_view_resource_admission_diagnostics ? payload.paths.admin_resource_admission_path : null
-  const telemetryMessage = breakdown.telemetry_state === "absent" ? t("admission_breakdown_telemetry_absent") : t("admission_breakdown_telemetry_stale")
+  const telemetryMessage = breakdown?.telemetry_state === "absent" ? t("admission_breakdown_telemetry_absent") : t("admission_breakdown_telemetry_stale")
 
   return (
     <Notice tone="warning">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-semibold">{t("admission_breakdown_title")}</span>
+        <span className="font-semibold">{showBreakdown ? t("admission_breakdown_title") : t("start_blocked_title")}</span>
         <StartBlockedReasonPill
           count={payload.job.start_blocked_count}
           details={payload.job.start_blocked_details}
           diagnosticsPath={diagnosticsPath}
           nextCheckAt={payload.job.start_blocked_next_check_at}
-          reason={payload.job.start_blocked_reason}
+          reason={reason}
           startBlockedAt={payload.job.start_blocked_at}
         />
       </div>
+      {showBreakdown ? null : (
+        <p className="mt-1">{t(`common:start_blocked_reason_tooltips.${reason}`, { defaultValue: t("start_blocked_generic") })}</p>
+      )}
+      {showBreakdown && breakdown ? (
+      <>
       <p className="mt-1">{t(`admission_breakdown_category_${breakdown.category}`, { defaultValue: t("admission_breakdown_category_other") })}</p>
       {breakdown.telemetry_absent ? (
         <p className="mt-2 rounded-[var(--radius-panel)] border border-warning-border bg-warning-surface px-2 py-1.5 text-xs font-medium" role="status">
@@ -1615,6 +1644,8 @@ function AdmissionBudgetPanel({ payload }: { payload: JobDetailPayload }) {
             </li>
           ))}
         </ul>
+      ) : null}
+      </>
       ) : null}
     </Notice>
   )

@@ -272,7 +272,18 @@
     "main_branch_broken": "Main branch broken",
     "urgent_job_active": "Urgent job in progress",
     "workflow_admission_budget": "Workflow admission delayed",
-    "provider_availability": "Provider availability paused"
+    "provider_availability": "Provider availability paused",
+    "admission_control": "Workflow admission delayed",
+    "manual_pause": "Paused by operator",
+    "main_branch_health": "Main branch broken",
+    "epic_wide_workflow_active": "Epic work in progress",
+    "resource_safety": "Worker capacity",
+    "ci_repair_safety": "CI repair in progress",
+    "active_work_lock": "Waiting on a lock",
+    "auto_retry_backoff": "Retry backoff",
+    "visual_diff_obsolete": "Comparison no longer needed",
+    "preempted": "Preempted",
+    "landing_paused": "Landing paused"
   },
   "start_blocked_reason_tooltips": {
     "dependency_failed": "A required job or Epic dependency ended without a successful resolution. Override or remove the dependency to continue.",
@@ -282,7 +293,18 @@
     "main_branch_broken": "Repository landing is paused because the main branch is unhealthy.",
     "urgent_job_active": "A non-urgent job is waiting while an urgent job in this repository remains active.",
     "workflow_admission_budget": "Syrus predicted that starting this workflow now would put too much pressure on the worker pool.",
-    "provider_availability": "This job is paused until its configured agent provider has enough available usage, or an operator resumes it anyway."
+    "provider_availability": "This job is paused until its configured agent provider has enough available usage, or an operator resumes it anyway.",
+    "admission_control": "Syrus delayed this workflow to stay inside the worker resource budget.",
+    "manual_pause": "An operator paused this job. Resume it to continue.",
+    "main_branch_health": "Work on this repository is paused because its default branch is failing its required checks. It resumes once a main-branch grader run passes.",
+    "epic_wide_workflow_active": "Another workflow for this Epic holds the Epic-wide lock.",
+    "resource_safety": "Worker host pressure is too high to start this work safely.",
+    "ci_repair_safety": "A CI repair workflow is already handling this base commit.",
+    "active_work_lock": "Another work unit holds the lock this one needs.",
+    "auto_retry_backoff": "Syrus is waiting out the backoff window before the next automatic retry.",
+    "visual_diff_obsolete": "The job moved past the state this comparison was queued for.",
+    "preempted": "A higher-priority work unit replaced this one.",
+    "landing_paused": "Landing is paused for this repository."
   },
   "admission_diagnostics_link": "View pressure diagnostics",
   "blocked_reasons": {

@@ -6,6 +6,21 @@ RSpec.describe WorkUnits::StartBlock do
   let(:job) { Factories.job_record(user: user, repository: repository) }
   let(:workflow) { WorkUnits::Launcher.instantiate(kind: "initial", job: job) }
 
+  it "reports blocked_since from the block episode, not the last re-check" do
+    workflow.work_unit.block!(reason: "main_branch_health", blocked_until: 5.minutes.from_now)
+    blocked_at = workflow.work_unit.reload.blocked_at
+
+    # The re-check that used to reset the clock: same reason, fresh touch.
+    travel_to(45.minutes.from_now) do
+      workflow.work_unit.block!(reason: "main_branch_health", blocked_until: 5.minutes.from_now)
+
+      explanation = described_class.explain(workflow.reload)
+
+      expect(explanation[:blocked_since]).to be_within(1.second).of(blocked_at)
+      expect(explanation[:blocked_since]).to be < 40.minutes.ago
+    end
+  end
+
   it "prefers WorkUnit blocked state over legacy workflow start-block artifacts" do
     artifact_next_check_at = 5.minutes.from_now
     work_unit_blocked_until = 20.minutes.from_now

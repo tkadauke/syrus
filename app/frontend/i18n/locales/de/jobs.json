@@ -789,5 +789,7 @@
   "pr_checks_payload_base_sha": "PR-Basis {{sha}}",
   "pr_checks_override_once": "Einmal trotzdem landen",
   "pr_checks_override_confirm": "Diesen Job einmal landen, obwohl seine fehlgeschlagenen PR-Prüfungen bereits auf der Basis fehlschlagen?",
-  "pr_checks_override_reason": "Operator hat bestätigt, dass die übernommenen fehlgeschlagenen PR-Prüfungen für diesen Landeversuch akzeptabel sind."
+  "pr_checks_override_reason": "Operator hat bestätigt, dass die übernommenen fehlgeschlagenen PR-Prüfungen für diesen Landeversuch akzeptabel sind.",
+  "start_blocked_title": "Wartet auf Fortsetzung",
+  "start_blocked_generic": "Syrus hat die Arbeit an diesem Job pausiert. Sie wird automatisch fortgesetzt, sobald die Blockade aufgehoben ist."
 }

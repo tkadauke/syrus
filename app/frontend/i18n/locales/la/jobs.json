@@ -789,5 +789,7 @@
   "pr_checks_payload_base_sha": "Basis PR {{sha}}",
   "pr_checks_override_once": "Semel tamen demerge",
   "pr_checks_override_confirm": "Hoc opus semel demergere, quamquam recognitiones PR deficientes iam in basi deficiunt?",
-  "pr_checks_override_reason": "Operator verificavit recognitiones PR deficientes hereditas acceptabiles esse huic conatui demergendi."
+  "pr_checks_override_reason": "Operator verificavit recognitiones PR deficientes hereditas acceptabiles esse huic conatui demergendi.",
+  "start_blocked_title": "Exspectat ut pergat",
+  "start_blocked_generic": "Syrus opus in hoc munere suspendit. Automatice resumetur cum impedimentum solvetur."
 }

@@ -1,3 +1,6 @@
+// `blocked_details` is per-reason, written by whichever blocker recorded it
+// (WorkUnit#block! details, or a Workflow's legacy start_blocked_details
+// artifact), so this type is the union of every shape rather than one.
 export type StartBlockedDetails = {
   kind?: string
   message?: string
@@ -5,6 +8,13 @@ export type StartBlockedDetails = {
   reason?: string
   delay_until?: string | null
   override?: boolean
+  // main_branch_health
+  repository_id?: number
+  repository_slug?: string
+  main_health_state?: string
+  // The reason under its legacy StepDispatcher spelling, when the block was
+  // projected from a Workflow artifact (WorkflowBlockProjection).
+  start_blocked_reason?: string
   pressure?: {
     candidate?: StartBlockedPressureSnapshot
     active?: StartBlockedPressureSnapshot

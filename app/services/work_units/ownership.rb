@@ -348,6 +348,20 @@ module WorkUnits
         .to_set
     end
 
+    # The blocked WorkUnits themselves (not just their job ids), for
+    # surfaces that need the reason, details and `blocked_at` -- e.g. the
+    # Job timeline's block events. Landing units are included: a Job
+    # stalled behind the landing queue is just as stopped as any other.
+    def self.blocked_units_for_job(job)
+      return [] unless job
+
+      blocked_unit_job_ids_scope(include_landing: true)
+        .where(job_id: job.id)
+        .includes(:work_unit)
+        .map(&:work_unit)
+        .uniq
+    end
+
     def self.blocked_data_by_job_id(job_ids, kinds: nil, include_landing: false)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return {} if ids.empty?

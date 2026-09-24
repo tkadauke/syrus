@@ -149,7 +149,10 @@ module WorkUnits
       details = unit.blocked_details.presence
       {
         reason: details.to_h["start_blocked_reason"].presence || unit.blocked_reason,
-        at: unit.updated_at&.iso8601,
+        # `blocked_at`, not `updated_at`: the row is touched on every
+        # re-check, so updated_at reports how long ago Syrus last looked,
+        # not how long the block has been in force.
+        at: (unit.blocked_at || unit.updated_at)&.iso8601,
         next_check_at: unit.blocked_until&.iso8601,
         count: nil,
         details: details

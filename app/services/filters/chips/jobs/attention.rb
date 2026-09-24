@@ -20,7 +20,7 @@ module Filters
           waiting_for_upstream promotion_pending delivery_needs_attention investigations
         ].freeze
 
-        # How far back to look for the relevant change delivery-track candidates
+        # How far back to look for delivery-track candidates
         # (`promotion_pending`) — `waiting_for_upstream`/`delivery_needs_attention`
         # key off already-persisted `JobPrLink` rows instead (a small, naturally
         # bounded table) and don't need this window.
@@ -227,7 +227,9 @@ module Filters
 
         def apply_blocked
           open = scope.open_threads.without_active_runtime_work
-          open.where(id: blocked_dependency_ids).or(open.where(pr_mergeable: false))
+          open.where(id: blocked_dependency_ids)
+              .or(open.where(pr_mergeable: false))
+              .or(scope.open_threads.where(id: stalled_blocked_work_unit_job_ids))
         end
 
         def apply_merged_this_week
@@ -358,8 +360,26 @@ module Filters
         # WorkUnit::PAUSE_BLOCKED_REASONS. Every other blocked reason,
         # including dependency-wait reasons and ordinary scheduling
         # contention like admission_control, is NOT a "Paused" reason: it
-        # surfaces via the "Queued" folder's blocked badge and/or the
-        # "Blocked" smart folder (blocked_dependency_ids) instead.
+        # surfaces via the "Queued" folder's blocked badge (while the Job's
+        # own state is still queued) and the "Blocked" smart folder
+        # (blocked_dependency_ids, stalled_blocked_work_unit_job_ids).
+        # A Job whose WorkUnit is blocked for a non-pause reason is stalled,
+        # not working — and until this branch existed it appeared in no
+        # folder at all. "In progress" subtracts every blocked WorkUnit
+        # (blocked_and_not_executing_job_ids), "Paused" only claims
+        # PAUSE_BLOCKED_REASONS, and "Queued" needs the Job's own state to
+        # be queued — which it is not, because the Workflow is mid-chain.
+        # So a `running` Job blocked on e.g. main_branch_health read as
+        # healthy everywhere while nothing worked on it.
+        #
+        # Note the base scope here is NOT `without_active_runtime_work`: a
+        # blocked WorkUnit counts as active runtime work, which is exactly
+        # why these Jobs slipped through the other two branches.
+        def stalled_blocked_work_unit_job_ids
+          @stalled_blocked_work_unit_job_ids ||=
+            blocked_work_unit_job_ids - pause_blocked_work_unit_job_ids - actively_executing_job_ids
+        end
+
         def pause_blocked_work_unit_job_ids
           @pause_blocked_work_unit_job_ids ||=
             WorkUnits::Ownership.all_blocked_job_ids(reasons: WorkUnit::PAUSE_BLOCKED_REASONS).to_a

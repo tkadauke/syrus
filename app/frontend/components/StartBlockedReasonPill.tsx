@@ -2,25 +2,57 @@ import { useT } from "../hooks/useT"
 import type { StartBlockedDetails } from "../types/startBlocked"
 import { TonePill } from "./StatusPill"
 
+// Two vocabularies reach this component and both must render. The legacy
+// StepDispatcher artifact reasons ("main_branch_broken",
+// "workflow_admission_budget") come off Workflow#artifacts; the canonical
+// WorkUnit::BLOCKED_REASONS values ("main_branch_health",
+// "admission_control") come off the live WorkUnit and win whenever one
+// exists -- see WorkUnits::StartBlock and WorkflowBlockProjection::REASON_MAP.
+// Listing only the legacy half is what made a main-branch-health block
+// render as the raw slug `main_branch_health` with an empty tooltip.
+// spec/frontend/start_blocked_reason_vocabulary_spec.rb keeps this in sync
+// with the Ruby constants.
 type StartBlockedReason =
+  | "admission_control"
+  | "provider_availability"
+  | "manual_pause"
+  | "main_branch_health"
   | "dependency_failed"
   | "stack_dependencies_not_ready"
   | "stack_fan_in_base_unavailable"
   | "job_not_ready_for_execution"
-  | "main_branch_broken"
   | "urgent_job_active"
+  | "epic_wide_workflow_active"
+  | "resource_safety"
+  | "ci_repair_safety"
+  | "active_work_lock"
+  | "auto_retry_backoff"
+  | "visual_diff_obsolete"
+  | "preempted"
+  | "main_branch_broken"
   | "workflow_admission_budget"
-  | "provider_availability"
+  | "landing_paused"
 
 const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
+  admission_control: "amber",
+  provider_availability: "amber",
+  manual_pause: "gray",
+  main_branch_health: "red",
   dependency_failed: "red",
   stack_dependencies_not_ready: "amber",
   stack_fan_in_base_unavailable: "amber",
   job_not_ready_for_execution: "amber",
-  main_branch_broken: "red",
   urgent_job_active: "gray",
+  epic_wide_workflow_active: "gray",
+  resource_safety: "amber",
+  ci_repair_safety: "amber",
+  active_work_lock: "gray",
+  auto_retry_backoff: "amber",
+  visual_diff_obsolete: "gray",
+  preempted: "gray",
+  main_branch_broken: "red",
   workflow_admission_budget: "amber",
-  provider_availability: "amber"
+  landing_paused: "gray"
 }
 
 const THROTTLE_URGENCY_THRESHOLD_MS = 30 * 60 * 1000

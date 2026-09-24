@@ -269,6 +269,37 @@ describe("JobDetailView", () => {
     expect(screen.queryByText("Admission budget blocked")).not.toBeInTheDocument()
   })
 
+  // The panel used to require state === "queued" AND
+  // reason === "workflow_admission_budget", so a running job stopped
+  // mid-chain on main-branch health explained itself nowhere on its own
+  // detail page.
+  it("explains a running job blocked on main-branch health", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        state: "running",
+        summary_state: "running",
+        start_blocked_reason: "main_branch_health",
+        start_blocked_at: "2026-09-23T14:34:00Z",
+        start_blocked_next_check_at: "2026-09-23T14:39:00Z",
+        start_blocked_details: { repository_slug: "acme/widgets", main_health_state: "broken" }
+      }
+    }))
+
+    expect(screen.getByText("Waiting to continue")).toBeInTheDocument()
+    expect(screen.getByText(/default branch is failing its required checks/)).toBeInTheDocument()
+    // The canonical WorkUnit slug must resolve to real copy, not fall
+    // through to the raw string.
+    expect(screen.getByText("Main branch broken")).toBeInTheDocument()
+    expect(screen.queryByText("main_branch_health")).not.toBeInTheDocument()
+  })
+
+  it("renders no blocked panel when nothing is blocking the job", () => {
+    renderJobDetail(jobPayload({ job: { ...baseJob(), state: "running", start_blocked_reason: null } }))
+
+    expect(screen.queryByText("Waiting to continue")).not.toBeInTheDocument()
+  })
+
   it("shows failing PR checks with a GitHub checks link", () => {
     renderJobDetail(
       jobPayload({
@@ -726,6 +757,25 @@ describe("JobDetailView", () => {
 
     expect(screen.getByText("This job is waiting for repository health to recover.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "View repository health" })).toBeInTheDocument()
+  })
+
+  // The banner used to require state === "queued", which is only true before
+  // the Workflow starts. A Job blocked mid-chain is "running", so the one
+  // surface that explains the wait was the one guaranteed not to show it.
+  it("shows the waiting banner for a running job blocked mid-chain on main-branch health", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "running", summary_state: "running", main_branch_repair: false, start_blocked_reason: "main_branch_health" },
+      repository: {
+        id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
+        main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: true
+      }
+    }))
+
+    expect(screen.getByText("This job is waiting for repository health to recover.")).toBeInTheDocument()
+    // The banner owns this reason; the generic panel stands down rather than
+    // saying the same thing twice.
+    expect(screen.queryByText("Waiting to continue")).not.toBeInTheDocument()
   })
 
   it("shows the repair banner for a main branch repair job instead of the waiting banner", () => {

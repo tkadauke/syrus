@@ -10,7 +10,8 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_23_223311) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_24_034507) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3253,6 +3254,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_223311) do
 
   create_table "work_units", force: :cascade do |t|
     t.string "active_dedup_key", limit: 512
+    t.datetime "blocked_at"
     t.bigint "blocked_by_user_id"
     t.json "blocked_details"
     t.string "blocked_reason", limit: 64

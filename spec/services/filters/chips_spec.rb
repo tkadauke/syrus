@@ -593,6 +593,32 @@ RSpec.describe "Filters::Chips" do
       expect(run(field: "attention", op: "is", value: "blocked")).to contain_exactly(blocked_pr)
     end
 
+    it "blocked: claims a running Job whose WorkUnit is blocked for a non-pause reason" do
+      # The stranded shape: job.state is "running" and the Workflow is
+      # mid-chain, but the WorkUnit is blocked so nothing executes. Before
+      # this branch existed the Job appeared in NO folder -- "In progress"
+      # subtracts every blocked WorkUnit, "Paused" only claims
+      # PAUSE_BLOCKED_REASONS, and "Queued" needs job.state == "queued".
+      stalled = Factories.job_record(repository: repo, issue_number: 71, state: "running")
+      create_blocked_work_unit_for(stalled, blocked_reason: "main_branch_health")
+
+      # A genuine pause belongs to "Paused", not here.
+      paused = Factories.job_record(repository: repo, issue_number: 72, state: "running")
+      create_blocked_work_unit_for(paused, blocked_reason: "manual_pause")
+
+      results = run(field: "attention", op: "is", value: "blocked")
+
+      expect(results).to include(stalled)
+      expect(results).not_to include(paused)
+    end
+
+    it "in_progress: does not claim a running Job whose WorkUnit is blocked" do
+      stalled = Factories.job_record(repository: repo, issue_number: 73, state: "running")
+      create_blocked_work_unit_for(stalled, blocked_reason: "main_branch_health")
+
+      expect(run(field: "attention", op: "is", value: "in_progress")).not_to include(stalled)
+    end
+
     it "just_failed: returns failed jobs that require operator action" do
       failed = Factories.job(repository: repo, issue_number: 1)
       failed.update!(state: "failed")

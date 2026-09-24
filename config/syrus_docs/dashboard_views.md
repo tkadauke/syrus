@@ -104,6 +104,20 @@ subject to dependency gates, provider circuits, and workflow admission control.
 The dashboard includes manually paused Jobs in the Paused smart folder and
 shows a direct Unpause control on paused rows.
 
+### Blocked-but-running Jobs
+
+A Job can read `running` while nothing executes: the Workflow is mid-chain,
+but its WorkUnit is blocked (main-branch health, admission control, a lock,
+retry backoff). Those Jobs appear in the **Blocked** smart folder alongside
+dependency-blocked and unmergeable Jobs. They are deliberately *not* in "In
+progress" -- nothing is progressing -- and not in "Paused", which is reserved
+for a human pause or a provider-availability pause.
+
+The Job detail page shows a "Waiting to continue" notice naming the reason and
+when Syrus next re-checks, and the Job timeline records one `Blocked: <reason>`
+event per block episode. "Blocked since" measures the episode, not the last
+re-check: a block re-applied every five minutes still reports its true age.
+
 Provider-availability pauses are automatic and reversible. Each user has a
 per-agent pause threshold in Agent Settings; the default is 10%, and 0 disables
 automatic provider-availability pauses for that provider. When a probed

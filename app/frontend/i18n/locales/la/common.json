@@ -272,7 +272,18 @@
     "main_branch_broken": "Ramus principalis fractus",
     "urgent_job_active": "Opus urgens agitur",
     "workflow_admission_budget": "Admissio cursus dilata",
-    "provider_availability": "Provider availability paused"
+    "provider_availability": "Provider availability paused",
+    "admission_control": "Admissio cursus dilata",
+    "manual_pause": "A moderatore suspensum",
+    "main_branch_health": "Ramus principalis fractus",
+    "epic_wide_workflow_active": "Opus Epici agitur",
+    "resource_safety": "Capacitas operarii",
+    "ci_repair_safety": "Reparatio CI agitur",
+    "active_work_lock": "Seram exspectat",
+    "auto_retry_backoff": "Mora ante iterationem",
+    "visual_diff_obsolete": "Comparatio non iam necessaria",
+    "preempted": "Praeoccupatum",
+    "landing_paused": "Descensus suspensus"
   },
   "start_blocked_reason_tooltips": {
     "dependency_failed": "Opus vel Epicum necessarium sine exitu felici finitum est. Dependentiam remove vel praeteri ut pergas.",
@@ -282,7 +293,18 @@
     "main_branch_broken": "Descensus suspensus est quod ramus principalis receptaculi non sanus est.",
     "urgent_job_active": "Opus non urgens exspectat dum opus urgens in hoc repositorio activum est.",
     "workflow_admission_budget": "Syrus praedixit hunc cursum nunc nimiam vim operariis impositurum esse.",
-    "provider_availability": "This job is paused until its configured agent provider has enough available usage, or an operator resumes it anyway."
+    "provider_availability": "This job is paused until its configured agent provider has enough available usage, or an operator resumes it anyway.",
+    "admission_control": "Syrus hunc cursum dilatavit ut intra modum opum operarii maneret.",
+    "manual_pause": "Moderator hoc opus suspendit. Resume ut pergas.",
+    "main_branch_health": "Opus in hoc receptaculo suspensum est quod ramus eius principalis probationes necessarias non superat. Resumetur cum cursus probatoris rami principalis successerit.",
+    "epic_wide_workflow_active": "Alius cursus huius Epici seram Epico latam tenet.",
+    "resource_safety": "Onus hospitum operariorum nimium est ut hoc opus tuto incipiatur.",
+    "ci_repair_safety": "Cursus reparationis CI hunc commissum basis iam tractat.",
+    "active_work_lock": "Alia unitas operis seram necessariam tenet.",
+    "auto_retry_backoff": "Syrus moram exspectat antequam iterum automatice conetur.",
+    "visual_diff_obsolete": "Opus statum praeteriit cui haec comparatio disposita erat.",
+    "preempted": "Unitas operis potioris ordinis hanc substituit.",
+    "landing_paused": "Descensus huic receptaculo suspensus est."
   },
   "admission_diagnostics_link": "Diagnostica oneris videre",
   "blocked_reasons": {
