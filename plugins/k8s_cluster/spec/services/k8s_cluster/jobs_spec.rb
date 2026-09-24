@@ -50,6 +50,16 @@ RSpec.describe K8sCluster::Jobs do
       expect(row[:succeeded]).to eq(0)
       expect(row[:failed]).to eq(0)
     end
+
+    it "counts an array-shaped active status by length" do
+      stub_batch_discovery(base)
+      running = job.merge("status" => { "active" => [ { "name" => "migrate-123" } ], "succeeded" => 0, "failed" => 0 })
+      stub_kube_get("#{base}/apis/batch/v1/namespaces/default/jobs", { "items" => [ running ] })
+
+      row = described_class.new(cluster).list(namespace: "default")[:jobs].first
+
+      expect(row[:active_count]).to eq(1)
+    end
   end
 
   describe "#describe" do
