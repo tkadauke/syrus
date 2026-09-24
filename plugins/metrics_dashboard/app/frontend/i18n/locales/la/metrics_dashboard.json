@@ -14,6 +14,7 @@
     "queue_throughput": "Ordo et Cursus",
     "workers_fleet": "Operarii et Classis",
     "resilience_product": "Firmitas et Opus",
+    "frontend_amplification": "Amplificatio Frontis",
     "other": "Alia"
   },
   "panels": {
@@ -47,6 +48,14 @@
     "escalations_per_landing": "Escalationes per perductionem",
     "attention_items_open": "Res attentionis apertae, per codicem problematis",
     "feature_usage": "Usus facultatum, per facultatem",
-    "plugin_enabled": "Instrumenta incitata"
+    "plugin_enabled": "Instrumenta incitata",
+    "event_amplification_ratio": "Proportio amplificationis eventuum, per rem",
+    "app_events_delivered": "Eventus applicationis lati, per rem",
+    "detail_snapshot_requests": "Petitiones imaginis particularis, per exitum",
+    "cable_connections": "Nexus cable vivi",
+    "cable_connections_per_user_max": "Plurimi nexus cable vivi unius usoris",
+    "client_entity_patch_applications": "Emendationes entitatum in navigatro applicatae, per visibilitatem tabellae",
+    "client_revision_gap_recoveries": "Recuperationes lacunarum revisionis in navigatro, per rem",
+    "client_hidden_tab_suppressed_fetches": "Petitiones a tabella occulta suppressae, per rem"
   }
 }

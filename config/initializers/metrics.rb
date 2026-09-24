@@ -26,7 +26,12 @@ Rails.application.config.to_prepare do
     "Metrics::AttentionSampler",
     "WorkflowAdmissionBudget",
     "RepositoryContent",
-    "Metrics::ClusterCounterSampler"
+    "Metrics::ClusterCounterSampler",
+    "App::JobWorkflowsSnapshotCache",
+    "AppEvents",
+    "ApplicationCable::Connection",
+    "ClientMetrics",
+    "Metrics::AmplificationSampler"
   ].each do |owner|
     owner.constantize
   rescue NameError => e

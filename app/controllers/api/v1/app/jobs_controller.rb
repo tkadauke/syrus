@@ -63,7 +63,11 @@ module Api
         end
 
         def workflows
-          render json: ::App::JobDetailPayload.workflows(job: find_job, user: Current.user, params: params)
+          job = find_job
+          etag = ::App::JobDetailPayload.workflows_etag(job: job, user: Current.user, params: params)
+          return unless stale?(etag: etag, public: false)
+
+          render json: ::App::JobDetailPayload.workflows(job: job, user: Current.user, params: params)
         end
 
         def chat_feedback

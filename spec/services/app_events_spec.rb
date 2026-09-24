@@ -126,4 +126,32 @@ RSpec.describe AppEvents do
       expect(ChatChannel.stream_name(4)).to eq("chat_resource:4")
     end
   end
+
+  describe "delivery metrics" do
+    around do |example|
+      original_registry = Syrus::Metrics.registry
+      Syrus::Metrics.reset!
+      described_class.declare_metrics!
+      example.run
+    ensure
+      Syrus::Metrics.instance_variable_set(:@registry, original_registry)
+    end
+
+    def delivered_by_resource
+      Syrus::Metrics.counter(:syrus_app_events_delivered_total).samples
+        .to_h { |labels, value| [ labels[:resource], value ] }
+    end
+
+    it "counts every broadcast path (user channel, job resource, chat resource) by resource" do
+      allow(AppUserChannel).to receive(:broadcast_to)
+      allow(ActionCable.server).to receive(:broadcast)
+
+      described_class.broadcast(user: Factories.user, type: "job.updated", resource: "job", id: 1)
+      described_class.broadcast_job_resource(job_id: 1, type: "workflow.updated", resource: "workflow", id: 2)
+      described_class.broadcast_chat_resource(chat_session_id: 1, type: "updated", resource: "chat", id: 1)
+      described_class.broadcast_job_resource(job_id: 1, type: "workflow.updated", resource: "workflow", id: 3)
+
+      expect(delivered_by_resource).to eq("job" => 1, "workflow" => 2, "chat" => 1)
+    end
+  end
 end
