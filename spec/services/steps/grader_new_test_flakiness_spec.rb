@@ -81,4 +81,19 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
     expect(TouchedTestRepeatGate).not_to receive(:call)
     handler.send(:check_new_test_flakiness!, name: "lint", definition: definition)
   end
+
+  it "passes a configured zero repeat count through as disabled instead of falling back to the default" do
+    job.repository.update!(new_test_flakiness_gate_repeats: 0)
+    result = TouchedTestRepeatGate::Result.new(
+      ran: false, consistent: true, reason: "repeats_disabled",
+      grader_name: "rspec", command: nil,
+      files: [ "plugins/example/spec/widget_spec.rb" ], repeats: 0, pass_count: 0, fail_count: 0
+    )
+
+    expect(TouchedTestRepeatGate).to receive(:call).with(hash_including(
+      repeats: 0
+    )).and_return(result)
+
+    handler.send(:check_new_test_flakiness!, name: "rspec", definition: step.details)
+  end
 end

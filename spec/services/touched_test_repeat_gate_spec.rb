@@ -69,6 +69,21 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(0)
   end
 
+  it "skips when repeat runs are disabled with a non-positive count" do
+    expect(Syrus::PluginRegistry).not_to receive(:providers_for)
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 0
+    )
+
+    expect(result.ran).to be(false)
+    expect(result.reason).to eq("repeats_disabled")
+    expect(result.repeats).to eq(0)
+  end
+
   it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do
     stub_focused_command("false")
 

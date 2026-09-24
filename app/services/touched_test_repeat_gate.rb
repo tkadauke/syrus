@@ -29,12 +29,13 @@ class TouchedTestRepeatGate
     @touched_files = Array(touched_files)
     @workspace_path = workspace_path.to_s
     @env = env
-    @repeats = [ repeats.to_i, 1 ].max
+    @repeats = repeats.to_i
     @log = log
   end
 
   def call
     return skipped("no_touched_files") if @touched_files.empty?
+    return skipped("repeats_disabled") if @repeats <= 0
 
     command = focused_command
     if command.blank?
