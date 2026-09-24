@@ -3388,16 +3388,21 @@ Bundled plugins:
   `mysql_db_browser`, it self-gates on both `WorkerTimeline.enabled?` and
   `Current.user&.admin?`. `WorkerTimeline.tsx` consumes
   `Api::V1::App::Admin::WorkerTimelineController`'s
-  `GET /api/v1/app/admin/worker_timeline/macro` — a session-authenticated
+  `GET /api/v1/app/admin/worker_timeline/macro` and
+  `GET /api/v1/app/admin/worker_timeline/live` — session-authenticated
   wrapper around the same `Timeline::MacroQuery` the bearer-token
-  `/api/v1/admin/worker_timeline/macro` endpoint uses, since the plugin's
-  browser SPA frontend has no API token to send. Renders one horizontal lane per worker
-  hostname+pid as hand-rolled React+SVG bars, using `d3-scale` for the time
-  axis and `d3-zoom`/`d3-selection` for pan/zoom, and the app-wide shared
-  `FilterBar` for repository/epic/hostname/status/time-window filtering
-  (default: last 3 hours, no other filters). All lanes render up front —
-  no row virtualization or internal scroll container — so the page itself
-  scrolls to reveal every lane. The same `paths` array also covers
+  `/api/v1/admin/worker_timeline/macro` endpoint uses and the plugin-owned
+  `WorkerTimeline::LiveWorkersPayload` live endpoint, since the plugin's
+  browser SPA frontend has no API token to send. The page exposes only two
+  tabs: Timeline and Live Workers. Timeline renders one horizontal lane per
+  durable worker role as hand-rolled React+SVG bars, using `d3-scale` for
+  the time axis and `d3-zoom`/`d3-selection` for pan/zoom. Live Workers shows
+  one card per worker host/storage identity with queue pools, inferred active
+  slots, health state, and CPU/memory/I/O sparklines. Both tabs reuse the
+  app-wide shared `FilterBar` for repository/epic/hostname/status/time-window
+  filtering (default: last 3 hours, no other filters). All timeline lanes
+  render up front — no row virtualization or internal scroll container — so
+  the page itself scrolls to reveal every lane. The same `paths` array also covers
   `/worker_timeline/workflow`, the per-workflow Step/Run waterfall
   drill-down (`WorkflowWaterfall.tsx`, reached by clicking a macro-view
   Workflow span), consuming

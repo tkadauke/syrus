@@ -13,9 +13,10 @@ and `WorkerTimeline::SidebarPages#sidebar_pages` self-gates on both
 otherwise (the `sidebar_page` extension point itself has no per-page
 visibility concept).
 
-It covers both the **macro** (cross-job, multi-lane) view and a **micro**
-per-workflow Step/Run waterfall drill-down (`/worker_timeline/workflow?id=<id>`,
-reachable by clicking a macro-view Workflow span).
+It covers a **macro** (cross-job, multi-lane) view, a scoped **Live
+Workers** tab, and a **micro** per-workflow Step/Run waterfall drill-down
+(`/worker_timeline/workflow?id=<id>`, reachable by clicking a macro-view
+Workflow span).
 
 ## Data sources
 
@@ -24,6 +25,8 @@ The plugin reads:
 - `WorkflowActivityEvent` / `SpawnedProcess` / `InstanceVersion` (worker
   attribution — see `Timeline::WorkerAttribution`).
 - `Workflow`/`Step`/`Run` `started_at`/`finished_at` timestamps.
+- `SolidQueue::Process`, currently running `SpawnedProcess` rows, and
+  recent `WorkerHostHealthSample` rows for the Live Workers tab.
 - `WorkUnits::StartBlock.explain` for the same blocked-reason explanation
   `Admin::StuckJobExplainer` uses — historical (already-resolved) spans may
   have no stored blocked-reason, and the API says so explicitly
@@ -47,6 +50,14 @@ Rows that predate `queue_role`, lack `worker_storage_key`, or come from
 non-`RunJob` activity still fall back to legacy `hostname` + `pid` lane
 grouping. The backend does not allocate per-thread slots; the frontend packs
 overlapping spans inside a lane from timestamps.
+
+The Live Workers payload is intentionally explicit about that same
+instrumentation boundary. It shows one card per current worker host/storage
+identity and infers active slots from currently running `SpawnedProcess`
+rows, their `Run`/`Workflow`/`Step` links, and live Solid Queue worker pools.
+Each slot carries `attribution_confidence` and `attribution_note` so the UI
+does not imply exact per-thread ownership when Syrus only knows the process
+or workflow-level association.
 
 `app/services/timeline/macro_query.rb` (`Timeline::MacroQuery`) is the
 underlying macro query service, and
@@ -81,6 +92,9 @@ surface, sharing the same query services and payload shape:
     `config/syrus_docs/worker_activity_timeline.md` for the full param and
     response shape.
   - `GET /api/v1/admin/worker_timeline/workflow` — `?id=<workflow_id>`.
+  - `GET /api/v1/admin/worker_timeline/live` — live worker host cards,
+    using the same worker-timeline filter query-tree parser for
+    repository/epic/hostname/status/job-type filters.
 - `Api::V1::App::Admin::WorkerTimelineController` (session auth via
   `Api::V1::App::Admin::BaseController#require_admin`, plus its own
   `require_worker_timeline_enabled` gate) — for the browser SPA, which
@@ -112,6 +126,19 @@ surface, sharing the same query services and payload shape:
   `queue_role`, representative `hostname`/`pid`, `instance`, and `spans`;
   each span includes its own `worker_storage_key`, `queue_role`,
   `hostname`, and `pid` along with Workflow timing/status fields.
+- `GET /api/v1/app/admin/worker_timeline/live` — `?q=<base64-encoded
+  filter tree>`, returning `summary`, `hosts`, `filter`, and
+`filter_schema`. Each host has `key`, `hostname`, `worker_storage_key`,
+`state` (`idle`, `busy`, `degraded`, or `overloaded`), `health`,
+`pools`, `slots`, and `sparklines` for CPU, memory, and I/O pressure.
+  Repository, epic, and job-type filters scope the tab to hosts with matching
+  active/inferred slots; unrelated idle fleet hosts are hidden so the
+  FilterBar does not imply they belong to the filtered work.
+  Host state combines slot occupancy and health pressure: active processes
+  make a host busy, active slots over recorded pool thread capacity make it
+  overloaded, and warning/unknown health makes it degraded. Each slot
+  includes the best available job/workflow/step/run attribution, spawned
+  process pid/kind, elapsed time, and a redacted command excerpt.
 - `GET /api/v1/app/admin/worker_timeline/workflow` — `?id=<workflow_id>`,
   the Step/Run waterfall for one Workflow (wraps
   `Timeline::WorkflowWaterfallQuery`). The workflow and each Step payload
@@ -145,18 +172,26 @@ aliases for `system`.
 ## Frontend
 
 `/worker_timeline` (sidebar page `worker_timeline.macro`, icon `timeline`)
-renders `WorkerTimeline.tsx`: hand-rolled React+SVG bars per span (no
-charting library, consistent with `spending_insights`), `d3-scale` for the
-time axis and `d3-zoom`/`d3-selection` for pan/zoom gesture handling, and
-the app-wide shared `FilterBar` (same component and query-tree wiring as
-`AdminQueue`/`AdminUsers`/`Dashboard`) for repository/epic/hostname/status/
-job-type/time-window filtering — the plugin no longer ships its own filter
-UI. All lanes render up front (no row virtualization, no internal vertical
-scroll container) so the page itself scrolls to show every lane. Hovering a
-span shows a tooltip with the Job/Workflow id and title, duration, and the
-blocked-reason explanation (or a plain "no historical data" message when
-none survives). Clicking a Workflow span navigates to
-`/worker_timeline/workflow?id=<id>`.
+renders `WorkerTimeline.tsx` with exactly two top-level tabs: Timeline and
+Live Workers. Both tabs reuse the app-wide shared `FilterBar` (same
+component and query-tree wiring as `AdminQueue`/`AdminUsers`/`Dashboard`) for
+repository/epic/hostname/status/job-type/time-window filtering — the plugin
+does not ship its own filter UI or SmartFolder save/update controls.
+
+The Timeline tab uses hand-rolled React+SVG bars per span (no charting
+library, consistent with `spending_insights`), `d3-scale` for the time axis
+and `d3-zoom`/`d3-selection` for pan/zoom gesture handling. All lanes render
+up front (no row virtualization, no internal vertical scroll container) so
+the page itself scrolls to show every lane. Hovering a span shows a tooltip
+with the Job/Workflow id and title, duration, and the blocked-reason
+explanation (or a plain "no historical data" message when none survives).
+Clicking a Workflow span navigates to `/worker_timeline/workflow?id=<id>`.
+
+The Live Workers tab renders compact host cards. Each card groups the
+worker's queue pools and inferred active slots under the same host/storage
+identity, colors the card/pills by idle/busy/degraded/overloaded state, and
+shows small CPU, memory, and I/O sparklines from recent
+`WorkerHostHealthSample` rows.
 
 That route renders `WorkflowWaterfall.tsx`: one lane per Step (in position
 order), with that Step's Run attempt(s) drawn as spans within the lane so

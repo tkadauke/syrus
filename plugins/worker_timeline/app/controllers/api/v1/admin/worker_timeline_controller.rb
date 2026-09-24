@@ -35,6 +35,10 @@ module Api
           render json: ::Timeline::WorkflowWaterfallQuery.call(workflow_id: params[:id])
         end
 
+        def live
+          render json: ::WorkerTimeline::LiveWorkersPayload.call(filter: ::WorkerTimeline::MacroQueryFilter.from_params(params))
+        end
+
         private
 
         def require_worker_timeline_enabled

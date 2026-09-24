@@ -60,6 +60,73 @@ export type WorkerTimelineMacroPayload = {
   filter_schema: FilterSchemaField[]
 }
 
+export type WorkerTimelineLiveSparklinePoint = {
+  at: string
+  value: number | null
+}
+
+export type WorkerTimelineLivePool = {
+  hostname: string
+  pid: number | null
+  queues: string[]
+  threads: number
+  last_heartbeat_at: string | null
+  stale: boolean
+}
+
+export type WorkerTimelineLiveSlot = {
+  id: number | string
+  state: "active"
+  attribution_confidence: string
+  attribution_note: string
+  spawned_process: {
+    id: number | null
+    pid: number | null
+    kind: string | null
+    started_at: string | null
+    elapsed_s: number
+    command_excerpt: string
+  }
+  job: { id: number | null; slug: string | null; title: string | null }
+  workflow: { id: number | null; slug: string | null; trigger_kind: string | null; type: string | null; status: string | null }
+  step: { id: number | null; kind: string | null; status: string | null }
+  run: { id: number | null; status: string | null; trigger_kind: string | null }
+}
+
+export type WorkerTimelineLiveHost = {
+  key: string
+  hostname: string
+  worker_storage_key: string | null
+  state: "idle" | "busy" | "degraded" | "overloaded"
+  health: { level: string; reasons: string[] }
+  started_at: string | null
+  last_heartbeat_at: string | null
+  version: string | null
+  pools: WorkerTimelineLivePool[]
+  slots: WorkerTimelineLiveSlot[]
+  sparklines: {
+    cpu: WorkerTimelineLiveSparklinePoint[]
+    memory: WorkerTimelineLiveSparklinePoint[]
+    io: WorkerTimelineLiveSparklinePoint[]
+  }
+}
+
+export type WorkerTimelineLivePayload = {
+  generated_at: string
+  summary: {
+    total_hosts: number
+    idle_hosts: number
+    busy_hosts: number
+    degraded_hosts: number
+    overloaded_hosts: number
+    active_slots: number
+    total_slots: number
+  }
+  hosts: WorkerTimelineLiveHost[]
+  filter: Record<string, unknown> | null
+  filter_schema: FilterSchemaField[]
+}
+
 export type WorkerTimelineWaterfallWorkflow = {
   id: number
   slug: string
@@ -118,6 +185,10 @@ export type WorkerTimelineFilterUsagePayload = {
 
 export function fetchWorkerTimelineMacro(search = "") {
   return getJson<WorkerTimelineMacroPayload>(`/api/v1/app/admin/worker_timeline/macro${search}`)
+}
+
+export function fetchWorkerTimelineLive(search = "") {
+  return getJson<WorkerTimelineLivePayload>(`/api/v1/app/admin/worker_timeline/live${search}`)
 }
 
 export function fetchWorkerTimelineWorkflow(workflowId: string) {
