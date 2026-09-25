@@ -1,16 +1,16 @@
 import { useQuery } from "@tanstack/react-query"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { DataTable } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
-import { fetchKubernetesNodes } from "../../api/kubernetesResources"
+import { fetchKubernetesNodes, type KubernetesNodeRow } from "../../api/kubernetesResources"
 import { formatAge, formatKubernetesCpu, formatKubernetesMemory } from "../../lib/k8sFormat"
+import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
 import { StatusBadge } from "../StatusBadge"
 
 export function NodesTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const nodes = useQuery({
-    queryKey: [ "k8s_cluster", "nodes", clusterId ],
+    queryKey: ["k8s_cluster", "nodes", clusterId],
     queryFn: () => fetchKubernetesNodes(clusterId)
   })
 
@@ -22,38 +22,70 @@ export function NodesTab({ clusterId }: { clusterId: number }) {
         nodes.data.nodes.length === 0 ? (
           <PanelMessage>{t("nodes_empty")}</PanelMessage>
         ) : (
-          <DataTable.Root density="compact">
-            <DataTable.Header>
-              <DataTable.Row>
-                <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_conditions")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_roles")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_capacity")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_allocatable")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-              </DataTable.Row>
-            </DataTable.Header>
-            <DataTable.Body>
-                {nodes.data.nodes.map((node) => (
-                  <DataTable.Row key={node.name}>
-                    <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{node.name}</DataTable.Cell>
-                    <DataTable.Cell>
-                      <StatusBadge tone={node.ready ? "success" : "error"}>{node.ready ? t("node_ready") : t("node_not_ready")}</StatusBadge>
-                    </DataTable.Cell>
-                    <DataTable.Cell className="text-gray-700 dark:text-gray-300">{node.roles.join(", ")}</DataTable.Cell>
-                    <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">
-                      {formatKubernetesCpu(node.capacity_cpu)} / {formatKubernetesMemory(node.capacity_memory)}
-                    </DataTable.Cell>
-                    <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">
-                      {formatKubernetesCpu(node.allocatable_cpu)} / {formatKubernetesMemory(node.allocatable_memory)}
-                    </DataTable.Cell>
-                    <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(node.created_at)}</DataTable.Cell>
-                  </DataTable.Row>
-                ))}
-            </DataTable.Body>
-          </DataTable.Root>
+          <KubernetesResourceTable
+            columns={nodeColumns(t)}
+            defaultSort={{ column: "name", direction: "asc" }}
+            empty={<PanelMessage>{t("nodes_empty")}</PanelMessage>}
+            getRowKey={(node) => node.name}
+            rows={nodes.data.nodes}
+            storageKey="syrus.k8s_cluster.nodes.columns"
+            summary={t("tab_nodes")}
+          />
         )
       ) : null}
     </div>
   )
+}
+
+function nodeColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResourceTableColumn<KubernetesNodeRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (node) => node.name,
+      required: true,
+      sort: "name",
+      sortValue: (node) => node.name
+    },
+    {
+      key: "ready",
+      header: t("col_conditions"),
+      filterValue: (node) => (node.ready ? t("node_ready") : t("node_not_ready")),
+      render: (node) => <StatusBadge tone={node.ready ? "success" : "error"}>{node.ready ? t("node_ready") : t("node_not_ready")}</StatusBadge>,
+      sort: "ready",
+      sortValue: (node) => Number(node.ready)
+    },
+    {
+      key: "roles",
+      header: t("col_roles"),
+      className: "text-gray-700 dark:text-gray-300",
+      filterValue: (node) => node.roles,
+      render: (node) => node.roles.join(", "),
+      sort: "roles",
+      sortValue: (node) => node.roles.join(", ")
+    },
+    {
+      key: "capacity",
+      header: t("col_capacity"),
+      className: "font-mono text-gray-700 dark:text-gray-300",
+      filterValue: (node) => `${formatKubernetesCpu(node.capacity_cpu)} / ${formatKubernetesMemory(node.capacity_memory)}`,
+      render: (node) => `${formatKubernetesCpu(node.capacity_cpu)} / ${formatKubernetesMemory(node.capacity_memory)}`
+    },
+    {
+      key: "allocatable",
+      header: t("col_allocatable"),
+      className: "font-mono text-gray-700 dark:text-gray-300",
+      filterValue: (node) => `${formatKubernetesCpu(node.allocatable_cpu)} / ${formatKubernetesMemory(node.allocatable_memory)}`,
+      render: (node) => `${formatKubernetesCpu(node.allocatable_cpu)} / ${formatKubernetesMemory(node.allocatable_memory)}`
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (node) => formatAge(node.created_at),
+      sort: "created_at",
+      sortValue: (node) => node.created_at
+    }
+  ]
 }
