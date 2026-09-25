@@ -166,6 +166,10 @@ export type DesignDocsIndexPayload = {
   active_smart_folder_id: number | null
   filter: Record<string, unknown>
   filter_schema: FilterSchemaField[]
+  sort: {
+    column: string
+    direction: "asc" | "desc"
+  }
   preferences: {
     visible_columns: string[]
     raw: Record<string, unknown>
