@@ -1357,6 +1357,10 @@ describe("App", () => {
       fireEvent.keyDown(resizeHandle, { key: "ArrowLeft" })
       expect(sidebar).toHaveStyle({ width: "404px" })
       expect(window.localStorage.getItem("syrus.sidebar.width")).toBe("404")
+
+      fireEvent.keyDown(resizeHandle, { key: "Home" })
+      expect(sidebar).toHaveStyle({ width: "60px" })
+      expect(window.localStorage.getItem("syrus.sidebar.collapsed")).toBe("true")
     } finally {
       fetchSpy.mockRestore()
       script.remove()
