@@ -25,6 +25,7 @@ module Ruby
     def command
       return nil unless @base_retry["strategy"] == "plugin"
       return nil unless rspec_grader?
+      return nil if plugin_project_grader?
 
       files = failed_spec_files
       return nil if files.empty?
@@ -39,6 +40,10 @@ module Ruby
 
     def rspec_grader?
       @grader_name.include?("rspec") || @grader_command.match?(/\brspec\b/)
+    end
+
+    def plugin_project_grader?
+      @grader_name.start_with?("plugins-") || rspec_path_args.any? { |path| path.start_with?("plugins/") }
     end
 
     def failed_spec_files

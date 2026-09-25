@@ -38,7 +38,7 @@ RSpec.describe Ruby::FocusedTestCommand do
     expect(command).to be_nil
   end
 
-  it "keeps focused repeats scoped to the owning grader's spec path" do
+  it "declines plugin project graders" do
     command = described_class.command_for(
       grader_name: "plugins-ruby-rspec",
       grader_command: "bundle exec rspec plugins/ruby/spec",
@@ -46,17 +46,6 @@ RSpec.describe Ruby::FocusedTestCommand do
         { "file_path" => "plugins/ruby/spec/focused_test_command_spec.rb", "name" => "builds a focused command" },
         { "file_path" => "spec/services/touched_test_repeat_gate_spec.rb", "name" => "checks repeat behavior" }
       ],
-      base_retry: { "strategy" => "plugin" }
-    )
-
-    expect(command).to eq("bundle exec rspec plugins/ruby/spec/focused_test_command_spec.rb")
-  end
-
-  it "declines when no touched spec belongs to the owning grader's spec path" do
-    command = described_class.command_for(
-      grader_name: "plugins-ruby-rspec",
-      grader_command: "bundle exec rspec plugins/ruby/spec",
-      failed_cases: [ { "file_path" => "spec/services/touched_test_repeat_gate_spec.rb", "name" => "checks repeat behavior" } ],
       base_retry: { "strategy" => "plugin" }
     )
 
