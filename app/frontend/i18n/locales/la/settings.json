@@ -831,9 +831,6 @@
     "check_known_flaky_dismissal": "Defectus probationum necessariarum iam instabiles confirmatas dimittere",
     "label_known_flaky_min_score": "Gradus instabilitatis minimus ad confirmandum",
     "known_flaky_min_score_hint": "Defectus probationis necessariae tantum instabilis confirmata habetur cum omnes probationes cadentes hunc gradum instabilitatis vel altiorem in Test Insights habent. Vacuum relinque ut valore praedefinito (0.1) utaris.",
-    "check_new_test_flakiness_gate": "Probationes nuper additas vel mutatas iterum exsequi ut instabilitas a primo die deprehendatur",
-    "label_new_test_flakiness_gate_repeats": "Iterationes pro probationibus tactis",
-    "new_test_flakiness_gate_repeats_hint": "Postquam probationes necessariae transactae sunt, tantum plicas probationum quas differentia huius Operis addidit vel mutavit toties iterum exsequere. Eventus discrepantes ut nova instabilitas nuntiantur, non ut defectus probationis generalis. Vacuum relinque ut valore praedefinito (5) utaris.",
     "check_isolated_repro_dismissal": "Defectus probationum necessariarum, quos agens seorsum reproducere non potuit, dimittere"
   },
   "github_token": {

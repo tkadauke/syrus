@@ -24,6 +24,7 @@ class JobBundleDispatcher
   end
 
   def try_dispatch!
+    cancel_obsolete_automatic_visual_diffs!
     return if blocker_reason
 
     result = LandingBundleAssembler.for_repository(@repository)
@@ -123,6 +124,10 @@ class JobBundleDispatcher
   end
 
   private
+
+  def cancel_obsolete_automatic_visual_diffs!
+    VisualDiffSubmission.cancel_obsolete_automatic_work!(potential_member_candidates)
+  end
 
   def active_bundle_in_progress?
     WorkUnits::Ownership.active_for_lock_key?(

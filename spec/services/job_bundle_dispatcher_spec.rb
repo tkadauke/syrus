@@ -190,6 +190,25 @@ RSpec.describe JobBundleDispatcher do
     expect(MergeTrain.count).to eq(0)
   end
 
+  it "cancels obsolete automatic visual diff work before dispatching a bundle" do
+    a = approved_job(1)
+    b = approved_job(2)
+    visual_diff = WorkUnits::Launcher.instantiate(
+      kind: "visual_diff",
+      job: a,
+      artifacts: { "visual_diff_source" => VisualDiffSubmission::AUTOMATIC_SOURCE }
+    )
+    visual_diff.work_unit.update!(state: "running")
+    visual_diff.update!(state: "running")
+
+    workflow = described_class.try_dispatch!(repository)
+
+    expect(visual_diff.reload).to be_cancelled
+    expect(visual_diff.work_unit.reload).to be_cancelled
+    expect(workflow).to be_present
+    expect(workflow.work_unit.member_jobs).to contain_exactly(a, b)
+  end
+
   it "does not dispatch while an active WorkUnit lock owns a bundle member without membership" do
     a = approved_job(1)
     approved_job(2)

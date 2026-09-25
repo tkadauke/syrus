@@ -125,7 +125,13 @@ class RunProcessParallelism
     return unless usage_bytes
 
     inactive_file = stat[/^inactive_file\s+(\d+)$/, 1].to_i
-    [ usage_bytes - inactive_file, 0 ].max
+    file = stat[/^(?:file|total_cache)\s+(\d+)$/, 1].to_i
+    dirty = stat[/^(?:file_dirty|total_dirty)\s+(\d+)$/, 1].to_i
+    writeback = stat[/^(?:file_writeback|total_writeback)\s+(\d+)$/, 1].to_i
+    clean_file = [ file - dirty - writeback, 0 ].max
+    reclaimable_file = [ inactive_file, clean_file ].max
+
+    [ usage_bytes - reclaimable_file, 0 ].max
   end
 
   def self.proc_memory_total

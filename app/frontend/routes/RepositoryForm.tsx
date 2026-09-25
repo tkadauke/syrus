@@ -486,27 +486,6 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             </Field>
           ) : null}
           <Checkbox
-            label={t('repository_form.check_new_test_flakiness_gate')}
-            onChange={(checked) => setValues({ ...values, new_test_flakiness_gate_enabled: checked })}
-            value={values.new_test_flakiness_gate_enabled}
-          />
-          {values.new_test_flakiness_gate_enabled ? (
-            <Field label={t('repository_form.label_new_test_flakiness_gate_repeats')}>
-              <Form.Input
-                min={1}
-                onChange={(event) => {
-                  const raw = event.target.value
-                  setValues({ ...values, new_test_flakiness_gate_repeats: raw === '' ? null : Number(raw) })
-                }}
-                placeholder="5"
-                step={1}
-                type="number"
-                value={values.new_test_flakiness_gate_repeats ?? ''}
-              />
-              <Form.HelpText>{t('repository_form.new_test_flakiness_gate_repeats_hint')}</Form.HelpText>
-            </Field>
-          ) : null}
-          <Checkbox
             label={t('repository_form.check_isolated_repro_dismissal')}
             onChange={(checked) => setValues({ ...values, isolated_repro_dismissal_enabled: checked })}
             value={values.isolated_repro_dismissal_enabled}
@@ -928,8 +907,6 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     land_on_inherited_check_failure: payload.repository.land_on_inherited_check_failure,
     known_flaky_failure_dismissal_enabled: payload.repository.known_flaky_failure_dismissal_enabled,
     known_flaky_failure_min_score: payload.repository.known_flaky_failure_min_score,
-    new_test_flakiness_gate_enabled: payload.repository.new_test_flakiness_gate_enabled,
-    new_test_flakiness_gate_repeats: payload.repository.new_test_flakiness_gate_repeats,
     isolated_repro_dismissal_enabled: payload.repository.isolated_repro_dismissal_enabled,
     main_branch_health_enabled: mainBranchHealthEnabled,
     main_branch_repair_enabled: mainBranchHealthEnabled && payload.repository.main_branch_repair_enabled,

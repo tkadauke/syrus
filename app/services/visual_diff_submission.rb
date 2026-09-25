@@ -27,6 +27,8 @@ class VisualDiffSubmission
   end
 
   def self.enqueue_deferred_for_job(job)
+    return unless job.reload.implemented?
+
     job.workflows
       .where(trigger_kind: %w[initial retry pr_comment chat_feedback manual_visual_review])
       .order(created_at: :desc, id: :desc)
@@ -54,6 +56,10 @@ class VisualDiffSubmission
   end
 
   def call
+    if source == AUTOMATIC_SOURCE && !job.reload.implemented?
+      return failure("Automatic visual comparison is obsolete once the Job leaves implemented state.")
+    end
+
     return failure("Before/after comparison can only be run on implemented, approved, or landing Jobs with no active run.") unless runnable?
     return failure("Visual review is not configured for this repository.") unless RepoVisualReviewPlan.for_job(job).enabled?
     return failure("No visual review screenshots are available to compare.") if after_artifacts.empty?
@@ -68,6 +74,24 @@ class VisualDiffSubmission
       before_start: ->(workflow) { workflow.update!(priority: "low") }
     )
     Result.new(workflow: result.workflow, run: result.run, error: nil)
+  end
+
+  def self.cancel_obsolete_automatic_work!(jobs)
+    Workflow
+      .where(job_id: Array(jobs).map(&:id), trigger_kind: "visual_diff", state: Workflow::TriggerKind::ACTIVE_STATES)
+      .find_each do |workflow|
+        next unless workflow.artifact("visual_diff_source") == AUTOMATIC_SOURCE
+        next if workflow.job.implemented?
+
+        WorkUnits::WorkflowCancellation.cancel!(
+          workflow,
+          reason: "visual_diff_obsolete",
+          artifacts: {
+            "cancelled_reason" => "visual_diff_obsolete",
+            "visual_diff_cancelled_at" => Time.current.iso8601
+          }
+        )
+      end
   end
 
   private

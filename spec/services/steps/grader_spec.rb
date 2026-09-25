@@ -55,6 +55,13 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk).join).to include("durable output")
   end
 
+  it "does not rerun or adjudicate a successful grader command" do
+    expect(ProcessRunner).to receive(:new).once.and_call_original
+    expect(BaseRevisionRetry).not_to receive(:call)
+
+    handler.call
+  end
+
 
   it "streams grader output through the shared buffered log sink" do
     fake_result = ProcessRunner::Result.new(

@@ -1448,20 +1448,7 @@ class Job < ApplicationRecord
   end
 
   def cancel_deferred_visual_diff_work_after_approval
-    workflows
-      .where(trigger_kind: "visual_diff", state: Workflow::TriggerKind::ACTIVE_STATES)
-      .find_each do |workflow|
-        next unless workflow.artifact("visual_diff_source") == VisualDiffSubmission::AUTOMATIC_SOURCE
-
-        WorkUnits::WorkflowCancellation.cancel!(
-          workflow,
-          reason: "visual_diff_obsolete",
-          artifacts: {
-            "cancelled_reason" => "visual_diff_obsolete",
-            "visual_diff_cancelled_at" => Time.current.iso8601
-          }
-        )
-      end
+    VisualDiffSubmission.cancel_obsolete_automatic_work!([ self ])
   end
 
   def generate_slug

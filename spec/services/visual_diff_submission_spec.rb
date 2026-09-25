@@ -83,6 +83,15 @@ RSpec.describe VisualDiffSubmission do
     }.not_to change { job.workflows.where(trigger_kind: "visual_diff").count }
   end
 
+  it "does not create deferred work after the job has already been approved" do
+    job = Factories.job_record(user: user, repository: repository, state: "approved")
+    workflow = after_workflow_for(job, trigger_kind: "initial")
+
+    expect {
+      described_class.enqueue_deferred_for_visual_review(workflow)
+    }.not_to change { job.workflows.where(trigger_kind: "visual_diff").count }
+  end
+
   it "creates deferred visual diff work when the job becomes implemented" do
     job = Factories.job_record(user: user, repository: repository, state: "running")
     after_workflow_for(job, trigger_kind: "initial")

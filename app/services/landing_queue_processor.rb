@@ -123,6 +123,7 @@ class LandingQueueProcessor
   end
 
   def try_land!(job)
+    cancel_obsolete_automatic_visual_diffs!(job.repository.jobs.approved)
     release_main_health_blocked_landing_slots_for_repair!(job) if MainHealthChangedService.fix_main_job?(job)
     release_urgent_blocked_landing_slots_for_urgent_job!(job) if job.priority == "urgent"
     return if landing_in_progress_for_job?(job)
@@ -146,6 +147,7 @@ class LandingQueueProcessor
 
   def call
     start_ready_epic_sibling_jobs!
+    cancel_obsolete_automatic_visual_diffs!(Job.landing_queue)
 
     landed_workflows = []
 
@@ -199,6 +201,10 @@ class LandingQueueProcessor
         )
       end
     end
+  end
+
+  def cancel_obsolete_automatic_visual_diffs!(jobs)
+    VisualDiffSubmission.cancel_obsolete_automatic_work!(jobs)
   end
 
   def refresh_snapshot!(scope = Job.landing_queue)

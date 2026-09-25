@@ -1,0 +1,49 @@
+name: obsolete visual diff does not block job bundle
+app_settings:
+  merge_train_enabled: true
+features:
+  epicless_job_bundling: true
+repository:
+  owner: simulation
+  name: obsolete-visual-diff-does-not-block-job-bundle
+  auto_merge_enabled: true
+jobs:
+  alpha:
+    title: First approved bundle member
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-alpha
+    pr_number: 6301
+    approved_at: "2026-09-20 10:00:00"
+    workflow:
+      kind: visual_diff
+      state: running
+      artifacts:
+        visual_diff_source: visual_review
+      work_unit:
+        state: running
+      steps:
+        - kind: prepare
+          state: queued
+  beta:
+    title: Second approved bundle member
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-beta
+    pr_number: 6302
+    approved_at: "2026-09-20 10:01:00"
+outcomes:
+  default: success
+expect:
+  jobs:
+    alpha:
+      - closed
+    beta:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - landing_queue dispatched
+    - merge_train_land

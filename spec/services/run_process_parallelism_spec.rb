@@ -72,6 +72,20 @@ RSpec.describe RunProcessParallelism do
     expect(described_class.current_memory_bytes).to eq(2.gigabytes)
   end
 
+  it "does not count active clean file cache as committed process memory" do
+    allow(File).to receive(:read).and_call_original
+    allow(File).to receive(:read).with("/sys/fs/cgroup/memory.current").and_return("16106127360\n")
+    allow(File).to receive(:read).with("/sys/fs/cgroup/memory.stat").and_return(<<~STAT)
+      anon 1073741824
+      file 13958643712
+      file_dirty 268435456
+      file_writeback 134217728
+      inactive_file 1073741824
+    STAT
+
+    expect(described_class.current_memory_bytes).to eq(2.375.gigabytes)
+  end
+
   it "never reports a negative working set when cache races with usage sampling" do
     allow(File).to receive(:read).and_call_original
     allow(File).to receive(:read).with("/sys/fs/cgroup/memory.current").and_return("1024\n")
