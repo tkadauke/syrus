@@ -147,6 +147,42 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
       expect(parse_body.dig("services", 0, "name")).to eq("web")
     end
 
+    it "lists configmaps" do
+      config_maps = instance_double(K8sCluster::ConfigMaps)
+      allow(K8sCluster::ConfigMaps).to receive(:new).with(cluster).and_return(config_maps)
+      allow(config_maps).to receive(:list).with(namespace: nil).and_return(available: true, config_maps: [ { name: "app-settings" } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/configmaps"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("config_maps", 0, "name")).to eq("app-settings")
+    end
+
+    it "requires a namespace to describe a specific configmap" do
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/configmaps", params: { name: "app-settings" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("namespace_required")
+    end
+
+    it "lists secrets" do
+      secrets = instance_double(K8sCluster::Secrets)
+      allow(K8sCluster::Secrets).to receive(:new).with(cluster).and_return(secrets)
+      allow(secrets).to receive(:list).with(namespace: nil).and_return(available: true, secrets: [ { name: "db-credentials" } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/secrets"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("secrets", 0, "name")).to eq("db-credentials")
+    end
+
+    it "requires a namespace to describe a specific secret" do
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/secrets", params: { name: "db-credentials" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("namespace_required")
+    end
+
     it "lists endpoints" do
       endpoints = instance_double(K8sCluster::Endpoints)
       allow(K8sCluster::Endpoints).to receive(:new).with(cluster).and_return(endpoints)
