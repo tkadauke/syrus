@@ -5,6 +5,7 @@ import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesEvents, fetchKubernetesPods } from "../../api/kubernetesResources"
 import { StatusBadge } from "../StatusBadge"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 // Canned polling queries, directly mirroring
 // plugins/mysql_db_browser/app/frontend/components/MysqlLiveTab.tsx: a fixed
@@ -39,7 +40,7 @@ export function LiveTab({ clusterId }: { clusterId: number }) {
             </button>
           ))}
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{t("live_auto_refresh")}</p>
+        <p className="text-xs text-text-secondary">{t("live_auto_refresh")}</p>
       </div>
 
       {selectedId === "pod_status" ? <PodStatusLive clusterId={clusterId} /> : null}
@@ -50,6 +51,7 @@ export function LiveTab({ clusterId }: { clusterId: number }) {
 
 function PodStatusLive({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
+  const { query, setQuery } = useTableSearch()
   const pods = useQuery({
     queryKey: [ "k8s_cluster", "live", "pods", clusterId ],
     queryFn: () => fetchKubernetesPods(clusterId),
@@ -60,20 +62,31 @@ function PodStatusLive({ clusterId }: { clusterId: number }) {
   if (pods.isError) return <PanelMessage tone="error">{errorMessage(pods.error, t("live_error_loading_pods"))}</PanelMessage>
   if (pods.data.pods.length === 0) return <PanelMessage>{t("workloads_empty_pods")}</PanelMessage>
 
+  const visible = pods.data.pods.filter((pod) => matchesSearch(query, pod.name, pod.namespace, pod.status))
+
   return (
-    <ul className="divide-y divide-gray-100 dark:divide-gray-900 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-      {pods.data.pods.map((pod) => (
-        <li className="flex items-center justify-between gap-3 px-4 py-2 text-sm" key={`${pod.namespace}/${pod.name}`}>
-          <span className="min-w-0 truncate font-medium text-gray-900 dark:text-gray-100">{pod.namespace}/{pod.name}</span>
-          <StatusBadge tone={pod.status === "Running" ? "success" : pod.status === "Failed" ? "error" : "neutral"}>{pod.status || "-"}</StatusBadge>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-3">
+      <TableSearch onChange={setQuery} query={query} />
+      {pods.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <ul className="divide-y divide-border rounded border border-border bg-surface">
+          {visible.map((pod) => (
+            <li className="flex items-center justify-between gap-3 px-4 py-2 text-sm" key={`${pod.namespace}/${pod.name}`}>
+              <span className="min-w-0 truncate font-medium text-text-primary">{pod.namespace}/{pod.name}</span>
+              <StatusBadge tone={pod.status === "Running" ? "success" : pod.status === "Failed" ? "error" : "neutral"}>{pod.status || "-"}</StatusBadge>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 
 function RecentEventsLive({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
+  const { query, setQuery } = useTableSearch()
   const events = useQuery({
     queryKey: [ "k8s_cluster", "live", "events", clusterId ],
     queryFn: () => fetchKubernetesEvents(clusterId),
@@ -84,14 +97,26 @@ function RecentEventsLive({ clusterId }: { clusterId: number }) {
   if (events.isError) return <PanelMessage tone="error">{errorMessage(events.error, t("live_error_loading_events"))}</PanelMessage>
   if (events.data.events.length === 0) return <PanelMessage>{t("events_empty")}</PanelMessage>
 
+  const visible = events.data.events
+    .filter((event) => matchesSearch(query, event.reason, event.message, event.involved_object.kind, event.involved_object.name))
+    .slice(0, 20)
+
   return (
-    <ul className="divide-y divide-gray-100 dark:divide-gray-900 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-      {events.data.events.slice(0, 20).map((event, index) => (
-        <li className="flex items-center gap-3 px-4 py-2 text-sm" key={`${event.namespace}/${event.name}/${index}`}>
-          <StatusBadge tone={event.type === "Warning" ? "warning" : "neutral"}>{event.type || "-"}</StatusBadge>
-          <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{event.reason}: {event.message}</span>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-3">
+      <TableSearch onChange={setQuery} query={query} />
+      {events.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <ul className="divide-y divide-border rounded border border-border bg-surface">
+          {visible.map((event, index) => (
+            <li className="flex items-center gap-3 px-4 py-2 text-sm" key={`${event.namespace}/${event.name}/${index}`}>
+              <StatusBadge tone={event.type === "Warning" ? "warning" : "neutral"}>{event.type || "-"}</StatusBadge>
+              <span className="min-w-0 flex-1 truncate text-text-secondary">{event.reason}: {event.message}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
