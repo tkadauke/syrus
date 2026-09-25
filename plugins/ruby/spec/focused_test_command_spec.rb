@@ -38,6 +38,17 @@ RSpec.describe Ruby::FocusedTestCommand do
     expect(command).to be_nil
   end
 
+  it "declines plugin-owned specs whose repeat setup is project-specific" do
+    command = described_class.command_for(
+      grader_name: "plugins-ruby-rspec",
+      grader_command: "bundle exec rspec plugins/ruby/spec",
+      failed_cases: [ { "file_path" => "plugins/ruby/spec/focused_test_command_spec.rb", "name" => "builds a focused command" } ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(command).to be_nil
+  end
+
   it "declines non-rspec graders" do
     command = described_class.command_for(
       grader_name: "react-tests",

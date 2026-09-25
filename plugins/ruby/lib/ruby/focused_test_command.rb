@@ -28,6 +28,7 @@ module Ruby
 
       files = failed_spec_files
       return nil if files.empty?
+      return nil if files.any? { |path| path.start_with?("plugins/") }
 
       "bundle exec rspec #{Shellwords.join(files)}"
     end
