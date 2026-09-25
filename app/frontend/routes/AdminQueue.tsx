@@ -1,5 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
-import { Button, DataTable, DescriptionList, Input, Notice, Page, Section, SectionHeading, Text, buttonClasses } from "../components/ui"
+import { Button, DataTable, DescriptionList, Input, Notice, Page, SectionHeading, Text, buttonClasses } from "../components/ui"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useColorTokens } from "../lib/colorTokens"
@@ -212,9 +212,7 @@ function QueueContent({
         ) : null
       }
     >
-      <Section.Root padding="none">
-        <QueueTabPanel tab={tab} payload={payload} />
-      </Section.Root>
+      <QueueTabPanel tab={tab} payload={payload} />
     </AdminFiltersLayout>
   )
 }
