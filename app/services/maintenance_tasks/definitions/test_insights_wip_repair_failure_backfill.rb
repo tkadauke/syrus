@@ -15,7 +15,7 @@ module MaintenanceTasks
       step "classify", "Classify historical grader-loop test runs", "Walks test_insight_runs from grader-retry-loop iterations, oldest first, and replays TestInsights::WipRepairFailureClassifier over each one."
 
       def estimate_total_units
-        service_class&.pending_count.to_i
+        service_class&.pending_count(after_id: checkpoint_after_id).to_i
       end
 
       def pending_reason
@@ -37,7 +37,7 @@ module MaintenanceTasks
           if task.checkpoint.key?("after_id")
             task.checkpoint["after_id"].to_i
           else
-            service_class.completed_after_id.to_i
+            checkpoint_after_id
           end
         result = service_class.new.call(after_id: after_id, limit: task.batch_size)
 
@@ -53,6 +53,17 @@ module MaintenanceTasks
 
       def service_class
         @service_class ||= "TestInsights::WipRepairFailureBackfill".safe_constantize
+      end
+
+      def checkpoint_after_id
+        return 0 unless defined?(::MaintenanceTask)
+
+        ::MaintenanceTask
+          .where(definition_key: key, recurrence: recurrence)
+          .pluck(:checkpoint)
+          .filter_map { |checkpoint| checkpoint.to_h["after_id"].to_i.presence }
+          .max
+          .to_i
       end
     end
   end
