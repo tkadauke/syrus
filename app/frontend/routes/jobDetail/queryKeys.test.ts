@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { tabFromLocation } from "./queryKeys"
+import type { JobDetailPayload, JobWorkflowsPayload } from "../../api/jobs"
+import { mergeJobWorkflowsPayload, tabFromLocation } from "./queryKeys"
 
 describe("tabFromLocation", () => {
   it("recognizes core tabs from the ?tab= query param", () => {
@@ -28,5 +29,33 @@ describe("tabFromLocation", () => {
 
   it("still falls back to summary when the requested key doesn't match any known plugin tab", () => {
     expect(tabFromLocation("/jobs/1", "?tab=coverage", ["tests"])).toBe("summary")
+  })
+})
+
+describe("mergeJobWorkflowsPayload", () => {
+  it("does not let a workflows-tab payload resurrect approve for an approved job", () => {
+    const payload = {
+      job: { id: 1, state: "approved", summary_state: "approved" },
+      actions: { can_approve: false },
+      workflows: [],
+      workflows_pagination: { page: 1 },
+      feature_flags: {},
+      paths: { app_approve_path: "/approve" }
+    } as unknown as JobDetailPayload
+    const workflows = {
+      actions: {
+        can_approve: true,
+        retry_failed_step_action: { key: "retry_failed_step", label: "Rebuild merge train", path: "/retry_failed_step" }
+      },
+      workflows: [],
+      workflows_pagination: { page: 1 },
+      feature_flags: {},
+      paths: { app_approve_path: "/approve" }
+    } as unknown as JobWorkflowsPayload
+
+    expect(mergeJobWorkflowsPayload(payload, workflows).actions).toMatchObject({
+      can_approve: false,
+      retry_failed_step_action: { label: "Rebuild merge train" }
+    })
   })
 })

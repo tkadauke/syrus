@@ -348,7 +348,7 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
     })
   }
   if (actions.can_restart) available.push({ key: "restart", label: t("start_over"), input: { method: "post", path: paths.app_restart_path, confirm: t("confirm_start_over") }, tone: "secondary" })
-  if (actions.can_approve) available.push({ key: "approve", label: payload.job.landing_failure_reason ? t("reapprove") : t("approve"), input: { method: "post", path: paths.app_approve_path }, tone: "success" })
+  if (actions.can_approve && payload.job.summary_state.toLowerCase() === "implemented") available.push({ key: "approve", label: payload.job.landing_failure_reason ? t("reapprove") : t("approve"), input: { method: "post", path: paths.app_approve_path }, tone: "success" })
   if (actions.can_unapprove) available.push({ key: "unapprove", label: t("unapprove"), input: { method: "post", path: paths.app_unapprove_path, confirm: t("confirm_unapprove") }, tone: "secondary" })
   if (actions.can_close_investigation) available.push({ key: "close_investigation", label: t("close_investigation"), input: { method: "post", path: paths.app_close_investigation_path, confirm: t("confirm_close_investigation") }, tone: "success" })
   if (actions.can_open_in_local_mode) available.push({ key: "open_in_local_mode", label: t("open_in_local_mode"), input: { method: "post", path: paths.app_open_in_local_mode_path }, tone: "secondary" })
@@ -410,9 +410,10 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
     add("cancel")
   } else if (jobState === "coding") {
     add("cancel_local_mode")
+  } else if (availableKeys.has("retry_failed_step")) {
+    add("retry_failed_step")
   } else if (availableKeys.has("approve")) {
     add("approve")
-    add("retry_failed_step")
   } else if (availableKeys.has("close_investigation")) {
     add("close_investigation")
   } else if (jobState === "failed" && payload.job.kind === "external_pr") {
@@ -431,8 +432,6 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
     add("restart")
   } else if (availableKeys.has("reopen")) {
     add("reopen")
-  } else if (availableKeys.has("retry_failed_step")) {
-    add("retry_failed_step")
   } else if (availableKeys.has("retry_implementation")) {
     add("retry_implementation")
   } else if (availableKeys.has("accept_triage")) {
