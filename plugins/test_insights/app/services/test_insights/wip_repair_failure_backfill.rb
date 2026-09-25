@@ -17,13 +17,11 @@ module TestInsights
   # false to true, never the reverse.
   class WipRepairFailureBackfill
     Result = Struct.new(:done, :processed, :next_after_id, keyword_init: true)
-    MAINTENANCE_TASK_KEY = "test_insights_wip_repair_failure_backfill".freeze
 
-    def self.pending_count = new.pending_count
-    def self.completed_after_id = new.send(:completed_after_id)
+    def self.pending_count(after_id: 0) = new.pending_count(after_id: after_id)
 
-    def pending_count
-      candidate_test_runs(completed_after_id).count
+    def pending_count(after_id: 0)
+      candidate_test_runs(after_id).count
     end
 
     def call(after_id: 0, limit:)
@@ -49,17 +47,6 @@ module TestInsights
         .distinct
         .order(:id)
         .includes(run: :step)
-    end
-
-    def completed_after_id
-      return 0 unless defined?(::MaintenanceTask)
-
-      ::MaintenanceTask
-        .where(definition_key: MAINTENANCE_TASK_KEY, recurrence: "one_off")
-        .pluck(:checkpoint)
-        .filter_map { |checkpoint| checkpoint.to_h["after_id"].to_i.presence }
-        .max
-        .to_i
     end
   end
 end
