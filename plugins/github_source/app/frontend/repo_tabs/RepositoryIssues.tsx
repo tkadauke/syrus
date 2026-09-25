@@ -5,7 +5,6 @@ import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { FilterBar } from "@app/components/FilterBar"
 import { SmartFolderNavigation, type SmartFolderNavFolder } from "@app/components/SmartFolderNavigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { FormEvent } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { useLocation, useParams, useSearchParams } from "react-router-dom"
 import { useT } from "@app/hooks/useT"
@@ -18,7 +17,6 @@ import { DataTable } from "@app/components/ui/DataTable"
 import {
   bulkRepositoryIssues,
   closeRepositoryIssue,
-  commentRepositoryIssue,
   delegateRepositoryIssue,
   fetchRepositoryIssues,
   ISSUE_FOLDERS,
@@ -44,7 +42,6 @@ type IssueCommand =
   | { kind: "close"; issueNumber: number }
   | { kind: "delegate"; issueNumber: number }
   | { kind: "bulk"; bulkAction: "close" | "delegate"; issueNumbers: number[] }
-  | { kind: "comment"; issueNumber: number; commentBody: string }
 
 function resolveFolder(searchParams: URLSearchParams): IssueFolder {
   const folder = searchParams.get("folder")
@@ -71,12 +68,9 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
   const queryKey = ["repositories", String(payload.repository.id), "issues", payload.folder, filterParam] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [selected, setSelected] = useState<number[]>([])
-  const [commentingOn, setCommentingOn] = useState<RepositoryIssue | null>(null)
-  const [commentBody, setCommentBody] = useState("")
 
   useEffect(() => {
     setSelected([])
-    setCommentingOn(null)
   }, [payload.folder, payload.query])
 
   const command = useMutation({
@@ -87,8 +81,6 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
           return closeRepositoryIssue(payload.paths.app_close_issue_path, { issueNumber: action.issueNumber, folder, filterParam })
         case "delegate":
           return delegateRepositoryIssue(payload.paths.app_delegate_issue_path, { issueNumber: action.issueNumber, folder, filterParam })
-        case "comment":
-          return commentRepositoryIssue(payload.paths.app_comment_issue_path, { issueNumber: action.issueNumber, commentBody: action.commentBody, folder, filterParam })
         case "bulk":
           return bulkRepositoryIssues(payload.paths.app_bulk_issues_path, { issueNumbers: action.issueNumbers, bulkAction: action.bulkAction, folder, filterParam })
       }
@@ -97,8 +89,6 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
       queryClient.setQueryData(queryKey, updated)
       setNotice(updated.message || null)
       setSelected([])
-      setCommentingOn(null)
-      setCommentBody("")
     }
   })
 
@@ -108,12 +98,6 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
 
   function toggleAll() {
     setSelected((current) => current.length === payload.issues.length ? [] : payload.issues.map((issue) => issue.number))
-  }
-
-  function submitComment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!commentingOn) return
-    command.mutate({ kind: "comment", issueNumber: commentingOn.number, commentBody })
   }
 
   const folders: SmartFolderNavFolder[] = useMemo(() => ISSUE_FOLDERS.map((folder, index) => ({
@@ -230,10 +214,6 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
                     issue={issue}
                     key={issue.number}
                     onClose={() => command.mutate({ kind: "close", issueNumber: issue.number })}
-                    onComment={() => {
-                      setCommentingOn(issue)
-                      setCommentBody("")
-                    }}
                     onDelegate={() => command.mutate({ kind: "delegate", issueNumber: issue.number })}
                     onToggle={() => toggleIssue(issue.number)}
                     selected={selected.includes(issue.number)}
@@ -254,25 +234,6 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
         )}
       </AdminFiltersLayout>
 
-      {commentingOn ? (
-        <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-            {t('repository.comment_on')} <span className="font-mono text-sm font-normal text-gray-600 dark:text-gray-400">#{commentingOn.number}</span>
-          </h2>
-          <form className="mt-3 space-y-3" onSubmit={submitComment}>
-            <textarea
-              className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
-              onChange={(event) => setCommentBody(event.target.value)}
-              rows={5}
-              value={commentBody}
-            />
-            <div className="flex justify-end gap-2">
-              <Button onClick={() => setCommentingOn(null)} variant="secondary">{t('repository.cancel')}</Button>
-              <Button disabled={command.isPending} type="submit" variant="primary">{t('repository.post_comment')}</Button>
-            </div>
-          </form>
-        </section>
-      ) : null}
     </>
   )
 }
@@ -285,7 +246,6 @@ function RepositoryIssueRow({
   commandPending,
   issue,
   onClose,
-  onComment,
   onDelegate,
   onToggle,
   selected
@@ -293,7 +253,6 @@ function RepositoryIssueRow({
   commandPending: boolean
   issue: RepositoryIssue
   onClose: () => void
-  onComment: () => void
   onDelegate: () => void
   onToggle: () => void
   selected: boolean
@@ -322,9 +281,6 @@ function RepositoryIssueRow({
       </DataTable.Cell>
       <DataTable.Cell align="right" className="align-top">
         <div className="flex flex-wrap justify-end gap-1.5">
-          <Button disabled={commandPending} onClick={onComment} size="sm" variant="secondary">
-            {t('repository.comment')}
-          </Button>
           {issue.state === "open" ? (
             <Button disabled={commandPending} onClick={onClose} size="sm" variant="secondary">
               {t('repository.close')}
