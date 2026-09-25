@@ -208,6 +208,73 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(ws.path.join("agent-output.tmp")).to exist
       end
 
+      it "reclones an invalid checkout from the published source snapshot after agentic work and green graders" do
+        checkpoint_ref = "refs/syrus/checkpoints/runs/#{SecureRandom.hex(4)}"
+        source_ref = "refs/syrus/source-snapshots/runs/#{SecureRandom.hex(4)}"
+        checkpoint_sha = nil
+        source_sha = nil
+        source_tree_sha = nil
+
+        Dir.mktmpdir("syrus-wfws-source-snapshot") do |work|
+          sh("git clone -q #{bare_remote_dir} #{work}")
+          File.write(File.join(work, "feature.rb"), "implemented\n")
+          sh("git -C #{work} add feature.rb")
+          sh("git -C #{work} commit -q -m 'implement feature'")
+          checkpoint_sha = sh("git -C #{work} rev-parse HEAD").strip
+          sh("git -C #{work} push -q origin HEAD:#{checkpoint_ref}")
+
+          File.write(File.join(work, "generated.rb"), "generated after implement\n")
+          sh("git -C #{work} add generated.rb")
+          sh("git -C #{work} commit -q -m 'generate derived file'")
+          source_sha = sh("git -C #{work} rev-parse HEAD").strip
+          source_tree_sha = sh("git -C #{work} rev-parse HEAD^{tree}").strip
+          sh("git -C #{work} push -q origin HEAD:#{source_ref}")
+        end
+
+        implement_step = workflow.steps.create!(kind: "implement", position: 1, state: "succeeded")
+        implement_run = implement_step.runs.create!(
+          job: job,
+          user: user,
+          trigger_kind: workflow.trigger_kind,
+          agent_provider: workflow.agent_provider,
+          state: "succeeded",
+          head_sha: checkpoint_sha
+        )
+        RunCheckpoint.create!(
+          run: implement_run,
+          workflow: workflow,
+          step: implement_step,
+          job: job,
+          repository: repository,
+          user: user,
+          step_kind: "implement",
+          commit_sha: checkpoint_sha,
+          remote_ref: checkpoint_ref,
+          status: "published",
+          published_at: 1.minute.ago
+        )
+        fanout_step = workflow.steps.create!(kind: "grader_fanout", position: 2, state: "succeeded")
+        WorkflowSourceSnapshots.record!(
+          workflow: workflow,
+          creator_step: fanout_step,
+          source_sha: source_sha,
+          source_ref: source_ref,
+          tree_sha: source_tree_sha
+        )
+        workflow.steps.create!(kind: "grader_collect", position: 3, state: "succeeded")
+
+        ws = described_class.new(workflow)
+        FileUtils.mkdir_p(ws.path)
+        File.write(ws.path.join("agent-output.tmp"), "corrupt workspace debris after host pressure")
+
+        expect { ws.setup }.not_to raise_error
+        expect(ws.path.join("agent-output.tmp")).not_to exist
+        expect(ws.path.join("feature.rb").read).to eq("implemented\n")
+        expect(ws.path.join("generated.rb").read).to eq("generated after implement\n")
+        expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(source_sha)
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/issue-7-#{job.id}")
+      end
+
       it "reclones an invalid merge-train workspace from its published required branch after agentic steps succeeded" do
         required = "syrus/merge-train-epic-99"
         seed_remote_branch(required, "integration work")
