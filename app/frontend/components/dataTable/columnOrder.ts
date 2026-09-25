@@ -19,7 +19,8 @@ function columnsForKeys<TRow>(columns: DataTableColumnDef<TRow>[], keys: string[
 // to their first occurrence -- this is the exact shape a persistence
 // adapter's `order` represents and the shape drag reordering operates on.
 export function visibleOptionalColumnKeys<TRow>({ columns, order }: { columns: DataTableColumnDef<TRow>[]; order: string[] | null | undefined }): string[] {
-  const optionalKeys = new Set(columns.filter((column) => !column.required).map((column) => column.key))
+  const requiredKeys = new Set(columns.filter((column) => column.required).map((column) => column.key))
+  const optionalKeys = new Set(columns.filter((column) => !column.required && !requiredKeys.has(column.key)).map((column) => column.key))
   const preferred = (order ?? defaultOptionalOrder(columns)).filter((key) => optionalKeys.has(key))
   return preferred.filter(uniqueValue)
 }
