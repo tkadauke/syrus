@@ -143,7 +143,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
 
     q = encoded_filter([
       { "field" => "author", "op" => "contains", "value" => "ada" },
-      { "field" => "label", "op" => "contains", "value" => "bug" },
+      { "field" => "label", "op" => "is", "value" => "bug" },
       { "field" => "delegated", "op" => "is", "value" => "true" },
       { "field" => "state", "op" => "is", "value" => "open" }
     ])
