@@ -13,10 +13,12 @@ import {
 import { formatAge, formatBytes, formatMillicores } from "../../lib/k8sFormat"
 import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 export function OverviewTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const nodes = useQuery({
     queryKey: [ "k8s_cluster", "nodes", clusterId ],
     queryFn: () => fetchKubernetesNodes(clusterId)
@@ -42,53 +44,63 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
       ]
     })
 
+  const visibleNamespaces = (namespaces.data?.namespaces ?? []).filter((row) => matchesSearch(query, row.name, row.status))
+
   return (
     <div aria-label={t("aria_overview_tab")} className="space-y-4">
-      <section>
-        <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("namespaces_heading")}</h3>
+      <section className="space-y-3">
+        <h3 className="text-xs font-semibold uppercase text-text-secondary">{t("namespaces_heading")}</h3>
         {namespaces.isPending ? <PanelMessage>{t("namespaces_loading")}</PanelMessage> : null}
         {namespaces.isError ? <PanelMessage tone="error">{errorMessage(namespaces.error, t("namespaces_error_loading"))}</PanelMessage> : null}
         {namespaces.isSuccess ? (
           namespaces.data.namespaces.length === 0 ? (
             <PanelMessage>{t("namespaces_empty")}</PanelMessage>
           ) : (
-            <DataTable.Root density="compact">
-              <DataTable.Header>
-                <DataTable.Row>
-                  <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-                  <DataTable.HeadCell>{t("col_status")}</DataTable.HeadCell>
-                  <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-                </DataTable.Row>
-              </DataTable.Header>
-              <DataTable.Body>
-                {namespaces.data.namespaces.map((row) => (
-                  <DataTable.Row interactive key={row.name} onClick={() => openNamespace(row)}>
-                    <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">
-                      <DetailNameButton name={row.name} onOpen={() => openNamespace(row)} />
-                    </DataTable.Cell>
-                    <DataTable.Cell>
-                      <StatusBadge tone={row.status === "Active" ? "success" : "neutral"}>{row.status || "-"}</StatusBadge>
-                    </DataTable.Cell>
-                    <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(row.created_at)}</DataTable.Cell>
-                  </DataTable.Row>
-                ))}
-              </DataTable.Body>
-            </DataTable.Root>
+            <>
+              <TableSearch onChange={setQuery} query={query} />
+              {namespaces.data.truncated ? <TruncatedNotice /> : null}
+              {visibleNamespaces.length === 0 ? (
+                <SearchNoMatches />
+              ) : (
+                <DataTable.Root density="compact">
+                  <DataTable.Header>
+                    <DataTable.Row>
+                      <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
+                      <DataTable.HeadCell>{t("col_status")}</DataTable.HeadCell>
+                      <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
+                    </DataTable.Row>
+                  </DataTable.Header>
+                  <DataTable.Body>
+                    {visibleNamespaces.map((row) => (
+                      <DataTable.Row interactive key={row.name} onClick={() => openNamespace(row)}>
+                        <DataTable.Cell className="font-medium">
+                          <DetailNameButton name={row.name} onOpen={() => openNamespace(row)} />
+                        </DataTable.Cell>
+                        <DataTable.Cell>
+                          <StatusBadge tone={row.status === "Active" ? "success" : "neutral"}>{row.status || "-"}</StatusBadge>
+                        </DataTable.Cell>
+                        <DataTable.Cell className="text-text-secondary">{formatAge(row.created_at)}</DataTable.Cell>
+                      </DataTable.Row>
+                    ))}
+                  </DataTable.Body>
+                </DataTable.Root>
+              )}
+            </>
           )
         ) : null}
       </section>
 
       <section>
-        <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("overview_nodes_heading")}</h3>
+        <h3 className="text-xs font-semibold uppercase text-text-secondary">{t("overview_nodes_heading")}</h3>
         {nodes.isPending ? <PanelMessage>{t("overview_loading_nodes")}</PanelMessage> : null}
         {nodes.isError ? <PanelMessage tone="error">{errorMessage(nodes.error, t("overview_error_loading_nodes"))}</PanelMessage> : null}
         {nodes.isSuccess ? (
           nodes.data.nodes.length === 0 ? (
             <PanelMessage>{t("overview_no_nodes")}</PanelMessage>
           ) : (
-            <div className="flex flex-wrap items-center gap-3 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
-              <span className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{nodes.data.nodes.length}</span>
-              <span className="text-sm text-gray-500 dark:text-gray-400">{t("overview_node_count_label")}</span>
+            <div className="flex flex-wrap items-center gap-3 rounded border border-border bg-surface p-4">
+              <span className="text-2xl font-semibold text-text-primary">{nodes.data.nodes.length}</span>
+              <span className="text-sm text-text-secondary">{t("overview_node_count_label")}</span>
               <StatusBadge tone={nodes.data.nodes.every((node) => node.ready) ? "success" : "warning"}>
                 {t("overview_nodes_ready", { ready: nodes.data.nodes.filter((node) => node.ready).length, total: nodes.data.nodes.length })}
               </StatusBadge>
@@ -100,7 +112,7 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
 
       <section>
-        <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("overview_metrics_heading")}</h3>
+        <h3 className="text-xs font-semibold uppercase text-text-secondary">{t("overview_metrics_heading")}</h3>
         {overview.isPending ? <PanelMessage>{t("overview_loading_metrics")}</PanelMessage> : null}
         {overview.isError ? <PanelMessage tone="error">{errorMessage(overview.error, t("overview_error_loading_metrics"))}</PanelMessage> : null}
         {overview.isSuccess ? (
