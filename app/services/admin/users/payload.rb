@@ -1,6 +1,20 @@
 module Admin
   module Users
     class Payload
+      DEFAULT_PER_PAGE = 100
+      MAX_PER_PAGE = 200
+      SORTS = {
+        "email" => { email_address: :asc },
+        "github" => { github_handle: :asc },
+        "admin" => { admin: :asc },
+        "role" => { role: :asc },
+        "agent" => { agent_provider: :asc },
+        "scheduling" => { scheduling_paused: :asc },
+        "created_at" => { created_at: :asc },
+        "updated_at" => { updated_at: :asc }
+      }.freeze
+      DEFAULT_SORT = "email"
+
       def initialize(params:, actor:)
         @params = params
         @actor = actor
@@ -11,12 +25,16 @@ module Admin
         active_folder = active_smart_folder
         filter = display_filter(active_folder)
         base_scope = User.all
-        users = filter.apply(base_scope).order(:email_address).limit(500)
+        filtered = filter.apply(base_scope)
+        total = filtered.count
+        users = apply_sort(filtered).offset(offset).limit(per_page)
         {
           filters: filter.active_filters,
           filter: filter.to_h,
           controls: controls_json,
-          count: users.size,
+          count: total,
+          pagination: pagination_payload(total),
+          sort: sort_payload,
           active_smart_folder_id: active_folder&.id,
           smart_folders: smart_folders(base_scope, active_folder),
           users: users.map { |user| serialize_user_row(user) }
@@ -54,6 +72,58 @@ module Admin
       private
 
       attr_reader :params, :actor
+
+      def page
+        [ params[:page].to_i, 1 ].max
+      end
+
+      def per_page
+        raw = params[:per_page].to_i
+        return DEFAULT_PER_PAGE unless raw.positive?
+
+        [ raw, MAX_PER_PAGE ].min
+      end
+
+      def offset
+        (page - 1) * per_page
+      end
+
+      def sort_column
+        SORTS.key?(params[:sort].to_s) ? params[:sort].to_s : DEFAULT_SORT
+      end
+
+      def sort_direction
+        params[:direction].to_s == "desc" ? "desc" : "asc"
+      end
+
+      def apply_sort(scope)
+        order = SORTS.fetch(sort_column)
+        direction = sort_direction.to_sym
+        scope.order(order.transform_values { direction }).order(id: direction)
+      end
+
+      def sort_payload
+        {
+          column: sort_column,
+          direction: sort_direction
+        }
+      end
+
+      def pagination_payload(total)
+        total_pages = (total.to_f / per_page).ceil
+        {
+          page: page,
+          per_page: per_page,
+          total: total,
+          total_pages: total_pages,
+          has_previous_page: page > 1,
+          has_next_page: total_pages > page,
+          previous_page: page > 1 ? page - 1 : nil,
+          next_page: total_pages > page ? page + 1 : nil,
+          first_item: total.zero? ? 0 : offset + 1,
+          last_item: [ offset + per_page, total ].min
+        }
+      end
 
       def require_admin!
         raise ArgumentError, "Admin access required." unless actor&.admin?
