@@ -79,7 +79,26 @@ function setupFetchMock(initial = [stagingCluster()]) {
       )
     }
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/pods$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({ available: true, generated_at: "2026-01-01T00:00:00Z", truncated: false, pods: [] }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          generated_at: "2026-01-01T00:00:00Z",
+          truncated: false,
+          pods: [
+            {
+              name: "web-1",
+              namespace: "default",
+              status: "Running",
+              pod_ip: "10.0.0.5",
+              node_name: "node-1",
+              ready: "1/1",
+              restart_count: 0,
+              container_names: ["app"],
+              created_at: "2026-01-01T00:00:00Z"
+            }
+          ]
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/cronjobs$/.test(url) && method === "GET") {
       return Promise.resolve(
@@ -117,12 +136,12 @@ function setupFetchMock(initial = [stagingCluster()]) {
   return { calls, fetchSpy }
 }
 
-function renderClusters() {
+function renderClusters(initialEntry = "/k8s_clusters") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/k8s_clusters"]}>
+        <MemoryRouter initialEntries={[initialEntry]}>
           <KubernetesClusters />
         </MemoryRouter>
       </QueryClientProvider>
@@ -179,6 +198,19 @@ describe("KubernetesClusters", () => {
     fireEvent.click(within(tablePanel).getByRole("button", { name: "Columns" }))
     expect(within(tablePanel).getByLabelText("API server")).toBeChecked()
     expect(within(tablePanel).getByRole("button", { name: "Move API server down" })).toBeInTheDocument()
+  })
+
+  it("filters clusters through the shared FilterBar query", async () => {
+    setupFetchMock([
+      stagingCluster({ id: 1, label: "Staging", api_server_url: "https://staging.k8s.internal:6443" }),
+      stagingCluster({ id: 2, label: "Production", api_server_url: "https://prod.k8s.internal:6443" })
+    ])
+    renderClusters("/k8s_clusters?query=prod")
+
+    const table = await screen.findByRole("table")
+    expect(within(table).getByText("Production")).toBeInTheDocument()
+    expect(within(table).queryByText("Staging")).not.toBeInTheDocument()
+    expect(screen.getByText("1 of 2 resources")).toBeInTheDocument()
   })
 
   it("creates a cluster from the add form by pasting a kubeconfig", async () => {
@@ -254,6 +286,25 @@ describe("KubernetesClusters", () => {
     fireEvent.click(within(row).getByRole("button", { name: "Browse" }))
 
     expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
+  })
+
+  it("does not apply a cluster-list filter to resource tables after browsing", async () => {
+    setupFetchMock([
+      stagingCluster({ id: 1, label: "Production", api_server_url: "https://prod.k8s.internal:6443" }),
+      stagingCluster({ id: 2, label: "Staging", api_server_url: "https://staging.k8s.internal:6443" })
+    ])
+    renderClusters("/k8s_clusters?query=prod")
+
+    const row = (await screen.findByText("Production")).closest("tr") as HTMLElement
+    expect(screen.queryByText("Staging")).not.toBeInTheDocument()
+    fireEvent.click(within(row).getByRole("button", { name: "Browse" }))
+
+    expect(await screen.findByText("Browsing Production")).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("button", { name: "Cluster view" }))
+    fireEvent.click(await screen.findByRole("option", { name: "Workloads" }))
+
+    expect(await screen.findByText("web-1")).toBeInTheDocument()
+    expect(screen.getByText("1 resource")).toBeInTheDocument()
   })
 
   it("shows a human-readable CronJob schedule explanation on hover", async () => {

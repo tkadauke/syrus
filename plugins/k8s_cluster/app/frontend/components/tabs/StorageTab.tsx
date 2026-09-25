@@ -1,16 +1,16 @@
 import { useQuery } from "@tanstack/react-query"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { DataTable } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
-import { fetchKubernetesPersistentVolumeClaims } from "../../api/kubernetesResources"
+import { fetchKubernetesPersistentVolumeClaims, type KubernetesPersistentVolumeClaimRow } from "../../api/kubernetesResources"
 import { formatAge } from "../../lib/k8sFormat"
+import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
 import { StatusBadge } from "../StatusBadge"
 
 export function StorageTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const pvcs = useQuery({
-    queryKey: [ "k8s_cluster", "pvcs", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "pvcs", clusterId, namespace],
     queryFn: () => fetchKubernetesPersistentVolumeClaims(clusterId, namespace)
   })
 
@@ -22,34 +22,71 @@ export function StorageTab({ clusterId, namespace }: { clusterId: number; namesp
         pvcs.data.persistent_volume_claims.length === 0 ? (
           <PanelMessage>{t("storage_empty")}</PanelMessage>
         ) : (
-          <DataTable.Root density="compact">
-            <DataTable.Header>
-              <DataTable.Row>
-                <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_status")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_capacity")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_storage_class")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-              </DataTable.Row>
-            </DataTable.Header>
-            <DataTable.Body>
-                {pvcs.data.persistent_volume_claims.map((pvc) => (
-                  <DataTable.Row key={`${pvc.namespace}/${pvc.name}`}>
-                    <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{pvc.name}</DataTable.Cell>
-                    <DataTable.Cell className="text-gray-700 dark:text-gray-300">{pvc.namespace}</DataTable.Cell>
-                    <DataTable.Cell>
-                      <StatusBadge tone={pvc.status === "Bound" ? "success" : "warning"}>{pvc.status || "-"}</StatusBadge>
-                    </DataTable.Cell>
-                    <DataTable.Cell className="text-gray-700 dark:text-gray-300">{pvc.capacity || "-"}</DataTable.Cell>
-                    <DataTable.Cell className="text-gray-700 dark:text-gray-300">{pvc.storage_class || "-"}</DataTable.Cell>
-                    <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(pvc.created_at)}</DataTable.Cell>
-                  </DataTable.Row>
-                ))}
-            </DataTable.Body>
-          </DataTable.Root>
+          <KubernetesResourceTable
+            columns={pvcColumns(t)}
+            defaultSort={{ column: "name", direction: "asc" }}
+            empty={<PanelMessage>{t("storage_empty")}</PanelMessage>}
+            getRowKey={(pvc) => `${pvc.namespace}/${pvc.name}`}
+            rows={pvcs.data.persistent_volume_claims}
+            storageKey="syrus.k8s_cluster.pvcs.columns"
+            summary={t("tab_storage")}
+          />
         )
       ) : null}
     </div>
   )
+}
+
+function pvcColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResourceTableColumn<KubernetesPersistentVolumeClaimRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (pvc) => pvc.name,
+      required: true,
+      sort: "name",
+      sortValue: (pvc) => pvc.name
+    },
+    {
+      key: "namespace",
+      header: t("col_namespace"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (pvc) => pvc.namespace,
+      sort: "namespace",
+      sortValue: (pvc) => pvc.namespace
+    },
+    {
+      key: "status",
+      header: t("col_status"),
+      filterValue: (pvc) => pvc.status,
+      render: (pvc) => <StatusBadge tone={pvc.status === "Bound" ? "success" : "warning"}>{pvc.status || "-"}</StatusBadge>,
+      sort: "status",
+      sortValue: (pvc) => pvc.status
+    },
+    {
+      key: "capacity",
+      header: t("col_capacity"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (pvc) => pvc.capacity || "-",
+      sort: "capacity",
+      sortValue: (pvc) => pvc.capacity
+    },
+    {
+      key: "storage_class",
+      header: t("col_storage_class"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (pvc) => pvc.storage_class || "-",
+      sort: "storage_class",
+      sortValue: (pvc) => pvc.storage_class
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (pvc) => formatAge(pvc.created_at),
+      sort: "created_at",
+      sortValue: (pvc) => pvc.created_at
+    }
+  ]
 }

@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type FormEvent } from "react"
+import { useLocation } from "react-router-dom"
+import { FilterBar, filterTreeFromPayload, type FilterSchemaField } from "@app/components/FilterBar"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useConfirm } from "@app/hooks/useConfirm"
@@ -8,6 +10,7 @@ import { PanelMessage } from "@app/components/PanelMessage"
 import { AdminEventLogTable, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
 import { Button, Form, Modal, Page } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
+import { buildFlatFilterLink } from "@app/lib/flatFilterLink"
 import {
   createKubernetesCluster,
   deleteKubernetesCluster,
@@ -23,6 +26,7 @@ import { ClusterBrowser } from "../components/ClusterBrowser"
 import { StatusBadge } from "../components/StatusBadge"
 
 const queryKey = ["k8s_cluster", "clusters"] as const
+const CLUSTER_SEARCH_FIELD = "query"
 
 type BrowseTarget = { clusterId: number; label: string }
 type ConnectionModalState = { mode: "create" } | { mode: "edit"; cluster: KubernetesClusterRow }
@@ -201,18 +205,65 @@ function ClustersTable({
   onNotice: (message: string | null) => void
 }) {
   const { t } = useT("k8s_cluster")
+  const location = useLocation()
+  const query = new URLSearchParams(location.search).get(CLUSTER_SEARCH_FIELD)?.trim().toLowerCase() || ""
+  const filteredClusters = query ? clusters.filter((cluster) => clusterSearchText(cluster, t).includes(query)) : clusters
 
   return (
-    <AdminEventLogTable
-      columns={clusterColumns({ onBrowse, onEdit, onNotice, t })}
-      defaultSort={{ column: "label", direction: "asc" }}
-      getRowKey={(cluster) => cluster.id}
-      localSort
-      panel={{ summary: t("heading"), meta: clusters.length === 0 ? t("empty") : t("table_count", { count: clusters.length }) }}
-      rows={clusters}
-      storageKey="syrus.admin.kubernetes_clusters.columns"
-    />
+    <div className="space-y-3">
+      <FilterBar
+        buildLink={buildFlatFilterLink([CLUSTER_SEARCH_FIELD])}
+        filter={filterTreeFromPayload(query ? { and: [{ field: CLUSTER_SEARCH_FIELD, op: "contains", value: query }] } : null)}
+        filterSchema={clusterFilterSchema(t)}
+        legacyFilterKeys={[CLUSTER_SEARCH_FIELD]}
+        pathname={location.pathname}
+        search={location.search}
+      />
+      <AdminEventLogTable
+        columns={clusterColumns({ onBrowse, onEdit, onNotice, t })}
+        defaultSort={{ column: "label", direction: "asc" }}
+        getRowKey={(cluster) => cluster.id}
+        localSort
+        panel={{
+          summary: t("heading"),
+          meta:
+            clusters.length === 0
+              ? t("empty")
+              : clusters.length === filteredClusters.length
+                ? t("table_count", { count: clusters.length })
+                : t("resource_table_filtered_count", { shown: filteredClusters.length, total: clusters.length })
+        }}
+        rows={filteredClusters}
+        storageKey="syrus.admin.kubernetes_clusters.columns"
+      />
+    </div>
   )
+}
+
+function clusterFilterSchema(t: ReturnType<typeof useT>["t"]): FilterSchemaField[] {
+  return [
+    {
+      bucket: "text",
+      expansions: { placeholder: t("cluster_filter_placeholder") },
+      field: CLUSTER_SEARCH_FIELD,
+      free_text_search: true,
+      label: t("cluster_filter_query"),
+      operators: ["contains"]
+    }
+  ]
+}
+
+function clusterSearchText(cluster: KubernetesClusterRow, t: ReturnType<typeof useT>["t"]) {
+  return [
+    cluster.label,
+    cluster.api_server_url,
+    credentialLabel(cluster, t),
+    cluster.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled"),
+    cluster.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled"),
+    cluster.insecure_skip_tls_verify ? t("insecure_enabled") : t("insecure_disabled")
+  ]
+    .join(" ")
+    .toLowerCase()
 }
 
 function clusterColumns({
@@ -227,27 +278,60 @@ function clusterColumns({
   t: ReturnType<typeof useT>["t"]
 }): Array<AdminEventLogTableColumn<KubernetesClusterRow>> {
   return [
-    { key: "label", header: t("col_label"), className: "font-medium text-gray-900 dark:text-gray-100", render: (cluster) => cluster.label, sort: "label", sortValue: (cluster) => cluster.label },
-    { key: "api_server_url", header: t("col_api_server_url"), className: "font-mono text-gray-700 dark:text-gray-300", render: (cluster) => cluster.api_server_url, sort: "api_server_url", sortValue: (cluster) => cluster.api_server_url },
-    { key: "credential_kind", header: t("col_credential_kind"), className: "text-gray-700 dark:text-gray-300", render: (cluster) => credentialLabel(cluster, t), sort: "credential_kind", sortValue: (cluster) => credentialLabel(cluster, t) },
+    {
+      key: "label",
+      header: t("col_label"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (cluster) => cluster.label,
+      sort: "label",
+      sortValue: (cluster) => cluster.label
+    },
+    {
+      key: "api_server_url",
+      header: t("col_api_server_url"),
+      className: "font-mono text-gray-700 dark:text-gray-300",
+      render: (cluster) => cluster.api_server_url,
+      sort: "api_server_url",
+      sortValue: (cluster) => cluster.api_server_url
+    },
+    {
+      key: "credential_kind",
+      header: t("col_credential_kind"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (cluster) => credentialLabel(cluster, t),
+      sort: "credential_kind",
+      sortValue: (cluster) => credentialLabel(cluster, t)
+    },
     {
       key: "agentic_access",
       header: t("col_agentic_access"),
-      render: (cluster) => <StatusBadge tone={cluster.agentic_access_enabled ? "success" : "neutral"}>{cluster.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled")}</StatusBadge>,
+      render: (cluster) => (
+        <StatusBadge tone={cluster.agentic_access_enabled ? "success" : "neutral"}>
+          {cluster.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled")}
+        </StatusBadge>
+      ),
       sort: "agentic_access",
       sortValue: (cluster) => Number(cluster.agentic_access_enabled)
     },
     {
       key: "allow_writes",
       header: t("col_allow_writes"),
-      render: (cluster) => <StatusBadge tone={cluster.allow_writes ? "warning" : "neutral"}>{cluster.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}</StatusBadge>,
+      render: (cluster) => (
+        <StatusBadge tone={cluster.allow_writes ? "warning" : "neutral"}>
+          {cluster.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}
+        </StatusBadge>
+      ),
       sort: "allow_writes",
       sortValue: (cluster) => Number(cluster.allow_writes)
     },
     {
       key: "insecure_skip_tls_verify",
       header: t("col_insecure_skip_tls_verify"),
-      render: (cluster) => <StatusBadge tone={cluster.insecure_skip_tls_verify ? "warning" : "neutral"}>{cluster.insecure_skip_tls_verify ? t("insecure_enabled") : t("insecure_disabled")}</StatusBadge>,
+      render: (cluster) => (
+        <StatusBadge tone={cluster.insecure_skip_tls_verify ? "warning" : "neutral"}>
+          {cluster.insecure_skip_tls_verify ? t("insecure_enabled") : t("insecure_disabled")}
+        </StatusBadge>
+      ),
       sort: "insecure_skip_tls_verify",
       sortValue: (cluster) => Number(cluster.insecure_skip_tls_verify)
     },
