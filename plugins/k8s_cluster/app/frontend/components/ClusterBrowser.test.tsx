@@ -161,6 +161,37 @@ const DEFAULT_ENDPOINTS = {
   ]
 }
 
+const DEFAULT_CONFIGMAPS = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  config_maps: [
+    {
+      name: "app-settings",
+      namespace: "default",
+      key_count: 2,
+      key_names: ["feature_flags", "log_level"],
+      created_at: GENERATED_AT
+    }
+  ]
+}
+
+const DEFAULT_SECRETS = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  secrets: [
+    {
+      name: "db-credentials",
+      namespace: "default",
+      type: "Opaque",
+      key_count: 2,
+      key_names: ["password", "username"],
+      created_at: GENERATED_AT
+    }
+  ]
+}
+
 const DEFAULT_PVCS = {
   available: true,
   generated_at: GENERATED_AT,
@@ -219,6 +250,8 @@ type ResourceKey =
   | "cronjobs"
   | "services"
   | "endpoints"
+  | "configmaps"
+  | "secrets"
   | "pvcs"
   | "events"
   | "podLogs"
@@ -249,6 +282,8 @@ function setupFetchMock(overrides: Partial<Record<ResourceKey, unknown>> = {}, e
     if (/\/cronjobs$/.test(path)) return respond("cronjobs", DEFAULT_CRONJOBS)
     if (/\/services$/.test(path)) return respond("services", DEFAULT_SERVICES)
     if (/\/endpoints$/.test(path)) return respond("endpoints", DEFAULT_ENDPOINTS)
+    if (/\/configmaps$/.test(path)) return respond("configmaps", DEFAULT_CONFIGMAPS)
+    if (/\/secrets$/.test(path)) return respond("secrets", DEFAULT_SECRETS)
     if (/\/pvcs$/.test(path)) return respond("pvcs", DEFAULT_PVCS)
     if (/\/events$/.test(path)) return respond("events", DEFAULT_EVENTS)
 
@@ -546,6 +581,69 @@ describe("ClusterBrowser", () => {
       await switchTab("Services")
 
       expect(await screen.findByText("boom-services")).toBeInTheDocument()
+    })
+  })
+
+  describe("Config tab", () => {
+    it("lists configmaps and secrets with key counts and the redaction note", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Config")
+
+      expect(await screen.findByText("app-settings")).toBeInTheDocument()
+      expect(screen.getByText("db-credentials")).toBeInTheDocument()
+      expect(screen.getByText("Opaque")).toBeInTheDocument()
+      expect(screen.getByText("Secret values are never displayed — names and metadata only.")).toBeInTheDocument()
+      expect(screen.getAllByRole("button", { name: "Show 2 keys" })).toHaveLength(2)
+    })
+
+    it("expands a row to show its key names", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Config")
+      await screen.findByText("app-settings")
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Show 2 keys" })[0])
+
+      expect(await screen.findByText("feature_flags, log_level")).toBeInTheDocument()
+    })
+
+    it("shows the empty state when there are no configmaps", async () => {
+      setupFetchMock({ configmaps: { available: true, generated_at: GENERATED_AT, truncated: false, config_maps: [] } })
+      renderBrowser()
+      await switchTab("Config")
+
+      expect(await screen.findByText("No ConfigMaps found.")).toBeInTheDocument()
+    })
+
+    it("shows the empty state when there are no secrets", async () => {
+      setupFetchMock({ secrets: { available: true, generated_at: GENERATED_AT, truncated: false, secrets: [] } })
+      renderBrowser()
+      await switchTab("Config")
+
+      expect(await screen.findByText("No Secrets found.")).toBeInTheDocument()
+    })
+
+    it("shows an error when secrets fail to load", async () => {
+      setupFetchMock({}, { secrets: 502 })
+      renderBrowser()
+      await switchTab("Config")
+
+      expect(await screen.findByText("boom-secrets")).toBeInTheDocument()
+    })
+
+    it("re-fetches configmaps scoped to the selected namespace", async () => {
+      const { calls } = setupFetchMock()
+      renderBrowser()
+      await switchTab("Config")
+      await screen.findByText("app-settings")
+
+      fireEvent.click(screen.getByRole("button", { name: "Namespace" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default" }))
+
+      await screen.findByText("app-settings")
+      expect(calls.some((url) => url.includes("/configmaps?namespace=default"))).toBe(true)
+      expect(calls.some((url) => url.includes("/secrets?namespace=default"))).toBe(true)
     })
   })
 

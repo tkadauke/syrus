@@ -13,6 +13,8 @@ module KubeApiStubs
     { "name" => "endpoints", "namespaced" => true, "kind" => "Endpoints" },
     { "name" => "events", "namespaced" => true, "kind" => "Event" },
     { "name" => "persistentvolumeclaims", "namespaced" => true, "kind" => "PersistentVolumeClaim" },
+    { "name" => "configmaps", "namespaced" => true, "kind" => "ConfigMap" },
+    { "name" => "secrets", "namespaced" => true, "kind" => "Secret" },
     { "name" => "nodes", "namespaced" => false, "kind" => "Node" }
   ].freeze
 
