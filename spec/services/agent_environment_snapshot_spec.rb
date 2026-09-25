@@ -278,7 +278,7 @@ RSpec.describe AgentEnvironmentSnapshot do
       snapshot = snapshot_for_workspace
 
       expect(snapshot).to include("Python::PrepareDetector (pip install -r requirements.txt)")
-      expect(snapshot).to include("Go::PrepareDetector (go mod download)")
+      expect(snapshot).to include("Go::PrepareDetector (GOWORK=off go mod download)")
     end
 
     it "omits a disabled plugin's signal" do
