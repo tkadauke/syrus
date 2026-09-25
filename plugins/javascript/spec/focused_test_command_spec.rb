@@ -13,6 +13,7 @@ RSpec.describe JavaScript::FocusedTestCommand do
     )
 
     expect(command).to include("npm ci")
+    expect(command).to include("! -x node_modules/.bin/vitest")
     expect(command).to include("npx vitest run --maxWorkers=1")
     expect(command).to include("--reporter=junit")
     expect(command).to include("app/frontend/routes/App.test.tsx plugins/demo/app/frontend/demo.spec.ts")
