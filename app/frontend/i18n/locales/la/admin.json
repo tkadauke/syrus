@@ -850,6 +850,7 @@
     "tab_recurring": "Recurrentia",
     "tab_workers": "Operatores",
     "showing_of": "{{shown}} ex {{total}} ostensa",
+    "showing_items": "{{first}}-{{last}} ex {{total}} rebus ostensa",
     "no_active": "Nulla executiones activae bene acceptae.",
     "no_queued": "Nulla opera in agmine.",
     "no_recurring": "Nulla officia recurrentia inscripta.",

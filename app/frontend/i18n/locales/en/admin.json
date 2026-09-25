@@ -994,6 +994,7 @@
     "tab_recurring": "Recurring",
     "tab_workers": "Workers",
     "showing_of": "Showing {{shown}} of {{total}}",
+    "showing_items": "Showing {{first}}-{{last}} of {{total}} items",
     "no_active": "No active claimed executions.",
     "no_queued": "No queued jobs.",
     "no_recurring": "No recurring tasks registered.",
