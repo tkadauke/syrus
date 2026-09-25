@@ -250,6 +250,13 @@
   "logs_loading": "Logs werden geladen…",
   "logs_error_loading": "Logs konnten nicht geladen werden.",
   "logs_empty": "Keine Log-Ausgabe.",
+  "logs_tail_lines_label": "Zeilen",
+  "logs_previous_label": "Vorheriger Container",
+  "logs_timestamps_label": "Zeitstempel anzeigen",
+  "logs_follow_label": "Folgen",
+  "logs_search_label": "Logs durchsuchen",
+  "logs_search_placeholder": "Logs durchsuchen…",
+  "logs_search_no_matches": "Keine Log-Zeilen passen zur aktuellen Suche.",
 
   "live_pod_status": "Pod-Status",
   "live_recent_events": "Letzte Ereignisse",
