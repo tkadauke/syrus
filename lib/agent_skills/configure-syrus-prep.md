@@ -27,7 +27,7 @@ installs the project's dependencies before invoking the agent each run.
    | `pnpm-lock.yaml` | `pnpm install --frozen-lockfile` |
    | `requirements.txt` | `pip install -r requirements.txt` |
    | `pyproject.toml` | `poetry install` or `pip install -e .` |
-   | `go.mod` | `go mod download` |
+   | `go.mod` | `GOWORK=off go mod download` |
    | `Cargo.toml` | `cargo fetch` |
 
 2. **Read `.syrus.yml` if it exists** — preserve any existing settings. Only
