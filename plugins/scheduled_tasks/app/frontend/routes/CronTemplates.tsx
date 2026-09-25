@@ -20,6 +20,7 @@ import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 import { useConfirm } from "@app/hooks/useConfirm"
+import { AdminEventLogTable, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
 import { Button, DataTable, DescriptionList, Form, Page, buttonClasses } from "@app/components/ui"
 
 const defaultPolicies = ["skip", "pile", "replace"]
@@ -138,46 +139,66 @@ function TemplatesTable({ templates, basePath }: { templates: CronTemplateRow[];
   }
 
   return (
-    <section>
-      <DataTable.Root>
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("cron_templates.col_name")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("cron_templates.col_schedule")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("cron_templates.col_pileup")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("cron_templates.col_applied")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("cron_templates.col_status")}</DataTable.HeadCell>
-            <DataTable.HeadCell>
-              <span className="sr-only">{t("cron_templates.col_open")}</span>
-            </DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {templates.map((template) => (
-            <DataTable.Row key={template.id}>
-              <DataTable.Cell className="font-medium">
-                <Link className="text-brand underline hover:no-underline" to={`${basePath}/${template.id}`}>
-                  {template.name}
-                </Link>
-                {template.description ? <p className="mt-0.5 text-xs font-normal text-gray-500 dark:text-gray-400">{template.description}</p> : null}
-              </DataTable.Cell>
-              <DataTable.Cell>{template.schedule_explanation || template.cron_expression}</DataTable.Cell>
-              <DataTable.Cell>{template.pr_pileup_policy}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-600 dark:text-gray-400">{t("cron_templates.repos", { count: template.applied_tasks_count })}</DataTable.Cell>
-              <DataTable.Cell>
-                <StatusPill enabled={template.enabled} />
-              </DataTable.Cell>
-              <DataTable.Cell align="right">
-                <Link className="text-brand underline hover:no-underline" to={`${basePath}/${template.id}`}>
-                  {t("cron_templates.col_open")}
-                </Link>
-              </DataTable.Cell>
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
-    </section>
+    <AdminEventLogTable
+      columns={templateColumns({ basePath, t })}
+      defaultSort={{ column: "name", direction: "asc" }}
+      getRowKey={(template) => template.id}
+      localSort
+      panel={{ summary: t("cron_templates.heading"), meta: `${templates.length} ${templates.length === 1 ? "row" : "rows"}` }}
+      rows={templates}
+      storageKey="syrus.cron_templates.columns"
+    />
   )
+}
+
+function templateColumns({ basePath, t }: { basePath: string; t: ReturnType<typeof useT>["t"] }): Array<AdminEventLogTableColumn<CronTemplateRow>> {
+  return [
+    {
+      key: "name",
+      header: t("cron_templates.col_name"),
+      className: "font-medium",
+      render: (template) => (
+        <>
+          <Link className="text-brand underline hover:no-underline" to={`${basePath}/${template.id}`}>
+            {template.name}
+          </Link>
+          {template.description ? <p className="mt-0.5 text-xs font-normal text-gray-500 dark:text-gray-400">{template.description}</p> : null}
+        </>
+      ),
+      sort: "name",
+      sortValue: (template) => template.name
+    },
+    {
+      key: "schedule",
+      header: t("cron_templates.col_schedule"),
+      render: (template) => template.schedule_explanation || template.cron_expression,
+      sort: "schedule",
+      sortValue: (template) => template.schedule_explanation || template.cron_expression
+    },
+    { key: "pileup", header: t("cron_templates.col_pileup"), render: (template) => template.pr_pileup_policy, sort: "pileup", sortValue: (template) => template.pr_pileup_policy },
+    {
+      key: "applied",
+      header: t("cron_templates.col_applied"),
+      className: "text-gray-600 dark:text-gray-400",
+      render: (template) => t("cron_templates.repos", { count: template.applied_tasks_count }),
+      sort: "applied",
+      sortValue: (template) => template.applied_tasks_count
+    },
+    { key: "status", header: t("cron_templates.col_status"), render: (template) => <StatusPill enabled={template.enabled} />, sort: "status", sortValue: (template) => Number(template.enabled) },
+    {
+      key: "open",
+      header: <span className="sr-only">{t("cron_templates.col_open")}</span>,
+      label: t("cron_templates.col_open"),
+      align: "right",
+      pin: "end",
+      render: (template) => (
+        <Link className="text-brand underline hover:no-underline" to={`${basePath}/${template.id}`}>
+          {t("cron_templates.col_open")}
+        </Link>
+      ),
+      required: true
+    }
+  ]
 }
 
 function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<ReturnType<typeof fetchCronTemplate>>; basePath: string; prefix: string }) {
