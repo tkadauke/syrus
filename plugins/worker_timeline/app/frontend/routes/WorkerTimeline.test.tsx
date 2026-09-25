@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import i18n from "@app/i18n"
 import { WorkerTimelineRoute } from "./WorkerTimeline"
-import type { WorkerTimelineMacroPayload } from "../api/workerTimeline"
+import type { WorkerTimelineLivePayload, WorkerTimelineMacroPayload } from "../api/workerTimeline"
 
 function filterSchema() {
   return [
@@ -119,6 +119,124 @@ function macroPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function livePayload(overrides: Partial<WorkerTimelineLivePayload> = {}): WorkerTimelineLivePayload {
+  return {
+    generated_at: "2026-01-01T01:00:00Z",
+    range: { from: "2026-01-01T00:00:00Z", to: "2026-01-01T01:00:00Z" },
+    filter: { and: [] },
+    filter_schema: [
+      { field: "hostname", label: "Hostname", bucket: "fk", operators: [ "is" ], typeahead: true },
+      {
+        field: "status",
+        label: "Status",
+        bucket: "enum",
+        operators: [ "is_one_of" ],
+        values: [
+          { value: "idle", label: "Idle" },
+          { value: "busy", label: "Busy" },
+          { value: "degraded", label: "Degraded" },
+          { value: "overloaded", label: "Overloaded" }
+        ]
+      },
+      { field: "window", label: "Health window", bucket: "date", operators: [ "within_last", "between" ] }
+    ],
+    attribution: { exact_thread_ownership: false, strategy: "Slots are inferred from running spawned processes, claimed worker capacity, and active Run/Workflow state." },
+    summary: { total_workers: 2, idle: 1, busy: 1, degraded: 0, overloaded: 0, used_slots: 2, total_slots: 3 },
+    workers: [
+      {
+        key: "storage-a",
+        hostname: "worker-a",
+        worker_storage_key: "storage-a",
+        status: "busy",
+        status_reasons: [ "2/2 inferred slots occupied" ],
+        occupancy: { used: 2, total: 2 },
+        health: { level: "ok", reasons: [], observed_at: "2026-01-01T00:59:00Z", cpu_used_percent: 42, memory_used_percent: 64, io_pressure_some: 5 },
+        sparklines: { cpu: [ { observed_at: "2026-01-01T00:59:00Z", value: 42 } ], memory: [ { observed_at: "2026-01-01T00:59:00Z", value: 64 } ], io: [ { observed_at: "2026-01-01T00:59:00Z", value: 5 } ] },
+        pools: [
+          {
+            key: "worker-a:101",
+            hostname: "worker-a",
+            pid: 101,
+            queues: [ "runs", "maintenance" ],
+            capacity: 2,
+            used: 2,
+            status: "busy",
+            last_heartbeat_at: "2026-01-01T00:59:00Z",
+            slots: [
+              {
+                id: "process-1",
+                attribution: "spawned_process",
+                confidence: "inferred",
+                hostname: "worker-a",
+                worker_storage_key: "storage-a",
+                queue_role: "runs",
+                job_id: 42,
+                job_slug: "JOB-42",
+                job_title: "Fix the aqueducts",
+                workflow_id: 501,
+                workflow_slug: "WF-501",
+                workflow_type: "issue",
+                trigger_kind: "initial",
+                step_id: 901,
+                step_slug: "STEP-901",
+                step_kind: "implement",
+                run_id: 9001,
+                run_slug: "RUN-9001",
+                spawned_process_id: 1,
+                pid: 901,
+                process_kind: "agent",
+                started_at: "2026-01-01T00:45:00Z",
+                elapsed_seconds: 900,
+                command: "codex exec --model gpt-5",
+                command_excerpt: "codex exec --model gpt-5"
+              },
+              {
+                id: "run-2",
+                attribution: "run",
+                confidence: "inferred",
+                hostname: "worker-a",
+                worker_storage_key: "storage-a",
+                queue_role: "runs",
+                job_id: 43,
+                job_slug: "JOB-43",
+                job_title: "Investigate flaky CI",
+                workflow_id: 502,
+                workflow_slug: "WF-502",
+                workflow_type: "issue",
+                trigger_kind: "retry",
+                step_id: 902,
+                step_slug: "STEP-902",
+                step_kind: "grader",
+                run_id: 9002,
+                run_slug: "RUN-9002",
+                spawned_process_id: null,
+                pid: null,
+                process_kind: null,
+                started_at: "2026-01-01T00:50:00Z",
+                elapsed_seconds: 600,
+                command: null,
+                command_excerpt: null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        key: "storage-idle",
+        hostname: "worker-idle",
+        worker_storage_key: "storage-idle",
+        status: "idle",
+        status_reasons: [ "0/1 inferred slots occupied" ],
+        occupancy: { used: 0, total: 1 },
+        health: { level: "ok", reasons: [], observed_at: "2026-01-01T00:59:00Z", cpu_used_percent: 5, memory_used_percent: 12, io_pressure_some: 0 },
+        sparklines: { cpu: [], memory: [], io: [] },
+        pools: [ { key: "worker-idle:102", hostname: "worker-idle", pid: 102, queues: [ "runs" ], capacity: 1, used: 0, status: "idle", last_heartbeat_at: "2026-01-01T00:59:00Z", slots: [] } ]
+      }
+    ],
+    ...overrides
+  }
+}
+
 function waterfallPayload(overrides: Record<string, unknown> = {}) {
   return {
     workflow: {
@@ -175,7 +293,7 @@ function waterfallPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function setupFetchMock(macroOverrides: Record<string, unknown> = {}, waterfallOverrides: Record<string, unknown> = {}) {
+function setupFetchMock(macroOverrides: Record<string, unknown> = {}, waterfallOverrides: Record<string, unknown> = {}, liveOverrides: Partial<WorkerTimelineLivePayload> = {}) {
   const calls: string[] = []
 
   vi.spyOn(window, "fetch").mockImplementation(((input: RequestInfo | URL) => {
@@ -184,6 +302,9 @@ function setupFetchMock(macroOverrides: Record<string, unknown> = {}, waterfallO
 
     if (url.startsWith("/api/v1/app/admin/worker_timeline/macro")) {
       return Promise.resolve(jsonResponse(macroPayload({ filter: decodeQ(url) || { and: [] }, ...macroOverrides })))
+    }
+    if (url.startsWith("/api/v1/app/admin/worker_timeline/live")) {
+      return Promise.resolve(jsonResponse(livePayload({ filter: decodeQ(url) || { and: [] }, ...liveOverrides })))
     }
     if (url.startsWith("/api/v1/app/admin/worker_timeline/workflow")) {
       return Promise.resolve(jsonResponse(waterfallPayload(waterfallOverrides)))
@@ -627,6 +748,66 @@ describe("WorkerTimeline macro view", () => {
     expect(screen.getByText("runs-13")).toBeInTheDocument()
     expect(screen.getByText("runs-19")).toBeInTheDocument()
     expect(screen.getByLabelText("Worker lanes")).not.toHaveClass("overflow-y-auto")
+  })
+
+  it("switches to the scoped Live Workers tab", async () => {
+    const calls = setupFetchMock()
+    renderTimeline()
+
+    await screen.findByText("runs")
+    fireEvent.click(screen.getByRole("tab", { name: "Live Workers" }))
+
+    expect(await screen.findByText("worker-a")).toBeInTheDocument()
+    expect(screen.getByText("Slots are inferred from running spawned processes, claimed worker capacity, and active Run/Workflow state.")).toBeInTheDocument()
+    expect(calls.some((url) => url.startsWith("/api/v1/app/admin/worker_timeline/live"))).toBe(true)
+  })
+
+  it("renders multiple inferred slots inside a worker queue pool", async () => {
+    setupFetchMock()
+    renderTimeline("/worker_timeline?tab=live")
+
+    expect(await screen.findByText("worker-a")).toBeInTheDocument()
+    expect(screen.getByText("storage-a")).toBeInTheDocument()
+    expect(screen.getByText("runs, maintenance")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "WF-501" })).toHaveAttribute("href", "/jobs/42?tab=workflows#workflow-501")
+    expect(screen.getByText("Fix the aqueducts")).toBeInTheDocument()
+    expect(screen.getByText("Investigate flaky CI")).toBeInTheDocument()
+    expect(screen.getByText("codex exec --model gpt-5")).toBeInTheDocument()
+    expect(screen.getAllByText("inferred")).toHaveLength(2)
+  })
+
+  it("shows idle workers and empty live-worker states", async () => {
+    setupFetchMock()
+    const rendered = renderTimeline("/worker_timeline?tab=live")
+
+    expect(await screen.findByText("worker-idle")).toBeInTheDocument()
+    expect(screen.getByText("Idle slot")).toBeInTheDocument()
+
+    rendered.unmount()
+    vi.restoreAllMocks()
+    setupFetchMock({}, {}, {
+      workers: [],
+      summary: { total_workers: 0, idle: 0, busy: 0, degraded: 0, overloaded: 0, used_slots: 0, total_slots: 0 }
+    })
+    renderTimeline("/worker_timeline?tab=live")
+
+    expect(await screen.findByText("No live workers match these filters.")).toBeInTheDocument()
+  })
+
+  it("uses the shared FilterBar on Live Workers and refetches with selected status", async () => {
+    const calls = setupFetchMock()
+    renderTimeline("/worker_timeline?tab=live")
+
+    await screen.findByText("worker-a")
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Status list" }))
+    fireEvent.click(screen.getByRole("button", { name: "Overloaded" }))
+
+    await waitFor(() => {
+      const liveCalls = calls.filter((url) => url.startsWith("/api/v1/app/admin/worker_timeline/live") && url.includes("q="))
+      expect(decodeQ(liveCalls.at(-1) || "")).toEqual({ and: [ { field: "status", op: "is_one_of", value: [ "overloaded" ] } ] })
+    })
   })
 })
 
