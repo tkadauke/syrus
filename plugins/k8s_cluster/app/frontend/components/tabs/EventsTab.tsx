@@ -3,39 +3,51 @@ import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesEvents } from "../../api/kubernetesResources"
+import { formatAge } from "../../lib/k8sFormat"
 import { StatusBadge } from "../StatusBadge"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 export function EventsTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
+  const { query, setQuery } = useTableSearch()
   const events = useQuery({
     queryKey: [ "k8s_cluster", "events", clusterId, namespace ],
     queryFn: () => fetchKubernetesEvents(clusterId, namespace)
   })
 
+  if (events.isPending) return <PanelMessage>{t("events_loading")}</PanelMessage>
+  if (events.isError) return <PanelMessage tone="error">{errorMessage(events.error, t("events_error_loading"))}</PanelMessage>
+  if (events.data.events.length === 0) return <PanelMessage>{t("events_empty")}</PanelMessage>
+
+  const visible = events.data.events.filter((event) =>
+    matchesSearch(query, event.name, event.namespace, event.type, event.reason, event.message, event.involved_object.kind, event.involved_object.name)
+  )
+
   return (
-    <div aria-label={t("aria_events_tab")}>
-      {events.isPending ? <PanelMessage>{t("events_loading")}</PanelMessage> : null}
-      {events.isError ? <PanelMessage tone="error">{errorMessage(events.error, t("events_error_loading"))}</PanelMessage> : null}
-      {events.isSuccess ? (
-        events.data.events.length === 0 ? (
-          <PanelMessage>{t("events_empty")}</PanelMessage>
-        ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-900 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-            {events.data.events.map((event, index) => (
+    <div aria-label={t("aria_events_tab")} className="space-y-3">
+      <TableSearch onChange={setQuery} query={query} />
+      {events.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <ul className="divide-y divide-border rounded border border-border bg-surface">
+          {visible.map((event, index) => {
+            const timestamp = event.last_timestamp || event.first_timestamp
+            return (
               <li className="flex flex-wrap items-start gap-3 px-4 py-3 text-sm" key={`${event.namespace}/${event.name}/${index}`}>
                 <StatusBadge tone={event.type === "Warning" ? "warning" : "neutral"}>{event.type || "-"}</StatusBadge>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-gray-900 dark:text-gray-100">
-                    {event.reason} <span className="font-normal text-gray-500 dark:text-gray-400">({event.involved_object.kind} {event.involved_object.name})</span>
+                  <p className="font-medium text-text-primary">
+                    {event.reason} <span className="font-normal text-text-secondary">({event.involved_object.kind} {event.involved_object.name})</span>
                   </p>
-                  <p className="text-gray-700 dark:text-gray-300">{event.message}</p>
+                  <p className="text-text-secondary">{event.message}</p>
                 </div>
-                <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{event.last_timestamp || event.first_timestamp || "-"}</span>
+                <span className="shrink-0 text-xs text-text-secondary" title={timestamp || undefined}>{formatAge(timestamp)}</span>
               </li>
-            ))}
-          </ul>
-        )
-      ) : null}
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
