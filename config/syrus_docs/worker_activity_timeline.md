@@ -2,18 +2,20 @@
 
 Read-only backend data API for a multi-lane worker activity timeline: one
 lane per durable worker process role (`worker_storage_key` + `queue_role`)
-with Job/Workflow spans over time (macro view), plus a per-Workflow
-drill-down of Steps/Runs (micro/waterfall view). `hostname` and `pid` remain
-point-in-time attributes on spans so callers can show where work ran and
-detect process restarts within a durable lane.
+with Job/Workflow spans over time (macro view), a scoped Live Workers payload,
+plus a per-Workflow drill-down of Steps/Runs (micro/waterfall view).
+`hostname` and `pid` remain point-in-time attributes on spans so callers can
+show where work ran and detect process restarts within a durable lane.
 
 The only timeline-specific instrumentation is the `queue_role` captured on
 `WorkflowActivityEvent` for `RunJob` executions. The queries otherwise read
 from data Syrus already collects: `Workflow`/`Step`/`Run` timestamps,
 `WorkflowActivityEvent` (see `config/syrus_docs/observability.md`),
-`SpawnedProcess`, and `InstanceVersion`. There is no thread-slot allocator
-or per-thread concurrency instrumentation; overlapping spans inside a lane
-are packed by the frontend from timestamps.
+`SpawnedProcess`, `SolidQueue::Process`, `WorkerHostHealthSample`, and
+`InstanceVersion`. There is no thread-slot allocator or per-thread
+concurrency instrumentation; overlapping spans inside a lane are packed by
+the frontend from timestamps, and Live Workers active slots are explicitly
+inferred from running processes plus active workflow state.
 
 ## Endpoints
 
@@ -47,6 +49,23 @@ browser SPA calls.
   - `pending`: Workflows that haven't started yet (so they have no lane to
     place a span in) — `workflow_id`, `job_id`, `label`, `created_at`,
     `blocked`.
+- `GET /api/v1/admin/worker_timeline/live` —
+  `WorkerTimeline::LiveWorkersQuery`. Params: `from`/`to` (ISO8601; default
+  health window is the last hour), `hostname`, and `status` (`idle`, `busy`,
+  `degraded`, `overloaded`; accepts comma-separated values). Returns:
+  - `attribution`: includes `exact_thread_ownership: false` and a strategy
+    sentence documenting that the payload is inferred, not exact per-thread
+    ownership.
+  - `summary`: worker counts by status plus used/total inferred slots.
+  - `workers`: one payload per worker host/storage identity, with
+    `hostname`, `worker_storage_key`, status, status reasons, `occupancy`,
+    current `health`, CPU/memory/I/O `sparklines`, and queue `pools`.
+    Pool payloads include worker pid, queue names, capacity, used count, and
+    active `slots`. Each slot carries the best available Job/Workflow
+    id/type/trigger-kind, Step, Run, spawned-process pid/kind, elapsed time,
+    and redacted command excerpt/current command. A slot is assigned to at
+    most one matching pool; ambiguous leftovers are placed in one inferred
+    pool rather than duplicated.
 - `GET /api/v1/admin/worker_timeline/workflow` — `?id=<workflow_id>`,
   `Timeline::WorkflowWaterfallQuery`. Returns the target Workflow (with
   canonical `slug`, `job_slug`, `job_path`, `workflow_path`, and resolved
