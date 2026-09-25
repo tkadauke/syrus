@@ -274,18 +274,55 @@ type ResourceKey =
   | "events"
   | "podLogs"
 
-function setupFetchMock(overrides: Partial<Record<ResourceKey, unknown>> = {}, errors: Partial<Record<ResourceKey, number>> = {}) {
+const DESCRIBE_ENVELOPES: Record<string, { key: ResourceKey; envelope: string; kind: string }> = {
+  "/namespaces": { key: "namespaces", envelope: "namespace", kind: "Namespace" },
+  "/nodes": { key: "nodes", envelope: "node", kind: "Node" },
+  "/pods": { key: "pods", envelope: "pod", kind: "Pod" },
+  "/deployments": { key: "deployments", envelope: "deployment", kind: "Deployment" },
+  "/statefulsets": { key: "statefulsets", envelope: "stateful_set", kind: "StatefulSet" },
+  "/daemonsets": { key: "daemonsets", envelope: "daemon_set", kind: "DaemonSet" },
+  "/jobs": { key: "jobs", envelope: "job", kind: "Job" },
+  "/cronjobs": { key: "cronjobs", envelope: "cron_job", kind: "CronJob" },
+  "/services": { key: "services", envelope: "service", kind: "Service" },
+  "/ingresses": { key: "ingresses", envelope: "ingress", kind: "Ingress" },
+  "/configmaps": { key: "configmaps", envelope: "config_map", kind: "ConfigMap" },
+  "/secrets": { key: "secrets", envelope: "secret", kind: "Secret" },
+  "/pvcs": { key: "pvcs", envelope: "persistent_volume_claim", kind: "PersistentVolumeClaim" }
+}
+
+function setupFetchMock(
+  overrides: Partial<Record<ResourceKey, unknown>> = {},
+  errors: Partial<Record<ResourceKey, number>> = {},
+  describeErrors: Partial<Record<ResourceKey, number>> = {}
+) {
   const calls: string[] = []
 
   const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(((input: RequestInfo | URL) => {
     const url = String(input)
     calls.push(url)
     const path = url.split("?")[0]
+    const query = new URLSearchParams(url.split("?")[1] ?? "")
 
     const respond = (key: ResourceKey, fallback: unknown) => {
       const status = errors[key]
       if (status) return Promise.resolve(jsonResponse({ error: { message: `boom-${key}` } }, status))
       return Promise.resolve(jsonResponse(overrides[key] ?? fallback))
+    }
+
+    // A `name` query param switches the shared route from list to describe.
+    const describeName = query.get("name")
+    const describe = Object.entries(DESCRIBE_ENVELOPES).find(([suffix]) => path.endsWith(suffix))
+    if (describeName && describe) {
+      const { key, envelope, kind } = describe[1]
+      const status = describeErrors[key]
+      if (status) return Promise.resolve(jsonResponse({ error: { message: `boom-${key}-describe` } }, status))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          generated_at: GENERATED_AT,
+          [envelope]: { apiVersion: "v1", kind, metadata: { name: describeName, namespace: query.get("namespace") } }
+        })
+      )
     }
 
     if (/\/namespaces$/.test(path)) return respond("namespaces", DEFAULT_NAMESPACES)
@@ -865,6 +902,118 @@ describe("ClusterBrowser", () => {
 
       fireEvent.click(screen.getByRole("tab", { name: "Recent events" }))
       expect(await screen.findByText("Scheduled: Successfully assigned default/web-1 to node-1")).toBeInTheDocument()
+    })
+  })
+
+  describe("Detail drawer", () => {
+    it("lists namespaces on the overview tab and opens a read-only drawer with YAML", async () => {
+      const { calls } = setupFetchMock()
+      renderBrowser()
+
+      fireEvent.click(await screen.findByRole("button", { name: "default" }))
+
+      expect(await screen.findByRole("dialog", { name: "Namespaces default" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: Namespace/)).toBeInTheDocument()
+      expect(screen.getByText("Read-only — values cannot be edited here.")).toBeInTheDocument()
+      expect(calls.some((url) => url.includes("/namespaces?name=default"))).toBe(true)
+
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    })
+
+    it("opens a read-only pod drawer with key fields and YAML from the workloads table", async () => {
+      const { calls } = setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+      fireEvent.click(await screen.findByRole("button", { name: "web-1" }))
+
+      expect(await screen.findByRole("dialog", { name: "Pods default/web-1" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: Pod/)).toBeInTheDocument()
+      expect(calls.some((url) => url.includes("/pods?") && url.includes("name=web-1") && url.includes("namespace=default"))).toBe(true)
+    })
+
+    it("shows a drawer error when the describe fetch fails", async () => {
+      setupFetchMock({}, {}, { pods: 502 })
+      renderBrowser()
+      await switchTab("Workloads")
+      fireEvent.click(await screen.findByRole("button", { name: "web-1" }))
+
+      expect(await screen.findByRole("dialog", { name: "Pods default/web-1" })).toBeInTheDocument()
+      expect(await screen.findByText("boom-pods-describe")).toBeInTheDocument()
+    })
+
+    it("opens drawers for every other workload kind", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+      await screen.findByText("web-1")
+
+      const cases: Array<{ option: string; button: string; dialog: string; yaml: RegExp }> = [
+        { option: "Deployments", button: "web", dialog: "Deployments default/web", yaml: /kind: Deployment/ },
+        { option: "StatefulSets", button: "db", dialog: "StatefulSets default/db", yaml: /kind: StatefulSet/ },
+        { option: "DaemonSets", button: "monitoring", dialog: "DaemonSets default/monitoring", yaml: /kind: DaemonSet/ },
+        { option: "Jobs", button: "migrate", dialog: "Jobs default/migrate", yaml: /kind: Job/ },
+        { option: "CronJobs", button: "nightly", dialog: "CronJobs default/nightly", yaml: /kind: CronJob/ }
+      ]
+
+      for (const { option, button, dialog, yaml } of cases) {
+        fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+        fireEvent.click(await screen.findByRole("option", { name: option }))
+        fireEvent.click(await screen.findByRole("button", { name: button }))
+
+        expect(await screen.findByRole("dialog", { name: dialog })).toBeInTheDocument()
+        expect(await screen.findByText(yaml)).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+      }
+    })
+
+    it("opens drawers for services and ingresses", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Services")
+      fireEvent.click(await screen.findByRole("button", { name: "web" }))
+      expect(await screen.findByRole("dialog", { name: "Services default/web" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: Service/)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+
+      fireEvent.click(screen.getByRole("button", { name: "Network kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Ingresses" }))
+      await screen.findByText("web.example.com")
+      fireEvent.click(await screen.findByRole("button", { name: "web" }))
+      expect(await screen.findByRole("dialog", { name: "Ingresses default/web" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: Ingress/)).toBeInTheDocument()
+    })
+
+    it("opens drawers for configmaps and redacted secrets", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Config")
+      fireEvent.click(await screen.findByRole("button", { name: "app-settings" }))
+      expect(await screen.findByRole("dialog", { name: "ConfigMaps default/app-settings" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: ConfigMap/)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+
+      fireEvent.click(await screen.findByRole("button", { name: "db-credentials" }))
+      expect(await screen.findByRole("dialog", { name: "Secrets default/db-credentials" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: Secret/)).toBeInTheDocument()
+    })
+
+    it("opens drawers for nodes and persistent volume claims", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Nodes")
+      fireEvent.click(await screen.findByRole("button", { name: "node-1" }))
+
+      expect(await screen.findByRole("dialog", { name: "Nodes node-1" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: Node/)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+
+      await switchTab("Storage")
+      fireEvent.click(await screen.findByRole("button", { name: "data" }))
+      expect(await screen.findByRole("dialog", { name: "Storage default/data" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: PersistentVolumeClaim/)).toBeInTheDocument()
     })
   })
 })
