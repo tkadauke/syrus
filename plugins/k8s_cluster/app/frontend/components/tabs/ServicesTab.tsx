@@ -17,6 +17,7 @@ import { Dropdown } from "../Dropdown"
 import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
 import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 type NetworkKind = "services" | "ingresses"
 
@@ -41,6 +42,7 @@ export function ServicesTab({ clusterId, namespace }: { clusterId: number; names
 function ServicesTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const services = useQuery({
     queryKey: ["k8s_cluster", "services", clusterId, namespace],
     queryFn: () => fetchKubernetesServices(clusterId, namespace)
@@ -56,6 +58,10 @@ function ServicesTable({ clusterId, namespace }: { clusterId: number; namespace:
   })
   const endpointsByKey = new Map<string, KubernetesEndpointRow>(
     (endpoints.data?.endpoints ?? []).map((endpoint) => [`${endpoint.namespace}/${endpoint.name}`, endpoint])
+  )
+
+  const visible = (services.data?.services ?? []).filter((service) =>
+    matchesSearch(query, service.name, service.namespace, service.type, service.cluster_ip)
   )
 
   const open = (service: KubernetesServiceRow) =>
@@ -77,22 +83,30 @@ function ServicesTable({ clusterId, namespace }: { clusterId: number; namespace:
     })
 
   return (
-    <div aria-label={t("aria_services_tab")}>
+    <div aria-label={t("aria_services_tab")} className="space-y-3">
       {services.isPending ? <PanelMessage>{t("services_loading")}</PanelMessage> : null}
       {services.isError ? <PanelMessage tone="error">{errorMessage(services.error, t("services_error_loading"))}</PanelMessage> : null}
       {services.isSuccess ? (
         services.data.services.length === 0 ? (
           <PanelMessage>{t("services_empty")}</PanelMessage>
         ) : (
-          <KubernetesResourceTable
-            columns={serviceColumns(t, endpointsByKey, open)}
-            defaultSort={{ column: "name", direction: "asc" }}
-            empty={<PanelMessage>{t("services_empty")}</PanelMessage>}
-            getRowKey={(service) => `${service.namespace}/${service.name}`}
-            rows={services.data.services}
-            storageKey="syrus.k8s_cluster.services.columns"
-            summary={t("tab_services")}
-          />
+          <>
+            <TableSearch onChange={setQuery} query={query} />
+            {services.data.truncated ? <TruncatedNotice /> : null}
+            {visible.length === 0 ? (
+              <SearchNoMatches />
+            ) : (
+              <KubernetesResourceTable
+                columns={serviceColumns(t, endpointsByKey, open)}
+                defaultSort={{ column: "name", direction: "asc" }}
+                empty={<PanelMessage>{t("services_empty")}</PanelMessage>}
+                getRowKey={(service) => `${service.namespace}/${service.name}`}
+                rows={visible}
+                storageKey="syrus.k8s_cluster.services.columns"
+                summary={t("tab_services")}
+              />
+            )}
+          </>
         )
       ) : null}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
@@ -182,6 +196,7 @@ function endpointLabel(t: ReturnType<typeof useT>["t"], endpoint: KubernetesEndp
 function IngressesTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const ingresses = useQuery({
     queryKey: [ "k8s_cluster", "ingresses", clusterId, namespace ],
     queryFn: () => fetchKubernetesIngresses(clusterId, namespace)
@@ -190,6 +205,10 @@ function IngressesTable({ clusterId, namespace }: { clusterId: number; namespace
   if (ingresses.isPending) return <PanelMessage>{t("ingresses_loading")}</PanelMessage>
   if (ingresses.isError) return <PanelMessage tone="error">{errorMessage(ingresses.error, t("ingresses_error_loading"))}</PanelMessage>
   if (ingresses.data.ingresses.length === 0) return <PanelMessage>{t("ingresses_empty")}</PanelMessage>
+
+  const visible = ingresses.data.ingresses.filter((ingress) =>
+    matchesSearch(query, ingress.name, ingress.namespace, ingress.ingress_class, ...ingress.hosts)
+  )
 
   const open = (ingress: KubernetesIngressRow) =>
     detail.openDetail({
@@ -209,20 +228,25 @@ function IngressesTable({ clusterId, namespace }: { clusterId: number; namespace
 
   return (
     <>
-      <DataTable.Root density="compact">
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_hosts")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_backend")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_tls")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_ingress_class")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {ingresses.data.ingresses.map((ingress) => (
+      <TableSearch onChange={setQuery} query={query} />
+      {ingresses.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <DataTable.Root density="compact">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_hosts")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_backend")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_tls")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_ingress_class")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {visible.map((ingress) => (
             <DataTable.Row interactive key={`${ingress.namespace}/${ingress.name}`} onClick={() => open(ingress)}>
               <DataTable.Cell className="font-medium">
                 <DetailNameButton name={ingress.name} onOpen={() => open(ingress)} />
@@ -238,9 +262,10 @@ function IngressesTable({ clusterId, namespace }: { clusterId: number; namespace
               <DataTable.Cell className="text-text-secondary">{ingress.ingress_class || "-"}</DataTable.Cell>
               <DataTable.Cell className="text-text-secondary">{formatAge(ingress.created_at)}</DataTable.Cell>
             </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )

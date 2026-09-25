@@ -8,20 +8,23 @@ import {
   fetchKubernetesDaemonSets,
   fetchKubernetesDeployments,
   fetchKubernetesJobs,
+  fetchKubernetesOverview,
   fetchKubernetesPods,
   fetchKubernetesStatefulSets,
   type KubernetesCronJobRow,
   type KubernetesDaemonSetRow,
   type KubernetesDeploymentRow,
   type KubernetesJobRow,
+  type KubernetesPodMetricRow,
   type KubernetesPodRow,
   type KubernetesStatefulSetRow
 } from "../../api/kubernetesResources"
-import { explainCronSchedule, formatAge, type CronScheduleExplanation } from "../../lib/k8sFormat"
+import { explainCronSchedule, formatAge, formatBytes, formatMillicores, type CronScheduleExplanation } from "../../lib/k8sFormat"
 import { Dropdown } from "../Dropdown"
 import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
 import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 type WorkloadKind = "pods" | "deployments" | "statefulsets" | "daemonsets" | "jobs" | "cronjobs"
 
@@ -54,17 +57,32 @@ export function WorkloadsTab({ clusterId, namespace }: { clusterId: number; name
 function PodsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const pods = useQuery({
     queryKey: ["k8s_cluster", "pods", clusterId, namespace],
     queryFn: () => fetchKubernetesPods(clusterId, namespace)
   })
+  // Per-pod CPU/memory joins the metrics.k8s.io Overview path onto the pod
+  // rows. Soft-fail by design: when metrics-server is absent (or the fetch
+  // fails) the columns fall back to "-" instead of failing the tab.
+  const overview = useQuery({
+    queryKey: ["k8s_cluster", "overview", clusterId],
+    queryFn: () => fetchKubernetesOverview(clusterId)
+  })
+  const podsSection = overview.data?.pods
+  const podMetrics = new Map<string, KubernetesPodMetricRow>(
+    (podsSection && podsSection.available ? podsSection.items : []).map((item) => [`${item.namespace}/${item.name}`, item])
+  )
 
   if (pods.isPending) return <PanelMessage>{t("workloads_loading_pods")}</PanelMessage>
   if (pods.isError) return <PanelMessage tone="error">{errorMessage(pods.error, t("workloads_error_loading_pods"))}</PanelMessage>
   if (pods.data.pods.length === 0) return <PanelMessage>{t("workloads_empty_pods")}</PanelMessage>
 
-  const open = (pod: KubernetesPodRow) =>
-    detail.openDetail({
+  const visible = pods.data.pods.filter((pod) => matchesSearch(query, pod.name, pod.namespace, pod.status, pod.node_name))
+
+  const open = (pod: KubernetesPodRow) => {
+    const metric = podMetrics.get(`${pod.namespace}/${pod.name}`)
+    return detail.openDetail({
       kind: "pod",
       kindLabel: t("workload_kind_pods"),
       name: pod.name,
@@ -74,21 +92,30 @@ function PodsTable({ clusterId, namespace }: { clusterId: number; namespace: str
         { label: t("col_status"), value: pod.status || "-" },
         { label: t("col_ready"), value: pod.ready },
         { label: t("col_restarts"), value: String(pod.restart_count) },
+        { label: t("col_cpu"), value: metric ? formatMillicores(metric.cpu_millicores) : "-" },
+        { label: t("col_memory"), value: metric ? formatBytes(metric.memory_bytes) : "-" },
         { label: t("col_age"), value: formatAge(pod.created_at) }
       ]
     })
+  }
 
   return (
     <>
-      <KubernetesResourceTable
-        columns={podColumns(t, open)}
-        defaultSort={{ column: "name", direction: "asc" }}
-        empty={<PanelMessage>{t("workloads_empty_pods")}</PanelMessage>}
-        getRowKey={(pod) => `${pod.namespace}/${pod.name}`}
-        rows={pods.data.pods}
-        storageKey="syrus.k8s_cluster.pods.columns"
-        summary={t("workload_kind_pods")}
-      />
+      <TableSearch onChange={setQuery} query={query} />
+      {pods.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <KubernetesResourceTable
+          columns={podColumns(t, open, podMetrics)}
+          defaultSort={{ column: "name", direction: "asc" }}
+          empty={<PanelMessage>{t("workloads_empty_pods")}</PanelMessage>}
+          getRowKey={(pod) => `${pod.namespace}/${pod.name}`}
+          rows={visible}
+          storageKey="syrus.k8s_cluster.pods.columns"
+          summary={t("workload_kind_pods")}
+        />
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
@@ -97,6 +124,7 @@ function PodsTable({ clusterId, namespace }: { clusterId: number; namespace: str
 function DeploymentsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const deployments = useQuery({
     queryKey: ["k8s_cluster", "deployments", clusterId, namespace],
     queryFn: () => fetchKubernetesDeployments(clusterId, namespace)
@@ -105,6 +133,8 @@ function DeploymentsTable({ clusterId, namespace }: { clusterId: number; namespa
   if (deployments.isPending) return <PanelMessage>{t("workloads_loading_deployments")}</PanelMessage>
   if (deployments.isError) return <PanelMessage tone="error">{errorMessage(deployments.error, t("workloads_error_loading_deployments"))}</PanelMessage>
   if (deployments.data.deployments.length === 0) return <PanelMessage>{t("workloads_empty_deployments")}</PanelMessage>
+
+  const visible = deployments.data.deployments.filter((deployment) => matchesSearch(query, deployment.name, deployment.namespace))
 
   const open = (deployment: KubernetesDeploymentRow) =>
     detail.openDetail({
@@ -123,15 +153,21 @@ function DeploymentsTable({ clusterId, namespace }: { clusterId: number; namespa
 
   return (
     <>
-      <KubernetesResourceTable
-        columns={deploymentColumns(t, open)}
-        defaultSort={{ column: "name", direction: "asc" }}
-        empty={<PanelMessage>{t("workloads_empty_deployments")}</PanelMessage>}
-        getRowKey={(deployment) => `${deployment.namespace}/${deployment.name}`}
-        rows={deployments.data.deployments}
-        storageKey="syrus.k8s_cluster.deployments.columns"
-        summary={t("workload_kind_deployments")}
-      />
+      <TableSearch onChange={setQuery} query={query} />
+      {deployments.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <KubernetesResourceTable
+          columns={deploymentColumns(t, open)}
+          defaultSort={{ column: "name", direction: "asc" }}
+          empty={<PanelMessage>{t("workloads_empty_deployments")}</PanelMessage>}
+          getRowKey={(deployment) => `${deployment.namespace}/${deployment.name}`}
+          rows={visible}
+          storageKey="syrus.k8s_cluster.deployments.columns"
+          summary={t("workload_kind_deployments")}
+        />
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
@@ -140,6 +176,7 @@ function DeploymentsTable({ clusterId, namespace }: { clusterId: number; namespa
 function StatefulSetsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const statefulSets = useQuery({
     queryKey: ["k8s_cluster", "statefulsets", clusterId, namespace],
     queryFn: () => fetchKubernetesStatefulSets(clusterId, namespace)
@@ -148,6 +185,8 @@ function StatefulSetsTable({ clusterId, namespace }: { clusterId: number; namesp
   if (statefulSets.isPending) return <PanelMessage>{t("workloads_loading_statefulsets")}</PanelMessage>
   if (statefulSets.isError) return <PanelMessage tone="error">{errorMessage(statefulSets.error, t("workloads_error_loading_statefulsets"))}</PanelMessage>
   if (statefulSets.data.stateful_sets.length === 0) return <PanelMessage>{t("workloads_empty_statefulsets")}</PanelMessage>
+
+  const visible = statefulSets.data.stateful_sets.filter((statefulSet) => matchesSearch(query, statefulSet.name, statefulSet.namespace))
 
   const open = (statefulSet: KubernetesStatefulSetRow) =>
     detail.openDetail({
@@ -166,15 +205,21 @@ function StatefulSetsTable({ clusterId, namespace }: { clusterId: number; namesp
 
   return (
     <>
-      <KubernetesResourceTable
-        columns={statefulSetColumns(t, open)}
-        defaultSort={{ column: "name", direction: "asc" }}
-        empty={<PanelMessage>{t("workloads_empty_statefulsets")}</PanelMessage>}
-        getRowKey={(statefulSet) => `${statefulSet.namespace}/${statefulSet.name}`}
-        rows={statefulSets.data.stateful_sets}
-        storageKey="syrus.k8s_cluster.stateful_sets.columns"
-        summary={t("workload_kind_statefulsets")}
-      />
+      <TableSearch onChange={setQuery} query={query} />
+      {statefulSets.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <KubernetesResourceTable
+          columns={statefulSetColumns(t, open)}
+          defaultSort={{ column: "name", direction: "asc" }}
+          empty={<PanelMessage>{t("workloads_empty_statefulsets")}</PanelMessage>}
+          getRowKey={(statefulSet) => `${statefulSet.namespace}/${statefulSet.name}`}
+          rows={visible}
+          storageKey="syrus.k8s_cluster.stateful_sets.columns"
+          summary={t("workload_kind_statefulsets")}
+        />
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
@@ -183,6 +228,7 @@ function StatefulSetsTable({ clusterId, namespace }: { clusterId: number; namesp
 function DaemonSetsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const daemonSets = useQuery({
     queryKey: ["k8s_cluster", "daemonsets", clusterId, namespace],
     queryFn: () => fetchKubernetesDaemonSets(clusterId, namespace)
@@ -191,6 +237,8 @@ function DaemonSetsTable({ clusterId, namespace }: { clusterId: number; namespac
   if (daemonSets.isPending) return <PanelMessage>{t("workloads_loading_daemonsets")}</PanelMessage>
   if (daemonSets.isError) return <PanelMessage tone="error">{errorMessage(daemonSets.error, t("workloads_error_loading_daemonsets"))}</PanelMessage>
   if (daemonSets.data.daemon_sets.length === 0) return <PanelMessage>{t("workloads_empty_daemonsets")}</PanelMessage>
+
+  const visible = daemonSets.data.daemon_sets.filter((daemonSet) => matchesSearch(query, daemonSet.name, daemonSet.namespace))
 
   const open = (daemonSet: KubernetesDaemonSetRow) =>
     detail.openDetail({
@@ -209,15 +257,21 @@ function DaemonSetsTable({ clusterId, namespace }: { clusterId: number; namespac
 
   return (
     <>
-      <KubernetesResourceTable
-        columns={daemonSetColumns(t, open)}
-        defaultSort={{ column: "name", direction: "asc" }}
-        empty={<PanelMessage>{t("workloads_empty_daemonsets")}</PanelMessage>}
-        getRowKey={(daemonSet) => `${daemonSet.namespace}/${daemonSet.name}`}
-        rows={daemonSets.data.daemon_sets}
-        storageKey="syrus.k8s_cluster.daemon_sets.columns"
-        summary={t("workload_kind_daemonsets")}
-      />
+      <TableSearch onChange={setQuery} query={query} />
+      {daemonSets.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <KubernetesResourceTable
+          columns={daemonSetColumns(t, open)}
+          defaultSort={{ column: "name", direction: "asc" }}
+          empty={<PanelMessage>{t("workloads_empty_daemonsets")}</PanelMessage>}
+          getRowKey={(daemonSet) => `${daemonSet.namespace}/${daemonSet.name}`}
+          rows={visible}
+          storageKey="syrus.k8s_cluster.daemon_sets.columns"
+          summary={t("workload_kind_daemonsets")}
+        />
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
@@ -226,6 +280,7 @@ function DaemonSetsTable({ clusterId, namespace }: { clusterId: number; namespac
 function JobsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const jobs = useQuery({
     queryKey: ["k8s_cluster", "jobs", clusterId, namespace],
     queryFn: () => fetchKubernetesJobs(clusterId, namespace)
@@ -234,6 +289,8 @@ function JobsTable({ clusterId, namespace }: { clusterId: number; namespace: str
   if (jobs.isPending) return <PanelMessage>{t("workloads_loading_jobs")}</PanelMessage>
   if (jobs.isError) return <PanelMessage tone="error">{errorMessage(jobs.error, t("workloads_error_loading_jobs"))}</PanelMessage>
   if (jobs.data.jobs.length === 0) return <PanelMessage>{t("workloads_empty_jobs")}</PanelMessage>
+
+  const visible = jobs.data.jobs.filter((job) => matchesSearch(query, job.name, job.namespace))
 
   const open = (job: KubernetesJobRow) =>
     detail.openDetail({
@@ -253,15 +310,21 @@ function JobsTable({ clusterId, namespace }: { clusterId: number; namespace: str
 
   return (
     <>
-      <KubernetesResourceTable
-        columns={jobColumns(t, open)}
-        defaultSort={{ column: "name", direction: "asc" }}
-        empty={<PanelMessage>{t("workloads_empty_jobs")}</PanelMessage>}
-        getRowKey={(job) => `${job.namespace}/${job.name}`}
-        rows={jobs.data.jobs}
-        storageKey="syrus.k8s_cluster.jobs.columns"
-        summary={t("workload_kind_jobs")}
-      />
+      <TableSearch onChange={setQuery} query={query} />
+      {jobs.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <KubernetesResourceTable
+          columns={jobColumns(t, open)}
+          defaultSort={{ column: "name", direction: "asc" }}
+          empty={<PanelMessage>{t("workloads_empty_jobs")}</PanelMessage>}
+          getRowKey={(job) => `${job.namespace}/${job.name}`}
+          rows={visible}
+          storageKey="syrus.k8s_cluster.jobs.columns"
+          summary={t("workload_kind_jobs")}
+        />
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
@@ -270,6 +333,7 @@ function JobsTable({ clusterId, namespace }: { clusterId: number; namespace: str
 function CronJobsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const cronJobs = useQuery({
     queryKey: ["k8s_cluster", "cronjobs", clusterId, namespace],
     queryFn: () => fetchKubernetesCronJobs(clusterId, namespace)
@@ -278,6 +342,8 @@ function CronJobsTable({ clusterId, namespace }: { clusterId: number; namespace:
   if (cronJobs.isPending) return <PanelMessage>{t("workloads_loading_cronjobs")}</PanelMessage>
   if (cronJobs.isError) return <PanelMessage tone="error">{errorMessage(cronJobs.error, t("workloads_error_loading_cronjobs"))}</PanelMessage>
   if (cronJobs.data.cron_jobs.length === 0) return <PanelMessage>{t("workloads_empty_cronjobs")}</PanelMessage>
+
+  const visible = cronJobs.data.cron_jobs.filter((cronJob) => matchesSearch(query, cronJob.name, cronJob.namespace, cronJob.schedule))
 
   const open = (cronJob: KubernetesCronJobRow) =>
     detail.openDetail({
@@ -296,21 +362,31 @@ function CronJobsTable({ clusterId, namespace }: { clusterId: number; namespace:
 
   return (
     <>
-      <KubernetesResourceTable
-        columns={cronJobColumns(t, open)}
-        defaultSort={{ column: "name", direction: "asc" }}
-        empty={<PanelMessage>{t("workloads_empty_cronjobs")}</PanelMessage>}
-        getRowKey={(cronJob) => `${cronJob.namespace}/${cronJob.name}`}
-        rows={cronJobs.data.cron_jobs}
-        storageKey="syrus.k8s_cluster.cron_jobs.columns"
-        summary={t("workload_kind_cronjobs")}
-      />
+      <TableSearch onChange={setQuery} query={query} />
+      {cronJobs.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <KubernetesResourceTable
+          columns={cronJobColumns(t, open)}
+          defaultSort={{ column: "name", direction: "asc" }}
+          empty={<PanelMessage>{t("workloads_empty_cronjobs")}</PanelMessage>}
+          getRowKey={(cronJob) => `${cronJob.namespace}/${cronJob.name}`}
+          rows={visible}
+          storageKey="syrus.k8s_cluster.cron_jobs.columns"
+          summary={t("workload_kind_cronjobs")}
+        />
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
 }
 
-function podColumns(t: ReturnType<typeof useT>["t"], open: (pod: KubernetesPodRow) => void): Array<KubernetesResourceTableColumn<KubernetesPodRow>> {
+function podColumns(
+  t: ReturnType<typeof useT>["t"],
+  open: (pod: KubernetesPodRow) => void,
+  podMetrics: Map<string, KubernetesPodMetricRow>
+): Array<KubernetesResourceTableColumn<KubernetesPodRow>> {
   return [
     {
       key: "name",
@@ -354,6 +430,36 @@ function podColumns(t: ReturnType<typeof useT>["t"], open: (pod: KubernetesPodRo
       render: (pod) => pod.restart_count,
       sort: "restart_count",
       sortValue: (pod) => pod.restart_count
+    },
+    {
+      key: "cpu",
+      header: t("col_cpu"),
+      className: "font-mono text-gray-700 dark:text-gray-300",
+      filterValue: (pod) => {
+        const metric = podMetrics.get(`${pod.namespace}/${pod.name}`)
+        return metric ? formatMillicores(metric.cpu_millicores) : null
+      },
+      render: (pod) => {
+        const metric = podMetrics.get(`${pod.namespace}/${pod.name}`)
+        return metric ? formatMillicores(metric.cpu_millicores) : "-"
+      },
+      sort: "cpu",
+      sortValue: (pod) => podMetrics.get(`${pod.namespace}/${pod.name}`)?.cpu_millicores ?? null
+    },
+    {
+      key: "memory",
+      header: t("col_memory"),
+      className: "font-mono text-gray-700 dark:text-gray-300",
+      filterValue: (pod) => {
+        const metric = podMetrics.get(`${pod.namespace}/${pod.name}`)
+        return metric ? formatBytes(metric.memory_bytes) : null
+      },
+      render: (pod) => {
+        const metric = podMetrics.get(`${pod.namespace}/${pod.name}`)
+        return metric ? formatBytes(metric.memory_bytes) : "-"
+      },
+      sort: "memory",
+      sortValue: (pod) => podMetrics.get(`${pod.namespace}/${pod.name}`)?.memory_bytes ?? null
     },
     {
       key: "created_at",

@@ -14,12 +14,14 @@ import {
 import { formatAge, formatBytes, formatMillicores } from "../../lib/k8sFormat"
 import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 export function OverviewTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const restoredHeadingGutter = usePageGutterRestoreClassName("padding")
   const sectionHeadingClassName = classes("text-xs font-semibold uppercase text-gray-500 dark:text-gray-400", restoredHeadingGutter)
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const nodes = useQuery({
     queryKey: [ "k8s_cluster", "nodes", clusterId ],
     queryFn: () => fetchKubernetesNodes(clusterId)
@@ -45,9 +47,11 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
       ]
     })
 
+  const visibleNamespaces = (namespaces.data?.namespaces ?? []).filter((row) => matchesSearch(query, row.name, row.status))
+
   return (
     <div aria-label={t("aria_overview_tab")} className="space-y-4">
-      <section>
+      <section className="space-y-3">
         <h3 className={sectionHeadingClassName}>{t("namespaces_heading")}</h3>
         {namespaces.isPending ? <PanelMessage>{t("namespaces_loading")}</PanelMessage> : null}
         {namespaces.isError ? <PanelMessage tone="error">{errorMessage(namespaces.error, t("namespaces_error_loading"))}</PanelMessage> : null}
@@ -55,28 +59,36 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
           namespaces.data.namespaces.length === 0 ? (
             <PanelMessage>{t("namespaces_empty")}</PanelMessage>
           ) : (
-            <DataTable.Root density="compact">
-              <DataTable.Header>
-                <DataTable.Row>
-                  <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-                  <DataTable.HeadCell>{t("col_status")}</DataTable.HeadCell>
-                  <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-                </DataTable.Row>
-              </DataTable.Header>
-              <DataTable.Body>
-                {namespaces.data.namespaces.map((row) => (
-                  <DataTable.Row interactive key={row.name} onClick={() => openNamespace(row)}>
-                    <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">
-                      <DetailNameButton name={row.name} onOpen={() => openNamespace(row)} />
-                    </DataTable.Cell>
-                    <DataTable.Cell>
-                      <StatusBadge tone={row.status === "Active" ? "success" : "neutral"}>{row.status || "-"}</StatusBadge>
-                    </DataTable.Cell>
-                    <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(row.created_at)}</DataTable.Cell>
-                  </DataTable.Row>
-                ))}
-              </DataTable.Body>
-            </DataTable.Root>
+            <>
+              <TableSearch onChange={setQuery} query={query} />
+              {namespaces.data.truncated ? <TruncatedNotice /> : null}
+              {visibleNamespaces.length === 0 ? (
+                <SearchNoMatches />
+              ) : (
+                <DataTable.Root density="compact">
+                  <DataTable.Header>
+                    <DataTable.Row>
+                      <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
+                      <DataTable.HeadCell>{t("col_status")}</DataTable.HeadCell>
+                      <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
+                    </DataTable.Row>
+                  </DataTable.Header>
+                  <DataTable.Body>
+                    {visibleNamespaces.map((row) => (
+                      <DataTable.Row interactive key={row.name} onClick={() => openNamespace(row)}>
+                        <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">
+                          <DetailNameButton name={row.name} onOpen={() => openNamespace(row)} />
+                        </DataTable.Cell>
+                        <DataTable.Cell>
+                          <StatusBadge tone={row.status === "Active" ? "success" : "neutral"}>{row.status || "-"}</StatusBadge>
+                        </DataTable.Cell>
+                        <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(row.created_at)}</DataTable.Cell>
+                      </DataTable.Row>
+                    ))}
+                  </DataTable.Body>
+                </DataTable.Root>
+              )}
+            </>
           )
         ) : null}
       </section>
