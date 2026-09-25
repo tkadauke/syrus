@@ -32,6 +32,7 @@
     "delegate": "Delegieren",
     "delegated": "Delegiert",
     "not_delegated": "Nicht delegiert",
+    "linked_pull_request": "PR #{{number}}",
     "load_error": "Issues konnten nicht geladen werden.",
     "folders_heading": "Ordner",
     "folders_aria": "Issue-Ordner",
