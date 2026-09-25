@@ -25,8 +25,10 @@ import {
   type PendingQueuePayload,
   type QueueFailure,
   type QueueJob,
+  type QueuePagination,
   type QueueProcess,
   type QueueRecurringTask,
+  type QueueSort,
   type QueueTab,
   type QueueWorker,
   type RecurringQueuePayload,
@@ -212,7 +214,7 @@ function QueueContent({
         ) : null
       }
     >
-      <QueueTabPanel tab={tab} payload={payload} />
+      <QueueTabPanel onNavigate={onNavigate} pathname={pathname} payload={payload} search={search} tab={tab} />
     </AdminFiltersLayout>
   )
 }
@@ -221,8 +223,12 @@ function isFilteredQueuePayload(payload: AdminQueuePayload): payload is ActiveQu
   return "filter" in payload && "controls" in payload
 }
 
-function QueueTabPanel({ tab, payload }: { tab: QueueTab; payload: unknown }) {
+function QueueTabPanel({ onNavigate, pathname, search, tab, payload }: { onNavigate: (path: string) => void; pathname: string; search: string; tab: QueueTab; payload: unknown }) {
   const { t } = useT("admin")
+
+  function navigateWithParams(params: URLSearchParams) {
+    onNavigate(`${pathname}?${params.toString()}`)
+  }
 
   switch (tab) {
     case "active":
@@ -230,41 +236,59 @@ function QueueTabPanel({ tab, payload }: { tab: QueueTab; payload: unknown }) {
         <JobsTable
           emptyLabel={t("queue.no_active")}
           jobs={(payload as ActiveQueuePayload).jobs ?? []}
+          onNavigate={navigateWithParams}
+          pagination={(payload as ActiveQueuePayload).pagination}
+          search={search}
           showClaimed
+          sort={(payload as ActiveQueuePayload).sort}
           storageKey="syrus.admin.queue.active_jobs.visible_columns"
+          total={(payload as ActiveQueuePayload).total ?? ((payload as ActiveQueuePayload).jobs ?? []).length}
         />
       )
     case "pending":
-      return <PendingTable payload={payload as PendingQueuePayload} />
+      return <PendingTable onNavigate={navigateWithParams} payload={payload as PendingQueuePayload} search={search} />
     case "failed":
-      return <FailuresTable payload={payload as FailedQueuePayload} />
+      return <FailuresTable onNavigate={navigateWithParams} payload={payload as FailedQueuePayload} search={search} />
     case "recurring":
-      return <RecurringTable tasks={(payload as RecurringQueuePayload).tasks ?? []} />
+      return <RecurringTable onNavigate={navigateWithParams} search={search} sort={(payload as RecurringQueuePayload).sort} tasks={(payload as RecurringQueuePayload).tasks ?? []} />
     case "workers":
-      return <WorkersPanel payload={payload as WorkersQueuePayload} />
+      return <WorkersPanel onNavigate={navigateWithParams} payload={payload as WorkersQueuePayload} search={search} />
   }
 }
 
-function PendingTable({ payload }: { payload: PendingQueuePayload }) {
+function PendingTable({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload: PendingQueuePayload; search: string }) {
   const { t } = useT("admin")
   const jobs = payload.jobs ?? []
 
-  return <JobsTable emptyLabel={t("queue.no_queued")} jobs={jobs} storageKey="syrus.admin.queue.pending_jobs.visible_columns" total={payload.total ?? jobs.length} />
+  return (
+    <JobsTable
+      emptyLabel={t("queue.no_queued")}
+      jobs={jobs}
+      onNavigate={onNavigate}
+      pagination={payload.pagination}
+      search={search}
+      sort={payload.sort}
+      storageKey="syrus.admin.queue.pending_jobs.visible_columns"
+      total={payload.total ?? jobs.length}
+    />
+  )
 }
 
 function jobsTableColumns(t: (key: string) => string, showClaimed: boolean): Array<AdminEventLogTableColumn<QueueJob>> {
   const columns: Array<AdminEventLogTableColumn<QueueJob>> = [
-    { key: "class", header: t("queue.col_class"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (job) => job.class_name },
-    { key: "queue", header: t("queue.col_queue"), className: "text-gray-700 dark:text-gray-200", render: (job) => job.queue_name },
+    { key: "class", header: t("queue.col_class"), required: true, sort: "class", className: "font-medium text-gray-900 dark:text-gray-100", render: (job) => job.class_name },
+    { key: "queue", header: t("queue.col_queue"), sort: "queue", className: "text-gray-700 dark:text-gray-200", render: (job) => job.queue_name },
     {
       key: "arguments",
       header: t("queue.col_arguments"),
+      sort: "arguments",
       className: "font-mono text-xs text-gray-600 dark:text-gray-300",
       render: (job) => formatArguments(job.arguments)
     },
     {
       key: "created",
       header: t("queue.col_created"),
+      sort: "created_at",
       className: "text-gray-600 dark:text-gray-300",
       render: (job) => <RelativeTimestamp value={job.created_at} />
     }
@@ -273,6 +297,7 @@ function jobsTableColumns(t: (key: string) => string, showClaimed: boolean): Arr
     columns.push({
       key: "claimed",
       header: t("queue.col_claimed"),
+      sort: "claimed_at",
       className: "text-gray-600 dark:text-gray-300",
       render: (job) => <RelativeTimestamp value={job.claimed_at} />
     })
@@ -283,13 +308,21 @@ function jobsTableColumns(t: (key: string) => string, showClaimed: boolean): Arr
 function JobsTable({
   emptyLabel,
   jobs,
+  onNavigate,
+  pagination,
+  search,
   showClaimed = false,
+  sort,
   storageKey,
   total = jobs.length
 }: {
   emptyLabel: string
   jobs: QueueJob[]
+  onNavigate: (params: URLSearchParams) => void
+  pagination?: QueuePagination
+  search: string
   showClaimed?: boolean
+  sort?: QueueSort
   storageKey: string
   total?: number
 }) {
@@ -297,10 +330,21 @@ function JobsTable({
 
   if (jobs.length === 0) return <PanelMessage>{emptyLabel}</PanelMessage>
 
-  return <AdminEventLogTable columns={jobsTableColumns(t, showClaimed)} getRowKey={(job) => job.id} rows={jobs} storageKey={storageKey} panel={queuePanel(t, jobs.length, total)} />
+  return (
+    <AdminEventLogTable
+      columns={jobsTableColumns(t, showClaimed)}
+      defaultSort={queueDefaultSort(sort, showClaimed ? { column: "claimed_at", direction: "desc" } : { column: "created_at", direction: "asc" })}
+      getRowKey={(job) => job.id}
+      onNavigate={onNavigate}
+      panel={queuePanel(t, jobs.length, total, pagination, onNavigate, search)}
+      rows={jobs}
+      search={search}
+      storageKey={storageKey}
+    />
+  )
 }
 
-function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
+function FailuresTable({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload: FailedQueuePayload; search: string }) {
   const { t } = useT("admin")
   const failures = payload.failures ?? []
 
@@ -312,55 +356,84 @@ function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
       key: "created",
       header: t("queue.col_created"),
       required: true,
+      sort: "created_at",
       className: "text-gray-600 dark:text-gray-300",
       render: (failure) => <RelativeTimestamp value={failure.created_at} />
     },
-    { key: "class", header: t("queue.col_class"), className: "font-medium text-gray-900 dark:text-gray-100", render: (failure) => failure.class_name || "-" },
+    { key: "class", header: t("queue.col_class"), sort: "class", className: "font-medium text-gray-900 dark:text-gray-100", render: (failure) => failure.class_name || "-" },
+    // Solid Queue stores failure details as one serialized error blob. The
+    // displayed fields are extracted client payload values, so SQL sorting
+    // would not reliably match the visible Exception/Message text.
     { key: "exception", header: t("queue.col_exception"), className: "text-gray-700 dark:text-gray-200", render: (failure) => failure.exception_class || "-" },
     { key: "message", header: t("queue.col_message"), className: "max-w-md text-gray-700 dark:text-gray-200", render: (failure) => failure.message || "-" },
     {
       key: "arguments",
       header: t("queue.col_arguments"),
+      sort: "arguments",
       className: "font-mono text-xs text-gray-600 dark:text-gray-300",
       render: (failure) => formatArguments(failure.arguments)
     }
   ]
 
-  return <AdminEventLogTable columns={columns} getRowKey={(failure) => failure.id} rows={failures} storageKey="syrus.admin.queue.failures.visible_columns" panel={queuePanel(t, failures.length)} />
+  return (
+    <AdminEventLogTable
+      columns={columns}
+      defaultSort={queueDefaultSort(payload.sort, { column: "created_at", direction: "desc" })}
+      getRowKey={(failure) => failure.id}
+      onNavigate={onNavigate}
+      panel={queuePanel(t, failures.length, payload.total ?? failures.length, payload.pagination, onNavigate, search)}
+      rows={failures}
+      search={search}
+      storageKey="syrus.admin.queue.failures.visible_columns"
+    />
+  )
 }
 
-function RecurringTable({ tasks }: { tasks: QueueRecurringTask[] }) {
+function RecurringTable({ onNavigate, search, sort, tasks }: { onNavigate: (params: URLSearchParams) => void; search: string; sort?: QueueSort; tasks: QueueRecurringTask[] }) {
   const { t } = useT("admin")
 
   if (tasks.length === 0) return <PanelMessage>{t("queue.no_recurring")}</PanelMessage>
 
   const columns: Array<AdminEventLogTableColumn<QueueRecurringTask>> = [
-    { key: "key", header: t("queue.col_key"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (task) => task.key },
-    { key: "class", header: t("queue.col_class"), className: "text-gray-700 dark:text-gray-200", render: (task) => task.class_name || "-" },
-    { key: "schedule", header: t("queue.col_schedule"), className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (task) => task.schedule },
+    { key: "key", header: t("queue.col_key"), required: true, sort: "key", className: "font-medium text-gray-900 dark:text-gray-100", render: (task) => task.key },
+    { key: "class", header: t("queue.col_class"), sort: "class", className: "text-gray-700 dark:text-gray-200", render: (task) => task.class_name || "-" },
+    { key: "schedule", header: t("queue.col_schedule"), sort: "schedule", className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (task) => task.schedule },
     {
       key: "last_run",
       header: t("queue.col_last_run"),
+      sort: "last_run_at",
       className: "text-gray-600 dark:text-gray-300",
       render: (task) => <RelativeTimestamp value={task.last_run_at} />
     },
     {
       key: "last_finished",
       header: t("queue.col_last_finished"),
+      sort: "last_finished_at",
       className: "text-gray-600 dark:text-gray-300",
       render: (task) => <RelativeTimestamp value={task.last_finished_at} />
     }
   ]
 
-  return <AdminEventLogTable columns={columns} getRowKey={(task) => task.key} rows={tasks} storageKey="syrus.admin.queue.recurring.visible_columns" panel={queuePanel(t, tasks.length)} />
+  return (
+    <AdminEventLogTable
+      columns={columns}
+      defaultSort={queueDefaultSort(sort, { column: "key", direction: "asc" })}
+      getRowKey={(task) => task.key}
+      onNavigate={onNavigate}
+      panel={queuePanel(t, tasks.length)}
+      rows={tasks}
+      search={search}
+      storageKey="syrus.admin.queue.recurring.visible_columns"
+    />
+  )
 }
 
-function WorkersPanel({ payload }: { payload: WorkersQueuePayload }) {
+function WorkersPanel({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload: WorkersQueuePayload; search: string }) {
   return (
     <div className="space-y-6 p-4">
       {payload.worker_health ? <WorkerHealthPanel health={payload.worker_health} /> : null}
-      <WorkerTable workers={payload.workers ?? []} />
-      <ProcessTable processes={payload.all_processes ?? []} />
+      <WorkerTable onNavigate={onNavigate} search={search} sort={payload.sort} workers={payload.workers ?? []} />
+      <ProcessTable onNavigate={onNavigate} processes={payload.all_processes ?? []} search={search} />
     </div>
   )
 }
@@ -743,7 +816,7 @@ function HealthStat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function WorkerTable({ workers }: { workers: QueueWorker[] }) {
+function WorkerTable({ onNavigate, search, sort, workers }: { onNavigate: (params: URLSearchParams) => void; search: string; sort?: QueueSort; workers: QueueWorker[] }) {
   const { t } = useT("admin")
 
   if (workers.length === 0) return <PanelMessage>{t("queue.no_workers")}</PanelMessage>
@@ -753,26 +826,30 @@ function WorkerTable({ workers }: { workers: QueueWorker[] }) {
       key: "host",
       header: t("queue.col_host"),
       required: true,
+      sort: "host",
       className: "font-medium text-gray-900 dark:text-gray-100",
       render: (worker) => worker.hostname || "-"
     },
-    { key: "pid", header: t("queue.col_pid"), className: "text-gray-700 dark:text-gray-200", render: (worker) => worker.pid },
+    { key: "pid", header: t("queue.col_pid"), sort: "pid", className: "text-gray-700 dark:text-gray-200", render: (worker) => worker.pid },
     {
       key: "queues",
       header: t("queue.col_queues"),
+      sort: "queues",
       className: "font-mono text-xs text-gray-600 dark:text-gray-300",
       render: (worker) => formatQueues(worker.queues)
     },
-    { key: "threads", header: t("queue.col_threads"), className: "text-gray-700 dark:text-gray-200", render: (worker) => worker.threads ?? "-" },
+    { key: "threads", header: t("queue.col_threads"), sort: "threads", className: "text-gray-700 dark:text-gray-200", render: (worker) => worker.threads ?? "-" },
     {
       key: "heartbeat",
       header: t("queue.col_heartbeat"),
+      sort: "heartbeat",
       className: "text-gray-600 dark:text-gray-300",
       render: (worker) => <RelativeTimestamp value={worker.last_heartbeat_at} />
     },
     {
       key: "state",
       header: t("queue.col_state"),
+      sort: "state",
       render: (worker) => (
         <span className={worker.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>
           {worker.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}
@@ -784,32 +861,37 @@ function WorkerTable({ workers }: { workers: QueueWorker[] }) {
   return (
     <AdminEventLogTable
       columns={columns}
+      defaultSort={queueDefaultSort(sort, { column: "host", direction: "asc" })}
       getRowKey={(worker) => `${worker.hostname}-${worker.pid}`}
+      onNavigate={onNavigate}
       rows={workers}
+      search={search}
       storageKey="syrus.admin.queue.workers.visible_columns"
       panel={queuePanel(t, workers.length)}
     />
   )
 }
 
-function ProcessTable({ processes }: { processes: QueueProcess[] }) {
+function ProcessTable({ onNavigate, processes, search }: { onNavigate: (params: URLSearchParams) => void; processes: QueueProcess[]; search: string }) {
   const { t } = useT("admin")
 
   if (processes.length === 0) return <PanelMessage>{t("queue.no_processes")}</PanelMessage>
 
   const columns: Array<AdminEventLogTableColumn<QueueProcess>> = [
-    { key: "kind", header: t("queue.col_kind"), required: true, className: "font-medium text-gray-900 dark:text-gray-100", render: (process) => process.kind },
-    { key: "host", header: t("queue.col_host"), className: "text-gray-700 dark:text-gray-200", render: (process) => process.hostname || "-" },
-    { key: "pid", header: t("queue.col_pid"), className: "text-gray-700 dark:text-gray-200", render: (process) => process.pid },
+    { key: "kind", header: t("queue.col_kind"), required: true, sort: "kind", className: "font-medium text-gray-900 dark:text-gray-100", render: (process) => process.kind },
+    { key: "host", header: t("queue.col_host"), sort: "host", className: "text-gray-700 dark:text-gray-200", render: (process) => process.hostname || "-" },
+    { key: "pid", header: t("queue.col_pid"), sort: "pid", className: "text-gray-700 dark:text-gray-200", render: (process) => process.pid },
     {
       key: "heartbeat",
       header: t("queue.col_heartbeat"),
+      sort: "heartbeat",
       className: "text-gray-600 dark:text-gray-300",
       render: (process) => <RelativeTimestamp value={process.last_heartbeat_at} />
     },
     {
       key: "state",
       header: t("queue.col_state"),
+      sort: "state",
       render: (process) => (
         <span className={process.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>
           {process.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}
@@ -821,17 +903,40 @@ function ProcessTable({ processes }: { processes: QueueProcess[] }) {
   return (
     <AdminEventLogTable
       columns={columns}
+      defaultSort={{ column: "kind", direction: "asc" }}
       getRowKey={(process) => `${process.kind}-${process.hostname}-${process.pid}`}
+      onNavigate={onNavigate}
       rows={processes}
+      search={search}
       storageKey="syrus.admin.queue.processes.visible_columns"
       panel={queuePanel(t, processes.length)}
     />
   )
 }
 
-function queuePanel(t: (key: string, options?: Record<string, number>) => string, count: number, total = count) {
+function queueDefaultSort(sort: QueueSort | undefined, fallback: { column: string; direction: "asc" | "desc" }) {
+  return sort ? { column: sort.column, direction: sort.direction } : fallback
+}
+
+function queuePanel(
+  t: (key: string, options?: Record<string, number>) => string,
+  count: number,
+  total = count,
+  pagination?: QueuePagination,
+  onNavigate?: (params: URLSearchParams) => void,
+  search = ""
+) {
   return {
-    summary: t("queue.showing_items", { first: count > 0 ? 1 : 0, last: count, total })
+    pagination: pagination && onNavigate ? {
+      ariaLabel: t("queue.pagination_aria"),
+      label: t("queue.page_label", { page: pagination.page, total: pagination.total_pages }),
+      nextLabel: t("queue.next"),
+      onNavigate,
+      pagination,
+      previousLabel: t("queue.previous"),
+      search
+    } : undefined,
+    summary: t("queue.showing_items", { first: count > 0 ? ((pagination?.page ?? 1) - 1) * (pagination?.per_page ?? count) + 1 : 0, last: count > 0 ? ((pagination?.page ?? 1) - 1) * (pagination?.per_page ?? count) + count : 0, total })
   }
 }
 
