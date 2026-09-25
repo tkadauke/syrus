@@ -60,6 +60,10 @@ module Api
             render_namespace_scoped(::K8sCluster::Services.new(@cluster))
           end
 
+          def ingresses
+            render_namespace_scoped(::K8sCluster::Ingresses.new(@cluster))
+          end
+
           def configmaps
             render_namespace_scoped(::K8sCluster::ConfigMaps.new(@cluster))
           end

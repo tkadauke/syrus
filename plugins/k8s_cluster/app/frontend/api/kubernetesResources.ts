@@ -302,6 +302,39 @@ export function fetchKubernetesServices(clusterId: number, namespace?: string | 
   return getJson<KubernetesServicesResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/services`, namespace))
 }
 
+export type KubernetesIngressPath = {
+  path: string | null
+  path_type: string | null
+  service_name: string | null
+  service_port: number | string | null
+}
+
+export type KubernetesIngressRule = {
+  host: string | null
+  paths: KubernetesIngressPath[]
+}
+
+export type KubernetesIngressRow = {
+  name: string
+  namespace: string
+  ingress_class: string | null
+  hosts: string[]
+  rules: KubernetesIngressRule[]
+  tls_hosts: string[]
+  created_at: string | null
+}
+
+export type KubernetesIngressesResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  ingresses: KubernetesIngressRow[]
+}
+
+export function fetchKubernetesIngresses(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesIngressesResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/ingresses`, namespace))
+}
+
 export function fetchKubernetesEndpoints(clusterId: number, namespace?: string | null) {
   return getJson<KubernetesEndpointsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/endpoints`, namespace))
 }

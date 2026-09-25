@@ -27,6 +27,9 @@ module KubeApiStubs
     { "name" => "cronjobs", "namespaced" => true, "kind" => "CronJob" },
     { "name" => "jobs", "namespaced" => true, "kind" => "Job" }
   ].freeze
+  NETWORKING_RESOURCES = [
+    { "name" => "ingresses", "namespaced" => true, "kind" => "Ingress" }
+  ].freeze
 
   def stub_core_discovery(base)
     stub_discovery(base: base, path: "api/v1", group_version: "v1", resources: CORE_RESOURCES)
@@ -38,6 +41,10 @@ module KubeApiStubs
 
   def stub_batch_discovery(base)
     stub_discovery(base: base, path: "apis/batch/v1", group_version: "batch/v1", resources: BATCH_RESOURCES)
+  end
+
+  def stub_networking_discovery(base)
+    stub_discovery(base: base, path: "apis/networking.k8s.io/v1", group_version: "networking.k8s.io/v1", resources: NETWORKING_RESOURCES)
   end
 
   def stub_discovery(base:, path:, group_version:, resources:)

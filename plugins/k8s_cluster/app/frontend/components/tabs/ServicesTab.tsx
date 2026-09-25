@@ -1,13 +1,42 @@
 import { useQuery } from "@tanstack/react-query"
+import { useState } from "react"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
-import { fetchKubernetesEndpoints, fetchKubernetesServices, type KubernetesEndpointRow, type KubernetesServiceRow } from "../../api/kubernetesResources"
+import {
+  fetchKubernetesEndpoints,
+  fetchKubernetesIngresses,
+  fetchKubernetesServices,
+  type KubernetesEndpointRow,
+  type KubernetesIngressRow,
+  type KubernetesServiceRow
+} from "../../api/kubernetesResources"
 import { formatAge } from "../../lib/k8sFormat"
 import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
+import { Dropdown } from "../Dropdown"
 import { StatusBadge } from "../StatusBadge"
 
+type NetworkKind = "services" | "ingresses"
+
 export function ServicesTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
+  const { t } = useT("k8s_cluster")
+  const [kind, setKind] = useState<NetworkKind>("services")
+
+  const kindOptions = [
+    { value: "services" as const, label: t("network_kind_services") },
+    { value: "ingresses" as const, label: t("network_kind_ingresses") }
+  ]
+
+  return (
+    <div aria-label={t("aria_services_tab")} className="space-y-3">
+      <Dropdown ariaLabel={t("network_kind_label")} onChange={setKind} options={kindOptions} value={kind} />
+      {kind === "services" ? <ServicesTable clusterId={clusterId} namespace={namespace} /> : null}
+      {kind === "ingresses" ? <IngressesTable clusterId={clusterId} namespace={namespace} /> : null}
+    </div>
+  )
+}
+
+function ServicesTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const services = useQuery({
     queryKey: ["k8s_cluster", "services", clusterId, namespace],
@@ -125,4 +154,108 @@ function serviceColumns(
 
 function endpointLabel(t: ReturnType<typeof useT>["t"], endpoint: KubernetesEndpointRow | undefined) {
   return endpoint ? t("services_endpoints_ready", { ready: endpoint.ready_addresses, total: endpoint.ready_addresses + endpoint.not_ready_addresses }) : "-"
+}
+
+function IngressesTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
+  const { t } = useT("k8s_cluster")
+  const ingresses = useQuery({
+    queryKey: ["k8s_cluster", "ingresses", clusterId, namespace],
+    queryFn: () => fetchKubernetesIngresses(clusterId, namespace)
+  })
+
+  if (ingresses.isPending) return <PanelMessage>{t("ingresses_loading")}</PanelMessage>
+  if (ingresses.isError) return <PanelMessage tone="error">{errorMessage(ingresses.error, t("ingresses_error_loading"))}</PanelMessage>
+  if (ingresses.data.ingresses.length === 0) return <PanelMessage>{t("ingresses_empty")}</PanelMessage>
+
+  return (
+    <KubernetesResourceTable
+      columns={ingressColumns(t)}
+      defaultSort={{ column: "name", direction: "asc" }}
+      empty={<PanelMessage>{t("ingresses_empty")}</PanelMessage>}
+      getRowKey={(ingress) => `${ingress.namespace}/${ingress.name}`}
+      rows={ingresses.data.ingresses}
+      storageKey="syrus.k8s_cluster.ingresses.columns"
+      summary={t("network_kind_ingresses")}
+    />
+  )
+}
+
+function ingressColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResourceTableColumn<KubernetesIngressRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (ingress) => ingress.name,
+      required: true,
+      sort: "name",
+      sortValue: (ingress) => ingress.name
+    },
+    {
+      key: "namespace",
+      header: t("col_namespace"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (ingress) => ingress.namespace,
+      sort: "namespace",
+      sortValue: (ingress) => ingress.namespace
+    },
+    {
+      key: "hosts",
+      header: t("col_hosts"),
+      className: "font-mono text-gray-700 dark:text-gray-300",
+      filterValue: (ingress) => ingress.hosts,
+      render: (ingress) => (ingress.hosts.length === 0 ? "-" : ingress.hosts.join(", ")),
+      sort: "hosts",
+      sortValue: (ingress) => ingress.hosts.join(", ")
+    },
+    {
+      key: "backend",
+      header: t("col_backend"),
+      className: "font-mono text-gray-700 dark:text-gray-300",
+      filterValue: (ingress) => ingressBackends(ingress),
+      render: (ingress) => backendSummary(ingress)
+    },
+    {
+      key: "tls",
+      header: t("col_tls"),
+      filterValue: (ingress) => (ingress.tls_hosts.length > 0 ? t("yes") : t("no")),
+      render: (ingress) => (
+        <StatusBadge tone={ingress.tls_hosts.length > 0 ? "success" : "neutral"}>
+          {ingress.tls_hosts.length > 0 ? t("yes") : t("no")}
+        </StatusBadge>
+      ),
+      sort: "tls",
+      sortValue: (ingress) => ingress.tls_hosts.length
+    },
+    {
+      key: "ingress_class",
+      header: t("col_ingress_class"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (ingress) => ingress.ingress_class || "-",
+      sort: "ingress_class",
+      sortValue: (ingress) => ingress.ingress_class
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (ingress) => formatAge(ingress.created_at),
+      sort: "created_at",
+      sortValue: (ingress) => ingress.created_at
+    }
+  ]
+}
+
+function ingressBackends(ingress: KubernetesIngressRow) {
+  const backends = ingress.rules.flatMap((rule) =>
+    rule.paths.map((path) => (path.service_name ? `${path.service_name}${path.service_port ? `:${path.service_port}` : ""}` : null))
+  ).filter((backend): backend is string => backend !== null)
+
+  return [...new Set(backends)]
+}
+
+// Flatten every rule path's backend Service/port so the operator can trace
+// an external host to the Service that serves it without a second request.
+function backendSummary(ingress: KubernetesIngressRow) {
+  return ingressBackends(ingress).join(", ") || "-"
 }

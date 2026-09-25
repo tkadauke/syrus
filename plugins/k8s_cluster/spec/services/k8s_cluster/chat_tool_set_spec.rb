@@ -52,6 +52,7 @@ RSpec.describe K8sCluster::ChatToolSet do
       "k8s_cluster_daemonsets",
       "k8s_cluster_jobs",
       "k8s_cluster_services",
+      "k8s_cluster_ingresses",
       "k8s_cluster_configmaps",
       "k8s_cluster_secrets",
       "k8s_cluster_events",
