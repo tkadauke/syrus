@@ -1,6 +1,6 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { AdminTeamDetailRoute, AdminTeamsIndex } from "./AdminTeams"
@@ -74,6 +74,31 @@ describe("AdminTeamsIndex", () => {
     renderIndex(teamsPayload({ teams: [] }))
 
     expect(await screen.findByText("No teams yet.")).toBeInTheDocument()
+  })
+
+  it("uses shared data-table sorting and column controls", async () => {
+    renderIndex(teamsPayload({
+      teams: [
+        { id: 1, name: "Platform", member_count: 2, repository_count: 1, owned_by_current_user: true, team_path: "/admin/teams/1" },
+        { id: 2, name: "Growth", member_count: 5, repository_count: 3, owned_by_current_user: true, team_path: "/admin/teams/2" }
+      ]
+    }))
+
+    expect(await screen.findByText("2 teams")).toBeInTheDocument()
+    const table = screen.getByRole("table")
+    expect(within(table).getByRole("columnheader", { name: /Name/ })).toHaveAttribute("aria-sort", "ascending")
+
+    fireEvent.click(within(table).getByRole("button", { name: /Members/ }))
+
+    expect(within(table).getByRole("columnheader", { name: /Members/ })).toHaveAttribute("aria-sort", "ascending")
+    const rows = within(table).getAllByRole("row")
+    expect(within(rows[1]).getByText("Platform")).toBeInTheDocument()
+    expect(within(rows[2]).getByText("Growth")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+
+    expect(screen.getByRole("checkbox", { name: "Members" })).toBeChecked()
+    expect(screen.getByRole("button", { name: "Move Repositories up" })).toBeInTheDocument()
   })
 
   it("creates a team from the form", async () => {

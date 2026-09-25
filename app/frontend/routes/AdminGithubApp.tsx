@@ -1,5 +1,4 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
-import { PageHeading } from "../components/Heading"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import type { ReactNode } from "react"
@@ -13,6 +12,7 @@ import { openInNewTab } from "../lib/desktopShell"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Button } from "../components/Button"
+import { Page } from "../components/ui"
 
 export function AdminGithubAppRegister() {
   const { t } = useT("admin")
@@ -22,7 +22,7 @@ export function AdminGithubAppRegister() {
   })
 
   return (
-    <main aria-label={t("aria_github_registration")} className="mx-auto max-w-6xl space-y-6 p-6">
+    <Page.Root aria-label={t("aria_github_registration")} gutter="responsive" size="default">
       <PageHeader
         title={t("github_app.register_title")}
         description={t("github_app.register_description")}
@@ -31,7 +31,7 @@ export function AdminGithubAppRegister() {
       {registration.isPending ? <PanelMessage>{t("github_app.loading_register")}</PanelMessage> : null}
       {registration.isError ? <PanelMessage tone="error">{errorMessage(registration.error, t("github_app.error_load_register"))}</PanelMessage> : null}
       {registration.isSuccess ? <RegisterView payload={registration.data} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -43,7 +43,7 @@ export function AdminGithubAppConfirm() {
   })
 
   return (
-    <main aria-label={t("aria_github_registered")} className="mx-auto max-w-6xl space-y-6 p-6">
+    <Page.Root aria-label={t("aria_github_registered")} gutter="responsive" size="default">
       <PageHeader
         title={t("github_app.confirm_title")}
         description={t("github_app.confirm_description")}
@@ -61,7 +61,7 @@ export function AdminGithubAppConfirm() {
       {confirmation.isPending ? <PanelMessage>{t("github_app.loading_stored")}</PanelMessage> : null}
       {confirmation.isError ? <PanelMessage tone="error">{errorMessage(confirmation.error, t("github_app.error_load_stored"))}</PanelMessage> : null}
       {confirmation.isSuccess ? <StoredRegistration app={confirmation.data.github_app} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -139,16 +139,17 @@ function GithubAppStatus({ app }: { app: AdminGithubAppStatus }) {
 function PageHeader({ title, description }: { title: string; description: string }) {
   const { t } = useT("admin")
   return (
-    <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-      <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-      <PageHeading className="mt-1">{title}</PageHeading>
+    <Page.Header className="block border-b border-gray-200 pb-4 dark:border-gray-700">
+      <Page.HeadingGroup>
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+        <Page.Title className="mt-1">{title}</Page.Title>
+      </Page.HeadingGroup>
       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{description}</p>
-    </header>
+    </Page.Header>
   )
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
   return <section className={`rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</section>
 }
-
 
