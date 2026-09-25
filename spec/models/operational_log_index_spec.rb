@@ -47,6 +47,16 @@ RSpec.describe OperationalLogIndex do
     expect(described_class.search(since: 3.hours.ago).map { |row| row[:operational_log_event_id] }).to eq([ newer.id, older.id ])
   end
 
+  it "sorts indexed log rows by requested columns" do
+    alpha = event(message: "alpha event", level: "info", occurred_at: 10.minutes.ago)
+    beta = event(message: "beta event", level: "error", occurred_at: 5.minutes.ago)
+    [ beta, alpha ].each { |record| described_class.upsert(record) }
+
+    results = described_class.search(since: 1.hour.ago, sort: "message", direction: "asc")
+
+    expect(results.map { |row| row[:operational_log_event_id] }).to eq([ alpha.id, beta.id ])
+  end
+
   it "memoizes table availability instead of re-querying sqlite_master on every call" do
     described_class.reset_availability_cache!
     queries = []
