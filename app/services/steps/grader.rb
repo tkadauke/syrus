@@ -230,19 +230,24 @@ module Steps
     def new_test_flakiness_failure_message(name, result)
       if result.reason.to_s.start_with?("focused_command_")
         return "focused rerun command failed after grader #{name} passed: #{result.reason} " \
-          "(#{result.fail_count}/#{result.repeats} failed)"
+          "(#{repeat_failure_ratio(result)} failed)"
       end
 
-      "newly touched tests failed intermittently: #{name} (#{result.fail_count}/#{result.repeats} failed)"
+      "newly touched tests failed intermittently: #{name} (#{repeat_failure_ratio(result)} failed)"
     end
 
     def new_test_flakiness_diagnostic_message(result)
       if result.reason.to_s.start_with?("focused_command_")
         return "new-test repeat gate focused command suspect: #{result.reason} " \
-          "(#{result.fail_count}/#{result.repeats} repeat runs failed after the owning grader passed)"
+          "(#{repeat_failure_ratio(result)} repeat runs failed after the owning grader passed)"
       end
 
-      "new-test repeat gate failed: #{result.reason} (#{result.fail_count}/#{result.repeats} repeat runs failed)"
+      "new-test repeat gate failed: #{result.reason} (#{repeat_failure_ratio(result)} repeat runs failed)"
+    end
+
+    def repeat_failure_ratio(result)
+      denominator = [ result.repeats.to_i, result.runs.to_a.size, result.pass_count.to_i + result.fail_count.to_i ].max
+      "#{result.fail_count}/#{denominator}"
     end
 
     def typed_test_grader?(definition)
@@ -252,7 +257,8 @@ module Steps
     def focused_test_grader?(name:, definition:)
       definition["grader_mode"].to_s == "focused" ||
         name.to_s.end_with?("-focused") ||
-        focused_target_labels(definition).any? { |label| label.end_with?("/focused", "-focused") }
+        focused_target_labels(definition).any? { |label| label.end_with?("/focused", "-focused") } ||
+        focused_command?(definition)
     end
 
     def focused_target_labels(definition)
@@ -260,6 +266,15 @@ module Steps
         definition["target_label"],
         definition["projected_target_label"]
       ].compact_blank.map(&:to_s)
+    end
+
+    def focused_command?(definition)
+      command = definition["command"].to_s
+      command.include?(".syrus/rspec-focused-files") ||
+        command.include?("RSPEC_OUTPUT_PREFIX=rspec-focused") ||
+        command.include?("RSPEC_OUTPUT_PREFIX='rspec-focused'") ||
+        command.include?("RSPEC_OUTPUT_PREFIX=\"rspec-focused\"") ||
+        command.match?(/\bvitest\b.*\b--changed\b/)
     end
 
     def touched_test_files_for(definition)
