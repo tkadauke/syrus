@@ -15,6 +15,10 @@ export type RepositoryIssuesPayload = {
   query: string | null
   filter: Record<string, unknown>
   filter_schema: FilterSchemaField[]
+  sort: {
+    column: string
+    direction: "asc" | "desc"
+  }
   issue_count: number
   issues: RepositoryIssue[]
   folder_counts: Record<IssueFolder, number>
@@ -51,42 +55,52 @@ export type RepositoryIssue = {
 // tree, or "" when no filter is applied) taken verbatim from the `q` URL
 // param -- see Filters::QueryParam on the backend. It is never decoded on
 // the client; the server round-trips it back as `payload.filter`/`query`.
-export function fetchRepositoryIssues(id: string, folder: IssueFolder, filterParam: string) {
+export function fetchRepositoryIssues(id: string, folder: IssueFolder, filterParam: string, sort: { column: string; direction: "asc" | "desc" }) {
   const params = new URLSearchParams({ folder })
   if (filterParam) params.set("q", filterParam)
+  params.set("sort", sort.column)
+  params.set("direction", sort.direction)
   return getJson<RepositoryIssuesPayload>(`/api/v1/app/repositories/${id}/issues?${params}`)
 }
 
-export function commentRepositoryIssue(path: string, values: { issueNumber: number; commentBody: string; folder: IssueFolder; filterParam: string }) {
+export function commentRepositoryIssue(path: string, values: { issueNumber: number; commentBody: string; folder: IssueFolder; filterParam: string; sort: { column: string; direction: "asc" | "desc" } }) {
   return postJson<RepositoryIssuesPayload>(path, {
     issue_number: values.issueNumber,
     comment_body: values.commentBody,
     folder: values.folder,
-    q: values.filterParam
+    q: values.filterParam,
+    sort: values.sort.column,
+    direction: values.sort.direction
   })
 }
 
-export function closeRepositoryIssue(path: string, values: { issueNumber: number; folder: IssueFolder; filterParam: string }) {
+export function closeRepositoryIssue(path: string, values: { issueNumber: number; folder: IssueFolder; filterParam: string; sort: { column: string; direction: "asc" | "desc" } }) {
   return postJson<RepositoryIssuesPayload>(path, {
     issue_number: values.issueNumber,
     folder: values.folder,
-    q: values.filterParam
+    q: values.filterParam,
+    sort: values.sort.column,
+    direction: values.sort.direction
   })
 }
 
-export function delegateRepositoryIssue(path: string, values: { issueNumber: number; folder: IssueFolder; filterParam: string }) {
+export function delegateRepositoryIssue(path: string, values: { issueNumber: number; folder: IssueFolder; filterParam: string; sort: { column: string; direction: "asc" | "desc" } }) {
   return postJson<RepositoryIssuesPayload>(path, {
     issue_number: values.issueNumber,
     folder: values.folder,
-    q: values.filterParam
+    q: values.filterParam,
+    sort: values.sort.column,
+    direction: values.sort.direction
   })
 }
 
-export function bulkRepositoryIssues(path: string, values: { issueNumbers: number[]; bulkAction: "close" | "delegate"; folder: IssueFolder; filterParam: string }) {
+export function bulkRepositoryIssues(path: string, values: { issueNumbers: number[]; bulkAction: "close" | "delegate"; folder: IssueFolder; filterParam: string; sort: { column: string; direction: "asc" | "desc" } }) {
   return postJson<RepositoryIssuesPayload>(path, {
     issue_numbers: values.issueNumbers,
     bulk_action: values.bulkAction,
     folder: values.folder,
-    q: values.filterParam
+    q: values.filterParam,
+    sort: values.sort.column,
+    direction: values.sort.direction
   })
 }
