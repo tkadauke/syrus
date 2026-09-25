@@ -926,6 +926,98 @@ describe("ClusterBrowser", () => {
       expect(await screen.findByText("Select a pod to view its log tail.")).toBeInTheDocument()
     })
 
+    it("renders log option controls alongside the manual Refresh button", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Logs")
+      await screen.findByText("Select a pod to view its log tail.")
+
+      fireEvent.click(screen.getByRole("button", { name: "Pod" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default/web-1" }))
+      await screen.findByText("line one", { exact: false })
+
+      expect(screen.getByRole("button", { name: "Lines" })).toBeInTheDocument()
+      expect(screen.getByLabelText("Previous container")).toBeInTheDocument()
+      expect(screen.getByLabelText("Show timestamps")).toBeInTheDocument()
+      expect(screen.getByLabelText("Follow")).toBeInTheDocument()
+      expect(screen.getByLabelText("Search logs")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
+    })
+
+    it("sends tail_lines, previous, and timestamps params from the log option controls", async () => {
+      const { calls } = setupFetchMock()
+      renderBrowser()
+      await switchTab("Logs")
+      await screen.findByText("Select a pod to view its log tail.")
+
+      fireEvent.click(screen.getByRole("button", { name: "Pod" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default/web-1" }))
+      await screen.findByText("line one", { exact: false })
+
+      await vi.waitFor(() => {
+        expect(calls.some((url) => url.includes("/logs?") && url.includes("tail_lines=200"))).toBe(true)
+      })
+
+      fireEvent.click(screen.getByRole("button", { name: "Lines" }))
+      fireEvent.click(await screen.findByRole("option", { name: "500" }))
+      await vi.waitFor(() => {
+        expect(calls.some((url) => url.includes("/logs?") && url.includes("tail_lines=500"))).toBe(true)
+      })
+
+      fireEvent.click(screen.getByLabelText("Previous container"))
+      await vi.waitFor(() => {
+        expect(calls.some((url) => url.includes("/logs?") && url.includes("previous=true"))).toBe(true)
+      })
+
+      fireEvent.click(screen.getByLabelText("Show timestamps"))
+      await vi.waitFor(() => {
+        expect(calls.some((url) => url.includes("/logs?") && url.includes("timestamps=true"))).toBe(true)
+      })
+    })
+
+    it("filters log output through the log search box", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Logs")
+      await screen.findByText("Select a pod to view its log tail.")
+
+      fireEvent.click(screen.getByRole("button", { name: "Pod" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default/web-1" }))
+      await screen.findByText("line one", { exact: false })
+
+      fireEvent.change(screen.getByLabelText("Search logs"), { target: { value: "zzz-no-such-line" } })
+      expect(await screen.findByText("No log lines match the current search.")).toBeInTheDocument()
+      expect(screen.queryByText("line one", { exact: false })).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText("Search logs"), { target: { value: "two" } })
+      expect(await screen.findByText("line two", { exact: false })).toBeInTheDocument()
+      expect(screen.queryByText("line one", { exact: false })).not.toBeInTheDocument()
+    })
+
+    it("shows the empty state when the pod has no log output", async () => {
+      setupFetchMock({ podLogs: { ...DEFAULT_POD_LOGS, log: "" } })
+      renderBrowser()
+      await switchTab("Logs")
+      await screen.findByText("Select a pod to view its log tail.")
+
+      fireEvent.click(screen.getByRole("button", { name: "Pod" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default/web-1" }))
+
+      expect(await screen.findByText("No log output.")).toBeInTheDocument()
+    })
+
+    it("shows an error when logs fail to load", async () => {
+      setupFetchMock({}, { podLogs: 502 })
+      renderBrowser()
+      await switchTab("Logs")
+      await screen.findByText("Select a pod to view its log tail.")
+
+      fireEvent.click(screen.getByRole("button", { name: "Pod" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default/web-1" }))
+
+      expect(await screen.findByText("boom-podLogs")).toBeInTheDocument()
+    })
+
     it("shows the log tail for a selected single-container pod without a container picker", async () => {
       setupFetchMock()
       renderBrowser()
