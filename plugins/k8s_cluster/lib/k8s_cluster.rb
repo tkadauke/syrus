@@ -33,6 +33,8 @@ module K8sCluster
     route :get, "/api/v1/app/admin/kubernetes_clusters/:id/pvcs", to: "api/v1/app/admin/kubernetes_resources#pvcs"
     route :get, "/api/v1/app/admin/kubernetes_clusters/:id/nodes", to: "api/v1/app/admin/kubernetes_resources#nodes"
     route :get, "/api/v1/app/admin/kubernetes_clusters/:id/cronjobs", to: "api/v1/app/admin/kubernetes_resources#cronjobs"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/configmaps", to: "api/v1/app/admin/kubernetes_resources#configmaps"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/secrets", to: "api/v1/app/admin/kubernetes_resources#secrets"
     route :get, "/api/v1/app/admin/kubernetes_clusters/:id/overview", to: "api/v1/app/admin/kubernetes_resources#overview"
     frontend routes: {
           "k8s_cluster/KubernetesClusters" => "app/frontend/routes/KubernetesClusters.tsx"
