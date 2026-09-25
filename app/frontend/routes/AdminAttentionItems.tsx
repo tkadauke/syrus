@@ -9,8 +9,6 @@ import {
   AdminEventPanelMessage,
   JsonBlock,
   adminEventLinkClass,
-  disabledPaginationClass,
-  paginationLinkClass,
   severityPillClass
 } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
@@ -57,11 +55,10 @@ export function AdminAttentionItems() {
         </Button>
       }
       ariaLabel={t("attention_items.aria")}
+      description={t("attention_items.description")}
       eyebrow={t("section_label")}
       title={t("attention_items.heading")}
     >
-      <p className="max-w-3xl text-sm text-gray-600 dark:text-gray-300">{t("attention_items.description")}</p>
-
       <AdminEventFilterBar clearLabel={t("attention_items.clear_filters")} filter={items.data?.filter} filterSchema={items.data?.filter_schema} fields={[
         { name: "state", label: t("attention_items.filter_state") },
         { name: "queue", label: t("attention_items.filter_queue") },
@@ -69,11 +66,9 @@ export function AdminAttentionItems() {
         { name: "repository_id", label: t("attention_items.filter_repository"), inputMode: "numeric" }
       ]} search={location.search} searchLabel={t("attention_items.apply_filters")} />
 
-      <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-        {items.isPending ? <AdminEventPanelMessage>{t("attention_items.loading")}</AdminEventPanelMessage> : null}
-        {items.isError ? <AdminEventPanelMessage tone="error">{t("attention_items.error_load")}</AdminEventPanelMessage> : null}
-        {items.isSuccess ? <ItemsTable payload={items.data} prefix={prefix} search={location.search} onNavigate={navigateSearch} /> : null}
-      </section>
+      {items.isPending ? <AdminEventPanelMessage>{t("attention_items.loading")}</AdminEventPanelMessage> : null}
+      {items.isError ? <AdminEventPanelMessage tone="error">{t("attention_items.error_load")}</AdminEventPanelMessage> : null}
+      {items.isSuccess ? <ItemsTable payload={items.data} prefix={prefix} search={location.search} onNavigate={navigateSearch} /> : null}
     </AdminEventPageShell>
   )
 }
@@ -93,6 +88,7 @@ function ItemsTable({ onNavigate, payload, prefix, search }: { onNavigate: (para
       header: t("attention_items.col_item"),
       key: "item",
       required: true,
+      sort: "problem",
       render: (item, { expanded, toggleExpanded }) => <ItemSummary item={item} onToggle={toggleExpanded} expanded={expanded} />
     },
     {
@@ -100,6 +96,7 @@ function ItemsTable({ onNavigate, payload, prefix, search }: { onNavigate: (para
       headerClassName: "px-4 py-2",
       header: t("attention_items.col_created"),
       key: "created",
+      sort: "created_at",
       render: (item) => <RelativeTimestamp value={item.created_at} />
     },
     {
@@ -114,27 +111,42 @@ function ItemsTable({ onNavigate, payload, prefix, search }: { onNavigate: (para
       headerClassName: "px-4 py-2",
       header: t("attention_items.col_state"),
       key: "state",
+      sort: "state",
       render: (item) => <StatePill item={item} />
     }
   ]
 
   return (
-    <div>
-      <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
-        {t("attention_items.showing", { first: payload.pagination.first_item, last: payload.pagination.last_item, total: payload.pagination.total })}
-      </div>
-      <AdminEventLogTable
-        columns={columns}
-        getRowKey={(item) => item.id}
-        renderExpanded={(item) => <ItemDetail item={item} prefix={prefix} />}
-        rows={payload.items}
-        search={search}
-        storageKey="syrus.admin.attention_items.visible_columns"
-        tableClassName="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700"
-        onNavigate={onNavigate}
-      />
-      <Pagination pagination={payload.pagination} prefix={prefix} />
-    </div>
+    <AdminEventLogTable
+      columns={columns}
+      defaultSort={{ column: "urgency", direction: "asc" }}
+      getRowKey={(item) => item.id}
+      renderExpanded={(item) => <ItemDetail item={item} prefix={prefix} />}
+      rows={payload.items}
+      search={search}
+      storageKey="syrus.admin.attention_items.visible_columns"
+      tableClassName="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700"
+      onNavigate={onNavigate}
+      panel={{
+        summary: t("attention_items.showing", { first: payload.pagination.first_item, last: payload.pagination.last_item, total: payload.pagination.total }),
+        pagination: {
+          ariaLabel: t("attention_items.aria_pagination"),
+          label: t("attention_items.page_of", { page: payload.pagination.page, total: payload.pagination.total_pages }),
+          nextLabel: t("attention_items.next"),
+          onNavigate,
+          pagination: {
+            page: payload.pagination.page,
+            has_next_page: Boolean(payload.pagination.next_path),
+            has_previous_page: Boolean(payload.pagination.previous_path),
+            next_page: payload.pagination.page + 1,
+            previous_page: payload.pagination.page - 1,
+            total_pages: payload.pagination.total_pages
+          },
+          previousLabel: t("attention_items.previous"),
+          search
+        }
+      }}
+    />
   )
 }
 
@@ -283,19 +295,5 @@ function DecidedSummary({ item, prefix }: { item: AttentionItemSummary; prefix: 
       {item.reason ? <div className="mt-1">{item.reason}</div> : null}
       {item.job ? <div className="mt-1"><Link className={adminEventLinkClass()} to={withRoutePrefix(item.job.path, prefix)}>{item.job.slug}</Link></div> : null}
     </section>
-  )
-}
-
-function Pagination({ pagination, prefix }: { pagination: AdminAttentionItemsPayload["pagination"]; prefix: string }) {
-  const { t } = useT("admin")
-  if (pagination.total_pages <= 1) return null
-  return (
-    <nav aria-label={t("attention_items.aria_pagination")} className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
-      <span>{t("attention_items.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
-      <div className="flex items-center gap-2">
-        {pagination.previous_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>{t("attention_items.previous")}</Link> : <span className={disabledPaginationClass()}>{t("attention_items.previous")}</span>}
-        {pagination.next_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>{t("attention_items.next")}</Link> : <span className={disabledPaginationClass()}>{t("attention_items.next")}</span>}
-      </div>
-    </nav>
   )
 }
