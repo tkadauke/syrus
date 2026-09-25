@@ -167,7 +167,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
         <<~BASH.squish
           mkdir -p node_modules/typescript node_modules/.bin .syrus/deps/bundle &&
           printf '{"scripts":{"typecheck":"tsc --noEmit"}}' > package.json &&
-          printf '{"packages":{}}' > package-lock.json &&
+          printf '{"packages":{"":{"devDependencies":{"typescript":"1.0.0"}},"node_modules/typescript":{"bin":{"tsc":"bin/tsc","tsserver":"bin/tsserver"}}}}' > package-lock.json &&
           printf '{"name":"typescript","bin":{"tsc":"bin/tsc","tsserver":"bin/tsserver"}}' > node_modules/typescript/package.json &&
           printf '#!/bin/sh\\n' > node_modules/.bin/tsc &&
           printf '#!/bin/sh\\n' > node_modules/.bin/tsserver &&
@@ -181,7 +181,9 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     described_class.new(step).setup
     cache_path = Pathname.new(step.reload.details.fetch("prepare_cache").fetch("cache_path"))
     snapshot.reload.prepared_workspace_archive.purge
+    FileUtils.rm_rf(cache_path.join("node_modules/typescript"))
     FileUtils.rm_f(cache_path.join("node_modules/.bin/tsc"))
+    FileUtils.rm_f(cache_path.join("node_modules/.bin/tsserver"))
     allow(ProcessRunner).to receive(:new).and_call_original
 
     second_checkout = described_class.new(second_step)
