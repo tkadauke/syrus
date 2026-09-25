@@ -472,6 +472,64 @@ describe("ClusterBrowser", () => {
       expect(screen.getByText("1/1")).toBeInTheDocument()
     })
 
+    it("filters pod rows through the table search box", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+      await screen.findByText("web-1")
+
+      fireEvent.change(screen.getByLabelText("Filter rows"), { target: { value: "zzz-no-such-pod" } })
+
+      expect(await screen.findByText("No rows match the current filter.")).toBeInTheDocument()
+      expect(screen.queryByText("web-1")).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText("Filter rows"), { target: { value: "web" } })
+      expect(await screen.findByText("web-1")).toBeInTheDocument()
+    })
+
+    it("shows a capped-results notice when the pods list is truncated", async () => {
+      setupFetchMock({ pods: { ...DEFAULT_PODS, truncated: true } })
+      renderBrowser()
+      await switchTab("Workloads")
+
+      expect(await screen.findByText("Showing partial results — the server capped this list.")).toBeInTheDocument()
+      expect(screen.getByText("web-1")).toBeInTheDocument()
+    })
+
+    it("joins per-pod CPU/memory from the overview metrics when available", async () => {
+      setupFetchMock({
+        overview: {
+          generated_at: GENERATED_AT,
+          nodes: { available: false, reason: "metrics_unavailable", message: "metrics-server is not installed" },
+          pods: {
+            available: true,
+            items: [{ name: "web-1", namespace: "default", cpu_millicores: 250, memory_bytes: 134217728 }],
+            total_cpu_millicores: 250,
+            total_memory_bytes: 134217728
+          }
+        }
+      })
+      renderBrowser()
+      await switchTab("Workloads")
+
+      expect(await screen.findByRole("columnheader", { name: "CPU" })).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: "Memory" })).toBeInTheDocument()
+      expect(screen.getByText("250m")).toBeInTheDocument()
+      expect(screen.getByText("128.0 MB")).toBeInTheDocument()
+    })
+
+    it("falls back to dashes for per-pod CPU/memory when metrics are unavailable", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+      await screen.findByText("web-1")
+
+      const row = screen.getByText("web-1").closest("tr")
+      expect(row).toBeInTheDocument()
+      expect(within(row as HTMLElement).getAllByText("-")).not.toHaveLength(0)
+      expect(screen.queryByText("boom-overview")).not.toBeInTheDocument()
+    })
+
     it("switches to deployments and cronjobs via the workload kind dropdown", async () => {
       setupFetchMock()
       renderBrowser()
@@ -820,6 +878,26 @@ describe("ClusterBrowser", () => {
 
       expect(await screen.findByText("Scheduled", { exact: false })).toBeInTheDocument()
       expect(screen.getByText("Successfully assigned default/web-1 to node-1")).toBeInTheDocument()
+    })
+
+    it("shows relative ages with the raw timestamp as a tooltip", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Events")
+      await screen.findByText("Successfully assigned default/web-1 to node-1")
+
+      expect(document.querySelector(`[title="${GENERATED_AT}"]`)).toBeInTheDocument()
+    })
+
+    it("filters events and shows a capped-results notice when truncated", async () => {
+      setupFetchMock({ events: { ...DEFAULT_EVENTS, truncated: true } })
+      renderBrowser()
+      await switchTab("Events")
+
+      expect(await screen.findByText("Showing partial results — the server capped this list.")).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText("Filter rows"), { target: { value: "zzz-no-such-event" } })
+      expect(await screen.findByText("No rows match the current filter.")).toBeInTheDocument()
     })
 
     it("shows the empty state when there are no events", async () => {
