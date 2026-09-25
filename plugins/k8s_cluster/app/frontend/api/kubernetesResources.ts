@@ -310,6 +310,45 @@ export function fetchKubernetesPersistentVolumeClaims(clusterId: number, namespa
   return getJson<KubernetesPersistentVolumeClaimsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/pvcs`, namespace))
 }
 
+export type KubernetesConfigMapRow = {
+  name: string
+  namespace: string
+  key_count: number
+  key_names: string[]
+  created_at: string | null
+}
+
+export type KubernetesConfigMapsResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  config_maps: KubernetesConfigMapRow[]
+}
+
+export type KubernetesSecretRow = {
+  name: string
+  namespace: string
+  type: string | null
+  key_count: number
+  key_names: string[]
+  created_at: string | null
+}
+
+export type KubernetesSecretsResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  secrets: KubernetesSecretRow[]
+}
+
+export function fetchKubernetesConfigMaps(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesConfigMapsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/configmaps`, namespace))
+}
+
+export function fetchKubernetesSecrets(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesSecretsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/secrets`, namespace))
+}
+
 export function fetchKubernetesEvents(clusterId: number, namespace?: string | null) {
   return getJson<KubernetesEventsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/events`, namespace))
 }
