@@ -50,11 +50,15 @@ function dataTransfer() {
   return { dropEffect: "", effectAllowed: "", getData: vi.fn(), setData: vi.fn() }
 }
 
+function headerLabels() {
+  return screen.getAllByRole("columnheader").map((cell) => cell.textContent)
+}
+
 describe("DataTableColumnHeaderRow / DataTableColumnCells", () => {
   it("renders required columns pinned to their declared end regardless of order", () => {
     renderTable()
 
-    const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent)
+    const headers = headerLabels()
     expect(headers[0]).toBe("Select")
     expect(headers[headers.length - 1]).toBe("Actions")
   })
@@ -71,6 +75,34 @@ describe("DataTableColumnHeaderRow / DataTableColumnCells", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Name/ }))
     expect(onSort).toHaveBeenCalledWith("name")
+  })
+
+  it("marks the active ascending sortable column", () => {
+    renderTable({ sortColumn: "name", sortDirection: "ascending" })
+
+    const nameHeader = screen.getByRole("columnheader", { name: /Name/ })
+    expect(nameHeader).toHaveAttribute("aria-sort", "ascending")
+    expect(nameHeader.querySelector("[data-sort-indicator]")).toHaveAttribute("data-sort-direction", "ascending")
+  })
+
+  it("marks the active descending sortable column", () => {
+    renderTable({ sortColumn: "name", sortDirection: "descending" })
+
+    const nameHeader = screen.getByRole("columnheader", { name: /Name/ })
+    expect(nameHeader).toHaveAttribute("aria-sort", "descending")
+    expect(nameHeader.querySelector("[data-sort-indicator]")).toHaveAttribute("data-sort-direction", "descending")
+  })
+
+  it("renders unsorted sortable and non-sortable columns distinctly", () => {
+    renderTable()
+
+    const nameHeader = screen.getByRole("columnheader", { name: /Name/ })
+    const statusHeader = screen.getByRole("columnheader", { name: "Status" })
+
+    expect(nameHeader).toHaveAttribute("aria-sort", "none")
+    expect(nameHeader.querySelector("[data-sort-indicator]")).toHaveAttribute("data-sort-direction", "none")
+    expect(statusHeader).not.toHaveAttribute("aria-sort")
+    expect(statusHeader.querySelector("[data-sort-indicator]")).not.toBeInTheDocument()
   })
 
   it("does not attach drag handlers to a required column's header", () => {
@@ -92,8 +124,7 @@ describe("DataTableColumnHeaderRow / DataTableColumnCells", () => {
     fireEvent.dragStart(nameHeader, { dataTransfer: transfer })
     fireEvent.dragOver(ownerHeader, { dataTransfer: transfer })
 
-    const headersAfterDrag = screen.getAllByRole("columnheader").map((cell) => cell.textContent)
-    expect(headersAfterDrag).toEqual([ "Select", "Status", "Owner", "Name-", "Actions" ])
+    expect(headerLabels()).toEqual([ "Select", "Status", "Owner", "Name", "Actions" ])
   })
 
   it("commits the reorder once on drop and updates both header and body cell order", () => {
