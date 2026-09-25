@@ -40,6 +40,7 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.map(&:name)).to eq(%w[vitest vitest-focused vitest-ci])
     expect(steps.first.run).to include("run_vitest run app/frontend src test tests __tests__")
     expect(steps.first.run).to include("run_package_script typecheck")
+    expect(steps.first.run).to include("[ ! -x node_modules/.bin/vitest ] || { typecheck_uses_tsc && [ ! -x node_modules/.bin/tsc ]; }; then npm install")
     expect(steps.first.phases).to eq(%w[landing])
     expect(steps.first.junit_output).to eq(".syrus/grade-output/vitest-junit.xml")
     expect(steps.first.base_retry).to eq(SyrusYml::BaseRetry.new(strategy: "plugin", command: nil))
@@ -51,6 +52,7 @@ RSpec.describe JavaScript::VitestGraderType do
 
     expect(steps.second.run).to include(".syrus/vitest-focused-files")
     expect(steps.second.run).to include("run_vitest related --run --passWithNoTests")
+    expect(steps.second.run).to include("[ ! -x node_modules/.bin/vitest ]; then npm install")
     expect(steps.second.phases).to eq(%w[review])
     expect(steps.second.when_files_changed).to include("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
     expect(steps.second.when_files_changed).not_to include("app/frontend/**/*.ts", "desktop/src/**/*.tsx")
