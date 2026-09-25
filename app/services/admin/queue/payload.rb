@@ -3,6 +3,37 @@ module Admin
     class Payload
       PER_PAGE = 100
       PROCESS_STALE_THRESHOLD = InstanceVersion::HEARTBEAT_STALE_THRESHOLD
+      SORT_DIRECTIONS = %w[asc desc].freeze
+      DEFAULT_SORTS = {
+        active: [ "claimed_at", "desc" ],
+        pending: [ "created_at", "asc" ],
+        failed: [ "created_at", "desc" ],
+        recurring: [ "key", "asc" ],
+        workers: [ "host", "asc" ],
+        processes: [ "kind", "asc" ]
+      }.freeze
+      SQL_SORTS = {
+        active: {
+          "class" => "solid_queue_jobs.class_name",
+          "queue" => "solid_queue_jobs.queue_name",
+          "arguments" => "solid_queue_jobs.arguments",
+          "created_at" => "solid_queue_jobs.created_at",
+          "claimed_at" => "solid_queue_claimed_executions.created_at"
+        },
+        pending: {
+          "class" => "solid_queue_jobs.class_name",
+          "queue" => "solid_queue_jobs.queue_name",
+          "arguments" => "solid_queue_jobs.arguments",
+          "created_at" => "solid_queue_ready_executions.created_at"
+        },
+        failed: {
+          "created_at" => "solid_queue_failed_executions.created_at",
+          "class" => "solid_queue_jobs.class_name",
+          "arguments" => "solid_queue_jobs.arguments",
+          "exception" => "solid_queue_failed_executions.error",
+          "message" => "solid_queue_failed_executions.error"
+        }
+      }.freeze
 
       def initialize(params:, user:, per_page: PER_PAGE)
         @params = params
@@ -16,16 +47,20 @@ module Admin
           base = SolidQueue::Job.joins(:claimed_execution)
           active_folder = active_smart_folder
           filter = display_filter(:active, active_folder)
+          filtered = filter.apply(base)
+          total = PerformanceLogging.phase("admin_queue.active.total") { filtered.count }
           jobs = PerformanceLogging.phase("admin_queue.active.query") {
-            filter
-              .apply(base)
-              .order("solid_queue_claimed_executions.created_at DESC")
+            apply_sql_sort(filtered, :active)
+              .offset(offset)
               .limit(@per_page)
               .to_a
           }
 
           smart_folder_payload(:active, base, active_folder, filter: filter).merge(
-            jobs: PerformanceLogging.phase("admin_queue.active.serialize", count: jobs.size) { jobs.map { |job| serialize_job(job, claimed_at: job.claimed_execution&.created_at) } }
+            jobs: PerformanceLogging.phase("admin_queue.active.serialize", count: jobs.size) { jobs.map { |job| serialize_job(job, claimed_at: job.claimed_execution&.created_at) } },
+            total: total,
+            pagination: pagination_payload(total),
+            sort: sort_payload(:active)
           )
         end
       end
@@ -37,11 +72,14 @@ module Admin
           base = SolidQueue::Job.joins(:ready_execution)
           filter = display_filter(:pending, active_folder)
           filtered = filter.apply(base)
-          jobs = PerformanceLogging.phase("admin_queue.pending.query") { filtered.order("solid_queue_ready_executions.created_at ASC").limit(@per_page).to_a }
+          total = PerformanceLogging.phase("admin_queue.pending.total") { filtered.count }
+          jobs = PerformanceLogging.phase("admin_queue.pending.query") { apply_sql_sort(filtered, :pending).offset(offset).limit(@per_page).to_a }
 
           smart_folder_payload(:pending, base, active_folder, filter: filter).merge(
             jobs: PerformanceLogging.phase("admin_queue.pending.serialize", count: jobs.size) { jobs.map { |job| serialize_job(job) } },
-            total: PerformanceLogging.phase("admin_queue.pending.total") { filtered.count }
+            total: total,
+            pagination: pagination_payload(total),
+            sort: sort_payload(:pending)
           )
         end
       end
@@ -53,18 +91,22 @@ module Admin
           active_folder = active_smart_folder
           base = SolidQueue::FailedExecution.joins(:job)
           filter = display_filter(:failed, active_folder)
+          filtered = filter.apply(base)
+          total = PerformanceLogging.phase("admin_queue.failed.total") { filtered.count }
           failures = PerformanceLogging.phase("admin_queue.failed.query") {
-            filter
-              .apply(base)
+            apply_sql_sort(filtered, :failed)
               .preload(:job)
-              .order(created_at: :desc)
+              .offset(offset)
               .limit(@per_page)
               .to_a
           }
 
           smart_folder_payload(:failed, base, active_folder, filter: filter).merge(
             since: since.iso8601,
-            failures: PerformanceLogging.phase("admin_queue.failed.serialize", count: failures.size) { failures.map { |failure| serialize_failure(failure) } }
+            failures: PerformanceLogging.phase("admin_queue.failed.serialize", count: failures.size) { failures.map { |failure| serialize_failure(failure) } },
+            total: total,
+            pagination: pagination_payload(total),
+            sort: sort_payload(:failed)
           )
         end
       end
@@ -90,7 +132,7 @@ module Admin
             }
           end
 
-          { tasks: tasks }
+          { tasks: sort_hash_rows(tasks, :recurring), sort: sort_payload(:recurring) }
         end
       end
 
@@ -108,10 +150,13 @@ module Admin
         PerformanceLogging.phase("admin_queue_payload", tab: "workers") do
           workers = PerformanceLogging.phase("admin_queue.workers.query") { fresh_processes(SolidQueue::Process.where(kind: "Worker")).order(:hostname, :pid).to_a }
           processes = PerformanceLogging.phase("admin_queue.processes.query") { SolidQueue::Process.order(:kind, :hostname, :pid).to_a }
+          worker_rows = PerformanceLogging.phase("admin_queue.workers.serialize", count: workers.size) { workers.map { |worker| serialize_worker(worker) } }
+          process_rows = PerformanceLogging.phase("admin_queue.processes.serialize", count: processes.size) { processes.map { |process| serialize_process(process) } }
 
           {
-            workers: PerformanceLogging.phase("admin_queue.workers.serialize", count: workers.size) { workers.map { |worker| serialize_worker(worker) } },
-            all_processes: PerformanceLogging.phase("admin_queue.processes.serialize", count: processes.size) { processes.map { |process| serialize_process(process) } },
+            workers: sort_hash_rows(worker_rows, :workers),
+            all_processes: sort_hash_rows(process_rows, :processes),
+            sort: sort_payload(:workers),
             worker_health: PerformanceLogging.phase("admin_queue.worker_health") { ::Admin::WorkerHealthPayload.new(**worker_health_options).as_json }
           }
         end
@@ -120,6 +165,88 @@ module Admin
       private
 
       attr_reader :params, :user
+
+      def page
+        [ params[:page].to_i, 1 ].max
+      end
+
+      def offset
+        (page - 1) * @per_page
+      end
+
+      def pagination_payload(total)
+        total_pages = (total.to_f / @per_page).ceil
+        {
+          page: page,
+          per_page: @per_page,
+          total_pages: total_pages,
+          has_previous_page: page > 1,
+          has_next_page: total_pages > page,
+          previous_page: page > 1 ? page - 1 : nil,
+          next_page: total_pages > page ? page + 1 : nil
+        }
+      end
+
+      def sort_payload(tab)
+        column, direction = sort_state(tab)
+        { column: column, direction: direction }
+      end
+
+      def sort_state(tab)
+        default_column, default_direction = DEFAULT_SORTS.fetch(tab)
+        columns = sort_columns(tab)
+        column = params[:sort].presence_in(columns) || default_column
+        direction = params[:direction].presence_in(SORT_DIRECTIONS) || default_direction
+
+        [ column, direction ]
+      end
+
+      def sort_columns(tab)
+        return SQL_SORTS.fetch(tab).keys if SQL_SORTS.key?(tab)
+
+        HASH_SORT_KEYS.fetch(tab).keys
+      end
+
+      def apply_sql_sort(scope, tab)
+        column, direction = sort_state(tab)
+        sql_column = SQL_SORTS.fetch(tab).fetch(column)
+        quoted_direction = direction.upcase
+
+        scope.order(Arel.sql("#{sql_column} #{quoted_direction}"))
+      end
+
+      HASH_SORT_KEYS = {
+        recurring: {
+          "key" => ->(row) { row[:key].to_s },
+          "class" => ->(row) { row[:class_name].to_s },
+          "schedule" => ->(row) { row[:schedule].to_s },
+          "last_run_at" => ->(row) { row[:last_run_at].to_s },
+          "last_finished_at" => ->(row) { row[:last_finished_at].to_s }
+        },
+        workers: {
+          "host" => ->(row) { row[:hostname].to_s },
+          "pid" => ->(row) { row[:pid].to_i },
+          "queues" => ->(row) { Array(row[:queues]).join(", ") },
+          "threads" => ->(row) { row[:threads].to_i },
+          "heartbeat" => ->(row) { row[:last_heartbeat_at].to_s },
+          "state" => ->(row) { row[:status].to_s }
+        },
+        processes: {
+          "kind" => ->(row) { row[:kind].to_s },
+          "host" => ->(row) { row[:hostname].to_s },
+          "pid" => ->(row) { row[:pid].to_i },
+          "heartbeat" => ->(row) { row[:last_heartbeat_at].to_s },
+          "state" => ->(row) { row[:status].to_s }
+        }
+      }.freeze
+
+      def sort_hash_rows(rows, tab)
+        column, direction = sort_state(tab)
+        key_reader = HASH_SORT_KEYS.fetch(tab).fetch(column)
+        sorted = rows.sort_by { |row| key_reader.call(row) }
+
+        direction == "desc" ? sorted.reverse : sorted
+      end
 
       def active_smart_folder
         ::Admin::SmartFolderNavigation.active_folder(subject: :admin_queue, user: user, params: params)

@@ -53,27 +53,52 @@ export type QueueProcess = {
   status?: "current" | "stale" | string
 }
 
+export type QueueSort = {
+  column: string
+  direction: "asc" | "desc"
+}
+
+export type QueuePagination = {
+  page: number
+  per_page: number
+  total_pages: number
+  has_previous_page: boolean
+  has_next_page: boolean
+  previous_page: number | null
+  next_page: number | null
+}
+
 export type ActiveQueuePayload = AdminFilteredPayload & {
   jobs: QueueJob[]
+  total: number
+  pagination: QueuePagination
+  sort: QueueSort
 }
 
 export type PendingQueuePayload = AdminFilteredPayload & {
   jobs: QueueJob[]
   total: number
+  pagination: QueuePagination
+  sort: QueueSort
 }
 
 export type FailedQueuePayload = AdminFilteredPayload & {
   since: string
   failures: QueueFailure[]
+  total: number
+  pagination: QueuePagination
+  sort: QueueSort
 }
 
 export type RecurringQueuePayload = {
   tasks: QueueRecurringTask[]
+  sort: QueueSort
 }
 
 export type WorkersQueuePayload = {
   workers: QueueWorker[]
   all_processes: QueueProcess[]
+  sort: QueueSort
   worker_health?: WorkerHealthPayload
 }
 

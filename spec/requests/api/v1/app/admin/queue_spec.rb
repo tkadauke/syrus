@@ -58,6 +58,22 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     )
   end
 
+  it "sorts active claimed executions with an allowlisted column" do
+    sign_in_as(admin)
+    process = solid_queue_process(hostname: "worker-a", pid: 101)
+    run_job = solid_queue_job(class_name: "RunJob", queue_name: "runs")
+    chat_job = solid_queue_job(class_name: "ChatTurnJob", queue_name: "chat")
+    SolidQueue::ClaimedExecution.create!(job: run_job, process: process, created_at: 2.minutes.ago)
+    SolidQueue::ClaimedExecution.create!(job: chat_job, process: process, created_at: 1.minute.ago)
+
+    get "/api/v1/app/admin/queue/active", params: { sort: "queue", direction: "desc" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["jobs"].map { |job| job["queue_name"] }).to eq([ "runs", "chat" ])
+    expect(body["sort"]).to eq("column" => "queue", "direction" => "desc")
+  end
+
   it "applies queue smart folders to filter jobs" do
     sign_in_as(admin)
     SmartFolder.ensure_admin_queue_builtins!
@@ -176,6 +192,25 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     body = parse_body
     expect(body["total"]).to eq(2)
     expect(body["jobs"].map { |job| job["queue_name"] }).to eq([ "chat", "runs" ])
+  end
+
+  it "returns pending pagination metadata" do
+    sign_in_as(admin)
+    3.times { |i| solid_queue_job(class_name: "RunJob", queue_name: "runs-#{i}") }
+
+    get "/api/v1/app/admin/queue/pending"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["pagination"]).to include(
+      "page" => 1,
+      "per_page" => 100,
+      "total_pages" => 1,
+      "has_previous_page" => false,
+      "has_next_page" => false,
+      "previous_page" => nil,
+      "next_page" => nil
+    )
   end
 
   it "includes i18n_key for builtin folders and nil for user-defined folders" do

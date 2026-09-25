@@ -51,6 +51,28 @@ describe("AdminQueue worker health charts", () => {
     expect(screen.getByText(JSON.stringify([{ job_id: 42 }]))).toBeInTheDocument()
   })
 
+  it("sorts active queue tables through shareable query params", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(activeQueuePayload({
+      jobs: [
+        {
+          arguments: [{ job_id: 42 }],
+          claimed_at: "2026-05-30T12:00:00Z",
+          class_name: "RunJob",
+          created_at: "2026-05-30T11:59:00Z",
+          id: 1,
+          queue_name: "runs"
+        }
+      ]
+    })))
+
+    renderAdminQueue("/admin/queue/active")
+    fireEvent.click(await screen.findByRole("button", { name: "Queue" }))
+
+    await waitFor(() => {
+      expect(fetchSpy.mock.calls.some((call) => String(call[0]).includes("sort=queue&direction=asc"))).toBe(true)
+    })
+  })
+
   it("renders chart-first worker health with missing sample buckets", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(workerQueuePayload()))
 
@@ -229,7 +251,18 @@ function activeQueuePayload(overrides: Partial<ActiveQueuePayload> = {}): Active
     controls: { filter_schema: [] },
     filter: {},
     jobs: [],
+    pagination: {
+      page: 1,
+      per_page: 100,
+      total_pages: 1,
+      has_previous_page: false,
+      has_next_page: false,
+      previous_page: null,
+      next_page: null
+    },
+    sort: { column: "claimed_at", direction: "desc" },
     smart_folders: [],
+    total: overrides.jobs?.length ?? 0,
     ...overrides
   }
 }
@@ -257,6 +290,7 @@ function workerQueuePayload(): WorkersQueuePayloadWithHealth {
         status: "current"
       }
     ],
+    sort: { column: "host", direction: "asc" },
     worker_health: {
       generated_at: "2026-05-30T12:02:00Z",
       range: {
