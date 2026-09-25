@@ -53,7 +53,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("export RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false TEST_ENV_NUMBER=${TEST_ENV_NUMBER:-_syrus_flaky_9ce22ed4}; (#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && #{bundle_prefix} bundle exec rspec --tag \\~ci_only plugins/muse_agent/spec/services/muse_invocation_spec.rb")
+    expect(command).to eq("export RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false TEST_ENV_NUMBER=${TEST_ENV_NUMBER:-_syrus_flaky_9ce22ed4}; (#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && #{bundle_prefix} bin/rspec-worker --tag \\~ci_only plugins/muse_agent/spec/services/muse_invocation_spec.rb")
   end
 
   it "declines when the grader did not opt into plugin strategy" do
