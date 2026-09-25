@@ -43,6 +43,28 @@ RSpec.describe TestInsights::WipRepairFailureBackfill do
     [ test_run, test_case ]
   end
 
+  def create_zero_case_grader_run(iteration:, loop_id: "grade-loop", grader_name: "rspec")
+    step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: iteration,
+      iteration: iteration,
+      loop_id: loop_id,
+      state: "succeeded",
+      details: { "name" => grader_name }
+    )
+    run = Run.create!(
+      job: workflow.job, user: workflow.user, step: step,
+      trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider,
+      state: "succeeded"
+    )
+    TestInsights::TestRun.create!(
+      run: run, repository: repo, grader_name: grader_name,
+      total_count: 0, passed_count: 0, failed_count: 0,
+      skipped_count: 0, error_count: 0
+    )
+  end
+
   it "classifies historical WIP repair failures that predate the column, without touching genuine failures" do
     identity = create_identity
     _, failing_case = create_grader_case(identity: identity, status: "failed", iteration: 1)
@@ -118,6 +140,67 @@ RSpec.describe TestInsights::WipRepairFailureBackfill do
       create_grader_case(identity: identity, status: "failed", iteration: 1)
 
       expect(described_class.pending_count).to eq(1)
+    end
+
+    it "does not count zero-case grader-retry-loop runs as pending work" do
+      create_zero_case_grader_run(iteration: 1)
+
+      expect(described_class.pending_count).to eq(0)
+    end
+
+    it "uses a completed maintenance checkpoint as the durable high-water mark without hiding later work" do
+      definition = MaintenanceTasks::Definitions::TestInsightsWipRepairFailureBackfill.new
+
+      repaired_identity = create_identity(name: "repaired_case")
+      _, repaired_failure = create_grader_case(identity: repaired_identity, status: "failed", iteration: 1)
+      create_grader_case(identity: repaired_identity, status: "passed", iteration: 2)
+
+      negative_identity = create_identity(name: "still_failing")
+      _, negative_case = create_grader_case(identity: negative_identity, status: "failed", iteration: 3)
+      create_zero_case_grader_run(iteration: 4)
+
+      task = MaintenanceTask.create!(
+        definition.build_task_attributes(
+          trigger_kind: "detector",
+          trigger_key: definition.key,
+          task_key: "detector:#{definition.key}"
+        ).merge(state: "running", batch_size: 2, total_units: definition.estimate_total_units)
+      )
+
+      5.times do
+        break if task.reload.state == "succeeded"
+
+        MaintenanceTasks::Runner.new(task).call
+      end
+
+      expect(task.reload.state).to eq("succeeded")
+      expect(repaired_failure.reload.wip_repair_failure).to be(true)
+      expect(negative_case.reload.wip_repair_failure).to be(false)
+      expect(definition.estimate_total_units).to eq(0)
+
+      allow(MaintenanceTasks::Registry).to receive(:all).and_return([ definition ])
+      expect { MaintenanceTasks::Discovery.call }.not_to change { task.reload.state }
+      expect(task.reload.state).to eq("succeeded")
+
+      later_identity = create_identity(name: "later_case")
+      create_grader_case(identity: later_identity, status: "failed", iteration: 5)
+
+      expect(definition.estimate_total_units).to eq(1)
+
+      MaintenanceTasks::Discovery.call
+
+      revived_checkpoint = task.reload.checkpoint
+      expect(task).to have_attributes(state: "pending", completed_units: 0)
+      expect(revived_checkpoint["after_id"]).to be >= negative_case.test_run_id
+
+      task.update!(state: "running", total_units: definition.estimate_total_units, batch_size: 2)
+      5.times do
+        break if task.reload.state == "succeeded"
+
+        MaintenanceTasks::Runner.new(task).call
+      end
+
+      expect(task.reload).to have_attributes(state: "succeeded", completed_units: 1, total_units: 1)
     end
   end
 end

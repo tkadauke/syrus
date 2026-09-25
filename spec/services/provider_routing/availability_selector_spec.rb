@@ -1,9 +1,13 @@
 require "rails_helper"
 
 RSpec.describe ProviderRouting::AvailabilitySelector do
-  let(:user) { Factories.user }
+  let(:user) { Factories.user(claude_oauth_token: "oat-test", codex_api_key: "sk-test") }
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(repository: repository, user: user, job_provider_setting: "default") }
+
+  before do
+    allow_any_instance_of(User).to receive(:promote_first_user_to_admin)
+  end
 
   def call(task_key: "initial")
     described_class.call(job: job, task_key: task_key)
@@ -57,6 +61,51 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
       expect(decision.candidate.provider).to eq("codex")
       expect(decision).to be_failover
       expect(decision).not_to be_exhausted
+    end
+
+    it "fails over before checking availability when the preferred candidate has no configured credentials" do
+      user.update!(codex_api_key: nil, provider_availability_pause_thresholds: { "codex" => 0, "claude" => 0 })
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        task_key: "initial",
+        candidates: [ { "provider" => "codex" }, { "provider" => "claude" } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+        { state: "available" }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(
+        { state: "available" }
+      )
+
+      decision = described_class.call(
+        job: job,
+        task_key: "initial",
+        original_candidate: described_class.candidate(provider: "codex")
+      )
+
+      expect(decision.candidate.provider).to eq("claude")
+      expect(decision).to be_failover
+      expect(decision).not_to be_exhausted
+      expect(App::ProviderAvailability).not_to have_received(:for_user).with(user, "codex", now: anything)
+    end
+
+    it "marks an uncredentialed sole candidate exhausted with auth-error availability" do
+      user.update!(codex_api_key: nil, agent_provider: "codex", provider_availability_pause_thresholds: { "codex" => 0 })
+      allow(App::ProviderAvailability).to receive(:for_user)
+
+      decision = call
+
+      expect(decision.candidate.provider).to eq("codex")
+      expect(decision).to be_exhausted
+      expect(decision.artifact).to include(
+        "candidate_availability_state" => "auth_error",
+        "unavailable" => include(
+          "provider" => "codex",
+          "reason" => "provider_credentials_missing"
+        )
+      )
+      expect(App::ProviderAvailability).not_to have_received(:for_user)
     end
 
     %w[open rate_limited exhausted auth_error].each do |state|

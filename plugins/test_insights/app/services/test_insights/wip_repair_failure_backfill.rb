@@ -18,10 +18,10 @@ module TestInsights
   class WipRepairFailureBackfill
     Result = Struct.new(:done, :processed, :next_after_id, keyword_init: true)
 
-    def self.pending_count = new.pending_count
+    def self.pending_count(after_id: 0) = new.pending_count(after_id: after_id)
 
-    def pending_count
-      candidate_test_runs(0).count
+    def pending_count(after_id: 0)
+      candidate_test_runs(after_id).count
     end
 
     def call(after_id: 0, limit:)
@@ -39,10 +39,12 @@ module TestInsights
 
     def candidate_test_runs(after_id)
       TestInsights::TestRun
+        .joins(:test_cases)
         .joins(run: :step)
         .where(steps: { kind: "grader" })
         .where.not(steps: { loop_id: nil })
         .where("test_insight_runs.id > ?", after_id)
+        .distinct
         .order(:id)
         .includes(run: :step)
     end

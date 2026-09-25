@@ -59,6 +59,7 @@ type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "strike" | 
 type InlineSuggestionPart = { kind: "equal" | "delete" | "insert"; text: string }
 type WysiwygRenderContext = { renderedSuggestionIds: Set<string>; renderedWholeSuggestionIds: Set<string> }
 type ToolbarBlockCommand = "paragraph" | "heading_1" | "heading_2" | "heading_3" | "heading_4" | "blockquote" | "fenced_code"
+type ReviewScrollSnapshot = { windowScrollX: number; windowScrollY: number; markdownScrollTop: number }
 type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
@@ -638,16 +639,23 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   })
   const reviewMutation = useMutation({
     mutationFn: ({ id, decision }: { id: number; decision: "accept" | "reject" }) => decision === "accept" ? acceptDesignDocSuggestion(doc.id, id) : rejectDesignDocSuggestion(doc.id, id),
-    onSuccess: (payload) => {
+    onMutate: (): ReviewScrollSnapshot => ({
+      windowScrollX: window.scrollX,
+      windowScrollY: window.scrollY,
+      markdownScrollTop: textareaRef.current?.scrollTop ?? markdownScrollTop
+    }),
+    onSuccess: (payload, _variables, scrollSnapshot) => {
       const nextDraft = payload.design_doc.rendered_markdown || payload.design_doc.markdown
       setDraft(nextDraft)
       setTitle(payload.design_doc.title)
       setSelection(emptySelection())
       setFocusedThreadId(null)
       setFocusedSuggestionId(null)
-      setMarkdownScrollTop(0)
-      if (textareaRef.current) textareaRef.current.scrollTop = 0
-      window.requestAnimationFrame(() => editorShellRef.current?.scrollIntoView?.({ block: "start" }))
+      if (scrollSnapshot) {
+        setMarkdownScrollTop(scrollSnapshot.markdownScrollTop)
+        if (textareaRef.current) textareaRef.current.scrollTop = scrollSnapshot.markdownScrollTop
+        window.requestAnimationFrame(() => window.scrollTo(scrollSnapshot.windowScrollX, scrollSnapshot.windowScrollY))
+      }
       persistedDraftRef.current = persistedDraftFingerprint(payload.design_doc.id, payload.design_doc.title, nextDraft)
       onDocChange(payload.design_doc, payload.message || t("notice_suggestion_reviewed"))
     }
@@ -2442,22 +2450,41 @@ function markdownToWysiwygHtmlWithContext(markdown: string, highlights: AnchorHi
       continue
     }
 
-    const paragraph: string[] = []
+    const paragraph: Array<{ html: string; hardBreak: boolean }> = []
     while (index < lines.length && lines[index].trim() !== "" && !startsWysiwygBlock(lines, index)) {
       const paragraphLine = lines[index]
       const leading = paragraphLine.length - paragraphLine.trimStart().length
       const lineStart = offset + leading
       const lineEnd = offset + paragraphLine.length
       if (!isFullyCoveredByRenderedWholeSuggestion(highlights, lineStart, lineEnd, context)) {
-        paragraph.push(renderWysiwygInline(paragraphLine.trim(), highlights, lineStart, focusedThreadId, focusedSuggestionId, context))
+        const softLine = wysiwygParagraphLine(paragraphLine)
+        paragraph.push({
+          html: renderWysiwygInline(softLine.text, highlights, lineStart, focusedThreadId, focusedSuggestionId, context),
+          hardBreak: softLine.hardBreak
+        })
       }
       offset += paragraphLine.length + 1
       index += 1
     }
-    if (paragraph.length > 0) blocks.push(`<p>${paragraph.join("<br>")}</p>`)
+    if (paragraph.length > 0) blocks.push(`<p>${renderWysiwygParagraph(paragraph)}</p>`)
   }
 
   return blocks.join("")
+}
+
+function wysiwygParagraphLine(line: string) {
+  const hardBreak = /(?: {2,}|\\)$/.test(line)
+  const text = hardBreak && line.trimEnd().endsWith("\\") ? line.trim().slice(0, -1).trimEnd() : line.trim()
+
+  return { text, hardBreak }
+}
+
+function renderWysiwygParagraph(lines: Array<{ html: string; hardBreak: boolean }>) {
+  return lines.map((line, index) => {
+    if (index === lines.length - 1) return line.html
+
+    return `${line.html}${line.hardBreak ? "<br>" : " "}`
+  }).join("")
 }
 
 function wholeMarkdownBlockSuggestionAt(highlights: AnchorHighlight[], offset: number, context: WysiwygRenderContext) {

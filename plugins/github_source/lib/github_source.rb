@@ -19,7 +19,6 @@ module SyrusGithubSource
     route :get, "/api/v1/app/admin/github_api_usage", to: "api/v1/app/admin/github_api_usage#show"
     route :get, "/admin/github_api_usage", to: "spa#show"
     route :get, "/api/v1/app/repositories/:repository_id/issues", to: "api/v1/app/repository_issues#issues"
-    route :post, "/api/v1/app/repositories/:repository_id/issues/comment", to: "api/v1/app/repository_issues#comment_issue"
     route :post, "/api/v1/app/repositories/:repository_id/issues/close", to: "api/v1/app/repository_issues#close_issue"
     route :post, "/api/v1/app/repositories/:repository_id/issues/delegate", to: "api/v1/app/repository_issues#delegate_issue"
     route :post, "/api/v1/app/repositories/:repository_id/issues/bulk", to: "api/v1/app/repository_issues#bulk_issues"

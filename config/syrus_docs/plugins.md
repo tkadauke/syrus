@@ -1197,9 +1197,12 @@ own private shapes: `inherited_grader_failure` (`.syrus.yml`'s
 two dismiss a required-grader failure on flakiness grounds, from two
 different kinds of evidence: `known_flaky_failure`
 (`Adjudicators::KnownFlakyFailure`) when every one of its failing tests
-already has a confirmed-flaky history -- the case `inherited_grader_failure`
-cannot catch because the flake reproduces on the base branch too, just
-intermittently -- and `isolated_repro_dismissal`
+already has a confirmed-flaky history after excluding the workflow currently
+being adjudicated. It also refuses mostly-failing recent histories, because a
+test that is failing more often than it passes is more likely a live
+regression than a safe-to-dismiss flake. `known_flaky_failure` covers the
+case `inherited_grader_failure` cannot catch because the flake reproduces on
+the base branch too, just intermittently -- and `isolated_repro_dismissal`
 (`Adjudicators::IsolatedReproDismissal`, see `landing_queue.md`'s
 `isolated_repro_dismissal_enabled`) when every one of its failing tests has
 an agent-recorded, same-SHA, pre-fix "did not reproduce in isolation" record
@@ -1839,7 +1842,10 @@ The bundled `agent_memory` plugin is the default provider. The tools
 `admin_read_memory_audit_history`) come from its own `mcp_tool_set` and
 `chat_mcp_tool_set`, not from core's registry — so disabling the plugin
 removes them from the advertised set rather than leaving tools that fail when
-called.
+called. On the workflow surface, adversarial and visual review agents get the
+read-only memory tools (`read_memory`, `search_memories`, and
+`list_memories`) but do not get `write_memory` or `delete_memory`; reviewer
+runs are critics, not durable memory authors.
 
 ## `domain_subscriber`
 
@@ -2107,7 +2113,7 @@ internally picking exactly one package-manager command in priority order:
 order: `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
 `requirements.txt` → `pip install -r requirements.txt`, else bare
 `pyproject.toml` → `pip install -e .`. The `go` plugin registers a
-`:prepare_detector` for `go.mod` → `go mod download` at `prepare_priority: 40`
+`:prepare_detector` for `go.mod` → `GOWORK=off go mod download` at `prepare_priority: 40`
 — Go modules have a single package-manifest signal, so there's no
 priority list to pick between.
 `RepoPrepPlan` no longer hardcodes any Ruby or Node fallback signals — every
@@ -3138,7 +3144,7 @@ Bundled plugins:
   (`Python::DependencyAuditCommand` — `pip-audit`, gated on
   `uv.lock`/`poetry.lock`/`requirements.txt`).
 - `go` — default-enabled. Provides `:prepare_detector` for Go repos: `go.mod`
-  → `go mod download` (`prepare_priority: 40`). Does not provide a custom
+  → `GOWORK=off go mod download` (`prepare_priority: 40`). Does not provide a custom
   `:test_result_parser` — plain `gotestsum --junitfile=report.xml ./...`
   output is already handled by core's `JunitXmlParser` fallback, same as the
   `python` plugin's `pytest --junitxml=` case, via `.syrus.yml` wiring only.

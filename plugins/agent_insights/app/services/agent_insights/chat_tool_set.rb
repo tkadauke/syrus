@@ -9,5 +9,7 @@ module AgentInsights
     def self.tool_definitions(tier:)
       TOOL_CLASSES.map { |klass| definition_for(klass) }
     end
+
+    def self.handler_classes(context: nil) = TOOL_CLASSES
   end
 end

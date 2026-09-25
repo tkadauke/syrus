@@ -140,40 +140,6 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
   end
 
 
-  it "comments on a GitHub issue" do
-    sign_in_as(user)
-    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
-    client = instance_double(GithubClient)
-    expect(client).to receive(:add_issue_comment).with("acme/widgets", 7, "Looks good", on_behalf_of: user)
-    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([])
-    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
-    allow(GithubClient).to receive(:for).and_return(client)
-
-    post "/api/v1/app/repositories/#{repository.id}/issues/comment", params: {
-      issue_number: 7,
-      comment_body: "Looks good",
-      folder: "open"
-    }
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("Comment added to #7.")
-  end
-
-
-  it "rejects blank GitHub issue comments" do
-    sign_in_as(user)
-    repository = Factories.repository(user: user)
-
-    post "/api/v1/app/repositories/#{repository.id}/issues/comment", params: {
-      issue_number: 7,
-      comment_body: " "
-    }
-
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to include("blank")
-  end
-
-
   it "closes and delegates GitHub issues" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")

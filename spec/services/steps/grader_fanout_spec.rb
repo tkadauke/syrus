@@ -896,7 +896,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
         kind: cli
 
       prepare:
-        - mise exec go@1.26.5 -- go mod download
+        - GOWORK=off mise exec go@1.26.5 -- go mod download
 
       grade:
         - type: go-test
@@ -912,7 +912,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       "command" => "mise exec go@1.26.5 -- sh -c 'cd cli && go test ./...'"
     )
     expect(grader_step.details["prepare_targets"]).to eq([
-      { "target_label" => "//cli:prepare", "commands" => [ "mise exec go@1.26.5 -- go mod download" ], "project_path" => "cli" }
+      { "target_label" => "//cli:prepare", "commands" => [ "GOWORK=off mise exec go@1.26.5 -- go mod download" ], "project_path" => "cli" }
     ])
     expect(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY)).to contain_exactly(
       include(

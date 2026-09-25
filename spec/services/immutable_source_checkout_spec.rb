@@ -157,6 +157,43 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
+  it "invalidates a local prepare cache whose marker claims missing Node package binaries" do
+    plan = instance_double(
+      RepoPrepPlan::Result,
+      source: ".syrus.yml",
+      note: nil,
+      guessed?: false,
+      commands: [
+        <<~BASH.squish
+          mkdir -p node_modules/typescript node_modules/.bin .syrus/deps/bundle &&
+          printf '{"scripts":{"typecheck":"tsc --noEmit"}}' > package.json &&
+          printf '{"packages":{"":{"devDependencies":{"typescript":"1.0.0"}},"node_modules/typescript":{"bin":{"tsc":"bin/tsc","tsserver":"bin/tsserver"}}}}' > package-lock.json &&
+          printf '{"name":"typescript","bin":{"tsc":"bin/tsc","tsserver":"bin/tsserver"}}' > node_modules/typescript/package.json &&
+          printf '#!/bin/sh\\n' > node_modules/.bin/tsc &&
+          printf '#!/bin/sh\\n' > node_modules/.bin/tsserver &&
+          chmod +x node_modules/.bin/tsc node_modules/.bin/tsserver &&
+          printf 'ready\\n' > .syrus/deps/bundle/prepared.txt
+        BASH
+      ]
+    )
+    allow(RepoPrepPlan).to receive(:for).and_return(plan)
+
+    described_class.new(step).setup
+    cache_path = Pathname.new(step.reload.details.fetch("prepare_cache").fetch("cache_path"))
+    snapshot.reload.prepared_workspace_archive.purge
+    FileUtils.rm_rf(cache_path.join("node_modules/typescript"))
+    FileUtils.rm_f(cache_path.join("node_modules/.bin/tsc"))
+    FileUtils.rm_f(cache_path.join("node_modules/.bin/tsserver"))
+    allow(ProcessRunner).to receive(:new).and_call_original
+
+    second_checkout = described_class.new(second_step)
+    second_checkout.setup
+
+    expect(second_step.reload.details.fetch("prepare_cache")).to include("status" => "miss")
+    expect(second_checkout.path.join("node_modules/.bin/tsc")).to exist
+    expect(ProcessRunner).to have_received(:new).with(hash_including(kind: "prepare"))
+  end
+
   it "restores prepared state from the source snapshot archive on another worker storage root" do
     described_class.new(step).setup
     first_cache_details = step.reload.details.fetch("prepare_cache")
