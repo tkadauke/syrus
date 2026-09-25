@@ -532,6 +532,22 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload_for(job).dig(:actions, :can_approve)).to be(false)
     end
 
+    it "is false for an approved job even when approval evidence exists" do
+      job = Factories.job_record(
+        user: user,
+        repository: repo,
+        state: "approved",
+        approved_at: Time.current,
+        approved_via: "operator",
+        approved_by_user: user,
+        approval_evidence: { "source" => "spec" }
+      )
+      JobApproval.create!(job: job, user: user, approved_at: Time.current)
+
+      expect(payload_for(job).dig(:actions, :can_approve)).to be(false)
+      expect(workflows_payload_for(job).dig(:actions, :can_approve)).to be(false)
+    end
+
     it "is false for an implemented investigation job -- there is no PR to approve/land" do
       investigation_job = Factories.job_record(
         user: user, repository: repo, kind: "direct", issue_number: nil, investigation: true, state: "implemented"

@@ -999,7 +999,7 @@ module App
       # pipeline (it's "done, awaiting operator review" either way), but they
       # never have a PR to approve/land -- reviewing one ends in Close, not
       # Approve. See Workflows::Investigation.
-      reviewable_job = @job.implemented? && !@job.investigation? && !job_has_approval_blocking_runtime_work?
+      approvable_job = @job.implemented? && !@job.approved? && !@job.investigation? && !job_has_approval_blocking_runtime_work?
       has_tracked_pr = @job.pr_number.present? || @job.external_pr_number.present?
       coding_mode_takeover_blocked_reason = coding_mode_takeover_blocked_reason(writable: writable)
       {
@@ -1032,7 +1032,7 @@ module App
           ),
         can_cancel: writable && @job.open?,
         can_stop_landing: writable && @job.landing?,
-        can_approve: writable && reviewable_job && @job.can_add_job_approval?(@user),
+        can_approve: writable && approvable_job && @job.can_add_job_approval?(@user),
         can_unapprove: writable && @job.may_unapprove?,
         # The investigation-Job counterpart to can_approve: closes the Job
         # successfully with closure_reason: "investigation_reported" once the
