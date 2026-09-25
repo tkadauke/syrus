@@ -1,13 +1,13 @@
 module TestInsights
-  # Backs the repository Tests tab's FilterBar: a free-text "query" field and
-  # a single-select "reason" field (failing/flaky/slow). Deliberately doesn't
+  # Backs the repository Tests tab's FilterBar: a free-text "query" field,
+  # test metadata fields, and a single-select "reason" field (failing/flaky/slow). Deliberately doesn't
   # go through Filters::Compiler/Registry -- both fields resolve to
   # TestInsights::Query keyword args (query:, category:) rather than an
   # ActiveRecord predicate to compile, so there's no scope-building chip
   # class to register. Still speaks the same Filters::Ast/QueryParam wire
   # format FilterBar's frontend uses everywhere else.
   class TestsFilter
-    FIELDS = %w[ query reason ].freeze
+    FIELDS = %w[ query reason status suite_name file_path ].freeze
 
     SCHEMA = [
       {
@@ -24,6 +24,27 @@ module TestInsights
         "bucket" => "enum",
         "operators" => %w[ is ],
         "values" => %w[ failing flaky slow ].map { |value| { "value" => value, "label" => Filters::Schema.humanize_value(value) } }
+      },
+      {
+        "field" => "status",
+        "label" => "Status",
+        "bucket" => "enum",
+        "operators" => %w[ is ],
+        "values" => %w[ passed failed error skipped ].map { |value| { "value" => value, "label" => Filters::Schema.humanize_value(value) } }
+      },
+      {
+        "field" => "suite_name",
+        "label" => "Suite",
+        "bucket" => "string",
+        "operators" => %w[ contains ],
+        "values" => []
+      },
+      {
+        "field" => "file_path",
+        "label" => "File path",
+        "bucket" => "string",
+        "operators" => %w[ contains ],
+        "values" => []
       }
     ].freeze
 
@@ -53,6 +74,10 @@ module TestInsights
 
     def reason
       values["reason"].presence
+    end
+
+    def query_filters
+      values.slice("status", "suite_name", "file_path").transform_keys(&:to_sym).compact_blank
     end
 
     private

@@ -424,6 +424,9 @@ module TestInsights
       end
 
       def apply_summary_filters(scope)
+        scope = apply_status_filter(scope)
+        scope = apply_string_filter(scope, :suite_name)
+        scope = apply_string_filter(scope, :file_path)
         scope = apply_numeric_filter(scope, :last_duration_ms, :min_last_duration_ms, ">=")
         scope = apply_numeric_filter(scope, :last_duration_ms, :max_last_duration_ms, "<=")
         scope = apply_time_filter(scope, :last_failed_at, :last_failed_since, ">=")
@@ -449,6 +452,21 @@ module TestInsights
 
       private
 
+      def apply_status_filter(scope)
+        status = string_filter(:status)
+        return scope unless TestCase::STATUSES.include?(status)
+
+        scope.where(last_status: status)
+      end
+
+      def apply_string_filter(scope, column)
+        value = string_filter(column)
+        return scope unless value
+
+        pattern = "%#{TestIdentity.sanitize_sql_like(value)}%"
+        scope.where("test_insight_identities.#{column} LIKE ?", pattern)
+      end
+
       def apply_numeric_filter(scope, column, key, operator)
         value = integer_filter(key)
         return scope unless value
@@ -473,6 +491,10 @@ module TestInsights
         return nil if value.blank?
 
         Float(value, exception: false)&.clamp(0.0, 1.0)
+      end
+
+      def string_filter(key)
+        @filters[key].to_s.strip.presence
       end
 
       def time_filter(key)

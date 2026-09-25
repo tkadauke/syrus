@@ -20,6 +20,7 @@ module Api
                 repository: repository,
                 category: filter.reason,
                 query: filter.query,
+                filters: filter.query_filters,
                 sort: "last_seen",
                 limit: DEFAULT_SEARCH_LIMIT
               ).tests

@@ -1,17 +1,14 @@
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { Button } from "@app/components/Button"
-import { Checkbox } from "@app/components/Checkbox"
-import { ColumnsIcon } from "@app/components/ColumnsIcon"
+import { DataTableColumnCells, DataTableColumnHeaderRow, DataTableColumnMenu, useLocalStorageColumnPreferences, type DataTableColumnDef } from "@app/components/dataTable"
 import { FilterBar, filterTreeFromPayload, topFilterChildren } from "@app/components/FilterBar"
 import { withRoutePrefix } from "@app/lib/routing"
 import { fetchRepositoryTestDetail, fetchRepositoryTests, type RepositoryTestDetailPayload, type RepositoryTestDurationPoint, type RepositoryTestHistoryItem, type RepositoryTestHistoryPagination, type RepositoryTestIdentity, type RepositoryTestsPayload } from "../api/tests"
 import { errorMessage } from "@app/lib/errorMessage"
-import { useDismissiblePopup } from "@app/lib/useDismissiblePopup"
-import { FloatingPortal, flip, offset, shift, useFloating, useMergeRefs } from "@floating-ui/react"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useT } from "@app/hooks/useT"
 import type { TFunction } from "i18next"
 import {
@@ -88,6 +85,7 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
               payload={tests.data}
               pathname={location.pathname}
               prefix={prefix}
+              repositoryId={repositoryId}
               search={listSearch}
               t={t}
             />
@@ -110,102 +108,72 @@ function hasActiveFilter(filter: RepositoryTestsPayload["filter"]) {
 }
 
 type ColumnKey = "test" | "suite" | "recent_failures" | "duration" | "last_seen"
-type CellContext = { payload: RepositoryTestsPayload; prefix: string; t: TFunction<"test_insights"> }
-type ColumnDef = {
-  headClassName?: string
-  cellClassName?: string
-  cellTitle?: (test: RepositoryTestIdentity) => string | undefined
-  labelKey: string
-  renderCell: (test: RepositoryTestIdentity, ctx: CellContext) => ReactNode
+type CellContext = { prefix: string; repositoryId: string; t: TFunction<"test_insights"> }
+type RepositoryTestColumnDef = DataTableColumnDef<RepositoryTestIdentity> & {
   sortValue: (test: RepositoryTestIdentity) => string | number | null
 }
 
-const REQUIRED_COLUMN: ColumnKey = "test"
-const CUSTOMIZABLE_COLUMNS: ColumnKey[] = ["suite", "recent_failures", "duration", "last_seen"]
 const COLUMNS_STORAGE_KEY = "syrus.test_insights.repository_tests_columns"
 
-const COLUMN_DEFS: Record<ColumnKey, ColumnDef> = {
-  test: {
-    cellClassName: "max-w-md",
-    labelKey: "repo_col_test",
-    sortValue: (test) => test.name,
-    renderCell: (test, { payload, prefix, t }) => (
-      <>
-        <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}/plugin/tests?test_id=${test.id}`, prefix)}>
-          {test.name}
-        </Link>
-        {test.interesting_reasons.length > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {test.interesting_reasons.map((reason) => <ReasonBadge key={reason} label={t(`reason_${reason}`, { defaultValue: reason })} reason={reason} />)}
-          </div>
-        ) : null}
-        {test.file_path ? <Text className="mt-1 truncate" variant="caption" tone="muted">{test.file_path}</Text> : null}
-      </>
-    )
-  },
-  suite: {
-    cellClassName: "hidden max-w-xs truncate text-text-muted md:table-cell",
-    cellTitle: (test) => test.suite_name,
-    headClassName: "hidden md:table-cell",
-    labelKey: "repo_col_suite",
-    sortValue: (test) => test.suite_name,
-    renderCell: (test) => test.suite_name
-  },
-  recent_failures: {
-    cellClassName: "whitespace-nowrap",
-    labelKey: "repo_col_recent_failures",
-    sortValue: (test) => test.failed_count,
-    renderCell: (test) => <TonePill tone={test.failed_count > 0 ? "red" : "gray"}>{test.failed_count}/{test.total_count}</TonePill>
-  },
-  duration: {
-    cellClassName: "hidden whitespace-nowrap text-text-muted sm:table-cell",
-    headClassName: "hidden sm:table-cell",
-    labelKey: "repo_col_duration",
-    sortValue: (test) => test.avg_duration_ms,
-    renderCell: (test) => formatDuration(test.avg_duration_ms)
-  },
-  last_seen: {
-    cellClassName: "hidden whitespace-nowrap text-text-muted sm:table-cell",
-    headClassName: "hidden sm:table-cell",
-    labelKey: "repo_col_last_seen",
-    sortValue: (test) => test.last_seen_at ? new Date(test.last_seen_at).getTime() : null,
-    renderCell: (test) => test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "—"
-  }
-}
-
-type ColumnsState = { hidden: ColumnKey[]; order: ColumnKey[] }
-
-function defaultColumnsState(): ColumnsState {
-  return { hidden: [], order: [...CUSTOMIZABLE_COLUMNS] }
-}
-
-function sanitizeColumnsState(parsed: unknown): ColumnsState {
-  if (!parsed || typeof parsed !== "object") return defaultColumnsState()
-
-  const raw = parsed as { hidden?: unknown; order?: unknown }
-  const isColumnKey = (key: unknown): key is ColumnKey => CUSTOMIZABLE_COLUMNS.includes(key as ColumnKey)
-  const storedOrder = Array.isArray(raw.order) ? raw.order.filter(isColumnKey) : []
-  const missing = CUSTOMIZABLE_COLUMNS.filter((key) => !storedOrder.includes(key))
-  const hidden = Array.isArray(raw.hidden) ? raw.hidden.filter(isColumnKey) : []
-
-  return { hidden, order: [...storedOrder, ...missing] }
-}
-
-function readColumnsState(): ColumnsState {
-  try {
-    const raw = window.localStorage.getItem(COLUMNS_STORAGE_KEY)
-    return raw ? sanitizeColumnsState(JSON.parse(raw)) : defaultColumnsState()
-  } catch {
-    return defaultColumnsState()
-  }
-}
-
-function writeColumnsState(state: ColumnsState) {
-  try {
-    window.localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(state))
-  } catch {
-    // localStorage can be unavailable in private or restricted browser contexts.
-  }
+function buildColumns({ prefix, repositoryId, t }: CellContext): RepositoryTestColumnDef[] {
+  return [
+    {
+      key: "test",
+      label: t("repo_col_test"),
+      cellClassName: "max-w-md",
+      required: true,
+      sortKey: "test",
+      sortValue: (test) => test.name,
+      renderCell: (test) => (
+        <>
+          <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(`/repositories/${repositoryId}/plugin/tests?test_id=${test.id}`, prefix)}>
+            {test.name}
+          </Link>
+          {test.interesting_reasons.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {test.interesting_reasons.map((reason) => <ReasonBadge key={reason} label={t(`reason_${reason}`, { defaultValue: reason })} reason={reason} />)}
+            </div>
+          ) : null}
+          {test.file_path ? <Text className="mt-1 truncate" variant="caption" tone="muted">{test.file_path}</Text> : null}
+        </>
+      )
+    },
+    {
+      key: "suite",
+      label: t("repo_col_suite"),
+      cellClassName: "max-w-xs truncate text-text-muted",
+      responsiveClassName: "hidden md:table-cell",
+      sortKey: "suite",
+      sortValue: (test) => test.suite_name,
+      renderCell: (test) => test.suite_name
+    },
+    {
+      key: "recent_failures",
+      label: t("repo_col_recent_failures"),
+      cellClassName: "whitespace-nowrap",
+      sortKey: "recent_failures",
+      sortValue: (test) => test.failed_count,
+      renderCell: (test) => <TonePill tone={test.failed_count > 0 ? "red" : "gray"}>{test.failed_count}/{test.total_count}</TonePill>
+    },
+    {
+      key: "duration",
+      label: t("repo_col_duration"),
+      cellClassName: "whitespace-nowrap text-text-muted",
+      responsiveClassName: "hidden sm:table-cell",
+      sortKey: "duration",
+      sortValue: (test) => test.avg_duration_ms,
+      renderCell: (test) => formatDuration(test.avg_duration_ms)
+    },
+    {
+      key: "last_seen",
+      label: t("repo_col_last_seen"),
+      cellClassName: "whitespace-nowrap text-text-muted",
+      responsiveClassName: "hidden sm:table-cell",
+      sortKey: "last_seen",
+      sortValue: (test) => test.last_seen_at ? new Date(test.last_seen_at).getTime() : null,
+      renderCell: (test) => test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "-"
+    }
+  ]
 }
 
 type SortState = { column: ColumnKey; direction: "ascending" | "descending" } | null
@@ -218,22 +186,21 @@ function compareSortValues(a: string | number | null, b: string | number | null,
   return ((a as number) - (b as number)) * direction
 }
 
-function TestList({ error, filter, filterActive, filterSchema = [], isError, isFetching, payload, pathname, prefix, search, t }: { error: unknown; filter: RepositoryTestsPayload["filter"]; filterActive: boolean; filterSchema: RepositoryTestsPayload["filter_schema"]; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; pathname: string; prefix: string; search: string; t: TFunction<"test_insights"> }) {
-  const [columns, setColumns] = useState<ColumnsState>(() => readColumnsState())
+function TestList({ error, filter, filterActive, filterSchema = [], isError, isFetching, payload, pathname, prefix, repositoryId, search, t }: { error: unknown; filter: RepositoryTestsPayload["filter"]; filterActive: boolean; filterSchema: RepositoryTestsPayload["filter_schema"]; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; pathname: string; prefix: string; repositoryId: string; search: string; t: TFunction<"test_insights"> }) {
+  const columns = useMemo(() => buildColumns({ prefix, repositoryId, t }), [prefix, repositoryId, t])
+  const columnPreferences = useLocalStorageColumnPreferences({ columns, storageKey: COLUMNS_STORAGE_KEY })
   const [sort, setSort] = useState<SortState>(null)
-
-  useEffect(() => {
-    writeColumnsState(columns)
-  }, [columns])
 
   const tests = payload?.tests ?? []
   const visibleTests = useMemo(() => {
     if (!sort) return tests
 
     const direction = sort.direction === "ascending" ? 1 : -1
-    const sortValue = COLUMN_DEFS[sort.column].sortValue
+    const sortValue = columns.find((column) => column.key === sort.column)?.sortValue
+    if (!sortValue) return tests
+
     return [...tests].sort((a, b) => compareSortValues(sortValue(a), sortValue(b), direction))
-  }, [sort, tests])
+  }, [columns, sort, tests])
 
   if (!payload) return null
 
@@ -245,8 +212,6 @@ function TestList({ error, filter, filterActive, filterSchema = [], isError, isF
     })
   }
 
-  const visibleColumns: ColumnKey[] = [REQUIRED_COLUMN, ...columns.order.filter((key) => !columns.hidden.includes(key))]
-
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -254,7 +219,21 @@ function TestList({ error, filter, filterActive, filterSchema = [], isError, isF
         <div className="flex shrink-0 items-center gap-3">
           {isFetching ? <span className="text-xs text-text-muted">{t("repo_updating_results")}</span> : null}
           {isError ? <span className="text-xs text-danger">{errorMessage(error, t("repo_error_refresh_results"))}</span> : null}
-          <ColumnsMenu columns={columns} onChange={setColumns} t={t} />
+          <DataTableColumnMenu
+            columns={columns}
+            downLabel={t("repo_columns_down")}
+            error={columnPreferences.error}
+            errorFallback={t("repo_columns_error")}
+            menuId="repository-tests-columns"
+            moveDownLabel={(label) => t("repo_columns_move_down", { label })}
+            moveUpLabel={(label) => t("repo_columns_move_up", { label })}
+            onChange={columnPreferences.onChange}
+            order={columnPreferences.order}
+            pending={columnPreferences.pending}
+            triggerAriaLabel={t("repo_columns_button")}
+            upLabel={t("repo_columns_up")}
+            visibleLabel={t("repo_columns_heading")}
+          />
         </div>
       </div>
 
@@ -263,117 +242,24 @@ function TestList({ error, filter, filterActive, filterSchema = [], isError, isF
       ) : (
         <DataTable.Root>
           <DataTable.Header>
-            <DataTable.Row>
-              {visibleColumns.map((key) => (
-                <DataTable.HeadCell
-                  className={COLUMN_DEFS[key].headClassName}
-                  key={key}
-                  onSort={() => toggleSort(key)}
-                  sortDirection={sort?.column === key ? sort.direction : "none"}
-                >
-                  {t(COLUMN_DEFS[key].labelKey)}
-                </DataTable.HeadCell>
-              ))}
-            </DataTable.Row>
+            <DataTableColumnHeaderRow
+              columns={columns}
+              onReorder={columnPreferences.onChange}
+              onSort={(sortKey) => toggleSort(sortKey as ColumnKey)}
+              order={columnPreferences.order}
+              sortColumn={sort?.column}
+              sortDirection={sort?.direction ?? "none"}
+            />
           </DataTable.Header>
           <DataTable.Body>
             {visibleTests.map((test) => (
               <DataTable.Row key={test.id}>
-                {visibleColumns.map((key) => (
-                  <DataTable.Cell className={COLUMN_DEFS[key].cellClassName} key={key} title={COLUMN_DEFS[key].cellTitle?.(test)}>
-                    {COLUMN_DEFS[key].renderCell(test, { payload, prefix, t })}
-                  </DataTable.Cell>
-                ))}
+                <DataTableColumnCells columns={columns} order={columnPreferences.order} row={test} />
               </DataTable.Row>
             ))}
           </DataTable.Body>
         </DataTable.Root>
       )}
-    </div>
-  )
-}
-
-function ColumnsMenu({ columns, onChange, t }: { columns: ColumnsState; onChange: (next: ColumnsState) => void; t: TFunction<"test_insights"> }) {
-  const [open, setOpen] = useState(false)
-  const dragIndexRef = useRef<number | null>(null)
-  const [draggingKey, setDraggingKey] = useState<ColumnKey | null>(null)
-  // flip/shift keep the menu within the viewport instead of a fixed
-  // `absolute right-0`, which renders mostly off-screen when the trigger
-  // button sits near the left edge of a narrow viewport (the flex-wrap
-  // filter bar can push it there on mobile).
-  const { floatingStyles, refs: floatingRefs } = useFloating({
-    middleware: [offset(4), flip(), shift({ padding: 8 })],
-    placement: "bottom-end"
-  })
-  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false), [floatingRefs.floating])
-  const referenceRef = useMergeRefs([menuRef, floatingRefs.setReference])
-
-  function toggleVisible(key: ColumnKey) {
-    const hidden = columns.hidden.includes(key) ? columns.hidden.filter((hiddenKey) => hiddenKey !== key) : [...columns.hidden, key]
-    onChange({ ...columns, hidden })
-  }
-
-  // Reuses the native HTML5 DnD pattern AppChromeV2 uses for sidebar nav
-  // reordering rather than adding a drag-and-drop dependency.
-  function startDrag(index: number, event: DragEvent<HTMLDivElement>) {
-    dragIndexRef.current = index
-    setDraggingKey(columns.order[index] ?? null)
-    event.dataTransfer.effectAllowed = "move"
-  }
-
-  function dragOver(index: number, event: DragEvent<HTMLDivElement>) {
-    const sourceIndex = dragIndexRef.current
-    if (sourceIndex == null) return
-
-    event.preventDefault()
-    event.dataTransfer.dropEffect = "move"
-    if (sourceIndex === index) return
-
-    const nextOrder = [...columns.order]
-    const [moved] = nextOrder.splice(sourceIndex, 1)
-    nextOrder.splice(index, 0, moved)
-    dragIndexRef.current = index
-    onChange({ ...columns, order: nextOrder })
-  }
-
-  function endDrag() {
-    dragIndexRef.current = null
-    setDraggingKey(null)
-  }
-
-  return (
-    <div ref={referenceRef}>
-      <Button aria-expanded={open} aria-haspopup="true" aria-label={t("repo_columns_button")} className="h-[var(--control-height-md)] w-[var(--control-height-md)]" onClick={() => setOpen((value) => !value)} size="icon" variant="secondary">
-        <ColumnsIcon />
-      </Button>
-      {open ? (
-        <FloatingPortal>
-          <div className="z-50 w-64 rounded border border-border bg-surface p-2 shadow-lg" ref={floatingRefs.setFloating} role="menu" style={floatingStyles}>
-            <div className="flex items-center justify-between px-1.5 pb-1.5">
-              <span className="text-xs font-semibold uppercase text-text-muted">{t("repo_columns_heading")}</span>
-              <button className="text-xs font-medium text-brand-emphasis hover:underline" onClick={() => onChange(defaultColumnsState())} type="button">
-                {t("repo_columns_reset")}
-              </button>
-            </div>
-            <div className="flex items-center gap-2 px-1.5 py-1 text-sm text-text-muted">
-              <Checkbox checked disabled label={t(COLUMN_DEFS[REQUIRED_COLUMN].labelKey)} />
-            </div>
-            {columns.order.map((key, index) => (
-              <div
-                className={`cursor-grab rounded px-1.5 py-1 text-sm text-text-primary active:cursor-grabbing ${draggingKey === key ? "opacity-50" : ""}`}
-                draggable
-                key={key}
-                onDragEnd={endDrag}
-                onDragOver={(event) => dragOver(index, event)}
-                onDragStart={(event) => startDrag(index, event)}
-                onDrop={(event) => event.preventDefault()}
-              >
-                <Checkbox checked={!columns.hidden.includes(key)} label={t(COLUMN_DEFS[key].labelKey)} onChange={() => toggleVisible(key)} />
-              </div>
-            ))}
-          </div>
-        </FloatingPortal>
-      ) : null}
     </div>
   )
 }
