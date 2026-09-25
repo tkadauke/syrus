@@ -4,6 +4,7 @@ module Admin
     MAX_PER_PAGE = OperationalLogIndex::MAX_LIMIT
     ROLES = %w[ web worker ].freeze
     REVISION_SCOPES = %w[ current all ].freeze
+    SORTS = OperationalLogIndex::SORTS.keys.freeze
 
     def initialize(params: {})
       @params = params
@@ -80,6 +81,8 @@ module Admin
           level: level,
           role: role,
           hostname: hostname,
+          sort: sort,
+          direction: direction,
           app_revision: revision_scope == "current" ? current_revision : nil,
           limit: per_page + 1,
           offset: (page - 1) * per_page
@@ -95,7 +98,9 @@ module Admin
         until: until_time&.iso8601,
         level: level,
         role: role,
-        hostname: hostname
+        hostname: hostname,
+        sort: sort,
+        direction: direction
       }
     end
 
@@ -166,6 +171,15 @@ module Admin
 
     def current_revision
       SyrusVersion.current
+    end
+
+    def sort
+      value = utf8_param(:sort)
+      SORTS.include?(value) ? value : "time"
+    end
+
+    def direction
+      utf8_param(:direction) == "asc" ? "asc" : "desc"
     end
 
     def log_payload(row)

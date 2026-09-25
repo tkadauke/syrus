@@ -143,6 +143,20 @@ RSpec.describe "API: /api/v1/app/admin/operational_logs", type: :request do
     expect(parse_body.dig("pagination", "has_previous_page")).to be(true)
   end
 
+  it "sorts logs by requested columns and reports sort metadata" do
+    alpha = log_event(occurred_at: 10.minutes.ago, app_revision: "current-sha", message: "alpha")
+    beta = log_event(occurred_at: 5.minutes.ago, app_revision: "current-sha", message: "beta")
+    [ beta, alpha ].each { |event| OperationalLogIndex.upsert(event) }
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/operational_logs", params: { sort: "message", direction: "asc" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["logs"].map { |row| row["id"] }).to eq([ alpha.id, beta.id ])
+    expect(body["filters"]).to include("sort" => "message", "direction" => "asc")
+  end
+
   it "rejects invalid bounded filters" do
     sign_in_as(admin)
 
