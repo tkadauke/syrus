@@ -32,6 +32,12 @@ describe("visibleOptionalColumnKeys", () => {
     expect(visibleOptionalColumnKeys({ columns: COLUMNS, order: [ "owner", "select", "ghost", "owner" ] })).toEqual([ "owner" ])
   })
 
+  it("does not render an optional duplicate for a required key", () => {
+    const requiredState = { ...STATE, required: true }
+    const duplicateColumns = [ SELECT, requiredState, TITLE, STATE, OWNER ]
+    expect(visibleColumnKeys({ columns: duplicateColumns, order: [ "state", "owner" ] })).toEqual([ "select", "state", "owner" ])
+  })
+
   it("preserves an explicit empty selection instead of falling back", () => {
     expect(visibleOptionalColumnKeys({ columns: COLUMNS, order: [] })).toEqual([])
   })
