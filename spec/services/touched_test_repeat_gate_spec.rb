@@ -69,13 +69,14 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(0)
   end
 
-  it "defaults repeat subprocesses to the test Rails environment" do
+  it "forces repeat subprocesses into the test Rails environment" do
     original_rails_env = ENV["RAILS_ENV"]
     ENV["RAILS_ENV"] = "development"
     stub_focused_command('[ "$RAILS_ENV" = "test" ]')
 
     result = described_class.call(
       grader_step: grader_step,
+      env: { "RAILS_ENV" => "development" },
       touched_files: [ "spec/request_spec.rb" ],
       workspace_path: @dir,
       repeats: 1
@@ -150,7 +151,7 @@ RSpec.describe TouchedTestRepeatGate do
       )
 
       expect(result.ran).to be(true)
-      expect(result.command).to eq("BUNDLE_PATH=\"$PWD/vendor/bundle\" BUNDLE_APP_CONFIG=\"$PWD/.bundle\" bundle check || BUNDLE_PATH=\"$PWD/vendor/bundle\" BUNDLE_APP_CONFIG=\"$PWD/.bundle\" bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\" && BUNDLE_PATH=\"$PWD/vendor/bundle\" BUNDLE_APP_CONFIG=\"$PWD/.bundle\" bundle exec rspec spec/models/widget_spec.rb")
+      expect(result.command).to eq("(BUNDLE_PATH=\"$PWD/vendor/bundle\" BUNDLE_APP_CONFIG=\"$PWD/.bundle\" bundle check || BUNDLE_PATH=\"$PWD/vendor/bundle\" BUNDLE_APP_CONFIG=\"$PWD/.bundle\" bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && BUNDLE_PATH=\"$PWD/vendor/bundle\" BUNDLE_APP_CONFIG=\"$PWD/.bundle\" bundle exec rspec spec/models/widget_spec.rb")
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do
