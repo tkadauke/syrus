@@ -114,6 +114,10 @@ export type AdminInsightSuggestion = InsightSuggestion & {
 }
 
 export type AdminInsightsPayload = {
+  active_smart_folder_id: number | null
+  filter: Record<string, unknown>
+  filter_schema: FilterSchemaField[]
+  smart_folders: AdminSmartFolder[]
   suggestions: AdminInsightSuggestion[]
   meta: PaginationMeta
 }
@@ -122,15 +126,10 @@ export function fetchInsightSuggestions(repositoryId: string | number, search = 
   const params = new URLSearchParams(search)
   params.set("page", String(page))
   params.set("per_page", String(perPage))
-  return getJson<InsightSuggestionsPayload>(
-    `/api/v1/app/repositories/${repositoryId}/insight_suggestions?${params.toString()}`
-  )
+  return getJson<InsightSuggestionsPayload>(`/api/v1/app/repositories/${repositoryId}/insight_suggestions?${params.toString()}`)
 }
 
-export function acceptInsightSuggestion(
-  id: number,
-  opts: { createJob?: boolean; prompt?: string; agentProvider?: string } = {}
-) {
+export function acceptInsightSuggestion(id: number, opts: { createJob?: boolean; prompt?: string; agentProvider?: string } = {}) {
   return patchJson<InsightSuggestionUpdatePayload>(`/api/v1/app/insight_suggestions/${id}`, {
     action_type: "accept",
     create_job: opts.createJob ?? false,
@@ -167,8 +166,10 @@ export function discussInsightSuggestion(id: number) {
   return postJson<InsightSuggestionDiscussPayload>(`/api/v1/app/insight_suggestions/${id}/discuss`, {})
 }
 
-export function fetchAdminInsights(page = 1, perPage = 20, state = "all") {
-  const params = new URLSearchParams({ page: String(page), per_page: String(perPage), state })
+export function fetchAdminInsights(search = "", page = 1, perPage = 20) {
+  const params = new URLSearchParams(search)
+  params.set("page", String(page))
+  params.set("per_page", String(perPage))
   return getJson<AdminInsightsPayload>(`/api/v1/app/admin/insights?${params.toString()}`)
 }
 
