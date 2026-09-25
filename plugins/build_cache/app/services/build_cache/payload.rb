@@ -6,13 +6,21 @@ module BuildCache
   class Payload
     RECENT_REQUESTS_LIMIT = 20
 
-    def show
+    def show(include_stats: true)
       {
         configured: Client.configured?,
-        stats: stats_payload,
+        stats: include_stats ? stats_payload : nil,
         stats_error: @stats_error,
         pending_request: pending_request_payload,
         recent_requests: recent_requests_payload
+      }
+    end
+
+    def stats
+      {
+        configured: Client.configured?,
+        stats: stats_payload,
+        stats_error: @stats_error
       }
     end
 

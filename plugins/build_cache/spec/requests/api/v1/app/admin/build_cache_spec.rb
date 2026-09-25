@@ -50,7 +50,7 @@ RSpec.describe "API: /api/v1/app/admin/build_cache", type: :request do
       ENV["SCCACHE_BUCKET"] = nil
       sign_in_as(admin)
 
-      get "/api/v1/app/admin/build_cache"
+      get "/api/v1/app/admin/build_cache", params: { include_stats: "true" }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
@@ -65,7 +65,7 @@ RSpec.describe "API: /api/v1/app/admin/build_cache", type: :request do
       ])
       sign_in_as(admin)
 
-      get "/api/v1/app/admin/build_cache"
+      get "/api/v1/app/admin/build_cache", params: { include_stats: "true" }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
@@ -73,6 +73,29 @@ RSpec.describe "API: /api/v1/app/admin/build_cache", type: :request do
       expect(body["stats"]).to include("object_count" => 2, "total_size_bytes" => 300)
       expect(body.dig("stats", "newest_object", "key")).to eq("b")
       expect(body["pending_request"]).to be_nil
+    end
+
+    it "can skip bucket stats so the admin page loads without scanning S3" do
+      s3 = stub_s3(objects: [ { key: "a", size: 100, last_modified: 3.days.ago } ])
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/build_cache"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["configured"]).to be(true)
+      expect(body["stats"]).to be_nil
+      expect(s3.api_requests.map { |request| request[:operation_name] }).not_to include(:list_objects_v2)
+    end
+
+    it "loads bucket stats from a separate endpoint" do
+      stub_s3(objects: [ { key: "a", size: 100, last_modified: 3.days.ago } ])
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/build_cache/stats"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("stats", "object_count")).to eq(1)
     end
   end
 
