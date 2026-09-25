@@ -112,7 +112,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
 
   return (
     <>
-      <Page.Header className="block space-y-3">
+      <Page.Header layout="stacked">
         <div className="flex flex-wrap items-center gap-2">
           <PageHeading className="break-words">
             <CopyableSlug slug={payload.epic.display_number} />
@@ -122,7 +122,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
           <StatePill state={payload.epic.landing ? "landing" : payload.epic.state} />
           <EpicStuckBadge stuck={payload.epic.stuck} />
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+        <p className="min-w-0 break-words text-sm text-gray-500 dark:text-gray-400">
           <Link className="font-mono hover:underline" to={withRoutePrefix(payload.epic.repository.repository_path, prefix)}>
             {payload.epic.repository.slug}
           </Link>
@@ -180,7 +180,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
           </div>
         ) : null}
 
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <ProgressBar jobs={payload.jobs} totalCount={payload.summary.total_jobs_count} />
           {payload.merge_train_status ? <MergeTrainStatusBanner status={payload.merge_train_status} /> : null}
           <div className="flex flex-wrap items-center gap-2">

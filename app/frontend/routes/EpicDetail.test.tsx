@@ -1,5 +1,5 @@
 import { jsonResponse } from "../testSupport"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
@@ -113,7 +113,9 @@ describe("EpicDetail", () => {
     expect(main).not.toHaveClass("px-[var(--space-page-x)]")
 
     const header = main.querySelector("header")
+    expect(header).toHaveAttribute("data-page-header-layout", "stacked")
     expect(header).toHaveClass("px-4", "sm:px-0", "block", "space-y-3")
+    expect(header).not.toHaveClass("flex", "justify-between")
 
     const jobsSection = screen.getByRole("heading", { name: "Jobs" }).closest("section")
     expect(jobsSection).not.toHaveClass("px-4", "sm:px-0")
@@ -131,6 +133,57 @@ describe("EpicDetail", () => {
 
     expect(screen.getByText("Landing")).toBeInTheDocument()
     expect(screen.queryByText("In Progress")).not.toBeInTheDocument()
+  })
+
+  it("stacks the detail header rows with long metadata and a failed merge-train banner", () => {
+    const payload = detailPayload({
+      title: "A deliberately long Epic title that should stay in the first stacked header row without distributing metadata",
+      repository: {
+        id: 1,
+        slug: "very-long-owner-name/very-long-repository-name-with-many-segments",
+        repository_path: "/repositories/1",
+        epic_dependency_policy: "linear"
+      }
+    })
+    payload.origin_chat = { chat_session_id: 7, message_id: 42 }
+    payload.jobs = [job("ready"), job("done", { landed: true })]
+    payload.summary = {
+      ...payload.summary,
+      total_jobs_count: 2,
+      done_jobs_count: 1,
+      dependency_edge_count: 4,
+      blocked: true,
+      blocked_reason: { key: "waiting_epic_siblings" }
+    }
+    payload.merge_train_status = {
+      id: 22,
+      state: "failed",
+      phase: "failed",
+      branch: "syrus/merge-train/very-long-integration-branch-name-that-must-wrap",
+      member_count: 2,
+      workflow_id: 99,
+      workflow_state: "failed",
+      current_step_kind: "merge_train_land",
+      current_step_label: "Merge train land",
+      reconciliation: null,
+      failure_reason: "Base moved while the merge train was landing"
+    }
+    renderDetail(payload)
+
+    const header = screen.getByRole("heading", { name: /deliberately long Epic title/ }).closest("header")
+    expect(header).toHaveAttribute("data-page-header-layout", "stacked")
+    expect(header).toHaveClass("block", "space-y-3")
+    expect(header).not.toHaveClass("flex", "justify-between")
+
+    const rows = Array.from(header?.children || [])
+    expect(rows).toHaveLength(4)
+    expect(within(rows[0] as HTMLElement).getByText(/deliberately long Epic title/)).toBeInTheDocument()
+    expect(within(rows[0] as HTMLElement).getByText("Ready")).toBeInTheDocument()
+    expect(within(rows[1] as HTMLElement).getByRole("link", { name: "very-long-owner-name/very-long-repository-name-with-many-segments" })).toBeInTheDocument()
+    expect(within(rows[1] as HTMLElement).getByRole("link", { name: /view in chat/i })).toBeInTheDocument()
+    expect(within(rows[2] as HTMLElement).getByRole("button", { name: "Start implementing" })).toBeInTheDocument()
+    expect(within(rows[3] as HTMLElement).getByText("Merge train needs attention")).toBeInTheDocument()
+    expect(within(rows[3] as HTMLElement).getByText(/Base moved while the merge train was landing/)).toBeInTheDocument()
   })
 })
 
