@@ -469,6 +469,39 @@ RSpec.describe "App API job run commands", type: :request do
     expect(parse_body.dig("job", "state")).to eq("running")
   end
 
+  it "allows a repository writer to retry a failed step on another user's job" do
+    writer = Factories.user
+    RepositoryMembership.create!(repository: repo, user: writer, role: "write")
+    workflow = job.workflows.last
+    failed_step = workflow.steps.find_by!(kind: "summarize")
+    failed_step.update!(state: "failed", started_at: 1.minute.ago, finished_at: Time.current)
+    workflow.update!(state: "failed", started_at: 1.minute.ago, finished_at: Time.current)
+    sign_in_as(writer)
+
+    expect {
+      post app_job_path("/workflows/#{workflow.id}/retry_step"), as: :json
+    }.to change { failed_step.reload.runs.count }.by(1)
+      .and have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:ok)
+  end
+
+  it "forbids a repository reader from retrying a failed step on another user's job" do
+    reader = Factories.user
+    RepositoryMembership.create!(repository: repo, user: reader, role: "read")
+    workflow = job.workflows.last
+    failed_step = workflow.steps.find_by!(kind: "summarize")
+    failed_step.update!(state: "failed", started_at: 1.minute.ago, finished_at: Time.current)
+    workflow.update!(state: "failed", started_at: 1.minute.ago, finished_at: Time.current)
+    sign_in_as(reader)
+
+    expect {
+      post app_job_path("/workflows/#{workflow.id}/retry_step"), as: :json
+    }.not_to change { failed_step.reload.runs.count }
+
+    expect(response).to have_http_status(:forbidden)
+  end
+
   it "refuses to retry a failed step once the workspace has been cleaned up" do
     workflow = job.workflows.last
     failed_step = workflow.steps.find_by!(kind: "summarize")

@@ -2,8 +2,11 @@ module Api
   module V1
     module App
       class JobRunCommandsController < BaseController
+        before_action :load_job
+        before_action :authorize_job_command
+
         def poll_feedback
-          job = find_job
+          job = @job
           unless job.open? && job.pr_number.present?
             render_error("validation_failed", "Can only check feedback on open Jobs that have a PR.", status: :unprocessable_content)
             return
@@ -23,7 +26,7 @@ module Api
         end
 
         def resume
-          job = find_job
+          job = @job
           source_run = job.runs.find_by(id: params[:source_run_id])
           unless source_run
             render_error("not_found", "Source Run not found.", status: :not_found)
@@ -39,7 +42,7 @@ module Api
         end
 
         def check_mergeability
-          job = find_job
+          job = @job
           unless job.pr_number.present? || job.external_pr_number.present?
             render_error("validation_failed", "No PR on this Job to check.", status: :unprocessable_content)
             return
@@ -50,7 +53,7 @@ module Api
         end
 
         def recheck_pr_checks
-          job = find_job
+          job = @job
           unless job.pr_number.present? || job.external_pr_number.present?
             render_error("validation_failed", "No PR on this Job to recheck.", status: :unprocessable_content)
             return
@@ -64,7 +67,7 @@ module Api
         end
 
         def rebase
-          job = find_job
+          job = @job
           unless job.pr_number.present? || job.external_pr_number.present?
             render_error("validation_failed", "No PR on this Job to rebase.", status: :unprocessable_content)
             return
@@ -99,7 +102,7 @@ module Api
         end
 
         def retry_pr_ingestion
-          job = find_job
+          job = @job
           unless job.external_pr?
             render_error("validation_failed", "Only external PR Jobs can retry ingestion.", status: :unprocessable_content)
             return
@@ -121,7 +124,7 @@ module Api
         end
 
         def run_visual_review
-          job = find_job
+          job = @job
           result = ManualVisualReviewSubmission.call(job: job)
           unless result.success?
             render_error("validation_failed", result.error, status: :unprocessable_content)
@@ -132,7 +135,7 @@ module Api
         end
 
         def run_visual_diff
-          job = find_job
+          job = @job
           result = VisualDiffSubmission.call(job: job)
           unless result.success?
             render_error("validation_failed", result.error, status: :unprocessable_content)
@@ -143,7 +146,7 @@ module Api
         end
 
         def stop_run
-          job = find_job
+          job = @job
           run = job.runs.find_by(id: params[:run_id])
           unless run
             render_error("not_found", "Run not found.", status: :not_found)
@@ -160,7 +163,7 @@ module Api
         end
 
         def retry_step
-          job = find_job
+          job = @job
           workflow = job.workflows.find_by(id: params[:workflow_id])
           unless workflow
             render_error("not_found", "Workflow not found.", status: :not_found)
@@ -198,7 +201,7 @@ module Api
         end
 
         def push_commits
-          job = find_job
+          job = @job
           workflow = job.workflows.find_by(id: params[:workflow_id])
           unless workflow
             render_error("not_found", "Workflow not found.", status: :not_found)
@@ -214,7 +217,7 @@ module Api
         end
 
         def force_push_branch
-          job = find_job
+          job = @job
           workflow = find_workflow(job)
           return unless workflow
 
@@ -229,7 +232,7 @@ module Api
         end
 
         def discard_branch_output
-          job = find_job
+          job = @job
           workflow = find_workflow(job)
           return unless workflow
 
@@ -243,7 +246,7 @@ module Api
         end
 
         def diagnose
-          job = find_job
+          job = @job
           run = job.runs.find_by(id: params[:run_id])
           unless run
             render_error("not_found", "Run not found.", status: :not_found)
@@ -260,8 +263,12 @@ module Api
 
         private
 
-        def find_job
-          find_job_by_ref(Current.user.jobs.includes(:repository), params[:job_id])
+        def load_job
+          @job = find_job_by_ref(policy_scope(Job).includes(:repository), params[:job_id])
+        end
+
+        def authorize_job_command
+          authorize_job_mutation!(@job)
         end
 
         def find_workflow(job)

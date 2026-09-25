@@ -112,12 +112,21 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       payload = described_class.build(job: job, user: reader)
 
+      expect(payload.dig(:actions, :can_write)).to be(false)
+      expect(payload.dig(:actions, :can_submit_feedback)).to be(false)
       expect(payload.dig(:actions, :can_release_from_backlog)).to be(false)
       expect(payload.dig(:actions, :can_move_to_backlog)).to be(false)
       expect(payload.dig(:actions, :can_cancel)).to be(false)
       expect(payload.dig(:actions, :can_claim)).to be(false)
       expect(payload.dig(:actions, :can_unclaim)).to be(false)
       expect(payload.dig(:actions, :can_manage_tags)).to be(false)
+      expect(payload.dig(:actions, :can_start_preview)).to be(false)
+      expect(payload.dig(:actions, :can_deploy)).to be(false)
+      expect(payload.dig(:actions, :can_run_visual_review)).to be(false)
+      expect(payload.dig(:actions, :can_run_visual_diff)).to be(false)
+      expect(payload.dig(:actions, :can_send_job_upstream)).to be(false)
+      expect(payload.dig(:job, :creator_user)).to include(id: user.id, email_address: user.email_address)
+      expect(payload.dig(:job, :created_by_current_user)).to be(false)
     end
 
     it "offers cancel for a backlogged job with no Workflow/Run" do

@@ -116,6 +116,8 @@ export type JobRecord = {
   retry_state?: JobRetryState
   approved_at: string | null
   approved_via: string | null
+  creator_user: JobUserReference
+  created_by_current_user: boolean
   owner_user_id: number | null
   owner_user: JobOwnerUser | null
   approval_evidence?: JobApprovalEvidence | null
@@ -819,6 +821,8 @@ export type RunFailureClassification = {
 }
 
 export type JobActions = {
+  can_write: boolean
+  can_submit_feedback?: boolean
   can_start: boolean
   can_release_from_backlog: boolean
   can_move_to_backlog?: boolean

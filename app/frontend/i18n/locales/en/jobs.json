@@ -190,6 +190,7 @@
   "pr_checks_override_reason": "Operator verified the inherited failing PR checks are acceptable for this landing attempt.",
   "detail_state": "State",
   "detail_owner": "Owner",
+  "created_by": "Created by {{user}}",
   "detail_work_claim": "Work claim",
   "detail_priority": "Priority",
   "detail_provider": "Provider",

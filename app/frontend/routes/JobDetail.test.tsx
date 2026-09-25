@@ -3318,6 +3318,18 @@ describe("Job detail navigation", () => {
     expect(within(singleUserOption).queryByText("jane@example.com")).not.toBeInTheDocument()
   })
 
+  it("identifies a job created by another user", async () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        creator_user: { id: 2, display_name: "Julia", email_address: "julia@example.com" },
+        created_by_current_user: false
+      }
+    }))
+
+    expect(await screen.findByText(/Created by Julia/)).toBeInTheDocument()
+  })
+
   it("adds horizontal and vertical gaps between metadata chips so separators don't glue to text", () => {
     storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
     renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
@@ -3947,6 +3959,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
     },
     feature_flags: { terminal: false },
     actions: {
+      can_write: true,
       can_start: false,
       can_release_from_backlog: false,
       can_poll_feedback: false,
@@ -4082,6 +4095,8 @@ function baseJob(): JobDetailPayload["job"] {
     retry_state: undefined,
     approved_at: null,
     approved_via: null,
+    creator_user: { id: 1, display_name: "Owner", email_address: "owner@example.com" },
+    created_by_current_user: true,
     owner_user_id: null,
     owner_user: null,
     job_approvals: [],

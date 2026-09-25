@@ -362,6 +362,9 @@ export function JobDetailView({
             <span>
               {t("workflow_count", { count: payload.job.workflows_count })} · {t("run_count", { count: payload.job.runs_count })}
             </span>
+            {!payload.job.created_by_current_user ? (
+              <span>· {t("created_by", { user: payload.job.creator_user.display_name || payload.job.creator_user.email_address })}</span>
+            ) : null}
             {payload.job.total_cost_usd == null ? null : (
               <span>
                 · <JobCostLink prefix={prefix} value={payload.job.total_cost_usd} />

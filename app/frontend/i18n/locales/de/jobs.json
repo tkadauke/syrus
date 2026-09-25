@@ -183,6 +183,7 @@
   "landing_blocker_override_note": "Gewährt von {{user}} am",
   "detail_state": "Status",
   "detail_owner": "Besitzer",
+  "created_by": "Erstellt von {{user}}",
   "detail_work_claim": "Arbeitsanspruch",
   "detail_priority": "Priorität",
   "detail_provider": "Provider",

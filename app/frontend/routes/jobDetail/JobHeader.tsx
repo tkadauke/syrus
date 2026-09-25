@@ -74,7 +74,7 @@ const HEADER_ACTION_ORDER: Record<string, number> = {
 // Shared with JobDetail.tsx so the header button and the panel it opens
 // gate the "submit feedback directly" action on the exact same condition.
 export function canSubmitFeedbackDirectly(payload: JobDetailPayload) {
-  return ["implemented", "failed", "no_change_needed"].includes(payload.job.state)
+  return payload.actions.can_submit_feedback ?? (payload.actions.can_write !== false && ["implemented", "failed", "no_change_needed"].includes(payload.job.state))
 }
 
 export function ChatBubbleIcon() {

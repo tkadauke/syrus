@@ -250,6 +250,8 @@ module App
         approved_at: iso8601(@job.approved_at),
         approved_via: @job.approved_via,
         approved_by_user_id: @job.approved_by_user_id,
+        creator_user: user_reference_json(@job.user),
+        created_by_current_user: @job.user_id == @user.id,
         owner_user_id: @job.owner_user_id,
         owner_user: owner_user_json(@job.owner_user),
         approval_evidence: approval_evidence_json,
@@ -1000,6 +1002,8 @@ module App
       has_tracked_pr = @job.pr_number.present? || @job.external_pr_number.present?
       coding_mode_takeover_blocked_reason = coding_mode_takeover_blocked_reason(writable: writable)
       {
+        can_write: writable,
+        can_submit_feedback: writable && @job.state.in?(%w[implemented failed no_change_needed]),
         can_start: creator && writable && @job.direct? && mutable_runtime_job && job_runs_count.zero? && !active_runtime_work,
         can_release_from_backlog: writable && @job.backlog? && @job.open? && @job.may_release_from_backlog? && !active_runtime_work,
         # Not offered while a Job is still in triage: it has not been classified
@@ -1047,13 +1051,13 @@ module App
         can_manage_tags: writable,
         can_open_in_coding_mode: coding_mode_takeover_blocked_reason.nil?,
         open_in_coding_mode_blocked_reason: coding_mode_takeover_blocked_reason,
-        can_start_preview: @job.previewable? && preview_project_selection.available?,
-        can_deploy: @job.deployable? && deploy_configured?,
-        can_run_visual_review: visual_review_enabled && visual_review_actionable,
-        can_run_visual_diff: visual_review_enabled && visual_diff_actionable && visual_diff_available?,
+        can_start_preview: writable && @job.previewable? && preview_project_selection.available?,
+        can_deploy: writable && @job.deployable? && deploy_configured?,
+        can_run_visual_review: writable && visual_review_enabled && visual_review_actionable,
+        can_run_visual_diff: writable && visual_review_enabled && visual_diff_actionable && visual_diff_available?,
         can_override_pr_checks_landing_blocker: writable && pr_checks_landing_blocker_overridable?,
         can_override_inherited_pr_checks: writable && pr_checks_landing_blocker_overridable?,
-        can_send_job_upstream: send_job_upstream_action&.fetch(:available) || false,
+        can_send_job_upstream: writable && (send_job_upstream_action&.fetch(:available) || false),
         send_job_upstream_blocked_reason: send_job_upstream_action&.fetch(:blocked_reason),
         feedback_agent_options: alternate_agent_options,
         rebase_agent_options: alternate_agent_options,
