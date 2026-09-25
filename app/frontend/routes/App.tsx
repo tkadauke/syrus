@@ -1,6 +1,5 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
-import { BRAND_ICON_SRC } from "../lib/brandIcon"
 import { useEffect, useState, type ReactNode } from "react"
 import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
@@ -9,6 +8,7 @@ import { isDesktopShell } from "../lib/desktopShell"
 import { useT } from "../hooks/useT"
 import { NoticeToast } from "../components/NoticeToast"
 import { PageHeading, SectionHeading } from "../components/Heading"
+import { SyrusMark } from "../components/SyrusBrand"
 import { RouteErrorBoundary } from "../components/RouteErrorBoundary"
 import { NotificationsRoute } from "../components/Notifications"
 import { useAppEvents } from "../lib/useAppEvents"
@@ -264,7 +264,7 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
     return (
       <main aria-label={t("aria_first_run")} className="flex min-h-[70vh] items-center justify-center px-6">
         <div className="max-w-md text-center">
-          <img alt="" aria-hidden="true" className="mx-auto h-16 w-16 rounded-2xl" src={BRAND_ICON_SRC} />
+          <SyrusMark className="mx-auto h-16 w-16" />
           <PageHeading className="mt-6">{t("welcome")}</PageHeading>
           <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-400">{cta.description}</p>
           <div className="mt-7">
