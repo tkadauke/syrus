@@ -161,6 +161,21 @@ describe("RepositoryIssuesTab", () => {
     expect(within(row).queryByRole("button", { name: "Delegate" })).not.toBeInTheDocument()
   })
 
+  it("keeps the active folder and issue count in the column controls row", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
+      folder: "open",
+      issue_count: 1,
+      issues: [ issue({ number: 7, title: "Fix the forum" }) ]
+    })))
+    renderRoute("/repositories/1/plugin/issues?folder=open")
+
+    const columnsButton = await screen.findByRole("button", { name: "Columns" })
+    const controlsRow = columnsButton.parentElement?.parentElement
+
+    expect(controlsRow).toContainElement(screen.getByRole("heading", { name: "Open" }))
+    expect(controlsRow).toContainElement(screen.getByText("1 issue"))
+  })
+
   it("renders connected pull requests on issue rows", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
       issues: [ issue({
