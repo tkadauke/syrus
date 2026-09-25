@@ -29,6 +29,20 @@ module Api
             )
           end
 
+          def live
+            filter = ::WorkerTimeline::LiveQueryFilter.from_params(params)
+
+            render json: ::WorkerTimeline::LiveWorkersQuery.call(
+              from: filter.from,
+              to: filter.to,
+              hostname: filter.hostname,
+              status: filter.statuses
+            ).merge(
+              filter: filter.to_h,
+              filter_schema: ::WorkerTimeline::LiveQueryFilter.schema
+            )
+          end
+
           def workflow
             render json: ::Timeline::WorkflowWaterfallQuery.call(workflow_id: params[:id])
           end
