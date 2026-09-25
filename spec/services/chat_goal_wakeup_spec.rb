@@ -107,8 +107,14 @@ RSpec.describe ChatGoalWakeup, type: :service do
 
     expect {
       job.update!(state: "implemented")
+      expect(job).to be_implemented
+      job.send(:publish_goal_implemented_event)
       job.update!(state: "approved")
+      expect(job).to be_approved
+      job.send(:publish_goal_approved_event)
       job.update!(state: "closed", closure_reason: "pr_merged")
+      expect(job).to be_closed
+      job.send(:publish_goal_closed_event)
     }.to change(ChatScopedEvent.where(chat_session: chat), :count).by(3)
 
     events = chat.scoped_events.order(:id).last(3)

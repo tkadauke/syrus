@@ -68,6 +68,8 @@ RSpec.describe MainBranchRepairAutoApprover do
 
     job.mark_implemented!
     job.save!
+    expect(job).to be_implemented
+    job.send(:auto_approve_main_branch_repair_after_implementation)
 
     expect(job.reload).to be_approved
   end
