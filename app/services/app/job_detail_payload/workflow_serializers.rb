@@ -1330,11 +1330,11 @@ module App
           "accepted_failure_reason" => accepted["reason"],
           "base_retry_status" => if base_retry.present?
             base_retry["status"] || base_retry["outcome"] || "completed"
-          elsif details["failures"] == MainBranchFailureClassifier::ALLOW_INHERITED
+                                 elsif details["failures"] == MainBranchFailureClassifier::ALLOW_INHERITED
             "unavailable"
-          else
+                                 else
             "not_configured"
-          end
+                                 end
         }
       end
 
