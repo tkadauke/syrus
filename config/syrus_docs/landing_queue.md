@@ -126,10 +126,12 @@ to the PR's diff.
 every failing test in a required grader Step already has a confirmed-flaky
 history in Test Insights (`flaky: true`, and a flakiness score at or above a
 configurable floor), the failure is dismissed at rung 0 instead of blocking
-landing or spending a `landing_fix` repair turn. It reuses whatever
-`:test_evidence` plugin already answers "which tests failed in this run" and
-"what is this test's flakiness score" -- with no such plugin, or no scoring
-history yet, it declines rather than guessing.
+landing or spending a `landing_fix` repair turn. The score lookup excludes
+the workflow currently being adjudicated, so repeated failures inside the
+same retry loop cannot manufacture the history that dismisses their own
+failure. It reuses whatever `:test_evidence` plugin already answers "which
+tests failed in this run" and "what is this test's flakiness score" -- with
+no such plugin, or no scoring history yet, it declines rather than guessing.
 
 Off by default, opted in per repository via
 `Repository#known_flaky_failure_dismissal_enabled` (same shape as
@@ -139,9 +141,14 @@ required-grader failures waved off silently.
 `Repository#known_flaky_failure_min_score` optionally raises the minimum
 flakiness score a test needs before its failure counts as "confirmed" flaky
 (default `Adjudicators::KnownFlakyFailure::DEFAULT_MIN_SCORE`), guarding
-against a single historical blip looking like a pattern. A dismissal is
-recorded as a `known_flaky_grader_failure` workflow artifact (the dismissed
-grader names, the confirmed-flaky tests and their scores) and logged on the
+against a single historical blip looking like a pattern. A high recent
+failure rate is treated as the opposite signal: when a test is mostly failing
+in the lookback window, `KnownFlakyFailure` declines with
+`recent_failures_too_frequent` so the required grader still blocks until an
+independent confirmation path, such as isolated repro evidence, proves the
+failure is safe to dismiss. A dismissal is recorded as a
+`known_flaky_grader_failure` workflow artifact (the dismissed grader names,
+the confirmed-flaky tests and their scores) and logged on the
 `grader_collect` Step, the same visibility `record_inherited_main_failure!`
 gives an inherited-failure dismissal -- an operator or agent looking at why a
 red required grader did not block landing should never have to infer it from
