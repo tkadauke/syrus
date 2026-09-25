@@ -151,7 +151,7 @@ export function JobDetailRoute() {
     enabled: id.length > 0 && (activeTab === "workflows" || activeTab === "timeline") && detail.isSuccess,
     placeholderData: keepPreviousData
   })
-  const payload = detail.isSuccess ? mergeJobWorkflowsPayload(detail.data, workflows.data) : null
+  const payload = detail.isSuccess ? mergeJobWorkflowsPayload(detail.data, workflows.isPlaceholderData ? undefined : workflows.data) : null
   const job = detail.data?.job
   const pageTitle = job ? (job.issue_title ? `${jobSlug(job.id)}: ${job.issue_title}` : jobSlug(job.id)) : id ? `JOB-${id}` : undefined
   usePageTitle(pageTitle)
