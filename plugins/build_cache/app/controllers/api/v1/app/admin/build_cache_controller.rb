@@ -11,13 +11,17 @@ module Api
         # BuildCache::ClearRequest.
         class BuildCacheController < BaseController
           def show
-            render json: payload.show
+            render json: payload.show(include_stats: include_stats?)
+          end
+
+          def stats
+            render json: payload.stats
           end
 
           def create_clear_request
             request = BuildCache::ClearRequest.new(clear_request_params.merge(user: Current.user))
             if request.save
-              render json: payload.show, status: :created
+              render json: payload.show(include_stats: false), status: :created
             else
               render_error("validation_failed", request.errors.full_messages.to_sentence, status: :unprocessable_content)
             end
@@ -26,7 +30,7 @@ module Api
           def confirm_clear_request
             request = BuildCache::ClearRequest.find(params[:id])
             if request.confirm!(user: Current.user)
-              render json: payload.show
+              render json: payload.show(include_stats: false)
             else
               render_error("cannot_confirm", "Request is no longer pending, or the build cache bucket is not configured.",
                            status: :unprocessable_content)
@@ -36,7 +40,7 @@ module Api
           def cancel_clear_request
             request = BuildCache::ClearRequest.find(params[:id])
             if request.cancel!
-              render json: payload.show
+              render json: payload.show(include_stats: false)
             else
               render_error("cannot_cancel", "Request is no longer pending.", status: :unprocessable_content)
             end
@@ -46,6 +50,10 @@ module Api
 
           def payload
             ::BuildCache::Payload.new
+          end
+
+          def include_stats?
+            ActiveModel::Type::Boolean.new.cast(params[:include_stats])
           end
 
           def clear_request_params

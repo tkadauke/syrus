@@ -37,8 +37,17 @@ export type AdminBuildCachePayload = {
   recent_requests: BuildCacheClearRequest[]
 }
 
-export function fetchAdminBuildCache() {
-  return getJson<AdminBuildCachePayload>("/api/v1/app/admin/build_cache")
+export type AdminBuildCacheStatsPayload = Pick<AdminBuildCachePayload, "configured" | "stats" | "stats_error">
+
+export function fetchAdminBuildCache(options: { includeStats?: boolean } = {}) {
+  const params = new URLSearchParams()
+  if (options.includeStats) params.set("include_stats", "true")
+  const query = params.toString()
+  return getJson<AdminBuildCachePayload>(`/api/v1/app/admin/build_cache${query ? `?${query}` : ""}`)
+}
+
+export function fetchAdminBuildCacheStats() {
+  return getJson<AdminBuildCacheStatsPayload>("/api/v1/app/admin/build_cache/stats")
 }
 
 export function createBuildCacheClearRequest(params: { scope: BuildCacheClearRequestScope; older_than_days?: number | null; reason: string }) {

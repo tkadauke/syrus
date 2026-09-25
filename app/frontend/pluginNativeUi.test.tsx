@@ -58,6 +58,8 @@ function performancePayload() {
     enabled: true,
     current_revision: "abcdef1234567890",
     revision_scope: "current",
+    filter: { and: [] },
+    filter_schema: [],
     thresholds: {
       slow_request_ms: 1000,
       slow_job_ms: 5000,

@@ -22,6 +22,7 @@ module BuildCache
              domain_subscriber: "BuildCache::Subscribers",
              step_environment: "BuildCache::StepEnvironment"
     route :get, "/api/v1/app/admin/build_cache", to: "api/v1/app/admin/build_cache#show"
+    route :get, "/api/v1/app/admin/build_cache/stats", to: "api/v1/app/admin/build_cache#stats"
     route :post, "/api/v1/app/admin/build_cache/clear_requests", to: "api/v1/app/admin/build_cache#create_clear_request"
     route :post, "/api/v1/app/admin/build_cache/clear_requests/:id/confirm", to: "api/v1/app/admin/build_cache#confirm_clear_request"
     route :post, "/api/v1/app/admin/build_cache/clear_requests/:id/cancel", to: "api/v1/app/admin/build_cache#cancel_clear_request"

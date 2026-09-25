@@ -22,6 +22,13 @@ function seededPerformancePayload() {
     enabled: true,
     current_revision: "e2e0000000000000",
     revision_scope: "current",
+    filter: { and: [{ field: "since", op: "is", value: "1h" }, { field: "revision_scope", op: "is", value: "current" }] },
+    filter_schema: [
+      { field: "app_revision", label: "SHA", bucket: "text", operators: ["is"] },
+      { field: "since", label: "Since", bucket: "text", operators: ["is"] },
+      { field: "until", label: "Until", bucket: "text", operators: ["is"] },
+      { field: "revision_scope", label: "Revision scope", bucket: "enum", operators: ["is"], values: [{ value: "current", label: "Current SHA" }, { value: "all", label: "All SHAs" }] }
+    ],
     thresholds: {
       slow_request_ms: 1000,
       slow_job_ms: 5000,
