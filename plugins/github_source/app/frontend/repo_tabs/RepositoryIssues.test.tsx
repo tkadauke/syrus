@@ -265,6 +265,38 @@ describe("RepositoryIssuesTab", () => {
     )
   })
 
+  it("selects the currently visible issues after a same-folder refresh", async () => {
+    let listFetches = 0
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.includes("/issues/bulk") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(issuesPayload({ folder: "open", issues: [], issue_count: 0, message: "1 issue delegated to Syrus." })))
+      }
+
+      listFetches += 1
+      const currentIssue = listFetches === 1 ? issue({ number: 7, title: "Old issue" }) : issue({ number: 8, title: "Fresh issue" })
+      return Promise.resolve(jsonResponse(issuesPayload({
+        folder: "open",
+        issues: [ currentIssue ],
+        issue_count: 1
+      })))
+    })
+    renderRoute("/repositories/1/plugin/issues?folder=open")
+
+    await screen.findByText("Old issue")
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }))
+    await screen.findByText("Fresh issue")
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all issues" }))
+    fireEvent.click(screen.getByRole("button", { name: "Delegate selected" }))
+
+    await screen.findByText("1 issue delegated to Syrus.")
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/repositories/1/issues/bulk",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_numbers: [ 8 ], bulk_action: "delegate", folder: "open", q: "", sort: "created_at", direction: "desc" }) })
+    )
+  })
+
   it("hides Close selected and the per-row Close action in the closed folder", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
       folder: "closed",

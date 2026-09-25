@@ -134,7 +134,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
       setCommentBody("")
     }
   })
-  const columns = useMemo(() => buildIssueColumns({
+  const columns = buildIssueColumns({
     allSelected,
     commandPending: command.isPending,
     onClose: (issue) => command.mutate({ kind: "close", issueNumber: issue.number }),
@@ -147,7 +147,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
     onToggleAll: toggleAll,
     selected,
     t
-  }), [ allSelected, command.isPending, selected, t ])
+  })
   const preferences = useLocalStorageColumnPreferences({ columns, storageKey: ISSUE_COLUMNS_STORAGE_KEY })
 
   function toggleIssue(number: number) {

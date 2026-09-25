@@ -20,14 +20,14 @@ module GithubSource
         "field" => "author",
         "label" => "Author",
         "bucket" => "string",
-        "operators" => %w[ contains is ],
+        "operators" => %w[ contains ],
         "values" => []
       },
       {
         "field" => "label",
         "label" => "Label",
         "bucket" => "string",
-        "operators" => %w[ contains is ],
+        "operators" => %w[ contains ],
         "values" => []
       },
       {
