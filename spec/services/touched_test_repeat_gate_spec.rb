@@ -128,7 +128,10 @@ RSpec.describe TouchedTestRepeatGate do
       )
 
       expect(result.ran).to be(true)
-      expect(result.command).to eq("bundle exec rspec spec/models/widget_spec.rb")
+      expect(result.command).to eq([
+        "if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi",
+        "bundle exec rspec spec/models/widget_spec.rb"
+      ].join(" && "))
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do

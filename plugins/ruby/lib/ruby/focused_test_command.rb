@@ -22,13 +22,17 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "bundle exec rspec #{Shellwords.join(files)}"
+      "#{rails_test_prepare_command} && bundle exec rspec #{Shellwords.join(files)}"
     end
 
     private
 
     def rspec_grader?
       @grader_name.include?("rspec") || @grader_command.match?(/\brspec\b/)
+    end
+
+    def rails_test_prepare_command
+      "if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi"
     end
 
     def failed_spec_files
