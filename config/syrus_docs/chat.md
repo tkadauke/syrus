@@ -72,6 +72,17 @@ pending-confirmation path as the other six tools, since batching several
 approvals/unapprovals behind one operator confirmation is exactly the
 higher-risk case this infrastructure exists for.
 
+`approve_job` uses the same approval-blocking runtime-work policy as the Job
+detail approve button, dashboard bulk approval, and app lifecycle endpoint. A
+Job can be approved while only non-mutating maintenance/QA work is active
+(`rebase`, `stack_rebase`, `manual_visual_review`, or `visual_diff`), but the
+tool rejects approval while an implementation, feedback, repair, landing,
+deployment, investigation, or unknown/plugin workflow kind still owns active
+runtime work. The single-Job path rejects immediately; the grouped path rejects
+before creating the pending-action group, and each pending `approve_job`
+member re-checks the same predicate when confirmed in case the Job changed
+while waiting for the operator.
+
 A second, higher-risk conditional tier reuses the same array-of-ids pattern
 for `force_fail_job`, `mark_ci_repair_noop`, `admin_retry_step`,
 `reconcile_job_state`, `clear_provider_circuit`,
