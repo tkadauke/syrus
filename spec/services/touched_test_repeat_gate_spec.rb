@@ -138,6 +138,10 @@ RSpec.describe TouchedTestRepeatGate do
     # declining every time.
     it "asks the real Ruby focused_test_command provider even with no base_retry configured" do
       step = grader_step_with({ "name" => "rspec", "command" => "bundle exec rspec" })
+      allow(Open3).to receive(:capture2e).and_return([
+        "Run options: exclude {ci_only: true}\n\nAll examples were filtered out\n",
+        instance_double(Process::Status, success?: false)
+      ])
 
       result = described_class.call(
         grader_step: step,
