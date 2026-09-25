@@ -28,7 +28,7 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "RAILS_ENV=${RAILS_ENV:-test} #{ci_only_env} COVERAGE=false bundle exec rspec #{rspec_tag_args} #{Shellwords.join(files)}"
+      "#{setup_prefix} && RAILS_ENV=${RAILS_ENV:-test} #{ci_only_env} COVERAGE=false bundle exec rspec #{rspec_tag_args} #{Shellwords.join(files)}"
     end
 
     private
@@ -65,6 +65,10 @@ module Ruby
 
     def ci_only_env
       ci_only_grader? ? "RUN_CI_ONLY_SPECS=true" : "RUN_CI_ONLY_SPECS=false"
+    end
+
+    def setup_prefix
+      %(export BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle"; bundle check || bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}")
     end
 
     def ci_only_tag_args

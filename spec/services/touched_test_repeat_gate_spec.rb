@@ -2,6 +2,10 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe TouchedTestRepeatGate do
+  let(:ruby_rspec_setup_prefix) do
+    'export BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle"; bundle check || bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && '
+  end
+
   around do |ex|
     Dir.mktmpdir("syrus-flaky-gate") { |dir| @dir = dir; ex.run }
   end
@@ -194,12 +198,16 @@ RSpec.describe TouchedTestRepeatGate do
         repeats: 1
       )
 
-      expect(result.command).to eq("RAILS_ENV=${RAILS_ENV:-test} RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
+      expect(result.command).to eq("#{ruby_rspec_setup_prefix}RAILS_ENV=${RAILS_ENV:-test} RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
       expect(result.reason).to eq("no_examples_selected")
     end
 
     it "preserves RSpec tag filters when building the real Ruby focused command" do
       step = grader_step_with({ "name" => "rspec", "command" => "bundle exec rspec --tag ~ci_only" })
+      allow(Open3).to receive(:capture2e).and_return([
+        "Run options: exclude {ci_only: true}\n\nAll examples were filtered out\n",
+        instance_double(Process::Status, success?: false, exitstatus: 1)
+      ])
 
       result = described_class.call(
         grader_step: step,
@@ -208,7 +216,7 @@ RSpec.describe TouchedTestRepeatGate do
         repeats: 1
       )
 
-      expect(result.command).to eq("RAILS_ENV=${RAILS_ENV:-test} RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
+      expect(result.command).to eq("#{ruby_rspec_setup_prefix}RAILS_ENV=${RAILS_ENV:-test} RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
       expect(result.reason).to eq("no_examples_selected")
     end
 
