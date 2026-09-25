@@ -219,29 +219,29 @@ function ToolRowsPanel({ heading, rows }: { heading: string; rows: McpToolUsageT
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{heading}</SectionHeading>
       {rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.empty")}</AdminEventPanelMessage> : (
-        <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-          <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-            <tr>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_tool")}</th>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_calls")}</th>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_errors")}</th>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_error_rate")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+        <DataTable.Root wrapperClassName="rounded-none border-0">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("mcp_tool_usage.col_tool")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("mcp_tool_usage.col_calls")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("mcp_tool_usage.col_errors")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("mcp_tool_usage.col_error_rate")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
             {rows.map((row) => (
-              <tr key={`${row.server_name || "-"}.${row.tool_name}`}>
-                <td className="px-4 py-2 align-top">
+              <DataTable.Row key={`${row.server_name || "-"}.${row.tool_name}`}>
+                <DataTable.Cell className="align-top">
                   <div className="font-medium text-gray-900 dark:text-gray-100">{row.tool_name}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">{row.server_name || "-"}</div>
-                </td>
-                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.calls}</td>
-                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.errors}</td>
-                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{Math.round(row.error_rate * 1000) / 10}%</td>
-              </tr>
+                </DataTable.Cell>
+                <DataTable.Cell className="align-top text-gray-700 dark:text-gray-200">{row.calls}</DataTable.Cell>
+                <DataTable.Cell className="align-top text-gray-700 dark:text-gray-200">{row.errors}</DataTable.Cell>
+                <DataTable.Cell className="align-top text-gray-700 dark:text-gray-200">{Math.round(row.error_rate * 1000) / 10}%</DataTable.Cell>
+              </DataTable.Row>
             ))}
-          </tbody>
-        </table>
+          </DataTable.Body>
+        </DataTable.Root>
       )}
     </section>
   )
@@ -274,26 +274,26 @@ function BreakdownPanel({ heading, labelKey, rows }: { heading: string; labelKey
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{heading}</SectionHeading>
       {rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.empty")}</AdminEventPanelMessage> : (
-        <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-          <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-            <tr>
-              <th className="px-4 py-2">{heading}</th>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_calls")}</th>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_errors")}</th>
-              <th className="px-4 py-2">{t("mcp_tool_usage.col_error_rate")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+        <DataTable.Root wrapperClassName="rounded-none border-0">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{heading}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("mcp_tool_usage.col_calls")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("mcp_tool_usage.col_errors")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("mcp_tool_usage.col_error_rate")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
             {rows.map((row) => (
-              <tr key={String(row[labelKey] ?? "unknown")}>
-                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row[labelKey] || t("mcp_tool_usage.unknown")}</td>
-                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.calls}</td>
-                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.errors}</td>
-                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{Math.round(row.error_rate * 1000) / 10}%</td>
-              </tr>
+              <DataTable.Row key={String(row[labelKey] ?? "unknown")}>
+                <DataTable.Cell className="align-top text-gray-700 dark:text-gray-200">{row[labelKey] || t("mcp_tool_usage.unknown")}</DataTable.Cell>
+                <DataTable.Cell className="align-top text-gray-700 dark:text-gray-200">{row.calls}</DataTable.Cell>
+                <DataTable.Cell className="align-top text-gray-700 dark:text-gray-200">{row.errors}</DataTable.Cell>
+                <DataTable.Cell className="align-top text-gray-700 dark:text-gray-200">{Math.round(row.error_rate * 1000) / 10}%</DataTable.Cell>
+              </DataTable.Row>
             ))}
-          </tbody>
-        </table>
+          </DataTable.Body>
+        </DataTable.Root>
       )}
     </section>
   )

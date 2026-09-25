@@ -144,24 +144,22 @@ function CredentialModeComparison() {
   ]
 
   return (
-    <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("installations.col_pat")}</th>
-            <th className="px-4 py-2">{t("installations.col_app")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {rows.map(([pat, app]) => (
-            <tr key={pat}>
-              <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{pat}</td>
-              <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{app}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable.Root>
+      <DataTable.Header>
+        <DataTable.Row>
+          <DataTable.HeadCell>{t("installations.col_pat")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("installations.col_app")}</DataTable.HeadCell>
+        </DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
+        {rows.map(([pat, app]) => (
+          <DataTable.Row key={pat}>
+            <DataTable.Cell className="text-gray-700 dark:text-gray-200">{pat}</DataTable.Cell>
+            <DataTable.Cell className="text-gray-700 dark:text-gray-200">{app}</DataTable.Cell>
+          </DataTable.Row>
+        ))}
+      </DataTable.Body>
+    </DataTable.Root>
   )
 }
 
