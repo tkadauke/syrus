@@ -49,4 +49,19 @@ RSpec.describe "brand icons" do
     expect(manifest).to include("/icon-192.png")
     expect(manifest).to include("/icon-512.png")
   end
+
+  it "keeps the favicon's ?v= in sync with BRAND_ICON_VERSION" do
+    # spa.html.erb is server-rendered ERB and can't import a TS module, so the
+    # version there is a hand-copied literal; this spec is what actually keeps
+    # them from drifting apart, since nothing in app/frontend imports the
+    # constant anymore (the in-app mark is a theme-aware inline SVG now, not
+    # this PNG — see app/frontend/components/SyrusBrand.tsx).
+    brand_icon_ts = File.read(File.join(repo_root, "app/frontend/lib/brandIcon.ts"), encoding: "UTF-8")
+    ts_version = brand_icon_ts[/BRAND_ICON_VERSION\s*=\s*(\d+)/, 1]
+    expect(ts_version).not_to be_nil
+
+    layout = File.read(File.join(repo_root, "app/views/layouts/spa.html.erb"), encoding: "UTF-8")
+    layout_version = layout[%r{href="/icon\.png\?v=(\d+)"}, 1]
+    expect(layout_version).to eq(ts_version)
+  end
 end

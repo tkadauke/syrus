@@ -317,10 +317,9 @@ falls back to for any plugin name it doesn't recognize. A plugin with no
 natural brand mark (internal tooling, a connectivity daemon, etc.) is expected
 to leave `icon_url` unset rather than invent one.
 
-Icons are committed static SVGs under `public/plugin-icons/`, following the
-same convention as the top-level Syrus brand icon (`public/icon.png`,
-`app/frontend/lib/brandIcon.ts`): one small lookup, plain `<img>` rendering, no
-bespoke component per icon, no runtime fetching or generation. They render at
+Icons are committed static SVGs under `public/plugin-icons/`: one small
+lookup, plain `<img>` rendering, no bespoke component per icon, no runtime
+fetching or generation. They render at
 Admin → Plugins, in the agent/chat provider selectors, and next to a
 Workflow's detected-plugins list.
 
