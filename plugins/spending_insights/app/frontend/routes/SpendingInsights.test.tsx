@@ -1,5 +1,5 @@
 import { jsonResponse } from "@app/testSupport"
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -129,7 +129,41 @@ describe("SpendingInsights scope label translation", () => {
     const epicLink = await screen.findByRole("link", { name: "EPIC-181 / Improved bug reports: routing, context, attachments, and transcript" })
     expect(epicLink).toHaveClass("block", "truncate")
     expect(epicLink).toHaveAttribute("title", "EPIC-181 / Improved bug reports: routing, context, attachments, and transcript")
-    expect(epicLink.closest("table")).toHaveClass("table-fixed", "w-full")
+    expect(epicLink.closest("table")).toHaveClass("table-fixed")
+    expect(epicLink.closest("table")?.parentElement).toHaveAttribute("data-data-table-overflow-wrapper", "true")
+  })
+
+  it("renders aggregate tables with shared sortable and configurable table controls", async () => {
+    renderSpending(basePayload({
+      breakdowns: {
+        epics: [
+          { id: 1, label: "Weekly work", path: "/epics/1", jobs_count: 1, total_usd: 10, average_job_usd: 10, display_number: "EPIC-1" },
+          { id: 2, label: "Daily work", path: "/epics/2", jobs_count: 2, total_usd: 20, average_job_usd: 10, display_number: "EPIC-2" }
+        ],
+        users: [],
+        repositories: [],
+        trigger_kinds: []
+      }
+    }))
+
+    const byEpicPanel = (await screen.findByText("By Epic")).closest("section") as HTMLElement
+    expect(within(byEpicPanel).getByRole("button", { name: "Columns" })).toBeInTheDocument()
+
+    let rows = within(byEpicPanel).getAllByRole("row")
+    expect(rows[1]).toHaveTextContent("EPIC-2 / Daily work")
+    expect(rows[2]).toHaveTextContent("EPIC-1 / Weekly work")
+
+    fireEvent.click(within(byEpicPanel).getByRole("button", { name: "Epic" }))
+
+    await waitFor(() => {
+      rows = within(byEpicPanel).getAllByRole("row")
+      expect(rows[1]).toHaveTextContent("EPIC-1 / Weekly work")
+      expect(rows[2]).toHaveTextContent("EPIC-2 / Daily work")
+    })
+
+    fireEvent.click(within(byEpicPanel).getByRole("button", { name: "Columns" }))
+    expect(within(byEpicPanel).getByLabelText("Jobs")).toBeChecked()
+    expect(within(byEpicPanel).getByRole("button", { name: "Move Jobs down" })).toBeInTheDocument()
   })
 
   it("formats spending amounts to cents", async () => {

@@ -20,7 +20,7 @@ import { PanelMessage } from "@app/components/PanelMessage"
 import { errorMessage } from "@app/lib/errorMessage"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { Button, buttonClasses } from "@app/components/Button"
-import { DataTable } from "@app/components/ui"
+import { AdminEventLogTable, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
 
 export function RepositoryScheduledTasksRoute() {
   const { t } = useT("settings")
@@ -99,61 +99,86 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
           {t("scheduled_tasks.no_tasks")}
         </section>
       ) : (
-        <section>
-          <DataTable.Root>
-            <DataTable.Header>
-              <DataTable.Row>
-                <DataTable.HeadCell>{t("scheduled_tasks.name")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("scheduled_tasks.schedule")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("scheduled_tasks.next_window")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("scheduled_tasks.state")}</DataTable.HeadCell>
-                <DataTable.HeadCell align="right">{t("scheduled_tasks.actions")}</DataTable.HeadCell>
-              </DataTable.Row>
-            </DataTable.Header>
-            <DataTable.Body>
-              {payload.tasks.map((task) => (
-                <DataTable.Row key={task.id}>
-                  <DataTable.Cell>
-                    <Link className="font-medium text-brand dark:text-brand-emphasis underline hover:no-underline" to={`${prefix}/scheduled_tasks/${task.id}`}>{task.name}</Link>
-                    <div className="mt-1 max-w-xl truncate text-xs text-gray-500 dark:text-gray-400">{task.prompt}</div>
-                  </DataTable.Cell>
-                  <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">{task.schedule_label || t("scheduled_tasks.none")}</DataTable.Cell>
-                  <DataTable.Cell className="text-gray-700 dark:text-gray-300">
-                    {task.next_fire_at
-                      ? <span title={toRomanDate(task.next_fire_at)}><RelativeTimestamp value={task.next_fire_at} /></span>
-                      : t("scheduled_tasks.none")}
-                  </DataTable.Cell>
-                  <DataTable.Cell><StatePill state={task.state} /></DataTable.Cell>
-                  <DataTable.Cell>
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        disabled={toggle.isPending}
-                        onClick={() => toggle.mutate({ task, enabled: !task.active })}
-                        variant="secondary"
-                      >
-                        {task.active ? t("scheduled_tasks.disable") : t("scheduled_tasks.enable")}
-                      </Button>
-                      <button
-                        className="rounded border border-red-200 dark:border-red-800 px-3 py-1 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
-                        disabled={destroy.isPending}
-                        onClick={async () => {
-                          if (await confirm({ message: t("scheduled_tasks.confirm_delete"), destructive: true })) destroy.mutate(task)
-                        }}
-                        type="button"
-                      >
-                        {t("scheduled_tasks.delete")}
-                      </button>
-                    </div>
-                  </DataTable.Cell>
-                </DataTable.Row>
-              ))}
-            </DataTable.Body>
-          </DataTable.Root>
-        </section>
+        <AdminEventLogTable
+          columns={repositoryTaskColumns({ confirm, destroyPending: destroy.isPending, onDelete: (task) => destroy.mutate(task), onToggle: (task) => toggle.mutate({ task, enabled: !task.active }), prefix, t, togglePending: toggle.isPending })}
+          defaultSort={{ column: "name", direction: "asc" }}
+          getRowKey={(task) => task.id}
+          localSort
+          panel={{ summary: t("scheduled_tasks.heading"), meta: t("scheduled_tasks.table_count", { count: payload.tasks.length }) }}
+          rows={payload.tasks}
+          storageKey="syrus.repository_scheduled_tasks.columns"
+        />
       )}
       {dialog}
     </>
   )
+}
+
+function repositoryTaskColumns({
+  confirm,
+  destroyPending,
+  onDelete,
+  onToggle,
+  prefix,
+  t,
+  togglePending
+}: {
+  confirm: ReturnType<typeof useConfirm>["confirm"]
+  destroyPending: boolean
+  onDelete: (task: RepositoryScheduledTask) => void
+  onToggle: (task: RepositoryScheduledTask) => void
+  prefix: string
+  t: ReturnType<typeof useT>["t"]
+  togglePending: boolean
+}): Array<AdminEventLogTableColumn<RepositoryScheduledTask>> {
+  return [
+    {
+      key: "name",
+      header: t("scheduled_tasks.name"),
+      render: (task) => (
+        <>
+          <Link className="font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${prefix}/scheduled_tasks/${task.id}`}>{task.name}</Link>
+          <div className="mt-1 max-w-xl truncate text-xs text-gray-500 dark:text-gray-400">{task.prompt}</div>
+        </>
+      ),
+      sort: "name",
+      sortValue: (task) => task.name
+    },
+    { key: "schedule", header: t("scheduled_tasks.schedule"), className: "font-mono text-gray-700 dark:text-gray-300", render: (task) => task.schedule_label || t("scheduled_tasks.none"), sort: "schedule", sortValue: (task) => task.schedule_label || "" },
+    {
+      key: "next_window",
+      header: t("scheduled_tasks.next_window"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (task) => task.next_fire_at ? <span title={toRomanDate(task.next_fire_at)}><RelativeTimestamp value={task.next_fire_at} /></span> : t("scheduled_tasks.none"),
+      sort: "next_window",
+      sortValue: (task) => task.next_fire_at || ""
+    },
+    { key: "state", header: t("scheduled_tasks.state"), render: (task) => <StatePill state={task.state} />, sort: "state", sortValue: (task) => task.state },
+    {
+      key: "actions",
+      header: t("scheduled_tasks.actions"),
+      align: "right",
+      pin: "end",
+      render: (task) => (
+        <div className="flex justify-end gap-2">
+          <Button disabled={togglePending} onClick={() => onToggle(task)} variant="secondary">
+            {task.active ? t("scheduled_tasks.disable") : t("scheduled_tasks.enable")}
+          </Button>
+          <button
+            className="rounded border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/50 dark:disabled:text-red-500"
+            disabled={destroyPending}
+            onClick={async () => {
+              if (await confirm({ message: t("scheduled_tasks.confirm_delete"), destructive: true })) onDelete(task)
+            }}
+            type="button"
+          >
+            {t("scheduled_tasks.delete")}
+          </button>
+        </div>
+      ),
+      required: true
+    }
+  ]
 }
 
 function StatePill({ state }: { state: string }) {
@@ -170,4 +195,3 @@ function RepositoryScheduledTasksError({ error }: { error: Error }) {
   const { t } = useT("settings")
   return <PanelMessage tone="error">{errorMessage(error, t("scheduled_tasks.error_load"))}</PanelMessage>
 }
-
