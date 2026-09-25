@@ -13,7 +13,7 @@ type ListMarker = { indent: number; ordered: boolean; value?: number; content: s
 type ListItem = { content: string; nested: ReactNode[]; value?: number }
 type MarkdownProps = { className?: string; text: string; onLinkClick?: MarkdownLinkHandler }
 const MARKDOWN_SAFE_LINE_CHARS = 2_000
-const INLINE_MARKDOWN_PATTERN = /(`[^`]+`|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\)|~~[^~\n]+~~|\*\*[^*]+\*\*|\*[^*\n]+\*)/g
+const INLINE_MARKDOWN_PATTERN = /(`[^`]+`|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\)|~~[^~\n]+~~|\*\*(?:(?!\*\*)[\s\S])+\*\*|\*[^*\n]+\*)/g
 
 export function Markdown({ className, text, onLinkClick }: MarkdownProps) {
   const preview = safeMarkdownPreview(text)
