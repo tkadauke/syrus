@@ -172,7 +172,7 @@ RSpec.describe TouchedTestRepeatGate do
       )
 
       expect(result.ran).to be(true)
-      expect(result.command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
+      expect(result.command).to eq("RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do
