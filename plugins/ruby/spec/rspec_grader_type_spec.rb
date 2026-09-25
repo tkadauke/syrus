@@ -2,6 +2,7 @@ require "rails_helper"
 require "open3"
 require "tmpdir"
 require "fileutils"
+require "tempfile"
 
 RSpec.describe Ruby::RspecGraderType do
   it "registers the rspec type name" do
@@ -230,6 +231,12 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.run).to include("RUN_CI_ONLY_SPECS=true bundle exec rspec")
     expect(step.run).to include("--tag ci_only")
     expect(step.run).to include("serial_status")
+
+    Tempfile.create([ "rspec-ci-grader", ".sh" ]) do |file|
+      file.write(step.run)
+      file.flush
+      expect(system("bash", "-n", file.path)).to be(true)
+    end
   end
 
   it "supports direct parallel_rspec command generation without a worker wrapper" do
