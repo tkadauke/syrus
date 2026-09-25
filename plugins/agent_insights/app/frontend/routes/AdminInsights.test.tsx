@@ -51,8 +51,112 @@ function makeMeta(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function payload(suggestions: unknown[] = [makeSuggestion()], meta = makeMeta({ total: suggestions.length })) {
-  return { suggestions, meta }
+function makeSmartFolders(activeId = 1) {
+  return [
+    {
+      id: 1,
+      name: "Pending",
+      i18n_key: "agent_insights_pending",
+      position: 0,
+      kind: "builtin",
+      subject_type: "agent_insight",
+      visibility: "always",
+      count: 1,
+      active: activeId === 1,
+      filter: { and: [{ field: "state", op: "is", value: "pending" }] },
+      path: "/admin/insights?smart_folder_id=1"
+    },
+    {
+      id: 2,
+      name: "Accepted",
+      i18n_key: "agent_insights_accepted",
+      position: 1,
+      kind: "builtin",
+      subject_type: "agent_insight",
+      visibility: "always",
+      count: 0,
+      active: activeId === 2,
+      filter: { and: [{ field: "state", op: "is", value: "accepted" }] },
+      path: "/admin/insights?smart_folder_id=2"
+    },
+    {
+      id: 3,
+      name: "Dismissed",
+      i18n_key: "agent_insights_dismissed",
+      position: 2,
+      kind: "builtin",
+      subject_type: "agent_insight",
+      visibility: "always",
+      count: 0,
+      active: activeId === 3,
+      filter: { and: [{ field: "state", op: "is", value: "dismissed" }] },
+      path: "/admin/insights?smart_folder_id=3"
+    },
+    {
+      id: 4,
+      name: "Retired",
+      i18n_key: "agent_insights_retired",
+      position: 3,
+      kind: "builtin",
+      subject_type: "agent_insight",
+      visibility: "always",
+      count: 0,
+      active: activeId === 4,
+      filter: { and: [{ field: "state", op: "is", value: "retired" }] },
+      path: "/admin/insights?smart_folder_id=4"
+    },
+    {
+      id: 5,
+      name: "All",
+      i18n_key: "agent_insights_all",
+      position: 4,
+      kind: "builtin",
+      subject_type: "agent_insight",
+      visibility: "always",
+      count: 1,
+      active: activeId === 5,
+      filter: { and: [] },
+      path: "/admin/insights?smart_folder_id=5"
+    }
+  ]
+}
+
+const filterSchema = [
+  {
+    bucket: "enum",
+    field: "state",
+    label: "State",
+    operators: ["is"],
+    values: [
+      { label: "Pending", value: "pending" },
+      { label: "Accepted", value: "accepted" },
+      { label: "Dismissed", value: "dismissed" },
+      { label: "Retired", value: "retired" }
+    ]
+  },
+  {
+    bucket: "enum",
+    field: "severity",
+    label: "Severity",
+    operators: ["is"],
+    values: [
+      { label: "High", value: "high" },
+      { label: "Medium", value: "medium" },
+      { label: "Low", value: "low" }
+    ]
+  }
+]
+
+function payload(suggestions: unknown[] = [makeSuggestion()], meta = makeMeta({ total: suggestions.length }), overrides: Record<string, unknown> = {}) {
+  return {
+    active_smart_folder_id: 1,
+    filter: { and: [{ field: "state", op: "is", value: "pending" }] },
+    filter_schema: filterSchema,
+    smart_folders: makeSmartFolders(),
+    suggestions,
+    meta,
+    ...overrides
+  }
 }
 
 function renderInsightsRoute() {
@@ -87,7 +191,7 @@ describe("AdminInsightsRoute", () => {
       renderInsightsRoute()
 
       expect(screen.getByRole("heading", { level: 1, name: "Insights" })).toBeInTheDocument()
-      expect(screen.getByText("Agent Insights")).toBeInTheDocument()
+      expect(screen.getByText("Admin")).toBeInTheDocument()
       expect(screen.getByText("Loading insights…")).toBeInTheDocument()
     })
 
@@ -113,7 +217,7 @@ describe("AdminInsightsRoute", () => {
 
       expect(await screen.findByText("Unable to load insights.")).toBeInTheDocument()
       expect(screen.getByRole("heading", { level: 1, name: "Insights" })).toBeInTheDocument()
-      expect(screen.getByText("Agent Insights")).toBeInTheDocument()
+      expect(screen.getByText("Admin")).toBeInTheDocument()
     })
 
     it("renders the page heading and eyebrow once the suggestions load", async () => {
@@ -122,7 +226,7 @@ describe("AdminInsightsRoute", () => {
       await screen.findByText("Cross-repo cache miss")
 
       expect(screen.getByRole("heading", { level: 1, name: "Insights" })).toBeInTheDocument()
-      expect(screen.getByText("Agent Insights")).toBeInTheDocument()
+      expect(screen.getByText("Admin")).toBeInTheDocument()
     })
   })
 
@@ -137,32 +241,25 @@ describe("AdminInsightsRoute", () => {
     })
 
     it("renders pagination controls when total_pages > 1", async () => {
-      const suggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Admin Suggestion ${i + 1}` })
-      )
+      const suggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Admin Suggestion ${i + 1}` }))
       renderRoute(suggestions, { total: 25, page: 1, per_page: 20, total_pages: 2 })
 
-      await screen.findByText("Showing 1–20 of 25")
+      await waitFor(() => expect(screen.getAllByText("Showing 1–20 of 25").length).toBeGreaterThan(0))
 
-      expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument()
+      expect(screen.getAllByRole("button", { name: "Next" }).length).toBeGreaterThan(0)
     })
 
     it("Previous is disabled (not a button) on page 1", async () => {
-      const suggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Admin Suggestion ${i + 1}` })
-      )
+      const suggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Admin Suggestion ${i + 1}` }))
       renderRoute(suggestions, { total: 25, page: 1, per_page: 20, total_pages: 2 })
 
-      await screen.findByText("Showing 1–20 of 25")
+      await waitFor(() => expect(screen.getAllByText("Showing 1–20 of 25").length).toBeGreaterThan(0))
 
-      expect(screen.queryByRole("button", { name: "Previous" })).not.toBeInTheDocument()
-      expect(screen.getByText("Previous")).toBeInTheDocument()
+      expect(screen.getAllByRole("button", { name: "Previous" }).every((button) => button.hasAttribute("disabled"))).toBe(true)
     })
 
     it("clicking Next re-fetches with page=2", async () => {
-      const page1Suggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Admin Suggestion ${i + 1}` })
-      )
+      const page1Suggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Admin Suggestion ${i + 1}` }))
       const page2Suggestions = [makeSuggestion({ id: 21, title: "Admin Suggestion 21" })]
 
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -184,47 +281,78 @@ describe("AdminInsightsRoute", () => {
         </QueryClientProvider>
       )
 
-      await screen.findByText("Showing 1–20 of 21")
+      await waitFor(() => expect(screen.getAllByRole("button", { name: "Next" }).length).toBeGreaterThan(0))
 
-      fireEvent.click(screen.getByRole("button", { name: "Next" }))
+      fireEvent.click(screen.getAllByRole("button", { name: "Next" })[0])
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("page=2"),
-          expect.anything()
-        )
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("page=2"), expect.anything())
       })
     })
 
-    it("clicking a state tab re-fetches page 1 with that state", async () => {
+    it("uses smart folders instead of the old state tabs", async () => {
       const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload([makeSuggestion()])))
 
       renderRoute()
 
-      const dismissedTab = await screen.findByRole("button", { name: /Dismissed/ })
-      fireEvent.click(dismissedTab)
+      const dismissedFolder = await screen.findByRole("link", { name: /Dismissed/ })
+      fireEvent.click(dismissedFolder)
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("state=dismissed"),
-          expect.anything()
-        )
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("smart_folder_id=3"), expect.anything())
       })
+      expect(screen.queryByRole("button", { name: /Dismissed/ })).not.toBeInTheDocument()
     })
 
-    it("clicking the Retired tab re-fetches with state=retired", async () => {
+    it("clicking a sortable table header re-fetches with sort params", async () => {
       const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload([makeSuggestion()])))
 
       renderRoute()
 
-      const retiredTab = await screen.findByRole("button", { name: /Retired/ })
-      fireEvent.click(retiredTab)
+      fireEvent.click(await screen.findByRole("button", { name: "Repository" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("state=retired"),
-          expect.anything()
-        )
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("sort=repository"), expect.anything())
+      })
+    })
+
+    it("keeps saved smart folder redirects on the admin insights route", async () => {
+      const editedFilterPayload = payload([makeSuggestion()], makeMeta(), {
+        filter: { and: [{ field: "severity", op: "is", value: "high" }] }
+      })
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const url = String(input)
+        if (url.endsWith("/api/v1/app/smart_folders") && init?.method === "POST") {
+          return Promise.resolve(
+            jsonResponse({
+              message: "Smart folder created.",
+              redirect_to: "/agent_insights?smart_folder_id=42",
+              smart_folder: {
+                id: 42,
+                name: "High severity",
+                position: 0,
+                kind: "user_defined",
+                subject_type: "agent_insight",
+                visibility: "always",
+                count: 1,
+                active: true,
+                filter: { and: [{ field: "severity", op: "is", value: "high" }] },
+                path: "/agent_insights?smart_folder_id=42"
+              }
+            })
+          )
+        }
+
+        return Promise.resolve(jsonResponse(editedFilterPayload))
+      })
+
+      renderInsightsRoute()
+
+      fireEvent.change(await screen.findByLabelText("Folder name"), { target: { value: "High severity" } })
+      fireEvent.click(screen.getByRole("button", { name: "Save as new folder" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("/api/v1/app/admin/insights?smart_folder_id=42"), expect.anything())
       })
     })
   })
@@ -258,7 +386,13 @@ describe("AdminInsightsRoute", () => {
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
         const url = String(input)
         if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
-          return Promise.resolve(jsonResponse({ message: "Memory removed and suggestion accepted.", suggestion: makeSuggestion({ ...removeMemory, state: "accepted" }), memory_id: 88 }))
+          return Promise.resolve(
+            jsonResponse({
+              message: "Memory removed and suggestion accepted.",
+              suggestion: makeSuggestion({ ...removeMemory, state: "accepted" }),
+              memory_id: 88
+            })
+          )
         }
         return Promise.resolve(jsonResponse(payload([removeMemory])))
       })
@@ -270,10 +404,7 @@ describe("AdminInsightsRoute", () => {
       fireEvent.click(screen.getByRole("button", { name: "Remove memory" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1",
-          expect.objectContaining({ method: "PATCH" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
       })
     })
   })

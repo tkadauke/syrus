@@ -10,32 +10,46 @@ module Api
 
           PER_PAGE = 20
           STATES = %w[pending accepted dismissed retired all].freeze
+          SORTS = {
+            "title" => [ "agent_insight_suggestions.title" ],
+            "repository" => [ "repositories.owner", "repositories.name" ],
+            "user" => [ "users.display_name" ],
+            "severity" => [ "CASE agent_insight_suggestions.severity WHEN 'high' THEN 2 WHEN 'medium' THEN 1 ELSE 0 END" ],
+            "confidence" => [ "agent_insight_suggestions.confidence" ],
+            "state" => [ "agent_insight_suggestions.state" ],
+            "created" => [ "agent_insight_suggestions.created_at" ]
+          }.freeze
 
           def index
             AgentInsights::Suggestion.resolve_obsolete_remove_memory!
 
             page     = page_param
             per_page = per_page_param
-            state    = state_param
 
             base_relation = AgentInsights::Suggestion
-              .includes(:job, :repository, :created_job)
-              .order(Arel.sql("CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, confidence DESC, agent_insight_suggestions.created_at DESC"))
+              .left_outer_joins(:repository, job: :user)
+              .includes(:repository, :created_job, job: :user)
 
-            relation    = state == "all" ? base_relation : base_relation.where(state: state)
+            filter      = current_filter
+            relation    = order_relation(filter.apply(base_relation))
             total       = relation.count
             total_pages = [ (total.to_f / per_page).ceil, 1 ].max
             suggestions = relation.offset((page - 1) * per_page).limit(per_page)
+            count_relation = current_filter(active_folder: nil, raw_params: count_filter_params).apply(AgentInsights::Suggestion.all)
 
             render json: {
               suggestions: suggestions.map { |s| admin_suggestion_json(s) },
+              filter: filter.to_h,
+              filter_schema: AgentInsights::Filter.schema,
+              active_smart_folder_id: active_smart_folder&.id,
+              smart_folders: smart_folders,
               meta: {
                 total:       total,
                 page:        page,
                 per_page:    per_page,
                 total_pages: total_pages,
-                state:       state,
-                counts:      state_counts(AgentInsights::Suggestion.all)
+                state:       legacy_state_for_meta,
+                counts:      state_counts(count_relation)
               }
             }
           end
@@ -71,9 +85,54 @@ module Api
 
           private
 
-          def state_param
+          def current_filter(active_folder: self.active_smart_folder, raw_params: params)
+            smart_folder = AgentInsights::Filter.smart_folder_floor(raw_params, active_folder, user: Current.user)
+            AgentInsights::Filter.from_params(raw_params, smart_folder: smart_folder, user: Current.user)
+          end
+
+          def active_smart_folder
+            @active_smart_folder ||= begin
+              explicit_folder = ::Admin::SmartFolderNavigation.active_folder(
+                subject: AgentInsights::SmartFolders::SUBJECT,
+                user: Current.user,
+                params: params
+              )
+              explicit_folder || default_smart_folder
+            end
+          end
+
+          def default_smart_folder
+            return if smart_folder_param_present?
+            return if params[::Filters::QueryParam::PARAM_NAME].present?
+            return if params[:state].present?
+
+            AgentInsights::SmartFolders.default_folder
+          end
+
+          def smart_folder_param_present?
+            params.key?(:smart_folder_id) || params.key?("smart_folder_id")
+          end
+
+          def count_filter_params
+            params.except(:smart_folder_id, "smart_folder_id", :state, "state")
+          end
+
+          def smart_folders
+            ::SmartFolder.ensure_builtins_for_subject!(AgentInsights::SmartFolders::SUBJECT)
+            ::Admin::SmartFolderNavigation.new(
+              subject: AgentInsights::SmartFolders::SUBJECT,
+              user: Current.user,
+              active_folder: active_smart_folder,
+              base_scope: AgentInsights::Suggestion.all,
+              filter_class: AgentInsights::Filter
+            ).folders.map do |folder|
+              folder.merge(path: folder.fetch(:path).sub(%r{\A/agent_insights}, "/admin/insights"))
+            end
+          end
+
+          def legacy_state_for_meta
             state = params[:state].to_s
-            STATES.include?(state) ? state : "all"
+            STATES.include?(state) ? state : active_smart_folder&.name&.downcase.presence_in(STATES) || "all"
           end
 
           def state_counts(relation)
@@ -85,6 +144,22 @@ module Api
               retired:   counts.fetch("retired", 0),
               all:       counts.values.sum
             }
+          end
+
+          def order_relation(scope)
+            columns = SORTS.fetch(sort_param, SORTS.fetch("severity"))
+            ordered_columns = columns.map { |column| "#{column} #{direction.upcase}" }
+            ordered_columns << "agent_insight_suggestions.created_at DESC"
+            ordered_columns << "agent_insight_suggestions.id DESC"
+            scope.order(Arel.sql(ordered_columns.join(", ")))
+          end
+
+          def sort_param
+            SORTS.key?(params[:sort].to_s) ? params[:sort].to_s : "severity"
+          end
+
+          def direction
+            params[:direction].to_s == "asc" ? "asc" : "desc"
           end
 
           def require_agent_insights_feature

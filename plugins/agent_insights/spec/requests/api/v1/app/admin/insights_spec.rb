@@ -108,6 +108,42 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       )
     end
 
+    it "returns FilterBar controls and agent insight smart folders" do
+      create_suggestion(title: "Pending")
+      accepted = create_suggestion(title: "Accepted")
+      accepted.accept!
+
+      get "/api/v1/app/admin/insights"
+
+      body = parse_body
+      expect(body["filter"]).to include("and")
+      expect(body["filter_schema"].map { |field| field["field"] }).to include("state", "severity", "proposal_type")
+      expect(body["active_smart_folder_id"]).to be_present
+      expect(body["smart_folders"].map { |folder| folder["name"] }).to include("Pending", "Accepted", "Dismissed", "Retired", "All")
+      expect(body["smart_folders"].map { |folder| folder["path"] }).to all(start_with("/admin/insights"))
+      expect(body["suggestions"].map { |suggestion| suggestion["id"] }).to eq([ AgentInsights::Suggestion.find_by!(title: "Pending").id ])
+    end
+
+    it "applies admin insight smart folders" do
+      pending_suggestion = create_suggestion(title: "Pending")
+      accepted = create_suggestion(title: "Accepted")
+      accepted.accept!
+      SmartFolder.ensure_builtins_for_subject!(AgentInsights::SmartFolders::SUBJECT)
+      accepted_folder = SmartFolder.for_subject(AgentInsights::SmartFolders::SUBJECT).find_by!(name: "Accepted")
+
+      get "/api/v1/app/admin/insights", params: { smart_folder_id: accepted_folder.id }
+
+      body = parse_body
+      expect(body["suggestions"].map { |suggestion| suggestion["id"] }).to eq([ accepted.id ])
+      expect(body["active_smart_folder_id"]).to eq(accepted_folder.id)
+      expect(body.dig("meta", "counts")).to include(
+        "pending"  => 1,
+        "accepted" => 1,
+        "all"      => 2
+      )
+      expect(body["suggestions"].map { |suggestion| suggestion["id"] }).not_to include(pending_suggestion.id)
+    end
+
     it "filters suggestions by state and returns unfiltered state counts" do
       create_suggestion(title: "Pending")
       accepted = create_suggestion(title: "Accepted")
@@ -205,6 +241,16 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       expect(response).to have_http_status(:ok)
       ids = parse_body["suggestions"].map { |s| s["id"] }
       expect(ids).to eq([ s_high.id, s_medium.id, s_low.id ])
+    end
+
+    it "sorts suggestions by table sort parameters" do
+      low_confidence = create_suggestion(title: "Low confidence", confidence: 0.1)
+      high_confidence = create_suggestion(title: "High confidence", confidence: 0.9)
+
+      get "/api/v1/app/admin/insights", params: { sort: "confidence", direction: "asc" }
+
+      ids = parse_body["suggestions"].map { |s| s["id"] }
+      expect(ids).to eq([ low_confidence.id, high_confidence.id ])
     end
 
     it "returns the expected fields for each suggestion" do
