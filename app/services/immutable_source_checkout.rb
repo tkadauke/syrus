@@ -288,7 +288,8 @@ class ImmutableSourceCheckout
       "prepare_fingerprint" => prepare_cache.prepare_fingerprint,
       "prepare_cache_key" => prepare_cache.cache_key,
       "prepared_at" => Time.current.iso8601,
-      "prepare_source" => plan.source
+      "prepare_source" => plan.source,
+      "install_artifacts" => InstallArtifactManifest.capture(path)
     ))
   end
 
@@ -410,6 +411,8 @@ class ImmutableSourceCheckout
     verify_head!(snapshot)
     ensure_base_ref!
     ensure_exclude_entry
+    raise "restored prepare cache artifacts failed validation" unless InstallArtifactManifest.valid?(path)
+
     log("[immutable_source_checkout] restored checkout from local prepare cache before fetching source snapshot")
     true
   rescue StandardError => e
@@ -594,7 +597,7 @@ class ImmutableSourceCheckout
     end
 
     def hit?
-      marker_path.file? && marker_matches?
+      marker_path.file? && marker_matches? && artifacts_match?(path)
     end
 
     def store_from!(checkout_path)
@@ -670,6 +673,12 @@ class ImmutableSourceCheckout
       false
     end
 
+    def artifacts_match?(root)
+      InstallArtifactManifest.matches?(root, JSON.parse(marker_path.read)["install_artifacts"])
+    rescue Errno::ENOENT, JSON::ParserError
+      false
+    end
+
     def fingerprint_for(plan)
       PreparedWorkspaceArchive.prepare_fingerprint_for(plan)
     end
@@ -683,6 +692,143 @@ class ImmutableSourceCheckout
         PREPARE_CACHE_LOCK_ROOT,
         "#{Digest::SHA256.hexdigest(cache_key)}.lock"
       )
+    end
+  end
+
+  class InstallArtifactManifest
+    NODE_LOCKFILES = %w[pnpm-lock.yaml yarn.lock package-lock.json].freeze
+
+    def self.capture(...)
+      new(...).capture
+    end
+
+    def self.matches?(...)
+      new(...).matches?
+    end
+
+    def self.valid?(root)
+      root = Pathname.new(root)
+      marker = root.join(PREPARED_MARKER)
+      return false unless marker.file?
+
+      matches?(root, JSON.parse(marker.read)["install_artifacts"])
+    rescue JSON::ParserError
+      false
+    end
+
+    def initialize(root, manifest = nil)
+      @root = Pathname.new(root)
+      @manifest = manifest
+    end
+
+    def capture
+      { "node" => node_manifest }.compact
+    end
+
+    def matches?
+      return !node_artifacts_expected? unless @manifest.is_a?(Hash)
+
+      node_matches?(@manifest["node"])
+    end
+
+    private
+
+    attr_reader :root
+
+    def node_manifest
+      return nil unless root.join("node_modules").directory?
+
+      {
+        "lockfile" => node_lockfile&.basename&.to_s,
+        "lockfile_sha256" => node_lockfile && Digest::SHA256.file(node_lockfile).hexdigest,
+        "package_json_sha256" => package_json_sha256,
+        "bins" => installed_node_bins
+      }.compact
+    end
+
+    def node_matches?(manifest)
+      return !node_artifacts_expected? if manifest.nil?
+      return false unless manifest.is_a?(Hash)
+      return false unless node_metadata_matches?(manifest)
+
+      Array(manifest["bins"]).all? do |bin|
+        relative_path_exists?(bin)
+      end
+    end
+
+    def node_metadata_matches?(manifest)
+      lockfile = manifest["lockfile"].presence
+      if lockfile
+        path = root.join(lockfile)
+        return false unless path.file?
+        return false unless Digest::SHA256.file(path).hexdigest == manifest["lockfile_sha256"]
+      end
+
+      package_sha = manifest["package_json_sha256"].presence
+      return true unless package_sha
+
+      package_json = root.join("package.json")
+      package_json.file? && Digest::SHA256.file(package_json).hexdigest == package_sha
+    end
+
+    def relative_path_exists?(relative_path)
+      path = root.join(relative_path.to_s)
+      path.file? || path.symlink?
+    end
+
+    def node_artifacts_expected?
+      root.join("node_modules").directory? && (
+        root.join("package.json").file? || NODE_LOCKFILES.any? { |name| root.join(name).file? }
+      )
+    end
+
+    def node_lockfile
+      NODE_LOCKFILES.map { |name| root.join(name) }.find(&:file?)
+    end
+
+    def package_json_sha256
+      package_json = root.join("package.json")
+      return nil unless package_json.file?
+
+      Digest::SHA256.file(package_json).hexdigest
+    end
+
+    def installed_node_bins
+      node_modules = root.join("node_modules")
+      package_json_paths = node_modules.children.select(&:directory?).flat_map do |entry|
+        if entry.basename.to_s.start_with?("@")
+          entry.children.select(&:directory?).map { |child| child.join("package.json") }
+        else
+          [ entry.join("package.json") ]
+        end
+      end
+
+      package_json_paths.flat_map { |path| bins_for_package(path) }
+        .uniq
+        .sort
+    rescue Errno::ENOENT
+      []
+    end
+
+    def bins_for_package(path)
+      package = JSON.parse(path.read)
+      raw = package["bin"]
+      names =
+        if raw.is_a?(Hash)
+          raw.keys
+        elsif raw.is_a?(String)
+          [ package["name"] ]
+        else
+          []
+        end
+
+      names.filter_map do |name|
+        next if name.blank?
+
+        "node_modules/.bin/#{name}"
+      end
+    rescue Errno::ENOENT, JSON::ParserError
+      []
     end
   end
 end
