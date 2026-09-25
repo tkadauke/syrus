@@ -4,9 +4,8 @@
 // Surfaces that already have a plugin's `icon_url` from the admin API should
 // render that value directly; this lookup is for surfaces that only know a
 // plugin by name (provider selectors, the Workflow detected-plugins list)
-// and don't fetch the full admin payload. Follows the same convention as
-// app/frontend/lib/brandIcon.ts: one file, a small lookup, plain rendering,
-// no bespoke component per icon.
+// and don't fetch the full admin payload: one file, a small lookup, plain
+// rendering, no bespoke component per icon.
 const FALLBACK_ICON_URL = "/plugin-icons/spqr_eagle.svg"
 
 const KNOWN_PLUGIN_ICONS: Record<string, string> = {
