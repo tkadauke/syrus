@@ -1484,6 +1484,10 @@ describe("AppChromeV2 desktop sidebar collapse", () => {
     expect(newGroupChatButton.className).toContain("p-1")
     expect(newGroupChatButton.className).not.toContain("px-2.5")
     expect(newGroupChatButton.className).not.toContain("h-[var(--control-height-sm)]")
+    expect(newChatButton.parentElement).toBe(newGroupChatButton.parentElement)
+    expect(newChatButton.parentElement?.className).toContain("flex")
+    expect(newChatButton.parentElement?.className).toContain("flex-col")
+    expect(newChatButton.parentElement?.className).toContain("items-center")
 
     fireEvent.click(separator)
 
