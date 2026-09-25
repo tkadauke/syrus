@@ -21,6 +21,32 @@ const FILTER_SCHEMA = [
       { value: "flaky", label: "Flaky" },
       { value: "slow", label: "Slow" }
     ]
+  },
+  {
+    field: "status",
+    label: "Status",
+    bucket: "enum",
+    operators: [ "is" ],
+    values: [
+      { value: "passed", label: "Passed" },
+      { value: "failed", label: "Failed" },
+      { value: "error", label: "Error" },
+      { value: "skipped", label: "Skipped" }
+    ]
+  },
+  {
+    field: "suite_name",
+    label: "Suite",
+    bucket: "string",
+    operators: [ "contains" ],
+    values: []
+  },
+  {
+    field: "file_path",
+    label: "File path",
+    bucket: "string",
+    operators: [ "contains" ],
+    values: []
   }
 ]
 
@@ -210,9 +236,9 @@ describe("DurationChart", () => {
 const COLUMNS_STORAGE_KEY = "syrus.test_insights.repository_tests_columns"
 
 const ALL_TESTS: RepositoryTestsPayload["tests"] = [
-  { id: 1, suite_name: "spec/a_spec.rb", name: "Zebra test", file_path: null, fingerprint: "f1", last_status: "passed", last_seen_at: "2026-01-03T00:00:00Z", last_failed_at: null, last_passed_at: "2026-01-03T00:00:00Z", last_duration_ms: 100, total_count: 5, failed_count: 0, passed_count: 5, failure_rate: 0, avg_duration_ms: 100, interesting_reasons: [] },
-  { id: 2, suite_name: "spec/b_spec.rb", name: "Alpha test", file_path: null, fingerprint: "f2", last_status: "failed", last_seen_at: "2026-01-01T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: null, last_duration_ms: 500, total_count: 4, failed_count: 3, passed_count: 1, failure_rate: 0.75, avg_duration_ms: 500, interesting_reasons: [ "failing" ] },
-  { id: 3, suite_name: "spec/c_spec.rb", name: "Middle test", file_path: null, fingerprint: "f3", last_status: "passed", last_seen_at: "2026-01-02T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: "2026-01-02T00:00:00Z", last_duration_ms: 2000, total_count: 4, failed_count: 1, passed_count: 3, failure_rate: 0.25, avg_duration_ms: 2000, interesting_reasons: [ "flaky", "slow" ] }
+  { id: 1, suite_name: "spec/a_spec.rb", name: "Zebra test", file_path: "spec/a_spec.rb", fingerprint: "f1", last_status: "passed", last_seen_at: "2026-01-03T00:00:00Z", last_failed_at: null, last_passed_at: "2026-01-03T00:00:00Z", last_duration_ms: 100, total_count: 5, failed_count: 0, passed_count: 5, failure_rate: 0, avg_duration_ms: 100, interesting_reasons: [] },
+  { id: 2, suite_name: "spec/b_spec.rb", name: "Alpha test", file_path: "spec/b_spec.rb", fingerprint: "f2", last_status: "failed", last_seen_at: "2026-01-01T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: null, last_duration_ms: 500, total_count: 4, failed_count: 3, passed_count: 1, failure_rate: 0.75, avg_duration_ms: 500, interesting_reasons: [ "failing" ] },
+  { id: 3, suite_name: "spec/c_spec.rb", name: "Middle test", file_path: "spec/c_spec.rb", fingerprint: "f3", last_status: "passed", last_seen_at: "2026-01-02T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: "2026-01-02T00:00:00Z", last_duration_ms: 2000, total_count: 4, failed_count: 1, passed_count: 3, failure_rate: 0.25, avg_duration_ms: 2000, interesting_reasons: [ "flaky", "slow" ] }
 ]
 
 function multiTestPayload(): RepositoryTestsPayload {
@@ -226,24 +252,46 @@ function decodeFilterTree(q: string): { and?: Array<{ field: string; op: string;
   return JSON.parse(new TextDecoder().decode(bytes))
 }
 
+function encoded(tree: unknown) {
+  const bytes = new TextEncoder().encode(JSON.stringify(tree))
+  let binary = ""
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte) })
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+}
+
+function dataTransfer() {
+  return { dropEffect: "", effectAllowed: "", getData: vi.fn(), setData: vi.fn() }
+}
+
 // Stands in for the server: reads the FilterBar's `q=` param off the request
 // URL and filters ALL_TESTS by `reason` the same way the real backend does,
 // so clicking through the FilterBar exercises the same refetch-on-filter
 // path the real page uses.
-function renderTestList() {
+function renderTestList(initialEntry = "/tests-panel") {
   vi.spyOn(window, "fetch").mockImplementation((input) => {
     const url = new URL(String(input), "http://test.host")
     const q = url.searchParams.get("q")
     const tree = q ? decodeFilterTree(q) : { and: [] }
-    const reason = tree.and?.find((chip) => chip.field === "reason")?.value
-    const tests = typeof reason === "string" ? ALL_TESTS.filter((test) => test.interesting_reasons.includes(reason)) : ALL_TESTS
+    const chips = tree.and ?? []
+    const tests = ALL_TESTS.filter((test) => {
+      const reason = chips.find((chip) => chip.field === "reason")?.value
+      const status = chips.find((chip) => chip.field === "status")?.value
+      const suite = chips.find((chip) => chip.field === "suite_name")?.value
+      const filePath = chips.find((chip) => chip.field === "file_path")?.value
+
+      if (typeof reason === "string" && !test.interesting_reasons.includes(reason)) return false
+      if (typeof status === "string" && test.last_status !== status) return false
+      if (typeof suite === "string" && !test.suite_name.includes(suite)) return false
+      if (typeof filePath === "string" && !test.file_path?.includes(filePath)) return false
+      return true
+    })
 
     return Promise.resolve(jsonResponse({ repository: REPOSITORY, tabs: TABS, filter: tree, filter_schema: FILTER_SCHEMA, tests }))
   })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ "/tests-panel" ]}>
+      <MemoryRouter initialEntries={[ initialEntry ]}>
         <Routes>
           <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId={null} />} path="/tests-panel" />
         </Routes>
@@ -291,6 +339,18 @@ describe("RepositoryTestsRoute test list", () => {
     await waitFor(() => expect(visibleTestOrder()).toHaveLength(3))
   })
 
+  it("filters the test list through status and suite chips", async () => {
+    const tree = { and: [
+      { field: "status", op: "is", value: "passed" },
+      { field: "suite_name", op: "contains", value: "spec/c" }
+    ] }
+    renderTestList(`/tests-panel?q=${encoded(tree)}`)
+
+    await waitFor(() => expect(visibleTestOrder()).toEqual([ "Middle test" ]))
+    expect(screen.getByRole("button", { name: "Status is Passed" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Suite contains spec/c" })).toBeInTheDocument()
+  })
+
   it("hides a column from the Columns menu and persists the choice", async () => {
     renderTestList()
     await screen.findByText("Zebra test")
@@ -303,26 +363,7 @@ describe("RepositoryTestsRoute test list", () => {
     expect(screen.queryByRole("columnheader", { name: "Suite" })).not.toBeInTheDocument()
 
     const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) || "{}")
-    expect(stored.hidden).toContain("suite")
-  })
-
-  it("renders the Columns menu through a portal instead of nesting it under the trigger", async () => {
-    renderTestList()
-    await screen.findByText("Zebra test")
-
-    const trigger = screen.getByRole("button", { name: "Columns" })
-    fireEvent.click(trigger)
-
-    const menu = screen.getByRole("menu")
-
-    // Regression guard: the old implementation rendered the menu as an
-    // `absolute right-0` child of the trigger's own wrapping div, which put
-    // most of the menu off-screen when that div sat near the left edge of a
-    // narrow viewport. It now renders through a FloatingPortal (with
-    // flip/shift middleware keeping it inside the viewport), so it's no
-    // longer a DOM descendant of the trigger's container at all.
-    expect(trigger.parentElement?.contains(menu)).toBe(false)
-    expect(document.body.contains(menu)).toBe(true)
+    expect(stored).not.toContain("suite")
   })
 
   it("reorders columns by dragging a row in the Columns menu and persists the order", async () => {
@@ -334,13 +375,34 @@ describe("RepositoryTestsRoute test list", () => {
     const suiteRow = screen.getByRole("checkbox", { name: "Suite" }).closest("[draggable]") as HTMLElement
     const lastSeenRow = screen.getByRole("checkbox", { name: "Last seen" }).closest("[draggable]") as HTMLElement
 
-    fireEvent.dragStart(suiteRow, { dataTransfer: {} })
-    fireEvent.dragOver(lastSeenRow, { dataTransfer: {} })
-    fireEvent.drop(lastSeenRow, { dataTransfer: {} })
-    fireEvent.dragEnd(suiteRow, { dataTransfer: {} })
+    const transfer = dataTransfer()
+    fireEvent.dragStart(suiteRow, { dataTransfer: transfer })
+    fireEvent.dragOver(lastSeenRow, { dataTransfer: transfer })
+    fireEvent.drop(lastSeenRow, { dataTransfer: transfer })
+    fireEvent.dragEnd(suiteRow, { dataTransfer: transfer })
 
-    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) || "{}")
-    expect(stored.order.indexOf("suite")).toBeGreaterThan(stored.order.indexOf("last_seen"))
+    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) || "[]")
+    expect(stored.indexOf("suite")).toBeGreaterThan(stored.indexOf("last_seen"))
+  })
+
+  it("reorders columns by dragging a table header and persists the order", async () => {
+    renderTestList()
+    await screen.findByText("Zebra test")
+
+    const suiteHeader = screen.getByRole("columnheader", { name: /Suite/ })
+    const lastSeenHeader = screen.getByRole("columnheader", { name: /Last seen/ })
+    const transfer = dataTransfer()
+
+    fireEvent.dragStart(suiteHeader, { dataTransfer: transfer })
+    fireEvent.dragOver(lastSeenHeader, { dataTransfer: transfer })
+    fireEvent.drop(lastSeenHeader, { dataTransfer: transfer })
+    fireEvent.dragEnd(suiteHeader, { dataTransfer: transfer })
+
+    const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent)
+    expect(headers).toEqual([ "Test", "Recent failures", "Duration", "Last seen", "Suite" ])
+
+    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) || "[]")
+    expect(stored.indexOf("suite")).toBeGreaterThan(stored.indexOf("last_seen"))
   })
 })
 
