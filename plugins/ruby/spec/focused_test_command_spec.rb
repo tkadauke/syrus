@@ -20,7 +20,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\" && RUN_CI_ONLY_SPECS=false COVERAGE=false #{bundle_prefix} bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
+    expect(command).to eq("(#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && RUN_CI_ONLY_SPECS=false COVERAGE=false #{bundle_prefix} bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
   end
 
   it "preserves ci_only inclusion for ci-only RSpec graders" do
@@ -31,7 +31,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\" && RUN_CI_ONLY_SPECS=true COVERAGE=false #{bundle_prefix} bundle exec rspec --tag ci_only spec/migrations/widget_spec.rb")
+    expect(command).to eq("(#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && RUN_CI_ONLY_SPECS=true COVERAGE=false #{bundle_prefix} bundle exec rspec --tag ci_only spec/migrations/widget_spec.rb")
   end
 
   it "preserves explicit RSpec tag filters from the grader command" do
@@ -42,7 +42,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\" && RUN_CI_ONLY_SPECS=false COVERAGE=false #{bundle_prefix} bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
+    expect(command).to eq("(#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && RUN_CI_ONLY_SPECS=false COVERAGE=false #{bundle_prefix} bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
   end
 
   it "preserves RSpec tag filters passed through RSPEC_TAG_ARGS" do
@@ -53,7 +53,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\" && RUN_CI_ONLY_SPECS=false COVERAGE=false #{bundle_prefix} bundle exec rspec --tag \\~ci_only plugins/muse_agent/spec/services/muse_invocation_spec.rb")
+    expect(command).to eq("(#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && RUN_CI_ONLY_SPECS=false COVERAGE=false #{bundle_prefix} bundle exec rspec --tag \\~ci_only plugins/muse_agent/spec/services/muse_invocation_spec.rb")
   end
 
   it "declines when the grader did not opt into plugin strategy" do
