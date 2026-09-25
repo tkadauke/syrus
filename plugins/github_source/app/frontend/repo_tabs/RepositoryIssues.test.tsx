@@ -64,6 +64,7 @@ function issuesPayload(overrides: Partial<RepositoryIssuesPayload> = {}): Reposi
     query: null,
     filter: { and: [] },
     filter_schema: ISSUE_FILTER_SCHEMA,
+    sort: { column: "created_at", direction: "desc" },
     issue_count: 1,
     issues: [ issue() ],
     folder_counts: { inbox: 1, delegated: 0, open: 1, closed: 0 },
@@ -91,6 +92,20 @@ function renderRoute(initialEntry = "/repositories/1/plugin/issues") {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function dataTransfer() {
+  const data = new Map<string, string>()
+  return {
+    dropEffect: "move",
+    effectAllowed: "move",
+    getData(format: string) {
+      return data.get(format) || ""
+    },
+    setData(format: string, value: string) {
+      data.set(format, value)
+    }
+  }
 }
 
 function findRowContaining(text: string) {
@@ -140,7 +155,7 @@ describe("RepositoryIssuesTab", () => {
 
     const row = findRowContaining("Fix the forum")
     expect(within(row).getByText("bug")).toBeInTheDocument()
-    expect(within(row).getByText(/alice/)).toBeInTheDocument()
+    expect(within(row).getAllByText(/alice/).length).toBeGreaterThan(0)
     expect(within(row).getByText("Delegated")).toBeInTheDocument()
     expect(within(row).queryByRole("button", { name: "Delegate" })).not.toBeInTheDocument()
   })
@@ -175,7 +190,7 @@ describe("RepositoryIssuesTab", () => {
     await screen.findByText("Issue #7 closed.")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/issues/close",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_number: 7, folder: "open", q: "" }) })
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_number: 7, folder: "open", q: "", sort: "created_at", direction: "desc" }) })
     )
   })
 
@@ -194,7 +209,7 @@ describe("RepositoryIssuesTab", () => {
     await screen.findByText("Issue #7 delegated to Syrus.")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/issues/delegate",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_number: 7, folder: "inbox", q: "" }) })
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_number: 7, folder: "inbox", q: "", sort: "created_at", direction: "desc" }) })
     )
   })
 
@@ -234,7 +249,7 @@ describe("RepositoryIssuesTab", () => {
     await screen.findByText("2 issues delegated to Syrus.")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/issues/bulk",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_numbers: [ 7, 8 ], bulk_action: "delegate", folder: "open", q: "" }) })
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_numbers: [ 7, 8 ], bulk_action: "delegate", folder: "open", q: "", sort: "created_at", direction: "desc" }) })
     )
   })
 
@@ -311,5 +326,71 @@ describe("RepositoryIssuesTab", () => {
 
     fireEvent.click(screen.getByRole("link", { name: "Clear filters" }))
     await screen.findByText("Unrelated bug")
+  })
+
+  it("sorts through shared DataTable sortable headers and preserves plugin tab routing", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = new URL(String(input), "http://test.host")
+      const sort = url.searchParams.get("sort") || "created_at"
+      const direction = url.searchParams.get("direction") === "asc" ? "asc" : "desc"
+      const rows = [ issue({ number: 1, title: "Older" }), issue({ number: 2, title: "Newer" }) ]
+      return Promise.resolve(jsonResponse(issuesPayload({
+        folder: "open",
+        sort: { column: sort, direction },
+        issues: rows,
+        issue_count: rows.length
+      })))
+    })
+    renderRoute("/repositories/1/plugin/issues?folder=open")
+
+    await screen.findByText("Older")
+    fireEvent.click(screen.getByRole("button", { name: /Created/ }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("/api/v1/app/repositories/1/issues?folder=open&sort=created_at&direction=asc"), expect.anything())
+    })
+  })
+
+  it("hides optional issue columns through the shared column selector", async () => {
+    window.localStorage.clear()
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
+      folder: "open",
+      issues: [ issue({ number: 7, title: "Fix the forum" }) ]
+    })))
+    renderRoute("/repositories/1/plugin/issues?folder=open")
+
+    expect(await screen.findByRole("columnheader", { name: /Author/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    const menu = await screen.findByRole("menu")
+    fireEvent.click(within(menu).getByRole("checkbox", { name: "Author" }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole("columnheader", { name: /Author/ })).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole("columnheader", { name: /Issue/ })).toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem("syrus.github_source.repository_issues.visible_columns") ?? "[]")).toEqual([ "number", "state", "status", "created" ])
+  })
+
+  it("reorders issue columns through header drag and keeps body cells aligned", async () => {
+    window.localStorage.clear()
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
+      folder: "open",
+      issues: [ issue({ number: 7, title: "Fix the forum", delegated: true, user_login: "ada" }) ]
+    })))
+    renderRoute("/repositories/1/plugin/issues?folder=open")
+
+    const statusHeader = await screen.findByRole("columnheader", { name: /Status/ })
+    const authorHeader = screen.getByRole("columnheader", { name: /Author/ })
+    const transfer = dataTransfer()
+    fireEvent.dragStart(authorHeader, { dataTransfer: transfer })
+    fireEvent.dragOver(statusHeader, { dataTransfer: transfer })
+    fireEvent.drop(statusHeader, { dataTransfer: transfer })
+
+    const headers = screen.getAllByRole("columnheader").map((header) => header.textContent || "")
+    expect(headers.join(" | ")).toMatch(/Issue.*Number.*State.*Author.*Status.*Created.*Actions/)
+    const row = findRowContaining("Fix the forum")
+    expect(row.textContent).toMatch(/Fix the forum.*#7.*open.*ada.*Delegated/)
+    expect(JSON.parse(window.localStorage.getItem("syrus.github_source.repository_issues.visible_columns") ?? "[]")).toEqual([ "number", "state", "author", "status", "created" ])
   })
 })

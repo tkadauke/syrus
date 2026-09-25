@@ -17,10 +17,12 @@ module Api
         # requires for accurate counts (see #repository_issues_payload).
         FOLDERS = %w[inbox delegated open closed].freeze
         ISSUES_PER_PAGE = 50
+        SORT_COLUMNS = %w[number title state author created_at delegated].freeze
+        SORT_DIRECTIONS = %w[asc desc].freeze
 
         def issues
           repository = find_repository
-          render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter)
+          render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter, sort: issue_sort)
         end
 
         def close_issue
@@ -28,7 +30,7 @@ module Api
           issue_number = params.require(:issue_number).to_i
           GithubClient.for(repository: repository, user: Current.user).close_issue(repository.slug, issue_number)
 
-          render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter, message: I18n.t("api.repositories.issue_closed", number: issue_number))
+          render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter, sort: issue_sort, message: I18n.t("api.repositories.issue_closed", number: issue_number))
         rescue Octokit::Error => e
           render_error("github_error", I18n.t("api.repositories.issue_close_failed", error: e.message), status: :bad_gateway)
         end
@@ -39,7 +41,7 @@ module Api
           issue_number = params.require(:issue_number).to_i
           GithubClient.for(repository: repository, user: Current.user).add_label_to_issue(repository.slug, issue_number, repository.trigger_label)
 
-          render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter, message: I18n.t("api.repositories.issue_delegated", number: issue_number))
+          render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter, sort: issue_sort, message: I18n.t("api.repositories.issue_delegated", number: issue_number))
         rescue Octokit::Error => e
           render_error("github_error", I18n.t("api.repositories.issue_delegate_failed", error: e.message), status: :bad_gateway)
         end
@@ -69,7 +71,7 @@ module Api
         # GithubClient#list_all_issues already auto-paginates through the
         # full set per state, so this adds no truncation risk, only a second
         # (cheap, conditionally-cached) GitHub request.
-        def repository_issues_payload(repository, folder:, filter:, message: nil)
+        def repository_issues_payload(repository, folder:, filter:, sort: issue_sort, message: nil)
           open_issues = []
           closed_issues = []
           error_message = nil
@@ -91,7 +93,7 @@ module Api
             "open" => open_issues,
             "closed" => closed_issues
           }
-          matching_issues = filter_by_query(folder_issues.fetch(folder), filter.query)
+          matching_issues = sort_issues(repository, filter_issues(repository, folder_issues.fetch(folder), filter), sort)
           visible_issues = matching_issues.first(ISSUES_PER_PAGE)
           linked_pull_requests = linked_pull_requests_for(repository, client, visible_issues)
 
@@ -104,6 +106,7 @@ module Api
             query: filter.query,
             filter: filter.to_h,
             filter_schema: GithubSource::IssuesFilter.schema,
+            sort: sort,
             issue_count: matching_issues.size,
             issues: visible_issues.map { |issue| issue_json(repository, issue, linked_pull_requests.fetch(issue.number, nil)) },
             folder_counts: folder_issues.transform_values(&:size),
@@ -163,6 +166,16 @@ module Api
         end
 
 
+        def filter_issues(repository, issues, filter)
+          issues
+            .then { |filtered| filter_by_query(filtered, filter.query) }
+            .then { |filtered| filter_by_author(filtered, filter.author) }
+            .then { |filtered| filter_by_label(filtered, filter.label) }
+            .then { |filtered| filter_by_state(filtered, filter.state) }
+            .then { |filtered| filter_by_delegated(repository, filtered, filter.delegated) }
+        end
+
+
         def filter_by_query(issues, query)
           return issues if query.blank?
 
@@ -175,12 +188,71 @@ module Api
         end
 
 
+        def filter_by_author(issues, author)
+          return issues if author.blank?
+
+          needle = author.downcase
+          issues.select { |issue| issue.user&.login.to_s.downcase.include?(needle) }
+        end
+
+
+        def filter_by_label(issues, label)
+          return issues if label.blank?
+
+          needle = label.downcase
+          issues.select do |issue|
+            Array(issue.labels).any? { |issue_label| issue_label.name.to_s.downcase.include?(needle) }
+          end
+        end
+
+
+        def filter_by_state(issues, state)
+          return issues if state.blank?
+
+          issues.select { |issue| issue.state.to_s == state }
+        end
+
+
+        def filter_by_delegated(repository, issues, delegated)
+          return issues if delegated.nil?
+
+          issues.select { |issue| issue_delegated?(repository, issue) == delegated }
+        end
+
+
+        def sort_issues(repository, issues, sort)
+          sorted = issues.sort_by { |issue| issue_sort_value(repository, issue, sort.fetch(:column)) }
+          sort.fetch(:direction) == "desc" ? sorted.reverse : sorted
+        end
+
+
+        def issue_sort_value(repository, issue, column)
+          values = {
+            "number" => [ issue.number.to_i ],
+            "title" => [ issue.title.to_s.downcase, issue.number.to_i ],
+            "state" => [ issue.state.to_s, issue.number.to_i ],
+            "author" => [ issue.user&.login.to_s.downcase, issue.number.to_i ],
+            "created_at" => [ issue.created_at || Time.zone.at(0), issue.number.to_i ],
+            "delegated" => [ issue_delegated?(repository, issue) ? 1 : 0, issue.number.to_i ]
+          }
+          values.fetch(column)
+        end
+
+
         def issue_folder
           folder = params[:folder].presence
           return folder if FOLDERS.include?(folder)
           return "closed" if params[:state] == "closed"
 
           "open"
+        end
+
+
+        def issue_sort
+          {
+            column: params[:sort].presence_in(SORT_COLUMNS) || "created_at",
+            direction: params[:direction].presence_in(SORT_DIRECTIONS) || "desc"
+          }
         end
 
 
@@ -206,6 +278,7 @@ module Api
             repository,
             folder: issue_folder,
             filter: issue_filter,
+            sort: issue_sort,
             message: I18n.t("api.repositories.bulk_delegated", count: issue_numbers.size)
           )
         rescue Octokit::Error => e
@@ -223,6 +296,7 @@ module Api
             repository,
             folder: issue_folder,
             filter: issue_filter,
+            sort: issue_sort,
             message: I18n.t("api.repositories.bulk_closed", count: issue_numbers.size)
           )
         rescue Octokit::Error => e
