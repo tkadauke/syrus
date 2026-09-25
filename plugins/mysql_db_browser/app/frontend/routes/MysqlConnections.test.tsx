@@ -388,9 +388,36 @@ describe("MysqlConnections", () => {
     setupFetchMock([])
     renderConnections()
 
-    const emptyCell = await screen.findByRole("cell", { name: "No connections yet. Add one to get started." })
-    expect(emptyCell).toHaveAttribute("colspan", "8")
-    expect(emptyCell.closest("table")?.parentElement).toHaveAttribute("data-data-table-overflow-wrapper", "true")
+    expect(await screen.findByText("No connections yet. Add one to get started.")).toBeInTheDocument()
+    expect(screen.getByRole("table").parentElement).toHaveAttribute("data-data-table-overflow-wrapper", "true")
+  })
+
+  it("renders connections with shared sortable and configurable table controls", async () => {
+    setupFetchMock([
+      stagingConnection({ id: 1, label: "Staging", host: "db.staging.internal" }),
+      stagingConnection({ id: 2, label: "Production", host: "db.production.internal" })
+    ])
+    renderConnections()
+
+    await screen.findByText("Production")
+    const tablePanel = screen.getByRole("table").closest("section") as HTMLElement
+    expect(within(tablePanel).getByRole("button", { name: "Columns" })).toBeInTheDocument()
+
+    let rows = within(tablePanel).getAllByRole("row")
+    expect(rows[1]).toHaveTextContent("Production")
+    expect(rows[2]).toHaveTextContent("Staging")
+
+    fireEvent.click(within(tablePanel).getByRole("button", { name: "Label" }))
+
+    await waitFor(() => {
+      rows = within(tablePanel).getAllByRole("row")
+      expect(rows[1]).toHaveTextContent("Staging")
+      expect(rows[2]).toHaveTextContent("Production")
+    })
+
+    fireEvent.click(within(tablePanel).getByRole("button", { name: "Columns" }))
+    expect(within(tablePanel).getByLabelText("Host")).toBeChecked()
+    expect(within(tablePanel).getByRole("button", { name: "Move Host down" })).toBeInTheDocument()
   })
 
   it("creates a connection from the add modal", async () => {

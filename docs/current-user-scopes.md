@@ -231,6 +231,7 @@ admin-only:
   - app/controllers/application_controller.rb
   - app/controllers/api/v1/app/auth_controller.rb
   - plugins/agent_activity/app/controllers/api/v1/app/admin/agent_activity_controller.rb
+  - plugins/agent_insights/app/controllers/api/v1/app/admin/insights_controller.rb
   - plugins/build_cache/app/controllers/api/v1/app/admin/build_cache_controller.rb
   - app/controllers/api/v1/app/admin/attention_items_controller.rb
   - app/controllers/api/v1/app/admin/console_controller.rb
@@ -480,3 +481,4 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb` | admin-only | Query execution is gated on `Current.user.admin?` in addition to per-connection agentic-access opt-in. |
 | `plugins/agent_activity/app/controllers/api/v1/app/agent_activity_controller.rb` | per-user/private | Sessions are scoped to repositories the current user belongs to plus Jobs they effectively own (`AgentActivity::SessionsQuery`, scope: `:mine`). |
 | `plugins/agent_activity/app/controllers/api/v1/app/admin/agent_activity_controller.rb` | admin-only | Inherits `Api::V1::App::Admin::BaseController`'s `require_admin`; lists sessions and transcripts across every repository, not just ones the admin belongs to. |
+| `plugins/agent_insights/app/controllers/api/v1/app/admin/insights_controller.rb` | admin-only | Requires admin access before listing insight suggestions across repositories; `Current.user` scopes admin smart-folder/filter state and navigation. |

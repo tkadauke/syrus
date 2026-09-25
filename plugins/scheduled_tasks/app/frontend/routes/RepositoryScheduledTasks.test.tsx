@@ -1,6 +1,6 @@
 import { jsonResponse } from "@app/testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
@@ -22,6 +22,19 @@ function tasksPayload(overrides: Record<string, unknown> = {}) {
       }
     ],
     message: null,
+    ...overrides
+  }
+}
+
+function repositoryTask(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 10,
+    name: "Daily check",
+    prompt: "Check for issues.",
+    schedule_label: "0 9 * * 1",
+    next_fire_at: null,
+    state: "scheduled",
+    active: true,
     ...overrides
   }
 }
@@ -53,6 +66,44 @@ describe("RepositoryScheduledTasksRoute loading", () => {
       expect(screen.queryByText("Loading scheduled tasks...")).not.toBeInTheDocument()
     })
     expect(await screen.findByText("Daily check")).toBeInTheDocument()
+  })
+
+  it("renders repository tasks with shared sortable and configurable table controls", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(tasksPayload({
+      tasks: [
+        repositoryTask({ id: 10, name: "Weekly check" }),
+        repositoryTask({ id: 11, name: "Daily sync" })
+      ]
+    })))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/1/scheduled_tasks"]}>
+          <Routes>
+            <Route element={<RepositoryScheduledTasksRoute />} path="/app-shell/repositories/:repository_id/scheduled_tasks" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const tablePanel = (await screen.findByRole("table")).closest("section") as HTMLElement
+    expect(within(tablePanel).getByRole("button", { name: "Columns" })).toBeInTheDocument()
+
+    let rows = within(tablePanel).getAllByRole("row")
+    expect(rows[1]).toHaveTextContent("Daily sync")
+    expect(rows[2]).toHaveTextContent("Weekly check")
+
+    fireEvent.click(within(tablePanel).getByRole("button", { name: "Name" }))
+
+    await waitFor(() => {
+      rows = within(tablePanel).getAllByRole("row")
+      expect(rows[1]).toHaveTextContent("Weekly check")
+      expect(rows[2]).toHaveTextContent("Daily sync")
+    })
+
+    fireEvent.click(within(tablePanel).getByRole("button", { name: "Columns" }))
+    expect(within(tablePanel).getByLabelText("Schedule")).toBeChecked()
+    expect(within(tablePanel).getByRole("button", { name: "Move Schedule down" })).toBeInTheDocument()
   })
 })
 

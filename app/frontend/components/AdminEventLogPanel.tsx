@@ -223,6 +223,7 @@ function adminDataTablePanelFooterClass() {
 }
 
 export type AdminEventLogTableColumn<Row> = {
+  align?: DataTableColumnDef<Row>["align"]
   className?: string
   // Required columns are always visible and excluded from the column picker
   // -- reserve this for a column that's the only way to reach something (an
@@ -244,6 +245,7 @@ export type AdminEventLogTableColumn<Row> = {
   render: (row: Row, state: { expanded: boolean; toggleExpanded: () => void }) => ReactNode
   required?: boolean
   sort?: string
+  sortValue?: (row: Row) => number | string | null | undefined
 }
 
 export type AdminEventLogTableDefaultSort = { column: string; direction?: "asc" | "desc" }
@@ -260,6 +262,7 @@ export function AdminEventLogTable<Row>({
   columns,
   defaultSort = { column: "time", direction: "desc" },
   getRowKey,
+  localSort = false,
   onNavigate,
   panel,
   renderExpanded,
@@ -271,6 +274,7 @@ export function AdminEventLogTable<Row>({
   columns: Array<AdminEventLogTableColumn<Row>>
   defaultSort?: AdminEventLogTableDefaultSort
   getRowKey: (row: Row) => string | number
+  localSort?: boolean
   onNavigate?: (params: URLSearchParams) => void
   panel?: AdminDataTablePanelConfig
   renderExpanded?: (row: Row) => ReactNode
@@ -284,6 +288,7 @@ export function AdminEventLogTable<Row>({
 }) {
   const { t } = useT("admin")
   const [expandedKey, setExpandedKey] = useState<string | number | null>(null)
+  const [localSortState, setLocalSortState] = useState<{ column: string; direction: "asc" | "desc" } | null>(null)
 
   // Maps the caller's simpler column shape onto the shared DataTableColumnDef
   // model: `render` needs per-row expand state, which DataTableColumnDef's
@@ -293,6 +298,7 @@ export function AdminEventLogTable<Row>({
     () =>
       columns.map((column) => ({
         cellClassName: column.className,
+        align: column.align,
         defaultVisible: column.defaultVisible,
         headClassName: column.headerClassName || column.className,
         key: column.key,
@@ -312,11 +318,16 @@ export function AdminEventLogTable<Row>({
   )
 
   const preferences = useLocalStorageColumnPreferences({ columns: dataTableColumns, storageKey })
-  const activeSort = parseEventLogSort(search, defaultSort)
+  const activeSort = localSort && localSortState ? localSortState : parseEventLogSort(search, defaultSort)
   const sortDirection: DataTableSortDirection = activeSort.direction === "asc" ? "ascending" : "descending"
   const colSpan = visibleColumns({ columns: dataTableColumns, order: preferences.order }).length
 
   function sortTo(sortKey: string) {
+    if (localSort) {
+      const nextDirection = activeSort.column === sortKey && activeSort.direction === "asc" ? "desc" : "asc"
+      setLocalSortState({ column: sortKey, direction: nextDirection })
+      return
+    }
     if (!onNavigate) return
 
     const nextDirection = activeSort.column === sortKey && activeSort.direction === "asc" ? "desc" : "asc"
@@ -326,6 +337,14 @@ export function AdminEventLogTable<Row>({
     next.delete("page")
     onNavigate(next)
   }
+
+  const sortedRows = useMemo(() => {
+    if (!localSort) return rows
+    const column = columns.find((candidate) => candidate.sort === activeSort.column)
+    if (!column?.sortValue) return rows
+    const direction = activeSort.direction === "asc" ? 1 : -1
+    return rows.slice().sort((left, right) => compareSortValues(column.sortValue!(left), column.sortValue!(right)) * direction)
+  }, [activeSort.column, activeSort.direction, columns, localSort, rows])
 
   const columnMenu = (
     <DataTableColumnMenu
@@ -348,14 +367,14 @@ export function AdminEventLogTable<Row>({
           <DataTableColumnHeaderRow
             columns={dataTableColumns}
             onReorder={preferences.onChange}
-            onSort={onNavigate ? sortTo : undefined}
+            onSort={onNavigate || localSort ? sortTo : undefined}
             order={preferences.order}
             sortColumn={activeSort.column}
             sortDirection={sortDirection}
           />
         </DataTable.Header>
         <DataTable.Body>
-          {rows.map((row) => {
+          {sortedRows.map((row) => {
             const rowKey = getRowKey(row)
             const expanded = expandedKey === rowKey
 
@@ -388,6 +407,14 @@ export function AdminEventLogTable<Row>({
   )
 }
 
+function compareSortValues(left: number | string | null | undefined, right: number | string | null | undefined) {
+  if (left == null && right == null) return 0
+  if (left == null) return 1
+  if (right == null) return -1
+  if (typeof left === "number" && typeof right === "number") return left - right
+  return String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: "base" })
+}
+
 export function inputClass() {
   return "w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
 }
@@ -407,11 +434,13 @@ export type AdminEventFilterPayload = {
 }
 
 export function AdminEventFilterBar({
+  buildLink,
   filter,
   filterSchema,
   fields,
   search
 }: {
+  buildLink?: (pathname: string, search: string, updates: FilterLinkUpdates) => string
   filter?: Record<string, unknown> | null
   filterSchema?: FilterSchemaField[]
   fields?: AdminEventFilterField[]
@@ -430,7 +459,7 @@ export function AdminEventFilterBar({
 
   return (
     <FilterBar
-      buildLink={preserveExplicitEmptyFilter}
+      buildLink={buildLink ?? preserveExplicitEmptyFilter}
       className={classes("space-y-2", gutterRestore)}
       filter={activeFilter}
       filterSchema={schema}

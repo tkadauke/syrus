@@ -376,6 +376,7 @@ Rails.application.routes.draw do
           patch "plugins/:name/config", to: "plugins#update_config", constraints: { name: /[^\/]+/ }
           get "plugins/:name", to: "plugins#show", constraints: { name: /[^\/]+/ }
           get "plugin_pages", to: "plugin_pages#index"
+          get "plugin_services", to: "plugin_services#index"
           get "queue/:tab", to: "queue#show", as: :queue, constraints: { tab: /active|pending|failed|recurring|workers/ }
           post "queue/reap_stale_runs", to: "queue#reap_stale_runs"
           get "stuck", to: "stuck#index"

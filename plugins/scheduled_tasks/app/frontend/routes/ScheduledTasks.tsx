@@ -11,6 +11,7 @@ import { CopyableSlug } from "@app/components/CopyableSlug"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
+import { AdminEventLogTable, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
 import { Button, DataTable, DescriptionList, Form, Page, buttonClasses } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -83,6 +84,7 @@ export function ScheduledTasksIndex() {
             basePath={tasksBase(location.pathname)}
             empty={t("scheduled_tasks.empty_active")}
             prefix={prefix}
+            storageKey="syrus.scheduled_tasks.active.columns"
             tasks={tasks.data.active_tasks}
             title={t("scheduled_tasks.section_active")}
           />
@@ -90,6 +92,7 @@ export function ScheduledTasksIndex() {
             basePath={tasksBase(location.pathname)}
             empty={t("scheduled_tasks.empty_fired")}
             prefix={prefix}
+            storageKey="syrus.scheduled_tasks.fired_one_shots.columns"
             tasks={tasks.data.fired_one_shots}
             title={t("scheduled_tasks.section_fired")}
           />
@@ -97,6 +100,7 @@ export function ScheduledTasksIndex() {
             basePath={tasksBase(location.pathname)}
             empty={t("scheduled_tasks.empty_archived")}
             prefix={prefix}
+            storageKey="syrus.scheduled_tasks.archived.columns"
             tasks={tasks.data.archived_tasks}
             title={t("scheduled_tasks.section_archived")}
           />
@@ -245,64 +249,92 @@ function RepositoryPicker({
   )
 }
 
-function TaskSection({ title, tasks, empty, basePath, prefix }: { title: string; tasks: ScheduledTaskRow[]; empty: string; basePath: string; prefix: string }) {
+function TaskSection({ title, tasks, empty, basePath, prefix, storageKey }: { title: string; tasks: ScheduledTaskRow[]; empty: string; basePath: string; prefix: string; storageKey: string }) {
   const { t } = useT("settings")
-  return (
-    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{title}</h2>
-      </div>
-      {tasks.length === 0 ? (
+  const columns = taskColumns({ basePath, prefix, t })
+
+  if (tasks.length === 0) {
+    return (
+      <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+        <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+          <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{title}</h2>
+        </div>
         <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{empty}</p>
-      ) : (
-        <DataTable.Root wrapperClassName="rounded-none border-0">
-          <DataTable.Header>
-            <DataTable.Row>
-              <DataTable.HeadCell>{t("scheduled_tasks.col_task")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("scheduled_tasks.col_repository")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("scheduled_tasks.schedule")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("scheduled_tasks.state")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("scheduled_tasks.col_last_fired")}</DataTable.HeadCell>
-              <DataTable.HeadCell>
-                <span className="sr-only">{t("scheduled_tasks.actions")}</span>
-              </DataTable.HeadCell>
-            </DataTable.Row>
-          </DataTable.Header>
-          <DataTable.Body>
-            {tasks.map((task) => (
-              <DataTable.Row key={task.id}>
-                <DataTable.Cell className="font-medium">
-                  <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>
-                    {task.name}
-                  </Link>
-                </DataTable.Cell>
-                <DataTable.Cell className="font-mono">
-                  <Link
-                    className="text-brand underline hover:no-underline dark:text-brand-emphasis"
-                    to={withRoutePrefix(task.repository.repository_path, prefix)}
-                  >
-                    {task.repository.slug}
-                  </Link>
-                </DataTable.Cell>
-                <DataTable.Cell>{task.schedule_label || t("scheduled_tasks.none")}</DataTable.Cell>
-                <DataTable.Cell>
-                  <StatePill state={task.state} />
-                </DataTable.Cell>
-                <DataTable.Cell className="text-gray-500 dark:text-gray-400">
-                  <RelativeTimestamp fallback={t("scheduled_tasks.never")} value={task.last_fired_at} />
-                </DataTable.Cell>
-                <DataTable.Cell align="right">
-                  <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>
-                    {t("scheduled_tasks.open")}
-                  </Link>
-                </DataTable.Cell>
-              </DataTable.Row>
-            ))}
-          </DataTable.Body>
-        </DataTable.Root>
-      )}
-    </section>
+      </section>
+    )
+  }
+
+  return (
+    <AdminEventLogTable
+      columns={columns}
+      defaultSort={{ column: "last_fired_at", direction: "desc" }}
+      getRowKey={(task) => task.id}
+      localSort
+      panel={{ summary: title, meta: t("scheduled_tasks.table_count", { count: tasks.length }) }}
+      rows={tasks}
+      storageKey={storageKey}
+    />
   )
+}
+
+function taskColumns({
+  basePath,
+  prefix,
+  t
+}: {
+  basePath: string
+  prefix: string
+  t: ReturnType<typeof useT>["t"]
+}): Array<AdminEventLogTableColumn<ScheduledTaskRow>> {
+  return [
+    {
+      key: "task",
+      header: t("scheduled_tasks.col_task"),
+      className: "font-medium",
+      render: (task) => (
+        <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>
+          {task.name}
+        </Link>
+      ),
+      sort: "task",
+      sortValue: (task) => task.name
+    },
+    {
+      key: "repository",
+      header: t("scheduled_tasks.col_repository"),
+      className: "font-mono",
+      render: (task) => (
+        <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(task.repository.repository_path, prefix)}>
+          {task.repository.slug}
+        </Link>
+      ),
+      sort: "repository",
+      sortValue: (task) => task.repository.slug
+    },
+    { key: "schedule", header: t("scheduled_tasks.schedule"), render: (task) => task.schedule_label || t("scheduled_tasks.none"), sort: "schedule", sortValue: (task) => task.schedule_label || "" },
+    { key: "state", header: t("scheduled_tasks.state"), render: (task) => <StatePill state={task.state} />, sort: "state", sortValue: (task) => task.state },
+    {
+      key: "last_fired_at",
+      header: t("scheduled_tasks.col_last_fired"),
+      className: "text-gray-500 dark:text-gray-400",
+      render: (task) => <RelativeTimestamp fallback={t("scheduled_tasks.never")} value={task.last_fired_at} />,
+      sort: "last_fired_at",
+      sortValue: (task) => task.last_fired_at || ""
+    },
+    {
+      key: "actions",
+      header: <span className="sr-only">{t("scheduled_tasks.actions")}</span>,
+      label: t("scheduled_tasks.actions"),
+      align: "right",
+      pin: "end",
+      render: (task) => (
+        <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>
+          {t("scheduled_tasks.open")}
+        </Link>
+      ),
+      required: true
+    }
+  ]
 }
 
 function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetailPayload; basePath: string; prefix: string }) {

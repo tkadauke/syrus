@@ -5,7 +5,8 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { Button, DataTable, Form, Modal, Page } from "@app/components/ui"
+import { AdminEventLogTable, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
+import { Button, Form, Modal, Page } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
   createKubernetesCluster,
@@ -202,79 +203,69 @@ function ClustersTable({
   const { t } = useT("k8s_cluster")
 
   return (
-    <section>
-      <DataTable.Root>
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("col_label")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_api_server_url")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_credential_kind")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_agentic_access")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_allow_writes")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_insecure_skip_tls_verify")}</DataTable.HeadCell>
-            <DataTable.HeadCell>
-              <span className="sr-only">{t("col_actions")}</span>
-            </DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {clusters.length === 0 ? (
-            <DataTable.Empty colSpan={7}>{t("empty")}</DataTable.Empty>
-          ) : (
-            clusters.map((cluster) => (
-              <ClusterRow cluster={cluster} key={cluster.id} onBrowse={() => onBrowse(cluster)} onEdit={() => onEdit(cluster)} onNotice={onNotice} />
-            ))
-          )}
-        </DataTable.Body>
-      </DataTable.Root>
-    </section>
+    <AdminEventLogTable
+      columns={clusterColumns({ onBrowse, onEdit, onNotice, t })}
+      defaultSort={{ column: "label", direction: "asc" }}
+      getRowKey={(cluster) => cluster.id}
+      localSort
+      panel={{ summary: t("heading"), meta: clusters.length === 0 ? t("empty") : t("table_count", { count: clusters.length }) }}
+      rows={clusters}
+      storageKey="syrus.admin.kubernetes_clusters.columns"
+    />
   )
 }
 
-function ClusterRow({
-  cluster,
+function clusterColumns({
   onBrowse,
   onEdit,
-  onNotice
+  onNotice,
+  t
 }: {
-  cluster: KubernetesClusterRow
-  onBrowse: () => void
-  onEdit: () => void
+  onBrowse: (cluster: KubernetesClusterRow) => void
+  onEdit: (cluster: KubernetesClusterRow) => void
   onNotice: (message: string | null) => void
-}) {
-  const { t } = useT("k8s_cluster")
+  t: ReturnType<typeof useT>["t"]
+}): Array<AdminEventLogTableColumn<KubernetesClusterRow>> {
+  return [
+    { key: "label", header: t("col_label"), className: "font-medium text-gray-900 dark:text-gray-100", render: (cluster) => cluster.label, sort: "label", sortValue: (cluster) => cluster.label },
+    { key: "api_server_url", header: t("col_api_server_url"), className: "font-mono text-gray-700 dark:text-gray-300", render: (cluster) => cluster.api_server_url, sort: "api_server_url", sortValue: (cluster) => cluster.api_server_url },
+    { key: "credential_kind", header: t("col_credential_kind"), className: "text-gray-700 dark:text-gray-300", render: (cluster) => credentialLabel(cluster, t), sort: "credential_kind", sortValue: (cluster) => credentialLabel(cluster, t) },
+    {
+      key: "agentic_access",
+      header: t("col_agentic_access"),
+      render: (cluster) => <StatusBadge tone={cluster.agentic_access_enabled ? "success" : "neutral"}>{cluster.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled")}</StatusBadge>,
+      sort: "agentic_access",
+      sortValue: (cluster) => Number(cluster.agentic_access_enabled)
+    },
+    {
+      key: "allow_writes",
+      header: t("col_allow_writes"),
+      render: (cluster) => <StatusBadge tone={cluster.allow_writes ? "warning" : "neutral"}>{cluster.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}</StatusBadge>,
+      sort: "allow_writes",
+      sortValue: (cluster) => Number(cluster.allow_writes)
+    },
+    {
+      key: "insecure_skip_tls_verify",
+      header: t("col_insecure_skip_tls_verify"),
+      render: (cluster) => <StatusBadge tone={cluster.insecure_skip_tls_verify ? "warning" : "neutral"}>{cluster.insecure_skip_tls_verify ? t("insecure_enabled") : t("insecure_disabled")}</StatusBadge>,
+      sort: "insecure_skip_tls_verify",
+      sortValue: (cluster) => Number(cluster.insecure_skip_tls_verify)
+    },
+    {
+      key: "actions",
+      header: <span className="sr-only">{t("col_actions")}</span>,
+      label: t("col_actions"),
+      pin: "end",
+      render: (cluster) => <ClusterActions cluster={cluster} onBrowse={() => onBrowse(cluster)} onEdit={() => onEdit(cluster)} onNotice={onNotice} />,
+      required: true
+    }
+  ]
+}
 
-  return (
-    <DataTable.Row>
-      <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{cluster.label}</DataTable.Cell>
-      <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">{cluster.api_server_url}</DataTable.Cell>
-      <DataTable.Cell className="text-gray-700 dark:text-gray-300">
-        {cluster.credential_kind === "token"
-          ? t("credential_kind_token")
-          : cluster.credential_kind === "client_cert"
-            ? t("credential_kind_client_cert")
-            : t("credential_kind_none")}
-      </DataTable.Cell>
-      <DataTable.Cell>
-        <StatusBadge tone={cluster.agentic_access_enabled ? "success" : "neutral"}>
-          {cluster.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled")}
-        </StatusBadge>
-      </DataTable.Cell>
-      <DataTable.Cell>
-        <StatusBadge tone={cluster.allow_writes ? "warning" : "neutral"}>
-          {cluster.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}
-        </StatusBadge>
-      </DataTable.Cell>
-      <DataTable.Cell>
-        <StatusBadge tone={cluster.insecure_skip_tls_verify ? "warning" : "neutral"}>
-          {cluster.insecure_skip_tls_verify ? t("insecure_enabled") : t("insecure_disabled")}
-        </StatusBadge>
-      </DataTable.Cell>
-      <DataTable.Cell>
-        <ClusterActions cluster={cluster} onBrowse={onBrowse} onEdit={onEdit} onNotice={onNotice} />
-      </DataTable.Cell>
-    </DataTable.Row>
-  )
+function credentialLabel(cluster: KubernetesClusterRow, t: ReturnType<typeof useT>["t"]) {
+  if (cluster.credential_kind === "token") return t("credential_kind_token")
+  if (cluster.credential_kind === "client_cert") return t("credential_kind_client_cert")
+  return t("credential_kind_none")
 }
 
 function ClusterActions({

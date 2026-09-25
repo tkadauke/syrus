@@ -11,6 +11,8 @@
   "col_published": "Veröffentlicht",
   "col_created": "Erstellt",
   "col_actions": "Aktionen",
+  "table_count_one": "{{count}} Erinnerung",
+  "table_count_other": "{{count}} Erinnerungen",
   "no_results": "Keine Erinnerungen passen zu diesen Filtern.",
   "see_more": "Mehr anzeigen",
   "edit": "Bearbeiten",

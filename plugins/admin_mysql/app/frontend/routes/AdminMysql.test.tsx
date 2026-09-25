@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
@@ -58,6 +58,33 @@ describe("AdminMysql", () => {
     expect(toggle).not.toBeChecked()
     expect(screen.getByText("Sleep")).toBeInTheDocument()
     expect(screen.getByText("Query")).toBeInTheDocument()
+  })
+
+  it("renders the process list with shared sortable and configurable table controls", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(mysqlPayload({
+      process_list: [
+        { id: 1, user: "app", host: "10.0.0.1:5000", database: "syrus_production", command: "Query", time_seconds: 12, state: "executing", info: "SELECT slow" },
+        { id: 2, user: "app", host: "10.0.0.2:5000", database: "syrus_production", command: "Query", time_seconds: 3, state: "executing", info: "SELECT fast" }
+      ]
+    })))
+
+    renderRoute(<AdminMysql />)
+
+    const processHeading = await screen.findByRole("heading", { name: "Process list" })
+    const processPanel = processHeading.closest("section") as HTMLElement
+    expect(within(processPanel).getByRole("button", { name: "Columns" })).toBeInTheDocument()
+
+    fireEvent.click(within(processPanel).getByRole("button", { name: "Time" }))
+
+    await waitFor(() => {
+      const rows = within(processPanel).getAllByRole("row")
+      expect(rows[1]).toHaveTextContent("SELECT fast")
+      expect(rows[2]).toHaveTextContent("SELECT slow")
+    })
+
+    fireEvent.click(within(processPanel).getByRole("button", { name: "Columns" }))
+    expect(within(processPanel).getByLabelText("Command")).toBeChecked()
+    expect(within(processPanel).getByRole("button", { name: "Move Command down" })).toBeInTheDocument()
   })
 
   it("opens the shared confirm dialog before killing the current query", async () => {

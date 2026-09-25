@@ -153,6 +153,34 @@ describe("KubernetesClusters", () => {
     expect(await screen.findByText("No clusters yet. Add one to get started.")).toBeInTheDocument()
   })
 
+  it("renders clusters with shared sortable and configurable table controls", async () => {
+    setupFetchMock([
+      stagingCluster({ id: 1, label: "Staging", api_server_url: "https://staging.k8s.internal:6443" }),
+      stagingCluster({ id: 2, label: "Production", api_server_url: "https://prod.k8s.internal:6443" })
+    ])
+    renderClusters()
+
+    await screen.findByText("Production")
+    const tablePanel = screen.getByRole("table").closest("section") as HTMLElement
+    expect(within(tablePanel).getByRole("button", { name: "Columns" })).toBeInTheDocument()
+
+    let rows = within(tablePanel).getAllByRole("row")
+    expect(rows[1]).toHaveTextContent("Production")
+    expect(rows[2]).toHaveTextContent("Staging")
+
+    fireEvent.click(within(tablePanel).getByRole("button", { name: "Label" }))
+
+    await waitFor(() => {
+      rows = within(tablePanel).getAllByRole("row")
+      expect(rows[1]).toHaveTextContent("Staging")
+      expect(rows[2]).toHaveTextContent("Production")
+    })
+
+    fireEvent.click(within(tablePanel).getByRole("button", { name: "Columns" }))
+    expect(within(tablePanel).getByLabelText("API server")).toBeChecked()
+    expect(within(tablePanel).getByRole("button", { name: "Move API server down" })).toBeInTheDocument()
+  })
+
   it("creates a cluster from the add form by pasting a kubeconfig", async () => {
     setupFetchMock([])
     renderClusters()

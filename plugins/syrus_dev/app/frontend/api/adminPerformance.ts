@@ -1,4 +1,5 @@
 import { getJson, postJson } from "@app/api/client"
+import type { FilterSchemaField, FilterTree } from "@app/components/FilterBar"
 
 export type PerformanceThresholds = {
   slow_request_ms: number
@@ -164,6 +165,8 @@ export type AdminPerformancePayload = {
   enabled: boolean
   current_revision: string
   revision_scope: "current" | "all"
+  filter: FilterTree
+  filter_schema: FilterSchemaField[]
   thresholds: PerformanceThresholds
   storage: PerformanceStorage
   baseline: {
@@ -199,8 +202,10 @@ export type SqlExplainResult = {
   warnings: string[]
 }
 
-export function fetchAdminPerformance(limit = 200, revisionScope: "current" | "all" = "current") {
-  const params = new URLSearchParams({ limit: String(limit), revision_scope: revisionScope })
+export function fetchAdminPerformance(search = "") {
+  const params = new URLSearchParams(search)
+  if (!params.has("limit")) params.set("limit", "500")
+  if (!params.has("revision_scope")) params.set("revision_scope", "current")
   return getJson<AdminPerformancePayload>(`/api/v1/app/admin/performance?${params.toString()}`)
 }
 

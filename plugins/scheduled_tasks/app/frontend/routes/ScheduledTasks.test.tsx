@@ -1,9 +1,9 @@
 import { jsonResponse } from "@app/testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
-import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute } from "./ScheduledTasks"
+import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
 import * as useConfirmModule from "@app/hooks/useConfirm"
 
 function taskDetail(overrides: { recent_jobs?: unknown[] } = {}) {
@@ -43,6 +43,25 @@ function taskDetail(overrides: { recent_jobs?: unknown[] } = {}) {
   }
 }
 
+function scheduledTaskRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 7,
+    name: "Weekly check",
+    kind: "cron",
+    state: "active",
+    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+    schedule_label: "0 9 * * 1",
+    schedule_explanation: "Every Monday at 9:00 AM",
+    schedule_timezone: "UTC",
+    schedule_expression: "FREQ=WEEKLY;BYDAY=MO",
+    last_fired_at: null,
+    archived_at: null,
+    consecutive_failure_count: 0,
+    scheduled_task_path: "/scheduled_tasks/7",
+    ...overrides
+  }
+}
+
 function renderRoute(payload: ReturnType<typeof taskDetail> = taskDetail()) {
   vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -56,6 +75,56 @@ function renderRoute(payload: ReturnType<typeof taskDetail> = taskDetail()) {
     </QueryClientProvider>
   )
 }
+
+function renderIndexRoute(payload = {
+  active_tasks: [scheduledTaskRow()],
+  fired_one_shots: [],
+  archived_tasks: [],
+  options: taskDetail().options
+}) {
+  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={["/app-shell/scheduled_tasks"]}>
+        <Routes>
+          <Route element={<ScheduledTasksIndex />} path="/app-shell/scheduled_tasks" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+describe("ScheduledTasksIndex", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("renders task sections with shared sortable and configurable table controls", async () => {
+    renderIndexRoute({
+      active_tasks: [
+        scheduledTaskRow({ id: 1, name: "Weekly check", repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" } }),
+        scheduledTaskRow({ id: 2, name: "Daily sync", repository: { id: 2, slug: "acme/api", repository_path: "/repositories/2" } })
+      ],
+      fired_one_shots: [],
+      archived_tasks: [],
+      options: taskDetail().options
+    })
+
+    const activePanel = (await screen.findByText("Active")).closest("section") as HTMLElement
+    expect(within(activePanel).getByRole("button", { name: "Columns" })).toBeInTheDocument()
+
+    fireEvent.click(within(activePanel).getByRole("button", { name: "Task" }))
+
+    await waitFor(() => {
+      const rows = within(activePanel).getAllByRole("row")
+      expect(rows[1]).toHaveTextContent("Daily sync")
+      expect(rows[2]).toHaveTextContent("Weekly check")
+    })
+
+    fireEvent.click(within(activePanel).getByRole("button", { name: "Columns" }))
+    expect(within(activePanel).getByLabelText("Repository")).toBeChecked()
+    expect(within(activePanel).getByRole("button", { name: "Move Repository down" })).toBeInTheDocument()
+  })
+})
 
 describe("ScheduledTaskDetailRoute archive", () => {
   let mockConfirm: ReturnType<typeof vi.fn>

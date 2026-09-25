@@ -1,9 +1,9 @@
 import { jsonResponse } from "@app/testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
-import { CronTemplateDetailRoute, CronTemplateFormRoute } from "./CronTemplates"
+import { CronTemplateDetailRoute, CronTemplateFormRoute, CronTemplatesIndex } from "./CronTemplates"
 import * as useConfirmModule from "@app/hooks/useConfirm"
 
 function templateDetail() {
@@ -26,6 +26,29 @@ function templateDetail() {
   }
 }
 
+function templateRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 5,
+    name: "Weekly update",
+    description: "Runs every Monday.",
+    cron_expression: "0 9 * * 1",
+    schedule_input: "Every Monday at 9:00 AM",
+    schedule_format: "rrule",
+    schedule_explanation: "Every Monday at 9:00 AM",
+    schedule_expression: "FREQ=WEEKLY;BYDAY=MO",
+    schedule_timezone: "UTC",
+    next_fire_at: null,
+    legacy_cron_expression: null,
+    pr_pileup_policy: "skip",
+    enabled: true,
+    prompt: "Summarize changes.",
+    applied_tasks_count: 0,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    ...overrides
+  }
+}
+
 function renderRoute() {
   vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(templateDetail()))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -39,6 +62,53 @@ function renderRoute() {
     </QueryClientProvider>
   )
 }
+
+function renderIndexRoute(payload = { templates: [templateRow()], pr_pileup_policies: ["skip", "pile", "replace"] }) {
+  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={["/app-shell/cron_templates"]}>
+        <Routes>
+          <Route element={<CronTemplatesIndex />} path="/app-shell/cron_templates" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+describe("CronTemplatesIndex", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("renders templates with shared sortable and configurable table controls", async () => {
+    renderIndexRoute({
+      templates: [
+        templateRow({ id: 1, name: "Weekly update", applied_tasks_count: 2 }),
+        templateRow({ id: 2, name: "Daily sweep", applied_tasks_count: 1 })
+      ],
+      pr_pileup_policies: ["skip", "pile", "replace"]
+    })
+
+    const tablePanel = (await screen.findByRole("table")).closest("section") as HTMLElement
+    expect(within(tablePanel).getByRole("button", { name: "Columns" })).toBeInTheDocument()
+
+    let rows = within(tablePanel).getAllByRole("row")
+    expect(rows[1]).toHaveTextContent("Daily sweep")
+    expect(rows[2]).toHaveTextContent("Weekly update")
+
+    fireEvent.click(within(tablePanel).getByRole("button", { name: "Name" }))
+
+    await waitFor(() => {
+      rows = within(tablePanel).getAllByRole("row")
+      expect(rows[1]).toHaveTextContent("Weekly update")
+      expect(rows[2]).toHaveTextContent("Daily sweep")
+    })
+
+    fireEvent.click(within(tablePanel).getByRole("button", { name: "Columns" }))
+    expect(within(tablePanel).getByLabelText("Schedule")).toBeChecked()
+    expect(within(tablePanel).getByRole("button", { name: "Move Schedule down" })).toBeInTheDocument()
+  })
+})
 
 describe("CronTemplateDetailRoute delete", () => {
   let mockConfirm: ReturnType<typeof vi.fn>

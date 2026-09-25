@@ -6,6 +6,8 @@
   "loading": "Acervi onerantur…",
   "error_loading": "Acervi onerari non possunt.",
   "empty": "Nulli adhuc acervi. Unum adde ut incipias.",
+  "table_count_one": "{{count}} acervus",
+  "table_count_other": "{{count}} acervi",
   "add_heading": "Acervum adde",
   "edit_heading": "Acervum muta",
   "field_label": "Titulus",

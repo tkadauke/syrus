@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
+import { AdminEventLogTable, AdminEventPanelMessage, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
 import { Checkbox } from "@app/components/Checkbox"
 import { Button, Notice, Page, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
-import { killMysqlQuery, fetchAdminMysql, type MysqlProcess, type MysqlSnapshot } from "../api/adminMysql"
+import { killMysqlQuery, fetchAdminMysql, type MysqlProcess, type MysqlSlowLogRow, type MysqlSnapshot, type MysqlStatementDigest } from "../api/adminMysql"
 
 export function AdminMysql() {
   const { t } = useT("admin_mysql")
@@ -181,54 +182,19 @@ function MysqlDashboard({
             <p className="text-xs text-gray-500 dark:text-gray-400">{t("generated", { time: new Date(payload.generated_at).toLocaleString() })}</p>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
-            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-2">ID</th>
-                <th className="px-4 py-2">{t("col_command")}</th>
-                <th className="px-4 py-2">{t("col_time")}</th>
-                <th className="px-4 py-2">{t("col_state")}</th>
-                <th className="px-4 py-2">{t("col_host")}</th>
-                <th className="px-4 py-2">{t("col_info")}</th>
-                <th className="px-4 py-2">{t("col_actions")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
-              {visibleProcesses.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400" colSpan={7}>
-                    {hideIdle && payload.process_list.length > 0 ? t("all_threads_hidden") : t("no_processes")}
-                  </td>
-                </tr>
-              ) : null}
-              {visibleProcesses.map((process) => (
-                <tr key={process.id}>
-                  <td className="px-4 py-2 font-mono text-gray-800 dark:text-gray-100">{process.id}</td>
-                  <td className="px-4 py-2">{process.command}</td>
-                  <td className="px-4 py-2">{process.time_seconds}s</td>
-                  <td className="px-4 py-2">{process.state || "-"}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{process.host}</td>
-                  <td className="max-w-2xl truncate px-4 py-2 font-mono text-xs" title={process.info || ""}>
-                    {process.info || "-"}
-                  </td>
-                  <td className="px-4 py-2">
-                    {process.command && process.command !== "Sleep" ? (
-                      <button
-                        className="rounded border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
-                        disabled={killingThreadId === process.id}
-                        onClick={() => onKill(process)}
-                        type="button"
-                      >
-                        {killingThreadId === process.id ? t("killing") : t("kill_query")}
-                      </button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {visibleProcesses.length === 0 ? (
+          <AdminEventPanelMessage>{hideIdle && payload.process_list.length > 0 ? t("all_threads_hidden") : t("no_processes")}</AdminEventPanelMessage>
+        ) : (
+          <AdminEventLogTable
+            columns={processColumns(t, killingThreadId, onKill)}
+            defaultSort={{ column: "time_seconds", direction: "desc" }}
+            getRowKey={(process) => process.id}
+            localSort
+            rows={visibleProcesses}
+            storageKey="syrus.admin.mysql.process_list.columns"
+            tableClassName=""
+          />
+        )}
       </Section.Root>
 
       <section className="grid gap-6 xl:grid-cols-2">
@@ -252,28 +218,15 @@ function StatementDigestPanel({ payload, t }: { payload: MysqlSnapshot; t: Retur
         <UnavailablePanel fallback={t("statement_digests_unavailable")} error={payload.statement_digests.error} />
       ) : (
         <div className="max-h-[32rem] overflow-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
-            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-2">{t("col_total")}</th>
-                <th className="px-4 py-2">{t("col_max")}</th>
-                <th className="px-4 py-2">{t("col_count")}</th>
-                <th className="px-4 py-2">{t("col_statement")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
-              {payload.statement_digests.rows.map((row, index) => (
-                <tr key={`${row.digest_text}-${index}`}>
-                  <td className="px-4 py-2">{formatSeconds(row.total_seconds)}</td>
-                  <td className="px-4 py-2">{formatSeconds(row.max_seconds)}</td>
-                  <td className="px-4 py-2">{row.count}</td>
-                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.digest_text || ""}>
-                    {row.digest_text || "-"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <AdminEventLogTable
+            columns={statementDigestColumns(t)}
+            defaultSort={{ column: "total_seconds", direction: "desc" }}
+            getRowKey={(row) => `${row.digest_text}-${row.count}-${row.total_seconds}`}
+            localSort
+            rows={payload.statement_digests.rows}
+            storageKey="syrus.admin.mysql.statement_digests.columns"
+            tableClassName=""
+          />
         </div>
       )}
     </Section.Root>
@@ -313,28 +266,15 @@ function SlowLogPanel({
         <UnavailablePanel fallback={t("slow_log_unavailable")} error={payload.slow_log.error} />
       ) : (
         <div className="max-h-[32rem] overflow-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
-            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-2">{t("col_time")}</th>
-                <th className="px-4 py-2">{t("col_query_time")}</th>
-                <th className="px-4 py-2">{t("col_rows_examined")}</th>
-                <th className="px-4 py-2">SQL</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
-              {payload.slow_log.rows.map((row, index) => (
-                <tr key={`${row.start_time}-${index}`}>
-                  <td className="px-4 py-2">{row.start_time ? new Date(row.start_time).toLocaleString() : "-"}</td>
-                  <td className="px-4 py-2">{row.query_time}</td>
-                  <td className="px-4 py-2">{row.rows_examined}</td>
-                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.sql_text || ""}>
-                    {row.sql_text || "-"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <AdminEventLogTable
+            columns={slowLogColumns(t)}
+            defaultSort={{ column: "start_time", direction: "desc" }}
+            getRowKey={(row) => `${row.start_time}-${row.sql_text}-${row.query_time}`}
+            localSort
+            rows={payload.slow_log.rows}
+            storageKey="syrus.admin.mysql.slow_log.columns"
+            tableClassName=""
+          />
         </div>
       )}
     </Section.Root>
@@ -393,6 +333,78 @@ function MetricCard({ detail, label, value }: { detail: string; label: string; v
 
 function Panel({ children }: { children: ReactNode }) {
   return <Notice>{children}</Notice>
+}
+
+function processColumns(
+  t: ReturnType<typeof useT>["t"],
+  killingThreadId: number | null,
+  onKill: (process: MysqlProcess) => void
+): Array<AdminEventLogTableColumn<MysqlProcess>> {
+  return [
+    { key: "id", header: "ID", className: "font-mono text-gray-800 dark:text-gray-100", render: (process) => process.id, sort: "id", sortValue: (process) => process.id },
+    { key: "command", header: t("col_command"), render: (process) => process.command || "-", sort: "command", sortValue: (process) => process.command || "" },
+    { key: "time_seconds", header: t("col_time"), render: (process) => `${process.time_seconds}s`, sort: "time_seconds", sortValue: (process) => process.time_seconds },
+    { key: "state", header: t("col_state"), render: (process) => process.state || "-", sort: "state", sortValue: (process) => process.state || "" },
+    { key: "host", header: t("col_host"), className: "font-mono text-xs", render: (process) => process.host, sort: "host", sortValue: (process) => process.host },
+    {
+      key: "info",
+      header: t("col_info"),
+      className: "max-w-2xl truncate font-mono text-xs",
+      render: (process) => <span title={process.info || ""}>{process.info || "-"}</span>,
+      sort: "info",
+      sortValue: (process) => process.info || ""
+    },
+    {
+      key: "actions",
+      header: <span className="sr-only">{t("col_actions")}</span>,
+      label: t("col_actions"),
+      pin: "end",
+      render: (process) =>
+        process.command && process.command !== "Sleep" ? (
+          <button
+            className="rounded border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
+            disabled={killingThreadId === process.id}
+            onClick={() => onKill(process)}
+            type="button"
+          >
+            {killingThreadId === process.id ? t("killing") : t("kill_query")}
+          </button>
+        ) : null,
+      required: true
+    }
+  ]
+}
+
+function statementDigestColumns(t: ReturnType<typeof useT>["t"]): Array<AdminEventLogTableColumn<MysqlStatementDigest>> {
+  return [
+    { key: "total_seconds", header: t("col_total"), render: (row) => formatSeconds(row.total_seconds), sort: "total_seconds", sortValue: (row) => row.total_seconds },
+    { key: "max_seconds", header: t("col_max"), render: (row) => formatSeconds(row.max_seconds), sort: "max_seconds", sortValue: (row) => row.max_seconds },
+    { key: "count", header: t("col_count"), render: (row) => row.count, sort: "count", sortValue: (row) => row.count },
+    {
+      key: "statement",
+      header: t("col_statement"),
+      className: "max-w-xl truncate font-mono text-xs",
+      render: (row) => <span title={row.digest_text || ""}>{row.digest_text || "-"}</span>,
+      sort: "statement",
+      sortValue: (row) => row.digest_text || ""
+    }
+  ]
+}
+
+function slowLogColumns(t: ReturnType<typeof useT>["t"]): Array<AdminEventLogTableColumn<MysqlSlowLogRow>> {
+  return [
+    { key: "start_time", header: t("col_time"), render: (row) => (row.start_time ? new Date(row.start_time).toLocaleString() : "-"), sort: "start_time", sortValue: (row) => row.start_time || "" },
+    { key: "query_time", header: t("col_query_time"), render: (row) => row.query_time, sort: "query_time", sortValue: (row) => Number(row.query_time) || 0 },
+    { key: "rows_examined", header: t("col_rows_examined"), render: (row) => row.rows_examined, sort: "rows_examined", sortValue: (row) => row.rows_examined },
+    {
+      key: "sql",
+      header: "SQL",
+      className: "max-w-xl truncate font-mono text-xs",
+      render: (row) => <span title={row.sql_text || ""}>{row.sql_text || "-"}</span>,
+      sort: "sql",
+      sortValue: (row) => row.sql_text || ""
+    }
+  ]
 }
 
 function connectionPercent(summary: MysqlSnapshot["connection_summary"]) {

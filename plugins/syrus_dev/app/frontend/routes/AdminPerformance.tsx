@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
-import { Button, Notice, Page, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
+import { useLocation } from "react-router-dom"
+import { Button, Notice, Page, Section, Text, Toolbar } from "@app/components/ui"
 import {
   explainSql,
   fetchAdminPerformance,
@@ -18,52 +19,92 @@ import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 import { DataTable, DescriptionList } from "@app/components/ui"
+import {
+  AdminEventFilterBar,
+  AdminDataTablePanel
+} from "@app/components/AdminEventLogPanel"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  type DataTableColumnDef
+} from "@app/components/dataTable"
+import type { DataTableSortDirection } from "@app/components/ui/DataTable"
+import { buildFlatFilterLink } from "@app/lib/flatFilterLink"
 
-type RevisionScope = "current" | "all"
 type PerformanceTab = "overview" | "browser" | "requests" | "jobs" | "sql" | "phases" | "events"
 type ExplainModalTab = "visual" | "table" | "json" | "sql"
 type ExplainMode = "explain" | "analyze"
+type SortState = { column: string; direction: "asc" | "desc" }
+type PerformanceColumnDef<TRow> = DataTableColumnDef<TRow> & { sortValue?: (row: TRow) => string | number | null | undefined }
 
 const PERFORMANCE_TABS: PerformanceTab[] = ["overview", "browser", "requests", "jobs", "sql", "phases", "events"]
 const EXPLAIN_MODAL_TABS: ExplainModalTab[] = ["visual", "table", "json", "sql"]
 const OVERVIEW_ROW_LIMIT = 5
 
+function normalizedSearch(search: string) {
+  if (search) return search
+  return "?revision_scope=current&since=1h"
+}
+
+function performanceFilterFields(t: (key: string) => string) {
+  return [
+    { name: "app_revision", label: t("performance.filter_sha"), placeholder: "abcdef123456" },
+    { name: "since", label: t("performance.filter_since"), defaultValue: "1h", placeholder: "1h" },
+    { name: "until", label: t("performance.filter_until"), placeholder: "2026-09-25T12:00:00Z" },
+    {
+      name: "revision_scope",
+      label: t("performance.filter_revision_scope"),
+      defaultValue: "current",
+      options: [
+        { value: "current", label: t("performance.current_revision") },
+        { value: "all", label: t("performance.all_revisions") }
+      ]
+    }
+  ]
+}
+
+const performanceFilterLink = buildFlatFilterLink(["app_revision", "since", "until", "revision_scope"], (params) => {
+  if (!params.has("revision_scope")) params.set("revision_scope", "current")
+  if (!params.has("since")) params.set("since", "1h")
+})
+
 export function AdminPerformance() {
   const { t } = useT("syrus_dev")
-  const [revisionScope, setRevisionScope] = useState<RevisionScope>("current")
+  const location = useLocation()
+  const search = normalizedSearch(location.search)
   usePageTitle(t("page_title_performance"))
   const performance = useQuery({
-    queryKey: ["admin", "performance", revisionScope],
-    queryFn: () => fetchAdminPerformance(500, revisionScope)
+    queryKey: ["admin", "performance", search],
+    queryFn: () => fetchAdminPerformance(search)
   })
 
   return (
     <Page.Root aria-label={t("performance.aria")} gutter="responsive" size="wide">
       <Page.Header className="flex items-end justify-between gap-4 border-b border-border pb-4">
-        <div>
-          <Text className="font-medium uppercase" variant="caption" tone="muted">
+        <Page.HeadingGroup>
+          <Text as="p" muted variant="label">
             {t("section_label")}
           </Text>
-          <PageHeading>{t("performance.heading")}</PageHeading>
-        </div>
+          <Page.Title className="mt-1">{t("performance.heading")}</Page.Title>
+        </Page.HeadingGroup>
         <Toolbar className="shrink-0">
-          <div
-            className="inline-flex rounded border border-gray-300 bg-white p-0.5 text-sm dark:border-gray-600 dark:bg-gray-900"
-            role="group"
-            aria-label={t("performance.revision_filter")}
-          >
-            <button className={scopeButtonClass(revisionScope === "current")} onClick={() => setRevisionScope("current")} type="button">
-              {t("performance.current_revision")}
-            </button>
-            <button className={scopeButtonClass(revisionScope === "all")} onClick={() => setRevisionScope("all")} type="button">
-              {t("performance.all_revisions")}
-            </button>
-          </div>
           <Button disabled={performance.isFetching} onClick={() => void performance.refetch()} variant="secondary">
             {performance.isFetching ? t("performance.refreshing") : t("performance.refresh")}
           </Button>
         </Toolbar>
       </Page.Header>
+
+      <AdminEventFilterBar
+        buildLink={performanceFilterLink}
+        clearLabel={t("performance.clear_filters")}
+        filter={performance.data?.filter}
+        filterSchema={performance.data?.filter_schema}
+        fields={performanceFilterFields(t)}
+        search={search}
+        searchLabel={t("performance.search")}
+      />
 
       {performance.isPending ? <PanelMessage>{t("performance.loading")}</PanelMessage> : null}
       {performance.isError ? <PanelMessage tone="error">{errorMessage(performance.error, t("performance.error_load"))}</PanelMessage> : null}
@@ -116,13 +157,13 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
       </section>
 
       <Page.Nav>
-        <Toolbar aria-label={t("performance.tabs_aria")} className="border-b border-border">
+        <nav aria-label={t("performance.tabs_aria")} className="flex flex-wrap gap-2">
           {PERFORMANCE_TABS.map((tab) => (
             <button className={tabButtonClass(activeTab === tab)} key={tab} onClick={() => setActiveTab(tab)} type="button">
               {t(`performance.tab_${tab}`)}
             </button>
           ))}
-        </Toolbar>
+        </nav>
       </Page.Nav>
 
       {activeTab === "overview" ? (
@@ -166,42 +207,18 @@ function RegressionTable({ payload }: { payload: AdminPerformancePayload }) {
     ? t("performance.regressions_with_baseline", { revision: shortRevision(payload.baseline.revision) })
     : t("performance.regressions")
 
-  return (
-    <TableSection empty={payload.baseline?.revision ? t("performance.no_regressions") : t("performance.no_baseline")} rowCount={rows.length} title={title}>
-      <PerformanceDataTable>
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("performance.col_kind")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_item")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_status")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_current")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_baseline")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_delta")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {rows.map((row) => (
-            <DataTable.Row key={`${row.kind}-${row.key}`}>
-              <DataTable.Cell className="whitespace-nowrap font-medium text-gray-600 dark:text-gray-300">{row.kind}</DataTable.Cell>
-              <DataTable.Cell className="max-w-3xl font-mono text-gray-900 dark:text-gray-100">
-                <div className="truncate" title={row.label}>
-                  {row.label}
-                </div>
-              </DataTable.Cell>
-              <DataTable.Cell className="whitespace-nowrap">
-                <span className={comparisonPillClass(row.status)}>{row.status}</span>
-              </DataTable.Cell>
-              <NumberCell value={formatMs(row.current_average_duration_ms)} />
-              <NumberCell value={formatMs(row.baseline_average_duration_ms)} />
-              <NumberCell value={formatDelta(row)} />
-              <NumberCell value={`${row.current_count} / ${row.baseline_count ?? "-"}`} />
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </PerformanceDataTable>
-    </TableSection>
-  )
+  type RegressionRow = (typeof rows)[number]
+  const columns: PerformanceColumnDef<RegressionRow>[] = [
+    { key: "kind", label: t("performance.col_kind"), required: true, sortKey: "kind", sortValue: (row) => row.kind, cellClassName: "whitespace-nowrap font-medium text-gray-600 dark:text-gray-300", renderCell: (row) => row.kind },
+    { key: "item", label: t("performance.col_item"), sortKey: "item", sortValue: (row) => row.label, cellClassName: "max-w-3xl font-mono text-gray-900 dark:text-gray-100", renderCell: (row) => <div className="truncate" title={row.label}>{row.label}</div> },
+    { key: "status", label: t("performance.col_status"), sortKey: "status", sortValue: (row) => row.status, cellClassName: "whitespace-nowrap", renderCell: (row) => <span className={comparisonPillClass(row.status)}>{row.status}</span> },
+    { key: "current", label: t("performance.col_current"), align: "right", sortKey: "current", sortValue: (row) => row.current_average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.current_average_duration_ms) },
+    { key: "baseline", label: t("performance.col_baseline"), align: "right", sortKey: "baseline", sortValue: (row) => row.baseline_average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.baseline_average_duration_ms) },
+    { key: "delta", label: t("performance.col_delta"), align: "right", sortKey: "delta", sortValue: (row) => row.delta_average_duration_ms, cellClassName: numberCellClass(), renderCell: formatDelta },
+    { key: "count", label: t("performance.col_count"), align: "right", sortKey: "count", sortValue: (row) => row.current_count, cellClassName: numberCellClass(), renderCell: (row) => `${row.current_count} / ${row.baseline_count ?? "-"}` }
+  ]
+
+  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "delta", direction: "desc" }} empty={payload.baseline?.revision ? t("performance.no_regressions") : t("performance.no_baseline")} getRowKey={(row) => `${row.kind}-${row.key}`} rows={rows} storageKey="syrus.admin.performance.regressions.visible_columns" title={title} />
 }
 
 function comparisonRows(kind: string, rows: PerformanceComparison[]) {
@@ -219,94 +236,79 @@ function comparisonPillClass(status: PerformanceComparison["status"]) {
 
 function SlowRequestsTable({ onInspect, rows }: { onInspect: (row: SlowRequestSummary) => void; rows: SlowRequestSummary[] }) {
   const { t } = useT("syrus_dev")
-  return (
-    <TableSection empty={t("performance.no_slow_requests")} rowCount={rows.length} title={t("performance.slow_requests")}>
-      <PerformanceDataTable>
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("performance.col_request")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_total")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_avg")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_max")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_sql")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_last_seen")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_actions")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {rows.map((row) => (
-            <DataTable.Row key={`${row.method}-${row.path}-${row.controller}-${row.action}`}>
-              <DataTable.Cell className="max-w-xl">
+  const columns: PerformanceColumnDef<SlowRequestSummary>[] = [
+    {
+      key: "request",
+      label: t("performance.col_request"),
+      required: true,
+      sortKey: "request",
+      sortValue: (row) => `${row.method} ${row.path}`,
+      cellClassName: "max-w-xl",
+      renderCell: (row) => (
+        <>
                 <div className="font-mono text-xs text-gray-900 dark:text-gray-100">
                   {row.method} {row.path}
                 </div>
                 <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {row.controller}#{row.action}
                 </div>
-              </DataTable.Cell>
-              <NumberCell value={row.count} />
-              <NumberCell value={formatMs(row.total_duration_ms)} />
-              <NumberCell value={formatMs(row.average_duration_ms)} />
-              <NumberCell value={formatMs(row.max_duration_ms)} />
-              <NumberCell value={`${row.average_sql_count ?? "-"} / ${formatMs(row.average_sql_duration_ms)}`} />
-              <DataTable.Cell className="text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</DataTable.Cell>
-              <DataTable.Cell align="right" className="whitespace-nowrap">
+        </>
+      )
+    },
+    { key: "count", label: t("performance.col_count"), align: "right", sortKey: "count", sortValue: (row) => row.count, cellClassName: numberCellClass(), renderCell: (row) => row.count },
+    { key: "total", label: t("performance.col_total"), align: "right", sortKey: "total", sortValue: (row) => row.total_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.total_duration_ms) },
+    { key: "avg", label: t("performance.col_avg"), align: "right", sortKey: "avg", sortValue: (row) => row.average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.average_duration_ms) },
+    { key: "max", label: t("performance.col_max"), align: "right", sortKey: "max", sortValue: (row) => row.max_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.max_duration_ms) },
+    { key: "sql", label: t("performance.col_sql"), align: "right", sortKey: "sql", sortValue: (row) => row.average_sql_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => `${row.average_sql_count ?? "-"} / ${formatMs(row.average_sql_duration_ms)}` },
+    { key: "last_seen", label: t("performance.col_last_seen"), sortKey: "last_seen", sortValue: (row) => row.last_seen_at ?? "", cellClassName: "text-gray-600 dark:text-gray-300", renderCell: (row) => formatDate(row.last_seen_at) },
+    {
+      key: "actions",
+      label: t("performance.col_actions"),
+      align: "right",
+      pin: "end",
+      required: true,
+      cellClassName: "whitespace-nowrap",
+      renderCell: (row) => (
                 <button className={smallActionClass()} onClick={() => onInspect(row)} type="button">
                   {t("performance.details")}
                 </button>
-              </DataTable.Cell>
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </PerformanceDataTable>
-    </TableSection>
-  )
+      )
+    }
+  ]
+  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "total", direction: "desc" }} empty={t("performance.no_slow_requests")} getRowKey={(row) => `${row.method}-${row.path}-${row.controller}-${row.action}`} rows={rows} storageKey="syrus.admin.performance.slow_requests.visible_columns" title={t("performance.slow_requests")} />
 }
 
 function SlowJobsTable({ rows }: { rows: SlowJobSummary[] }) {
   const { t } = useT("syrus_dev")
-  return (
-    <TableSection empty={t("performance.no_slow_jobs")} rowCount={rows.length} title={t("performance.slow_jobs")}>
-      <PerformanceDataTable>
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("performance.col_job")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_queue")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_total")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_avg")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_max")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_sql")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_recent_job")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_last_seen")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {rows.map((row) => (
-            <DataTable.Row key={`${row.job_class}-${row.queue_name}`}>
-              <DataTable.Cell className="max-w-xl">
+  const columns: PerformanceColumnDef<SlowJobSummary>[] = [
+    {
+      key: "job",
+      label: t("performance.col_job"),
+      required: true,
+      sortKey: "job",
+      sortValue: (row) => row.job_class ?? "",
+      cellClassName: "max-w-xl",
+      renderCell: (row) => (
+        <>
                 <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.job_class ?? "-"}</div>
                 {row.recent_trigger_reasons?.length ? (
                   <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     {t("performance.triggered_by", { reasons: row.recent_trigger_reasons.join(", ") })}
                   </div>
                 ) : null}
-              </DataTable.Cell>
-              <DataTable.Cell className="whitespace-nowrap font-mono text-gray-600 dark:text-gray-300">{row.queue_name ?? "-"}</DataTable.Cell>
-              <NumberCell value={row.count} />
-              <NumberCell value={formatMs(row.total_duration_ms)} />
-              <NumberCell value={formatMs(row.average_duration_ms)} />
-              <NumberCell value={formatMs(row.max_duration_ms)} />
-              <NumberCell value={`${row.average_sql_count ?? "-"} / ${formatMs(row.average_sql_duration_ms)}`} />
-              <DataTable.Cell className="whitespace-nowrap font-mono text-gray-600 dark:text-gray-300">{row.recent_active_job_id ?? "-"}</DataTable.Cell>
-              <DataTable.Cell className="whitespace-nowrap text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</DataTable.Cell>
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </PerformanceDataTable>
-    </TableSection>
-  )
+        </>
+      )
+    },
+    { key: "queue", label: t("performance.col_queue"), sortKey: "queue", sortValue: (row) => row.queue_name ?? "", cellClassName: "whitespace-nowrap font-mono text-gray-600 dark:text-gray-300", renderCell: (row) => row.queue_name ?? "-" },
+    { key: "count", label: t("performance.col_count"), align: "right", sortKey: "count", sortValue: (row) => row.count, cellClassName: numberCellClass(), renderCell: (row) => row.count },
+    { key: "total", label: t("performance.col_total"), align: "right", sortKey: "total", sortValue: (row) => row.total_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.total_duration_ms) },
+    { key: "avg", label: t("performance.col_avg"), align: "right", sortKey: "avg", sortValue: (row) => row.average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.average_duration_ms) },
+    { key: "max", label: t("performance.col_max"), align: "right", sortKey: "max", sortValue: (row) => row.max_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.max_duration_ms) },
+    { key: "sql", label: t("performance.col_sql"), align: "right", sortKey: "sql", sortValue: (row) => row.average_sql_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => `${row.average_sql_count ?? "-"} / ${formatMs(row.average_sql_duration_ms)}` },
+    { key: "recent_job", label: t("performance.col_recent_job"), sortKey: "recent_job", sortValue: (row) => row.recent_active_job_id ?? "", cellClassName: "whitespace-nowrap font-mono text-gray-600 dark:text-gray-300", renderCell: (row) => row.recent_active_job_id ?? "-" },
+    { key: "last_seen", label: t("performance.col_last_seen"), sortKey: "last_seen", sortValue: (row) => row.last_seen_at ?? "", cellClassName: "whitespace-nowrap text-gray-600 dark:text-gray-300", renderCell: (row) => formatDate(row.last_seen_at) }
+  ]
+  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "total", direction: "desc" }} empty={t("performance.no_slow_jobs")} getRowKey={(row) => `${row.job_class}-${row.queue_name}`} rows={rows} storageKey="syrus.admin.performance.slow_jobs.visible_columns" title={t("performance.slow_jobs")} />
 }
 
 function SlowRequestSqlModal({
@@ -491,90 +493,64 @@ function RequestSqlTable({
 
 function SlowPhasesTable({ rows }: { rows: SlowPhaseSummary[] }) {
   const { t } = useT("syrus_dev")
-  return (
-    <TableSection empty={t("performance.no_slow_phases")} rowCount={rows.length} title={t("performance.slow_phases")}>
-      <PerformanceDataTable>
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("performance.col_phase")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_total")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_avg")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_max")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_metadata")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_last_seen")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {rows.map((row) => {
-            const metadata = compactJson(row.recent_metadata)
-            return (
-              <DataTable.Row key={row.phase}>
-                <DataTable.Cell className="font-mono text-gray-900 dark:text-gray-100">{row.phase}</DataTable.Cell>
-                <NumberCell value={row.count} />
-                <NumberCell value={formatMs(row.total_duration_ms)} />
-                <NumberCell value={formatMs(row.average_duration_ms)} />
-                <NumberCell value={formatMs(row.max_duration_ms)} />
-                <DataTable.Cell className="max-w-md overflow-hidden font-mono text-gray-600 dark:text-gray-300">
-                  <div className="truncate" title={metadata !== "-" ? metadata : undefined}>
-                    {metadata}
-                  </div>
-                </DataTable.Cell>
-                <DataTable.Cell className="whitespace-nowrap text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</DataTable.Cell>
-              </DataTable.Row>
-            )
-          })}
-        </DataTable.Body>
-      </PerformanceDataTable>
-    </TableSection>
-  )
+  const columns: PerformanceColumnDef<SlowPhaseSummary>[] = [
+    { key: "phase", label: t("performance.col_phase"), required: true, sortKey: "phase", sortValue: (row) => row.phase, cellClassName: "font-mono text-gray-900 dark:text-gray-100", renderCell: (row) => row.phase },
+    { key: "count", label: t("performance.col_count"), align: "right", sortKey: "count", sortValue: (row) => row.count, cellClassName: numberCellClass(), renderCell: (row) => row.count },
+    { key: "total", label: t("performance.col_total"), align: "right", sortKey: "total", sortValue: (row) => row.total_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.total_duration_ms) },
+    { key: "avg", label: t("performance.col_avg"), align: "right", sortKey: "avg", sortValue: (row) => row.average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.average_duration_ms) },
+    { key: "max", label: t("performance.col_max"), align: "right", sortKey: "max", sortValue: (row) => row.max_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.max_duration_ms) },
+    {
+      key: "metadata",
+      label: t("performance.col_metadata"),
+      sortKey: "metadata",
+      sortValue: (row) => compactJson(row.recent_metadata),
+      cellClassName: "max-w-md overflow-hidden font-mono text-gray-600 dark:text-gray-300",
+      renderCell: (row) => {
+        const metadata = compactJson(row.recent_metadata)
+        return <div className="truncate" title={metadata !== "-" ? metadata : undefined}>{metadata}</div>
+      }
+    },
+    { key: "last_seen", label: t("performance.col_last_seen"), sortKey: "last_seen", sortValue: (row) => row.last_seen_at ?? "", cellClassName: "whitespace-nowrap text-gray-600 dark:text-gray-300", renderCell: (row) => formatDate(row.last_seen_at) }
+  ]
+  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "total", direction: "desc" }} empty={t("performance.no_slow_phases")} getRowKey={(row) => row.phase} rows={rows} storageKey="syrus.admin.performance.slow_phases.visible_columns" title={t("performance.slow_phases")} />
 }
 
 function BrowserTracesTable({ onInspect, rows }: { onInspect: (row: BrowserTraceSummary) => void; rows: BrowserTraceSummary[] }) {
   const { t } = useT("syrus_dev")
-  return (
-    <TableSection empty={t("performance.no_browser_traces")} rowCount={rows.length} title={t("performance.browser_traces")}>
-      <PerformanceDataTable>
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("performance.col_trace")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_browser_total")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_browser_avg")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_browser_max")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_backend_api")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_frontend_overhead")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_spans")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_request_ids")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_last_seen")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_actions")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {rows.map((row) => (
-            <DataTable.Row key={`${row.name}-${row.path}`}>
-              <DataTable.Cell className="max-w-xl">
+  const columns: PerformanceColumnDef<BrowserTraceSummary>[] = [
+    {
+      key: "trace",
+      label: t("performance.col_trace"),
+      required: true,
+      sortKey: "trace",
+      sortValue: (row) => `${row.name} ${row.path}`,
+      cellClassName: "max-w-xl",
+      renderCell: (row) => (
+        <>
                 <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.name}</div>
                 <div className="mt-1 truncate font-mono text-xs text-gray-500 dark:text-gray-400" title={row.path ?? undefined}>
                   {row.path ?? "-"}
                 </div>
-              </DataTable.Cell>
-              <NumberCell value={row.count} />
-              <NumberCell value={formatMs(row.total_duration_ms)} />
-              <NumberCell value={formatMs(row.average_duration_ms)} />
-              <NumberCell value={formatMs(row.max_duration_ms)} />
-              <NumberCell value={`${formatMs(row.average_api_duration_ms)} / ${formatMs(row.max_api_duration_ms)}`} />
-              <NumberCell
-                value={`${formatMs(frontendOverhead(row.average_duration_ms, row.average_api_duration_ms))} / ${formatMs(frontendOverhead(row.max_duration_ms, row.max_api_duration_ms))}`}
-              />
-              <NumberCell value={`${formatMs(row.average_span_duration_ms)} / ${formatMs(row.max_span_duration_ms)}`} />
-              <DataTable.Cell className="max-w-md font-mono text-gray-600 dark:text-gray-300">
-                <div className="truncate" title={row.recent_api_request_ids.join(", ")}>
-                  {row.recent_api_request_ids.join(", ") || "-"}
-                </div>
-              </DataTable.Cell>
-              <DataTable.Cell className="whitespace-nowrap text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</DataTable.Cell>
-              <DataTable.Cell align="right" className="whitespace-nowrap">
+        </>
+      )
+    },
+    { key: "count", label: t("performance.col_count"), align: "right", sortKey: "count", sortValue: (row) => row.count, cellClassName: numberCellClass(), renderCell: (row) => row.count },
+    { key: "total", label: t("performance.col_browser_total"), align: "right", sortKey: "total", sortValue: (row) => row.total_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.total_duration_ms) },
+    { key: "avg", label: t("performance.col_browser_avg"), align: "right", sortKey: "avg", sortValue: (row) => row.average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.average_duration_ms) },
+    { key: "max", label: t("performance.col_browser_max"), align: "right", sortKey: "max", sortValue: (row) => row.max_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.max_duration_ms) },
+    { key: "backend_api", label: t("performance.col_backend_api"), align: "right", sortKey: "backend_api", sortValue: (row) => row.average_api_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => `${formatMs(row.average_api_duration_ms)} / ${formatMs(row.max_api_duration_ms)}` },
+    { key: "frontend_overhead", label: t("performance.col_frontend_overhead"), align: "right", sortKey: "frontend_overhead", sortValue: (row) => frontendOverhead(row.average_duration_ms, row.average_api_duration_ms), cellClassName: numberCellClass(), renderCell: (row) => `${formatMs(frontendOverhead(row.average_duration_ms, row.average_api_duration_ms))} / ${formatMs(frontendOverhead(row.max_duration_ms, row.max_api_duration_ms))}` },
+    { key: "spans", label: t("performance.col_spans"), align: "right", sortKey: "spans", sortValue: (row) => row.average_span_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => `${formatMs(row.average_span_duration_ms)} / ${formatMs(row.max_span_duration_ms)}` },
+    { key: "request_ids", label: t("performance.col_request_ids"), sortKey: "request_ids", sortValue: (row) => row.recent_api_request_ids.join(", "), cellClassName: "max-w-md font-mono text-gray-600 dark:text-gray-300", renderCell: (row) => <div className="truncate" title={row.recent_api_request_ids.join(", ")}>{row.recent_api_request_ids.join(", ") || "-"}</div> },
+    { key: "last_seen", label: t("performance.col_last_seen"), sortKey: "last_seen", sortValue: (row) => row.last_seen_at ?? "", cellClassName: "whitespace-nowrap text-gray-600 dark:text-gray-300", renderCell: (row) => formatDate(row.last_seen_at) },
+    {
+      key: "actions",
+      label: t("performance.col_actions"),
+      align: "right",
+      pin: "end",
+      required: true,
+      cellClassName: "whitespace-nowrap",
+      renderCell: (row) => (
                 <button
                   aria-label={t("performance.browser_trace_details_action", { name: row.name })}
                   className={smallActionClass()}
@@ -583,13 +559,10 @@ function BrowserTracesTable({ onInspect, rows }: { onInspect: (row: BrowserTrace
                 >
                   {t("performance.details")}
                 </button>
-              </DataTable.Cell>
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </PerformanceDataTable>
-    </TableSection>
-  )
+      )
+    }
+  ]
+  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "total", direction: "desc" }} empty={t("performance.no_browser_traces")} getRowKey={(row) => `${row.name}-${row.path}`} rows={rows} storageKey="syrus.admin.performance.browser_traces.visible_columns" title={t("performance.browser_traces")} />
 }
 
 function BrowserTraceModal({ events, onClose, trace }: { events: PerformanceEvent[]; onClose: () => void; trace: BrowserTraceSummary }) {
@@ -682,33 +655,35 @@ function frontendOverhead(browserDuration: number | null | undefined, apiDuratio
 
 function SqlFingerprintsTable({ onExplain, rows }: { onExplain: (sql: string) => void; rows: SqlFingerprintSummary[] }) {
   const { t } = useT("syrus_dev")
-  return (
-    <TableSection empty={t("performance.no_sql")} rowCount={rows.length} title={t("performance.sql_fingerprints")}>
-      <PerformanceDataTable>
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("performance.col_sql")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_total")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_avg")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_max")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_actions")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {rows.map((row) => (
-            <DataTable.Row key={row.fingerprint}>
-              <DataTable.Cell className="max-w-4xl">
+  const columns: PerformanceColumnDef<SqlFingerprintSummary>[] = [
+    {
+      key: "sql",
+      label: t("performance.col_sql"),
+      required: true,
+      sortKey: "sql",
+      sortValue: (row) => row.name || row.fingerprint,
+      cellClassName: "max-w-4xl",
+      renderCell: (row) => (
+        <>
                 <div className="text-xs font-medium text-gray-700 dark:text-gray-200">{row.name || t("performance.sql_unknown")}</div>
                 <div className="mt-1 max-h-16 overflow-hidden break-words font-mono text-xs text-gray-600 dark:text-gray-300">
                   {row.sample_sql || row.fingerprint}
                 </div>
-              </DataTable.Cell>
-              <NumberCell value={row.count} />
-              <NumberCell value={formatMs(row.total_duration_ms)} />
-              <NumberCell value={formatMs(row.average_duration_ms)} />
-              <NumberCell value={formatMs(row.max_duration_ms)} />
-              <DataTable.Cell align="right" className="whitespace-nowrap">
+        </>
+      )
+    },
+    { key: "count", label: t("performance.col_count"), align: "right", sortKey: "count", sortValue: (row) => row.count, cellClassName: numberCellClass(), renderCell: (row) => row.count },
+    { key: "total", label: t("performance.col_total"), align: "right", sortKey: "total", sortValue: (row) => row.total_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.total_duration_ms) },
+    { key: "avg", label: t("performance.col_avg"), align: "right", sortKey: "avg", sortValue: (row) => row.average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.average_duration_ms) },
+    { key: "max", label: t("performance.col_max"), align: "right", sortKey: "max", sortValue: (row) => row.max_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.max_duration_ms) },
+    {
+      key: "actions",
+      label: t("performance.col_actions"),
+      align: "right",
+      pin: "end",
+      required: true,
+      cellClassName: "whitespace-nowrap",
+      renderCell: (row) => (
                 <button
                   className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
                   disabled={!row.sample_sql}
@@ -717,13 +692,10 @@ function SqlFingerprintsTable({ onExplain, rows }: { onExplain: (sql: string) =>
                 >
                   {t("performance.explain")}
                 </button>
-              </DataTable.Cell>
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </PerformanceDataTable>
-    </TableSection>
-  )
+      )
+    }
+  ]
+  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "total", direction: "desc" }} empty={t("performance.no_sql")} getRowKey={(row) => row.fingerprint} rows={rows} storageKey="syrus.admin.performance.sql_fingerprints.visible_columns" title={t("performance.sql_fingerprints")} />
 }
 
 function SqlExplainModal({ initialSql, onClose }: { initialSql: string; onClose: () => void }) {
@@ -831,26 +803,19 @@ function SqlExplainModal({ initialSql, onClose }: { initialSql: string; onClose:
 
 function EventsTable({ rows }: { rows: PerformanceEvent[] }) {
   const { t } = useT("syrus_dev")
-  return (
-    <TableSection empty={t("performance.no_events")} rowCount={rows.length} title={t("performance.recent_events")}>
-      <PerformanceDataTable>
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("performance.col_time")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_revision")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_event")}</DataTable.HeadCell>
-            <DataTable.HeadCell align="right">{t("performance.col_duration")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("performance.col_context")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {rows.map((row, index) => (
-            <DataTable.Row key={`${row.occurred_at}-${row.event}-${index}`}>
-              <DataTable.Cell className="whitespace-nowrap text-gray-600 dark:text-gray-300">{formatDate(row.occurred_at)}</DataTable.Cell>
-              <DataTable.Cell className="whitespace-nowrap font-mono text-gray-600 dark:text-gray-300">{shortRevision(row.app_revision)}</DataTable.Cell>
-              <DataTable.Cell className="font-mono text-gray-900 dark:text-gray-100">{shortEvent(row.event)}</DataTable.Cell>
-              <NumberCell value={formatMs(row.duration_ms)} />
-              <DataTable.Cell className="max-w-4xl text-gray-600 dark:text-gray-300">
+  const columns: PerformanceColumnDef<PerformanceEvent>[] = [
+    { key: "time", label: t("performance.col_time"), required: true, sortKey: "time", sortValue: (row) => row.occurred_at ?? "", cellClassName: "whitespace-nowrap text-gray-600 dark:text-gray-300", renderCell: (row) => formatDate(row.occurred_at) },
+    { key: "revision", label: t("performance.col_revision"), sortKey: "revision", sortValue: (row) => row.app_revision ?? "", cellClassName: "whitespace-nowrap font-mono text-gray-600 dark:text-gray-300", renderCell: (row) => shortRevision(row.app_revision) },
+    { key: "event", label: t("performance.col_event"), sortKey: "event", sortValue: (row) => row.event, cellClassName: "font-mono text-gray-900 dark:text-gray-100", renderCell: (row) => shortEvent(row.event) },
+    { key: "duration", label: t("performance.col_duration"), align: "right", sortKey: "duration", sortValue: (row) => row.duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.duration_ms) },
+    {
+      key: "context",
+      label: t("performance.col_context"),
+      sortKey: "context",
+      sortValue: (row) => row.phase || row.path || row.job_class || row.name || row.fingerprint || "",
+      cellClassName: "max-w-4xl text-gray-600 dark:text-gray-300",
+      renderCell: (row) => (
+        <>
                 <div className="font-mono">{row.phase || row.path || row.job_class || row.name || row.fingerprint || "-"}</div>
                 {row.queue_name ? (
                   <div className="mt-1">{t("performance.job_context", { queue: row.queue_name, active_job_id: row.active_job_id || "-" })}</div>
@@ -871,13 +836,11 @@ function EventsTable({ rows }: { rows: PerformanceEvent[] }) {
                     })}
                   </div>
                 ) : null}
-              </DataTable.Cell>
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </PerformanceDataTable>
-    </TableSection>
-  )
+        </>
+      )
+    }
+  ]
+  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "time", direction: "desc" }} empty={t("performance.no_events")} getRowKey={(row, index) => `${row.occurred_at}-${row.event}-${index}`} rows={rows} storageKey="syrus.admin.performance.events.visible_columns" title={t("performance.recent_events")} />
 }
 
 type PlanNode = {
@@ -1123,12 +1086,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-function scopeButtonClass(active: boolean) {
-  return active
-    ? "rounded bg-gray-900 px-3 py-1.5 font-medium text-white dark:bg-gray-100 dark:text-gray-900"
-    : "rounded px-3 py-1.5 font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
-}
-
 function primaryActionClass() {
   return "rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
 }
@@ -1143,22 +1100,107 @@ function smallActionClass() {
 
 function tabButtonClass(active: boolean) {
   return active
-    ? "border-b-2 border-gray-900 px-3 py-2 text-sm font-semibold text-gray-900 dark:border-gray-100 dark:text-gray-100"
-    : "border-b-2 border-transparent px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+    ? "rounded border border-gray-900 bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900"
+    : "rounded border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
 }
 
-function TableSection({ children, empty, rowCount, title }: { children: ReactNode; empty: string; rowCount: number; title: string }) {
+function ConfigurablePerformanceTable<TRow>({
+  columns,
+  defaultSort,
+  empty,
+  getRowKey,
+  rows,
+  storageKey,
+  title
+}: {
+  columns: PerformanceColumnDef<TRow>[]
+  defaultSort: SortState
+  empty: string
+  getRowKey: (row: TRow, index: number) => string
+  rows: TRow[]
+  storageKey: string
+  title: string
+}) {
+  const { t } = useT("syrus_dev")
+  const [sort, setSort] = useState<SortState>(defaultSort)
+  const preferences = useLocalStorageColumnPreferences({ columns, storageKey })
+  const sortedRows = sortRows(rows, columns, sort)
+  const sortDirection: DataTableSortDirection = sort.direction === "asc" ? "ascending" : "descending"
+
+  function toggleSort(column: string) {
+    setSort((current) => ({ column, direction: current.column === column && current.direction === "asc" ? "desc" : "asc" }))
+  }
+
+  const columnMenu = rows.length > 0 ? (
+    <DataTableColumnMenu
+      columns={columns}
+      downLabel={t("performance.column_down")}
+      menuId={`${storageKey}-columns-menu`}
+      moveDownLabel={(label) => t("performance.column_move_down", { label })}
+      moveUpLabel={(label) => t("performance.column_move_up", { label })}
+      onChange={preferences.onChange}
+      order={preferences.order}
+      triggerAriaLabel={t("performance.columns")}
+      upLabel={t("performance.column_up")}
+      visibleLabel={t("performance.visible_columns")}
+    />
+  ) : null
+
   return (
-    <Section.Root className="overflow-hidden p-0">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <SectionHeading>{title}</SectionHeading>
-        <Text as="span" variant="caption" tone="muted">
-          {rowCount}
-        </Text>
-      </div>
-      {rowCount > 0 ? <div className="overflow-x-auto">{children}</div> : <PanelMessage>{empty}</PanelMessage>}
-    </Section.Root>
+    <AdminDataTablePanel columnSelector={columnMenu} config={{ summary: title, meta: t("performance.table_count", { count: rows.length }) }}>
+      {rows.length === 0 ? <PanelMessage>{empty}</PanelMessage> : (
+        <DataTable.Root density="compact" wrapperClassName="rounded-none border-0">
+          <DataTable.Header>
+            <DataTableColumnHeaderRow
+              columns={columns}
+              onReorder={preferences.onChange}
+              onSort={toggleSort}
+              order={preferences.order}
+              sortColumn={sort.column}
+              sortDirection={sortDirection}
+            />
+          </DataTable.Header>
+          <DataTable.Body>
+            {sortedRows.map((row, index) => (
+              <DataTable.Row key={getRowKey(row, index)}>
+                <DataTableColumnCells columns={columns} order={preferences.order} row={row} />
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      )}
+    </AdminDataTablePanel>
   )
+}
+
+function sortRows<
+  TRow
+>(
+  rows: TRow[],
+  columns: PerformanceColumnDef<TRow>[],
+  sort: SortState
+) {
+  const column = columns.find((candidate) => candidate.sortKey === sort.column || candidate.key === sort.column)
+  if (!column) return rows
+  const direction = sort.direction === "asc" ? 1 : -1
+  return [...rows].sort((a, b) => compareSortValues(sortValue(column, a), sortValue(column, b)) * direction)
+}
+
+function sortValue<
+  TRow
+>(
+  column: PerformanceColumnDef<TRow>,
+  row: TRow
+) {
+  return column.sortValue ? column.sortValue(row) : ""
+}
+
+function compareSortValues(a: string | number | null | undefined, b: string | number | null | undefined) {
+  if (a == null && b == null) return 0
+  if (a == null) return -1
+  if (b == null) return 1
+  if (typeof a === "number" && typeof b === "number") return a - b
+  return String(a).localeCompare(String(b))
 }
 
 function SimpleRowsTable({ empty, rows }: { empty: string; rows: Array<Record<string, ReactNode>> }) {
@@ -1216,6 +1258,10 @@ function NumberCell({ value }: { value: ReactNode }) {
       {value}
     </DataTable.Cell>
   )
+}
+
+function numberCellClass() {
+  return "whitespace-nowrap font-mono text-gray-700 dark:text-gray-200"
 }
 
 function PerformanceDataTable({ children }: { children: ReactNode }) {

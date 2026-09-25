@@ -1,8 +1,15 @@
 import { useQuery } from "@tanstack/react-query"
-import { Select } from "@app/components/Select"
-import { useState } from "react"
-import { Page } from "@app/components/ui"
+import { useLocation, useNavigate } from "react-router-dom"
+import {
+  AdminEventFilterBar,
+  AdminEventLogTable,
+  AdminEventPageShell,
+  AdminEventPanelMessage,
+  type AdminEventLogTableColumn
+} from "@app/components/AdminEventLogPanel"
 import { fetchGithubApiUsage, type GithubApiUsageOperationRow, type GithubApiUsageRepositoryRow } from "../api/githubApiUsage"
+import { Button } from "@app/components/Button"
+import { buildFlatFilterLink } from "@app/lib/flatFilterLink"
 
 function number(value: number | null | undefined) {
   return typeof value === "number" ? value.toLocaleString() : "-"
@@ -14,35 +21,54 @@ function time(value: string | null | undefined) {
 }
 
 export default function AdminGithubApiUsage() {
-  const [hours, setHours] = useState(24)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const search = location.search
   const query = useQuery({
-    queryKey: ["admin", "github_api_usage", hours],
-    queryFn: () => fetchGithubApiUsage(hours),
+    queryKey: ["admin", "github_api_usage", search],
+    queryFn: () => fetchGithubApiUsage(search),
     refetchInterval: 60_000
   })
   const payload = query.data
 
-  return (
-    <Page.Root aria-label="GitHub API Usage" gutter="responsive" size="large">
-      <Page.Header className="items-end">
-        <div>
-          <h1 className="text-3xl font-semibold text-gray-950 dark:text-gray-50">GitHub API Usage</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Hourly rollups by credential, operation, repository, and rate-limit resource.</p>
-        </div>
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-          Window
-          <Select className="ml-2" fullWidth={false} value={hours} onChange={(event) => setHours(Number(event.target.value))}>
-            <option value={1}>1 hour</option>
-            <option value={6}>6 hours</option>
-            <option value={24}>24 hours</option>
-            <option value={72}>3 days</option>
-            <option value={168}>7 days</option>
-          </Select>
-        </label>
-      </Page.Header>
+  function navigateSearch(params: URLSearchParams) {
+    const next = params.toString()
+    navigate({ pathname: location.pathname, search: next ? `?${next}` : "" })
+  }
 
-      {query.isPending ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p> : null}
-      {query.isError ? <p className="text-sm text-red-700 dark:text-red-300">Could not load GitHub API usage.</p> : null}
+  return (
+    <AdminEventPageShell
+      actions={<Button disabled={query.isFetching} onClick={() => void query.refetch()} variant="secondary">{query.isFetching ? "Refreshing..." : "Refresh"}</Button>}
+      ariaLabel="GitHub API Usage"
+      description="Hourly rollups by credential, operation, repository, and rate-limit resource."
+      eyebrow="Admin"
+      title="GitHub API Usage"
+    >
+      <AdminEventFilterBar
+        buildLink={buildFlatFilterLink(["hours"])}
+        filter={payload?.filter}
+        filterSchema={payload?.filter_schema}
+        fields={[
+          {
+            name: "hours",
+            label: "Window",
+            defaultValue: "24",
+            options: [
+              { label: "1 hour", value: "1" },
+              { label: "6 hours", value: "6" },
+              { label: "24 hours", value: "24" },
+              { label: "3 days", value: "72" },
+              { label: "7 days", value: "168" }
+            ]
+          }
+        ]}
+        search={search}
+        searchLabel="Search"
+        clearLabel="Clear"
+      />
+
+      {query.isPending ? <AdminEventPanelMessage>Loading...</AdminEventPanelMessage> : null}
+      {query.isError ? <AdminEventPanelMessage tone="error">Could not load GitHub API usage.</AdminEventPanelMessage> : null}
 
       {payload ? (
         <div className="space-y-6">
@@ -52,25 +78,14 @@ export default function AdminGithubApiUsage() {
             <Metric label="Generated" value={time(payload.generated_at)} />
           </section>
 
-          {payload.recent_rate_limits.length ? (
-            <section className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/20">
-              <h2 className="text-lg font-semibold text-red-900 dark:text-red-100">Recent Rate Limits</h2>
-              <UsageTable rows={payload.recent_rate_limits} showRepo />
-            </section>
-          ) : null}
+          {payload.recent_rate_limits.length ? <UsageTable rows={payload.recent_rate_limits} storageKey="syrus.admin.github_api_usage.rate_limits.columns" summary="Recent Rate Limits" showRepo /> : null}
 
-          <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">
-            <h2 className="text-lg font-semibold text-gray-950 dark:text-gray-50">By Operation</h2>
-            <UsageTable rows={payload.by_operation} />
-          </section>
+          <UsageTable rows={payload.by_operation} storageKey="syrus.admin.github_api_usage.operations.columns" summary="By Operation" />
 
-          <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">
-            <h2 className="text-lg font-semibold text-gray-950 dark:text-gray-50">By Repository</h2>
-            <RepositoryTable rows={payload.by_repository} />
-          </section>
+          <RepositoryTable rows={payload.by_repository} />
         </div>
       ) : null}
-    </Page.Root>
+    </AdminEventPageShell>
   )
 }
 
@@ -83,68 +98,30 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   )
 }
 
-function UsageTable({ rows, showRepo = false }: { rows: (GithubApiUsageOperationRow & { repo_slug?: string | null })[]; showRepo?: boolean }) {
-  return (
-    <div className="mt-3 overflow-x-auto">
-      <table className="min-w-full text-left text-sm">
-        <thead className="text-xs uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="py-2 pr-4">Credential</th>
-            {showRepo ? <th className="py-2 pr-4">Repository</th> : null}
-            <th className="py-2 pr-4">Operation</th>
-            <th className="py-2 pr-4">Resource</th>
-            <th className="py-2 pr-4">Requests</th>
-            <th className="py-2 pr-4">Limited</th>
-            <th className="py-2 pr-4">Min remaining</th>
-            <th className="py-2 pr-4">Last seen</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {rows.map((row, index) => (
-            <tr key={`${row.auth_source}-${row.operation}-${row.resource}-${row.repo_slug ?? ""}-${index}`}>
-              <td className="py-2 pr-4 font-mono text-xs text-gray-600 dark:text-gray-300">{row.auth_source}</td>
-              {showRepo ? <td className="py-2 pr-4 font-mono text-xs text-gray-600 dark:text-gray-300">{row.repo_slug || "-"}</td> : null}
-              <td className="py-2 pr-4 font-medium text-gray-900 dark:text-gray-100">{row.operation}</td>
-              <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{row.resource}</td>
-              <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">{number(row.requests)}</td>
-              <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">{number(row.rate_limited)}</td>
-              <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">{number(row.min_remaining)}</td>
-              <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{time(row.last_seen_at)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
+function UsageTable({ rows, showRepo = false, storageKey, summary }: { rows: (GithubApiUsageOperationRow & { repo_slug?: string | null })[]; showRepo?: boolean; storageKey: string; summary: string }) {
+  const columns: Array<AdminEventLogTableColumn<GithubApiUsageOperationRow & { repo_slug?: string | null }>> = [
+    { key: "auth_source", header: "Credential", required: true, sort: "auth_source", sortValue: (row) => row.auth_source, className: "font-mono text-xs", render: (row) => row.auth_source },
+    ...(showRepo ? [{ key: "repo_slug", header: "Repository", sort: "repo_slug", sortValue: (row) => row.repo_slug || "", className: "font-mono text-xs", render: (row) => row.repo_slug || "-" } satisfies AdminEventLogTableColumn<GithubApiUsageOperationRow & { repo_slug?: string | null }>] : []),
+    { key: "operation", header: "Operation", sort: "operation", sortValue: (row) => row.operation, render: (row) => row.operation },
+    { key: "resource", header: "Resource", sort: "resource", sortValue: (row) => row.resource, render: (row) => row.resource },
+    { key: "requests", header: "Requests", sort: "requests", sortValue: (row) => row.requests, render: (row) => number(row.requests) },
+    { key: "rate_limited", header: "Limited", sort: "rate_limited", sortValue: (row) => row.rate_limited, render: (row) => number(row.rate_limited) },
+    { key: "min_remaining", header: "Min remaining", sort: "min_remaining", sortValue: (row) => row.min_remaining, render: (row) => number(row.min_remaining) },
+    { key: "last_seen_at", header: "Last seen", sort: "last_seen_at", sortValue: (row) => row.last_seen_at || "", render: (row) => time(row.last_seen_at) }
+  ]
+
+  return <AdminEventLogTable columns={columns} defaultSort={{ column: "requests", direction: "desc" }} getRowKey={(row) => `${row.auth_source}-${row.operation}-${row.resource}-${row.repo_slug ?? ""}`} localSort panel={{ summary, meta: `${rows.length} rows` }} rows={rows} storageKey={storageKey} />
 }
 
 function RepositoryTable({ rows }: { rows: GithubApiUsageRepositoryRow[] }) {
-  return (
-    <div className="mt-3 overflow-x-auto">
-      <table className="min-w-full text-left text-sm">
-        <thead className="text-xs uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="py-2 pr-4">Repository</th>
-            <th className="py-2 pr-4">Credential</th>
-            <th className="py-2 pr-4">Requests</th>
-            <th className="py-2 pr-4">Limited</th>
-            <th className="py-2 pr-4">Min remaining</th>
-            <th className="py-2 pr-4">Last seen</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {rows.map((row) => (
-            <tr key={`${row.auth_source}-${row.repo_slug}`}>
-              <td className="py-2 pr-4 font-medium text-gray-900 dark:text-gray-100">{row.repo_slug}</td>
-              <td className="py-2 pr-4 font-mono text-xs text-gray-600 dark:text-gray-300">{row.auth_source}</td>
-              <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">{number(row.requests)}</td>
-              <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">{number(row.rate_limited)}</td>
-              <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">{number(row.min_remaining)}</td>
-              <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{time(row.last_seen_at)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
+  const columns: Array<AdminEventLogTableColumn<GithubApiUsageRepositoryRow>> = [
+    { key: "repo_slug", header: "Repository", required: true, sort: "repo_slug", sortValue: (row) => row.repo_slug, render: (row) => row.repo_slug },
+    { key: "auth_source", header: "Credential", sort: "auth_source", sortValue: (row) => row.auth_source, className: "font-mono text-xs", render: (row) => row.auth_source },
+    { key: "requests", header: "Requests", sort: "requests", sortValue: (row) => row.requests, render: (row) => number(row.requests) },
+    { key: "rate_limited", header: "Limited", sort: "rate_limited", sortValue: (row) => row.rate_limited, render: (row) => number(row.rate_limited) },
+    { key: "min_remaining", header: "Min remaining", sort: "min_remaining", sortValue: (row) => row.min_remaining, render: (row) => number(row.min_remaining) },
+    { key: "last_seen_at", header: "Last seen", sort: "last_seen_at", sortValue: (row) => row.last_seen_at || "", render: (row) => time(row.last_seen_at) }
+  ]
+
+  return <AdminEventLogTable columns={columns} defaultSort={{ column: "requests", direction: "desc" }} getRowKey={(row) => `${row.auth_source}-${row.repo_slug}`} localSort panel={{ summary: "By Repository", meta: `${rows.length} rows` }} rows={rows} storageKey="syrus.admin.github_api_usage.repositories.columns" />
 }

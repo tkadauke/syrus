@@ -7,7 +7,7 @@ module SyrusDev
     end
 
     def as_json(*)
-      raw_events = PerformanceLogging::Store.recent(limit: limit)
+      raw_events = filtered_events(PerformanceLogging::Store.recent(limit: limit))
       current_events = raw_events.select { |event| event["app_revision"] == current_revision }
       events = revision_scope == "all" ? raw_events : current_events
       summaries = summaries_payload(events)
@@ -17,6 +17,8 @@ module SyrusDev
         enabled: Feature.enabled?(PerformanceLogging::FEATURE_SLUG),
         current_revision: current_revision,
         revision_scope: revision_scope,
+        filter: filter_payload,
+        filter_schema: filter_schema,
         thresholds: PerformanceLogging.thresholds,
         storage: storage_payload,
         baseline: baseline_payload(baseline_revision, raw_events, current_summaries),
@@ -48,8 +50,92 @@ module SyrusDev
       params[:revision_scope].to_s == "all" ? "all" : "current"
     end
 
+    def filter_payload
+      chips = []
+      chips << { field: "app_revision", op: "is", value: app_revision_filter } if app_revision_filter.present?
+      chips << { field: "since", op: "is", value: since_param } if since_param.present?
+      chips << { field: "until", op: "is", value: until_param } if until_param.present?
+      chips << { field: "revision_scope", op: "is", value: revision_scope }
+      { and: chips }
+    end
+
+    def filter_schema
+      [
+        { field: "app_revision", label: "SHA", bucket: "text", operators: [ "is" ], expansions: { placeholder: current_revision.first(12) } },
+        { field: "since", label: "Since", bucket: "text", operators: [ "is" ], expansions: { placeholder: "1h" } },
+        { field: "until", label: "Until", bucket: "text", operators: [ "is" ], expansions: { placeholder: Time.current.iso8601 } },
+        { field: "revision_scope", label: "Revision scope", bucket: "enum", operators: [ "is" ], values: [
+          { value: "current", label: "Current SHA" },
+          { value: "all", label: "All SHAs" }
+        ] }
+      ]
+    end
+
     def current_revision
       SyrusVersion.current
+    end
+
+    def filtered_events(events)
+      events.select do |event|
+        matches_app_revision?(event) && matches_since?(event) && matches_until?(event)
+      end
+    end
+
+    def app_revision_filter
+      params[:app_revision].presence
+    end
+
+    def since_param
+      params[:since].presence
+    end
+
+    def until_param
+      params[:until].presence
+    end
+
+    def since_time
+      @since_time ||= parse_time_filter(since_param, default_unit: "seconds_ago")
+    end
+
+    def until_time
+      @until_time ||= parse_time_filter(until_param, default_unit: "absolute")
+    end
+
+    def matches_app_revision?(event)
+      app_revision_filter.blank? || event["app_revision"].to_s.start_with?(app_revision_filter.to_s)
+    end
+
+    def matches_since?(event)
+      since_time.blank? || event_time(event) >= since_time
+    end
+
+    def matches_until?(event)
+      until_time.blank? || event_time(event) <= until_time
+    end
+
+    def event_time(event)
+      Time.zone.parse(event["occurred_at"].to_s)
+    rescue ArgumentError, TypeError
+      Time.zone.at(0)
+    end
+
+    def parse_time_filter(value, default_unit:)
+      return if value.blank?
+
+      text = value.to_s.strip
+      if (match = text.match(/\A(\d+)(m|h|d)\z/i))
+        amount = match[1].to_i
+        unit = match[2].downcase
+        return amount.minutes.ago if unit == "m"
+        return amount.hours.ago if unit == "h"
+        return amount.days.ago if unit == "d"
+      end
+
+      return Time.zone.at(Time.current.to_i - text.to_i) if default_unit == "seconds_ago" && text.match?(/\A\d+\z/)
+
+      Time.zone.parse(text)
+    rescue ArgumentError, TypeError
+      nil
     end
 
     def summaries_payload(events)
