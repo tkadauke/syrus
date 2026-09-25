@@ -3,9 +3,9 @@ module Api
     module App
       # GitHub issue browsing and triage actions for the repository page.
       #
-      # Lives in the github_source plugin: listing issues, commenting, closing,
-      # and delegating are GitHub-specific operations, and an instance whose
-      # work arrives from somewhere else has no use for them.
+      # Lives in the github_source plugin: listing, closing, and delegating
+      # issues are GitHub-specific operations, and an instance whose work
+      # arrives from somewhere else has no use for them.
       class RepositoryIssuesController < BaseController
         include RepositoryTabsSerialization
         include RepositorySummarySerialization
@@ -22,29 +22,6 @@ module Api
           repository = find_repository
           render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter)
         end
-
-
-        def comment_issue
-          repository = find_repository
-          issue_number = params.require(:issue_number).to_i
-          body = params[:comment_body].to_s.strip
-          if body.blank?
-            render_error("validation_failed", I18n.t("api.repositories.comment_blank"), status: :unprocessable_content)
-            return
-          end
-
-          GithubClient.for(repository: repository, user: Current.user).add_issue_comment(
-            repository.slug,
-            issue_number,
-            body,
-            on_behalf_of: Current.user
-          )
-
-          render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter, message: I18n.t("api.repositories.comment_added", number: issue_number))
-        rescue Octokit::Error => e
-          render_error("github_error", I18n.t("api.repositories.comment_failed", error: e.message), status: :bad_gateway)
-        end
-
 
         def close_issue
           repository = find_repository
@@ -133,7 +110,6 @@ module Api
             folder_paths: FOLDERS.index_with { |value| "/repositories/#{repository.id}/plugin/issues?folder=#{value}" },
             paths: {
               github_issues_path: "https://github.com/#{repository.slug}/issues",
-              app_comment_issue_path: "/api/v1/app/repositories/#{repository.id}/issues/comment",
               app_close_issue_path: "/api/v1/app/repositories/#{repository.id}/issues/close",
               app_delegate_issue_path: "/api/v1/app/repositories/#{repository.id}/issues/delegate",
               app_bulk_issues_path: "/api/v1/app/repositories/#{repository.id}/issues/bulk"
