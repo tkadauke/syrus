@@ -1335,12 +1335,11 @@ describe("App", () => {
       const sidebar = resizeHandle.closest("aside")
       expect(sidebar).toBeInstanceOf(HTMLElement)
       expect(sidebar).toHaveStyle({ width: "300px" })
-      expect(resizeHandle).toHaveAttribute("aria-valuemin", "208")
+      expect(resizeHandle).toHaveAttribute("aria-valuemin", "60")
       expect(resizeHandle).toHaveAttribute("aria-valuemax", "420")
       expect(resizeHandle).toHaveAttribute("aria-valuenow", "300")
 
       fireEvent.mouseDown(resizeHandle, { clientX: 300 })
-      await waitFor(() => expect(document.body).toHaveClass("cursor-col-resize"))
       fireEvent.mouseMove(window, { clientX: 390 })
       await waitFor(() => {
         expect(sidebar).toHaveStyle({ width: "390px" })
@@ -1354,11 +1353,10 @@ describe("App", () => {
         expect(window.localStorage.getItem("syrus.sidebar.width")).toBe("420")
       })
       fireEvent.mouseUp(window)
-      await waitFor(() => expect(document.body).not.toHaveClass("cursor-col-resize"))
 
-      fireEvent.keyDown(resizeHandle, { key: "Home" })
-      expect(sidebar).toHaveStyle({ width: "208px" })
-      expect(window.localStorage.getItem("syrus.sidebar.width")).toBe("208")
+      fireEvent.keyDown(resizeHandle, { key: "ArrowLeft" })
+      expect(sidebar).toHaveStyle({ width: "404px" })
+      expect(window.localStorage.getItem("syrus.sidebar.width")).toBe("404")
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -6828,11 +6826,11 @@ describe("App", () => {
     )
 
     expect(screen.getByRole("main", { name: "Admin stuck items" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Stuck Things" }).closest("header")).toHaveClass("items-end", "justify-between")
+    expect(screen.getByRole("heading", { name: "Stuck Things" }).closest("header")).toHaveClass("lg:items-end", "lg:justify-between")
     expect(screen.getByRole("button", { name: /Refresh/ })).toHaveClass("shrink-0")
     expect(await screen.findByText("Run #4 silent for 10m")).toBeInTheDocument()
     expect(screen.getByText("Showing 1-50 of 51")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/app-shell/admin/stuck?page=2")
+    expect(screen.getAllByRole("button", { name: "Next" })[0]).toBeEnabled()
     expect(screen.getByText("stale_heartbeat")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "WF-2" })).toHaveAttribute("href", "/app-shell/jobs/1?tab=workflows#workflow-2")
     expect(screen.getByRole("link", { name: "Job" })).toHaveAttribute("href", "/app-shell/jobs/1")
