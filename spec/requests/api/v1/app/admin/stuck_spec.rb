@@ -107,6 +107,29 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     )
   end
 
+  it "filters and sorts cached stuck items before pagination" do
+    sign_in_as(admin)
+    snapshot = Admin::StuckItemsCache::Snapshot.new(
+      items: [
+        { "kind" => "stale_run", "severity" => "warn", "attention_state" => "waiting", "detail" => "later", "age_label" => "2m", "run_id" => 2, "workflow_id" => nil, "job_id" => nil },
+        { "kind" => "stale_run", "severity" => "alarm", "attention_state" => "auto_repairable", "detail" => "earlier", "age_label" => "1m", "run_id" => 1, "workflow_id" => nil, "job_id" => nil },
+        { "kind" => "blocked_workflow", "severity" => "warn", "attention_state" => "waiting", "detail" => "other", "age_label" => "3m", "run_id" => nil, "workflow_id" => 4, "job_id" => nil }
+      ],
+      captured_at: Time.current
+    )
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(snapshot)
+    q = Filters::QueryParam.encode("and" => [ { "field" => "kind", "op" => "is", "value" => "stale_run" } ])
+
+    get "/api/v1/app/admin/stuck", params: { q: q, sort: "severity", direction: "asc" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["items"].map { |item| item["run_id"] }).to eq([ 1, 2 ])
+    expect(body["pagination"]).to include("total" => 2, "first_item" => 1, "last_item" => 2)
+    expect(body["filter_schema"].map { |field| field["field"] }).to include("severity", "status", "kind", "job_id", "workflow_id", "run_id")
+    expect(body["filters"]).to include("kind" => "stale_run", "sort" => "severity", "direction" => "asc")
+  end
+
   it "surfaces a stale queued retry Run even when the Workflow has previous Runs" do
     ensure_solid_queue_test_tables!
     clear_solid_queue_test_tables!

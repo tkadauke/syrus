@@ -52,7 +52,7 @@ module Admin
     end
 
     def total
-      @total ||= relation.except(:order, :limit, :offset).count(:id)
+      @total ||= relation.except(:order, :limit, :offset).distinct.count(:id)
     end
 
     def total_pages

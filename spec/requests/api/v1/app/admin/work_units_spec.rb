@@ -66,6 +66,32 @@ RSpec.describe "API: /api/v1/app/admin/work_units", type: :request do
     expect(parse_body.fetch("intents").map { |intent| intent["id"] }).to eq([ matching.fetch(:intent).id ])
   end
 
+  it "loads joined unit filters without duplicate counts" do
+    sign_in_as(admin)
+    matching = work_unit_fixture(user: user, repository: repo, issue_number: 14, kind: "initial")
+    WorkUnit.create!(
+      work_intent: matching.fetch(:intent),
+      kind: "ci_failure",
+      state: "running",
+      repository: repo,
+      scope_type: "job",
+      scope_id: matching.fetch(:job).id,
+      started_at: Time.current
+    )
+    work_unit_fixture(user: other_user, repository: other_repo, issue_number: 15, kind: "ci_failure")
+    q = Filters::QueryParam.encode("and" => [ { "field" => "unit_state", "op" => "is", "value" => "running" } ])
+
+    get "/api/v1/app/admin/work_units", params: { q: q, sort: "state", direction: "asc" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("pagination", "total")).to eq(2)
+    expect(body.fetch("intents").map { |intent| intent["id"] }).to contain_exactly(
+      matching.fetch(:intent).id,
+      WorkIntent.find_by!(kind: "ci_failure", repository: other_repo).id
+    )
+  end
+
   def work_unit_fixture(user:, repository:, issue_number:, kind:)
     job = Factories.job_record(user: user, repository: repository, issue_number: issue_number, issue_title: "Do #{kind}")
     workflow = Workflow.create!(job: job, trigger_kind: kind, state: "running", agent_provider: "claude")

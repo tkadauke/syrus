@@ -12,6 +12,13 @@ module Admin
   class AttentionItemsPayload
     PER_PAGE = 50
     MAX_PER_PAGE = 100
+    SORTS = {
+      "created_at" => [ "attention_items.created_at", "attention_items.id" ],
+      "urgency" => [ "CASE attention_items.urgency WHEN 'urgent' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END", "attention_items.created_at", "attention_items.id" ],
+      "queue" => [ "attention_items.queue", "attention_items.created_at", "attention_items.id" ],
+      "state" => [ "attention_items.state", "attention_items.created_at", "attention_items.id" ],
+      "problem" => [ "attention_items.problem_code", "attention_items.created_at", "attention_items.id" ]
+    }.freeze
 
     def initialize(params: {})
       @params = params
@@ -38,7 +45,8 @@ module Admin
           next_path: page < total_pages ? path_for(page + 1) : nil
         },
         filter_schema: filter_definition.schema,
-        filter: filter_tree
+        filter: filter_tree,
+        filters: filter_definition.flat_filters(params).symbolize_keys.merge(sort: sort, direction: direction)
       }
     end
 
@@ -50,7 +58,7 @@ module Admin
       @relation ||= begin
         scope = AttentionItem.includes(:repository, :job, :workflow, :step, :decided_by_user)
         scope = filter_definition.apply(scope, params)
-        scope.in_attention_order
+        sorted_scope(scope)
       end
     end
 
@@ -74,9 +82,23 @@ module Admin
       [ parsed, MAX_PER_PAGE ].min
     end
 
+    def sort
+      value = params[:sort].to_s
+      SORTS.key?(value) ? value : "urgency"
+    end
+
+    def direction
+      params[:direction].to_s == "desc" ? "desc" : "asc"
+    end
+
+    def sorted_scope(scope)
+      clauses = SORTS.fetch(sort).map { |column| "#{column} #{direction}" }
+      scope.order(Arel.sql(clauses.join(", ")))
+    end
+
     def path_for(target_page)
       raw_params = params.respond_to?(:to_unsafe_h) ? params.to_unsafe_h : params.to_h
-      query = raw_params.slice("q", "state", "queue", "urgency", "repository_id", "per_page").merge("page" => target_page).compact_blank
+      query = raw_params.slice("q", "state", "queue", "urgency", "repository_id", "per_page", "sort", "direction").merge("page" => target_page).compact_blank
       "/admin/attention_items#{query.present? ? "?#{query.to_query}" : ""}"
     end
 

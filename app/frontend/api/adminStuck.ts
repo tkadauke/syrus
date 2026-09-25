@@ -1,4 +1,5 @@
 import { getJson, postJson } from "./client"
+import type { FilterSchemaField } from "../components/FilterBar"
 
 export type StuckItem = {
   kind: string
@@ -39,10 +40,17 @@ export type AdminStuckPayload = {
     captured_at: string | null
     stale: boolean
   }
+  filter?: Record<string, unknown> | null
+  filter_schema?: FilterSchemaField[]
+  filters?: Record<string, unknown> & {
+    sort: string
+    direction: "asc" | "desc"
+  }
 }
 
-export function fetchAdminStuck(page = 1, signal?: AbortSignal, refresh = false) {
-  const params = new URLSearchParams({ page: String(page) })
+export function fetchAdminStuck(search = "", signal?: AbortSignal, refresh = false) {
+  const params = new URLSearchParams(search)
+  if (!params.get("page")) params.set("page", "1")
   if (refresh) params.set("refresh", "1")
   return getJson<AdminStuckPayload>(`/api/v1/app/admin/stuck?${params.toString()}`, { signal })
 }
