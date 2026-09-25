@@ -9,6 +9,7 @@ module Admin
       "scope" => [ "work_intents.scope_type", "work_intents.scope_id", "work_intents.requested_at", "work_intents.id" ],
       "repository" => [ "work_intents.repository_id", "work_intents.requested_at", "work_intents.id" ]
     }.freeze
+    JOINED_FILTER_FIELDS = %w[unit_state unit_kind job_id workflow_id].freeze
 
     def initialize(params: {})
       @params = params
@@ -46,7 +47,8 @@ module Admin
         scope = WorkIntent
           .includes(:repository, :source_repository, :target_repository, :actor)
           .preload(work_units: [ :repository, :source_repository, :target_repository, :workflow, { work_unit_members: { job: :repository } } ])
-        scope = filter_definition.apply(scope, params).distinct
+        scope = filter_definition.apply(scope, params)
+        scope = scope.distinct if joined_filter?
         sorted_scope(scope)
       end
     end
@@ -251,6 +253,22 @@ module Admin
 
     def filter_tree
       @filter_tree ||= filter_definition.filter_tree(params)
+    end
+
+    def joined_filter?
+      tree_mentions_joined_field?(filter_tree)
+    end
+
+    def tree_mentions_joined_field?(tree)
+      case tree
+      when Hash
+        JOINED_FILTER_FIELDS.include?(tree["field"].to_s) ||
+          tree.values.any? { |value| tree_mentions_joined_field?(value) }
+      when Array
+        tree.any? { |value| tree_mentions_joined_field?(value) }
+      else
+        false
+      end
     end
 
     def self.apply_joined_filter(scope, op, value, table:, column:)
