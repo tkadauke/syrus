@@ -5,14 +5,30 @@ import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesNodes, type KubernetesNodeRow } from "../../api/kubernetesResources"
 import { formatAge, formatKubernetesCpu, formatKubernetesMemory } from "../../lib/k8sFormat"
 import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
+import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
 
 export function NodesTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
+  const detail = useResourceDetail()
   const nodes = useQuery({
     queryKey: ["k8s_cluster", "nodes", clusterId],
     queryFn: () => fetchKubernetesNodes(clusterId)
   })
+
+  const open = (node: KubernetesNodeRow) =>
+    detail.openDetail({
+      kind: "node",
+      kindLabel: t("tab_nodes"),
+      name: node.name,
+      namespace: null,
+      fields: [
+        { label: t("col_roles"), value: node.roles.length === 0 ? "-" : node.roles.join(", ") },
+        { label: t("col_capacity"), value: `${formatKubernetesCpu(node.capacity_cpu)} / ${formatKubernetesMemory(node.capacity_memory)}` },
+        { label: t("col_allocatable"), value: `${formatKubernetesCpu(node.allocatable_cpu)} / ${formatKubernetesMemory(node.allocatable_memory)}` },
+        { label: t("col_age"), value: formatAge(node.created_at) }
+      ]
+    })
 
   return (
     <div aria-label={t("aria_nodes_tab")}>
@@ -23,7 +39,7 @@ export function NodesTab({ clusterId }: { clusterId: number }) {
           <PanelMessage>{t("nodes_empty")}</PanelMessage>
         ) : (
           <KubernetesResourceTable
-            columns={nodeColumns(t)}
+            columns={nodeColumns(t, open)}
             defaultSort={{ column: "name", direction: "asc" }}
             empty={<PanelMessage>{t("nodes_empty")}</PanelMessage>}
             getRowKey={(node) => node.name}
@@ -33,17 +49,18 @@ export function NodesTab({ clusterId }: { clusterId: number }) {
           />
         )
       ) : null}
+      <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </div>
   )
 }
 
-function nodeColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResourceTableColumn<KubernetesNodeRow>> {
+function nodeColumns(t: ReturnType<typeof useT>["t"], onOpen: (node: KubernetesNodeRow) => void): Array<KubernetesResourceTableColumn<KubernetesNodeRow>> {
   return [
     {
       key: "name",
       header: t("col_name"),
       className: "font-medium text-gray-900 dark:text-gray-100",
-      render: (node) => node.name,
+      render: (node) => <DetailNameButton name={node.name} onOpen={() => onOpen(node)} />,
       required: true,
       sort: "name",
       sortValue: (node) => node.name

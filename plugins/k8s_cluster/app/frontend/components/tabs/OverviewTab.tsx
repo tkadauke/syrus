@@ -4,25 +4,71 @@ import { DescriptionList, usePageGutterRestoreClassName } from "@app/components/
 import { classes } from "@app/components/ui/classes"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
-import { fetchKubernetesNodes, fetchKubernetesOverview, type KubernetesMetricsSection } from "../../api/kubernetesResources"
-import { formatBytes, formatMillicores } from "../../lib/k8sFormat"
+import {
+  fetchKubernetesNamespaces,
+  fetchKubernetesNodes,
+  fetchKubernetesOverview,
+  type KubernetesMetricsSection,
+  type KubernetesNamespaceRow
+} from "../../api/kubernetesResources"
+import { formatAge, formatBytes, formatMillicores } from "../../lib/k8sFormat"
+import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
+import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
 
 export function OverviewTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const restoredHeadingGutter = usePageGutterRestoreClassName("padding")
   const sectionHeadingClassName = classes("text-xs font-semibold uppercase text-gray-500 dark:text-gray-400", restoredHeadingGutter)
+  const detail = useResourceDetail()
   const nodes = useQuery({
     queryKey: [ "k8s_cluster", "nodes", clusterId ],
     queryFn: () => fetchKubernetesNodes(clusterId)
+  })
+  const namespaces = useQuery({
+    queryKey: [ "k8s_cluster", "namespaces", clusterId ],
+    queryFn: () => fetchKubernetesNamespaces(clusterId)
   })
   const overview = useQuery({
     queryKey: [ "k8s_cluster", "overview", clusterId ],
     queryFn: () => fetchKubernetesOverview(clusterId)
   })
 
+  const openNamespace = (row: KubernetesNamespaceRow) =>
+    detail.openDetail({
+      kind: "namespace",
+      kindLabel: t("namespaces_heading"),
+      name: row.name,
+      namespace: null,
+      fields: [
+        { label: t("col_status"), value: row.status || "-" },
+        { label: t("col_age"), value: formatAge(row.created_at) }
+      ]
+    })
+
   return (
     <div aria-label={t("aria_overview_tab")} className="space-y-4">
+      <section>
+        <h3 className={sectionHeadingClassName}>{t("namespaces_heading")}</h3>
+        {namespaces.isPending ? <PanelMessage>{t("namespaces_loading")}</PanelMessage> : null}
+        {namespaces.isError ? <PanelMessage tone="error">{errorMessage(namespaces.error, t("namespaces_error_loading"))}</PanelMessage> : null}
+        {namespaces.isSuccess ? (
+          namespaces.data.namespaces.length === 0 ? (
+            <PanelMessage>{t("namespaces_empty")}</PanelMessage>
+          ) : (
+            <KubernetesResourceTable
+              columns={namespaceColumns(t, openNamespace)}
+              defaultSort={{ column: "name", direction: "asc" }}
+              empty={<PanelMessage>{t("namespaces_empty")}</PanelMessage>}
+              getRowKey={(row) => row.name}
+              rows={namespaces.data.namespaces}
+              storageKey="syrus.k8s_cluster.namespaces.columns"
+              summary={t("namespaces_heading")}
+            />
+          )
+        ) : null}
+      </section>
+
       <section>
         <h3 className={sectionHeadingClassName}>{t("overview_nodes_heading")}</h3>
         {nodes.isPending ? <PanelMessage>{t("overview_loading_nodes")}</PanelMessage> : null}
@@ -42,6 +88,8 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
         ) : null}
       </section>
 
+      <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
+
       <section>
         <h3 className={sectionHeadingClassName}>{t("overview_metrics_heading")}</h3>
         {overview.isPending ? <PanelMessage>{t("overview_loading_metrics")}</PanelMessage> : null}
@@ -55,6 +103,40 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
       </section>
     </div>
   )
+}
+
+function namespaceColumns(
+  t: ReturnType<typeof useT>["t"],
+  onOpen: (row: KubernetesNamespaceRow) => void
+): Array<KubernetesResourceTableColumn<KubernetesNamespaceRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (row) => <DetailNameButton name={row.name} onOpen={() => onOpen(row)} />,
+      required: true,
+      sort: "name",
+      sortValue: (row) => row.name
+    },
+    {
+      key: "status",
+      header: t("col_status"),
+      render: (row) => (
+        <StatusBadge tone={row.status === "Active" ? "success" : "neutral"}>{row.status || "-"}</StatusBadge>
+      ),
+      sort: "status",
+      sortValue: (row) => row.status
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (row) => formatAge(row.created_at),
+      sort: "created_at",
+      sortValue: (row) => row.created_at
+    }
+  ]
 }
 
 function MetricsCard({ heading, section }: { heading: string; section: KubernetesMetricsSection<{ name: string; cpu_millicores: number; memory_bytes: number }> }) {
