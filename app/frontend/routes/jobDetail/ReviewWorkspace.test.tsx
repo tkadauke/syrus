@@ -1,8 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import * as performanceMarkers from "../../lib/performanceMarkers"
+import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings } from "../../api/reviewDiffSettings"
+import { ShortcutsHelpModal } from "../../components/ShortcutsHelpModal"
+import { ShortcutsProvider } from "../../contexts/ShortcutsContext"
 import { ReviewWorkspace } from "./ReviewWorkspace"
 
 stubVirtualizerMeasurements()
@@ -39,6 +42,14 @@ vi.mock("../../api/jobs", async (importOriginal) => {
   }
 })
 
+vi.mock("../../api/reviewDiffSettings", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/reviewDiffSettings")>()
+  return {
+    ...actual,
+    fetchReviewDiffSettings: vi.fn()
+  }
+})
+
 beforeEach(() => {
   vi.mocked(createDiffReviewComment).mockReset()
   vi.mocked(deleteDiffReviewComment).mockReset()
@@ -49,15 +60,25 @@ beforeEach(() => {
   vi.mocked(startJobDiscussionChat).mockReset()
   vi.mocked(submitDiffReviewComments).mockReset()
   vi.mocked(updateDiffReviewComment).mockReset()
+  vi.mocked(fetchReviewDiffSettings).mockReset()
+  vi.mocked(fetchReviewDiffSettings).mockResolvedValue({ review_diff_settings: DEFAULT_REVIEW_DIFF_SETTINGS })
   HTMLElement.prototype.scrollIntoView = vi.fn()
 })
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 function renderWorkspace(payload = jobPayload()) {
-  return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ReviewWorkspace payload={payload} />
-    </QueryClientProvider>
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  const result = render(
+    <ShortcutsProvider>
+      <QueryClientProvider client={client}>
+        <ReviewWorkspace payload={payload} />
+      </QueryClientProvider>
+    </ShortcutsProvider>
   )
+  return { client, ...result }
 }
 
 describe("ReviewWorkspace", () => {
@@ -114,6 +135,111 @@ describe("ReviewWorkspace", () => {
 
     expect(scrollSpy).toHaveBeenCalled()
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
+  })
+
+  it("applies global review diff settings in the main review workspace", async () => {
+    vi.mocked(fetchReviewDiffSettings).mockResolvedValue({
+      review_diff_settings: {
+        ...DEFAULT_REVIEW_DIFF_SETTINGS,
+        desktop_view: "split",
+        file_list: false
+      }
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Implementation review")
+    expect(screen.queryByRole("button", { name: "Browse changed files" })).not.toBeInTheDocument()
+    await waitFor(() => expect(document.querySelector('[data-diff-split-row="true"]')).toBeInTheDocument())
+  })
+
+  it("opens review settings from the main review workspace", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Review settings" }))
+
+    expect(screen.getByRole("dialog", { name: "Review settings" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Line wrapping")).toBeInTheDocument()
+  })
+
+  it("persists review diff shortcut changes and applies them to the visible diff immediately", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({
+        review_diff_settings: {
+          ...DEFAULT_REVIEW_DIFF_SETTINGS,
+          line_wrapping: "wrap"
+        }
+      })
+    } as Response)
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    const { client } = renderWorkspace()
+
+    await screen.findByText("Implementation review")
+    expect(screen.getAllByTestId("diff-file-scroll")[0]).toHaveClass("overflow-x-auto")
+
+    fireEvent.keyDown(window, { altKey: true, shiftKey: true, key: "W" })
+
+    await waitFor(() => expect(screen.getAllByTestId("diff-file-scroll")[0]).toHaveClass("overflow-x-hidden"))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/review_diff_settings", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ review_diff_settings: { line_wrapping: "wrap" } })
+    })))
+    expect(client.getQueryData(["review_diff_settings"])).toMatchObject({
+      review_diff_settings: expect.objectContaining({ line_wrapping: "wrap" })
+    })
+  })
+
+  it("cycles split/unified view and exposes review shortcuts in the help modal", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({
+        review_diff_settings: {
+          ...DEFAULT_REVIEW_DIFF_SETTINGS,
+          desktop_view: "split"
+        }
+      })
+    } as Response)
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    function Harness({ helpOpen }: { helpOpen: boolean }) {
+      return (
+        <ShortcutsProvider>
+          <QueryClientProvider client={client}>
+            <ReviewWorkspace payload={jobPayload()} />
+            <ShortcutsHelpModal onClose={() => {}} open={helpOpen} />
+          </QueryClientProvider>
+        </ShortcutsProvider>
+      )
+    }
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const { rerender } = render(<Harness helpOpen={false} />)
+
+    await screen.findByText("Implementation review")
+    fireEvent.keyDown(window, { altKey: true, shiftKey: true, key: "V" })
+
+    await waitFor(() => expect(document.querySelector('[data-review-diff-view="split"]')).toBeInTheDocument())
+
+    rerender(<Harness helpOpen />)
+
+    const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" })
+    expect(within(dialog).getByText("Review diff")).toBeInTheDocument()
+    expect(within(dialog).getByText("Toggle line wrapping")).toBeInTheDocument()
+    expect(within(dialog).getByText("Cycle unified/split view")).toBeInTheDocument()
+    expect(within(dialog).getByText("Toggle syntax highlighting")).toBeInTheDocument()
+    expect(within(dialog).getByText("Cycle whitespace display")).toBeInTheDocument()
+    expect(within(dialog).getByText("Alt + Shift + W")).toBeInTheDocument()
   })
 
   it("does not render a pending-feedback pill in the summary header", async () => {

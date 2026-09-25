@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import * as highlighterLib from "../../lib/highlighter"
 import * as performanceMarkers from "../../lib/performanceMarkers"
+import { DEFAULT_REVIEW_DIFF_SETTINGS } from "../../api/reviewDiffSettings"
 import { AgentDiff, DiffHunkSnippet, ReviewableDiff, annotationsForFile, filesFromUnifiedDiff, isLineAnnotations } from "./ReviewableDiff"
 
 stubVirtualizerMeasurements()
@@ -71,6 +72,24 @@ function manyFiles(count: number) {
   }))
 }
 
+function wideLineFile() {
+  const wideToken = "x".repeat(240)
+  return {
+    additions: 1,
+    deletions: 0,
+    patch: [
+      "diff --git a/app/models/wide.rb b/app/models/wide.rb",
+      "--- a/app/models/wide.rb",
+      "+++ b/app/models/wide.rb",
+      "@@ -1,1 +1,2 @@",
+      " keep",
+      `+${wideToken}`
+    ].join("\n"),
+    path: "app/models/wide.rb",
+    status: "modified"
+  }
+}
+
 describe("ReviewableDiff", () => {
   it("renders only the selected file in single-file mode", () => {
     render(<ReviewableDiff files={files} mode="single-file" selectedPath="app/models/run.rb" showFileHeaders />)
@@ -87,6 +106,43 @@ describe("ReviewableDiff", () => {
     expect(screen.getByTitle("app/models/run.rb")).toHaveClass("sticky")
     expect(screen.getByText("new")).toBeInTheDocument()
     expect(screen.getByText("added")).toBeInTheDocument()
+  })
+
+  it("applies persisted review rendering settings", () => {
+    render(<ReviewableDiff files={files} mode="continuous" reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "scroll", line_numbers: false, tab_width: 4, density: "compact", intraline_highlighting: "off" }} showFileHeaders />)
+
+    const table = screen.getAllByRole("table")[0]
+    expect(table).toHaveAttribute("data-review-diff-view", "split")
+    expect(table).toHaveStyle({ tabSize: "4" })
+    expect(table.querySelector('[data-diff-split-row="true"] [data-diff-split-side="old"]')).toHaveTextContent("old")
+    expect(table.querySelector('[data-diff-split-row="true"] [data-diff-split-side="new"]')).toHaveTextContent("")
+    expect(screen.getAllByTestId("diff-file-scroll")[0]).toHaveClass("overflow-x-auto")
+  })
+
+  it("renders visible whitespace when enabled", () => {
+    render(
+      <ReviewableDiff
+        files={[{
+          additions: 1,
+          deletions: 0,
+          patch: [
+            "diff --git a/f.rb b/f.rb",
+            "--- a/f.rb",
+            "+++ b/f.rb",
+            "@@ -1,1 +1,2 @@",
+            " keep value",
+            "+new\tvalue  "
+          ].join("\n"),
+          path: "f.rb",
+          status: "modified"
+        }]}
+        mode="continuous"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, syntax_highlighting: false, visible_whitespace: true }}
+      />
+    )
+
+    expect(getCodeCellText("keep·value")).toBeInTheDocument()
+    expect(getCodeCellText("new→\tvalue··")).toBeInTheDocument()
   })
 
   it("copies a file's repository-relative path from the diff header", async () => {
@@ -375,7 +431,61 @@ describe("ReviewableDiff", () => {
 
   it("keeps natural-scroll diffs horizontally scrollable within themselves instead of overflowing the page", () => {
     render(<ReviewableDiff files={files} mode="continuous" scroll="natural" />)
-    expect(screen.getByTestId("agent-diff-viewer").querySelector(".overflow-x-auto")).toBeInTheDocument()
+    const viewer = screen.getByTestId("agent-diff-viewer")
+    expect(viewer).toHaveClass("min-w-0", "max-w-full", "[contain:inline-size]")
+    expect(viewer.querySelector("[data-total-file-count]")).toHaveClass("min-w-0", "max-w-full")
+    expect(viewer.querySelector(".overflow-x-auto")).toHaveClass("[container-type:inline-size]")
+  })
+
+  it("keeps wide-line comment composers anchored to the visible horizontal scroll area", () => {
+    const wideFile = wideLineFile()
+
+    render(
+      <ReviewableDiff
+        composingBody="Please keep this visible."
+        composingSelection={{ file: wideFile, line: { code: "x".repeat(240), kind: "add", newLine: 2, oldLine: null, marker: "+", hunkId: -1 }, side: "new" }}
+        files={[wideFile]}
+        mode="continuous"
+        onCommentLine={vi.fn()}
+        scroll="natural"
+        showFileHeaders
+      />
+    )
+
+    const composerCells = screen.getByTestId("diff-review-composer").querySelectorAll("td")
+    const composerCell = composerCells[composerCells.length - 1] as HTMLElement
+    const composerPanel = Array.from(composerCell.children).find((child) => child.tagName === "DIV") as HTMLElement
+    expect(composerCell).toHaveClass("max-w-[calc(100vw-3rem)]")
+    expect(composerCell).not.toHaveClass("sticky")
+    expect(composerPanel).toHaveClass("sticky", "left-0", "w-[min(44rem,100cqw,calc(100vw-3rem))]")
+    expect(composerPanel).not.toHaveClass("max-md:static")
+    expect(within(composerCell).getByLabelText("Comment")).toHaveValue("Please keep this visible.")
+  })
+
+  it("keeps existing review threads viewport-bound when code lines are horizontally scrollable", () => {
+    const wideFile = wideLineFile()
+
+    render(
+      <ReviewableDiff
+        comments={{
+          "app/models/wide.rb": {
+            "right::2": [{ id: 1, author: "Ada", body: "This note should not inherit the long line width.", state: "draft" }]
+          }
+        }}
+        files={[wideFile]}
+        mode="continuous"
+        scroll="natural"
+        showFileHeaders
+      />
+    )
+
+    const threadCells = screen.getByTestId("diff-review-thread").querySelectorAll("td")
+    const threadCell = threadCells[threadCells.length - 1] as HTMLElement
+    const threadPanel = threadCell.querySelector("div")
+    expect(threadCell).toHaveClass("max-w-[calc(100vw-3rem)]")
+    expect(threadCell).not.toHaveClass("sticky")
+    expect(threadPanel).toHaveClass("sticky", "left-0", "w-[min(44rem,100cqw,calc(100vw-3rem))]", "max-md:static")
+    expect(screen.getByText("This note should not inherit the long line width.")).toBeInTheDocument()
   })
 
   it("renders natural-scroll file sections in document flow instead of a virtualized height spacer", () => {
@@ -477,6 +587,28 @@ describe("ReviewableDiff", () => {
 
     expect(onSelectFile).toHaveBeenCalledWith("app/models/run.rb")
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
+  })
+
+  it("sorts and indents the changed-files popup from persisted file-list settings", () => {
+    render(
+      <ReviewableDiff
+        changedFilesPopup
+        files={[
+          { additions: 1, deletions: 0, patch: files[0].patch, path: "z.rb", status: "modified" },
+          { additions: 5, deletions: 4, patch: files[1].patch, path: "app/models/deep.rb", status: "modified" },
+          { additions: 2, deletions: 0, patch: files[1].patch, path: "a.rb", status: "modified" }
+        ]}
+        mode="continuous"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, file_list_layout: "nested", file_sort: "change_size" }}
+        showFileHeaders
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+
+    const changedFiles = screen.getAllByTitle(/ \(\+/)
+    expect(changedFiles.map((button) => button.textContent)).toEqual(["app/models/deep.rb+5-4", "a.rb+2-0", "z.rb+1-0"])
+    expect(screen.getByTitle("app/models/deep.rb (+5 -4)")).toHaveStyle({ paddingLeft: "2.25rem" })
   })
 
   it("scrolls each file's table horizontally on its own instead of sharing one scroll region", () => {
@@ -838,6 +970,25 @@ describe("hidden-context expansion", () => {
     expect(screen.queryByLabelText("Load 20 more lines above")).not.toBeInTheDocument()
     expect(screen.getByLabelText("Load 20 more lines below")).toBeInTheDocument()
     expect(onLoadFileContext).not.toHaveBeenCalled()
+  })
+
+  it("uses the persisted context-line increment for hidden-context controls", async () => {
+    const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n"))
+    render(
+      <ReviewableDiff
+        files={[fileWithHunkAt(20)]}
+        mode="continuous"
+        onLoadFileContext={onLoadFileContext}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, context_lines: 5 }}
+        showFileHeaders
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText("Load 5 more lines above"))
+
+    await findCodeCellText("line 15")
+    expect(getCodeCellText("line 19")).toBeInTheDocument()
+    expect(screen.getByLabelText("Load 5 more lines above")).toBeInTheDocument()
   })
 
   it("shows the up-arrow when a hunk starts past line 1, loads real context on click, and hides once the gap is exhausted", async () => {

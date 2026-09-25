@@ -12,18 +12,64 @@ async function openImplementedDemoJob(page: Page) {
   await expect(page.getByRole("heading", { level: 1 })).toContainText(title)
 }
 
-test("covers review diff, coverage, diff comments, and workflow warning action", async ({ page }) => {
-  const commentBody = `E2E review note: verify the seeded diff quality gate ${Date.now()}`
-
-  await signInAsDemo(page)
-  await openImplementedDemoJob(page)
-
+async function openReviewTab(page: Page) {
   await page.getByRole("button", { name: "Review", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Implementation review" })).toBeVisible()
   await expect(page.getByText(/changed files/)).toBeVisible()
   await expect(page.getByText("app/services/dashboard_payload.rb").first()).toBeVisible()
   await expect(page.getByText("app/frontend/routes/Dashboard.tsx").first()).toBeVisible()
   await expect(page.getByText("needs_attention_count").first()).toBeVisible()
+}
+
+async function openWideLineComposerAndScrollDiff(page: Page) {
+  await page.locator("[data-testid='diff-file-scroll']").first().evaluate((scrollRegion) => {
+    const codeCell = scrollRegion.querySelector("td.whitespace-pre")
+    if (!codeCell) throw new Error("diff code cell not found")
+    codeCell.textContent = "very_wide_diff_line_" + "x".repeat(360)
+  })
+  await page.getByRole("button", { name: /^Comment on / }).first().click({ force: true })
+  await page.locator("[data-testid='diff-file-scroll']").first().evaluate((scrollRegion) => {
+    scrollRegion.scrollLeft = scrollRegion.scrollWidth
+  })
+  await page.waitForFunction(() => {
+    const scrollRegion = document.querySelector("[data-testid='diff-file-scroll']")
+    return Boolean(scrollRegion && scrollRegion.scrollLeft > 0)
+  })
+}
+
+test("covers review diff, coverage, diff comments, and workflow warning action", async ({ page }) => {
+  const commentBody = `E2E review note: verify the seeded diff quality gate ${Date.now()}`
+
+  await signInAsDemo(page)
+  await openImplementedDemoJob(page)
+
+  await openReviewTab(page)
+  await openWideLineComposerAndScrollDiff(page)
+
+  const viewportWidth = page.viewportSize()?.width ?? 1280
+  const layout = await page.evaluate(() => {
+    const scroller = document.querySelector("[data-testid='diff-file-scroll']")?.getBoundingClientRect()
+    const composer = document.querySelector("[data-testid='diff-review-composer'] textarea")?.getBoundingClientRect()
+    const grid = document.querySelector("[data-testid='agent-diff-viewer']")?.closest(".grid")
+    const sidebar = grid ? Array.from(grid.children).at(-1)?.getBoundingClientRect() : null
+
+    return {
+      bodyScrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+      composerRight: composer?.right ?? 0,
+      composerWidth: composer?.width ?? 0,
+      scrollerWidth: scroller?.width ?? 0,
+      sidebarRight: sidebar?.right ?? 0,
+      sidebarWidth: sidebar?.width ?? 0
+    }
+  })
+
+  expect(layout.bodyScrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1)
+  expect(layout.sidebarRight).toBeLessThanOrEqual(viewportWidth + 1)
+  expect(layout.sidebarWidth).toBeLessThanOrEqual(384)
+  expect(layout.composerRight).toBeLessThanOrEqual(viewportWidth + 1)
+  expect(layout.composerWidth).toBeLessThanOrEqual(layout.scrollerWidth + 1)
+  await page.getByRole("button", { name: "Cancel" }).click()
 
   await page.getByLabel("Whole-review comment").fill(commentBody)
   await page.getByRole("button", { name: "Comment", exact: true }).click()
@@ -46,4 +92,29 @@ test("covers review diff, coverage, diff comments, and workflow warning action",
   await page.getByRole("button", { name: /Implement/i }).click()
   await expect(page.getByText("Branch coverage 70.2% is below the 75% threshold")).toBeVisible()
   await expect(page.getByRole("button", { name: "File a fix Job" })).toBeVisible()
+})
+
+test("keeps the mobile line comment composer fixed after horizontal diff scrolling", async ({ page }) => {
+  await signInAsDemo(page)
+  await openImplementedDemoJob(page)
+  await openReviewTab(page)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openWideLineComposerAndScrollDiff(page)
+
+  const layout = await page.evaluate(() => {
+    const composer = document.querySelector("[data-testid='diff-review-composer'] textarea")?.getBoundingClientRect()
+
+    return {
+      bodyScrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+      composerLeft: composer?.left ?? 0,
+      composerRight: composer?.right ?? 0,
+      composerWidth: composer?.width ?? 0
+    }
+  })
+
+  expect(layout.bodyScrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1)
+  expect(layout.composerLeft).toBeGreaterThanOrEqual(0)
+  expect(layout.composerRight).toBeLessThanOrEqual(390)
+  expect(layout.composerWidth).toBeGreaterThan(0)
 })
