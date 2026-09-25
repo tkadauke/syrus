@@ -47,6 +47,7 @@ describe("AdminQueue worker health charts", () => {
 
     expect(await screen.findByRole("cell", { name: "RunJob" })).toBeInTheDocument()
     expect(screen.getByRole("table").parentElement).toHaveAttribute("data-data-table-overflow-wrapper", "true")
+    expect(screen.getByRole("table").closest("section")?.parentElement?.tagName).not.toBe("SECTION")
     expect(screen.getByText(JSON.stringify([{ job_id: 42 }]))).toBeInTheDocument()
   })
 
