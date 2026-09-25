@@ -21,7 +21,6 @@ export type RepositoryIssuesPayload = {
   folder_paths: Record<IssueFolder, string>
   paths: {
     github_issues_path: string
-    app_comment_issue_path: string
     app_close_issue_path: string
     app_delegate_issue_path: string
     app_bulk_issues_path: string
@@ -55,15 +54,6 @@ export function fetchRepositoryIssues(id: string, folder: IssueFolder, filterPar
   const params = new URLSearchParams({ folder })
   if (filterParam) params.set("q", filterParam)
   return getJson<RepositoryIssuesPayload>(`/api/v1/app/repositories/${id}/issues?${params}`)
-}
-
-export function commentRepositoryIssue(path: string, values: { issueNumber: number; commentBody: string; folder: IssueFolder; filterParam: string }) {
-  return postJson<RepositoryIssuesPayload>(path, {
-    issue_number: values.issueNumber,
-    comment_body: values.commentBody,
-    folder: values.folder,
-    q: values.filterParam
-  })
 }
 
 export function closeRepositoryIssue(path: string, values: { issueNumber: number; folder: IssueFolder; filterParam: string }) {
