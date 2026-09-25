@@ -165,7 +165,10 @@ class TouchedTestRepeatGate
   def grader_command = @grader_step.details.to_h["command"].to_s
 
   def command_environment
-    @command_environment ||= @env.to_h.merge(inherited_grader_environment)
+    @command_environment ||= begin
+      base_env = @env.to_h.except("RAILS_ENV", "RACK_ENV")
+      base_env.merge("RAILS_ENV" => "test", "RACK_ENV" => "test").merge(inherited_grader_environment)
+    end
   end
 
   def inherited_grader_environment
@@ -192,4 +195,5 @@ class TouchedTestRepeatGate
       files: @touched_files, repeats: 0, pass_count: 0, fail_count: 0
     )
   end
+
 end

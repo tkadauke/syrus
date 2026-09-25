@@ -113,6 +113,20 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.consistent).to be(true)
   end
 
+  it "forces repeated test commands into the test environment" do
+    stub_focused_command('test "$RAILS_ENV" = test && test "$RACK_ENV" = test')
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      env: { "RAILS_ENV" => "development", "RACK_ENV" => "development" },
+      repeats: 1
+    )
+
+    expect(result.consistent).to be(true)
+  end
+
   it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do
     stub_focused_command("false")
 
