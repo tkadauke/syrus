@@ -10,6 +10,7 @@ module Ruby
 
     def self.prepare_command_for(grader_name:, grader_command:)
       return nil unless grader_name.to_s.include?("rspec") || grader_command.to_s.match?(/\brspec\b/)
+      return nil if grader_command.to_s.match?(/\bdb:test:prepare\b/)
 
       "if [ -x bin/rails ] && [ -f config/database.yml ]; then RAILS_ENV=test bin/rails db:test:prepare; fi"
     end

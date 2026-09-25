@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe ImmutableSourceCheckout, :ci_only do
+RSpec.describe ImmutableSourceCheckout do
   let(:bare_remote_dir) { Pathname.new(Dir.mktmpdir("syrus-immutable-source-bare")) }
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main", distributed_workflow_dag_enabled: true) }
@@ -155,6 +155,83 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       "cache_key" => first_cache_details.fetch("cache_key")
     )
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
+  end
+
+  it "rejects a local prepare cache restore whose npm dependency binaries are incomplete" do
+    described_class.new(step).setup
+    cache_path = Pathname.new(step.reload.details.fetch("prepare_cache").fetch("cache_path"))
+    package_json = { "scripts" => { "typecheck" => "tsc --noEmit" }, "devDependencies" => { "typescript" => "1.0.0" } }
+    package_lock = {
+      "name" => "widgets",
+      "lockfileVersion" => 3,
+      "packages" => {
+        "" => { "devDependencies" => { "typescript" => "1.0.0" } },
+        "node_modules/typescript" => {
+          "version" => "1.0.0",
+          "bin" => { "tsc" => "bin/tsc" }
+        }
+      }
+    }
+    cache_path.join("package.json").write(JSON.generate(package_json))
+    cache_path.join("package-lock.json").write(JSON.generate(package_lock))
+    FileUtils.mkdir_p(cache_path.join("node_modules"))
+    cache_path.join("node_modules/.package-lock.json").write(JSON.generate(package_lock))
+    marker = JSON.parse(cache_path.join(described_class::PREPARED_MARKER).read)
+    marker["dependency_state"] = {
+      "manager" => "npm",
+      "package_json_sha256" => Digest::SHA256.file(cache_path.join("package.json")).hexdigest,
+      "package_lock_sha256" => Digest::SHA256.file(cache_path.join("package-lock.json")).hexdigest,
+      "node_modules_package_lock_sha256" => Digest::SHA256.file(cache_path.join("node_modules/.package-lock.json")).hexdigest,
+      "required_bins" => [ "tsc" ],
+      "missing_bins" => []
+    }
+    cache_path.join(described_class::PREPARED_MARKER).write(JSON.pretty_generate(marker))
+    repaired_plan = RepoPrepPlan::Result.new(
+      commands: [
+        "mkdir -p node_modules/.bin node_modules && " \
+          "printf '{}' > node_modules/.package-lock.json && " \
+          "printf '#!/bin/sh\\n' > node_modules/.bin/tsc && chmod +x node_modules/.bin/tsc"
+      ],
+      source: ".syrus.yml",
+      note: nil
+    )
+    allow(RepoPrepPlan).to receive(:for).and_call_original
+    allow(RepoPrepPlan).to receive(:for).with(described_class.path_for(second_step)).and_return(repaired_plan)
+    allow(ProcessRunner).to receive(:new).and_call_original
+
+    second_checkout = described_class.new(second_step)
+    second_checkout.setup
+
+    expect(second_step.reload.details.fetch("prepare_cache")).to include("status" => "miss")
+    expect(second_checkout.path.join("node_modules/.bin/tsc")).to be_executable
+    expect(ProcessRunner).to have_received(:new).with(hash_including(kind: "prepare"))
+  end
+
+  it "allows skipped prepare plans to cache JavaScript checkouts without installed dependencies" do
+    source_path = Pathname.new(Dir.mktmpdir("syrus-unprepared-js-checkout"))
+    source_path.join("package.json").write(JSON.generate("devDependencies" => { "typescript" => "1.0.0" }))
+    source_path.join("package-lock.json").write(JSON.generate(
+      "lockfileVersion" => 3,
+      "packages" => {
+        "" => { "devDependencies" => { "typescript" => "1.0.0" } },
+        "node_modules/typescript" => { "bin" => { "tsc" => "bin/tsc" } }
+      }
+    ))
+    FileUtils.mkdir_p(source_path.join("node_modules/.bin"))
+    empty_plan = RepoPrepPlan::Result.new(commands: [], source: ".syrus.yml", note: "prepare: [] — no commands")
+    prepare_cache = described_class::PrepareCache.new(
+      workflow: workflow,
+      step: step,
+      snapshot: snapshot,
+      plan: empty_plan,
+      worker_storage_key: "storage-a"
+    )
+
+    expect(prepare_cache.dependency_state_for(source_path)).to eq({})
+    expect { prepare_cache.store_from!(source_path) }.not_to raise_error
+    expect(prepare_cache.path.join("package.json")).to exist
+  ensure
+    FileUtils.rm_rf(source_path) if source_path
   end
 
   it "restores prepared state from the source snapshot archive on another worker storage root" do
