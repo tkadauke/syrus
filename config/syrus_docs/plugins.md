@@ -8,6 +8,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `mcp_tool_set`
 - `input_source`
 - `test_result_parser`
+- `test_evidence`
 - `coverage_analyzer`
 - `ci_log_parser`
 - `preview_provider`
@@ -1197,9 +1198,11 @@ own private shapes: `inherited_grader_failure` (`.syrus.yml`'s
 two dismiss a required-grader failure on flakiness grounds, from two
 different kinds of evidence: `known_flaky_failure`
 (`Adjudicators::KnownFlakyFailure`) when every one of its failing tests
-already has a confirmed-flaky history -- the case `inherited_grader_failure`
-cannot catch because the flake reproduces on the base branch too, just
-intermittently -- and `isolated_repro_dismissal`
+already has a confirmed-flaky history -- excluding evidence from the workflow
+being adjudicated, and only while the failure rate remains low enough to look
+intermittent rather than currently broken. That is the case
+`inherited_grader_failure` cannot catch because the flake reproduces on the
+base branch too, just intermittently -- and `isolated_repro_dismissal`
 (`Adjudicators::IsolatedReproDismissal`, see `landing_queue.md`'s
 `isolated_repro_dismissal_enabled`) when every one of its failing tests has
 an agent-recorded, same-SHA, pre-fix "did not reproduce in isolation" record
@@ -1211,6 +1214,16 @@ test-history plugin directly, and both are opt-in per repository
 real failure on a flaky reputation is a real risk. A language plugin that can
 tell "this grader was already failing" from its own parsed output is the
 obvious contributor to this extension point.
+
+A `:test_evidence` provider may expose `.failed_test_cases(run:, grader_name:)`
+for per-run failures and `.flakiness_score(repository:, suite_name:, name:,
+excluding_workflow: nil)` for accumulated history. `excluding_workflow:` is
+part of the contract for providers that can scope their history; callers use it
+when adjudicating an active workflow so the workflow's own failed attempts do
+not make the same failure look safer to dismiss. A flakiness score below the
+repository's configured floor is not enough evidence, while a score above
+`Adjudicators::KnownFlakyFailure::MAX_DISMISSIBLE_SCORE` is too much failure
+evidence for automatic dismissal and should be confirmed another way.
 
 ## `grade_detector`
 

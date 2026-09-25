@@ -125,8 +125,10 @@ to the PR's diff.
 `Adjudicators::KnownFlakyFailure` closes it from the other direction: when
 every failing test in a required grader Step already has a confirmed-flaky
 history in Test Insights (`flaky: true`, and a flakiness score at or above a
-configurable floor), the failure is dismissed at rung 0 instead of blocking
-landing or spending a `landing_fix` repair turn. It reuses whatever
+configurable floor), the failure can be dismissed at rung 0 instead of
+blocking landing or spending a `landing_fix` repair turn. The score is computed
+with the workflow currently being adjudicated excluded, so a retry loop cannot
+inflate its own flaky reputation while it is still failing. It reuses whatever
 `:test_evidence` plugin already answers "which tests failed in this run" and
 "what is this test's flakiness score" -- with no such plugin, or no scoring
 history yet, it declines rather than guessing.
@@ -139,7 +141,11 @@ required-grader failures waved off silently.
 `Repository#known_flaky_failure_min_score` optionally raises the minimum
 flakiness score a test needs before its failure counts as "confirmed" flaky
 (default `Adjudicators::KnownFlakyFailure::DEFAULT_MIN_SCORE`), guarding
-against a single historical blip looking like a pattern. A dismissal is
+against a single historical blip looking like a pattern. A very high score is
+not considered safe merely because it includes at least one pass: histories
+above `Adjudicators::KnownFlakyFailure::MAX_DISMISSIBLE_SCORE` are treated as
+mostly failing and require a different confirmation path, such as an isolated
+re-run or operator attention, instead of being auto-dismissed. A dismissal is
 recorded as a `known_flaky_grader_failure` workflow artifact (the dismissed
 grader names, the confirmed-flaky tests and their scores) and logged on the
 `grader_collect` Step, the same visibility `record_inherited_main_failure!`
