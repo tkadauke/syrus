@@ -125,7 +125,7 @@ async function mockClusterResources(page: Page) {
         json: {
           available: true,
           generated_at: GENERATED_AT,
-          truncated: false,
+          truncated: true,
           pods: [
             {
               name: "web-6f8d9c-abc12",
@@ -211,6 +211,20 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   await expect(page.getByRole("cell", { name: "web-6f8d9c-abc12" })).toBeVisible()
   await expect(page.getByRole("cell", { name: "Running" })).toBeVisible()
   await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
+
+  // Per-pod metrics columns render even when metrics-server is absent (dashes).
+  await expect(page.getByRole("columnheader", { name: "CPU" })).toBeVisible()
+  await expect(page.getByRole("columnheader", { name: "Memory" })).toBeVisible()
+
+  // Client-side table search narrows the rows without a new request.
+  await page.getByLabel("Filter rows").fill("zzz-no-such-pod")
+  await expect(page.getByText("No rows match the current filter.")).toBeVisible()
+  await expect(page.getByRole("cell", { name: "web-6f8d9c-abc12" })).toHaveCount(0)
+  await page.getByLabel("Filter rows").fill("")
+  await expect(page.getByRole("cell", { name: "web-6f8d9c-abc12" })).toBeVisible()
+
+  // The API's truncated flag renders as a visible capped-results notice.
+  await expect(page.getByText("Showing partial results — the server capped this list.")).toBeVisible()
 
   // Clicking a workload row opens the same drawer with the full object YAML.
   await page.getByRole("cell", { name: "web-6f8d9c-abc12" }).click()

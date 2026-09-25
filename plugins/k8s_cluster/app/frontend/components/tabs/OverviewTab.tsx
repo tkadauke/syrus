@@ -15,12 +15,14 @@ import { formatAge, formatBytes, formatMillicores } from "../../lib/k8sFormat"
 import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
 import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 export function OverviewTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const restoredHeadingGutter = usePageGutterRestoreClassName("padding")
   const sectionHeadingClassName = classes("text-xs font-semibold uppercase text-gray-500 dark:text-gray-400", restoredHeadingGutter)
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const nodes = useQuery({
     queryKey: [ "k8s_cluster", "nodes", clusterId ],
     queryFn: () => fetchKubernetesNodes(clusterId)
@@ -46,6 +48,8 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
       ]
     })
 
+  const visibleNamespaces = (namespaces.data?.namespaces ?? []).filter((row) => matchesSearch(query, row.name, row.status))
+
   return (
     <div aria-label={t("aria_overview_tab")} className="space-y-4">
       <section>
@@ -56,15 +60,23 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
           namespaces.data.namespaces.length === 0 ? (
             <PanelMessage>{t("namespaces_empty")}</PanelMessage>
           ) : (
-            <KubernetesResourceTable
-              columns={namespaceColumns(t, openNamespace)}
-              defaultSort={{ column: "name", direction: "asc" }}
-              empty={<PanelMessage>{t("namespaces_empty")}</PanelMessage>}
-              getRowKey={(row) => row.name}
-              rows={namespaces.data.namespaces}
-              storageKey="syrus.k8s_cluster.namespaces.columns"
-              summary={t("namespaces_heading")}
-            />
+            <>
+              <TableSearch onChange={setQuery} query={query} />
+              {namespaces.data.truncated ? <TruncatedNotice /> : null}
+              {visibleNamespaces.length === 0 ? (
+                <SearchNoMatches />
+              ) : (
+                <KubernetesResourceTable
+                  columns={namespaceColumns(t, openNamespace)}
+                  defaultSort={{ column: "name", direction: "asc" }}
+                  empty={<PanelMessage>{t("namespaces_empty")}</PanelMessage>}
+                  getRowKey={(row) => row.name}
+                  rows={visibleNamespaces}
+                  storageKey="syrus.k8s_cluster.namespaces.columns"
+                  summary={t("namespaces_heading")}
+                />
+              )}
+            </>
           )
         ) : null}
       </section>
@@ -77,9 +89,9 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
           nodes.data.nodes.length === 0 ? (
             <PanelMessage>{t("overview_no_nodes")}</PanelMessage>
           ) : (
-            <div className="flex flex-wrap items-center gap-3 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
-              <span className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{nodes.data.nodes.length}</span>
-              <span className="text-sm text-gray-500 dark:text-gray-400">{t("overview_node_count_label")}</span>
+            <div className="flex flex-wrap items-center gap-3 rounded border border-border bg-surface p-4">
+              <span className="text-2xl font-semibold text-text-primary">{nodes.data.nodes.length}</span>
+              <span className="text-sm text-text-secondary">{t("overview_node_count_label")}</span>
               <StatusBadge tone={nodes.data.nodes.every((node) => node.ready) ? "success" : "warning"}>
                 {t("overview_nodes_ready", { ready: nodes.data.nodes.filter((node) => node.ready).length, total: nodes.data.nodes.length })}
               </StatusBadge>

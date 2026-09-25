@@ -16,6 +16,7 @@ import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../
 import { Dropdown } from "../Dropdown"
 import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 type NetworkKind = "services" | "ingresses"
 
@@ -40,6 +41,7 @@ export function ServicesTab({ clusterId, namespace }: { clusterId: number; names
 function ServicesTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const services = useQuery({
     queryKey: ["k8s_cluster", "services", clusterId, namespace],
     queryFn: () => fetchKubernetesServices(clusterId, namespace)
@@ -53,7 +55,17 @@ function ServicesTable({ clusterId, namespace }: { clusterId: number; namespace:
     queryKey: ["k8s_cluster", "endpoints", clusterId, namespace],
     queryFn: () => fetchKubernetesEndpoints(clusterId, namespace)
   })
-  const detail = useResourceDetail()
+  const endpointsByKey = new Map<string, KubernetesEndpointRow>(
+    (endpoints.data?.endpoints ?? []).map((endpoint) => [`${endpoint.namespace}/${endpoint.name}`, endpoint])
+  )
+
+  if (services.isPending) return <PanelMessage>{t("services_loading")}</PanelMessage>
+  if (services.isError) return <PanelMessage tone="error">{errorMessage(services.error, t("services_error_loading"))}</PanelMessage>
+  if (services.data.services.length === 0) return <PanelMessage>{t("services_empty")}</PanelMessage>
+
+  const visible = services.data.services.filter((service) =>
+    matchesSearch(query, service.name, service.namespace, service.type, service.cluster_ip)
+  )
 
   const open = (service: KubernetesServiceRow) =>
     detail.openDetail({
@@ -74,24 +86,22 @@ function ServicesTable({ clusterId, namespace }: { clusterId: number; namespace:
     })
 
   return (
-    <div aria-label={t("aria_services_tab")}>
-      {services.isPending ? <PanelMessage>{t("services_loading")}</PanelMessage> : null}
-      {services.isError ? <PanelMessage tone="error">{errorMessage(services.error, t("services_error_loading"))}</PanelMessage> : null}
-      {services.isSuccess ? (
-        services.data.services.length === 0 ? (
-          <PanelMessage>{t("services_empty")}</PanelMessage>
-        ) : (
-          <KubernetesResourceTable
-            columns={serviceColumns(t, endpointsByKey, open)}
-            defaultSort={{ column: "name", direction: "asc" }}
-            empty={<PanelMessage>{t("services_empty")}</PanelMessage>}
-            getRowKey={(service) => `${service.namespace}/${service.name}`}
-            rows={services.data.services}
-            storageKey="syrus.k8s_cluster.services.columns"
-            summary={t("tab_services")}
-          />
-        )
-      ) : null}
+    <div aria-label={t("aria_services_tab")} className="space-y-3">
+      <TableSearch onChange={setQuery} query={query} />
+      {services.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <KubernetesResourceTable
+          columns={serviceColumns(t, endpointsByKey, open)}
+          defaultSort={{ column: "name", direction: "asc" }}
+          empty={<PanelMessage>{t("services_empty")}</PanelMessage>}
+          getRowKey={(service) => `${service.namespace}/${service.name}`}
+          rows={visible}
+          storageKey="syrus.k8s_cluster.services.columns"
+          summary={t("tab_services")}
+        />
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </div>
   )
@@ -179,6 +189,7 @@ function endpointLabel(t: ReturnType<typeof useT>["t"], endpoint: KubernetesEndp
 function IngressesTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const ingresses = useQuery({
     queryKey: ["k8s_cluster", "ingresses", clusterId, namespace],
     queryFn: () => fetchKubernetesIngresses(clusterId, namespace)
@@ -187,6 +198,10 @@ function IngressesTable({ clusterId, namespace }: { clusterId: number; namespace
   if (ingresses.isPending) return <PanelMessage>{t("ingresses_loading")}</PanelMessage>
   if (ingresses.isError) return <PanelMessage tone="error">{errorMessage(ingresses.error, t("ingresses_error_loading"))}</PanelMessage>
   if (ingresses.data.ingresses.length === 0) return <PanelMessage>{t("ingresses_empty")}</PanelMessage>
+
+  const visible = ingresses.data.ingresses.filter((ingress) =>
+    matchesSearch(query, ingress.name, ingress.namespace, ingress.ingress_class, ...ingress.hosts)
+  )
 
   const open = (ingress: KubernetesIngressRow) =>
     detail.openDetail({
@@ -206,15 +221,21 @@ function IngressesTable({ clusterId, namespace }: { clusterId: number; namespace
 
   return (
     <>
-      <KubernetesResourceTable
-        columns={ingressColumns(t, open)}
-        defaultSort={{ column: "name", direction: "asc" }}
-        empty={<PanelMessage>{t("ingresses_empty")}</PanelMessage>}
-        getRowKey={(ingress) => `${ingress.namespace}/${ingress.name}`}
-        rows={ingresses.data.ingresses}
-        storageKey="syrus.k8s_cluster.ingresses.columns"
-        summary={t("network_kind_ingresses")}
-      />
+      <TableSearch onChange={setQuery} query={query} />
+      {ingresses.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <KubernetesResourceTable
+          columns={ingressColumns(t, open)}
+          defaultSort={{ column: "name", direction: "asc" }}
+          empty={<PanelMessage>{t("ingresses_empty")}</PanelMessage>}
+          getRowKey={(ingress) => `${ingress.namespace}/${ingress.name}`}
+          rows={visible}
+          storageKey="syrus.k8s_cluster.ingresses.columns"
+          summary={t("network_kind_ingresses")}
+        />
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
