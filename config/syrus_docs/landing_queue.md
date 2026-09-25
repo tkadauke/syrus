@@ -147,6 +147,77 @@ gives an inherited-failure dismissal -- an operator or agent looking at why a
 red required grader did not block landing should never have to infer it from
 the absence of a failure.
 
+## new_test_flakiness_gate_enabled
+
+`KnownFlakyFailure` only has signal once a test has run at least twice across
+real Workflows -- a brand-new test, or one freshly modified by this Job, has
+no history yet, so neither it nor a plain `InheritedGraderFailure` comparison
+against base can tell a test that is flaky from day one apart from a
+genuinely stable one.
+
+`TouchedTestFiles` closes that gap inside each typed test grader. Once that
+grader's normal command passes, it looks at the test files this Job's diff
+added or modified
+relative to its effective base branch (`_spec.rb`, `_test.rb`,
+`.spec`/`.test.ts(x)`, `test_*.py`/`_test.py`, `_test.go` -- not the whole
+suite, and not the untouched majority of an existing spec file). When that
+set is non-empty, `TouchedTestRepeatGate` reruns just those files a few more
+times (default `TouchedTestRepeatGate::DEFAULT_REPEATS`, 5) against that
+grader. Files are first restricted to the grader target's resolved
+`when_files_changed` scope, so nested-project graders only judge tests owned
+by their project. RSpec and Vitest full-suite graders perform this work in
+their normal distributed fanout slots; already-focused grader modes skip it
+because they have just run a file-scoped selection, and rerunning the same
+selection through a second focused-command path adds cost and diagnostic noise
+without increasing coverage. Non-test graders do not participate. Building
+that "just these files" command does *not* require the grader to have separately opted
+into `BaseRevisionRetry`'s `base_retry: { strategy: plugin }` -- that would
+make the gate a silent no-op for most repositories, since `base_retry` is a
+rarely-configured opt-in for a different feature. Instead: an explicit
+`command`/`files_as_args` `base_retry` on the grader (if the repository
+already configured one, e.g. this repo's own `rspec` grader) is reused
+as-is; otherwise `TouchedTestRepeatGate` asks the same `:focused_test_command`
+extension point `BaseRevisionRetry` uses, but with its own synthesized
+`plugin` strategy -- that point's whole contract is "can a language plugin
+build a file-scoped rerun command for this grader," independent of whatever
+`base_retry` the grader has (or doesn't have) configured. A grader whose
+language has no registered `:focused_test_command` provider (only Ruby and
+JavaScript today) and no explicit `base_retry` command is skipped for that
+grader, logged, rather than guessed at. Focused commands run with the same
+relevant environment the owning grader declared inline (`RAILS_ENV`,
+`COVERAGE`, Bundler paths) plus the normal grader subprocess environment, so a
+plugin-scoped focused rerun is not silently stripped of the prefix the full
+plugin grader just used.
+
+Mixed repeat results (some pass, some fail) fail the grading iteration with a
+`grader_failure` Problem carrying
+`evidence: { new_test_flakiness: true, focused_command_failure: false, result:
+{...} }`, and the repeat result is stored on that grader Step and included in
+the iteration rollup so the repair prompt, the chat report, and the Job page
+all show "this Job's new test failed N/5 times on repeat" instead of a generic
+failed grader -- the agent or operator sees they introduced flakiness, not that
+they broke an existing check. A stable touched test (all repeats pass) leaves
+the iteration's outcome untouched. If every repeat fails after the owning full
+grader passed, the gate classifies that separately as a suspect focused rerun
+(`focused_command_failed_consistently`, `focused_command_invalid`, or
+`focused_command_timed_out_consistently`; RSpec commands that exit 0 after
+filtering out every example count as `focused_command_invalid`), records it on
+the grader Step, emits a warning entry in the `new_test_flakiness_gate`
+artifact, and does not fail the already-passing owning grader. Each failed
+repeat stores bounded combined
+stdout/stderr, exit status, timeout state, duration, focused command, normal
+command, and diagnostic environment, so operators can see whether the
+file-scoped command or its environment is the failing surface without blocking
+a PR whose real grader command passed.
+
+Off by default, opted in per repository via
+`Repository#new_test_flakiness_gate_enabled` (same shape as
+`known_flaky_failure_dismissal_enabled` above): it spends real extra command
+runs on every Job whose diff touches spec files, so a repository opts in
+deliberately rather than paying that cost by default.
+`Repository#new_test_flakiness_gate_repeats` overrides the default repeat
+count.
+
 ## isolated_repro_dismissal_enabled
 
 `KnownFlakyFailure`'s `flakiness_score` needs accumulated cross-run history
