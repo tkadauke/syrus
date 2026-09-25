@@ -5,6 +5,7 @@ module PendingActions
     def execute
       job = action_permitted_job
       raise ArgumentError, "job must be in implemented state" unless job.implemented?
+      raise ArgumentError, "job has active approval-blocking runtime work" if job.approval_blocking_runtime_work?
 
       progress!("Approving #{job.slug}...")
       job.approve!(via: "operator", by_user: user)

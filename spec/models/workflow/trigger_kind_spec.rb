@@ -119,15 +119,20 @@ RSpec.describe Workflow::TriggerKind do
   end
 
   describe ".non_approval_blocking?" do
+    let(:non_approval_blocking_kinds) { %w[rebase stack_rebase manual_visual_review visual_diff] }
+
     it "is true for maintenance/QA kinds that never change the diff under review" do
-      %w[rebase stack_rebase manual_visual_review visual_diff].each do |kind|
+      non_approval_blocking_kinds.each do |kind|
         expect(described_class.non_approval_blocking?(kind)).to be(true)
       end
     end
 
-    it "is false for implementation kinds whose diff isn't settled yet" do
-      %w[initial retry pr_comment chat_feedback ci_failure coding_handoff].each do |kind|
-        expect(described_class.non_approval_blocking?(kind)).to be(false)
+    it "keeps every built-in trigger kind classified, failing closed by default" do
+      expect(described_class.values).to include(*non_approval_blocking_kinds)
+
+      described_class.values.each do |kind|
+        expect(described_class.non_approval_blocking?(kind)).to eq(non_approval_blocking_kinds.include?(kind)),
+          "expected non_approval_blocking?(#{kind.inspect}) to be #{non_approval_blocking_kinds.include?(kind)}"
       end
     end
 

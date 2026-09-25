@@ -75,6 +75,35 @@ RSpec.describe ChatPendingAction, :ci_only do
     action.reject!
   end
 
+  it "confirms approve_job while non-blocking rebase work is active" do
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+    rebase = Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
+    attach_work_unit(rebase, kind: "rebase", state: "running")
+    action = chat_session.pending_actions.create!(
+      action: "approve_job",
+      payload: { "job_id" => job.id },
+      requested_by: "agent"
+    )
+
+    expect(action.confirm!).to be true
+    expect(job.reload).to be_approved
+  end
+
+  it "fails approve_job confirmation while approval-blocking runtime work is active" do
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+    retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
+    attach_work_unit(retry_workflow, kind: "retry", state: "queued")
+    action = chat_session.pending_actions.create!(
+      action: "approve_job",
+      payload: { "job_id" => job.id },
+      requested_by: "agent"
+    )
+
+    expect { action.confirm! }.to raise_error(ArgumentError, "job has active approval-blocking runtime work")
+    expect(action.reload).to be_failed
+    expect(job.reload).to be_implemented
+  end
+
   it "promotes a queued action to pending and broadcasts the chat update" do
     allow(AppEvents).to receive(:broadcast)
     job = direct_job(state: "running")

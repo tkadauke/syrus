@@ -554,6 +554,39 @@ RSpec.describe Job, :ci_only do
     end
   end
 
+  describe "#approval_blocking_runtime_work?" do
+    it "is false for active non-approval-blocking maintenance and QA runs" do
+      %w[rebase stack_rebase manual_visual_review visual_diff].each do |trigger_kind|
+        job = Factories.job_record(state: "implemented")
+        Run.create!(job: job, trigger_kind: trigger_kind, state: "running", agent_provider: job.agent_provider)
+
+        expect(job.reload.approval_blocking_runtime_work?).to be(false), "expected #{trigger_kind} Run not to block approval"
+      end
+    end
+
+    it "is false for active non-approval-blocking maintenance and QA work units" do
+      %w[rebase stack_rebase manual_visual_review visual_diff].each do |trigger_kind|
+        job = Factories.job_record(state: "implemented")
+        workflow = Workflow.create!(job: job, trigger_kind: trigger_kind, state: "running")
+        attach_work_unit(workflow, kind: trigger_kind, state: "running")
+
+        expect(job.reload.approval_blocking_runtime_work?).to be(false), "expected #{trigger_kind} WorkUnit not to block approval"
+      end
+    end
+
+    it "is true for active approval-blocking runs and work units" do
+      run_owned = Factories.job_record(state: "implemented")
+      Run.create!(job: run_owned, trigger_kind: "retry", state: "queued", agent_provider: run_owned.agent_provider)
+
+      unit_owned = Factories.job_record(state: "implemented")
+      workflow = Workflow.create!(job: unit_owned, trigger_kind: "initial", state: "running")
+      attach_work_unit(workflow, kind: "initial", state: "running")
+
+      expect(run_owned.reload.approval_blocking_runtime_work?).to be(true)
+      expect(unit_owned.reload.approval_blocking_runtime_work?).to be(true)
+    end
+  end
+
   describe "thread state machine" do
     it "starts as an open thread" do
       job = Factories.job
