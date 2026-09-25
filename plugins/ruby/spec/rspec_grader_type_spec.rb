@@ -2,9 +2,44 @@ require "rails_helper"
 require "open3"
 require "tmpdir"
 require "fileutils"
-require "tempfile"
 
 RSpec.describe Ruby::RspecGraderType do
+  def run_generated_rspec_command(command, parallel_status:, serial_status: 0)
+    Dir.mktmpdir("rspec-grader-command") do |dir|
+      bin_dir = File.join(dir, "bin")
+      FileUtils.mkdir_p(bin_dir)
+      File.write(File.join(bin_dir, "bundle"), <<~BASH)
+        #!/usr/bin/env bash
+        case "$1" in
+          check|install) exit 0 ;;
+          exec) shift; "$@"; exit $? ;;
+          *) echo "unexpected bundle command: $*" >&2; exit 64 ;;
+        esac
+      BASH
+      File.write(File.join(bin_dir, "parallel_rspec"), <<~BASH)
+        #!/usr/bin/env bash
+        exit "${FAKE_PARALLEL_RSPEC_STATUS:-0}"
+      BASH
+      File.write(File.join(bin_dir, "rspec"), <<~BASH)
+        #!/usr/bin/env bash
+        exit "${FAKE_RSPEC_STATUS:-0}"
+      BASH
+      FileUtils.chmod("+x", Dir[File.join(bin_dir, "*")])
+
+      env = {
+        "PATH" => "#{bin_dir}:#{ENV.fetch('PATH')}",
+        "FAKE_PARALLEL_RSPEC_STATUS" => parallel_status.to_s,
+        "FAKE_RSPEC_STATUS" => serial_status.to_s,
+        "BUNDLE_GEMFILE" => nil,
+        "GEM_HOME" => nil,
+        "GEM_PATH" => nil,
+        "RUBYLIB" => nil,
+        "RUBYOPT" => nil
+      }
+      Open3.capture3(env, "bash", "-c", command, chdir: dir)
+    end
+  end
+
   it "registers the rspec type name" do
     expect(described_class.type_name).to eq("rspec")
   end
@@ -232,11 +267,9 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.run).to include("--tag ci_only")
     expect(step.run).to include("serial_status")
 
-    Tempfile.create([ "rspec-ci-grader", ".sh" ]) do |file|
-      file.write(step.run)
-      file.flush
-      expect(system("bash", "-n", file.path)).to be(true)
-    end
+    _stdout, stderr, status = run_generated_rspec_command(step.run, parallel_status: 0, serial_status: 7)
+
+    expect(status.exitstatus).to eq(7), "expected the generated CI command to preserve the serial pass status, got:\n#{stderr}"
   end
 
   it "supports direct parallel_rspec command generation without a worker wrapper" do
@@ -258,6 +291,23 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.run).to include(".syrus/rspec-json/rspec-")
     expect(step.run).to include(".syrus/grade-output/parallel-rspec-junit/rspec-")
     expect(step.run.scan(/\sspec(?:;|\s)/).length).to eq(1)
+  end
+
+  it "executes parallel status checks when no serial pass is configured" do
+    step = described_class.grade_steps(
+      config: {
+        "parallel_rspec" => {
+          "enabled" => true,
+          "rspec_modes" => [ "full" ],
+          "processes" => "2"
+        }
+      },
+      default_failures: "strict"
+    ).first
+
+    _stdout, stderr, status = run_generated_rspec_command(step.run, parallel_status: 6)
+
+    expect(status.exitstatus).to eq(6), "expected the generated parallel command to preserve parallel_rspec's status, got:\n#{stderr}"
   end
 
   it "keeps the parallel JUnit merger valid after command whitespace normalization" do
