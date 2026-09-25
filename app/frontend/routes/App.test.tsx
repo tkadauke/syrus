@@ -15706,7 +15706,6 @@ function repositoryIssuesPayload(overrides: { message?: string; delegated?: bool
     },
     paths: {
       github_issues_path: "https://github.com/acme/widgets/issues",
-      app_comment_issue_path: "/api/v1/app/repositories/3/issues/comment",
       app_close_issue_path: "/api/v1/app/repositories/3/issues/close",
       app_delegate_issue_path: "/api/v1/app/repositories/3/issues/delegate",
       app_bulk_issues_path: "/api/v1/app/repositories/3/issues/bulk"

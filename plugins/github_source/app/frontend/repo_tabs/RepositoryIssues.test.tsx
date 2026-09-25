@@ -37,7 +37,6 @@ function issue(overrides: Partial<RepositoryIssue> = {}): RepositoryIssue {
 function paths() {
   return {
     github_issues_path: "https://github.com/acme/widgets/issues",
-    app_comment_issue_path: "/api/v1/app/repositories/1/issues/comment",
     app_close_issue_path: "/api/v1/app/repositories/1/issues/close",
     app_delegate_issue_path: "/api/v1/app/repositories/1/issues/delegate",
     app_bulk_issues_path: "/api/v1/app/repositories/1/issues/bulk"
@@ -199,25 +198,14 @@ describe("RepositoryIssuesTab", () => {
     )
   })
 
-  it("posts a comment through the comment form", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const url = String(input)
-      if (url.includes("/issues/comment") && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(issuesPayload({ message: "Comment added to #7." })))
-      }
-      return Promise.resolve(jsonResponse(issuesPayload()))
-    })
+  it("does not render the removed issue comment action", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload()))
     renderRoute()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Comment" }))
-    fireEvent.change(await screen.findByRole("textbox"), { target: { value: "Looks good" } })
-    fireEvent.click(screen.getByRole("button", { name: "Post comment" }))
+    await screen.findByRole("link", { name: "Fix the forum" })
 
-    await screen.findByText("Comment added to #7.")
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/repositories/1/issues/comment",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ issue_number: 7, comment_body: "Looks good", folder: "inbox", q: "" }) })
-    )
+    expect(screen.queryByRole("button", { name: "Comment" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
   })
 
   it("selects issues and performs a bulk delegate, disabling the button while pending", async () => {
