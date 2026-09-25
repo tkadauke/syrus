@@ -43,6 +43,7 @@ module Mcp::Tools
         unless bulk
           job = jobs.first
           return Mcp::Tools.invalid("job must be in implemented state") unless job.implemented?
+          return Mcp::Tools.invalid("job has active approval-blocking runtime work") if job.approval_blocking_runtime_work?
 
           previous_state = job.state
           job.approve!(via: "operator", by_user: chat_session.user)
@@ -53,6 +54,10 @@ module Mcp::Tools
         not_implemented = jobs.reject(&:implemented?)
         if not_implemented.any?
           return Mcp::Tools.invalid("job must be in implemented state: #{not_implemented.map(&:slug).join(', ')}")
+        end
+        approval_blocked = jobs.select(&:approval_blocking_runtime_work?)
+        if approval_blocked.any?
+          return Mcp::Tools.invalid("job has active approval-blocking runtime work: #{approval_blocked.map(&:slug).join(', ')}")
         end
 
         group = create_pending_action_group!(
