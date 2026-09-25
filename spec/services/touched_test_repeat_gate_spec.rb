@@ -194,7 +194,7 @@ RSpec.describe TouchedTestRepeatGate do
         repeats: 1
       )
 
-      expect(result.command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
+      expect(result.command).to eq("RAILS_ENV=${RAILS_ENV:-test} RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
       expect(result.reason).to eq("no_examples_selected")
     end
 
@@ -208,7 +208,7 @@ RSpec.describe TouchedTestRepeatGate do
         repeats: 1
       )
 
-      expect(result.command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
+      expect(result.command).to eq("RAILS_ENV=${RAILS_ENV:-test} RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
       expect(result.reason).to eq("no_examples_selected")
     end
 
