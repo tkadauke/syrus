@@ -1,7 +1,7 @@
 import { jsonResponse } from "../testSupport"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
 import * as useTourModule from "../hooks/useTour"
@@ -2262,6 +2262,76 @@ describe("JobDetailRoute", () => {
     expect(screen.getByRole("button", { name: "Summary" })).not.toHaveClass("border-brand")
   })
 
+  it("does not let previous workflow placeholder paths approve the newly displayed Job", async () => {
+    const job1 = jobPayload({
+      job: { ...baseJob(), id: 1, state: "implemented", summary_state: "implemented", issue_title: "First Job" },
+      actions: { ...jobPayload().actions, can_approve: true }
+    })
+    const job2 = jobPayload({
+      job: { ...baseJob(), id: 2, state: "implemented", summary_state: "implemented", issue_title: "Second Job" },
+      actions: { ...jobPayload().actions, can_approve: true },
+      paths: jobPathsFor(2)
+    })
+    const workflowPlaceholder = {
+      job_id: 1,
+      current_intent: null,
+      work_units: [],
+      workflows: [],
+      workflows_pagination: job1.workflows_pagination,
+      feature_flags: job1.feature_flags,
+      actions: job1.actions,
+      paths: job1.paths
+    }
+    let resolveJob2Workflows: (response: Response) => void = () => {}
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = requestUrl(input)
+      if (path === "/api/v1/app/jobs/1") return Promise.resolve(jsonResponse(job1))
+      if (path === "/api/v1/app/jobs/1/workflows") return Promise.resolve(jsonResponse(workflowPlaceholder))
+      if (path === "/api/v1/app/jobs/2") return Promise.resolve(jsonResponse(job2))
+      if (path === "/api/v1/app/jobs/2/workflows") {
+        return new Promise<Response>((resolve) => {
+          resolveJob2Workflows = resolve
+        })
+      }
+      if (path === "/api/v1/app/jobs/2/approve") return Promise.resolve(jsonResponse({ message: "Job approved." }))
+      if (path === "/api/v1/app/jobs/1/approve") return Promise.reject(new Error("stale approve path was used"))
+      return Promise.reject(new Error(`unexpected fetch ${path}`))
+    })
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1?tab=workflows"]}>
+            <NavigateToJob2 />
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("First Job")).toBeInTheDocument()
+    await waitFor(() => expect(fetchSpy.mock.calls.some(([input]) => requestUrl(input) === "/api/v1/app/jobs/1/workflows")).toBe(true))
+
+    fireEvent.click(screen.getByRole("button", { name: "Go to Job 2" }))
+
+    expect(await screen.findByText("Second Job")).toBeInTheDocument()
+    await waitFor(() => expect(fetchSpy.mock.calls.some(([input]) => requestUrl(input) === "/api/v1/app/jobs/2/workflows")).toBe(true))
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/2/approve", expect.objectContaining({ method: "POST" }))
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/jobs/1/approve", expect.anything())
+
+    resolveJob2Workflows(jsonResponse({ ...workflowPlaceholder, job_id: 2, paths: job2.paths }))
+  })
+
   it("falls back to Summary for an unclaimed plugin tab URL", async () => {
     const payload = jobPayload({
       ui_tabs: [{ id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }]
@@ -3808,6 +3878,11 @@ function LocationProbe() {
   )
 }
 
+function NavigateToJob2() {
+  const navigate = useNavigate()
+  return <button onClick={() => navigate("/jobs/2?tab=workflows")}>Go to Job 2</button>
+}
+
 function jobNavigationContext(overrides: Partial<JobNavigationContext> = {}): JobNavigationContext {
   return {
     token: "nav-token",
@@ -3905,6 +3980,11 @@ function requestUrl(input: Parameters<typeof fetch>[0]) {
   if (typeof input === "string") return input
   if (input instanceof Request) return input.url
   return String(input)
+}
+
+function jobPathsFor(id: number): JobDetailPayload["paths"] {
+  const paths = jobPayload().paths
+  return Object.fromEntries(Object.entries(paths).map(([key, value]) => [key, typeof value === "string" ? value.replaceAll("/jobs/1", `/jobs/${id}`) : value])) as JobDetailPayload["paths"]
 }
 
 function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload {
