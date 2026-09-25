@@ -120,7 +120,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   }, [payload.messages])
   const pendingProposalCount = payload.pending_proposal_count ?? pendingProposals.length
   const [jumpIndex, setJumpIndex] = useState(0)
-  const attachedRepositories = payload.attachment_groups.repositories
+  const attachedRepositories = payload.attachment_groups?.repositories ?? []
   const dictation = useChatDictation({
     chatId: payload.chat.id,
     capability: payload.speech_to_text ?? UNAVAILABLE_SPEECH_TO_TEXT,

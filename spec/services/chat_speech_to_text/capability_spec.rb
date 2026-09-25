@@ -9,6 +9,9 @@ RSpec.describe ChatSpeechToText::Capability do
     allow(ENV).to receive(:[]).with("SYRUS_STT_WHISPER_CPP_EXECUTABLE").and_return(nil)
     allow(ENV).to receive(:[]).with("SYRUS_STT_WHISPER_CPP_MODEL").and_return(nil)
     allow(ENV).to receive(:[]).with("SYRUS_STT_BACKEND_STREAMING").and_return(nil)
+    allow(File).to receive(:exist?).and_call_original
+    allow(File).to receive(:exist?).with(ChatSpeechToText::Providers::WhisperCpp::BUNDLED_EXECUTABLE_PATH).and_return(false)
+    allow(File).to receive(:exist?).with(ChatSpeechToText::Providers::WhisperCpp::BUNDLED_MODEL_PATH).and_return(false)
   end
 
   it "does not offer any dictation mode when the feature is disabled" do

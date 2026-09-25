@@ -38,6 +38,7 @@ RSpec.describe ChatAgentQuestion do
       command: "claude --print",
       workdir: chat_session.workspace_root.to_s,
       hostname: "worker-1",
+      pid: 1234,
       started_at: Time.current
     )
     question = chat_session.agent_questions.create!(question: "Deploy now?", asked_at: Time.current)

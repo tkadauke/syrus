@@ -615,7 +615,7 @@ function WhiteboardPanel({ fullscreen, onToggleFullscreen, payload }: { fullscre
   const whiteboard = useQuery({
     queryKey: ["chat_whiteboard", String(payload.chat.id)],
     queryFn: () => fetchChatWhiteboard(payload.paths.app_whiteboard_path),
-    enabled: payload.chat.id != null && payload.whiteboard.loaded !== true
+    enabled: payload.chat.id != null && payload.whiteboard.loaded === false
   })
 
   const clearPendingSave = useCallback(() => {
@@ -713,19 +713,22 @@ function WhiteboardPanel({ fullscreen, onToggleFullscreen, payload }: { fullscre
   useEffect(() => {
     const data = whiteboard.data
     if (!data) return
+    if (!data.scene_json) return
 
+    const scene = cloneWhiteboardScene(data.scene_json)
+    const version = data.version ?? payload.whiteboard.version
     queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(payload.chat.id)] }, (currentPayload) => currentPayload ? {
       ...currentPayload,
       whiteboard: {
-        version: data.version,
-        elements: data.scene_json.elements,
-        appState: data.scene_json.appState,
-        files: data.scene_json.files,
+        version,
+        elements: scene.elements,
+        appState: scene.appState,
+        files: scene.files,
         loaded: true
       }
     } : currentPayload)
-    applyRemoteScene(data.scene_json, data.version)
-  }, [applyRemoteScene, payload.chat.id, queryClient, whiteboard.data])
+    applyRemoteScene(scene, version)
+  }, [applyRemoteScene, payload.chat.id, payload.whiteboard.version, queryClient, whiteboard.data])
 
   useEffect(() => () => {
     clearPendingSave()
@@ -774,7 +777,7 @@ function WhiteboardPanel({ fullscreen, onToggleFullscreen, payload }: { fullscre
         </div>
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950">
-        {whiteboard.isPending ? (
+        {whiteboard.isLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">{t("loading_chat")}</div>
         ) : whiteboard.isError ? (
           <div className="p-3 text-sm text-red-700 dark:text-red-300">{errorMessage(whiteboard.error, t("whiteboard_unavailable"))}</div>

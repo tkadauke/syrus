@@ -687,12 +687,16 @@ function ChatWorkspace({
   settingsOpen: boolean
   onSettingsOpenChange: (open: boolean) => void
 }) {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>(() => storedWorkspaceTab() || defaultWorkspaceTab(payload))
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(() => {
+    const defaultTab = defaultWorkspaceTab(payload)
+    return defaultTab === "whiteboard" ? defaultTab : (storedWorkspaceTab() || defaultTab)
+  })
   const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>("chat")
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
   const [panelCollapsed, setPanelCollapsed] = useState(storedWorkspaceCollapsed)
   const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
+  const whiteboardDefaultAppliedRef = useRef<string | null>(defaultWorkspaceTab(payload) === "whiteboard" ? chatId : null)
   const bookmarkRequestIdRef = useRef(0)
   const handledMessageDeepLinkRef = useRef<string | null>(null)
   const navigate = useNavigate()
@@ -706,6 +710,14 @@ function ChatWorkspace({
     if (!availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload, simpleMode))
     if (activeMobileTab !== "chat" && !availableTabs.includes(activeMobileTab)) setActiveMobileTab("chat")
   }, [activeMobileTab, activeTab, availableTabs, payload, simpleMode])
+
+  useEffect(() => {
+    if (defaultWorkspaceTab(payload, simpleMode) !== "whiteboard") return
+    if (whiteboardDefaultAppliedRef.current === chatId) return
+
+    whiteboardDefaultAppliedRef.current = chatId
+    setActiveTab("whiteboard")
+  }, [chatId, payload, simpleMode])
 
   useEffect(() => {
     storeWorkspacePreference(CHAT_WORKSPACE_TAB_KEY, activeTab)

@@ -22,6 +22,17 @@ RSpec.describe "API: /api/v1/app speech-to-text", type: :request do
     end.update!(enabled: true)
   end
 
+  def stub_stt_backend_absent
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("SYRUS_STT_PROVIDER").and_return(nil)
+    allow(ENV).to receive(:[]).with("SYRUS_STT_WHISPER_CPP_EXECUTABLE").and_return(nil)
+    allow(ENV).to receive(:[]).with("SYRUS_STT_WHISPER_CPP_MODEL").and_return(nil)
+    allow(ENV).to receive(:[]).with("SYRUS_STT_BACKEND_STREAMING").and_return(nil)
+    allow(File).to receive(:exist?).and_call_original
+    allow(File).to receive(:exist?).with(ChatSpeechToText::Providers::WhisperCpp::BUNDLED_EXECUTABLE_PATH).and_return(false)
+    allow(File).to receive(:exist?).with(ChatSpeechToText::Providers::WhisperCpp::BUNDLED_MODEL_PATH).and_return(false)
+  end
+
   def upload_file(name: "dictation.webm", content_type: "audio/webm", content: "audio-bytes")
     file = Tempfile.new([ "dictation", File.extname(name) ])
     file.binmode
@@ -45,6 +56,7 @@ RSpec.describe "API: /api/v1/app speech-to-text", type: :request do
   it "returns a deterministic backend-unavailable response when backend STT is not configured" do
     sign_in_as(user)
     enable_speech_to_text!
+    stub_stt_backend_absent
 
     post "/api/v1/app/chats/#{chat.id}/speech_to_text"
 
@@ -164,6 +176,7 @@ RSpec.describe "API: /api/v1/app speech-to-text", type: :request do
   it "logs backend fallback reasons without runtime config values" do
     sign_in_as(user)
     enable_speech_to_text!
+    stub_stt_backend_absent
     messages = []
     allow(Rails.logger).to receive(:info) { |message| messages << message }
 

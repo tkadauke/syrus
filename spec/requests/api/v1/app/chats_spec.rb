@@ -16,6 +16,17 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     end.update!(enabled: enabled)
   end
 
+  def stub_chat_stt_backend_absent
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("SYRUS_STT_PROVIDER").and_return(nil)
+    allow(ENV).to receive(:[]).with("SYRUS_STT_WHISPER_CPP_EXECUTABLE").and_return(nil)
+    allow(ENV).to receive(:[]).with("SYRUS_STT_WHISPER_CPP_MODEL").and_return(nil)
+    allow(ENV).to receive(:[]).with("SYRUS_STT_BACKEND_STREAMING").and_return(nil)
+    allow(File).to receive(:exist?).and_call_original
+    allow(File).to receive(:exist?).with(ChatSpeechToText::Providers::WhisperCpp::BUNDLED_EXECUTABLE_PATH).and_return(false)
+    allow(File).to receive(:exist?).with(ChatSpeechToText::Providers::WhisperCpp::BUNDLED_MODEL_PATH).and_return(false)
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/chats"
 
@@ -1442,6 +1453,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
   end
 
   it "reports speech-to-text disabled by default" do
+    stub_chat_stt_backend_absent
     sign_in_as(user)
     chat = ChatSession.create!(user: user)
 
@@ -1462,6 +1474,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
   end
 
   it "reports browser speech-to-text fallback when the labs flag is on without backend config" do
+    stub_chat_stt_backend_absent
     sign_in_as(user)
     chat = ChatSession.create!(user: user)
     Feature.find_or_create_by!(slug: "chat_speech_to_text") do |feature|

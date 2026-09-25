@@ -89,7 +89,13 @@ module ChatAttachmentSearch
     {
       type: record.is_a?(Document) ? "Document" : record.class.name,
       id: record.id,
-      label: attachment_label(record)
+      label: attachment_search_label(record)
     }
+  end
+
+  def attachment_search_label(record)
+    return record.title if record.is_a?(Document)
+
+    attachment_label(record)
   end
 end

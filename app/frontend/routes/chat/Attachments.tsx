@@ -62,11 +62,11 @@ function useChatContextPayload(payload: ChatPayload, queryKey: ChatQueryKey): Ch
   const context = useQuery({
     queryKey: ["chat-context", String(payload.chat.id), queryKey[2]],
     queryFn: ({ signal }) => fetchChatContext(appendSearch(contextPath, queryKey[2]), { signal }),
-    initialData: hasContextPayload(payload) ? {
+    initialData: hasContextPayload(payload) ? normalizeContextPayload({
       attachment_groups: payload.attachment_groups,
       documents_in_scope: payload.documents_in_scope,
       attachment_results: payload.attachment_results
-    } : undefined
+    }) : undefined
   })
 
   useEffect(() => {
@@ -81,13 +81,25 @@ function useChatContextPayload(payload: ChatPayload, queryKey: ChatQueryKey): Ch
     } : current)
   }, [context.data, payload.chat.id, queryClient])
 
-  return context.data ?? emptyContextPayload()
+  return normalizeContextPayload(context.data)
 }
 
 function hasContextPayload(payload: ChatPayload) {
   return (payload.documents_in_scope ?? []).length > 0 ||
     (payload.attachment_results ?? []).length > 0 ||
-    Object.values(payload.attachment_groups).some((rows) => rows.length > 0)
+    Object.values(payload.attachment_groups ?? {}).some((rows) => rows.length > 0)
+}
+
+function normalizeContextPayload(payload: Partial<ChatContextPayload> | undefined): ChatContextPayload {
+  const empty = emptyContextPayload()
+  return {
+    attachment_groups: {
+      ...empty.attachment_groups,
+      ...(payload?.attachment_groups ?? {})
+    },
+    documents_in_scope: payload?.documents_in_scope ?? empty.documents_in_scope,
+    attachment_results: payload?.attachment_results ?? empty.attachment_results
+  }
 }
 
 function emptyContextPayload(): ChatContextPayload {
