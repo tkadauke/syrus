@@ -1,4 +1,5 @@
 import { getJson } from "@app/api/client"
+import type { FilterSchemaField, FilterTree } from "@app/components/FilterBar"
 
 export type GithubApiUsageTotals = {
   requests: number
@@ -27,6 +28,8 @@ export type GithubApiUsageRepositoryRow = {
 
 export type GithubApiUsagePayload = {
   hours: number
+  filter: FilterTree
+  filter_schema: FilterSchemaField[]
   generated_at: string
   totals: GithubApiUsageTotals
   by_operation: GithubApiUsageOperationRow[]
@@ -34,6 +37,6 @@ export type GithubApiUsagePayload = {
   recent_rate_limits: (GithubApiUsageOperationRow & { repo_slug?: string | null })[]
 }
 
-export function fetchGithubApiUsage(hours: number) {
-  return getJson<GithubApiUsagePayload>(`/api/v1/app/admin/github_api_usage?hours=${encodeURIComponent(String(hours))}`)
+export function fetchGithubApiUsage(search = "") {
+  return getJson<GithubApiUsagePayload>(`/api/v1/app/admin/github_api_usage${search}`)
 }
