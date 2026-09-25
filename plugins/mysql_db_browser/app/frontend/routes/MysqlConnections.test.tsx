@@ -8,6 +8,10 @@ import i18n from "@app/i18n"
 import { MysqlConnections } from "./MysqlConnections"
 import * as useConfirmModule from "@app/hooks/useConfirm"
 
+function dataTransfer() {
+  return { dropEffect: "", effectAllowed: "", getData: vi.fn(), setData: vi.fn() }
+}
+
 function mockUseConfirm(confirmed: boolean) {
   const mockConfirm = vi.fn<ReturnType<typeof useConfirmModule.useConfirm>["confirm"]>().mockResolvedValue(confirmed)
   vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm, dialog: <></> })
@@ -334,12 +338,12 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
   return { calls, fetchSpy }
 }
 
-function renderConnections() {
+function renderConnections(initialEntry = "/db_browser") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/db_browser"]}>
+        <MemoryRouter initialEntries={[initialEntry]}>
           <MysqlConnections />
         </MemoryRouter>
       </QueryClientProvider>
@@ -348,6 +352,10 @@ function renderConnections() {
 }
 
 describe("MysqlConnections", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -681,6 +689,83 @@ describe("MysqlConnections", () => {
       expect(tablist.parentElement?.parentElement).toHaveClass("flex", "h-full", "min-h-0", "min-w-0", "flex-col", "overflow-hidden")
       expect(tablist.nextElementSibling).toHaveClass("min-h-0", "flex-1", "overflow-y-auto")
       expect(screen.getByRole("region", { name: "Table content" })).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
+    })
+
+    it("keeps table filtering and sorting server-backed while showing dashboard-style sort indicators", async () => {
+      const { calls } = setupFetchMock()
+      renderConnections("/db_browser?q=eyJhbmQiOltdfQ")
+
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
+      fireEvent.click(await screen.findByText("app_staging"))
+      fireEvent.click(await screen.findByText("users"))
+      await screen.findByText("grace@example.com")
+
+      const initialContentCall = calls.find((call) => call.url.includes("/tables/users/content"))
+      expect(new URLSearchParams(initialContentCall?.url.split("?")[1] || "").get("q")).toBe("eyJhbmQiOltdfQ")
+
+      const idHeader = screen.getByRole("columnheader", { name: /id/ })
+      expect(idHeader.querySelector("[data-sort-indicator]")).toHaveAttribute("data-sort-direction", "none")
+
+      fireEvent.click(within(idHeader).getByRole("button", { name: /id/ }))
+
+      await waitFor(() => {
+        const sortedCall = calls.find((call) => {
+          const params = new URLSearchParams(call.url.split("?")[1] || "")
+          return call.url.includes("/tables/users/content") && params.get("sort_by") === "id" && params.get("sort_dir") === "asc"
+        })
+        expect(sortedCall).toBeTruthy()
+      })
+      expect(screen.getByRole("columnheader", { name: /id/ })).toHaveAttribute("aria-sort", "ascending")
+    })
+
+    it("lets operators hide and reorder result columns from the selector", async () => {
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
+      fireEvent.click(await screen.findByText("app_staging"))
+      fireEvent.click(await screen.findByText("users"))
+      await screen.findByText("grace@example.com")
+
+      const contentRegion = screen.getByRole("region", { name: "Table content" })
+      fireEvent.click(within(contentRegion).getByRole("button", { name: "Columns" }))
+      fireEvent.click(within(contentRegion).getByLabelText("email"))
+
+      expect(within(contentRegion).queryByRole("columnheader", { name: /email/ })).not.toBeInTheDocument()
+      expect(within(contentRegion).queryByText("grace@example.com")).not.toBeInTheDocument()
+
+      fireEvent.click(within(contentRegion).getByLabelText("email"))
+      fireEvent.click(within(contentRegion).getByRole("button", { name: "Move email up" }))
+
+      const headers = within(contentRegion).getAllByRole("columnheader").map((cell) => cell.textContent)
+      expect(headers[0]).toContain("email")
+      expect(headers[1]).toContain("id")
+    })
+
+    it("reorders result columns by dragging headers", async () => {
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
+      fireEvent.click(await screen.findByText("app_staging"))
+      fireEvent.click(await screen.findByText("users"))
+      await screen.findByText("grace@example.com")
+
+      const contentRegion = screen.getByRole("region", { name: "Table content" })
+      const idHeader = within(contentRegion).getByRole("columnheader", { name: /id/ })
+      const emailHeader = within(contentRegion).getByRole("columnheader", { name: /email/ })
+      const transfer = dataTransfer()
+
+      fireEvent.dragStart(emailHeader, { dataTransfer: transfer })
+      fireEvent.dragOver(idHeader, { dataTransfer: transfer })
+      fireEvent.drop(idHeader, { dataTransfer: transfer })
+
+      const headers = within(contentRegion).getAllByRole("columnheader").map((cell) => cell.textContent)
+      expect(headers[0]).toContain("email")
+      expect(headers[1]).toContain("id")
+
+      const firstRowCells = within(contentRegion).getAllByRole("row")[1]
+      expect(within(firstRowCells).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["grace@example.com", "1"])
     })
 
     it("restores margin on the browser header and tab bar while the surrounding Page.Root stays flush", async () => {

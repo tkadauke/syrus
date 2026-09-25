@@ -5,7 +5,7 @@ import type { MysqlQueryErrorPayload, MysqlQueryResult } from "../api/mysqlQuery
 // Shared success/error rendering for a QueryExecutor payload - used by the
 // raw Query tab and the Live-diagnostics tab, both of which just run a SQL
 // string and show what came back.
-export function MysqlQueryResultPanel({ result, sort, onSort }: { result: MysqlQueryResult; sort?: MysqlGridSort | null; onSort?: (column: string) => void }) {
+export function MysqlQueryResultPanel({ result, sort, onSort, storageKey = "syrus.mysql_db_browser.query_results.columns" }: { result: MysqlQueryResult; sort?: MysqlGridSort | null; onSort?: (column: string) => void; storageKey?: string }) {
   const { t } = useT("mysql_db_browser")
 
   if (!result.available) {
@@ -20,7 +20,7 @@ export function MysqlQueryResultPanel({ result, sort, onSort }: { result: MysqlQ
           : t("query_meta_write", { count: result.affected_rows ?? 0, ms: result.duration_ms })}
         {result.truncated ? ` · ${t("query_truncated")}` : ""}
       </p>
-      <MysqlResultsGrid columns={result.columns} onSort={onSort} rows={result.rows} sort={sort} />
+      <MysqlResultsGrid columns={result.columns} onSort={onSort} rows={result.rows} sort={sort} storageKey={storageKey} />
     </div>
   )
 }
