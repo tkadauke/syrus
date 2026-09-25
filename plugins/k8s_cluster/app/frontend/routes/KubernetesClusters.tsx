@@ -208,7 +208,7 @@ function ClustersTable({
       defaultSort={{ column: "label", direction: "asc" }}
       getRowKey={(cluster) => cluster.id}
       localSort
-      panel={{ summary: t("heading"), meta: clusters.length === 0 ? t("empty") : `${clusters.length} ${clusters.length === 1 ? "cluster" : "clusters"}` }}
+      panel={{ summary: t("heading"), meta: clusters.length === 0 ? t("empty") : t("table_count", { count: clusters.length }) }}
       rows={clusters}
       storageKey="syrus.admin.kubernetes_clusters.columns"
     />

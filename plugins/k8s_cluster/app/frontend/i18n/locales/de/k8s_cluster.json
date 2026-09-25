@@ -6,6 +6,8 @@
   "loading": "Cluster werden geladen…",
   "error_loading": "Cluster konnten nicht geladen werden.",
   "empty": "Noch keine Cluster. Fügen Sie eines hinzu, um zu beginnen.",
+  "table_count_one": "{{count}} Cluster",
+  "table_count_other": "{{count}} Cluster",
   "add_heading": "Cluster hinzufügen",
   "edit_heading": "Cluster bearbeiten",
   "field_label": "Bezeichnung",

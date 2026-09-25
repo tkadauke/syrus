@@ -6,6 +6,8 @@
   "loading": "Verbindungen werden geladen…",
   "error_loading": "Verbindungen konnten nicht geladen werden.",
   "empty": "Noch keine Verbindungen. Fügen Sie eine hinzu, um zu beginnen.",
+  "table_count_one": "{{count}} Verbindung",
+  "table_count_other": "{{count}} Verbindungen",
   "add_button": "Hinzufügen",
   "close_button": "Schließen",
   "add_heading": "Verbindung hinzufügen",

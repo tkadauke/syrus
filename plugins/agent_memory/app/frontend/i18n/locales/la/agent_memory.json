@@ -11,6 +11,8 @@
   "col_published": "Publicatum",
   "col_created": "Creatum",
   "col_actions": "Actiones",
+  "table_count_one": "{{count}} memoria",
+  "table_count_other": "{{count}} memoriae",
   "no_results": "Nullae memoriae his filtris respondent.",
   "see_more": "Plus videre",
   "edit": "Emendare",

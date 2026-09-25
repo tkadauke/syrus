@@ -32,6 +32,32 @@ describe("MemoriesRoute", () => {
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/memories", expect.objectContaining({ credentials: "same-origin" }))
   })
 
+  it("renders memories with shared sortable and configurable table controls", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload({
+      memories: [
+        memoryRow({ id: 10, content: "Zeta memory", created_at: "2026-06-20T12:00:00Z" }),
+        memoryRow({ id: 11, content: "Alpha memory", created_at: "2026-06-21T12:00:00Z" })
+      ],
+      pagination: { page: 1, per_page: 20, total: 2, total_pages: 1 }
+    })))
+
+    renderRoute(<MemoriesRoute />, "/app-shell/memories")
+
+    expect(await screen.findByText("2 memories")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Columns" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Content" }))
+    expectAppearsBefore(screen.getByText("Alpha memory"), screen.getByText("Zeta memory"))
+
+    fireEvent.click(screen.getByRole("button", { name: "Content" }))
+    expectAppearsBefore(screen.getByText("Zeta memory"), screen.getByText("Alpha memory"))
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    const menu = screen.getByRole("menu")
+    expect(within(menu).getByRole("checkbox", { name: "Scope" })).toBeChecked()
+    expect(within(menu).getByRole("button", { name: "Move Scope down" })).toBeInTheDocument()
+  })
+
   it("updates query params when filters are applied", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload()))
 
@@ -256,6 +282,10 @@ function renderRoute(children: ReactNode, path: string) {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function expectAppearsBefore(first: HTMLElement, second: HTMLElement) {
+  expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 }
 
 function memoriesPayload(overrides: Record<string, unknown> = {}) {
