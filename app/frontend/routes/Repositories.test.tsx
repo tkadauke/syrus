@@ -187,11 +187,9 @@ describe("RepositoriesIndex data table", () => {
 
     function optionalColumnOrder() {
       const optionalNames = ["GitHub owner", "Open jobs", "Last activity", "Health", "Agent"]
-      // Sortable headers append an aria-hidden sort-direction glyph to their
-      // textContent, so strip non-word characters before matching.
       return screen
         .getAllByRole("columnheader")
-        .map((header) => header.textContent?.replace(/[^\w\s]/g, "").trim())
+        .map((header) => header.textContent?.trim())
         .filter((name) => optionalNames.includes(name ?? ""))
     }
 
@@ -221,11 +219,9 @@ describe("RepositoriesIndex data table", () => {
 
     function optionalColumnOrder() {
       const optionalNames = ["GitHub owner", "Open jobs", "Last activity", "Health", "Agent"]
-      // Sortable headers append an aria-hidden sort-direction glyph to their
-      // textContent, so strip non-word characters before matching.
       return screen
         .getAllByRole("columnheader")
-        .map((header) => header.textContent?.replace(/[^\w\s]/g, "").trim())
+        .map((header) => header.textContent?.trim())
         .filter((name) => optionalNames.includes(name ?? ""))
     }
 
@@ -258,7 +254,7 @@ describe("RepositoriesIndex data table", () => {
     fireEvent.dragOver(openJobsHeader, { dataTransfer: transfer })
     fireEvent.drop(openJobsHeader, { dataTransfer: transfer })
 
-    expect(screen.getAllByRole("columnheader").map((header) => header.textContent?.replace(/[^\w\s]/g, "").trim())[0]).toBe("Repository")
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent?.trim())[0]).toBe("Repository")
   })
 
   it("sorts repositories by clicking a sortable column header", async () => {

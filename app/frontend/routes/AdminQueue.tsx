@@ -1,5 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
-import { Button, DataTable, DescriptionList, Input, Notice, Page, Section, SectionHeading, Text, buttonClasses } from "../components/ui"
+import { Button, DataTable, DescriptionList, Input, Notice, Page, SectionHeading, Text, buttonClasses } from "../components/ui"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useColorTokens } from "../lib/colorTokens"
@@ -212,9 +212,7 @@ function QueueContent({
         ) : null
       }
     >
-      <Section.Root padding="none">
-        <QueueTabPanel tab={tab} payload={payload} />
-      </Section.Root>
+      <QueueTabPanel tab={tab} payload={payload} />
     </AdminFiltersLayout>
   )
 }
@@ -251,14 +249,7 @@ function PendingTable({ payload }: { payload: PendingQueuePayload }) {
   const { t } = useT("admin")
   const jobs = payload.jobs ?? []
 
-  return (
-    <>
-      <Text className="border-b border-border px-4 py-3" muted>
-        {t("queue.showing_of", { shown: jobs.length, total: payload.total ?? 0 })}
-      </Text>
-      <JobsTable emptyLabel={t("queue.no_queued")} jobs={jobs} storageKey="syrus.admin.queue.pending_jobs.visible_columns" />
-    </>
-  )
+  return <JobsTable emptyLabel={t("queue.no_queued")} jobs={jobs} storageKey="syrus.admin.queue.pending_jobs.visible_columns" total={payload.total ?? jobs.length} />
 }
 
 function jobsTableColumns(t: (key: string) => string, showClaimed: boolean): Array<AdminEventLogTableColumn<QueueJob>> {
@@ -289,12 +280,24 @@ function jobsTableColumns(t: (key: string) => string, showClaimed: boolean): Arr
   return columns
 }
 
-function JobsTable({ emptyLabel, jobs, showClaimed = false, storageKey }: { emptyLabel: string; jobs: QueueJob[]; showClaimed?: boolean; storageKey: string }) {
+function JobsTable({
+  emptyLabel,
+  jobs,
+  showClaimed = false,
+  storageKey,
+  total = jobs.length
+}: {
+  emptyLabel: string
+  jobs: QueueJob[]
+  showClaimed?: boolean
+  storageKey: string
+  total?: number
+}) {
   const { t } = useT("admin")
 
   if (jobs.length === 0) return <PanelMessage>{emptyLabel}</PanelMessage>
 
-  return <AdminEventLogTable columns={jobsTableColumns(t, showClaimed)} getRowKey={(job) => job.id} rows={jobs} storageKey={storageKey} />
+  return <AdminEventLogTable columns={jobsTableColumns(t, showClaimed)} getRowKey={(job) => job.id} rows={jobs} storageKey={storageKey} panel={queuePanel(t, jobs.length, total)} />
 }
 
 function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
@@ -323,7 +326,7 @@ function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
     }
   ]
 
-  return <AdminEventLogTable columns={columns} getRowKey={(failure) => failure.id} rows={failures} storageKey="syrus.admin.queue.failures.visible_columns" />
+  return <AdminEventLogTable columns={columns} getRowKey={(failure) => failure.id} rows={failures} storageKey="syrus.admin.queue.failures.visible_columns" panel={queuePanel(t, failures.length)} />
 }
 
 function RecurringTable({ tasks }: { tasks: QueueRecurringTask[] }) {
@@ -349,7 +352,7 @@ function RecurringTable({ tasks }: { tasks: QueueRecurringTask[] }) {
     }
   ]
 
-  return <AdminEventLogTable columns={columns} getRowKey={(task) => task.key} rows={tasks} storageKey="syrus.admin.queue.recurring.visible_columns" />
+  return <AdminEventLogTable columns={columns} getRowKey={(task) => task.key} rows={tasks} storageKey="syrus.admin.queue.recurring.visible_columns" panel={queuePanel(t, tasks.length)} />
 }
 
 function WorkersPanel({ payload }: { payload: WorkersQueuePayload }) {
@@ -784,6 +787,7 @@ function WorkerTable({ workers }: { workers: QueueWorker[] }) {
       getRowKey={(worker) => `${worker.hostname}-${worker.pid}`}
       rows={workers}
       storageKey="syrus.admin.queue.workers.visible_columns"
+      panel={queuePanel(t, workers.length)}
     />
   )
 }
@@ -820,8 +824,15 @@ function ProcessTable({ processes }: { processes: QueueProcess[] }) {
       getRowKey={(process) => `${process.kind}-${process.hostname}-${process.pid}`}
       rows={processes}
       storageKey="syrus.admin.queue.processes.visible_columns"
+      panel={queuePanel(t, processes.length)}
     />
   )
+}
+
+function queuePanel(t: (key: string, options?: Record<string, number>) => string, count: number, total = count) {
+  return {
+    summary: t("queue.showing_items", { first: count > 0 ? 1 : 0, last: count, total })
+  }
 }
 
 function QueueError({ error }: { error: Error }) {

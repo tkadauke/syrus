@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, disabledPaginationClass, paginationLinkClass, severityPillClass } from "../components/AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, severityPillClass } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { fetchAdminWorkUnits, type AdminWorkUnitsPayload, type LinkedJob, type WorkIntentSummary, type WorkUnitSummary } from "../api/adminWorkUnits"
@@ -58,11 +58,10 @@ export function AdminWorkUnits() {
         </div>
       }
       ariaLabel={t("work_units.aria")}
+      description={t("work_units.description")}
       eyebrow={t("section_label")}
       title={t("work_units.heading")}
     >
-      <p className="max-w-3xl text-sm text-gray-600 dark:text-gray-300">{t("work_units.description")}</p>
-
       <AdminEventFilterBar clearLabel={t("work_units.clear_filters")} filter={workUnits.data?.filter} filterSchema={workUnits.data?.filter_schema} fields={[
         { name: "intent_state", label: t("work_units.filter_intent_state") },
         { name: "intent_kind", label: t("work_units.filter_intent_kind") },
@@ -74,11 +73,9 @@ export function AdminWorkUnits() {
         { name: "workflow_id", label: t("work_units.filter_workflow"), inputMode: "numeric" }
       ]} search={location.search} searchLabel={t("work_units.apply_filters")} />
 
-      <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-        {workUnits.isPending ? <AdminEventPanelMessage>{t("work_units.loading")}</AdminEventPanelMessage> : null}
-        {workUnits.isError ? <AdminEventPanelMessage tone="error">{t("work_units.error_load")}</AdminEventPanelMessage> : null}
-        {workUnits.isSuccess ? <WorkUnitsTable payload={workUnits.data} prefix={prefix} search={location.search} onNavigate={navigateSearch} /> : null}
-      </section>
+      {workUnits.isPending ? <AdminEventPanelMessage>{t("work_units.loading")}</AdminEventPanelMessage> : null}
+      {workUnits.isError ? <AdminEventPanelMessage tone="error">{t("work_units.error_load")}</AdminEventPanelMessage> : null}
+      {workUnits.isSuccess ? <WorkUnitsTable payload={workUnits.data} prefix={prefix} search={location.search} onNavigate={navigateSearch} /> : null}
     </AdminEventPageShell>
   )
 }
@@ -134,13 +131,35 @@ function WorkUnitsTable({ onNavigate, payload, prefix, search }: { onNavigate: (
   ]
 
   return (
-    <div>
-      <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
-        {t("work_units.showing", { first: payload.pagination.first_item, last: payload.pagination.last_item, total: payload.pagination.total })}
-      </div>
-      <AdminEventLogTable columns={columns} getRowKey={(intent) => intent.id} rows={payload.intents} search={search} storageKey="syrus.admin.work_units.visible_columns" tableClassName="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700" onNavigate={onNavigate} />
-      <Pagination pagination={payload.pagination} prefix={prefix} />
-    </div>
+    <AdminEventLogTable
+      columns={columns}
+      defaultSort={{ column: "requested", direction: "desc" }}
+      getRowKey={(intent) => intent.id}
+      rows={payload.intents}
+      search={search}
+      storageKey="syrus.admin.work_units.visible_columns"
+      tableClassName="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700"
+      onNavigate={onNavigate}
+      panel={{
+        summary: t("work_units.showing", { first: payload.pagination.first_item, last: payload.pagination.last_item, total: payload.pagination.total }),
+        pagination: {
+          ariaLabel: t("work_units.aria_pagination"),
+          label: t("work_units.page_of", { page: payload.pagination.page, total: payload.pagination.total_pages }),
+          nextLabel: t("work_units.next"),
+          onNavigate,
+          pagination: {
+            page: payload.pagination.page,
+            has_next_page: Boolean(payload.pagination.next_path),
+            has_previous_page: Boolean(payload.pagination.previous_path),
+            next_page: payload.pagination.page + 1,
+            previous_page: payload.pagination.page - 1,
+            total_pages: payload.pagination.total_pages
+          },
+          previousLabel: t("work_units.previous"),
+          search
+        }
+      }}
+    />
   )
 }
 
@@ -206,20 +225,6 @@ function JobLinks({ jobs, prefix }: { jobs: LinkedJob[]; prefix: string }) {
 
 function Pill({ state }: { state: string }) {
   return <span className={`rounded px-1.5 py-0.5 font-mono text-xs ${severityPillClass(state === "failed" || state === "blocked" ? "error" : state === "waiting" || state === "queued" ? "warn" : "info")}`}>{state}</span>
-}
-
-function Pagination({ pagination, prefix }: { pagination: AdminWorkUnitsPayload["pagination"]; prefix: string }) {
-  const { t } = useT("admin")
-  if (pagination.total_pages <= 1) return null
-  return (
-    <nav aria-label={t("work_units.aria_pagination")} className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
-      <span>{t("work_units.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
-      <div className="flex items-center gap-2">
-        {pagination.previous_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>{t("work_units.previous")}</Link> : <span className={disabledPaginationClass()}>{t("work_units.previous")}</span>}
-        {pagination.next_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>{t("work_units.next")}</Link> : <span className={disabledPaginationClass()}>{t("work_units.next")}</span>}
-      </div>
-    </nav>
-  )
 }
 
 function linkClass(): string {

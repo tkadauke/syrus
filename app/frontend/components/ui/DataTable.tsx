@@ -86,10 +86,31 @@ function Row({ className = "", groupHeader = false, interactive = false, ...prop
   )
 }
 
-function sortAffordance(sortDirection: DataTableSortDirection) {
-  if (sortDirection === "ascending") return "^"
-  if (sortDirection === "descending") return "v"
-  return "-"
+function SortIndicator({ direction }: { direction: DataTableSortDirection }) {
+  const ascending = direction === "ascending"
+  const descending = direction === "descending"
+
+  return (
+    <svg
+      aria-hidden="true"
+      className={classes("h-3 w-3 shrink-0", direction === "none" ? "text-text-subtle" : "text-text-primary")}
+      data-sort-direction={direction}
+      data-sort-indicator="true"
+      fill="none"
+      viewBox="0 0 12 12"
+    >
+      <path
+        className={ascending ? "opacity-100" : "opacity-35"}
+        d="M6 2.25 3.75 4.5h4.5L6 2.25Z"
+        fill="currentColor"
+      />
+      <path
+        className={descending ? "opacity-100" : "opacity-35"}
+        d="M6 9.75 8.25 7.5h-4.5L6 9.75Z"
+        fill="currentColor"
+      />
+    </svg>
+  )
 }
 
 function HeadCell({
@@ -107,7 +128,7 @@ function HeadCell({
   const sortableContent = (
     <span className={classes("inline-flex items-center gap-1.5", align === "right" && "justify-end", align === "center" && "justify-center")}>
       <span>{children}</span>
-      {isSortable ? <span aria-hidden="true" className="text-text-subtle">{sortAffordance(sortDirection)}</span> : null}
+      {isSortable ? <SortIndicator direction={sortDirection} /> : null}
     </span>
   )
 
