@@ -138,9 +138,11 @@ RSpec.describe PreparedWorkspaceArchive do
       allow(service).to receive(:upload).and_call_original
       allow(service).to receive(:delete).and_call_original
       archive = failing_archive(fixed_key: "producer-failure-disk-key")
+      result = nil
 
-      expect(archive.publish!).to eq(false)
+      expect { result = archive.publish! }.not_to output(/tar:/).to_stderr_from_any_process
 
+      expect(result).to eq(false)
       expect(service).to have_received(:upload)
       expect(service).to have_received(:delete).with("producer-failure-disk-key")
       expect(service.exist?("producer-failure-disk-key")).to eq(false)
@@ -217,9 +219,11 @@ RSpec.describe PreparedWorkspaceArchive do
 
     it "completes the multipart upload but deletes the object once a tar producer failure is detected" do
       archive = failing_archive(fixed_key: "producer-failure-s3-key")
+      result = nil
 
-      expect(archive.publish!).to eq(false)
+      expect { result = archive.publish! }.not_to output(/tar:/).to_stderr_from_any_process
 
+      expect(result).to eq(false)
       operations = s3_client.api_requests.map { |request| request[:operation_name] }
       expect(operations).to eq(%i[create_multipart_upload upload_part complete_multipart_upload delete_object])
       expect(s3_client.api_requests.last[:params][:key]).to eq("producer-failure-s3-key")
