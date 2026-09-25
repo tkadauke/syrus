@@ -7,18 +7,18 @@ import { detectFenceLanguage } from "./highlighter"
 
 type InlineToken = string | ReactNode
 export type MarkdownLinkHandler = (href: string, event: MouseEvent<HTMLAnchorElement>) => void
-type RenderInlineOptions = { linkifySlugs?: boolean; onLinkClick?: MarkdownLinkHandler; renderMath?: boolean }
+type RenderInlineOptions = { headingLevelOffset?: number; linkifySlugs?: boolean; onLinkClick?: MarkdownLinkHandler; renderMath?: boolean }
 type InlineMatch = { index: number; token: string }
 type ListMarker = { indent: number; ordered: boolean; value?: number; content: string }
 type ListItem = { content: string; nested: ReactNode[]; value?: number }
-type MarkdownProps = { className?: string; text: string; onLinkClick?: MarkdownLinkHandler }
+type MarkdownProps = { className?: string; headingLevelOffset?: number; text: string; onLinkClick?: MarkdownLinkHandler }
 const MARKDOWN_SAFE_LINE_CHARS = 2_000
 const INLINE_MARKDOWN_PATTERN = /(`[^`]+`|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\)|~~[^~\n]+~~|\*\*[^*]+\*\*|\*[^*\n]+\*)/g
 
-export function Markdown({ className, text, onLinkClick }: MarkdownProps) {
+export function Markdown({ className, headingLevelOffset = 0, text, onLinkClick }: MarkdownProps) {
   const preview = safeMarkdownPreview(text)
 
-  return <div className={["chat-prose", className].filter(Boolean).join(" ")}>{renderBlocks(preview, { onLinkClick })}</div>
+  return <div className={["chat-prose", className].filter(Boolean).join(" ")}>{renderBlocks(preview, { headingLevelOffset, onLinkClick })}</div>
 }
 
 export function PlainText({ className, text }: { className?: string; text: string }) {
@@ -284,7 +284,8 @@ function startsBlock(lines: string[], index: number) {
 
 function renderHeading(level: number, text: string, key: number, options: RenderInlineOptions = {}) {
   const children = renderInline(text, options)
-  switch (level) {
+  const effectiveLevel = Math.min(4, Math.max(1, level + (options.headingLevelOffset ?? 0)))
+  switch (effectiveLevel) {
     case 1:
       return <h1 key={`block-${key}`}>{children}</h1>
     case 2:

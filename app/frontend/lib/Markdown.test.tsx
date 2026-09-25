@@ -14,6 +14,13 @@ describe("Markdown", () => {
     expect(screen.getByText("Survey")).toBeInTheDocument()
   })
 
+  it("can offset markdown headings inside an existing page hierarchy", () => {
+    render(<Markdown headingLevelOffset={1} text={"# Notes\n\n#### Details"} />)
+
+    expect(screen.getByRole("heading", { level: 2, name: "Notes" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { level: 4, name: "Details" })).toBeInTheDocument()
+  })
+
   it("renders GitHub-ish basics used by Design Docs formatting controls", () => {
     const markdown = [
       "#### Scope",
