@@ -25,8 +25,12 @@ module AgentInsights
 
     def self.available_for?(_repository) = AgentInsights.enabled?
 
+    def self.available_for_context?(context)
+      AgentInsights.enabled? && handler_classes(context: context).any?
+    end
+
     def self.tool_definitions(context: nil)
-      TOOL_CLASSES.map { |klass| definition_for(klass) }
+      handler_classes(context: context).map { |klass| definition_for(klass) }
     end
 
     def self.definition_for(klass)
@@ -37,8 +41,15 @@ module AgentInsights
       }
     end
 
+    def self.handler_classes(context: nil)
+      return TOOL_CLASSES if context.nil? || context.role == AgentRole::AGENT_INSIGHT
+
+      []
+    end
+
     def handle(tool_name, params, server_context)
-      klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
+      context = McpToolContext.from_server_context(server_context)
+      klass = self.class.handler_classes(context: context).find { |candidate| candidate.tool_name == tool_name.to_s }
       unless klass
         return MCP::Tool::Response.new([ { type: "text", text: "Unknown Agent Insights tool: #{tool_name.inspect}" } ], error: true)
       end

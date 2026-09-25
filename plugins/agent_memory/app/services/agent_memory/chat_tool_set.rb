@@ -19,6 +19,6 @@ module AgentMemory
       classes.map { |klass| definition_for(klass) }
     end
 
-    def self.handler_classes = (CHAT_TOOL_CLASSES.values + ADMIN_TOOL_CLASSES.values).flatten
+    def self.handler_classes(context: nil) = (CHAT_TOOL_CLASSES.values + ADMIN_TOOL_CLASSES.values).flatten
   end
 end
