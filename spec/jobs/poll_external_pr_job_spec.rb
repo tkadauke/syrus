@@ -244,6 +244,32 @@ RSpec.describe PollExternalPrJob, :ci_only do
       expect(WebMock).to have_requested(:put, "#{reviews_url}/11/dismissals")
     end
 
+    it "clears stale Syrus grader REQUEST_CHANGES reviews posted through the job user's PAT" do
+      user.update!(github_handle: "syrus-operator")
+      external_pr_job.update!(
+        state: "approved",
+        needs_attention: true,
+        needs_attention_reason: "upstream_pr_changes_requested",
+        pr_checks_sha: "abc123",
+        pr_checks_state: "passing"
+      )
+      stub_external_pr(state: "open", merged: false, head_sha: "abc123")
+      stub_reviews([
+        { id: 16, state: "CHANGES_REQUESTED", submitted_at: Time.current.iso8601,
+          body: "Syrus ran the repository graders against this pull request and found failures:\n\n- rspec",
+          html_url: nil, user: { login: "syrus-operator", type: "User" } }
+      ])
+      stub_request(:put, "#{reviews_url}/16/dismissals").to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: { id: 16, state: "DISMISSED" }.to_json
+      )
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.reload.needs_attention_reason).to be_nil
+      expect(WebMock).to have_requested(:put, "#{reviews_url}/16/dismissals")
+    end
+
     it "keeps human REQUEST_CHANGES reviews blocked even when current head checks pass" do
       AppSetting.current.update!(github_app_slug: "syrus-local")
       external_pr_job.update!(
@@ -263,6 +289,27 @@ RSpec.describe PollExternalPrJob, :ci_only do
 
       expect(external_pr_job.reload.needs_attention_reason).to eq("upstream_pr_changes_requested")
       expect(WebMock).not_to have_requested(:put, "#{reviews_url}/12/dismissals")
+    end
+
+    it "keeps copied Syrus grader text from another human reviewer blocked" do
+      user.update!(github_handle: "syrus-operator")
+      external_pr_job.update!(
+        needs_attention: true,
+        needs_attention_reason: "upstream_pr_changes_requested",
+        pr_checks_sha: "abc123",
+        pr_checks_state: "passing"
+      )
+      stub_external_pr(state: "open", merged: false, head_sha: "abc123")
+      stub_reviews([
+        { id: 17, state: "CHANGES_REQUESTED", submitted_at: Time.current.iso8601,
+          body: "Syrus ran the repository graders against this pull request and found failures:\n\n- rspec",
+          html_url: nil, user: { login: "reviewer", type: "User" } }
+      ])
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.reload.needs_attention_reason).to eq("upstream_pr_changes_requested")
+      expect(WebMock).not_to have_requested(:put, "#{reviews_url}/17/dismissals")
     end
 
     it "keeps stale Syrus REQUEST_CHANGES reviews blocked when current head checks are not passing" do
