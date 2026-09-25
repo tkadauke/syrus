@@ -73,7 +73,12 @@ RSpec.describe Workflows do
     end
 
     it "selects the first available routed candidate for a default workflow" do
-      job.user.update!(provider_availability_pause_thresholds: { "claude" => 10, "codex" => 10 })
+      routing_user = job.owner_user || job.user
+      routing_user.update!(
+        codex_auth_mode: "api_key",
+        codex_api_key: "sk-test",
+        provider_availability_pause_thresholds: { "claude" => 10, "codex" => 10 }
+      )
       allow(AgentProviders.for("claude")).to receive(:available_models).and_return([])
       allow(AgentProviders.for("codex")).to receive(:available_models).and_return([])
       ProviderRoutingRule.create!(
@@ -85,10 +90,10 @@ RSpec.describe Workflows do
           { "provider" => "codex", "model" => "gpt-5.2-codex", "effort_level" => "high" }
         ]
       )
-      allow(App::ProviderAvailability).to receive(:for_user).with(job.user, "claude", now: anything).and_return(
+      allow(App::ProviderAvailability).to receive(:for_user).with(routing_user, "claude", now: anything).and_return(
         { provider: "claude", state: "open", open: true, retry_after: 10.minutes.from_now.iso8601 }
       )
-      allow(App::ProviderAvailability).to receive(:for_user).with(job.user, "codex", now: anything).and_return(nil)
+      allow(App::ProviderAvailability).to receive(:for_user).with(routing_user, "codex", now: anything).and_return(nil)
 
       wf = Workflows::Initial.instantiate(job: job)
 

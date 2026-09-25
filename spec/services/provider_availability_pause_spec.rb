@@ -92,7 +92,8 @@ RSpec.describe ProviderAvailabilityPause do
 
     it "selects the first configured failover provider that is available enough" do
       workflow.runs.delete_all
-      user.update!(
+      routing_user = job.owner_user || job.user
+      routing_user.update!(
         codex_auth_mode: "api_key",
         codex_api_key: "sk-test",
         provider_availability_pause_thresholds: { "claude" => 10, "codex" => 10 }
@@ -115,7 +116,7 @@ RSpec.describe ProviderAvailabilityPause do
           evidence: { current: { observed_at: observed_at.iso8601 } }
         }
       )
-      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(nil)
+      allow(App::ProviderAvailability).to receive(:for_user).with(routing_user, "codex", now: anything).and_return(nil)
 
       decision = described_class.call(workflow: workflow)
 
