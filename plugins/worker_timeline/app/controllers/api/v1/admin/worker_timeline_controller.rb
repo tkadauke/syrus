@@ -31,6 +31,17 @@ module Api
           )
         end
 
+        def live
+          filter = ::WorkerTimeline::LiveQueryFilter.from_direct_params(params)
+
+          render json: ::WorkerTimeline::LiveWorkersQuery.call(
+            from: filter.from,
+            to: filter.to,
+            hostname: filter.hostname,
+            status: filter.statuses
+          )
+        end
+
         def workflow
           render json: ::Timeline::WorkflowWaterfallQuery.call(workflow_id: params[:id])
         end
