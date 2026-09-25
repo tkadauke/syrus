@@ -28,13 +28,19 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     )
   end
 
+  def fake_github_client
+    instance_double(GithubClient).tap do |client|
+      allow(client).to receive(:linked_open_prs_for_issues).and_return({})
+    end
+  end
+
 
   it "returns repository GitHub issues for the requested smart folder" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
     open_issue = fake_issue(number: 5, title: "Open one", labels: [])
     closed_issue = fake_issue(number: 7, title: "Fix the forum", state: "closed", labels: [ "syrus", "bug" ], body: "Line one\nLine two")
-    client = instance_double(GithubClient)
+    client = fake_github_client
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ open_issue ])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([ closed_issue ])
     allow(GithubClient).to receive(:for).and_return(client)
@@ -64,7 +70,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
     inbox_issue = fake_issue(number: 1, title: "Needs triage", labels: [])
     delegated_issue = fake_issue(number: 2, title: "Already delegated", labels: [ "syrus" ])
-    client = instance_double(GithubClient)
+    client = fake_github_client
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ inbox_issue, delegated_issue ])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
     allow(GithubClient).to receive(:for).and_return(client)
@@ -76,13 +82,34 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     expect(body["folder_counts"]).to eq({ "inbox" => 1, "delegated" => 1, "open" => 2, "closed" => 0 })
   end
 
+  it "includes linked open pull requests for visible open issues" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
+    issue = fake_issue(number: 8, title: "Already has a PR", labels: [])
+    client = fake_github_client
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ issue ])
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
+    expect(client).to receive(:linked_open_prs_for_issues).with("acme/widgets", [ 8 ]).and_return({
+      8 => { number: 44, url: "https://github.com/acme/widgets/pull/44" }
+    })
+    allow(GithubClient).to receive(:for).and_return(client)
+
+    get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "open" }
+
+    issue_json = parse_body.fetch("issues").sole
+    expect(issue_json).to include(
+      "number" => 8,
+      "linked_pull_request" => { "number" => 44, "url" => "https://github.com/acme/widgets/pull/44" }
+    )
+  end
+
 
   it "filters issues by a search query within the active folder without changing other folder counts" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
     matching = fake_issue(number: 1, title: "Fix the forum", labels: [])
     other = fake_issue(number: 2, title: "Unrelated", labels: [])
-    client = instance_double(GithubClient)
+    client = fake_github_client
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ matching, other ])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
     allow(GithubClient).to receive(:for).and_return(client)
@@ -101,7 +128,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
   it "exposes the FilterBar schema for the issues search chip" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
-    client = instance_double(GithubClient)
+    client = fake_github_client
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
     allow(GithubClient).to receive(:for).and_return(client)
@@ -116,7 +143,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
   it "falls back to the closed folder for legacy state=closed links" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
-    client = instance_double(GithubClient)
+    client = fake_github_client
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
     allow(GithubClient).to receive(:for).and_return(client)
@@ -143,7 +170,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
   it "comments on a GitHub issue" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
-    client = instance_double(GithubClient)
+    client = fake_github_client
     expect(client).to receive(:add_issue_comment).with("acme/widgets", 7, "Looks good", on_behalf_of: user)
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
@@ -177,7 +204,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
   it "closes and delegates GitHub issues" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
-    client = instance_double(GithubClient)
+    client = fake_github_client
     expect(client).to receive(:close_issue).with("acme/widgets", 12)
     expect(client).to receive(:add_label_to_issue).with("acme/widgets", 13, "syrus")
     expect(client).to receive(:list_all_issues).twice.with("acme/widgets", state: "open").and_return([])
@@ -197,7 +224,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
   it "bulk closes and delegates selected GitHub issues" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
-    client = instance_double(GithubClient)
+    client = fake_github_client
     expect(client).to receive(:add_label_to_issue).with("acme/widgets", 4, "syrus")
     expect(client).to receive(:add_label_to_issue).with("acme/widgets", 8, "syrus")
     expect(client).to receive(:close_issue).with("acme/widgets", 4)
