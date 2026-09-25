@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { PageHeading, SectionHeading } from "../components/Heading"
+import { SectionHeading } from "../components/Heading"
 import { type ReactNode, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
@@ -38,8 +38,10 @@ export function AdminPlugins() {
   return (
     <Page.Root aria-label={t("plugins.aria_plugins")} gutter="responsive">
       <Page.Header className="block border-b border-gray-200 pb-4 dark:border-gray-700">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <PageHeading className="mt-1">{t("plugins.heading")}</PageHeading>
+        <Page.HeadingGroup>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <Page.Title className="mt-1">{t("plugins.heading")}</Page.Title>
+        </Page.HeadingGroup>
       </Page.Header>
 
       {plugins.isPending ? <PanelMessage>{t("plugins.loading")}</PanelMessage> : null}
@@ -311,7 +313,7 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               {plugin.icon_url ? <img alt="" aria-hidden="true" className="h-9 w-9 shrink-0" src={plugin.icon_url} /> : null}
-              <PageHeading className="break-words">{plugin.display_name || plugin.name}</PageHeading>
+              <Page.Title className="break-words">{plugin.display_name || plugin.name}</Page.Title>
               <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{plugin.name}</span>
               <StatusBadge status={plugin.enabled ? "enabled" : "disabled"} label={plugin.enabled ? t("plugins.enabled") : t("plugins.disabled")} />
               {plugin.health ? <StatusBadge status={plugin.health.state} label={`${t("plugins.health")}: ${plugin.health.state}`} /> : null}

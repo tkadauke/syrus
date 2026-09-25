@@ -11,7 +11,7 @@ import {
 } from "../api/adminInstallations"
 import { ApiError } from "../api/client"
 import { Button } from "../components/Button"
-import { PageHeading, SectionHeading } from "../components/Heading"
+import { SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
 import { DataTable, Page } from "../components/ui"
 import {
@@ -35,8 +35,10 @@ export function AdminInstallations() {
   return (
     <Page.Root aria-label={t("aria_installations")} gutter="responsive">
       <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <PageHeading className="mt-1">{t("installations.heading")}</PageHeading>
+        <Page.HeadingGroup>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <Page.Title className="mt-1">{t("installations.heading")}</Page.Title>
+        </Page.HeadingGroup>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("installations.description")}</p>
       </Page.Header>
 

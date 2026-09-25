@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { PageHeading, SectionHeading } from "../components/Heading"
+import { SectionHeading } from "../components/Heading"
 import { Toggle } from "../components/Toggle"
 import type { ReactNode } from "react"
 import {
@@ -11,6 +11,7 @@ import {
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
+import { Page } from "../components/ui"
 
 const queryKey = ["admin", "features"] as const
 
@@ -23,16 +24,18 @@ export function AdminFeatures() {
   })
 
   return (
-    <main aria-label={t("aria_features")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <PageHeading className="mt-1">{t("features.heading")}</PageHeading>
-      </header>
+    <Page.Root aria-label={t("aria_features")} gutter="responsive" size="default">
+      <Page.Header className="block border-b border-gray-200 pb-4 dark:border-gray-700">
+        <Page.HeadingGroup>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <Page.Title className="mt-1">{t("features.heading")}</Page.Title>
+        </Page.HeadingGroup>
+      </Page.Header>
 
       {features.isPending ? <PanelMessage>{t("features.loading")}</PanelMessage> : null}
       {features.isError ? <PanelMessage tone="error">{errorMessage(features.error, t("features.error_load"))}</PanelMessage> : null}
       {features.isSuccess ? <FeaturesView payload={features.data} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
