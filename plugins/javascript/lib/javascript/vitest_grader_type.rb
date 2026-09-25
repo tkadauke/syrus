@@ -261,7 +261,13 @@ module JavaScript
         if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile;
         elif [ -f yarn.lock ]; then yarn install --frozen-lockfile;
         elif [ -f package-lock.json ]; then npm ci;
-        elif [ ! -d node_modules ]; then npm install;
+        elif [ -f package.json ] && {
+          [ ! -d node_modules ] ||
+          {
+            node -p 'const s=require("./package.json").scripts||{}; Boolean(s.typecheck && /(^|[^A-Za-z0-9_./-])tsc([^A-Za-z0-9_/-]|$)/.test(s.typecheck))' 2>/dev/null | grep -qx true &&
+            [ ! -x node_modules/.bin/tsc ];
+          };
+        }; then npm install;
         fi;
         run_package_script() {
           if [ -f pnpm-lock.yaml ]; then pnpm run "$@";
