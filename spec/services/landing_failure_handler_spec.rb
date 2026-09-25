@@ -159,6 +159,24 @@ RSpec.describe LandingFailureHandler do
     expect(run.job_logs.pluck(:chunk)).to include(include("merge-train validation is stale or incomplete"))
   end
 
+  it "preserves approval when a stale train finds members already moved out of landing" do
+    job = landing_job
+    run = auto_merge_run(job)
+    approved_at = job.approved_at
+
+    described_class.call(
+      job: job,
+      run: run,
+      reason: "merge_train: members not in :landing (5457, 5467); rebuild required"
+    )
+
+    expect(job.reload).to be_approved
+    expect(job.approved_at).to eq(approved_at)
+    expect(job.landing_failure_reason).to include("members not in :landing")
+    expect(user.reload.landing_paused).to eq(false)
+    expect(run.job_logs.pluck(:chunk)).to include(include("merge-train validation is stale or incomplete"))
+  end
+
   it "requires re-approval for genuine merge-train integration conflicts" do
     job = landing_job
 
