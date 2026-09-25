@@ -32,6 +32,7 @@
     "delegate": "Delegate",
     "delegated": "Delegated",
     "not_delegated": "Not delegated",
+    "linked_pull_request": "PR #{{number}}",
     "load_error": "Unable to load issues.",
     "folders_heading": "Folders",
     "folders_aria": "Issue folders",
