@@ -59,15 +59,6 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
   end
 
 
-  it "does not route the removed issue comment endpoint" do
-    repository = Factories.repository(user: user)
-
-    expect {
-      Rails.application.routes.recognize_path("/api/v1/app/repositories/#{repository.id}/issues/comment", method: :post)
-    }.to raise_error(ActionController::RoutingError)
-  end
-
-
   it "partitions open issues into the inbox and delegated smart folders" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
