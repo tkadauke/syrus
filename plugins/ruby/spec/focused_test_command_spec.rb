@@ -7,6 +7,12 @@ RSpec.describe Ruby::FocusedTestCommand do
     )
   end
 
+  it "skips repeat setup when the owning grader already prepared the Rails test database" do
+    command = "if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && bundle exec rspec plugins/ruby/spec"
+
+    expect(described_class.prepare_command_for(grader_name: "plugins-ruby-rspec", grader_command: command)).to be_nil
+  end
+
   it "synthesizes a focused RSpec command when the grader opts into plugin strategy" do
     command = described_class.command_for(
       grader_name: "rspec",
