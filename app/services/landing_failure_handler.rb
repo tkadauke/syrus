@@ -129,7 +129,8 @@ class LandingFailureHandler
   def self.merge_train_rebuild_required?(reason)
     text = reason.to_s
     text.match?(/\Amerge_train: base moved .* rebuild required/i) ||
-      text.match?(/\Amerge_train: missing built base SHA; rebuild required/i)
+      text.match?(/\Amerge_train: missing built base SHA; rebuild required/i) ||
+      text.match?(/\Amerge_train: members not in :landing \(.*\); rebuild required/i)
   end
 
   def pause_landing!
