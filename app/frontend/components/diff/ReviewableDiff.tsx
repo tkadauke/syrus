@@ -12,7 +12,6 @@ import { useT } from "../../hooks/useT"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
 import { endMarker, measureSync, recordCount, startMarker, type PerformanceMarkerHandle } from "../../lib/performanceMarkers"
 import {
-  CONTEXT_EXPAND_LINE_INCREMENT,
   DEFAULT_FILE_HEADER_HEIGHT_PX,
   DEFAULT_FILE_PLACEHOLDER_HEIGHT_PX,
   DEFAULT_FILE_ROW_HEIGHT_PX,
@@ -150,6 +149,8 @@ type FileCacheEntry = {
   tokensByHunk: Map<number, ThemedToken[][]>
 }
 
+type ChangedFilesListLayout = ReviewDiffSettings["file_list_layout"]
+
 function createFileCacheEntry(): FileCacheEntry {
   return { collapsed: false, contextState: { fullyExpanded: false, gaps: [], lines: null, status: "idle" }, forceLoaded: false, tokensByHunk: new Map() }
 }
@@ -236,7 +237,8 @@ export function ReviewableDiff({
   // virtualized window. Reset below whenever the diff itself changes.
   const fileCache = useRef(new Map<string, FileCacheEntry>())
 
-  const renderFiles = filesForMode(files, mode, selectedPath)
+  const sortedFiles = useMemo(() => sortReviewFiles(files, effectiveReviewSettings.file_sort), [files, effectiveReviewSettings.file_sort])
+  const renderFiles = filesForMode(sortedFiles, mode, selectedPath)
   const filesSignature = renderFiles.map((file) => file.path).join("\n")
 
   // Reset the "how many files are revealed" cap (and the per-file cache)
@@ -417,7 +419,8 @@ export function ReviewableDiff({
         isMobileFilesMenu ? (
           <MobileChangedFilesModal
             commentCounts={fileCommentCounts}
-            files={files}
+            files={sortedFiles}
+            layout={effectiveReviewSettings.file_list_layout}
             onClose={() => setFilesPopupOpen(false)}
             onSelectFile={selectFileFromPopup}
             selectedPath={selectedPath}
@@ -425,7 +428,8 @@ export function ReviewableDiff({
         ) : (
           <ChangedFilesPopup
             commentCounts={fileCommentCounts}
-            files={files}
+            files={sortedFiles}
+            layout={effectiveReviewSettings.file_list_layout}
             onClose={() => setFilesPopupOpen(false)}
             onSelectFile={selectFileFromPopup}
             placement={filesPopupPlacement}
@@ -546,6 +550,7 @@ function computeFilesPopupPlacement(buttonRect: DOMRect, containerRect: DOMRect)
 function ChangedFilesPopup({
   commentCounts,
   files,
+  layout,
   onClose,
   onSelectFile,
   placement,
@@ -553,6 +558,7 @@ function ChangedFilesPopup({
 }: {
   commentCounts?: Record<string, number>
   files: ReviewableDiffFile[]
+  layout: ChangedFilesListLayout
   onClose: () => void
   onSelectFile: (path: string) => void
   placement: FilesPopupPlacement | null
@@ -576,7 +582,7 @@ function ChangedFilesPopup({
       >
         <p className="shrink-0 border-b border-gray-100 px-3 py-2 font-sans text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">{t("diff_review.changed_files")}</p>
         <div className="min-h-0 flex-1 overflow-auto">
-          <ChangedFilesList commentCounts={commentCounts} files={files} onSelectFile={onSelectFile} selectedPath={selectedPath} />
+          <ChangedFilesList commentCounts={commentCounts} files={files} layout={layout} onSelectFile={onSelectFile} selectedPath={selectedPath} />
         </div>
       </div>
     </div>
@@ -586,12 +592,14 @@ function ChangedFilesPopup({
 function MobileChangedFilesModal({
   commentCounts,
   files,
+  layout,
   onClose,
   onSelectFile,
   selectedPath
 }: {
   commentCounts?: Record<string, number>
   files: ReviewableDiffFile[]
+  layout: ChangedFilesListLayout
   onClose: () => void
   onSelectFile: (path: string) => void
   selectedPath?: string | null
@@ -607,7 +615,7 @@ function MobileChangedFilesModal({
         </button>
       </div>
       <div className="flex-1 overflow-auto">
-        <ChangedFilesList commentCounts={commentCounts} files={files} onSelectFile={onSelectFile} selectedPath={selectedPath} />
+        <ChangedFilesList commentCounts={commentCounts} files={files} layout={layout} onSelectFile={onSelectFile} selectedPath={selectedPath} />
       </div>
     </div>
   )
@@ -616,35 +624,41 @@ function MobileChangedFilesModal({
 function ChangedFilesList({
   commentCounts,
   files,
+  layout,
   onSelectFile,
   selectedPath
 }: {
   commentCounts?: Record<string, number>
   files: ReviewableDiffFile[]
+  layout: ChangedFilesListLayout
   onSelectFile: (path: string) => void
   selectedPath?: string | null
 }) {
   return (
     <>
-      {files.map((file) => (
-        <button
-          className={`flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-brand/10 ${selectedPath === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
-          key={file.path}
-          onClick={() => onSelectFile(file.path)}
-          title={`${file.path} (+${file.additions ?? 0} -${file.deletions ?? 0})`}
-          type="button"
-        >
-          <span className="min-w-0 flex-1 truncate">{file.path}</span>
-          {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
-          {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions}</span> : null}
-          {commentCounts?.[file.path] ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{commentCounts[file.path]}</span> : null}
-        </button>
-      ))}
+      {files.map((file) => {
+        const depth = layout === "nested" ? Math.max(0, file.path.split("/").length - 1) : 0
+        return (
+          <button
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-brand/10 ${selectedPath === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
+            key={file.path}
+            onClick={() => onSelectFile(file.path)}
+            style={{ paddingLeft: `${0.75 + Math.min(depth, 6) * 0.75}rem` }}
+            title={`${file.path} (+${file.additions ?? 0} -${file.deletions ?? 0})`}
+            type="button"
+          >
+            <span className="min-w-0 flex-1 truncate">{file.path}</span>
+            {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
+            {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions}</span> : null}
+            {commentCounts?.[file.path] ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{commentCounts[file.path]}</span> : null}
+          </button>
+        )
+      })}
     </>
   )
 }
 
-type HunkContextControl = { loading: boolean; onClick: () => void }
+type HunkContextControl = { lineCount: number; loading: boolean; onClick: () => void }
 type HunkControls = { down?: HunkContextControl; up?: HunkContextControl }
 type FileContextState = {
   fullyExpanded: boolean
@@ -785,7 +799,7 @@ function DiffFileSection({
       const existing = prev.gaps[gapIndex] || { fromBottom: 0, fromTop: 0 }
       const other = edge === "fromTop" ? existing.fromBottom : existing.fromTop
       const current = edge === "fromTop" ? existing.fromTop : existing.fromBottom
-      const next = Math.min(size - other, current + CONTEXT_EXPAND_LINE_INCREMENT)
+      const next = Math.min(size - other, current + reviewSettings.context_lines)
       const nextGaps = [...prev.gaps]
       nextGaps[gapIndex] = { ...existing, [edge]: Math.max(current, next) }
       return { ...prev, gaps: nextGaps }
@@ -811,8 +825,8 @@ function DiffFileSection({
     const downVisible = !contextState.fullyExpanded && remainingInGap(downGap, contextState.gaps[hunkIndex + 1]) > 0
 
     return {
-      down: downVisible ? { loading, onClick: () => expandGap(hunkIndex + 1, "fromTop") } : undefined,
-      up: upVisible ? { loading, onClick: () => expandGap(hunkIndex, "fromBottom") } : undefined
+      down: downVisible ? { lineCount: reviewSettings.context_lines, loading, onClick: () => expandGap(hunkIndex + 1, "fromTop") } : undefined,
+      up: upVisible ? { lineCount: reviewSettings.context_lines, loading, onClick: () => expandGap(hunkIndex, "fromBottom") } : undefined
     }
   }) : []
 
@@ -1147,7 +1161,7 @@ export function UnifiedDiffTable({
                   onToggleHighlightToken={toggleHighlight}
                   reviewSettings={reviewSettings}
                   showLineNumbers={showLineNumbers}
-                  tokens={tokensByLine[index]}
+                  tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
                 />
               )
             }
@@ -1182,7 +1196,7 @@ export function UnifiedDiffTable({
                     kind={line.kind}
                     onMobileTokenTap={commentSelection ? (event) => handleTokenTap(event, commentSelection) : undefined}
                     onToggleHighlightToken={toggleHighlight}
-                    tokens={tokensByLine[index]}
+                    tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
                   />
                 </td>
                 <td className="w-4 select-none px-1 text-center">
@@ -1492,8 +1506,12 @@ function diffCodeCellClass(settings: ReviewDiffSettings, lineWrapping: ReviewDif
 }
 
 function reviewDisplayCode(code: string, settings: ReviewDiffSettings) {
-  if (settings.whitespace === "trim_trailing") return code.replace(/[ \t]+$/u, "")
-  return code
+  const normalizedCode = settings.whitespace === "trim_trailing" ? code.replace(/[ \t]+$/u, "") : code
+  if (!settings.visible_whitespace) return normalizedCode
+
+  return normalizedCode
+    .replace(/\t/gu, "→\t")
+    .replace(/ /gu, "·")
 }
 
 /* eslint-disable design-system/no-raw-table-classes */
@@ -1502,11 +1520,11 @@ function HunkRow({ controls, hideOldLineGutter, line, showLineNumbers = true }: 
     <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk">
       {hideOldLineGutter || !showLineNumbers ? null : (
         <td className={diffGutterClass("hunk")}>
-          {controls?.up ? <HunkContextButton direction="up" loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
+          {controls?.up ? <HunkContextButton direction="up" lineCount={controls.up.lineCount} loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
         </td>
       )}
       {showLineNumbers ? <td className={diffGutterClass("hunk")}>
-        {controls?.down ? <HunkContextButton direction="down" loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
+        {controls?.down ? <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
       </td> : null}
       <td className={diffMarkerClass("hunk")}>{line.marker}</td>
       <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200">{line.code}</td>
@@ -1516,10 +1534,10 @@ function HunkRow({ controls, hideOldLineGutter, line, showLineNumbers = true }: 
 }
 /* eslint-enable design-system/no-raw-table-classes */
 
-function HunkContextButton({ direction, loading, onClick }: { direction: "down" | "up"; loading: boolean; onClick: () => void }) {
+function HunkContextButton({ direction, lineCount, loading, onClick }: { direction: "down" | "up"; lineCount: number; loading: boolean; onClick: () => void }) {
   return (
     <button
-      aria-label={direction === "up" ? `Load ${CONTEXT_EXPAND_LINE_INCREMENT} more lines above` : `Load ${CONTEXT_EXPAND_LINE_INCREMENT} more lines below`}
+      aria-label={direction === "up" ? `Load ${lineCount} more lines above` : `Load ${lineCount} more lines below`}
       className="inline-flex h-4 w-4 items-center justify-center rounded text-info hover:bg-info/10 disabled:opacity-50"
       disabled={loading}
       onClick={onClick}
@@ -1644,6 +1662,23 @@ function filesForMode(files: ReviewableDiffFile[], mode: "single-file" | "contin
   if (!selectedPath) return files.slice(0, 1)
   const selected = files.find((file) => file.path === selectedPath)
   return selected ? [selected] : []
+}
+
+export function sortReviewFiles(files: ReviewableDiffFile[], sort: ReviewDiffSettings["file_sort"]) {
+  if (sort === "original") return files
+  const indexedFiles = files.map((file, index) => ({ file, index }))
+  indexedFiles.sort((left, right) => {
+    if (sort === "alphabetical") {
+      return left.file.path.localeCompare(right.file.path) || left.index - right.index
+    }
+
+    return changeSize(right.file) - changeSize(left.file) || left.file.path.localeCompare(right.file.path) || left.index - right.index
+  })
+  return indexedFiles.map(({ file }) => file)
+}
+
+function changeSize(file: ReviewableDiffFile) {
+  return (file.additions ?? 0) + (file.deletions ?? 0)
 }
 
 export function filesFromUnifiedDiff(diff: string): ReviewableDiffFile[] {

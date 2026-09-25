@@ -25,7 +25,11 @@ RSpec.describe "API: /api/v1/app/review_diff_settings", type: :request do
       "desktop_view" => "unified",
       "syntax_highlighting" => true,
       "line_numbers" => false,
-      "file_list" => true
+      "file_list" => true,
+      "file_list_layout" => "flat",
+      "file_sort" => "original",
+      "context_lines" => 20,
+      "visible_whitespace" => false
     )
   end
 
@@ -35,8 +39,12 @@ RSpec.describe "API: /api/v1/app/review_diff_settings", type: :request do
     patch "/api/v1/app/review_diff_settings", params: {
       review_diff_settings: {
         desktop_view: "split",
+        file_list_layout: "nested",
+        file_sort: "change_size",
+        context_lines: 40,
         tab_width: 4,
-        syntax_highlighting: false
+        syntax_highlighting: false,
+        visible_whitespace: true
       }
     }
 
@@ -45,8 +53,12 @@ RSpec.describe "API: /api/v1/app/review_diff_settings", type: :request do
     expect(parse_body["review_diff_settings"]).to include(
       "line_wrapping" => "scroll",
       "desktop_view" => "split",
+      "file_list_layout" => "nested",
+      "file_sort" => "change_size",
+      "context_lines" => 40,
       "tab_width" => 4,
       "syntax_highlighting" => false,
+      "visible_whitespace" => true,
       "line_numbers" => false
     )
     expect(user.reload.review_diff_settings).to include("desktop_view" => "split", "line_numbers" => false)
@@ -58,6 +70,9 @@ RSpec.describe "API: /api/v1/app/review_diff_settings", type: :request do
     patch "/api/v1/app/review_diff_settings", params: {
       review_diff_settings: {
         desktop_view: "sideways",
+        file_list_layout: "tree",
+        file_sort: "random",
+        context_lines: 999,
         tab_width: 99,
         file_list: "0"
       }
@@ -66,6 +81,9 @@ RSpec.describe "API: /api/v1/app/review_diff_settings", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body["review_diff_settings"]).to include(
       "desktop_view" => "unified",
+      "file_list_layout" => "flat",
+      "file_sort" => "original",
+      "context_lines" => 20,
       "tab_width" => 2,
       "file_list" => false
     )

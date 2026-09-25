@@ -37,12 +37,19 @@ export function ReviewDiffSettingsModal({ initialSettings, onClose }: { initialS
         <SettingsSelect label={t("review_settings_desktop_view")} onChange={(value) => updateSetting("desktop_view", value as ReviewDiffSettings["desktop_view"])} options={[["unified", t("review_settings_unified")], ["split", t("review_settings_split")]]} value={settings.desktop_view} />
         <SettingsSelect label={t("review_settings_intraline")} onChange={(value) => updateSetting("intraline_highlighting", value as ReviewDiffSettings["intraline_highlighting"])} options={[["word", t("review_settings_word")], ["off", t("review_settings_off")]]} value={settings.intraline_highlighting} />
         <SettingsSelect label={t("review_settings_whitespace")} onChange={(value) => updateSetting("whitespace", value as ReviewDiffSettings["whitespace"])} options={[["show", t("review_settings_show")], ["trim_trailing", t("review_settings_trim_trailing")]]} value={settings.whitespace} />
+        <SettingsSelect label={t("review_settings_file_list_layout")} onChange={(value) => updateSetting("file_list_layout", value as ReviewDiffSettings["file_list_layout"])} options={[["flat", t("review_settings_flat")], ["nested", t("review_settings_nested")]]} value={settings.file_list_layout} />
+        <SettingsSelect label={t("review_settings_file_sort")} onChange={(value) => updateSetting("file_sort", value as ReviewDiffSettings["file_sort"])} options={[["original", t("review_settings_original_order")], ["alphabetical", t("review_settings_alphabetical")], ["change_size", t("review_settings_change_size")]]} value={settings.file_sort} />
         <SettingsSelect label={t("review_settings_density")} onChange={(value) => updateSetting("density", value as ReviewDiffSettings["density"])} options={[["compact", t("review_settings_compact")], ["comfortable", t("review_settings_comfortable")], ["spacious", t("review_settings_spacious")]]} value={settings.density} />
         <label className="space-y-1 text-sm text-text-secondary">
           <span>{t("review_settings_tab_width")}</span>
           <Input max={8} min={2} onChange={(event) => updateSetting("tab_width", Number(event.target.value))} type="number" value={settings.tab_width} />
         </label>
+        <label className="space-y-1 text-sm text-text-secondary">
+          <span>{t("review_settings_context_lines")}</span>
+          <Input max={200} min={5} onChange={(event) => updateSetting("context_lines", Number(event.target.value))} type="number" value={settings.context_lines} />
+        </label>
         <SettingsCheckbox checked={settings.syntax_highlighting} label={t("review_settings_syntax")} onChange={(checked) => updateSetting("syntax_highlighting", checked)} />
+        <SettingsCheckbox checked={settings.visible_whitespace} label={t("review_settings_visible_whitespace")} onChange={(checked) => updateSetting("visible_whitespace", checked)} />
         <SettingsCheckbox checked={settings.line_numbers} label={t("review_settings_line_numbers")} onChange={(checked) => updateSetting("line_numbers", checked)} />
         <SettingsCheckbox checked={settings.file_list} label={t("review_settings_file_list")} onChange={(checked) => updateSetting("file_list", checked)} />
       </div>
