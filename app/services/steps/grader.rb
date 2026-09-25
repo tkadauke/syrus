@@ -176,7 +176,6 @@ module Steps
 
         raise StepFailed, "grader #{name} failed (exit #{exit_code})"
       end
-
     end
 
     private
