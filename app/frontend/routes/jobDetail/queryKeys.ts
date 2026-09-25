@@ -28,6 +28,11 @@ export function jobWorkflowsQueryKey(id: string | number, search: string): JobWo
 export function mergeJobWorkflowsPayload(payload: JobDetailPayload, workflows?: JobWorkflowsPayload): JobDetailPayload {
   if (!workflows) return payload
 
+  const actions = { ...workflows.actions }
+  if (payload.job.state === "approved" || payload.job.summary_state === "approved") {
+    actions.can_approve = false
+  }
+
   return {
     ...payload,
     current_intent: workflows.current_intent ?? null,
@@ -35,7 +40,7 @@ export function mergeJobWorkflowsPayload(payload: JobDetailPayload, workflows?: 
     workflows: workflows.workflows,
     workflows_pagination: workflows.workflows_pagination,
     feature_flags: workflows.feature_flags,
-    actions: workflows.actions,
+    actions,
     paths: workflows.paths
   }
 }

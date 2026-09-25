@@ -2232,6 +2232,60 @@ describe("JobDetailRoute", () => {
     expect(await screen.findByText("No agent activity recorded for this Job yet.")).toBeInTheDocument()
   })
 
+  it("keeps a failed merge-train retry primary and suppresses stale approve actions when switching to Workflows", async () => {
+    const retryAction = { key: "retry_failed_step", label: "Rebuild merge train", path: "/api/v1/app/jobs/1/retry_failed_step" }
+    const payload = jobPayload({
+      job: {
+        ...baseJob(),
+        state: "approved",
+        summary_state: "approved",
+        approved_at: "2026-09-25T12:00:00Z",
+        approved_via: "operator",
+        approval_evidence: { rule: null, source: "operator", grader_step_id: null, grader_step_workflow_path: null },
+        job_approvals: [{ id: 1, user_id: 1, user_email: "test@example.com", approved_at: "2026-09-25T12:00:00Z" }]
+      },
+      actions: { ...jobPayload().actions, can_approve: false, retry_failed_step_action: retryAction }
+    })
+    const workflowsPayload = {
+      current_intent: null,
+      work_units: [],
+      workflows: [],
+      workflows_pagination: payload.workflows_pagination,
+      feature_flags: payload.feature_flags,
+      actions: { ...payload.actions, can_approve: true, retry_failed_step_action: retryAction },
+      paths: payload.paths
+    }
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/1") return Promise.resolve(jsonResponse(payload))
+      if (path === "/api/v1/app/jobs/1/workflows") return Promise.resolve(jsonResponse(workflowsPayload))
+      return Promise.reject(new Error(`unexpected fetch ${path}`))
+    })
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1"]}>
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Rebuild merge train" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /Workflows/ }))
+
+    expect(await screen.findByRole("button", { name: "Rebuild merge train" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+  })
+
   // Regression test for a plugin registering a `.tab` ui_slot whose key isn't
   // in JobDetail's hardcoded tab literal (e.g. a future "coverage" tab, only
   // "tests" happened to be pre-whitelisted). tabFromLocation must accept any
