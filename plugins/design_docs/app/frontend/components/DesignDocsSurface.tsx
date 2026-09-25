@@ -59,6 +59,7 @@ type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "strike" | 
 type InlineSuggestionPart = { kind: "equal" | "delete" | "insert"; text: string }
 type WysiwygRenderContext = { renderedSuggestionIds: Set<string>; renderedWholeSuggestionIds: Set<string> }
 type ToolbarBlockCommand = "paragraph" | "heading_1" | "heading_2" | "heading_3" | "heading_4" | "blockquote" | "fenced_code"
+type ReviewScrollSnapshot = { windowScrollX: number; windowScrollY: number; markdownScrollTop: number }
 type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
@@ -638,16 +639,23 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   })
   const reviewMutation = useMutation({
     mutationFn: ({ id, decision }: { id: number; decision: "accept" | "reject" }) => decision === "accept" ? acceptDesignDocSuggestion(doc.id, id) : rejectDesignDocSuggestion(doc.id, id),
-    onSuccess: (payload) => {
+    onMutate: (): ReviewScrollSnapshot => ({
+      windowScrollX: window.scrollX,
+      windowScrollY: window.scrollY,
+      markdownScrollTop: textareaRef.current?.scrollTop ?? markdownScrollTop
+    }),
+    onSuccess: (payload, _variables, scrollSnapshot) => {
       const nextDraft = payload.design_doc.rendered_markdown || payload.design_doc.markdown
       setDraft(nextDraft)
       setTitle(payload.design_doc.title)
       setSelection(emptySelection())
       setFocusedThreadId(null)
       setFocusedSuggestionId(null)
-      setMarkdownScrollTop(0)
-      if (textareaRef.current) textareaRef.current.scrollTop = 0
-      window.requestAnimationFrame(() => editorShellRef.current?.scrollIntoView?.({ block: "start" }))
+      if (scrollSnapshot) {
+        setMarkdownScrollTop(scrollSnapshot.markdownScrollTop)
+        if (textareaRef.current) textareaRef.current.scrollTop = scrollSnapshot.markdownScrollTop
+        window.requestAnimationFrame(() => window.scrollTo(scrollSnapshot.windowScrollX, scrollSnapshot.windowScrollY))
+      }
       persistedDraftRef.current = persistedDraftFingerprint(payload.design_doc.id, payload.design_doc.title, nextDraft)
       onDocChange(payload.design_doc, payload.message || t("notice_suggestion_reviewed"))
     }
