@@ -309,7 +309,7 @@ RSpec.describe CodexInvocation do
         expect(config).to include('args = ["--run-id", "12"]')
         expect(config).to include("required = true")
         expect(config).to include("startup_timeout_sec = 60")
-        expect(config).to include("tool_timeout_sec = 60")
+        expect(config).to include("tool_timeout_sec = 120")
         expect(config).to include('[mcp_servers.syrus-mcp-sidecar.env]')
         expect(config).to include('RAILS_ENV = "test"')
         expect(config).to include('RAILS_MASTER_KEY = "secret"')

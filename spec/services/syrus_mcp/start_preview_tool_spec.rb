@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe Mcp::Tools::StartPreviewTool do
   let(:run)            { Factories.job.initial_run }
   let(:workspace_path) { WorkflowWorkspace.path_for(run.step.workflow).to_s }
-  let(:launcher)       { PreviewProcessLauncher.new(workspace_path) }
+  let(:launcher)       { PreviewProcessLauncher.new(workspace_path, run: run) }
 
   let(:preview_config) do
     PreviewCommandSource::Config.new(
@@ -21,11 +21,24 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
     described_class.call(port: port, server_context: { run: run })
   end
 
+  def process_result(exit_status: 0, timed_out: false)
+    ProcessRunner::Result.new(
+      exit_status: exit_status,
+      timed_out: timed_out,
+      stopped: false,
+      silent_timed_out: false,
+      operator_killed: false,
+      aliveness_failed: false,
+      duration_s: 0.1,
+      spawned_process_id: nil
+    )
+  end
+
   before do
     Mcp::Tools::AgentPreviewRegistry.reset!
     allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: nil).and_return(double(resolve: preview_config))
     allow(PreviewProcessLauncher).to receive(:new).and_call_original
-    allow(PreviewProcessLauncher).to receive(:new).with(workspace_path, project_id: nil).and_return(launcher)
+    allow(PreviewProcessLauncher).to receive(:new).with(workspace_path, project_id: nil, run: run).and_return(launcher)
   end
 
   after { Mcp::Tools::AgentPreviewRegistry.reset! }
@@ -115,6 +128,22 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
     end
   end
 
+  context "when the visual review prepared the preview before invoking the agent" do
+    before do
+      run.step.workflow.set_artifact!("visual_review_preview_preparations", [
+        { "run_id" => run.id, "project_id" => nil, "prepared_at" => Time.current.iso8601 }
+      ])
+      allow(Process).to receive(:spawn).and_return(12345)
+      allow(launcher).to receive(:http_ok?).and_return(true)
+    end
+
+    it "starts the server without repeating setup or seed" do
+      expect(launcher).not_to receive(:prepare!)
+
+      expect(call).not_to be_error
+    end
+  end
+
   context "when no preview config is configured" do
     before { allow(PreviewCommandSource).to receive(:new).and_return(double(resolve: nil)) }
 
@@ -178,11 +207,11 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
     end
 
     it "runs the configured seed command" do
-      expect(Open3).to receive(:capture3).with(
-        hash_including("BUNDLE_PATH" => File.join(workspace_path, ".syrus/deps/bundle")),
-        "bash", "-c", "bin/rails db:seed",
-        chdir: workspace_path, unsetenv_others: true
-      ).and_return([ "", "", instance_double(Process::Status, success?: true) ])
+      expect(ProcessRunner).to receive(:new).with(hash_including(
+        env: hash_including("BUNDLE_PATH" => File.join(workspace_path, ".syrus/deps/bundle")),
+        command: [ "bash", "-c", "bin/rails db:seed" ],
+        chdir: workspace_path
+      )).and_return(double(run: process_result))
       call
     end
 
@@ -198,21 +227,18 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
       )
       allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: nil).and_return(double(resolve: preview_config))
 
-      expect(Open3).to receive(:capture3).with(
-        hash_including("DATABASE_URL" => nil, "RAILS_ENV" => "development"),
-        "bash", "-c", "bin/rails db:seed",
-        chdir: workspace_path, unsetenv_others: true
-      ).and_return([ "", "", instance_double(Process::Status, success?: true) ])
+      expect(ProcessRunner).to receive(:new).with(hash_including(
+        env: hash_including("DATABASE_URL" => nil, "RAILS_ENV" => "development"),
+        command: [ "bash", "-c", "bin/rails db:seed" ]
+      )).and_return(double(run: process_result))
       call
     end
 
     it "returns an error when the seed step fails" do
-      allow(Open3).to receive(:capture3)
-        .and_return([ "", "Validation failed: Chat provider is not included in the list", instance_double(Process::Status, success?: false, exitstatus: 1) ])
+      allow(ProcessRunner).to receive(:new).and_return(double(run: process_result(exit_status: 1)))
       response = call
       expect(response).to be_error
-      expect(response.content.first[:text]).to include("preview seed command exited non-zero")
-      expect(response.content.first[:text]).to include("Validation failed: Chat provider")
+      expect(response.content.first[:text]).to include("preview seed failed", "bin/rails db:seed")
     end
   end
 
@@ -235,26 +261,21 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
     end
 
     it "runs setup before spawning the preview process" do
-      expect(Open3).to receive(:capture3).with(
-        hash_including("RAILS_ENV" => "development", "BUNDLE_PATH" => File.join(workspace_path, ".syrus/deps/bundle")),
-        "bash",
-        "-c",
-        "bundle install",
-        chdir: workspace_path,
-        unsetenv_others: true
-      ).and_return([ "", "", instance_double(Process::Status, success?: true) ])
+      expect(ProcessRunner).to receive(:new).with(hash_including(
+        env: hash_including("RAILS_ENV" => "development", "BUNDLE_PATH" => File.join(workspace_path, ".syrus/deps/bundle")),
+        command: [ "bash", "-c", "bundle install" ]
+      )).and_return(double(run: process_result))
 
       call
     end
 
     it "returns an error when setup fails" do
-      allow(Open3).to receive(:capture3)
-        .and_return([ "bundle output", "bundle error", instance_double(Process::Status, success?: false, exitstatus: 42) ])
+      allow(ProcessRunner).to receive(:new).and_return(double(run: process_result(exit_status: 42)))
 
       response = call
 
       expect(response).to be_error
-      expect(response.content.first[:text]).to include("preview setup command exited non-zero", "status 42", "bundle output", "bundle error")
+      expect(response.content.first[:text]).to include("preview setup failed", "bundle install")
       expect(Process).not_to have_received(:spawn)
     end
   end
@@ -270,9 +291,9 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
         }
       ])
       allow(Process).to receive(:spawn).and_return(2222)
-      web_launcher = PreviewProcessLauncher.new(workspace_path, project_id: "web")
+      web_launcher = PreviewProcessLauncher.new(workspace_path, project_id: "web", run: run)
       allow(web_launcher).to receive(:http_ok?).and_return(true)
-      allow(PreviewProcessLauncher).to receive(:new).with(workspace_path, project_id: "web").and_return(web_launcher)
+      allow(PreviewProcessLauncher).to receive(:new).with(workspace_path, project_id: "web", run: run).and_return(web_launcher)
       allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: "web").and_return(double(resolve: preview_config))
     end
 

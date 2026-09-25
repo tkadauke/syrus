@@ -45,9 +45,10 @@ module Mcp::Tools
         return Mcp::Tools.invalid("no workflow workspace found") unless workspace_path
 
         project_id = resolve_project_id(run, project_id)
-        result = PreviewProcessLauncher.new(workspace_path, project_id: project_id).launch!(
+        result = PreviewProcessLauncher.new(workspace_path, project_id: project_id, run: run).launch!(
           key: preview_key(run, project_id),
-          port: port
+          port: port,
+          prepared: preview_prepared?(run, project_id)
         )
         log_start(run, result, port) unless result.reused
 
@@ -93,6 +94,12 @@ module Mcp::Tools
 
       def preview_key(run, project_id)
         project_id.present? ? "#{run.id}:#{project_id}" : run.id
+      end
+
+      def preview_prepared?(run, project_id)
+        Array(run.step&.workflow&.artifact("visual_review_preview_preparations")).any? do |entry|
+          entry.to_h["run_id"].to_i == run.id && entry.to_h["project_id"].to_s == project_id.to_s
+        end
       end
 
       def log_start(run, result, port)

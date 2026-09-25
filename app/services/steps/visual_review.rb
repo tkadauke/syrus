@@ -14,6 +14,7 @@ module Steps
       end
 
       workflow.set_artifact!("visual_review_preview_projects", visual_review_projects.to_a)
+      return unless prepare_previews!
 
       run.update!(prompt: reviewer_prompt) if run.prompt.blank?
 
@@ -50,6 +51,38 @@ module Steps
     end
 
     private
+
+    def prepare_previews!
+      workflow.set_artifact!("visual_review_preview_preparation_failure", nil)
+      if step.details.to_h.key?("preview_preparation_failure")
+        step.update!(details: step.details.to_h.except("preview_preparation_failure"))
+      end
+
+      preparations = visual_review_projects.to_a.map do |project|
+        project_id = project["id"] || project[:id]
+        log("[visual_review] preparing preview project #{project_id}")
+        PreviewPreparation.new(
+          workspace.path,
+          project_id: project_id,
+          run: run,
+          workflow: workflow,
+          log: method(:log)
+        ).call.merge("run_id" => run.id)
+      end
+      workflow.set_artifact!("visual_review_preview_preparations", preparations)
+      true
+    rescue PreviewPreparation::Error => e
+      failure = e.details.merge(
+        "run_id" => run.id,
+        "step_id" => step.id,
+        "occurred_at" => Time.current.iso8601
+      )
+      workflow.set_artifact!("visual_review_preview_preparation_failure", failure)
+      step.update!(details: step.details.to_h.merge("preview_preparation_failure" => failure))
+      log("[visual_review] preview preparation unavailable: #{e.message}")
+      record_skip!("Visual review infrastructure could not prepare the preview (#{failure['reason']}): #{e.message}")
+      false
+    end
 
     def parent_session_id
       return nil if agent_resume_disabled?

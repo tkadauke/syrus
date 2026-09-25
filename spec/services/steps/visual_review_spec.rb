@@ -39,6 +39,11 @@ RSpec.describe Steps::VisualReview do
         unavailable_reason: nil
       )
     )
+    allow_any_instance_of(PreviewPreparation).to receive(:call).and_return({
+      "project_id" => "repo",
+      "commands" => [],
+      "prepared_at" => Time.current.iso8601
+    })
 
     implement_step.update!(state: "succeeded")
     implement_run.update!(
@@ -93,6 +98,49 @@ RSpec.describe Steps::VisualReview do
     handler.call
 
     expect(run.reload.prompt).to include("Show a banner on the dashboard.")
+  end
+
+  it "prepares affected previews before invoking the reviewer" do
+    preparation = instance_double(PreviewPreparation)
+    allow(PreviewPreparation).to receive(:new).and_return(preparation)
+    expect(preparation).to receive(:call).ordered.and_return({
+      "project_id" => "repo",
+      "commands" => [ "bin/seed" ],
+      "prepared_at" => Time.current.iso8601
+    })
+    expect(handler).to receive(:run_agent).ordered do
+      workflow.set_artifact!("visual_review_iterations", [
+        { "iteration" => review_step.iteration, "critique" => "Looks correct.", "verdict" => "approved" }
+      ])
+    end
+    allow(handler).to receive(:discard_reviewer_workspace_changes)
+
+    handler.call
+
+    expect(workflow.reload.artifact("visual_review_preview_preparations").sole).to include(
+      "run_id" => run.id,
+      "project_id" => "repo"
+    )
+  end
+
+  it "records a structured infrastructure skip without invoking the reviewer when preview preparation fails" do
+    failure = PreviewPreparation::Error.new(
+      "preview seed failed (timed out): bin/seed",
+      details: { "reason" => "preview_seed_failed", "phase" => "seed", "timed_out" => true }
+    )
+    allow_any_instance_of(PreviewPreparation).to receive(:call).and_raise(failure)
+    expect(handler).not_to receive(:run_agent)
+
+    handler.call
+
+    expect(workflow.reload.artifact("visual_review_preview_preparation_failure")).to include(
+      "reason" => "preview_seed_failed",
+      "run_id" => run.id
+    )
+    expect(workflow.artifact("visual_review_iterations").sole).to include(
+      "verdict" => "skipped",
+      "critique" => include("Visual review infrastructure could not prepare the preview")
+    )
   end
 
   it "raises StepFailed when the reviewer does not submit findings" do

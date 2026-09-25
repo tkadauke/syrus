@@ -11,6 +11,7 @@ module Mcp::Tools
     private_constant :MUTEX
 
     @previews = {}  # key → { pid: Integer, port: Integer }
+    @launch_mutexes = Hash.new { |hash, key| hash[key] = Mutex.new }
 
     class << self
       def register(key:, pid:, port:)
@@ -19,6 +20,11 @@ module Mcp::Tools
 
       def get(key)
         MUTEX.synchronize { @previews[key]&.dup }
+      end
+
+      def synchronize_launch(key, &block)
+        launch_mutex = MUTEX.synchronize { @launch_mutexes[key] }
+        launch_mutex.synchronize(&block)
       end
 
       def kill(key)
@@ -43,7 +49,10 @@ module Mcp::Tools
       end
 
       def reset!
-        MUTEX.synchronize { @previews.clear }
+        MUTEX.synchronize do
+          @previews.clear
+          @launch_mutexes.clear
+        end
       end
 
       private

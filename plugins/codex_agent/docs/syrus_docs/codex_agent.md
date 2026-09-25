@@ -32,7 +32,7 @@ command = "..."
 args = [...]
 required = true
 startup_timeout_sec = 60
-tool_timeout_sec = 60
+tool_timeout_sec = 120
 
 [mcp_servers.syrus-mcp-sidecar.env]
 KEY = "value"
