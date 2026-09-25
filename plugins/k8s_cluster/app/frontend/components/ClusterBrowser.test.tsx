@@ -2,6 +2,7 @@ import { jsonResponse } from "@app/testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
+import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { Page } from "@app/components/ui"
 import i18n from "@app/i18n"
@@ -178,6 +179,10 @@ const DEFAULT_POD_LOGS = {
 
 type ResourceKey = "namespaces" | "nodes" | "overview" | "pods" | "deployments" | "cronjobs" | "services" | "endpoints" | "pvcs" | "events" | "podLogs"
 
+function dataTransfer() {
+  return { dropEffect: "", effectAllowed: "", getData: vi.fn(), setData: vi.fn() }
+}
+
 function setupFetchMock(overrides: Partial<Record<ResourceKey, unknown>> = {}, errors: Partial<Record<ResourceKey, number>> = {}) {
   const calls: string[] = []
 
@@ -210,12 +215,14 @@ function setupFetchMock(overrides: Partial<Record<ResourceKey, unknown>> = {}, e
   return { calls, fetchSpy }
 }
 
-function renderBrowser() {
+function renderBrowser(initialEntry = "/k8s_clusters/1") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <ClusterBrowser clusterId={1} label="Staging" onBack={vi.fn()} />
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <ClusterBrowser clusterId={1} label="Staging" onBack={vi.fn()} />
+        </MemoryRouter>
       </QueryClientProvider>
     </I18nextProvider>
   )
@@ -226,9 +233,11 @@ function renderBrowserInResponsiveShell() {
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <Page.Root aria-label="Kubernetes clusters" className="flex h-full flex-col overflow-hidden" gutter="responsive" size="wide">
-          <ClusterBrowser clusterId={1} label="Staging" onBack={vi.fn()} />
-        </Page.Root>
+        <MemoryRouter initialEntries={["/k8s_clusters/1"]}>
+          <Page.Root aria-label="Kubernetes clusters" className="flex h-full flex-col overflow-hidden" gutter="responsive" size="wide">
+            <ClusterBrowser clusterId={1} label="Staging" onBack={vi.fn()} />
+          </Page.Root>
+        </MemoryRouter>
       </QueryClientProvider>
     </I18nextProvider>
   )
@@ -331,6 +340,37 @@ describe("ClusterBrowser", () => {
       expect(await screen.findByText("web-1")).toBeInTheDocument()
       expect(screen.getByText("Running")).toBeInTheDocument()
       expect(screen.getByText("1/1")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Columns" })).toBeInTheDocument()
+    })
+
+    it("filters pods through the shared FilterBar query and reorders headers", async () => {
+      setupFetchMock({
+        pods: {
+          available: true,
+          generated_at: GENERATED_AT,
+          truncated: false,
+          pods: [DEFAULT_PODS.pods[0], { ...MULTI_CONTAINER_POD, name: "api-1", namespace: "backend" }]
+        }
+      })
+      renderBrowser("/k8s_clusters/1?query=backend")
+      await switchTab("Workloads")
+
+      const table = await screen.findByRole("table")
+      expect(within(table).queryByText("web-1")).not.toBeInTheDocument()
+      expect(within(table).getByText("api-1")).toBeInTheDocument()
+      expect(screen.getByText("1 of 2 resources")).toBeInTheDocument()
+
+      const namespaceHeader = within(table).getByRole("columnheader", { name: /Namespace/ })
+      const statusHeader = within(table).getByRole("columnheader", { name: /Status/ })
+      const transfer = dataTransfer()
+      fireEvent.dragStart(statusHeader, { dataTransfer: transfer })
+      fireEvent.dragOver(namespaceHeader, { dataTransfer: transfer })
+      fireEvent.drop(namespaceHeader, { dataTransfer: transfer })
+
+      const headers = within(table).getAllByRole("columnheader")
+      expect(headers[0]).toHaveTextContent("Name")
+      expect(headers[1]).toHaveTextContent("Status")
+      expect(headers[2]).toHaveTextContent("Namespace")
     })
 
     it("switches to deployments and cronjobs via the workload kind dropdown", async () => {
@@ -372,7 +412,7 @@ describe("ClusterBrowser", () => {
       await switchTab("Workloads")
       await screen.findByText("web-1")
 
-      fireEvent.click(screen.getByRole("button", { name: "Namespace" }))
+      fireEvent.click(screen.getAllByRole("button", { name: "Namespace" })[0])
       fireEvent.click(await screen.findByRole("option", { name: "default" }))
 
       await screen.findByText("web-1")
@@ -390,6 +430,7 @@ describe("ClusterBrowser", () => {
       expect(screen.getByText("ClusterIP")).toBeInTheDocument()
       expect(screen.getByText("80/TCP")).toBeInTheDocument()
       expect(screen.getByText("2/2 ready")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Columns" })).toBeInTheDocument()
     })
 
     it("shows a not-ready tone when some backing addresses are not ready", async () => {
@@ -507,6 +548,7 @@ describe("ClusterBrowser", () => {
 
       expect(await screen.findByText("Scheduled", { exact: false })).toBeInTheDocument()
       expect(screen.getByText("Successfully assigned default/web-1 to node-1")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Columns" })).toBeInTheDocument()
     })
 
     it("shows the empty state when there are no events", async () => {

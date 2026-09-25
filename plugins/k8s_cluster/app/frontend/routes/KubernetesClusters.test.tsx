@@ -117,12 +117,12 @@ function setupFetchMock(initial = [stagingCluster()]) {
   return { calls, fetchSpy }
 }
 
-function renderClusters() {
+function renderClusters(initialEntry = "/k8s_clusters") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/k8s_clusters"]}>
+        <MemoryRouter initialEntries={[initialEntry]}>
           <KubernetesClusters />
         </MemoryRouter>
       </QueryClientProvider>
@@ -179,6 +179,19 @@ describe("KubernetesClusters", () => {
     fireEvent.click(within(tablePanel).getByRole("button", { name: "Columns" }))
     expect(within(tablePanel).getByLabelText("API server")).toBeChecked()
     expect(within(tablePanel).getByRole("button", { name: "Move API server down" })).toBeInTheDocument()
+  })
+
+  it("filters clusters through the shared FilterBar query", async () => {
+    setupFetchMock([
+      stagingCluster({ id: 1, label: "Staging", api_server_url: "https://staging.k8s.internal:6443" }),
+      stagingCluster({ id: 2, label: "Production", api_server_url: "https://prod.k8s.internal:6443" })
+    ])
+    renderClusters("/k8s_clusters?query=prod")
+
+    const table = await screen.findByRole("table")
+    expect(within(table).getByText("Production")).toBeInTheDocument()
+    expect(within(table).queryByText("Staging")).not.toBeInTheDocument()
+    expect(screen.getByText("1 of 2 resources")).toBeInTheDocument()
   })
 
   it("creates a cluster from the add form by pasting a kubeconfig", async () => {
