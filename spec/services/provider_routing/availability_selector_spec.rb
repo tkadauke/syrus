@@ -5,6 +5,10 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(repository: repository, user: user, job_provider_setting: "default") }
 
+  before do
+    allow_any_instance_of(User).to receive(:promote_first_user_to_admin)
+  end
+
   def call(task_key: "initial")
     described_class.call(job: job, task_key: task_key)
   end
