@@ -112,6 +112,25 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
     expect(step.details["output"]).to include("new-test repeat gate focused command suspect: focused_command_failed_consistently")
   end
 
+  it "uses observed repeat runs in diagnostics when repeat metadata is inconsistent" do
+    result = TouchedTestRepeatGate::Result.new(
+      ran: true, consistent: false, reason: "repeat_run_inconsistent",
+      grader_name: "rspec",
+      command: "bundle exec rspec plugins/example/spec/widget_spec.rb",
+      normal_command: "bundle exec rspec",
+      files: [ "plugins/example/spec/widget_spec.rb" ],
+      repeats: 0,
+      pass_count: 0,
+      fail_count: 1,
+      runs: [ { "exit_status" => 1, "output" => "failed", "passed" => false, "timed_out" => false } ],
+      env: {}
+    )
+    allow(TouchedTestRepeatGate).to receive(:call).and_return(result)
+
+    expect { handler.send(:check_new_test_flakiness!, name: "plugins-example-rspec", definition: step.details) }
+      .to raise_error(Steps::Base::StepFailed, /1\/1 failed/)
+  end
+
   it "does not attach repeat checks to non-test graders" do
     definition = step.details.merge("grader_framework" => nil)
 
@@ -147,5 +166,18 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
 
     expect(TouchedTestRepeatGate).not_to receive(:call)
     handler.send(:check_new_test_flakiness!, name: "rspec-focused", definition: definition)
+  end
+
+  it "does not attach repeat checks to generated focused RSpec commands without focused metadata" do
+    definition = step.details.except("grader_mode", "target_label", "projected_target_label").merge(
+      "name" => "rspec",
+      "command" => <<~SH.squish
+        ruby -e 'puts "spec/models/widget_spec.rb"' > .syrus/rspec-focused-files &&
+        RAILS_ENV=${RAILS_ENV:-test} COVERAGE=false RSPEC_OUTPUT_PREFIX=rspec-focused bundle exec rspec $(cat .syrus/rspec-focused-files)
+      SH
+    )
+
+    expect(TouchedTestRepeatGate).not_to receive(:call)
+    handler.send(:check_new_test_flakiness!, name: "rspec", definition: definition)
   end
 end
