@@ -1,4 +1,6 @@
+require "fileutils"
 require "open3"
+require "pathname"
 require "shellwords"
 require "timeout"
 
@@ -47,7 +49,18 @@ class TouchedTestRepeatGate
     end
 
     @log.call("[flaky_gate:#{grader_name}] rerunning #{@touched_files.join(', ')} #{@repeats}x: #{command}")
-    outcomes = Array.new(@repeats) { run_once(command) }
+    prepare_command = focused_prepare_command
+    outcomes = run_repeats(command, prepare_command: prepare_command, isolated: true)
+    return skipped("prepare_failed") unless outcomes
+
+    if outcomes.none?
+      @log.call("[flaky_gate:#{grader_name}] isolated repeats all failed; retrying without isolated test database identity")
+      fallback_outcomes = run_repeats(command, prepare_command: prepare_command, isolated: false)
+      return skipped("prepare_failed") unless fallback_outcomes
+
+      outcomes = fallback_outcomes
+    end
+
     pass_count = outcomes.count(&:itself)
     fail_count = outcomes.size - pass_count
     # The owning grader's normal command already passed immediately before
@@ -142,14 +155,39 @@ class TouchedTestRepeatGate
     nil
   end
 
-  def run_once(command)
-    run_command(command, label: "repeat run")
+  def focused_prepare_command
+    provider = @focused_command_provider
+    return nil unless provider&.respond_to?(:prepare_command_for)
+
+    provider.prepare_command_for(
+      grader_name: grader_name,
+      grader_command: grader_command
+    ).to_s.strip.presence
+  rescue StandardError => e
+    @log.call("[flaky_gate:#{grader_name}] focused_test_command #{provider} prepare declined with #{e.class}: #{e.message}")
+    nil
   end
 
-  def run_command(command, label:)
+  def run_once(command, extra_env:)
+    run_command(command, label: "repeat run", extra_env: extra_env)
+  end
+
+  def run_repeats(command, prepare_command:, isolated:)
+    Array.new(@repeats) do |index|
+      repeat_env = isolated ? repeat_environment(index) : {}
+      reset_repeat_database_files!(repeat_env) if isolated
+      if prepare_command.present?
+        @log.call("[flaky_gate:#{grader_name}] preparing focused repeat #{index + 1}/#{@repeats}: #{prepare_command}")
+        return nil unless run_command(prepare_command, label: "prepare command", extra_env: repeat_env)
+      end
+      run_once(command, extra_env: repeat_env)
+    end
+  end
+
+  def run_command(command, label:, extra_env: {})
     status = nil
     Timeout.timeout(TIMEOUT_SECONDS) do
-      output, status = Open3.capture2e(command_environment, "bash", "-c", command, chdir: @workspace_path)
+      output, status = Open3.capture2e(command_environment.merge(extra_env), "bash", "-c", command, chdir: @workspace_path)
       unless status&.success?
         excerpt = output.to_s.lines.last(20).join.strip
         @log.call("[flaky_gate:#{grader_name}] #{label} failed (exit #{status&.exitstatus || 'unknown'}):\n#{excerpt}")
@@ -166,6 +204,29 @@ class TouchedTestRepeatGate
 
   def command_environment
     @command_environment ||= @env.to_h.merge(inherited_grader_environment)
+  end
+
+  def repeat_environment(index)
+    token = "_syrus_flaky_#{Process.pid}_#{index}"
+    storage_path = Pathname.new(@workspace_path).join("storage")
+    {
+      "TEST_ENV_NUMBER" => token,
+      "SEARCH_DATABASE_PATH" => storage_path.join("test_search#{token}.sqlite3").to_s
+    }
+  end
+
+  def reset_repeat_database_files!(repeat_env)
+    storage_path = Pathname.new(@workspace_path).join("storage")
+    paths = [
+      storage_path.join("test#{repeat_env.fetch('TEST_ENV_NUMBER')}.sqlite3"),
+      Pathname.new(repeat_env.fetch("SEARCH_DATABASE_PATH"))
+    ]
+
+    paths.each do |path|
+      next unless path.to_s.start_with?(storage_path.to_s)
+
+      FileUtils.rm_f([ path, "#{path}-wal", "#{path}-shm" ])
+    end
   end
 
   def inherited_grader_environment
@@ -192,5 +253,4 @@ class TouchedTestRepeatGate
       files: @touched_files, repeats: 0, pass_count: 0, fail_count: 0
     )
   end
-
 end

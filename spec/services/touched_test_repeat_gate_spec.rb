@@ -69,10 +69,10 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(0)
   end
 
-  it "does not re-run setup after the owning grader already prepared and passed" do
+  it "runs provider setup before each focused repeat" do
     provider = double("focused_test_command_provider")
     allow(provider).to receive(:command_for).and_return("true")
-    allow(provider).to receive(:prepare_command_for).and_return("printf prepared > prepared")
+    allow(provider).to receive(:prepare_command_for).and_return("printf x >> prepared")
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
 
     result = described_class.call(
@@ -83,8 +83,57 @@ RSpec.describe TouchedTestRepeatGate do
     )
 
     expect(result.consistent).to be(true)
-    expect(Pathname.new(@dir).join("prepared")).not_to exist
-    expect(provider).not_to have_received(:prepare_command_for)
+    expect(Pathname.new(@dir).join("prepared").read).to eq("xxx")
+    expect(provider).to have_received(:prepare_command_for).once
+  end
+
+  it "isolates each repeat with a fresh test database identity" do
+    provider = double("focused_test_command_provider")
+    allow(provider).to receive(:command_for).and_return(
+      'printf "$TEST_ENV_NUMBER $SEARCH_DATABASE_PATH\n" >> repeat-envs'
+    )
+    allow(provider).to receive(:prepare_command_for).and_return(
+      'test -n "$TEST_ENV_NUMBER" && test "$SEARCH_DATABASE_PATH" = "$PWD/storage/test_search${TEST_ENV_NUMBER}.sqlite3"'
+    )
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+
+    stale_token = "_syrus_flaky_#{Process.pid}_0"
+    storage = Pathname.new(@dir).join("storage")
+    FileUtils.mkdir_p(storage)
+    storage.join("test#{stale_token}.sqlite3").write("stale")
+    storage.join("test#{stale_token}.sqlite3-wal").write("stale")
+    storage.join("test_search#{stale_token}.sqlite3").write("stale")
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 2
+    )
+
+    expect(result.consistent).to be(true)
+    envs = Pathname.new(@dir).join("repeat-envs").read.lines.map(&:strip)
+    expect(envs.length).to eq(2)
+    expect(envs.map { |line| line.split.first }).to all(start_with("_syrus_flaky_#{Process.pid}_"))
+    expect(envs.uniq.length).to eq(2)
+    expect(storage.join("test#{stale_token}.sqlite3")).not_to exist
+    expect(storage.join("test#{stale_token}.sqlite3-wal")).not_to exist
+    expect(storage.join("test_search#{stale_token}.sqlite3")).not_to exist
+  end
+
+  it "falls back to the normal test database identity when isolated repeats all fail" do
+    stub_focused_command('test -z "$TEST_ENV_NUMBER"')
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 2
+    )
+
+    expect(result.consistent).to be(true)
+    expect(result.pass_count).to eq(2)
+    expect(result.fail_count).to eq(0)
   end
 
   it "preserves safe dependency environment from the original grader command" do
@@ -113,6 +162,24 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.consistent).to be(true)
   end
 
+  it "skips the flakiness verdict when provider setup fails" do
+    provider = double("focused_test_command_provider")
+    allow(provider).to receive(:command_for).and_return("false")
+    allow(provider).to receive(:prepare_command_for).and_return("false")
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 3
+    )
+
+    expect(result.ran).to be(false)
+    expect(result.reason).to eq("prepare_failed")
+    expect(result.fail_count).to eq(0)
+  end
+
   it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do
     stub_focused_command("false")
 
@@ -127,6 +194,21 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.inconsistent?).to be(true)
     expect(result.pass_count).to eq(0)
     expect(result.fail_count).to eq(5)
+  end
+
+  it "still treats consistently failing fallback repeats as inconsistent" do
+    stub_focused_command("false")
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/broken_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 2
+    )
+
+    expect(result.consistent).to be(false)
+    expect(result.pass_count).to eq(0)
+    expect(result.fail_count).to eq(2)
   end
 
   it "skips without running anything when there are no touched files" do
@@ -172,7 +254,7 @@ RSpec.describe TouchedTestRepeatGate do
       )
 
       expect(result.ran).to be(true)
-      expect(result.command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
+      expect(result.command).to eq("RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do
