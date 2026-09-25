@@ -97,6 +97,7 @@ RSpec.describe ProviderAvailabilityPause do
         codex_api_key: "sk-test",
         provider_availability_pause_thresholds: { "claude" => 10, "codex" => 10 }
       )
+      allow(AgentProviders::Codex).to receive(:configured_for_user?).with(user).and_return(true)
       ProviderRoutingRule.create!(
         scope_type: "repository",
         scope_id: job.repository_id,

@@ -1173,14 +1173,25 @@ function ConfigurablePerformanceTable<TRow>({
   )
 }
 
-function sortRows<TRow>(rows: TRow[], columns: PerformanceColumnDef<TRow>[], sort: SortState) {
+function sortRows<
+  TRow
+>(
+  rows: TRow[],
+  columns: PerformanceColumnDef<TRow>[],
+  sort: SortState
+) {
   const column = columns.find((candidate) => candidate.sortKey === sort.column || candidate.key === sort.column)
   if (!column) return rows
   const direction = sort.direction === "asc" ? 1 : -1
   return [...rows].sort((a, b) => compareSortValues(sortValue(column, a), sortValue(column, b)) * direction)
 }
 
-function sortValue<TRow>(column: PerformanceColumnDef<TRow>, row: TRow) {
+function sortValue<
+  TRow
+>(
+  column: PerformanceColumnDef<TRow>,
+  row: TRow
+) {
   return column.sortValue ? column.sortValue(row) : ""
 }
 
