@@ -2040,6 +2040,39 @@ describe("DesignDocsSurface", () => {
     expect(screen.queryByText("Why this wording?")).not.toBeInTheDocument()
   })
 
+  it("keeps the viewport anchored after reviewing a suggestion", async () => {
+    const fetchSpy = mockFetch()
+    const scrollIntoViewSpy = vi.fn()
+    const scrollToSpy = vi.fn()
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
+    const originalScrollTo = window.scrollTo
+    const originalScrollX = Object.getOwnPropertyDescriptor(window, "scrollX")
+    const originalScrollY = Object.getOwnPropertyDescriptor(window, "scrollY")
+    HTMLElement.prototype.scrollIntoView = scrollIntoViewSpy as typeof HTMLElement.prototype.scrollIntoView
+    window.scrollTo = scrollToSpy as typeof window.scrollTo
+    Object.defineProperty(window, "scrollX", { configurable: true, value: 12 })
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 480 })
+
+    try {
+      renderSurface("/design_docs/1")
+
+      await screen.findByText("Use newer name")
+      fireEvent.click(screen.getByRole("button", { name: "Accept" }))
+
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions/9/accept", expect.objectContaining({ method: "POST" })))
+      await waitFor(() => expect(screen.queryByText("Use newer name")).not.toBeInTheDocument())
+      await waitFor(() => expect(scrollToSpy).toHaveBeenCalledWith(12, 480))
+      expect(scrollIntoViewSpy).not.toHaveBeenCalledWith(expect.objectContaining({ block: "start" }))
+    } finally {
+      HTMLElement.prototype.scrollIntoView = originalScrollIntoView
+      window.scrollTo = originalScrollTo
+      if (originalScrollX) Object.defineProperty(window, "scrollX", originalScrollX)
+      else Reflect.deleteProperty(window, "scrollX")
+      if (originalScrollY) Object.defineProperty(window, "scrollY", originalScrollY)
+      else Reflect.deleteProperty(window, "scrollY")
+    }
+  })
+
   it("does not serialize pending Rich Text suggestion previews into canonical markdown before accepting one", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/4")
