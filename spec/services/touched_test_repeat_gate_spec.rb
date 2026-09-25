@@ -184,7 +184,7 @@ RSpec.describe TouchedTestRepeatGate do
       step = grader_step_with({ "name" => "rspec", "command" => "bundle exec rspec" })
       allow(Open3).to receive(:capture2e).and_return([
         "Run options: exclude {ci_only: true}\n\nAll examples were filtered out\n",
-        instance_double(Process::Status, success?: false)
+        instance_double(Process::Status, success?: false, exitstatus: 1)
       ])
 
       result = described_class.call(
@@ -208,8 +208,8 @@ RSpec.describe TouchedTestRepeatGate do
         repeats: 1
       )
 
-      expect(result.ran).to be(true)
       expect(result.command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
+      expect(result.reason).to eq("no_examples_selected")
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do
