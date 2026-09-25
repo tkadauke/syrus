@@ -287,6 +287,7 @@ class ImmutableSourceCheckout
       "worker_storage_key" => prepare_cache.worker_storage_key,
       "prepare_fingerprint" => prepare_cache.prepare_fingerprint,
       "prepare_cache_key" => prepare_cache.cache_key,
+      "dependency_state" => prepare_cache.dependency_state_for(path),
       "prepared_at" => Time.current.iso8601,
       "prepare_source" => plan.source
     ))
@@ -594,15 +595,22 @@ class ImmutableSourceCheckout
     end
 
     def store_from!(checkout_path)
+      verify_prepared_dependency_state!(checkout_path)
       temporary_path = path.dirname.join(".#{path.basename}.tmp-#{Process.pid}-#{SecureRandom.hex(6)}")
       FileUtils.rm_rf(temporary_path.to_s)
       FileUtils.mkdir_p(path.dirname)
       FileUtils.mkdir_p(temporary_path)
       FileUtils.cp_r(Pathname.new(checkout_path).children.map(&:to_s), temporary_path.to_s, preserve: true)
+      verify_prepared_dependency_state!(temporary_path)
       FileUtils.rm_rf(path.to_s)
       FileUtils.mv(temporary_path.to_s, path.to_s)
     ensure
       FileUtils.rm_rf(temporary_path.to_s) if temporary_path && temporary_path.exist?
+    end
+
+    def dependency_state_for(checkout_path)
+      path = Pathname.new(checkout_path)
+      npm_dependency_state(path)
     end
 
     def path
@@ -651,7 +659,8 @@ class ImmutableSourceCheckout
     private
 
     def marker_matches?
-      JSON.parse(marker_path.read).slice(
+      marker = JSON.parse(marker_path.read)
+      metadata_matches = marker.slice(
         "worker_storage_key",
         "workflow_id",
         "source_sha",
@@ -662,12 +671,73 @@ class ImmutableSourceCheckout
         "source_sha" => snapshot.source_sha,
         "prepare_fingerprint" => prepare_fingerprint
       }
+      metadata_matches && dependency_state_matches?(marker)
     rescue JSON::ParserError
       false
     end
 
     def fingerprint_for(plan)
       PreparedWorkspaceArchive.prepare_fingerprint_for(plan)
+    end
+
+    def dependency_state_matches?(marker)
+      expected = marker["dependency_state"]
+      current = dependency_state_for(path)
+      return current.empty? if expected.blank?
+
+      expected == current && Array(current["missing_bins"]).empty?
+    end
+
+    def verify_prepared_dependency_state!(checkout_path)
+      state = dependency_state_for(checkout_path)
+      return if state.empty? || Array(state["missing_bins"]).empty?
+
+      raise "prepared dependency state is incomplete: missing #{state["missing_bins"].join(", ")}"
+    end
+
+    def npm_dependency_state(path)
+      package_json = path.join("package.json")
+      package_lock = path.join("package-lock.json")
+      return {} unless package_json.file? && package_lock.file?
+
+      required_bins = npm_required_bins(package_lock)
+      {
+        "manager" => "npm",
+        "package_json_sha256" => file_sha256(package_json),
+        "package_lock_sha256" => file_sha256(package_lock),
+        "node_modules_package_lock_sha256" => file_sha256(path.join("node_modules/.package-lock.json")),
+        "required_bins" => required_bins,
+        "missing_bins" => required_bins.reject { |bin| path.join("node_modules/.bin", bin).executable? }
+      }
+    rescue JSON::ParserError
+      {}
+    end
+
+    def npm_required_bins(package_lock)
+      lock = JSON.parse(package_lock.read)
+      packages = lock["packages"].is_a?(Hash) ? lock["packages"] : {}
+      root = packages[""].is_a?(Hash) ? packages[""] : {}
+      dependency_names = %w[dependencies devDependencies optionalDependencies]
+        .flat_map { |key| root[key].is_a?(Hash) ? root[key].keys : [] }
+        .uniq
+
+      dependency_names.flat_map do |name|
+        package = packages["node_modules/#{name}"]
+        next [] unless package.is_a?(Hash)
+
+        bins = package["bin"]
+        case bins
+        when String then [ name.split("/").last ]
+        when Hash then bins.keys
+        else []
+        end
+      end.map(&:to_s).reject(&:blank?).uniq.sort
+    end
+
+    def file_sha256(path)
+      return nil unless path.file?
+
+      Digest::SHA256.file(path).hexdigest
     end
 
     def sanitized_worker_storage_key

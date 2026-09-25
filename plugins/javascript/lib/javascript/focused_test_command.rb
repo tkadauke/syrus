@@ -24,7 +24,7 @@ module JavaScript
       files = failed_test_files
       return nil if files.empty?
 
-      install_prefix = "if [ ! -d node_modules/.bin ] || [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ] || [ package.json -nt node_modules/.package-lock.json ]; then npm ci; fi"
+      install_prefix = "if [ ! -d node_modules/.bin ] || [ ! -x node_modules/.bin/vitest ] || [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ] || [ package.json -nt node_modules/.package-lock.json ]; then npm ci; fi"
       junit_path = ".syrus/grade-output/#{junit_basename}"
       "#{install_prefix} && mkdir -p #{Shellwords.escape(File.dirname(junit_path))} && npx vitest run --maxWorkers=1 --reporter=default --reporter=junit --outputFile.junit=#{Shellwords.escape(junit_path)} #{Shellwords.join(files)}"
     end

@@ -261,7 +261,7 @@ module JavaScript
         if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile;
         elif [ -f yarn.lock ]; then yarn install --frozen-lockfile;
         elif [ -f package-lock.json ]; then npm ci;
-        elif [ ! -d node_modules ]; then npm install;
+        elif [ ! -x node_modules/.bin/vitest ]; then npm install;
         fi;
         run_package_script() {
           if [ -f pnpm-lock.yaml ]; then pnpm run "$@";
