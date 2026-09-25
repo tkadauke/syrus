@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBackendExceptions, type BackendExceptionEventRow, type BackendExceptionEventsPayload } from "../api/adminBackendExceptions"
 import { AdminEventActions } from "../components/AdminEventActions"
-import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
+import { AdminDataTablePanel, type AdminDataTablePanelConfig, AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
@@ -71,26 +71,33 @@ function BackendExceptionFilters({ onNavigate, payload, search }: { onNavigate: 
 
 function BackendExceptionsView({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload: BackendExceptionEventsPayload; search: string }) {
   const { t } = useT("admin")
+  const panel = {
+    summary: t("backend_exceptions.showing", { count: payload.events.length, page: payload.pagination.page }),
+    meta: t("backend_exceptions.revision_hint", { revision: payload.revision_scope === "all" ? t("backend_exceptions.all_revisions") : shortRevision(payload.current_revision) }),
+    pagination: {
+      label: t("backend_exceptions.page", { page: payload.pagination.page }),
+      nextLabel: t("backend_exceptions.next"),
+      previousLabel: t("backend_exceptions.previous"),
+      pagination: payload.pagination,
+      search,
+      onNavigate
+    }
+  }
+
+  if (payload.events.length === 0) {
+    return (
+      <AdminDataTablePanel config={panel}>
+        <AdminEventPanelMessage>{t("backend_exceptions.empty")}</AdminEventPanelMessage>
+      </AdminDataTablePanel>
+    )
+  }
+
   return (
-    <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between">
-        <span>{t("backend_exceptions.showing", { count: payload.events.length, page: payload.pagination.page })}</span>
-        <span>{t("backend_exceptions.revision_hint", { revision: payload.revision_scope === "all" ? t("backend_exceptions.all_revisions") : shortRevision(payload.current_revision) })}</span>
-      </div>
-      {payload.events.length > 0 ? <BackendExceptionsTable revisionScope={payload.revision_scope} rows={payload.events} search={search} onNavigate={onNavigate} /> : <AdminEventPanelMessage>{t("backend_exceptions.empty")}</AdminEventPanelMessage>}
-      <AdminEventPagination
-        label={t("backend_exceptions.page", { page: payload.pagination.page })}
-        nextLabel={t("backend_exceptions.next")}
-        previousLabel={t("backend_exceptions.previous")}
-        pagination={payload.pagination}
-        search={search}
-        onNavigate={onNavigate}
-      />
-    </section>
+    <BackendExceptionsTable panel={panel} revisionScope={payload.revision_scope} rows={payload.events} search={search} onNavigate={onNavigate} />
   )
 }
 
-function BackendExceptionsTable({ onNavigate, revisionScope, rows, search }: { onNavigate: (params: URLSearchParams) => void; revisionScope: string; rows: BackendExceptionEventRow[]; search: string }) {
+function BackendExceptionsTable({ onNavigate, panel, revisionScope, rows, search }: { onNavigate: (params: URLSearchParams) => void; panel: AdminDataTablePanelConfig; revisionScope: string; rows: BackendExceptionEventRow[]; search: string }) {
   const { t } = useT("admin")
   const columns: Array<AdminEventLogTableColumn<BackendExceptionEventRow>> = [
     {
@@ -157,6 +164,8 @@ function BackendExceptionsTable({ onNavigate, revisionScope, rows, search }: { o
       headerClassName: "w-32 px-4 py-2",
       header: t("backend_exceptions.col_actions"),
       key: "actions",
+      // Action controls intentionally are not sortable; every data-bearing
+      // column above declares a sort key.
       // Pin to the declared end (its natural, already-rightmost position) --
       // required columns default to start-pinning, which would otherwise
       // yank the only expand/collapse toggle in front of time/context/runtime.
@@ -176,6 +185,7 @@ function BackendExceptionsTable({ onNavigate, revisionScope, rows, search }: { o
       search={search}
       storageKey="syrus.admin.backend_exceptions.visible_columns"
       onNavigate={onNavigate}
+      panel={panel}
       renderExpanded={(row) => (
         <div className="grid gap-4 lg:grid-cols-2">
           <DetailBlock title={t("backend_exceptions.backtrace")} value={row.backtrace} />

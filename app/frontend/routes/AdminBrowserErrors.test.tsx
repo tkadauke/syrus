@@ -81,9 +81,35 @@ describe("AdminBrowserErrors", () => {
       expect(fetchSpy.mock.calls.some((call) => String(call[0]).includes("sort=path&direction=desc"))).toBe(true)
     })
   })
+
+  it("keeps expandable details working inside the shared table panel", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      current_revision: "abc123",
+      revision_scope: "current",
+      filters: {},
+      timeline: [],
+      pagination: {
+        page: 1,
+        per_page: 50,
+        has_next_page: false,
+        has_previous_page: false,
+        next_page: null,
+        previous_page: null
+      },
+      events: [browserErrorEvent({ stack: "TypeError: broken at App.tsx:12" })]
+    }))
+
+    renderRoute()
+    await screen.findByText("undefined is not an object")
+
+    fireEvent.click(screen.getByRole("button", { name: "Details" }))
+
+    expect(await screen.findByText("TypeError: broken at App.tsx:12")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Hide" })).toBeInTheDocument()
+  })
 })
 
-function browserErrorEvent() {
+function browserErrorEvent(overrides: Record<string, unknown> = {}) {
   return {
     id: 1,
     occurred_at: "2026-08-17T20:46:35Z",
@@ -105,6 +131,7 @@ function browserErrorEvent() {
     recent_errors: [],
     metadata: {},
     actions: [],
-    user: { id: 1, display_name: "Thomas", email_address: "thomas@example.com" }
+    user: { id: 1, display_name: "Thomas", email_address: "thomas@example.com" },
+    ...overrides
   }
 }
