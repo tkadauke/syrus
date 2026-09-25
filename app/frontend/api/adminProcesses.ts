@@ -47,6 +47,20 @@ export type SpawnedProcessPayload = {
 export type AdminProcessesPayload = AdminFilteredPayload & {
   processes: SpawnedProcessPayload[]
   running_total: number
+  total: number
+  pagination: {
+    page: number
+    per_page: number
+    total: number
+    total_pages: number
+    has_previous_page: boolean
+    has_next_page: boolean
+    previous_page: number | null
+    next_page: number | null
+    first_item: number
+    last_item: number
+  }
+  sort: { column: string; direction: "asc" | "desc" }
 }
 
 export function fetchAdminProcesses(search = "") {
