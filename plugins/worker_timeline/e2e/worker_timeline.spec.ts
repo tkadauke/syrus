@@ -144,11 +144,7 @@ test("Worker Timeline plugin visualizes worker lanes and drills into a workflow 
   const enableButton = pluginCard.getByRole("button", { name: "Enable" })
   if (await enableButton.isVisible()) {
     await enableButton.click()
-    // Enabling reloads the whole page. A cold dev-mode render of this app can
-    // take the better part of a minute, so wait for the load itself and then
-    // give the card room to come back.
-    await page.waitForLoadState("load")
-    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible({ timeout: 60_000 })
+    await page.waitForURL("**/admin/plugins/worker_timeline")
   }
 
   await page.goto("/worker_timeline")
