@@ -27,6 +27,7 @@ export function jobWorkflowsQueryKey(id: string | number, search: string): JobWo
 
 export function mergeJobWorkflowsPayload(payload: JobDetailPayload, workflows?: JobWorkflowsPayload): JobDetailPayload {
   if (!workflows) return payload
+  if (workflows.job_id !== undefined && workflows.job_id !== payload.job.id) return payload
 
   return {
     ...payload,

@@ -26,6 +26,14 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     queries
   end
 
+  describe ".workflows" do
+    it "includes the owning job id so clients can reject stale route payloads" do
+      job = Factories.job_record(user: user, repository: repo)
+
+      expect(workflows_payload_for(job).fetch(:job_id)).to eq(job.id)
+    end
+  end
+
   # bypass_dedup: true simulates a legacy WorkUnit row that predates the
   # active_dedup_key uniqueness guarantee , for specs that
   # deliberately attach more than one active work unit for the same

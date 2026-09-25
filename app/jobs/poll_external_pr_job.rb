@@ -60,6 +60,8 @@ class PollExternalPrJob < ApplicationJob
 
   def react_to_review_state(reviews)
     if changes_requested?(reviews)
+      return if ExternalPrReviewRecovery.call(job: @job, pr: @pr, client: @client, reviews: reviews)
+
       @job.set_needs_attention!(reason: "upstream_pr_changes_requested")
     elsif @job.needs_attention_reason == "upstream_pr_changes_requested"
       @job.clear_needs_attention!

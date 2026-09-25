@@ -432,7 +432,23 @@ Agentic. Used inside `coding_handoff`'s `adversarial_review`/`visual_review` loo
 
 Agentic. A focused repair step inside `auto_merge` and `merge_train` workflows. Runs only after final graders fail on the exact PR branch being landed; successful repairs are pushed before the merge API call.
 
-A `landing_fix` turn that legitimately finds nothing to fix does not fail the workflow. If the agent investigates the failing graders and confirms (by filing `report_main_concern` for this exact Run) that the failure was not caused by the code it is landing, a resulting no-diff turn is treated as the step's normal outcome instead of raising `Steps::Base::NoChangesProduced` (`Steps::Base#no_changes_confirmed_not_broken?`, overridden in `Steps::LandingFix`) — the loop proceeds straight to another `grader_fanout`/`grader_collect` check iteration instead of hard-failing the landing attempt on a diagnosis it already trusts. This does not apply to agentic steps in general (e.g. a bare `implement`/`respond` producing no diff is still `NoChangesProduced`) — only to a step whose job is repairing one specific, already-diagnosed grader failure.
+A `landing_fix` turn that legitimately finds nothing to fix does not fail the
+workflow. If the agent investigates the failing graders and confirms (by
+filing `report_main_concern` during this `landing_fix` repair lineage) that
+the failure was not caused by the code it is landing, a later no-diff turn in
+that same lineage is treated as the step's normal outcome instead of raising
+`Steps::Base::NoChangesProduced` (`Steps::Base#no_changes_confirmed_not_broken?`,
+overridden in `Steps::LandingFix`) -- the loop proceeds straight to another
+`grader_fanout`/`grader_collect` check iteration instead of hard-failing the
+landing attempt on a diagnosis it already trusts. The accepted report scope is
+intentionally narrow: same workflow, same retry loop id, same step kind, and
+the current or an earlier iteration. The agent does not need to re-file the
+same concern on every resumed no-op run. This no-diff guard is separate from
+`grader_collect`'s evidence-based dismissal below, which still requires a
+same-iteration report plus an independent base-revision retry. This does not
+apply to agentic steps in general (e.g. a bare `implement`/`respond` producing
+no diff is still `NoChangesProduced`) -- only to a step whose job is repairing
+one specific, already-diagnosed grader failure.
 
 ### manual
 

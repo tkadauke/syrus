@@ -1,3 +1,4 @@
+require "digest"
 require "shellwords"
 
 module Ruby
@@ -31,13 +32,29 @@ module Ruby
       bundler_env = 'BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle"'
       args = explicit_rspec_tag_args
       rspec_args = args.present? ? Shellwords.join([ *args, *files ]) : "#{ci_only_tag_args} #{Shellwords.join(files)}"
-      "(#{bundler_env} bundle check || #{bundler_env} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && RAILS_ENV=test #{ci_only_env} COVERAGE=false #{bundler_env} bundle exec rspec #{rspec_args}"
+      "export RAILS_ENV=test #{ci_only_env} COVERAGE=false TEST_ENV_NUMBER=${TEST_ENV_NUMBER:-#{test_env_number(files)}}; " \
+        "(#{bundler_env} bundle check || #{bundler_env} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && " \
+        "#{rails_prepare_command} #{bundler_env} #{rspec_command} #{rspec_args}"
     end
 
     private
 
     def rspec_grader?
       @grader_name.include?("rspec") || @grader_command.match?(/\brspec\b/)
+    end
+
+    def rspec_command
+      return "bin/rspec-worker" if @grader_command.match?(/\bbin\/rspec-worker\b/)
+
+      "bundle exec rspec"
+    end
+
+    def rails_prepare_command
+      "if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi &&"
+    end
+
+    def test_env_number(files)
+      "_syrus_flaky_#{Digest::SHA1.hexdigest(([@grader_name] + files).join("\0"))[0, 8]}"
     end
 
     def failed_spec_files

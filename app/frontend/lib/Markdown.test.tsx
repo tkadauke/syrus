@@ -53,6 +53,27 @@ describe("Markdown", () => {
     expect(container.querySelector("pre code")).toHaveTextContent("const enabled = true")
   })
 
+  it("renders strong emphasis that spans a soft-broken source line", () => {
+    const { container } = render(
+      <Markdown text={"## 4. Open-core boundary\n\n**Decision: OSS ships mechanism, including good isolation. Commercial ships\ntenancy.**\n\nIsolation is commodity."} />
+    )
+
+    const strong = container.querySelector("p strong")
+    expect(screen.getByRole("heading", { level: 2, name: "4. Open-core boundary" })).toBeInTheDocument()
+    expect(strong).toHaveTextContent("Decision: OSS ships mechanism, including good isolation. Commercial ships tenancy.")
+    expect(container.textContent).not.toContain("**Decision")
+    expect(container.textContent).not.toContain("tenancy.**")
+  })
+
+  it("keeps ordinary emphasis working and unmatched strong markers inert", () => {
+    const { container } = render(<Markdown text={"Plain **bold** and *italic*. This **never closes."} />)
+
+    expect(screen.getByText("bold").tagName).toBe("STRONG")
+    expect(screen.getByText("italic").tagName).toBe("EM")
+    expect(container).toHaveTextContent("This **never closes.")
+    expect(container.querySelectorAll("strong")).toHaveLength(1)
+  })
+
   it("keeps raw HTML as inert text", () => {
     const { container } = render(<Markdown text={"Hello <script>alert('x')</script> **friend**"} />)
 
