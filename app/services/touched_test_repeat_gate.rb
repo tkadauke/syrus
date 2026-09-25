@@ -147,7 +147,7 @@ class TouchedTestRepeatGate
   end
 
   def repeat_env
-    @env.key?("RAILS_ENV") ? @env : @env.merge("RAILS_ENV" => "test")
+    @env.merge("RAILS_ENV" => "test")
   end
 
   def grader_name = @grader_step.details.to_h["name"].to_s
