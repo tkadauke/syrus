@@ -233,6 +233,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
         <div className={`grid min-h-0 gap-4 ${showDesktopInlineFolders ? "lg:grid-cols-[16rem_minmax(0,1fr)]" : "grid-cols-1"}`}>
           {showDesktopInlineFolders ? smartFolders : null}
           <DesignDocsIndexTable
+            constrainedColumns={showDesktopInlineFolders}
             controls={indexQuery.data?.controls ?? null}
             docs={docs}
             loading={docsLoading}
@@ -338,7 +339,8 @@ function DesignDocsColumnsMenu({ controls, preferences }: {
   )
 }
 
-function DesignDocsIndexTable({ controls, docs, loading, onSelect, prefix, preferences, sort }: {
+function DesignDocsIndexTable({ constrainedColumns, controls, docs, loading, onSelect, prefix, preferences, sort }: {
+  constrainedColumns: boolean
   controls: RepositoryDesignDocsPayload["controls"] | null
   docs: DesignDocSummary[]
   loading: boolean
@@ -351,7 +353,7 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, prefix, prefe
   const isDesktop = useMediaQuery("(min-width: 768px)", true)
   const requiredColumns = controls?.columns.required ?? [{ key: "title", title: t("columns.title") }]
   const optionalColumns = controls?.columns.optional ?? defaultDesignDocOptionalColumns(t)
-  const columns = designDocColumnDefinitions({ onSelect, optionalColumns, prefix, requiredColumns, t })
+  const columns = designDocColumnDefinitions({ constrained: constrainedColumns, onSelect, optionalColumns, prefix, requiredColumns, t })
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -441,7 +443,8 @@ function defaultDesignDocOptionalColumns(t: DesignDocT) {
   ]
 }
 
-function designDocColumnDefinitions({ onSelect, optionalColumns, prefix, requiredColumns, t }: {
+function designDocColumnDefinitions({ constrained, onSelect, optionalColumns, prefix, requiredColumns, t }: {
+  constrained?: boolean
   onSelect: (id: number) => void
   optionalColumns: DesignDocColumnOption[]
   prefix: string
@@ -455,7 +458,7 @@ function designDocColumnDefinitions({ onSelect, optionalColumns, prefix, require
       label: column.title,
       required: requiredColumns.some((required) => required.key === column.key),
       sortKey: designDocSortKey(column.key),
-      responsiveClassName: designDocColumnResponsiveClass(column.key),
+      responsiveClassName: designDocColumnResponsiveClass(column.key, constrained),
       headClassName: designDocColumnWidth(column.key),
       cellClassName: `${designDocColumnWidth(column.key)} align-top`,
       renderCell: (doc) => designDocCellContent(column.key, doc, onSelect, prefix, t)
@@ -554,11 +557,19 @@ function designDocColumnWidth(column: string) {
   }[column] ?? ""
 }
 
-function designDocColumnResponsiveClass(column: string) {
-  return {
+function designDocColumnResponsiveClass(column: string, constrained = false) {
+  const constrainedColumns: Record<string, string> = {
+    repository: "hidden 2xl:table-cell",
+    owner: "hidden 2xl:table-cell",
     collaborators: "hidden 2xl:table-cell",
     latest_version: "hidden 2xl:table-cell"
-  }[column]
+  }
+  const defaultColumns: Record<string, string> = {
+    collaborators: "hidden 2xl:table-cell",
+    latest_version: "hidden 2xl:table-cell"
+  }
+
+  return (constrained ? constrainedColumns : defaultColumns)[column]
 }
 
 const DEFAULT_DESIGN_DOC_SORT: DesignDocSort = { column: "updated_at", direction: "desc" }

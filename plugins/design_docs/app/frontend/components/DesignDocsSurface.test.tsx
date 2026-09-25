@@ -1147,6 +1147,8 @@ describe("DesignDocsSurface", () => {
     const repositoryHeader = await screen.findByRole("columnheader", { name: "Repository" })
     const ownerHeader = screen.getByRole("columnheader", { name: "Owner" })
     const transfer = dataTransfer()
+    expect(repositoryHeader).toHaveClass("hidden")
+    expect(repositoryHeader).toHaveClass("2xl:table-cell")
 
     fireEvent.dragStart(repositoryHeader, { dataTransfer: transfer })
     fireEvent.dragOver(ownerHeader, { dataTransfer: transfer })

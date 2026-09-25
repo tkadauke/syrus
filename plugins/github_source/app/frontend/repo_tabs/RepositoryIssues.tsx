@@ -253,21 +253,6 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
               </div>
             ) : null}
 
-            <div className="flex justify-end">
-              <DataTableColumnMenu
-                columns={columns}
-                downLabel={t("repository.column_down")}
-                menuId="repository-issues-columns-menu"
-                moveDownLabel={(title) => t("repository.column_move_down", { title })}
-                moveUpLabel={(title) => t("repository.column_move_up", { title })}
-                onChange={preferences.onChange}
-                order={preferences.order}
-                triggerAriaLabel={t("repository.columns")}
-                upLabel={t("repository.column_up")}
-                visibleLabel={t("repository.visible_columns")}
-              />
-            </div>
-
             <DataTable.Root wrapperClassName="mt-3">
               <DataTable.Header>
                 <DataTableColumnHeaderRow
