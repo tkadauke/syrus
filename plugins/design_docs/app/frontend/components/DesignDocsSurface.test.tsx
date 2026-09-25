@@ -534,6 +534,20 @@ function mockMobileViewport() {
   })
 }
 
+function docWithMarkdown(markdown: string, overrides: Partial<typeof docDetail> = {}) {
+  return {
+    ...docDetail,
+    markdown,
+    rendered_markdown: markdown,
+    preview_text: markdown,
+    threads: [],
+    suggestions: [],
+    open_threads_count: 0,
+    pending_suggestions_count: 0,
+    ...overrides
+  }
+}
+
 function docWithSuggestion(markdown: string, proposedMarkdown: string, originalMarkdown = markdown) {
   return {
     ...docDetail,
@@ -711,6 +725,61 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByRole("toolbar", { name: "Formatting toolbar" })).toBeInTheDocument()
     expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
     expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/1")
+  })
+
+  it("renders soft-wrapped Markdown paragraph lines as flowing Rich Text while keeping source-offset highlights", async () => {
+    const markdown = "first line\nsecond line"
+    const selected = "second"
+    const start = markdown.indexOf(selected)
+    const thread = {
+      ...docDetail.threads[0],
+      id: 70,
+      anchor: {
+        ...docDetail.threads[0].anchor,
+        start_offset: start,
+        end_offset: start + selected.length,
+        last_known_start_offset: start,
+        last_known_end_offset: start + selected.length,
+        selected_markdown: selected,
+        selected_text: selected
+      }
+    }
+
+    mockFetch(docWithMarkdown(markdown, { threads: [thread], open_threads_count: 1 }))
+    renderSurface("/design_docs/1")
+
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const paragraph = editor.querySelector("p")
+    expect(paragraph).toHaveTextContent("first line second line")
+    expect(paragraph?.querySelector("br")).toBeNull()
+    expect(paragraph?.querySelector("mark[data-thread-id='70']")).toHaveTextContent(selected)
+  })
+
+  it("renders soft-wrapped Markdown paragraph lines as flowing read-only content on narrow view", async () => {
+    mockMobileViewport()
+    mockFetch(docWithMarkdown("first line\nsecond line"))
+    renderSurface("/design_docs/1")
+
+    const body = await screen.findByRole("region", { name: "Design doc content" })
+    const paragraph = body.querySelector("p")
+    expect(paragraph).toHaveTextContent("first line second line")
+    expect(paragraph?.querySelector("br")).toBeNull()
+  })
+
+  it("preserves explicit Markdown hard breaks in Rich Text paragraphs", async () => {
+    const markdown = [
+      "first line  ",
+      "second line\\",
+      "third line",
+      "fourth line"
+    ].join("\n")
+    mockFetch(docWithMarkdown(markdown))
+    renderSurface("/design_docs/1")
+
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const paragraph = editor.querySelector("p")
+    expect(paragraph?.querySelectorAll("br")).toHaveLength(2)
+    expect(paragraph).toHaveTextContent("first linesecond linethird line fourth line")
   })
 
   it("toggles the bottom-docked comment drawer between collapsed and expanded on a narrow viewport", async () => {
