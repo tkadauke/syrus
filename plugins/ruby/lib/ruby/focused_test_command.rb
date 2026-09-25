@@ -10,6 +10,7 @@ module Ruby
 
     def self.prepare_command_for(grader_name:, grader_command:)
       return nil unless grader_name.to_s.include?("rspec") || grader_command.to_s.match?(/\brspec\b/)
+      return nil if grader_command.to_s.match?(/\bdb:test:prepare\b/)
 
       "if [ -x bin/rails ] && [ -f config/database.yml ]; then RAILS_ENV=test bin/rails db:test:prepare; fi"
     end
@@ -28,7 +29,7 @@ module Ruby
       files = failed_spec_files
       return nil if files.empty?
 
-      "RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag #{Shellwords.escape('~ci_only')} #{Shellwords.join(files)}"
+      "RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag #{Shellwords.escape('~ci_only')} #{Shellwords.join(files)}"
     end
 
     private

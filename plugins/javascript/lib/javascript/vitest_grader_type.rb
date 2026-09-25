@@ -234,7 +234,7 @@ module JavaScript
 
     def focused_command
       <<~BASH
-        #{setup_prefix} &&
+        #{setup_prefix(include_typecheck: false)} &&
         ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/vitest-focused-files &&
         if [ ! -s .syrus/vitest-focused-files ]; then echo "No focused Vitest files matched changed JavaScript/TypeScript files"; exit 0; fi &&
         #{vitest_command(junit_output: junit_output(focused_name), coverage: false, include_typecheck: false, args: [ "related", "--run", "--passWithNoTests", "$(cat .syrus/vitest-focused-files)" ], shell_expand_args: true, skip_setup: true)}
@@ -253,15 +253,21 @@ module JavaScript
         #{typecheck_command(include_typecheck)}
         run_vitest #{static_args}#{coverage_args} --maxWorkers #{max_workers} --reporter=default --reporter=junit --outputFile.junit=#{junit}
       BASH
-      skip_setup ? command : "#{setup_prefix} && #{command}"
+      skip_setup ? command : "#{setup_prefix(include_typecheck: include_typecheck)} && #{command}"
     end
 
-    def setup_prefix
+    def setup_prefix(include_typecheck:)
       <<~BASH.squish
+        typecheck_uses_tsc() {
+          [ -f package.json ] && node -e 'const s=(require("./package.json").scripts||{}).typecheck||""; process.exit(/(^|[\\s;&|()])tsc([\\s;&|()]|$)/.test(s) ? 0 : 1)' >/dev/null 2>&1;
+        };
+        typecheck_bin_ready() {
+          ! typecheck_uses_tsc || [ -x node_modules/.bin/tsc ];
+        };
         if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile;
         elif [ -f yarn.lock ]; then yarn install --frozen-lockfile;
         elif [ -f package-lock.json ]; then npm ci;
-        elif [ ! -d node_modules ]; then npm install;
+        elif #{npm_install_needed_without_lock(include_typecheck)}; then npm install;
         fi;
         run_package_script() {
           if [ -f pnpm-lock.yaml ]; then pnpm run "$@";
@@ -275,6 +281,12 @@ module JavaScript
           fi
         }
       BASH
+    end
+
+    def npm_install_needed_without_lock(include_typecheck)
+      return "[ ! -x node_modules/.bin/vitest ]" unless include_typecheck
+
+      "[ ! -x node_modules/.bin/vitest ] || ! typecheck_bin_ready"
     end
 
     def typecheck_command(include_typecheck)
