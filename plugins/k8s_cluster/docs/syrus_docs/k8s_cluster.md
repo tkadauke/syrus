@@ -259,7 +259,9 @@ mirroring `mysql_db_browser`'s connections-list-to-schema-browser flow:
 - **Overview** - node count and ready/not-ready status (from `Nodes#list`)
   plus aggregate node/pod CPU and memory (from `Overview#call`), with a
   graceful "metrics unavailable" message per section instead of an error
-  when `metrics.k8s.io` isn't installed.
+  when `metrics.k8s.io` isn't installed. Also lists namespaces (from
+  `Namespaces#list`) with status and age, since namespaces otherwise appear
+  only in the namespace-filter dropdown and would have no clickable row.
 - **Workloads** - a workload-kind switcher
   (Pods/Deployments/StatefulSets/DaemonSets/Jobs/CronJobs) over
   the shared namespace filter, with status/ready/restart-count (pods),
@@ -311,6 +313,21 @@ pod/container pickers all use the same toolbar dropdown control
 convention for small fixed-choice toolbar controls - never a native
 `<select>` for this kind of in-page switcher. All frontend strings are
 translated across `en`/`de`/`la` (`app/frontend/i18n/locales/*/k8s_cluster.json`).
+
+Clicking any row (pods, deployments, StatefulSets, DaemonSets, Jobs,
+CronJobs, services, ingresses, ConfigMaps, Secrets, PVCs, nodes, namespaces)
+opens one shared read-only detail drawer
+(`components/ResourceDetailDrawer.tsx`, driven by `useResourceDetail` in each
+tab). The drawer shows key fields taken from the clicked row plus a read-only
+YAML view of the full describe object, fetched through the describe fetchers
+in `api/kubernetesResources.ts` - the same list routes with `?name=` (plus
+`?namespace=` for namespace-scoped kinds) that previously no UI called. The
+YAML is rendered by a small dependency-free serializer (`lib/toYaml.ts`)
+covering the plain-JSON subset the describe endpoints return. Secret detail
+stays redacted by construction: the backend describe returns the metadata
+summary only, never values. The drawer has loading/error states, closes via
+its close button, backdrop click, or Escape, and never issues anything but
+the describe GET - no editing, no apply.
 
 ## Agentic access
 
