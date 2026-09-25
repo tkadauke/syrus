@@ -106,7 +106,7 @@ describe("DataTable column primitive integration", () => {
     const { unmount } = render(<Harness />)
 
     const nameHeader = screen.getByRole("columnheader", { name: /Job/ })
-    const ownerHeader = screen.getByRole("columnheader", { name: "Owner" })
+    const ownerHeader = screen.getByRole("columnheader", { name: /Owner/ })
     const transfer = dataTransfer()
 
     fireEvent.dragStart(nameHeader, { dataTransfer: transfer })
@@ -114,7 +114,7 @@ describe("DataTable column primitive integration", () => {
     fireEvent.drop(ownerHeader, { dataTransfer: transfer })
 
     const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent)
-    expect(headers).toEqual([ "Select", "State", "Owner", "Job-", "Actions" ])
+    expect(headers).toEqual([ "Select", "State", "Owner", "Job", "Actions" ])
 
     const rows = screen.getAllByRole("row").slice(1)
     const firstRowCells = within(rows[0]).getAllByRole("cell").map((cell) => cell.textContent)
@@ -125,14 +125,14 @@ describe("DataTable column primitive integration", () => {
     unmount()
     render(<Harness />)
     const headersAfterRemount = screen.getAllByRole("columnheader").map((cell) => cell.textContent)
-    expect(headersAfterRemount).toEqual([ "Select", "State", "Owner", "Job-", "Actions" ])
+    expect(headersAfterRemount).toEqual([ "Select", "State", "Owner", "Job", "Actions" ])
   })
 
   it("keeps sortable-header clicks working after wiring drag reordering on top", () => {
     let sortedBy: string | null = null
     render(<Harness onSort={(key) => { sortedBy = key }} />)
 
-    fireEvent.click(screen.getByRole("button", { name: /Job/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Sort by Job ascending" }))
     expect(sortedBy).toBe("name")
   })
 })

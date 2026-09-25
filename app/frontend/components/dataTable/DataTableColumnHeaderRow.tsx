@@ -48,14 +48,15 @@ export function DataTableColumnHeaderRow<TRow>({
     <DataTable.Row {...rowProps}>
       {visible.map((column) => {
         const draggable = !column.required && !reorderDisabled && Boolean(onReorder)
+        const sortKey = columnSortKey(column)
         return (
           <DataTable.HeadCell
             align={column.align}
             className={classes(column.responsiveClassName, column.headClassName, dragOverKey === column.key && "outline outline-2 -outline-offset-2 outline-brand")}
             key={column.key}
-            onSort={column.sortKey && onSort ? () => onSort(column.sortKey!) : undefined}
-            sortDirection={column.sortKey && sortColumn === column.sortKey ? sortDirection : "none"}
-            sortable={Boolean(column.sortKey)}
+            onSort={sortKey && onSort ? () => onSort(sortKey) : undefined}
+            sortDirection={sortKey && sortColumn === sortKey ? sortDirection : "none"}
+            sortable={Boolean(sortKey && onSort)}
             {...(draggable ? dragProps(column.key) : {})}
           >
             {column.renderHeader ? column.renderHeader() : column.label}
@@ -64,6 +65,14 @@ export function DataTableColumnHeaderRow<TRow>({
       })}
     </DataTable.Row>
   )
+}
+
+function columnSortKey<TRow>(column: DataTableColumnDef<TRow>) {
+  if (column.sortable === false) return null
+  if (column.sortKey) return column.sortKey
+  if (column.required) return null
+
+  return column.key
 }
 
 // Renders the body cells for one row, using the same column ordering

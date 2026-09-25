@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react"
+import { createContext, isValidElement, useContext } from "react"
 import type { HTMLAttributes, TableHTMLAttributes, TdHTMLAttributes, ThHTMLAttributes } from "react"
 import { classes } from "./classes"
 
@@ -20,6 +20,7 @@ export interface DataTableHeadCellProps extends ThHTMLAttributes<HTMLTableCellEl
   align?: DataTableAlign
   checkbox?: boolean
   onSort?: () => void
+  sortLabel?: string
   sortDirection?: DataTableSortDirection
   sortable?: boolean
 }
@@ -86,10 +87,25 @@ function Row({ className = "", groupHeader = false, interactive = false, ...prop
   )
 }
 
-function sortAffordance(sortDirection: DataTableSortDirection) {
-  if (sortDirection === "ascending") return "^"
-  if (sortDirection === "descending") return "v"
-  return "-"
+function sortIndicator(sortDirection: DataTableSortDirection) {
+  if (sortDirection === "ascending") return "↑"
+  if (sortDirection === "descending") return "↓"
+  return null
+}
+
+function nextSortDirection(sortDirection: DataTableSortDirection) {
+  return sortDirection === "ascending" ? "descending" : "ascending"
+}
+
+function textLabel(children: DataTableHeadCellProps["children"]): string | null {
+  if (typeof children === "string" || typeof children === "number") return String(children)
+  if (Array.isArray(children)) {
+    const parts = children.map((child): string | null => textLabel(child)).filter((part): part is string => Boolean(part))
+    return parts.length > 0 ? parts.join(" ") : null
+  }
+  if (isValidElement<{ children?: DataTableHeadCellProps["children"] }>(children)) return textLabel(children.props.children)
+
+  return null
 }
 
 function HeadCell({
@@ -99,15 +115,19 @@ function HeadCell({
   className = "",
   onSort,
   scope = "col",
+  sortLabel,
   sortDirection = "none",
   sortable = false,
   ...props
 }: DataTableHeadCellProps) {
   const isSortable = sortable || Boolean(onSort)
+  const indicator = isSortable ? sortIndicator(sortDirection) : null
+  const accessibleSortLabel = sortLabel ?? textLabel(children) ?? "column"
+  const buttonLabel = `Sort by ${accessibleSortLabel} ${nextSortDirection(sortDirection)}`
   const sortableContent = (
     <span className={classes("inline-flex items-center gap-1.5", align === "right" && "justify-end", align === "center" && "justify-center")}>
       <span>{children}</span>
-      {isSortable ? <span aria-hidden="true" className="text-text-subtle">{sortAffordance(sortDirection)}</span> : null}
+      {indicator ? <span aria-hidden="true" className="text-2xs leading-none text-text-subtle">{indicator}</span> : null}
     </span>
   )
 
@@ -124,7 +144,7 @@ function HeadCell({
       {...props}
     >
       {onSort ? (
-        <button className={classes("w-full text-[length:var(--text-caption)] font-medium uppercase tracking-wide text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2", ALIGN_CLASSES[align])} onClick={onSort} type="button">
+        <button aria-label={buttonLabel} className={classes("w-full text-[length:var(--text-caption)] font-medium uppercase tracking-wide text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2", ALIGN_CLASSES[align])} onClick={onSort} type="button">
           {sortableContent}
         </button>
       ) : sortableContent}

@@ -101,6 +101,7 @@ function buildRepositoryColumns({
       key: "github_owner",
       label: t("repositories.col_github_owner"),
       cellClassName: "font-mono text-xs text-text-secondary",
+      sortable: false,
       renderCell: (repository) => repository.owner
     },
     {
@@ -118,29 +119,34 @@ function buildRepositoryColumns({
     {
       key: "health",
       label: t("repositories.col_health"),
+      sortable: false,
       renderCell: (repository) => <RepositoryHealthPill health={repository.main_health} />
     },
     {
       key: "agent",
       label: t("repositories.col_agent"),
+      sortable: false,
       renderCell: (repository) => repository.agent_provider_label
     },
     {
       key: "polling_status",
       label: t("repositories.col_polling"),
       defaultVisible: false,
+      sortable: false,
       renderCell: (repository) => <PollingPill enabled={repository.polling_enabled} />
     },
     {
       key: "last_poll",
       label: t("repositories.col_last_poll"),
       defaultVisible: false,
+      sortable: false,
       renderCell: (repository) => <LastPoll repository={repository} />
     },
     {
       key: "trigger_label",
       label: t("repositories.col_trigger_label"),
       defaultVisible: false,
+      sortable: false,
       renderCell: (repository) => <code className="rounded bg-surface-subtle px-1 text-xs">{repository.trigger_label}</code>
     },
     {
@@ -148,6 +154,7 @@ function buildRepositoryColumns({
       label: t("repositories.col_default_branch"),
       defaultVisible: false,
       cellClassName: "font-mono text-xs text-text-secondary",
+      sortable: false,
       renderCell: (repository) => repository.default_branch
     },
     {
@@ -155,6 +162,7 @@ function buildRepositoryColumns({
       label: t("repositories.syrus_owner"),
       defaultVisible: false,
       cellClassName: "text-xs text-text-secondary",
+      sortable: false,
       renderCell: (repository) => repository.owner_user.email_address
     },
     {
@@ -162,6 +170,7 @@ function buildRepositoryColumns({
       label: t("repositories.col_upstream_slug"),
       defaultVisible: false,
       cellClassName: "font-mono text-xs text-text-secondary",
+      sortable: false,
       renderCell: (repository) =>
         repository.upstream_slug ? `${repository.upstream_slug}${repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}` : "-"
     },

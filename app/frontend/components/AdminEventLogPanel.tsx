@@ -189,7 +189,8 @@ export function AdminEventLogTable<Row>({
         },
         renderHeader: () => column.header,
         required: column.required,
-        sortKey: column.sort
+        sortKey: column.sort,
+        sortable: Boolean(column.sort)
       })),
     [columns, expandedKey, getRowKey]
   )

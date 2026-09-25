@@ -67,11 +67,47 @@ describe("DataTable", () => {
 
     const header = screen.getByRole("columnheader", { name: /Created/ })
     expect(header).toHaveAttribute("aria-sort", "ascending")
-    expect(header.textContent).toContain("^")
-    expect(screen.getByRole("button", { name: "Created" })).toBeInTheDocument()
+    expect(header.textContent).toContain("↑")
+    expect(header.textContent).not.toContain("^")
+    expect(screen.getByRole("button", { name: "Sort by Created descending" })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: /Created/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Sort by Created descending" }))
     expect(onSort).toHaveBeenCalled()
+  })
+
+  it("renders descending sortable headers with the dashboard-style active indicator", () => {
+    render(
+      <DataTable.Root aria-label="Jobs">
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell onSort={vi.fn()} sortDirection="descending">Updated</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+      </DataTable.Root>
+    )
+
+    const header = screen.getByRole("columnheader", { name: /Updated/ })
+    expect(header).toHaveAttribute("aria-sort", "descending")
+    expect(header.textContent).toContain("↓")
+    expect(header.textContent).not.toContain("v")
+    expect(screen.getByRole("button", { name: "Sort by Updated ascending" })).toBeInTheDocument()
+  })
+
+  it("renders inactive sortable headers without literal placeholder indicators", () => {
+    render(
+      <DataTable.Root aria-label="Jobs">
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell onSort={vi.fn()} sortDirection="none">Status</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+      </DataTable.Root>
+    )
+
+    const header = screen.getByRole("columnheader", { name: /Status/ })
+    expect(header).toHaveAttribute("aria-sort", "none")
+    expect(header.textContent).toBe("Status")
+    expect(screen.getByRole("button", { name: "Sort by Status ascending" })).toBeInTheDocument()
   })
 
   it("keeps inactive sortable headers semantic without adding a button when no sort handler is present", () => {

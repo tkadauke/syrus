@@ -16,7 +16,7 @@ const SELECT: DataTableColumnDef<Row> = {
   required: true
 }
 const NAME: DataTableColumnDef<Row> = { key: "name", label: "Name", renderCell: (row) => row.name, sortKey: "name" }
-const STATUS: DataTableColumnDef<Row> = { key: "status", label: "Status", renderCell: () => "Running" }
+const STATUS: DataTableColumnDef<Row> = { key: "status", label: "Status", renderCell: () => "Running", sortable: false }
 const OWNER: DataTableColumnDef<Row> = { key: "owner", label: "Owner", renderCell: () => "Alice" }
 const ACTIONS: DataTableColumnDef<Row> = {
   key: "actions",
@@ -69,8 +69,55 @@ describe("DataTableColumnHeaderRow / DataTableColumnCells", () => {
   it("preserves sortable-header click behavior", () => {
     const { onSort } = renderTable()
 
-    fireEvent.click(screen.getByRole("button", { name: /Name/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Sort by Name ascending" }))
     expect(onSort).toHaveBeenCalledWith("name")
+  })
+
+  it("defaults optional data columns to sortable by key", () => {
+    const { onSort } = renderTable()
+
+    fireEvent.click(screen.getByRole("button", { name: "Sort by Owner ascending" }))
+    expect(onSort).toHaveBeenCalledWith("owner")
+  })
+
+  it("renders ascending and descending active sort state", () => {
+    const { rerender } = render(
+      <DataTable.Root aria-label="Jobs">
+        <DataTable.Header>
+          <DataTableColumnHeaderRow columns={COLUMNS} onSort={vi.fn()} order={[ "name", "status", "owner" ]} sortColumn="name" sortDirection="ascending" />
+        </DataTable.Header>
+      </DataTable.Root>
+    )
+
+    expect(screen.getByRole("columnheader", { name: /Name/ })).toHaveAttribute("aria-sort", "ascending")
+    expect(screen.getByRole("columnheader", { name: /Name/ }).textContent).toContain("↑")
+
+    rerender(
+      <DataTable.Root aria-label="Jobs">
+        <DataTable.Header>
+          <DataTableColumnHeaderRow columns={COLUMNS} onSort={vi.fn()} order={[ "name", "status", "owner" ]} sortColumn="owner" sortDirection="descending" />
+        </DataTable.Header>
+      </DataTable.Root>
+    )
+
+    expect(screen.getByRole("columnheader", { name: /Owner/ })).toHaveAttribute("aria-sort", "descending")
+    expect(screen.getByRole("columnheader", { name: /Owner/ }).textContent).toContain("↓")
+  })
+
+  it("renders unsorted sortable headers without a literal placeholder indicator", () => {
+    renderTable()
+
+    const nameHeader = screen.getByRole("columnheader", { name: /Name/ })
+    expect(nameHeader).toHaveAttribute("aria-sort", "none")
+    expect(nameHeader.textContent).toBe("Name")
+  })
+
+  it("keeps documented non-sortable columns disabled", () => {
+    renderTable()
+
+    const statusHeader = screen.getByRole("columnheader", { name: "Status" })
+    expect(statusHeader).not.toHaveAttribute("aria-sort")
+    expect(screen.queryByRole("button", { name: /Status/ })).not.toBeInTheDocument()
   })
 
   it("does not attach drag handlers to a required column's header", () => {
@@ -86,21 +133,21 @@ describe("DataTableColumnHeaderRow / DataTableColumnCells", () => {
     renderTable()
 
     const nameHeader = screen.getByRole("columnheader", { name: /Name/ })
-    const ownerHeader = screen.getByRole("columnheader", { name: "Owner" })
+    const ownerHeader = screen.getByRole("columnheader", { name: /Owner/ })
     const transfer = dataTransfer()
 
     fireEvent.dragStart(nameHeader, { dataTransfer: transfer })
     fireEvent.dragOver(ownerHeader, { dataTransfer: transfer })
 
     const headersAfterDrag = screen.getAllByRole("columnheader").map((cell) => cell.textContent)
-    expect(headersAfterDrag).toEqual([ "Select", "Status", "Owner", "Name-", "Actions" ])
+    expect(headersAfterDrag).toEqual([ "Select", "Status", "Owner", "Name", "Actions" ])
   })
 
   it("commits the reorder once on drop and updates both header and body cell order", () => {
     const { onReorder } = renderTable()
 
     const nameHeader = screen.getByRole("columnheader", { name: /Name/ })
-    const ownerHeader = screen.getByRole("columnheader", { name: "Owner" })
+    const ownerHeader = screen.getByRole("columnheader", { name: /Owner/ })
     const transfer = dataTransfer()
 
     fireEvent.dragStart(nameHeader, { dataTransfer: transfer })

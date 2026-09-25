@@ -21,9 +21,12 @@ export interface DataTableColumnDef<TRow> {
   // Defaults to visible.
   defaultVisible?: boolean
   align?: DataTableAlign
-  // Present only on columns a caller can sort by; absent renders a
-  // non-interactive header even when adjacent columns are sortable.
+  // Optional data columns default to sorting by their `key` when the table
+  // wires an onSort handler. Set `sortable: false` for documented exceptions
+  // such as action columns, or provide `sortKey` when the server/API uses a
+  // different field name.
   sortKey?: string
+  sortable?: boolean
   // Applied to both the head cell and the body cells so a column can hide
   // itself responsively (e.g. "hidden lg:table-cell") without the header
   // and its cells drifting out of sync.
