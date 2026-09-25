@@ -12,6 +12,16 @@ module AgentMemory
       Tools::ListMemoriesTool
     ].freeze
 
+    MUTATION_TOOL_CLASSES = [
+      Tools::WriteMemoryTool,
+      Tools::DeleteMemoryTool
+    ].freeze
+
+    REVIEWER_ROLES = [
+      AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
+      AgentRole::WORKFLOW_VISUAL_REVIEWER
+    ].freeze
+
     # Chat gets the workflow set plus sharing controls and, for admins, the
     # audit history.
     CHAT_TOOL_CLASSES = {
@@ -27,8 +37,12 @@ module AgentMemory
 
     def self.available_for?(_repository) = AgentMemory.enabled?
 
+    def self.available_for_context?(context)
+      AgentMemory.enabled? && handler_classes(context: context).any?
+    end
+
     def self.tool_definitions(context: nil)
-      TOOL_CLASSES.map { |klass| definition_for(klass) }
+      handler_classes(context: context).map { |klass| definition_for(klass) }
     end
 
     def self.definition_for(klass)
@@ -39,10 +53,16 @@ module AgentMemory
       }
     end
 
-    def self.handler_classes = TOOL_CLASSES
+    def self.handler_classes(context: nil)
+      return TOOL_CLASSES if context.nil?
+      return TOOL_CLASSES - MUTATION_TOOL_CLASSES if REVIEWER_ROLES.include?(context.role)
+
+      TOOL_CLASSES
+    end
 
     def handle(tool_name, params, server_context)
-      klass = self.class.handler_classes.find { |candidate| candidate.tool_name == tool_name.to_s }
+      context = McpToolContext.from_server_context(server_context)
+      klass = self.class.handler_classes(context: context).find { |candidate| candidate.tool_name == tool_name.to_s }
       unless klass
         return MCP::Tool::Response.new([ { type: "text", text: "Unknown Agent Memory tool: #{tool_name.inspect}" } ], error: true)
       end
