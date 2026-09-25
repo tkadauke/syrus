@@ -252,6 +252,13 @@
   "logs_loading": "Loading logs…",
   "logs_error_loading": "Unable to load logs.",
   "logs_empty": "No log output.",
+  "logs_tail_lines_label": "Lines",
+  "logs_previous_label": "Previous container",
+  "logs_timestamps_label": "Show timestamps",
+  "logs_follow_label": "Follow",
+  "logs_search_label": "Search logs",
+  "logs_search_placeholder": "Search logs…",
+  "logs_search_no_matches": "No log lines match the current search.",
 
   "live_pod_status": "Pod status",
   "live_recent_events": "Recent events",
