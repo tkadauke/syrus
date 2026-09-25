@@ -44,6 +44,19 @@ RSpec.describe RunHeartbeat do
     expect(run.reload.last_heartbeat_at).to eq(Time.zone.parse("2026-08-20T12:00:59Z"))
   end
 
+  it "keeps heartbeating while a blocking operation is in progress" do
+    run = create_running_run(last_heartbeat_at: nil)
+    allow(described_class).to receive(:touch).and_call_original
+
+    result = described_class.during(run, interval: 0.01.seconds) do
+      sleep 0.035
+      :published
+    end
+
+    expect(result).to eq(:published)
+    expect(described_class).to have_received(:touch).with(run, force: true).at_least(3).times
+  end
+
   def create_running_run(last_heartbeat_at:)
     job = Factories.job_record
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

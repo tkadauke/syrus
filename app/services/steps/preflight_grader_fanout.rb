@@ -230,14 +230,16 @@ module Steps
         return false
       end
 
-      PreparedWorkspaceArchive.publish!(
-        workflow: workflow,
-        snapshot: source_snapshot,
-        step: step,
-        path: workspace.path,
-        plan: plan,
-        log: ->(message, **_kwargs) { log(message) }
-      )
+      with_run_heartbeat do
+        PreparedWorkspaceArchive.publish!(
+          workflow: workflow,
+          snapshot: source_snapshot,
+          step: step,
+          path: workspace.path,
+          plan: plan,
+          log: ->(message, **_kwargs) { log(message) }
+        )
+      end
     end
 
     def prepared_workspace_matches_current_plan?(plan)

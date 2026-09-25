@@ -1319,6 +1319,41 @@ RSpec.describe Steps::GraderCollect do
     end
   end
 
+  describe "empty fanout integrity" do
+    before do
+      workflow.steps.where(kind: "grader").delete_all
+      Step.create!(
+        workflow: workflow,
+        kind: "grader_fanout",
+        position: 100,
+        iteration: step.iteration,
+        loop_id: loop_id,
+        state: "succeeded"
+      )
+    end
+
+    it "fails retryably when fanout produced neither graders nor skip evidence" do
+      expect { handler.call }
+        .to raise_error(Steps::Base::StepFailed, "grader fanout completed without graders or explicit skip evidence")
+    end
+
+    it "allows an explicitly empty configured grader plan" do
+      workflow.steps.where(kind: "grader_fanout").sole.update!(
+        details: { "grader_fanout_outcome" => "no_graders_configured" }
+      )
+
+      expect { handler.call }.not_to raise_error
+    end
+
+    it "allows a fanout whose target selection explicitly skipped every grader" do
+      workflow.steps.where(kind: "grader_fanout").sole.update!(
+        details: { "grader_fanout_outcome" => "all_graders_skipped" }
+      )
+
+      expect { handler.call }.not_to raise_error
+    end
+  end
+
   def capture_sql
     queries = []
     callback = lambda do |_name, _started, _finished, _id, payload|

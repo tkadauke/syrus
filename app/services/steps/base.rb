@@ -108,7 +108,7 @@ module Steps
     private
 
     def workspace
-      @workspace ||= StepWorkspace.for(step, log: method(:log))
+      @workspace ||= StepWorkspace.for(step, run: run, log: method(:log))
     end
 
     # True when a git push was rejected because the remote branch moved — a
@@ -227,6 +227,14 @@ module Steps
 
     def heartbeat!
       RunHeartbeat.touch(run, force: true)
+    end
+
+    # Keep the Run attributable while Ruby is blocked inside a long operation
+    # that cannot emit incremental output (for example an Active Storage
+    # upload). Without this, the reconciler can mistake live work for a dead
+    # worker and start a second handler against the same Step.
+    def with_run_heartbeat(interval: 15.seconds)
+      RunHeartbeat.during(run, interval: interval) { yield }
     end
 
     def execution_terminalized?

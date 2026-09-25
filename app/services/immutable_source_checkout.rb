@@ -18,13 +18,14 @@ class ImmutableSourceCheckout
     WorkflowWorkspace.path_for(step.workflow).join(CHECKOUT_ROOT, step.id.to_s)
   end
 
-  def initialize(step, git: nil, log: nil)
+  def initialize(step, git: nil, log: nil, run: nil)
     @step = step
     @workflow = step.workflow
     @job = @workflow.job
     @repository = @job.repository
     @git = git || GitRunner.new(workflow: @workflow)
     @log = log
+    @run = run
     @path = self.class.path_for(step)
     @env = { "GIT_TERMINAL_PROMPT" => "0" }
   end
@@ -465,14 +466,19 @@ class ImmutableSourceCheckout
   end
 
   def publish_prepared_archive!(snapshot, prepare_cache)
-    PreparedWorkspaceArchive.publish!(
-      workflow: @workflow,
-      snapshot: snapshot,
-      step: @step,
-      path: path,
-      plan: prepare_cache.plan,
-      log: ->(message, **_kwargs) { log("[immutable_source_checkout] #{message}") }
-    )
+    operation = lambda do
+      PreparedWorkspaceArchive.publish!(
+        workflow: @workflow,
+        snapshot: snapshot,
+        step: @step,
+        path: path,
+        plan: prepare_cache.plan,
+        log: ->(message, **_kwargs) { log("[immutable_source_checkout] #{message}") }
+      )
+    end
+    return operation.call unless @run
+
+    RunHeartbeat.during(@run, &operation)
   end
 
   def prepared_archive_metadata_matches?(metadata, snapshot, prepare_cache)

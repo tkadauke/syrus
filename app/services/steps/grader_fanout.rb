@@ -45,6 +45,7 @@ module Steps
       log("[grader_fanout] note: #{plan.note}") if plan.note
 
       if plan.graders.empty?
+        record_fanout_outcome!("no_graders_configured")
         log("[grader_fanout] no graders configured — collect Step will pass through")
         return
       end
@@ -89,6 +90,7 @@ module Steps
       active_graders = skip_reusable_target_health!(active_graders) if grader_fanout_reuse_enabled?
 
       if active_graders.empty?
+        record_fanout_outcome!("all_graders_skipped")
         log("[grader_fanout] all graders skipped — collect Step will pass through")
         return
       end
@@ -106,22 +108,29 @@ module Steps
             "conclusion_id" => cache_hit.id
           }.compact
         )
+        record_fanout_outcome!("cached_conclusion")
         log("[grader_fanout] reused successful grader conclusion for #{cache_hit.commit_sha.first(7)} - collect Step will pass through")
         return
       end
 
       if materialized_grader_steps.exists?
+        record_fanout_outcome!("materialized")
         publish_materialized_source_snapshot!
         log("[grader_fanout] grader Steps already materialized for iteration #{step.iteration}; reusing existing Step chain")
         return
       end
 
       if materialize_grader_steps!(active_graders)
+        record_fanout_outcome!("materialized")
         log("[grader_fanout] materialized #{active_graders.size} grader Step(s)")
       end
     end
 
     private
+
+    def record_fanout_outcome!(outcome)
+      step.update!(details: step.details.to_h.merge("grader_fanout_outcome" => outcome))
+    end
 
     def changed_files
       base_ref = changed_files_base_ref
@@ -698,14 +707,16 @@ module Steps
         return false
       end
 
-      PreparedWorkspaceArchive.publish!(
-        workflow: workflow,
-        snapshot: source_snapshot,
-        step: step,
-        path: workspace.path,
-        plan: plan,
-        log: ->(message, **_kwargs) { log(message) }
-      )
+      with_run_heartbeat do
+        PreparedWorkspaceArchive.publish!(
+          workflow: workflow,
+          snapshot: source_snapshot,
+          step: step,
+          path: workspace.path,
+          plan: plan,
+          log: ->(message, **_kwargs) { log(message) }
+        )
+      end
     end
 
     def prepared_workspace_matches_current_plan?(plan)

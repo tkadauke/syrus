@@ -27,6 +27,7 @@ module Steps
       grader_steps = current_iteration_graders
       carried_forward = carried_forward_grader_entries
       target_health_skipped = target_health_skipped_entries
+      reject_unexplained_empty_iteration!(grader_steps, carried_forward, target_health_skipped)
       append_iteration_results!(grader_steps, carried_forward, target_health_skipped)
 
       # Carried-forward graders (rerun_only_failed) never appear here — they
@@ -97,6 +98,25 @@ module Steps
     end
 
     private
+
+    def reject_unexplained_empty_iteration!(grader_steps, carried_forward, target_health_skipped)
+      return if grader_steps.any? || carried_forward.any? || target_health_skipped.any?
+
+      outcome = current_iteration_fanout&.details.to_h&.dig("grader_fanout_outcome")
+      return if outcome.in?(%w[no_graders_configured all_graders_skipped cached_conclusion])
+
+      fail_with!(
+        :worker_died,
+        "grader fanout completed without graders or explicit skip evidence",
+        evidence: { fanout_step_id: current_iteration_fanout&.id, fanout_outcome: outcome }
+      )
+    end
+
+    def current_iteration_fanout
+      scope = workflow.steps.where(kind: "grader_fanout")
+      scope = scope.where(loop_id: step.loop_id, iteration: step.iteration) if step.loop_id.present?
+      scope.order(:position).last
+    end
 
     # Rung 0 of the attention ladder: free, deterministic adjudication before
     # the failure costs anyone anything.

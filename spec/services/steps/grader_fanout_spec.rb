@@ -1412,6 +1412,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     handler.call
 
     expect(workflow.steps.where(kind: "grader").count).to eq(0)
+    expect(step.reload.details["grader_fanout_outcome"]).to eq("all_graders_skipped")
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("all graders skipped")
   end
