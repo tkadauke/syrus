@@ -31,7 +31,7 @@ import {
   type DataTableColumnDef
 } from "@app/components/dataTable"
 import type { DataTableSortDirection } from "@app/components/ui/DataTable"
-import type { FilterLinkUpdates } from "@app/components/filterBar/types"
+import { buildFlatFilterLink } from "@app/lib/flatFilterLink"
 
 type PerformanceTab = "overview" | "browser" | "requests" | "jobs" | "sql" | "phases" | "events"
 type ExplainModalTab = "visual" | "table" | "json" | "sql"
@@ -65,45 +65,10 @@ function performanceFilterFields(t: (key: string) => string) {
   ]
 }
 
-function performanceFilterLink(pathname: string, search: string, updates: FilterLinkUpdates) {
-  const params = new URLSearchParams(search)
-  for (const [key, value] of Object.entries(updates)) {
-    if (value == null || String(value).length === 0) {
-      params.delete(key)
-    } else {
-      params.set(key, String(value))
-    }
-  }
-
-  const tree = decodeFilterTree(params.get("q"))
-  for (const key of ["app_revision", "since", "until", "revision_scope"]) params.delete(key)
-  if (tree) {
-    for (const chip of tree.and) {
-      if (chip && typeof chip === "object" && "field" in chip && "value" in chip && typeof chip.field === "string") {
-        params.set(chip.field, String(chip.value ?? ""))
-      }
-    }
-  }
-  params.delete("q")
+const performanceFilterLink = buildFlatFilterLink(["app_revision", "since", "until", "revision_scope"], (params) => {
   if (!params.has("revision_scope")) params.set("revision_scope", "current")
   if (!params.has("since")) params.set("since", "1h")
-
-  const query = params.toString()
-  return query ? `${pathname}?${query}` : pathname
-}
-
-function decodeFilterTree(value: string | null): { and: Array<Record<string, unknown>> } | null {
-  if (!value) return null
-  try {
-    const base64 = value.replace(/-/g, "+").replace(/_/g, "/")
-    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")
-    const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0))
-    const parsed = JSON.parse(new TextDecoder().decode(bytes))
-    return parsed && typeof parsed === "object" && Array.isArray(parsed.and) ? parsed : null
-  } catch {
-    return null
-  }
-}
+})
 
 export function AdminPerformance() {
   const { t } = useT("syrus_dev")
