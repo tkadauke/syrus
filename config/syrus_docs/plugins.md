@@ -2107,7 +2107,7 @@ internally picking exactly one package-manager command in priority order:
 order: `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
 `requirements.txt` → `pip install -r requirements.txt`, else bare
 `pyproject.toml` → `pip install -e .`. The `go` plugin registers a
-`:prepare_detector` for `go.mod` → `go mod download` at `prepare_priority: 40`
+`:prepare_detector` for `go.mod` → `GOWORK=off go mod download` at `prepare_priority: 40`
 — Go modules have a single package-manifest signal, so there's no
 priority list to pick between.
 `RepoPrepPlan` no longer hardcodes any Ruby or Node fallback signals — every
