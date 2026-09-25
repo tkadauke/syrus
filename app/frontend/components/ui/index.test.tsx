@@ -285,6 +285,27 @@ describe("@app/components/ui", () => {
     expect(screen.getByRole("region", { name: "Work attempts" })).toHaveAttribute("data-section-divided", "true")
   })
 
+  it("keeps Page.Header split by default and supports an owned stacked layout", () => {
+    render(
+      <>
+        <Page.Header data-testid="split-header" />
+        <Page.Header data-testid="stacked-header" layout="stacked" />
+      </>
+    )
+
+    const splitClasses = screen.getByTestId("split-header").className.split(" ")
+    const stackedClasses = screen.getByTestId("stacked-header").className.split(" ")
+
+    expect(screen.getByTestId("split-header")).toHaveAttribute("data-page-header-layout", "split")
+    expect(splitClasses).toEqual(expect.arrayContaining(["flex", "flex-wrap", "items-start", "justify-between", "gap-4"]))
+    expect(splitClasses).not.toContain("block")
+
+    expect(screen.getByTestId("stacked-header")).toHaveAttribute("data-page-header-layout", "stacked")
+    expect(stackedClasses).toEqual(expect.arrayContaining(["block", "space-y-3"]))
+    expect(stackedClasses).not.toContain("flex")
+    expect(stackedClasses).not.toContain("justify-between")
+  })
+
   it("maps Page.Root size variants to one owned max-width utility", () => {
     render(
       <>
