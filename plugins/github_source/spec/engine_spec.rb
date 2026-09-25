@@ -31,4 +31,12 @@ RSpec.describe SyrusGithubSource::Engine do
       component: "github_source/AdminGithubApiUsage"
     )
   end
+
+  it "does not register the removed issue comment endpoint" do
+    repository = Factories.repository
+
+    expect {
+      Rails.application.routes.recognize_path("/api/v1/app/repositories/#{repository.id}/issues/comment", method: :post)
+    }.to raise_error(ActionController::RoutingError)
+  end
 end
