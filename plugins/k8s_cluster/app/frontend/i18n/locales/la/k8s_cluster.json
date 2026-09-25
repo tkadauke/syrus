@@ -250,6 +250,13 @@
   "logs_loading": "Acta onerantur…",
   "logs_error_loading": "Acta onerari non possunt.",
   "logs_empty": "Nulla acta.",
+  "logs_tail_lines_label": "Versus",
+  "logs_previous_label": "Vas prius",
+  "logs_timestamps_label": "Tempora monstra",
+  "logs_follow_label": "Sequi",
+  "logs_search_label": "Acta quaere",
+  "logs_search_placeholder": "Acta quaere…",
+  "logs_search_no_matches": "Nulli versus actorum quaestioni congruunt.",
 
   "live_pod_status": "Status podorum",
   "live_recent_events": "Eventus recentes",
