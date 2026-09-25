@@ -14,10 +14,12 @@ RSpec.describe SyrusGithubSource::Engine do
 
   it "cannot be disabled while an input source still uses it" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "github_source" }
-    Factories.repository
+    input_source_scope = instance_double(ActiveRecord::Relation, count: 1)
+    allow(InputSource).to receive(:where).with(type: InputSources::Github.name).and_return(input_source_scope)
+    allow(Repository).to receive(:active).and_return([])
 
     expect { Admin::PluginDisableGuard.ensure_disableable!(manifest) }
-      .to raise_error(Admin::PluginDisableGuard::Blocked, /input sources|source-control/)
+      .to raise_error(Admin::PluginDisableGuard::Blocked, /input sources/)
   end
 
   it "registers the GitHub source-control provider" do
@@ -30,5 +32,11 @@ RSpec.describe SyrusGithubSource::Engine do
       path: "/admin/github_api_usage",
       component: "github_source/AdminGithubApiUsage"
     )
+  end
+
+  it "does not register the removed issue comment endpoint" do
+    expect {
+      Rails.application.routes.recognize_path("/api/v1/app/repositories/1/issues/comment", method: :post)
+    }.to raise_error(ActionController::RoutingError)
   end
 end
