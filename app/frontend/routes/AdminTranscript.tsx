@@ -1,5 +1,4 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { PageHeading } from "../components/Heading"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent, type ReactNode } from "react"
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
@@ -10,6 +9,7 @@ import { Markdown } from "../lib/Markdown"
 import { useT } from "../hooks/useT"
 import { ToolGroup } from "./chat/MessageCards"
 import { groupTranscriptEvents, type AdminTranscriptRenderItem } from "./adminTranscriptGrouping"
+import { Page } from "../components/ui"
 
 const DEFAULT_PER_PAGE = 100
 const TRANSCRIPT_BOTTOM_THRESHOLD_PX = 48
@@ -33,11 +33,11 @@ export function AdminTranscript() {
   })
 
   return (
-    <main aria-label={t("transcript.aria_index")} className="mx-auto flex h-[calc(100vh-4rem)] max-w-6xl flex-col gap-6 overflow-hidden p-6">
+    <Page.Root aria-label={t("transcript.aria_index")} className="flex h-[calc(100vh-4rem)] flex-col overflow-hidden" gutter="responsive" size="default">
       {transcript.isPending ? <PanelMessage>{t("transcript.loading")}</PanelMessage> : null}
       {transcript.isError ? <TranscriptError error={transcript.error} /> : null}
       {transcript.isSuccess ? <TranscriptView payload={transcript.data} prefix={prefix} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -46,14 +46,14 @@ function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefi
 
   return (
     <>
-      <header className="shrink-0 flex flex-col gap-3 border-b border-gray-200 dark:border-gray-700 pb-4 sm:flex-row sm:items-start sm:justify-between">
+      <Page.Header className="shrink-0 flex-col gap-3 border-b border-gray-200 pb-4 dark:border-gray-700 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="text-xs uppercase text-gray-500 dark:text-gray-400">
             <Link className="underline hover:no-underline" to={withRoutePrefix(`/jobs/${payload.job_id}`, prefix)}>back to {payload.job_slug || `JOB-${payload.job_id}`}</Link>
           </div>
-          <PageHeading className="mt-1">
+          <Page.Title className="mt-1">
             Run #{payload.run_id} · transcript
-          </PageHeading>
+          </Page.Title>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Session <span className="font-mono">{payload.session_id}</span>
             {payload.summary.model ? <> · {payload.summary.model}</> : null}
@@ -64,7 +64,7 @@ function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefi
         <a className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" href={`/admin/runs/${payload.run_id}/transcript/download`}>
           {t("transcript.download_jsonl")}
         </a>
-      </header>
+      </Page.Header>
 
       <SummaryGrid payload={payload} />
       <Pagination payload={payload} />
