@@ -11,7 +11,7 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
   def fake_provider(failed_test_cases:, scores: {})
     Module.new do
       define_singleton_method(:failed_test_cases) { |run:, grader_name:| failed_test_cases }
-      define_singleton_method(:flakiness_score) { |repository:, suite_name:, name:| scores[[ suite_name, name ]] }
+      define_singleton_method(:flakiness_score) { |repository:, suite_name:, name:, exclude_workflow: nil| scores[[ suite_name, name ]] }
     end
   end
 
@@ -81,7 +81,7 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
       ],
       scores: {
         [ "spec/foo_spec.rb", "flaky one" ] => { score: 0.4, flaky: true },
-        [ "spec/foo_spec.rb", "real regression" ] => { score: 1.0, flaky: false }
+        [ "spec/foo_spec.rb", "real regression" ] => { score: 0.4, flaky: false }
       }
     ))
 
@@ -114,6 +114,47 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
 
     expect(verdict).to be_inconclusive
     expect(verdict.reason).to eq("not_all_confirmed_flaky")
+  end
+
+  it "declines when recent history is mostly failures" do
+    stub_provider(fake_provider(
+      failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "currently broken" } ],
+      scores: {
+        [ "spec/foo_spec.rb", "currently broken" ] => {
+          score: 0.75,
+          failed_count: 15,
+          total_count: 20,
+          flaky: true
+        }
+      }
+    ))
+
+    verdict = adjudicate
+
+    expect(verdict).to be_inconclusive
+    expect(verdict.reason).to eq("recent_failures_too_frequent")
+  end
+
+  it "asks the score provider to exclude the workflow being adjudicated" do
+    provider = Module.new do
+      class << self
+        attr_reader :excluded_workflow
+
+        def failed_test_cases(run:, grader_name:)
+          [ { "suite_name" => "spec/foo_spec.rb", "name" => "does the thing" } ]
+        end
+
+        def flakiness_score(repository:, suite_name:, name:, exclude_workflow: nil)
+          @excluded_workflow = exclude_workflow
+          { score: 0.4, failed_count: 4, total_count: 10, flaky: true }
+        end
+      end
+    end
+    stub_provider(provider)
+
+    adjudicate
+
+    expect(provider.excluded_workflow).to eq(workflow)
   end
 
   it "declines when no test_evidence provider is registered" do
