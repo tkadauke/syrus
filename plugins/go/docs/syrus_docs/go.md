@@ -11,7 +11,7 @@ single web-serving convention worth modeling as its own plugin.
 
 | Extension point | What it does |
 |---|---|
-| `:prepare_detector` | Detects `go.mod` at the repo root and contributes `go mod download` (`prepare_priority: 40`). Go modules have a single package-manifest signal, unlike `javascript`/`python`'s multi-lockfile priority lists — one signal, one command. Also declares `.go-version` as the `mise` version file, and labels `go test`/`go vet`/`go build` command spans for worker-health diagnostics. |
+| `:prepare_detector` | Detects `go.mod` at the repo root and contributes `GOWORK=off go mod download` (`prepare_priority: 40`). Go modules have a single package-manifest signal, unlike `javascript`/`python`'s multi-lockfile priority lists — one signal, one command. Also declares `.go-version` as the `mise` version file, and labels `go test`/`go vet`/`go build` command spans for worker-health diagnostics. |
 | `:review_criteria_provider` | Seeds a default adversarial-review checklist item — "Flag swallowed errors (`_ = err`)" — when `go.mod` is present (same signal as `:prepare_detector`). |
 | `:autofix_command` | `Go::GofmtAutofix` runs `gofmt -w .` whenever `go.mod` is present. `gofmt` has no configuration surface to gate on the way rubocop/eslint/ruff do, so presence of a Go module is the only signal needed. |
 | `:dependency_audit_command` | Runs `govulncheck ./...` when `go.sum` is present. `go.sum` is the lockfile signal — `go.mod` is the manifest `:prepare_detector` keys off, but by itself doesn't reflect a resolved dependency version an audit tool can check. |

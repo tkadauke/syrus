@@ -43,7 +43,7 @@ module Skills
         [ "pyproject.toml",   "pip install -e ." ]
       ],
       "Go" => [
-        [ "go.mod", "go mod download" ]
+        [ "go.mod", "GOWORK=off go mod download" ]
       ]
     }.freeze
 

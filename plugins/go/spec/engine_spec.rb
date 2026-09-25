@@ -16,7 +16,7 @@ RSpec.describe Go::Engine do
         Syrus::PluginRegistry.register(
           name:             "go",
           version:          Syrus::PluginApi.default_version,
-          description:      "Go prepare detection: go.mod → go mod download; gofmt autofix; govulncheck dependency scanning; default swallowed-error review criterion",
+          description:      "Go prepare detection: go.mod → GOWORK=off go mod download; gofmt autofix; govulncheck dependency scanning; default swallowed-error review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           category:         "language",
           prepare_priority: 40,
@@ -86,11 +86,11 @@ RSpec.describe Go::Engine do
       expect(described_class.prepare_commands(@dir)).to eq([])
     end
 
-    it "detects go.mod and contributes go mod download" do
+    it "detects go.mod and contributes GOWORK=off go mod download" do
       write("go.mod", "module example.com/foo\n\ngo 1.22\n")
 
       expect(described_class.detect?(@dir)).to be true
-      expect(described_class.prepare_commands(@dir)).to eq([ "go mod download" ])
+      expect(described_class.prepare_commands(@dir)).to eq([ "GOWORK=off go mod download" ])
     end
 
     it "declares .go-version as its mise version file" do

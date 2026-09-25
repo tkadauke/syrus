@@ -8,15 +8,15 @@ module Go
   extend Syrus::PluginApi
 
   syrus_plugin "go" do
-    description "Go prepare detection: go.mod → go mod download; gofmt autofix; govulncheck dependency scanning; default swallowed-error review criterion"
-    long_description "Go provides language-level support for Go repositories. It detects `go.mod`, prepares dependencies with `go mod download`, contributes Go formatting and dependency-audit commands, and adds review criteria for common Go correctness risks.\n\nUse it for Go services, CLIs, libraries, and mixed-language repositories with Go components. It focuses on language conventions rather than a particular web framework."
+    description "Go prepare detection: go.mod → GOWORK=off go mod download; gofmt autofix; govulncheck dependency scanning; default swallowed-error review criterion"
+    long_description "Go provides language-level support for Go repositories. It detects `go.mod`, prepares dependencies with `GOWORK=off go mod download`, contributes Go formatting and dependency-audit commands, and adds review criteria for common Go correctness risks.\n\nUse it for Go services, CLIs, libraries, and mixed-language repositories with Go components. It focuses on language conventions rather than a particular web framework."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/go.svg"
     author "Thomas Kadauke"
     category "language"
     prepare_priority 40
 
-    suggests_enabling "Go repositories get `go mod download` prepare, gofmt autofix, and govulncheck dependency scanning." do |signals|
+    suggests_enabling "Go repositories get `GOWORK=off go mod download` prepare, gofmt autofix, and govulncheck dependency scanning." do |signals|
       signals.repositories_detecting("go")
     end
 
