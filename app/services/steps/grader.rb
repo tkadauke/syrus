@@ -201,6 +201,21 @@ module Steps
       return unless result.ran
 
       details = step.details.to_h.merge("new_test_flakiness_gate" => result.to_h.stringify_keys)
+      if result.reason == "repeat_environment_setup_failed"
+        diagnostic = "repeat setup failed before any repeat ran"
+        log_path = workspace.path.join(details["log_path"])
+        append_grade_diagnostic(
+          log_path,
+          "\n[grader:#{name}] #{diagnostic}\n"
+        )
+        step.update!(details: details.merge("output" => grader_output_excerpt(log_path), "log_bytes" => log_path.size))
+        fail_with!(
+          :grader_failure,
+          "could not prepare focused repeats for #{name}",
+          evidence: { new_test_flakiness: false, repeat_environment_setup_failed: true, result: result.to_h }
+        )
+      end
+
       if result.repeats.to_i.zero?
         log("[grader:#{name}] flaky_gate: no repeat runs completed; treating as inconclusive", kind: "system")
         step.update!(details: details)

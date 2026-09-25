@@ -200,6 +200,10 @@ RSpec.describe TouchedTestRepeatGate do
 
     it "preserves RSpec tag filters when building the real Ruby focused command" do
       step = grader_step_with({ "name" => "rspec", "command" => "bundle exec rspec --tag ~ci_only" })
+      allow(Open3).to receive(:capture2e).and_return([
+        "Run options: exclude {ci_only: true}\n\nAll examples were filtered out\n",
+        instance_double(Process::Status, success?: false)
+      ])
 
       result = described_class.call(
         grader_step: step,

@@ -166,7 +166,7 @@ class TouchedTestRepeatGate
       )
       unless status&.success?
         excerpt = output.to_s.lines.last(20).join.strip
-        @log.call("[flaky_gate:#{grader_name}] #{label} failed (exit #{status&.exitstatus || 'unknown'}):\n#{excerpt}")
+        @log.call("[flaky_gate:#{grader_name}] #{label} failed (exit #{exit_status_for(status)}):\n#{excerpt}")
       end
     end
     RepeatOutcome.new(
@@ -182,6 +182,12 @@ class TouchedTestRepeatGate
     return false if output.include?("All examples were filtered out")
 
     true
+  end
+
+  def exit_status_for(status)
+    return status.exitstatus if status.respond_to?(:exitstatus)
+
+    "unknown"
   end
 
   def grader_name = @grader_step.details.to_h["name"].to_s
