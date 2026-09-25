@@ -54,4 +54,29 @@ RSpec.describe "API: /api/v1/app/admin/maintenance_tasks", type: :request do
       "has_next_page" => false
     )
   end
+
+  it "returns the index with shared table pagination and sorting metadata" do
+    admin = Factories.user
+    old_task = maintenance_task(title: "Old task", updated_at: 2.days.ago)
+    new_task = maintenance_task(title: "New task", updated_at: 1.day.ago)
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/maintenance_tasks", params: { per_page: 1, sort: "title", direction: "desc" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.fetch("tasks").map { |task| task.fetch("id") }).to eq([ old_task.id ])
+    expect(body.fetch("total")).to eq(2)
+    expect(body.fetch("pagination")).to include(
+      "page" => 1,
+      "per_page" => 1,
+      "total" => 2,
+      "total_pages" => 2,
+      "first_item" => 1,
+      "last_item" => 1,
+      "next_page" => 2
+    )
+    expect(body.fetch("sort")).to eq("column" => "title", "direction" => "desc")
+    expect(new_task).to be_present
+  end
 end

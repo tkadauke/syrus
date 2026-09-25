@@ -1,15 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
-import { Link, useLocation, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { discoverMaintenanceTasks, fetchAdminMaintenanceTask, fetchAdminMaintenanceTasks, runMaintenanceTaskAction } from "../api/maintenanceTasks"
 import type { AdminMaintenanceTaskDetailPayload, AdminMaintenanceTasksPayload, MaintenanceTask } from "../api/maintenanceTasks"
-import { AdminEventFilterBar, AdminEventLogTable, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, disabledPaginationClass, paginationLinkClass } from "../components/AdminEventLogPanel"
+import { AdminEventLogTable, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, disabledPaginationClass, paginationLinkClass } from "../components/AdminEventLogPanel"
 import type { AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
+import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
+import { FilterBar } from "../components/FilterBar"
 import { Modal } from "../components/Modal"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
-import { DataTable, StatusPill, TonePill } from "../components/ui"
+import { DataTable, Page, StatusPill, TonePill } from "../components/ui"
 import { useConfirm } from "../hooks/useConfirm"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
@@ -23,6 +25,7 @@ export function AdminMaintenanceTasks() {
   const { t } = useT("admin")
   usePageTitle(t("maintenance_tasks.page_title"))
   const location = useLocation()
+  const navigate = useNavigate()
   const prefix = routePrefix(location.pathname)
   const queryClient = useQueryClient()
   const tasks = useQuery({
@@ -36,36 +39,45 @@ export function AdminMaintenanceTasks() {
   })
 
   return (
-    <AdminEventPageShell
-      actions={<Button disabled={discover.isPending} onClick={() => discover.mutate()} variant="secondary">{discover.isPending ? t("maintenance_tasks.checking") : t("maintenance_tasks.check_now")}</Button>}
-      ariaLabel={t("maintenance_tasks.aria")}
-      eyebrow={t("section_label")}
-      title={t("maintenance_tasks.heading")}
-    >
-      <p className="max-w-3xl text-sm text-text-muted">{t("maintenance_tasks.description")}</p>
-
-      <AdminEventFilterBar
-        clearLabel={t("maintenance_tasks.clear_filters")}
-        fields={[
-          { name: "state", label: t("maintenance_tasks.filter_state") },
-          { name: "recurrence", label: t("maintenance_tasks.filter_type") },
-          { name: "category", label: t("maintenance_tasks.filter_category") },
-          { name: "definition_key", label: t("maintenance_tasks.filter_definition") },
-          { name: "trigger_kind", label: t("maintenance_tasks.filter_trigger") },
-          { name: "query", label: t("maintenance_tasks.filter_search") }
-        ]}
-        filter={tasks.data?.filter}
-        filterSchema={tasks.data?.filter_schema as any}
-        search={location.search}
-        searchLabel={t("maintenance_tasks.apply_filters")}
-      />
+    <Page.Root aria-label={t("maintenance_tasks.aria")} gutter="responsive" size="wide">
+      <Page.Header className="items-end border-b border-border pb-4">
+        <Page.HeadingGroup>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <Page.Title className="mt-1">{t("maintenance_tasks.heading")}</Page.Title>
+        </Page.HeadingGroup>
+        <Button disabled={discover.isPending} onClick={() => discover.mutate()} variant="secondary">
+          {discover.isPending ? t("maintenance_tasks.checking") : t("maintenance_tasks.check_now")}
+        </Button>
+      </Page.Header>
 
       {tasks.isPending ? <AdminEventPanelMessage>{t("maintenance_tasks.loading")}</AdminEventPanelMessage> : null}
       {tasks.isError ? <AdminEventPanelMessage tone="error">{t("maintenance_tasks.error_load")}</AdminEventPanelMessage> : null}
-      {tasks.isSuccess ? <MaintenanceTasksTable payload={tasks.data} prefix={prefix} /> : null}
-    </AdminEventPageShell>
+      {tasks.isSuccess ? (
+        <AdminFiltersLayout
+          description={<p className="max-w-3xl text-sm text-text-muted">{t("maintenance_tasks.description")}</p>}
+          filterBar={
+            <FilterBar
+              filter={tasks.data.filter}
+              filterSchema={tasks.data.filter_schema}
+              legacyFilterKeys={maintenanceTaskLegacyFilterKeys}
+              pathname={location.pathname}
+              search={location.search}
+            />
+          }
+        >
+          <MaintenanceTasksTable
+            onNavigate={(params) => navigate(`${location.pathname}?${params.toString()}`)}
+            payload={tasks.data}
+            prefix={prefix}
+            search={location.search}
+          />
+        </AdminFiltersLayout>
+      ) : null}
+    </Page.Root>
   )
 }
+
+const maintenanceTaskLegacyFilterKeys = ["state", "recurrence", "category", "definition_key", "trigger_kind", "query"]
 
 export function AdminMaintenanceTaskDetail() {
   const { t } = useT("admin")
@@ -116,7 +128,17 @@ export function AdminMaintenanceTaskDetail() {
   )
 }
 
-function MaintenanceTasksTable({ payload, prefix }: { payload: AdminMaintenanceTasksPayload; prefix: string }) {
+function MaintenanceTasksTable({
+  onNavigate,
+  payload,
+  prefix,
+  search
+}: {
+  onNavigate: (params: URLSearchParams) => void
+  payload: AdminMaintenanceTasksPayload
+  prefix: string
+  search: string
+}) {
   const { t } = useT("admin")
   if (payload.tasks.length === 0) return <AdminEventPanelMessage>{t("maintenance_tasks.empty")}</AdminEventPanelMessage>
 
@@ -127,6 +149,7 @@ function MaintenanceTasksTable({ payload, prefix }: { payload: AdminMaintenanceT
       header: t("maintenance_tasks.col_task"),
       key: "task",
       required: true,
+      sort: "title",
       render: (task) => (
         <div className="space-y-2">
           <Link className={adminEventLinkClass()} to={withRoutePrefix(`/admin/maintenance_tasks/${task.id}`, prefix)}>{task.title}</Link>
@@ -140,6 +163,7 @@ function MaintenanceTasksTable({ payload, prefix }: { payload: AdminMaintenanceT
       headerClassName: "px-4 py-2",
       header: t("maintenance_tasks.col_status"),
       key: "status",
+      sort: "state",
       render: (task) => (
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
@@ -156,6 +180,7 @@ function MaintenanceTasksTable({ payload, prefix }: { payload: AdminMaintenanceT
       headerClassName: "px-4 py-2",
       header: t("maintenance_tasks.col_trigger"),
       key: "trigger",
+      sort: "trigger_kind",
       render: (task) => `${task.trigger_kind}:${task.trigger_key}`
     },
     {
@@ -163,11 +188,44 @@ function MaintenanceTasksTable({ payload, prefix }: { payload: AdminMaintenanceT
       headerClassName: "px-4 py-2",
       header: t("maintenance_tasks.col_started"),
       key: "started",
+      sort: "started_at",
       render: (task) => task.started_at ? <RelativeTimestamp value={task.started_at} /> : "-"
     }
   ]
 
-  return <AdminEventLogTable columns={columns} getRowKey={(task) => task.id} rows={payload.tasks} storageKey="syrus.admin.maintenance_tasks.visible_columns" tableClassName="min-w-full divide-y divide-border text-sm" />
+  return (
+    <AdminEventLogTable
+      columns={columns}
+      defaultSort={payload.sort}
+      getRowKey={(task) => task.id}
+      onNavigate={onNavigate}
+      panel={maintenanceTasksPanel(t, payload, onNavigate, search)}
+      rows={payload.tasks}
+      search={search}
+      storageKey="syrus.admin.maintenance_tasks.visible_columns"
+      tableClassName="min-w-full divide-y divide-border text-sm"
+    />
+  )
+}
+
+function maintenanceTasksPanel(
+  t: (key: string, options?: Record<string, number>) => string,
+  payload: AdminMaintenanceTasksPayload,
+  onNavigate: (params: URLSearchParams) => void,
+  search: string
+) {
+  return {
+    pagination: {
+      ariaLabel: t("maintenance_tasks.pagination_aria"),
+      label: t("maintenance_tasks.page_of", { page: payload.pagination.page, total: payload.pagination.total_pages }),
+      nextLabel: t("maintenance_tasks.next"),
+      onNavigate,
+      pagination: payload.pagination,
+      previousLabel: t("maintenance_tasks.previous"),
+      search
+    },
+    summary: t("maintenance_tasks.showing", { first: payload.pagination.first_item, last: payload.pagination.last_item, total: payload.pagination.total })
+  }
 }
 
 function TaskType({ task }: { task: MaintenanceTask }) {
@@ -361,7 +419,7 @@ function TaskEventPagination({ task }: { task: AdminMaintenanceTaskDetailPayload
       <span className="whitespace-nowrap">{t("maintenance_tasks.log_showing", { first: pagination.first_item, last: pagination.last_item, total: pagination.total_events })}</span>
       <div className="flex items-center justify-between gap-2 sm:justify-end">
         {pagination.previous_page ? <Link className={paginationLinkClass()} to={withRoutePrefix(logPagePath(location.pathname, location.search, pagination.previous_page), prefix)}>{t("maintenance_tasks.previous")}</Link> : <span className={disabledPaginationClass()}>{t("maintenance_tasks.previous")}</span>}
-        <span className="whitespace-nowrap px-1 text-xs text-gray-500 dark:text-gray-400">{t("maintenance_tasks.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
+        <span className="whitespace-nowrap px-1 text-xs text-text-muted">{t("maintenance_tasks.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
         {pagination.next_page ? <Link className={paginationLinkClass()} to={withRoutePrefix(logPagePath(location.pathname, location.search, pagination.next_page), prefix)}>{t("maintenance_tasks.next")}</Link> : <span className={disabledPaginationClass()}>{t("maintenance_tasks.next")}</span>}
       </div>
     </nav>
@@ -383,7 +441,7 @@ export function TaskDocumentationModal({ task, onClose }: { task: MaintenanceTas
   const { t } = useT("admin")
   return (
     <Modal
-      backdropClassName="fixed inset-0 z-50 flex h-[100dvh] w-[100dvw] items-stretch justify-center bg-gray-950/40 p-0 sm:items-center sm:p-4"
+      backdropClassName="fixed inset-0 z-50 flex h-[100dvh] w-[100dvw] items-stretch justify-center bg-black/40 p-0 sm:items-center sm:p-4"
       className="flex h-[100dvh] w-[100dvw] flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[min(82dvh,46rem)] sm:w-[min(92dvw,52rem)] sm:rounded-lg dark:bg-gray-950"
       label={t("maintenance_tasks.documentation_label", { title: task.title })}
       onClose={onClose}

@@ -1,29 +1,23 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
-import { PageHeading } from "../components/Heading"
 import { routePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
-import { Link, useLocation, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
+import { AdminEventLogTable, type AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
 import { Select } from "../components/Select"
 import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
-import { DataTable, Page } from "../components/ui"
-import {
-  DataTableColumnCells,
-  DataTableColumnHeaderRow,
-  DataTableColumnMenu,
-  useLocalStorageColumnPreferences,
-  type DataTableColumnDef
-} from "../components/dataTable"
+import { Page } from "../components/ui"
 import {
   fetchAdminUser,
   fetchAdminUsers,
   pauseUserScheduling,
   updateAdminUserRole,
   unpauseUserScheduling,
+  type AdminUsersPayload,
   type AdminUserDetail,
   type AdminUserRow
 } from "../api/adminUsers"
@@ -34,6 +28,7 @@ export function AdminUsersIndex() {
   const { t } = useT("admin")
   usePageTitle(t("page_title_users"))
   const location = useLocation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const prefix = routePrefix(location.pathname)
   const basePath = location.pathname.startsWith("/app-shell") ? "/app-shell/admin/users" : "/admin/users"
@@ -46,10 +41,10 @@ export function AdminUsersIndex() {
   return (
     <Page.Root aria-label={t("users.aria_index")} gutter="responsive" size="wide">
       <Page.Header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <div>
+        <Page.HeadingGroup>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-          <PageHeading className="mt-1">{t("users.heading")}</PageHeading>
-        </div>
+          <Page.Title className="mt-1">{t("users.heading")}</Page.Title>
+        </Page.HeadingGroup>
       </Page.Header>
 
       {users.isPending ? <PanelMessage>{t("users.loading")}</PanelMessage> : null}
@@ -84,12 +79,12 @@ export function AdminUsersIndex() {
             />
           }
         >
-          <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-              {t("users.matching", { count: users.data.count })}
-            </div>
-            <UsersTable basePath={basePath} users={users.data.users} />
-          </section>
+          <UsersTable
+            basePath={basePath}
+            onNavigate={(params) => navigate(`${location.pathname}?${params.toString()}`)}
+            payload={users.data}
+            search={location.search}
+          />
         </AdminFiltersLayout>
       ) : null}
     </Page.Root>
@@ -116,7 +111,7 @@ export function AdminUserDetailRoute() {
         <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={basePath}>
           {t("users.heading")}
         </Link>
-        <PageHeading className="mt-2">{user.data?.display_name || `User #${id}`}</PageHeading>
+        <Page.Title className="mt-2">{user.data?.display_name || `User #${id}`}</Page.Title>
       </Page.Header>
 
       {user.isPending ? <PanelMessage>{t("users.loading_user")}</PanelMessage> : null}
@@ -128,13 +123,14 @@ export function AdminUserDetailRoute() {
 
 const USERS_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.admin.users.visible_columns"
 
-function buildUsersColumns({ basePath, t }: { basePath: string; t: (key: string) => string }): DataTableColumnDef<AdminUserRow>[] {
+function buildUsersColumns({ basePath, t }: { basePath: string; t: (key: string) => string }): Array<AdminEventLogTableColumn<AdminUserRow>> {
   return [
     {
       key: "user",
-      label: t("users.col_user"),
+      header: t("users.col_user"),
       required: true,
-      renderCell: (user) => (
+      sort: "email",
+      render: (user) => (
         <>
           <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={`${basePath}/${user.id}`}>
             {user.display_name}
@@ -143,58 +139,71 @@ function buildUsersColumns({ basePath, t }: { basePath: string; t: (key: string)
         </>
       )
     },
-    { key: "github", label: t("users.col_github"), renderCell: (user) => (user.github_handle ? `@${user.github_handle}` : "-") },
-    { key: "admin", label: t("users.col_admin"), renderCell: (user) => (user.admin ? t("users.yes") : "-") },
-    { key: "role", label: t("users.col_role"), renderCell: (user) => roleLabel(user.role) },
-    { key: "agent", label: t("users.col_agent"), renderCell: (user) => user.agent_provider },
+    { key: "github", header: t("users.col_github"), sort: "github", render: (user) => (user.github_handle ? `@${user.github_handle}` : "-") },
+    { key: "admin", header: t("users.col_admin"), sort: "admin", render: (user) => (user.admin ? t("users.yes") : "-") },
+    { key: "role", header: t("users.col_role"), sort: "role", render: (user) => roleLabel(user.role) },
+    { key: "agent", header: t("users.col_agent"), sort: "agent", render: (user) => user.agent_provider },
     {
       key: "scheduling",
-      label: t("users.col_scheduling"),
-      renderCell: (user) => (user.scheduling_paused ? t("users.scheduling_paused") : t("users.scheduling_active"))
+      header: t("users.col_scheduling"),
+      sort: "scheduling",
+      render: (user) => (user.scheduling_paused ? t("users.scheduling_paused") : t("users.scheduling_active"))
     },
-    { key: "tokens", label: t("users.col_tokens"), cellClassName: "font-mono text-xs", renderCell: (user) => tokenSummary(user) },
-    { key: "gh_api", label: t("users.col_gh_api"), renderCell: (user) => (user.github_api_blocked ? t("users.blocked") : t("users.ok")) },
-    { key: "gh_rate", label: t("users.col_gh_rate"), renderCell: (user) => rateLimitLabel(user) }
+    { key: "tokens", header: t("users.col_tokens"), className: "font-mono text-xs", render: (user) => tokenSummary(user) },
+    { key: "gh_api", header: t("users.col_gh_api"), render: (user) => (user.github_api_blocked ? t("users.blocked") : t("users.ok")) },
+    { key: "gh_rate", header: t("users.col_gh_rate"), render: (user) => rateLimitLabel(user) }
   ]
 }
 
-function UsersTable({ users, basePath }: { users: AdminUserRow[]; basePath: string }) {
+function UsersTable({
+  basePath,
+  onNavigate,
+  payload,
+  search
+}: {
+  basePath: string
+  onNavigate: (params: URLSearchParams) => void
+  payload: { count: number; pagination: AdminUsersPayload["pagination"]; sort: AdminUsersPayload["sort"]; users: AdminUserRow[] }
+  search: string
+}) {
   const { t } = useT("admin")
   const columns = buildUsersColumns({ basePath, t })
-  const preferences = useLocalStorageColumnPreferences({ columns, storageKey: USERS_VISIBLE_COLUMNS_STORAGE_KEY })
+  const users = payload.users
 
   if (users.length === 0) return <PanelMessage>{t("users.no_match")}</PanelMessage>
 
   return (
-    <div>
-      <div className="flex justify-end border-b border-gray-200 px-4 py-2 dark:border-gray-700">
-        <DataTableColumnMenu
-          columns={columns}
-          downLabel={t("event_log_table.column_down")}
-          menuId="admin-users-columns-menu"
-          moveDownLabel={(title) => t("event_log_table.column_move_down", { title })}
-          moveUpLabel={(title) => t("event_log_table.column_move_up", { title })}
-          onChange={preferences.onChange}
-          order={preferences.order}
-          triggerAriaLabel={t("event_log_table.columns")}
-          upLabel={t("event_log_table.column_up")}
-          visibleLabel={t("event_log_table.visible_columns")}
-        />
-      </div>
-      <DataTable.Root>
-        <DataTable.Header>
-          <DataTableColumnHeaderRow columns={columns} onReorder={preferences.onChange} order={preferences.order} />
-        </DataTable.Header>
-        <DataTable.Body>
-          {users.map((user) => (
-            <DataTable.Row key={user.id}>
-              <DataTableColumnCells columns={columns} order={preferences.order} row={user} />
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
-    </div>
+    <AdminEventLogTable
+      columns={columns}
+      defaultSort={payload.sort}
+      getRowKey={(user) => user.id}
+      onNavigate={onNavigate}
+      panel={usersTablePanel(t, payload.pagination, onNavigate, search)}
+      rows={users}
+      search={search}
+      storageKey={USERS_VISIBLE_COLUMNS_STORAGE_KEY}
+    />
   )
+}
+
+function usersTablePanel(
+  t: (key: string, options?: Record<string, number>) => string,
+  pagination: AdminUsersPayload["pagination"],
+  onNavigate: (params: URLSearchParams) => void,
+  search: string
+) {
+  return {
+    pagination: {
+      ariaLabel: t("users.pagination_aria"),
+      label: t("users.page_of", { page: pagination.page, total: pagination.total_pages }),
+      nextLabel: t("users.next"),
+      onNavigate,
+      pagination,
+      previousLabel: t("users.previous"),
+      search
+    },
+    summary: t("users.showing", { first: pagination.first_item, last: pagination.last_item, total: pagination.total })
+  }
 }
 
 function UserDetail({ user }: { user: AdminUserDetail }) {

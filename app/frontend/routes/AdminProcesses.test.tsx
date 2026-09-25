@@ -43,6 +43,20 @@ function processesPayload(overrides: Record<string, unknown> = {}) {
     controls: { filter_schema: [] },
     processes: [processRow()],
     running_total: 1,
+    total: 1,
+    pagination: {
+      page: 1,
+      per_page: 100,
+      total: 1,
+      total_pages: 1,
+      has_previous_page: false,
+      has_next_page: false,
+      previous_page: null,
+      next_page: null,
+      first_item: 1,
+      last_item: 1
+    },
+    sort: { column: "started_at", direction: "desc" },
     ...overrides
   }
 }
@@ -77,6 +91,7 @@ describe("AdminProcesses configurable columns", () => {
     expect(screen.getByRole("columnheader", { name: "Host / PID" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument()
     expect(screen.getByText("claude --print")).toBeInTheDocument()
+    expect(screen.getByText("Showing 1-1 of 1 processes")).toBeInTheDocument()
   })
 
   it("hides an optional column and persists it under a processes-specific key", async () => {
