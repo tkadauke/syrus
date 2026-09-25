@@ -7,6 +7,7 @@ import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesNamespaces } from "../api/kubernetesResources"
 import { Dropdown } from "./Dropdown"
+import { ConfigTab } from "./tabs/ConfigTab"
 import { EventsTab } from "./tabs/EventsTab"
 import { LiveTab } from "./tabs/LiveTab"
 import { LogsTab } from "./tabs/LogsTab"
@@ -18,9 +19,9 @@ import { WorkloadsTab } from "./tabs/WorkloadsTab"
 
 const ALL_NAMESPACES = ""
 
-type ClusterTab = "overview" | "workloads" | "services" | "storage" | "nodes" | "events" | "logs" | "live"
+type ClusterTab = "overview" | "workloads" | "services" | "storage" | "config" | "nodes" | "events" | "logs" | "live"
 
-const NAMESPACE_SCOPED_TABS: ClusterTab[] = ["workloads", "services", "storage", "events", "logs"]
+const NAMESPACE_SCOPED_TABS: ClusterTab[] = ["workloads", "services", "storage", "config", "events", "logs"]
 
 export function ClusterBrowser({ clusterId, label, onBack }: { clusterId: number; label: string; onBack: () => void }) {
   const { t } = useT("k8s_cluster")
@@ -32,6 +33,7 @@ export function ClusterBrowser({ clusterId, label, onBack }: { clusterId: number
     { value: "workloads" as const, label: t("tab_workloads") },
     { value: "services" as const, label: t("tab_services") },
     { value: "storage" as const, label: t("tab_storage") },
+    { value: "config" as const, label: t("tab_config") },
     { value: "nodes" as const, label: t("tab_nodes") },
     { value: "events" as const, label: t("tab_events") },
     { value: "logs" as const, label: t("tab_logs") },
@@ -64,6 +66,7 @@ export function ClusterBrowser({ clusterId, label, onBack }: { clusterId: number
         {tab === "workloads" ? <WorkloadsTab clusterId={clusterId} namespace={effectiveNamespace} /> : null}
         {tab === "services" ? <ServicesTab clusterId={clusterId} namespace={effectiveNamespace} /> : null}
         {tab === "storage" ? <StorageTab clusterId={clusterId} namespace={effectiveNamespace} /> : null}
+        {tab === "config" ? <ConfigTab clusterId={clusterId} namespace={effectiveNamespace} /> : null}
         {tab === "nodes" ? <NodesTab clusterId={clusterId} /> : null}
         {tab === "events" ? <EventsTab clusterId={clusterId} namespace={effectiveNamespace} /> : null}
         {tab === "logs" ? <LogsTab clusterId={clusterId} namespace={effectiveNamespace} /> : null}
