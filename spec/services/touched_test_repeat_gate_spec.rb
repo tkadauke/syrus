@@ -150,7 +150,7 @@ RSpec.describe TouchedTestRepeatGate do
       )
 
       expect(result.ran).to be(true)
-      expect(result.command).to eq("bundle check || bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\" && bundle exec rspec spec/models/widget_spec.rb")
+      expect(result.command).to eq("BUNDLE_PATH=\"$PWD/vendor/bundle\" BUNDLE_APP_CONFIG=\"$PWD/.bundle\" bundle check || BUNDLE_PATH=\"$PWD/vendor/bundle\" BUNDLE_APP_CONFIG=\"$PWD/.bundle\" bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\" && BUNDLE_PATH=\"$PWD/vendor/bundle\" BUNDLE_APP_CONFIG=\"$PWD/.bundle\" bundle exec rspec spec/models/widget_spec.rb")
     end
 
     it "honors an explicit files_as_args base_retry without involving any plugin" do

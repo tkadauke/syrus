@@ -12,7 +12,7 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
-    expect(command).to eq("bundle check || bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\" && bundle exec rspec spec/models/widget_spec.rb")
+    expect(command).to eq("BUNDLE_PATH=\"$PWD/vendor/bundle\" BUNDLE_APP_CONFIG=\"$PWD/.bundle\" bundle check || BUNDLE_PATH=\"$PWD/vendor/bundle\" BUNDLE_APP_CONFIG=\"$PWD/.bundle\" bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\" && BUNDLE_PATH=\"$PWD/vendor/bundle\" BUNDLE_APP_CONFIG=\"$PWD/.bundle\" bundle exec rspec spec/models/widget_spec.rb")
   end
 
   it "declines when the grader did not opt into plugin strategy" do
