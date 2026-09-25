@@ -296,11 +296,13 @@ export function fetchKubernetesPodLogs(
   clusterId: number,
   namespace: string,
   name: string,
-  options: { container?: string | null; tail_lines?: number } = {}
+  options: { container?: string | null; tail_lines?: number; previous?: boolean; timestamps?: boolean } = {}
 ) {
   const search = new URLSearchParams({ namespace })
   if (options.container) search.set("container", options.container)
   if (options.tail_lines) search.set("tail_lines", String(options.tail_lines))
+  if (options.previous) search.set("previous", "true")
+  if (options.timestamps) search.set("timestamps", "true")
 
   return getJson<KubernetesPodLogsResponse>(
     `/api/v1/app/admin/kubernetes_clusters/${clusterId}/pods/${encodeURIComponent(name)}/logs?${search.toString()}`
