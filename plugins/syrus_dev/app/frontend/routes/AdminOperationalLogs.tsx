@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminOperationalLogs, type OperationalLogRevisionScope, type OperationalLogRow, type OperationalLogsPayload } from "../api/adminOperationalLogs"
-import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, formatEventDate, shortRevision } from "@app/components/AdminEventLogPanel"
+import { AdminDataTablePanel, type AdminDataTablePanelConfig, AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, formatEventDate, shortRevision } from "@app/components/AdminEventLogPanel"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -72,26 +72,33 @@ function OperationalLogsView({ onNavigate, payload, search }: { onNavigate: (par
     return <AdminEventPanelMessage tone="warn">{payload.error?.message || t("operational_logs.disabled")}</AdminEventPanelMessage>
   }
 
+  const panel = {
+    summary: t("operational_logs.showing", { count: payload.logs.length, page: payload.pagination.page }),
+    meta: t("operational_logs.retention", { hours: Math.round(payload.retention_seconds / 3600), revision: payload.revision_scope === "all" ? t("operational_logs.all_revisions") : shortRevision(payload.current_revision) }),
+    pagination: {
+      label: t("operational_logs.page", { page: payload.pagination.page }),
+      nextLabel: t("operational_logs.next"),
+      previousLabel: t("operational_logs.previous"),
+      pagination: payload.pagination,
+      search,
+      onNavigate
+    }
+  }
+
+  if (payload.logs.length === 0) {
+    return (
+      <AdminDataTablePanel config={panel}>
+        <AdminEventPanelMessage>{t("operational_logs.empty")}</AdminEventPanelMessage>
+      </AdminDataTablePanel>
+    )
+  }
+
   return (
-    <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between">
-        <span>{t("operational_logs.showing", { count: payload.logs.length, page: payload.pagination.page })}</span>
-        <span>{t("operational_logs.retention", { hours: Math.round(payload.retention_seconds / 3600), revision: payload.revision_scope === "all" ? t("operational_logs.all_revisions") : shortRevision(payload.current_revision) })}</span>
-      </div>
-      {payload.logs.length > 0 ? <OperationalLogsTable revisionScope={payload.revision_scope} rows={payload.logs} /> : <AdminEventPanelMessage>{t("operational_logs.empty")}</AdminEventPanelMessage>}
-      <AdminEventPagination
-        label={t("operational_logs.page", { page: payload.pagination.page })}
-        nextLabel={t("operational_logs.next")}
-        previousLabel={t("operational_logs.previous")}
-        pagination={payload.pagination}
-        search={search}
-        onNavigate={onNavigate}
-      />
-    </section>
+    <OperationalLogsTable onNavigate={onNavigate} panel={panel} revisionScope={payload.revision_scope} rows={payload.logs} search={search} />
   )
 }
 
-function OperationalLogsTable({ revisionScope, rows }: { revisionScope: OperationalLogRevisionScope; rows: OperationalLogRow[] }) {
+function OperationalLogsTable({ onNavigate, panel, revisionScope, rows, search }: { onNavigate: (params: URLSearchParams) => void; panel: AdminDataTablePanelConfig; revisionScope: OperationalLogRevisionScope; rows: OperationalLogRow[]; search: string }) {
   const { t } = useT("admin")
   const columns: Array<AdminEventLogTableColumn<OperationalLogRow>> = [
     {
@@ -99,6 +106,7 @@ function OperationalLogsTable({ revisionScope, rows }: { revisionScope: Operatio
       headerClassName: "w-36 px-4 py-2",
       header: t("operational_logs.col_time"),
       key: "time",
+      sort: "time",
       render: (row) => formatEventDate(row.occurred_at)
     },
     {
@@ -106,6 +114,7 @@ function OperationalLogsTable({ revisionScope, rows }: { revisionScope: Operatio
       headerClassName: "w-20 px-4 py-2",
       header: t("operational_logs.col_level"),
       key: "level",
+      sort: "level",
       render: (row) => <LevelBadge level={row.level} />
     },
     {
@@ -113,6 +122,7 @@ function OperationalLogsTable({ revisionScope, rows }: { revisionScope: Operatio
       headerClassName: "w-40 px-4 py-2",
       header: t("operational_logs.col_process"),
       key: "process",
+      sort: "process",
       render: (row) => (
         <>
           <div className="font-medium">{row.role} · {row.hostname}{row.pid ? ` · pid ${row.pid}` : ""}</div>
@@ -125,6 +135,7 @@ function OperationalLogsTable({ revisionScope, rows }: { revisionScope: Operatio
       headerClassName: "w-40 px-4 py-2",
       header: t("operational_logs.col_refs"),
       key: "refs",
+      sort: "refs",
       render: (row) => refsText(row)
     },
     {
@@ -132,6 +143,7 @@ function OperationalLogsTable({ revisionScope, rows }: { revisionScope: Operatio
       headerClassName: "px-4 py-2",
       header: t("operational_logs.col_message"),
       key: "message",
+      sort: "message",
       // Pin to the declared end (its natural, already-last position) --
       // required columns default to start-pinning, which would otherwise
       // yank the log message ahead of time/level/process/refs.
@@ -147,7 +159,15 @@ function OperationalLogsTable({ revisionScope, rows }: { revisionScope: Operatio
   ]
 
   return (
-    <AdminEventLogTable columns={columns} getRowKey={(row) => row.id} rows={rows} storageKey="syrus.admin.operational_logs.visible_columns" />
+    <AdminEventLogTable
+      columns={columns}
+      getRowKey={(row) => row.id}
+      rows={rows}
+      search={search}
+      storageKey="syrus.admin.operational_logs.visible_columns"
+      onNavigate={onNavigate}
+      panel={panel}
+    />
   )
 }
 
