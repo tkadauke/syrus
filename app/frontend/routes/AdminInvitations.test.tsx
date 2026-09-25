@@ -56,6 +56,9 @@ function renderRoute(children: ReactNode) {
 
 function invitationsPayload() {
   return {
+    filter: { and: [] },
+    filter_schema: [{ bucket: "text", field: "email", label: "Email", operators: ["contains"] }],
+    filters: {},
     invitations: [
       {
         id: 1,
@@ -66,6 +69,20 @@ function invitationsPayload() {
         created_at: "2026-07-03T11:44:11.000Z",
         invited_by_email_address: "admin@example.com"
       }
-    ]
+    ],
+    total: 1,
+    pagination: {
+      page: 1,
+      per_page: 100,
+      total: 1,
+      total_pages: 1,
+      has_previous_page: false,
+      has_next_page: false,
+      previous_page: null,
+      next_page: null,
+      first_item: 1,
+      last_item: 1
+    },
+    sort: { column: "created_at", direction: "desc" }
   }
 }

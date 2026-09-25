@@ -12,11 +12,28 @@ export type AdminInvitation = {
 
 export type AdminInvitationsPayload = {
   invitations: AdminInvitation[]
+  filter: Record<string, unknown> | null
+  filter_schema: Array<Record<string, unknown>>
+  filters: Record<string, unknown>
+  total: number
+  pagination: {
+    page: number
+    per_page: number
+    total: number
+    total_pages: number
+    has_previous_page: boolean
+    has_next_page: boolean
+    previous_page: number | null
+    next_page: number | null
+    first_item: number
+    last_item: number
+  }
+  sort: { column: string; direction: "asc" | "desc" }
   message?: string
 }
 
-export function fetchAdminInvitations() {
-  return getJson<AdminInvitationsPayload>("/api/v1/app/admin/invitations")
+export function fetchAdminInvitations(search = "") {
+  return getJson<AdminInvitationsPayload>(`/api/v1/app/admin/invitations${search}`)
 }
 
 export function createAdminInvitation(emailAddress: string) {
