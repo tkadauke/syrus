@@ -10,13 +10,15 @@ class RetryFailedStepEnqueuer
   end
 
   def self.call(...) = new(...).call
-  def self.failed_step_for(workflow)
+  def self.failed_step_for(workflow, restart_grade_loop: true)
     cancelled_loop = cancelled_grade_loop_restart_step_for(workflow)
-    return cancelled_loop if cancelled_loop
+    return cancelled_loop if cancelled_loop && restart_grade_loop
 
     step = workflow.steps.where(state: "failed").reorder(position: :desc, id: :desc).detect { |candidate| !candidate.retry_until_barrier_superseded? } ||
       cancelled_publication_step_for(workflow)
-    step = grade_loop_restart_step_for(step) if grade_loop_failure?(step)
+    if grade_loop_failure?(step)
+      step = restart_grade_loop ? grade_loop_restart_step_for(step) : failed_step_inside_grade_loop(step)
+    end
     return unless step
     return if crosses_uncleared_retry_until_barrier?(step)
 
@@ -34,6 +36,15 @@ class RetryFailedStepEnqueuer
     step.workflow.steps
       .where(kind: "grader_fanout", loop_id: step.loop_id, iteration: step.iteration)
       .reorder(position: :asc, id: :asc)
+      .first || step
+  end
+
+  def self.failed_step_inside_grade_loop(step)
+    return step unless step.kind == "grader_collect"
+
+    step.workflow.steps
+      .where(kind: "grader", state: "failed", loop_id: step.loop_id, iteration: step.iteration)
+      .reorder(position: :desc, id: :desc)
       .first || step
   end
 
@@ -67,7 +78,8 @@ class RetryFailedStepEnqueuer
 
     nil
   end
-  private_class_method :grade_loop_failure?, :grade_loop_restart_step_for, :cancelled_grade_loop_restart_step_for
+  private_class_method :grade_loop_failure?, :grade_loop_restart_step_for, :failed_step_inside_grade_loop,
+    :cancelled_grade_loop_restart_step_for
 
   # A fanout batch can fail more than one required grader at once; retrying
   # only the single Step returned by failed_step_for left every sibling
@@ -147,7 +159,7 @@ class RetryFailedStepEnqueuer
     return failure("Workflow is not in a failed state.") unless workflow.failed?
     return failure(WORKSPACE_CLEANED_UP_MESSAGE) unless workflow.retry_available?
 
-    failed_step = self.class.failed_step_for(workflow)
+    failed_step = self.class.failed_step_for(workflow, restart_grade_loop: restart_grade_loop)
     return failure("No failed step to retry.") unless failed_step
     return rebuild_merge_train if terminal_merge_train_rebuild_required?
 
@@ -170,7 +182,7 @@ class RetryFailedStepEnqueuer
       return Result.new(run: run, workflow: workflow, step: restart_step, error: nil)
     end
 
-    if grade_loop_failure?(failed_step)
+    if grade_loop_failure?(failed_step) && failed_step.kind != "grader"
       recover_grade_loop_iteration!(failed_step)
       run = create_run_for!(failed_step)
       return Result.new(run: run, workflow: workflow, step: failed_step, error: nil)
@@ -275,6 +287,7 @@ class RetryFailedStepEnqueuer
   # fresh loop with a new loop_id and reset iteration count.
   def recover_grade_loop_iteration!(fanout)
     reopen_step!(fanout)
+    reopen_collect_barrier_after_grader!(fanout)
     workflow.steps
       .where(loop_id: fanout.loop_id, iteration: fanout.iteration, state: "cancelled")
       .where(kind: %w[grader grader_collect])

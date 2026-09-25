@@ -174,6 +174,73 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(workflow.artifact("manual_grade_loop_restarts")).to be_nil
   end
 
+  it "retries failed grader siblings in place when automatic retry avoids grade-loop restart" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", chain_template: grade_retry_chain_template)
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+
+    fanout = Step.create!(
+      workflow: workflow,
+      kind: "grader_fanout",
+      position: 4,
+      state: "succeeded",
+      iteration: 2,
+      loop_id: "grade-loop"
+    )
+    first_grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 5,
+      state: "failed",
+      iteration: 2,
+      loop_id: "grade-loop",
+      details: { "name" => "tests", "required" => true }
+    )
+    second_grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 6,
+      state: "failed",
+      iteration: 2,
+      loop_id: "grade-loop",
+      details: { "name" => "lint", "required" => true }
+    )
+    collect = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 7,
+      state: "failed",
+      iteration: 2,
+      loop_id: "grade-loop"
+    )
+    summarize = Step.create!(workflow: workflow, kind: "summarize", position: 8, state: "cancelled")
+    fanout.update!(next_step: first_grader)
+    first_grader.update!(next_step: second_grader, depends_on_ids: [ fanout.id ])
+    second_grader.update!(next_step: collect, depends_on_ids: [ fanout.id ])
+    collect.update!(next_step: summarize, depends_on_ids: [ first_grader.id, second_grader.id ])
+    fanout.runs.create!(job: job, trigger_kind: "initial", state: "succeeded")
+    first_grader.runs.create!(job: job, trigger_kind: "initial", state: "failed")
+    second_grader.runs.create!(job: job, trigger_kind: "initial", state: "failed")
+    collect.runs.create!(job: job, trigger_kind: "initial", state: "failed")
+
+    expect(described_class.failed_step_for(workflow)).to eq(fanout)
+    expect(described_class.failed_step_for(workflow, restart_grade_loop: false)).to eq(second_grader)
+
+    result = described_class.call(workflow: workflow, restart_grade_loop: false)
+
+    expect(result).to be_success
+    expect(result.step).to eq(second_grader)
+    expect(fanout.reload).to be_succeeded
+    expect(first_grader.reload).to have_attributes(state: "queued", iteration: 2, loop_id: "grade-loop")
+    expect(second_grader.reload).to have_attributes(state: "queued", iteration: 2, loop_id: "grade-loop")
+    expect(collect.reload).to be_queued
+    expect(summarize.reload).to be_queued
+    expect(first_grader.runs.count).to eq(2)
+    expect(second_grader.runs.count).to eq(2)
+    expect(workflow.steps.where(kind: "grader_fanout").count).to eq(1)
+    expect(workflow.artifact("manual_grade_loop_restarts")).to be_nil
+  end
+
   it "restarts a cancelled grade loop before retrying a downstream failure" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "initial", chain_template: grade_retry_chain_template)
