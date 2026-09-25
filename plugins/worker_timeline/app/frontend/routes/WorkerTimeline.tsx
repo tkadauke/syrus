@@ -50,11 +50,13 @@ export function WorkerTimelineMacroView() {
   return (
     <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide">
       <Page.Header className="border-b border-border pb-4">
-        <Text className="font-medium uppercase" variant="caption" tone="muted">
-          {t("eyebrow")}
-        </Text>
-        <PageHeading>{t("heading")}</PageHeading>
-        <Page.Description>{t("description")}</Page.Description>
+        <Page.HeadingGroup>
+          <Text className="font-medium uppercase" variant="caption" tone="muted">
+            {t("eyebrow")}
+          </Text>
+          <PageHeading>{t("heading")}</PageHeading>
+          <Page.Description>{t("description")}</Page.Description>
+        </Page.HeadingGroup>
       </Page.Header>
 
       <Page.Nav>
