@@ -1839,7 +1839,10 @@ The bundled `agent_memory` plugin is the default provider. The tools
 `admin_read_memory_audit_history`) come from its own `mcp_tool_set` and
 `chat_mcp_tool_set`, not from core's registry — so disabling the plugin
 removes them from the advertised set rather than leaving tools that fail when
-called.
+called. On the workflow surface, adversarial and visual review agents get the
+read-only memory tools (`read_memory`, `search_memories`, and
+`list_memories`) but do not get `write_memory` or `delete_memory`; reviewer
+runs are critics, not durable memory authors.
 
 ## `domain_subscriber`
 

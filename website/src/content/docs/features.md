@@ -899,6 +899,9 @@ facts, feedback, references, and decisions. Agent memory ships as a plugin,
 enabled by default, and is the store the memory tools and the memory section
 of agent prompts read from — disable it from Admin → Plugins and prompts
 simply carry no memory, or replace it with a different store entirely.
+Workflow reviewer agents can read, search, and list memories for context, but
+they cannot write or delete durable memories; review runs are intentionally
+read-only.
 Memories are private to their
 owner by default; repository-scoped memories can be published to make them
 visible to other operators attached to that repository. The **Memories**
