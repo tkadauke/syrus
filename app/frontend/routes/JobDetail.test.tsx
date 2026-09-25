@@ -318,6 +318,151 @@ describe("JobDetailView", () => {
 
     expect(screen.getByText("PR checks are failing for 3bf7b45.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "View GitHub checks." })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/2796/checks")
+    expect(screen.getByText("Notice 1 of 1")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Previous notice" })).not.toBeInTheDocument()
+  })
+
+  it("cycles crowded summary notices while preserving the active notice actions", async () => {
+    const dependency = {
+      id: 12,
+      source: "manual",
+      manual: true,
+      pending: false,
+      succeeded: false,
+      unresolved_slug: null,
+      depends_on_epic: null,
+      depends_on_job: {
+        id: 401,
+        kind: "issue",
+        state: "queued",
+        summary_state: "queued",
+        repository_slug: "tkadauke/syrus",
+        issue_number: 1101,
+        issue_title: "First dependency",
+        branch_name: null,
+        pr_number: null,
+        job_path: "/jobs/401"
+      }
+    }
+    const payload = jobPayload({
+      epic: {
+        id: 7,
+        number: 7,
+        display_number: "EPIC-7",
+        title: "Landing stack",
+        state: "in_progress",
+        epic_path: "/epics/EPIC-7"
+      },
+      merge_train_status: {
+        id: 9,
+        state: "failed",
+        phase: "failed",
+        branch: "syrus/merge-train/epic-7",
+        member_count: 3,
+        workflow_id: 44,
+        workflow_state: "failed",
+        current_step_kind: "merge_train_land",
+        current_step_label: "Merge train land",
+        reconciliation: null,
+        failure_reason: "integration branch could not land"
+      },
+      landing_queue_entry: {
+        position: 2,
+        blocked_reason: { key: "pr_checks_failing_inherited", params: { slug: "JOB-1", checks: "rspec" } },
+        waiting_for_jobs: [{ id: 402, label: "JOB-402", title: "Prepare release", job_path: "/jobs/402" }],
+        override_path: "/api/v1/app/jobs/1/override_landing_blocker"
+      },
+      dependencies: [dependency],
+      unsatisfied_dependencies: [dependency],
+      actions: {
+        ...jobPayload().actions,
+        can_recheck_pr_checks: true,
+        can_override_inherited_pr_checks: true,
+        can_override_dependencies: true
+      },
+      job: {
+        ...baseJob(),
+        pr_checks: {
+          state: "failing",
+          sha: "3bf7b4593d430ad7c5a75b0fecfe4fe3c34bfc4e",
+          short_sha: "3bf7b45",
+          checked_at: "2026-08-26T19:20:00Z",
+          checks_url: "https://github.com/acme/widgets/pull/2796/checks",
+          attribution: {
+            verdict: "inherited",
+            failing_names: ["rspec"],
+            base_failing_names: ["rspec"],
+            own_names: [],
+            base_sha: "basesha1234"
+          }
+        },
+        retry_state: {
+          classification: "grader_failure",
+          classification_label: "Grader failure",
+          retryable: true,
+          next_auto_retry_at: "2026-08-26T20:00:00Z",
+          retry_attempt_count: 2,
+          retry_budget_remaining: 1,
+          retry_budget: 3,
+          auto_retry_exhausted: false,
+          provider_circuit_open: false,
+          retry_delayed_until: null,
+          retry_delay_reason: null,
+          state_label: "Retry delayed"
+        }
+      }
+    })
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ ...payload, message: "Command queued." }))
+
+    renderJobDetail(payload)
+
+    const notices = await screen.findByRole("region", { name: "Job notices" })
+    expect(within(notices).getByText("Notice 1 of 5")).toBeInTheDocument()
+    expect(within(notices).getByText("Epic merge train needs attention · EPIC-7")).toBeInTheDocument()
+    expect(within(notices).getByText("The Epic merge train failed and needs operator attention: integration branch could not land")).toBeInTheDocument()
+    expect(screen.queryByText("PR checks are failing for 3bf7b45.")).not.toBeInTheDocument()
+    expect(screen.queryByText(/In landing queue: position #2/)).not.toBeInTheDocument()
+    expect(screen.queryByText("Retry delayed")).not.toBeInTheDocument()
+    expect(screen.queryByText("Blocked on:")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Next notice" }))
+
+    expect(within(notices).getByText("Notice 2 of 5")).toBeInTheDocument()
+    expect(screen.getByText("PR checks are failing for 3bf7b45.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "View GitHub checks." })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/2796/checks")
+    fireEvent.click(screen.getByRole("button", { name: "Recheck checks" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/recheck_pr_checks",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+    expect(screen.getByRole("button", { name: "Land anyway once" })).toBeInTheDocument()
+    expect(screen.queryByText(/In landing queue: position #2/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Next notice" }))
+
+    expect(within(notices).getByText("Notice 3 of 5")).toBeInTheDocument()
+    expect(screen.getByText("Blocked on:")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Override and force-run" })).toBeInTheDocument()
+    expect(screen.queryByText("PR checks are failing for 3bf7b45.")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Next notice" }))
+
+    expect(within(notices).getByText("Notice 4 of 5")).toBeInTheDocument()
+    expect(screen.getByText(/In landing queue: position #2/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /JOB-402 Prepare release/ })).toHaveAttribute("href", "/app-shell/jobs/402")
+
+    fireEvent.click(screen.getByRole("button", { name: "Next notice" }))
+
+    expect(within(notices).getByText("Notice 5 of 5")).toBeInTheDocument()
+    expect(screen.getByText("Retry delayed")).toBeInTheDocument()
+    expect(screen.getByText("2/3 attempts")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous notice" }))
+
+    expect(within(notices).getByText("Notice 4 of 5")).toBeInTheDocument()
+    expect(screen.getByText(/In landing queue: position #2/)).toBeInTheDocument()
   })
 
   it("does not show passing PR checks", () => {
