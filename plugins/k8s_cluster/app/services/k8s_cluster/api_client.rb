@@ -20,6 +20,7 @@ module K8sCluster
     CORE = { group_path: nil, version: "v1" }.freeze
     APPS = { group_path: "apis/apps", version: "v1" }.freeze
     BATCH = { group_path: "apis/batch", version: "v1" }.freeze
+    NETWORKING = { group_path: "apis/networking.k8s.io", version: "v1" }.freeze
     METRICS = { group_path: "apis/metrics.k8s.io", version: "v1beta1" }.freeze
 
     class_attribute :client_factory, default: ->(uri, version, options) { Kubeclient::Client.new(uri, version, **options) }
@@ -32,6 +33,7 @@ module K8sCluster
     def core = @clients[:core] ||= build(**CORE)
     def apps = @clients[:apps] ||= build(**APPS)
     def batch = @clients[:batch] ||= build(**BATCH)
+    def networking = @clients[:networking] ||= build(**NETWORKING)
     def metrics = @clients[:metrics] ||= build(**METRICS)
 
     private
