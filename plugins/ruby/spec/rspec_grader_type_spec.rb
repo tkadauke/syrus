@@ -232,6 +232,37 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.run).to include("serial_status")
   end
 
+  it "generates an executable parallel status check with no serial pass" do
+    step = described_class.grade_steps(
+      config: { "parallel_rspec" => { "enabled" => true, "rspec_modes" => [ "full" ] } },
+      default_failures: "strict"
+    ).first
+    status_check = step.run.match(/; (?<status_check>exit "\$parallel_status")\z/)[:status_check]
+
+    _stdout, stderr, status = Open3.capture3("bash", "-c", %(parallel_status=0; #{status_check}))
+
+    expect(status).to be_success, stderr
+  end
+
+  it "generates an executable parallel status check with an extra serial pass" do
+    step = described_class.grade_steps(
+      config: {
+        "tags" => { "ci" => { "include" => [ "ci_only" ] } },
+        "parallel_rspec" => {
+          "enabled" => true,
+          "rspec_modes" => [ "ci" ],
+          "exec_args" => "bin/rspec-worker"
+        }
+      },
+      default_failures: "strict"
+    ).third
+    status_check = step.run.match(/; (?<status_check>if \[ "\$parallel_status" -ne 0 \]; then exit "\$parallel_status"; fi; exit "\$serial_status")\z/)[:status_check]
+
+    _stdout, stderr, status = Open3.capture3("bash", "-c", %(parallel_status=0; serial_status=0; #{status_check}))
+
+    expect(status).to be_success, stderr
+  end
+
   it "supports direct parallel_rspec command generation without a worker wrapper" do
     step = described_class.grade_steps(
       config: {
