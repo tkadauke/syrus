@@ -114,7 +114,7 @@ describe("DataTable column primitive integration", () => {
     fireEvent.drop(ownerHeader, { dataTransfer: transfer })
 
     const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent)
-    expect(headers).toEqual([ "Select", "State", "Owner", "Job-", "Actions" ])
+    expect(headers).toEqual([ "Select", "State", "Owner", "Job", "Actions" ])
 
     const rows = screen.getAllByRole("row").slice(1)
     const firstRowCells = within(rows[0]).getAllByRole("cell").map((cell) => cell.textContent)
@@ -125,7 +125,7 @@ describe("DataTable column primitive integration", () => {
     unmount()
     render(<Harness />)
     const headersAfterRemount = screen.getAllByRole("columnheader").map((cell) => cell.textContent)
-    expect(headersAfterRemount).toEqual([ "Select", "State", "Owner", "Job-", "Actions" ])
+    expect(headersAfterRemount).toEqual([ "Select", "State", "Owner", "Job", "Actions" ])
   })
 
   it("keeps sortable-header clicks working after wiring drag reordering on top", () => {

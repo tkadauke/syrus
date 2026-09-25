@@ -53,7 +53,7 @@ describe("DataTable", () => {
     expect(screen.getByRole("cell", { name: "JOB-1" }).className).toContain("text-[length:var(--text-caption)]")
   })
 
-  it("renders sortable header affordances with aria-sort and click passthrough", () => {
+  it("renders an ascending sortable header indicator with aria-sort and click passthrough", () => {
     const onSort = vi.fn()
     render(
       <DataTable.Root aria-label="Jobs">
@@ -67,11 +67,29 @@ describe("DataTable", () => {
 
     const header = screen.getByRole("columnheader", { name: /Created/ })
     expect(header).toHaveAttribute("aria-sort", "ascending")
-    expect(header.textContent).toContain("^")
+    expect(header).not.toHaveTextContent("^")
+    expect(header.querySelector("[data-sort-indicator]")).toHaveAttribute("data-sort-direction", "ascending")
     expect(screen.getByRole("button", { name: "Created" })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: /Created/ }))
     expect(onSort).toHaveBeenCalled()
+  })
+
+  it("renders a descending sortable header indicator", () => {
+    render(
+      <DataTable.Root aria-label="Jobs">
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell onSort={() => undefined} sortDirection="descending">Updated</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+      </DataTable.Root>
+    )
+
+    const header = screen.getByRole("columnheader", { name: /Updated/ })
+    expect(header).toHaveAttribute("aria-sort", "descending")
+    expect(header).not.toHaveTextContent("v")
+    expect(header.querySelector("[data-sort-indicator]")).toHaveAttribute("data-sort-direction", "descending")
   })
 
   it("keeps inactive sortable headers semantic without adding a button when no sort handler is present", () => {
@@ -88,7 +106,25 @@ describe("DataTable", () => {
     const header = screen.getByRole("columnheader", { name: /Status/ })
     expect(header).toHaveAttribute("aria-sort", "none")
     expect(header).toHaveAttribute("scope", "col")
+    expect(header).not.toHaveTextContent("-")
+    expect(header.querySelector("[data-sort-indicator]")).toHaveAttribute("data-sort-direction", "none")
     expect(screen.queryByRole("button", { name: /Status/ })).not.toBeInTheDocument()
+  })
+
+  it("leaves non-sortable headers without sort state or indicators", () => {
+    render(
+      <DataTable.Root aria-label="Jobs">
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>Actions</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+      </DataTable.Root>
+    )
+
+    const header = screen.getByRole("columnheader", { name: "Actions" })
+    expect(header).not.toHaveAttribute("aria-sort")
+    expect(header.querySelector("[data-sort-indicator]")).not.toBeInTheDocument()
   })
 
   it("renders empty states as a table row with configurable colspan and passthrough props", () => {
