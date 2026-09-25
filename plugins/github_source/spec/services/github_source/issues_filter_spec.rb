@@ -11,8 +11,8 @@ RSpec.describe GithubSource::IssuesFilter do
 
       expect(fields.keys).to eq(%w[query author label delegated state])
       expect(fields.fetch("query")).to include("free_text_search" => true, "bucket" => "string", "operators" => [ "contains" ])
-      expect(fields.fetch("author")).to include("bucket" => "string", "operators" => [ "contains" ])
-      expect(fields.fetch("label")).to include("bucket" => "string", "operators" => [ "contains" ])
+      expect(fields.fetch("author")).to include("bucket" => "string", "operators" => [ "contains", "is" ])
+      expect(fields.fetch("label")).to include("bucket" => "string", "operators" => [ "contains", "is" ])
       expect(fields.fetch("delegated")).to include("bucket" => "enum", "operators" => [ "is" ])
       expect(fields.fetch("state")).to include("bucket" => "enum", "operators" => [ "is" ])
     end
