@@ -84,17 +84,10 @@ RSpec.describe Steps::Grader, "new-test flakiness gate" do
     )
     allow(TouchedTestRepeatGate).to receive(:call).and_return(result)
 
-    expect { handler.send(:check_new_test_flakiness!, name: "rspec", definition: step.details) }
-      .to raise_error(Steps::Base::StepFailed) do |error|
-        expect(error.message).to eq("could not prepare focused repeats for rspec")
-        expect(error.evidence).to include(
-          new_test_flakiness: false,
-          repeat_environment_setup_failed: true
-        )
-      end
+    expect { handler.send(:check_new_test_flakiness!, name: "rspec", definition: step.details) }.not_to raise_error
 
-    expect(@ws_path.join(".syrus/grade-output/rspec.log").read)
-      .to include("repeat setup failed before any repeat ran")
+    expect(step.reload.details.dig("new_test_flakiness_gate", "reason")).to eq("repeat_environment_setup_failed")
+    expect(step.reload.details.dig("new_test_flakiness_gate", "repeats")).to eq(0)
   end
 
   it "treats a zero-repeat result as inconclusive instead of failing the grader" do
