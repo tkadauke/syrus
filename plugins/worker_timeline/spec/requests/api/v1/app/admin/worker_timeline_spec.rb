@@ -184,7 +184,7 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
       busy_run = Run.create!(job: busy_job, user: admin, step: busy_step, trigger_kind: "initial", agent_provider: "codex", state: "running", started_at: 10.minutes.ago)
       SpawnedProcess.create!(
         kind: "agent",
-        command: "git fetch https://x-access-token:ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@github.com/acme/widgets && echo ok",
+        command: "git fetch https://x-access-token:ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@github.com/acme/widgets && bin/deploy password=super-secret-token",
         hostname: "worker-a",
         pid: 901,
         started_at: 9.minutes.ago,
@@ -218,6 +218,7 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
       expect(slot).to include("job_slug" => busy_job.slug, "workflow_id" => busy_workflow.id, "step_kind" => "implement", "run_id" => busy_run.id, "pid" => 901, "process_kind" => "agent")
       expect(slot.fetch("command_excerpt")).to include("[REDACTED]")
       expect(slot.fetch("command_excerpt")).not_to include("ghp_")
+      expect(slot.fetch("command_excerpt")).not_to include("super-secret-token")
     end
 
     it "assigns each inferred slot to at most one matching worker pool" do
