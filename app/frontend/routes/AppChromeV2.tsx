@@ -1076,10 +1076,10 @@ function SidebarContent({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className={`sticky top-0 z-20 space-y-3 bg-white py-4 dark:bg-gray-950 ${collapsed ? "px-0" : "px-3"}`}>
+        <div className={`sticky top-0 z-20 space-y-3 bg-white py-4 dark:bg-gray-950 ${collapsed ? "flex flex-col items-center px-0" : "px-3"}`}>
           <Button
             aria-label={collapsed ? t("nav:new_chat") : undefined}
-            className={collapsed ? "mx-auto h-9 w-9 px-0" : "w-full"}
+            className={collapsed ? "h-9 w-9 px-0" : "w-full"}
             disabled={!user || startingChat}
             onClick={onStartChat}
             size={collapsed ? "icon" : undefined}
@@ -1091,7 +1091,7 @@ function SidebarContent({
           {showTeamProfile ? (
             <Button
               aria-label={collapsed ? t("nav:new_group_chat") : undefined}
-              className={collapsed ? "mx-auto h-9 w-9 px-0" : "w-full"}
+              className={collapsed ? "h-9 w-9 px-0" : "w-full"}
               disabled={!user}
               onClick={onStartGroupChat}
               size={collapsed ? "icon" : "sm"}
