@@ -91,10 +91,24 @@ The admin **MCP Tool Usage** page (`Admin::McpToolUsagePayload`,
 sections: call/error totals, the top-tools and highest-error-rate tables,
 unused advertised tools, the surface/provider/server/sidecar-mode breakdowns,
 and the recent calls table with links to the originating Job, Workflow, Run
-transcript, or chat. It supports the same `start`/`since`, `until`, and
-`surface` filters as the API through simple window-preset and surface controls;
-it does not surface raw tool input/result, consistent with what the payload
-itself omits. The `admin_mcp_tool_usage` chat custom card renders the
+transcript, or chat. Its filters are rendered through the shared FilterBar:
+operators can choose the window preset, surface, tool name, and server name,
+and those chips map back to the API's flat `window_preset`/`since`, `surface`,
+`tool_name`, and `server_name` params. The flat-param adapter deliberately
+preserves the existing filters if a FilterBar chip is transformed into a
+complex shape such as NOT/OR, since this page's backend only accepts the flat
+AND form.
+
+The recent calls and custom-card gap ranking tables use the shared admin data
+table controls: sortable headers, dashboard-style sort indicators, a column
+selector, and drag reordering for optional columns. The top-tools,
+highest-error-rate, and surface/provider/server/sidecar-mode breakdown tables
+remain compact because they are fixed, four-column aggregate summaries (group
+key plus three numeric stats) rather than row-level operational lists an
+operator would naturally customize. The startup lifecycle table likewise stays
+compact because it is a fixed diagnostic phase-latency matrix. The page does
+not surface raw tool input/result, consistent with what the payload itself
+omits. The `admin_mcp_tool_usage` chat custom card renders the
 `custom_card_gaps` buckets alongside those aggregate usage sections so
 operators can prioritize future card work from chat.
 

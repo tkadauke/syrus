@@ -11,6 +11,8 @@ module GithubSource
     def as_json(*)
       {
         hours: hours,
+        filter: filter_tree,
+        filter_schema: filter_schema,
         generated_at: Time.current.iso8601,
         totals: totals,
         by_operation: by_operation,
@@ -29,6 +31,28 @@ module GithubSource
 
     def hours
       @hours ||= params.fetch(:hours, DEFAULT_HOURS).to_i.clamp(1, MAX_HOURS)
+    end
+
+    def filter_tree
+      { and: [ { field: "hours", op: "is", value: hours.to_s } ] }
+    end
+
+    def filter_schema
+      [
+        {
+          field: "hours",
+          label: "Window",
+          bucket: "enum",
+          operators: [ "is" ],
+          values: [
+            { label: "1 hour", value: "1" },
+            { label: "6 hours", value: "6" },
+            { label: "24 hours", value: "24" },
+            { label: "3 days", value: "72" },
+            { label: "7 days", value: "168" }
+          ]
+        }
+      ]
     end
 
     def totals

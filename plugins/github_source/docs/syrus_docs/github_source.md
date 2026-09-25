@@ -120,6 +120,12 @@ per-repository breakdown, and the most recent 25 buckets that actually hit a
 rate limit (`rate_limited_count > 0`) — this is diagnostic-only; it does not
 throttle or influence live polling.
 
+The admin page renders the window through the shared FilterBar, mapping the
+Window chip back to the `hours` query param for deep links. The operation,
+repository, and recent-rate-limit tables use the shared admin data-table panel
+with sortable headers, dashboard-style sort indicators, column selector
+support, and drag reordering for optional columns.
+
 ## What's not here
 
 This plugin does not itself implement PR opening, landing, rebasing, or
