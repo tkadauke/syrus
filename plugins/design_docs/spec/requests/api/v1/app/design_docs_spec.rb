@@ -152,6 +152,35 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(row.fetch("collaborators").map { |user| user.fetch("id") }).to eq([ collaborator.id ])
   end
 
+  it "sorts the global design docs list by an allowed column and reports the active sort" do
+    later = create_design_doc(title: "Beta plan")
+    earlier = create_design_doc(title: "Alpha plan")
+    sign_in_as(owner)
+
+    get "/api/v1/app/design_docs", params: { sort: "title", direction: "asc" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("sort")).to eq("column" => "title", "direction" => "asc")
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).to eq([ earlier.id, later.id ])
+  end
+
+  it "sorts repository-scoped design docs without changing repository filtering" do
+    public_beta = create_design_doc(title: "Beta repository plan", visibility: "public")
+    public_alpha = create_design_doc(title: "Alpha repository plan", visibility: "public")
+    unlinked = create_design_doc(title: "Aardvark unlinked", visibility: "public")
+    public_beta.repositories << repository
+    public_alpha.repositories << repository
+    unlinked.repositories << Factories.repository(user: owner, owner: "acme", name: "other")
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    sign_in_as(collaborator)
+
+    get "/api/v1/app/repositories/#{repository.id}/design_docs", params: { sort: "title", direction: "asc" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("sort")).to eq("column" => "title", "direction" => "asc")
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).to eq([ public_alpha.id, public_beta.id ])
+  end
+
   it "preloads summary associations for the index table instead of counting comments per row" do
     docs = 3.times.map do |index|
       doc = create_design_doc(title: "Indexed doc #{index}", markdown: "Body #{index}")

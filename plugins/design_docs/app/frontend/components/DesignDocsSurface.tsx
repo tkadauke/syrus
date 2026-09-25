@@ -3,13 +3,18 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEv
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button, buttonClasses } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
-import { ColumnVisibilityMenu, visibleColumnKeys } from "@app/components/ColumnVisibilityMenu"
 import { CopyableSlug } from "@app/components/CopyableSlug"
 import { DismissButton } from "@app/components/DismissButton"
 import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
 import { Select } from "@app/components/Select"
-import { Notice, Page, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
+import { DataTable, Notice, Page, PageHeading, Section, SectionHeading, Text, type DataTableSortDirection } from "@app/components/ui"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  type DataTableColumnDef
+} from "@app/components/dataTable"
 import { TonePill } from "@app/components/StatusPill"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
@@ -77,6 +82,8 @@ type RailEntry =
   | { kind: "thread"; id: string; anchorStart: number; thread: DesignDocThread }
   | { kind: "suggestion"; id: string; anchorStart: number; suggestion: DesignDocSuggestion }
 type DesignDocT = ReturnType<typeof useT>["t"]
+type DesignDocColumnOption = { key: string; title: string }
+type DesignDocSort = RepositoryDesignDocsPayload["sort"]
 
 const INLINE_SUGGESTION_DIFF_MAX_CHARS = 1600
 const INLINE_SUGGESTION_DIFF_MAX_TOKENS = 360
@@ -232,6 +239,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
             onSelect={(docId) => navigate(docPath(docId))}
             prefix={prefix}
             preferences={indexQuery.data?.preferences ?? null}
+            sort={indexQuery.data?.sort ?? null}
           />
         </div>
       ) : (
@@ -303,8 +311,17 @@ function DesignDocsColumnsMenu({ controls, preferences }: {
 
   if (!isDesktop) return null
 
+  const columns = designDocColumnDefinitions({
+    onSelect: () => undefined,
+    optionalColumns,
+    prefix: "",
+    requiredColumns: controls?.columns.required ?? [{ key: "title", title: t("columns.title") }],
+    t
+  })
+
   return (
-    <ColumnVisibilityMenu
+    <DataTableColumnMenu
+      columns={columns}
       downLabel={t("columns.down")}
       error={updatePreferences.isError ? updatePreferences.error : undefined}
       errorFallback={t("columns.error_update")}
@@ -312,29 +329,39 @@ function DesignDocsColumnsMenu({ controls, preferences }: {
       moveDownLabel={(title) => t("columns.move_down", { title })}
       moveUpLabel={(title) => t("columns.move_up", { title })}
       onChange={(next) => updatePreferences.mutate({ visible_columns: next })}
-      optionalColumns={optionalColumns}
+      order={preferences?.visible_columns}
       pending={updatePreferences.isPending}
       triggerAriaLabel={t("columns.menu")}
       upLabel={t("columns.up")}
-      visibleColumns={preferences?.visible_columns}
       visibleLabel={t("columns.visible")}
     />
   )
 }
 
-function DesignDocsIndexTable({ controls, docs, loading, onSelect, prefix, preferences }: {
+function DesignDocsIndexTable({ controls, docs, loading, onSelect, prefix, preferences, sort }: {
   controls: RepositoryDesignDocsPayload["controls"] | null
   docs: DesignDocSummary[]
   loading: boolean
   onSelect: (id: number) => void
   prefix: string
   preferences: RepositoryDesignDocsPayload["preferences"] | null
+  sort: RepositoryDesignDocsPayload["sort"] | null
 }) {
   const { t } = useT("design_docs")
   const isDesktop = useMediaQuery("(min-width: 768px)", true)
   const requiredColumns = controls?.columns.required ?? [{ key: "title", title: t("columns.title") }]
   const optionalColumns = controls?.columns.optional ?? defaultDesignDocOptionalColumns(t)
-  const columns = designDocVisibleColumns({ requiredColumns, optionalColumns, preferences })
+  const columns = designDocColumnDefinitions({ onSelect, optionalColumns, prefix, requiredColumns, t })
+  const location = useLocation()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const updatePreferences = useMutation({
+    mutationFn: updateDesignDocPreferences,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["design_docs"] })
+    }
+  })
+  const activeSort = sort ?? DEFAULT_DESIGN_DOC_SORT
 
   if (loading) return <Panel>{t("loading_docs")}</Panel>
   if (docs.length === 0) return <Panel>{t("empty_filtered")}</Panel>
@@ -342,14 +369,21 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, prefix, prefe
   return (
     <section className="min-w-0 space-y-3" aria-label={t("index_aria")}>
       {isDesktop ? (
-        <div className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          <table className="min-w-full table-fixed divide-y divide-gray-200 text-left text-sm dark:divide-gray-800" data-testid="design-docs-table">
-            <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
-              <tr>{columns.map((column) => <th className={designDocColumnClass(column, "header")} key={column} scope="col">{designDocColumnLabel(column, requiredColumns, optionalColumns)}</th>)}</tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+        <DataTable.Root className="table-fixed text-left text-sm" data-testid="design-docs-table">
+          <DataTable.Header>
+            <DataTableColumnHeaderRow
+              columns={columns}
+              onReorder={(next) => updatePreferences.mutate({ visible_columns: next })}
+              onSort={(column) => navigate(designDocSortLink(location.pathname, location.search, activeSort, column))}
+              order={preferences?.visible_columns}
+              reorderDisabled={updatePreferences.isPending}
+              sortColumn={activeSort.column}
+              sortDirection={designDocSortDirection(activeSort)}
+            />
+          </DataTable.Header>
+          <DataTable.Body>
               {docs.map((doc) => (
-                <tr
+                <DataTable.Row
                   aria-label={`${doc.display_id} ${doc.title}`}
                   className="cursor-pointer align-top hover:bg-gray-50 focus:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:hover:bg-gray-800/70 dark:focus:bg-gray-800/70"
                   key={doc.id}
@@ -363,12 +397,11 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, prefix, prefe
                   role="link"
                   tabIndex={0}
                 >
-                  {columns.map((column) => <DesignDocTableCell column={column} doc={doc} key={column} onSelect={onSelect} prefix={prefix} t={t} />)}
-                </tr>
+                  <DataTableColumnCells columns={columns} order={preferences?.visible_columns} row={doc} />
+                </DataTable.Row>
               ))}
-            </tbody>
-          </table>
-        </div>
+          </DataTable.Body>
+        </DataTable.Root>
       ) : (
         <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" data-testid="design-docs-mobile-list">
           {docs.map((doc) => (
@@ -395,12 +428,43 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, prefix, prefe
   )
 }
 
-function DesignDocTableCell({ column, doc, onSelect, prefix, t }: { column: string; doc: DesignDocSummary; onSelect: (id: number) => void; prefix: string; t: DesignDocT }) {
-  return (
-    <td className={designDocColumnClass(column, "cell")}>
-      {designDocCellContent(column, doc, onSelect, prefix, t)}
-    </td>
-  )
+function defaultDesignDocOptionalColumns(t: DesignDocT) {
+  return [
+    { key: "state", title: t("columns.state") },
+    { key: "repository", title: t("columns.repository") },
+    { key: "owner", title: t("columns.owner") },
+    { key: "collaborators", title: t("columns.collaborators") },
+    { key: "comments", title: t("columns.comments") },
+    { key: "latest_version", title: t("columns.latest_version") },
+    { key: "updated_at", title: t("columns.updated_at") },
+    { key: "actions", title: t("columns.actions") }
+  ]
+}
+
+function designDocColumnDefinitions({ onSelect, optionalColumns, prefix, requiredColumns, t }: {
+  onSelect: (id: number) => void
+  optionalColumns: DesignDocColumnOption[]
+  prefix: string
+  requiredColumns: DesignDocColumnOption[]
+  t: DesignDocT
+}): DataTableColumnDef<DesignDocSummary>[] {
+  const allColumns = [...requiredColumns, ...optionalColumns]
+  return allColumns.map((column) => {
+    const definition: DataTableColumnDef<DesignDocSummary> = {
+      key: column.key,
+      label: column.title,
+      required: requiredColumns.some((required) => required.key === column.key),
+      sortKey: designDocSortKey(column.key),
+      headClassName: designDocColumnWidth(column.key),
+      cellClassName: `${designDocColumnWidth(column.key)} align-top`,
+      renderCell: (doc) => designDocCellContent(column.key, doc, onSelect, prefix, t)
+    }
+    if (column.key === "actions") {
+      definition.pin = "end"
+      definition.align = "right"
+    }
+    return definition
+  })
 }
 
 function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (id: number) => void, prefix: string, t: DesignDocT): ReactNode {
@@ -467,30 +531,16 @@ function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (
   return null
 }
 
-function defaultDesignDocOptionalColumns(t: DesignDocT) {
-  return [
-    { key: "state", title: t("columns.state") },
-    { key: "repository", title: t("columns.repository") },
-    { key: "owner", title: t("columns.owner") },
-    { key: "collaborators", title: t("columns.collaborators") },
-    { key: "comments", title: t("columns.comments") },
-    { key: "latest_version", title: t("columns.latest_version") },
-    { key: "updated_at", title: t("columns.updated_at") },
-    { key: "actions", title: t("columns.actions") }
-  ]
+function designDocSortKey(column: string) {
+  return {
+    title: "title",
+    state: "state",
+    updated_at: "updated_at"
+  }[column]
 }
 
-function designDocVisibleColumns({ optionalColumns, preferences, requiredColumns }: { optionalColumns: Array<{ key: string; title: string }>; preferences: RepositoryDesignDocsPayload["preferences"] | null; requiredColumns: Array<{ key: string; title: string }> }) {
-  return visibleColumnKeys({ requiredColumns, optionalColumns, visibleColumns: preferences?.visible_columns })
-}
-
-function designDocColumnLabel(column: string, requiredColumns: Array<{ key: string; title: string }>, optionalColumns: Array<{ key: string; title: string }>) {
-  return [ ...requiredColumns, ...optionalColumns ].find((option) => option.key === column)?.title ?? column.replace(/_/g, " ")
-}
-
-function designDocColumnClass(column: string, kind: "header" | "cell") {
-  const base = kind === "header" ? "px-3 py-2" : "px-3 py-3"
-  const width = {
+function designDocColumnWidth(column: string) {
+  return {
     title: "w-[30%]",
     state: "w-[7rem]",
     repository: "w-[12rem]",
@@ -501,7 +551,20 @@ function designDocColumnClass(column: string, kind: "header" | "cell") {
     updated_at: "w-[9rem]",
     actions: "w-[6rem]"
   }[column] ?? ""
-  return `${base} ${width}`
+}
+
+const DEFAULT_DESIGN_DOC_SORT: DesignDocSort = { column: "updated_at", direction: "desc" }
+
+function designDocSortLink(pathname: string, search: string, sort: DesignDocSort, column: string) {
+  const params = new URLSearchParams(search)
+  const nextDirection = sort.column === column && sort.direction === "asc" ? "desc" : "asc"
+  params.set("sort", column)
+  params.set("direction", nextDirection)
+  return `${pathname}?${params.toString()}`
+}
+
+function designDocSortDirection(sort: DesignDocSort): DataTableSortDirection {
+  return sort.direction === "asc" ? "ascending" : "descending"
 }
 
 function repositoryLabel(doc: DesignDocSummary, t: DesignDocT) {
