@@ -13,8 +13,10 @@ const SELECT: DataTableColumnDef<Row> = { key: "select", label: "Select", pin: "
 const STATE: DataTableColumnDef<Row> = { key: "state", label: "State", renderCell: () => null }
 const OWNER: DataTableColumnDef<Row> = { key: "owner", label: "Owner", renderCell: () => null }
 const HIDDEN_BY_DEFAULT: DataTableColumnDef<Row> = { key: "notes", label: "Notes", defaultVisible: false, renderCell: () => null }
+const STATUS: DataTableColumnDef<Row> = { key: "status", label: "Status", renderCell: () => null }
 
 const COLUMNS = [ SELECT, STATE, OWNER, HIDDEN_BY_DEFAULT ]
+const OTHER_COLUMNS = [ SELECT, STATE, STATUS ]
 const STORAGE_KEY = "syrus.test.columns"
 
 beforeEach(() => {
@@ -62,5 +64,24 @@ describe("useLocalStorageColumnPreferences", () => {
 
     expect(result.current.order).toEqual([ "owner", "state" ])
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "[]")).toEqual([ "owner", "state" ])
+  })
+
+  it("re-reads preferences when the storage key or column set changes", () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([ "owner" ]))
+    window.localStorage.setItem(`${STORAGE_KEY}.other`, JSON.stringify([ "status", "state" ]))
+    const { rerender, result } = renderHook(
+      ({ columns, storageKey }) => useLocalStorageColumnPreferences({ columns, storageKey }),
+      { initialProps: { columns: COLUMNS, storageKey: STORAGE_KEY } }
+    )
+
+    expect(result.current.order).toEqual([ "owner" ])
+
+    rerender({ columns: OTHER_COLUMNS, storageKey: `${STORAGE_KEY}.other` })
+
+    expect(result.current.order).toEqual([ "status", "state" ])
+
+    rerender({ columns: OTHER_COLUMNS, storageKey: `${STORAGE_KEY}.missing` })
+
+    expect(result.current.order).toEqual([ "state", "status" ])
   })
 })
