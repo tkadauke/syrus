@@ -41,6 +41,10 @@ export type RepositoryIssue = {
     color: string
   }>
   delegated: boolean
+  linked_pull_request: {
+    number: number
+    url: string
+  } | null
 }
 
 // `filterParam` is the opaque FilterBar wire value (a base64-encoded filter

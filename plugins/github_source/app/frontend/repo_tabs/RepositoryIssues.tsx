@@ -310,7 +310,14 @@ function RepositoryIssueRow({
           {issue.labels.map((label) => <IssueLabel color={label.color} key={label.name} name={label.name} />)}
           <a className="font-medium text-gray-900 dark:text-gray-100 hover:underline" href={issue.html_url} rel="noopener" target="_blank">{issue.title}</a>
         </div>
-        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{issue.user_login ? `${issue.user_login} · ` : ""}{issue.created_at ? <RelativeTimestamp value={issue.created_at} /> : ""}</div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+          <span>{issue.user_login ? `${issue.user_login} · ` : ""}{issue.created_at ? <RelativeTimestamp value={issue.created_at} /> : ""}</span>
+          {issue.linked_pull_request ? (
+            <a className="font-medium text-brand hover:underline dark:text-brand-emphasis" href={issue.linked_pull_request.url} rel="noopener" target="_blank">
+              {t("repository.linked_pull_request", { number: issue.linked_pull_request.number })}
+            </a>
+          ) : null}
+        </div>
         {issue.body_excerpt ? <p className="mt-1 line-clamp-2 text-xs text-gray-400 dark:text-gray-500">{issue.body_excerpt}</p> : null}
       </DataTable.Cell>
       <DataTable.Cell className="align-top">

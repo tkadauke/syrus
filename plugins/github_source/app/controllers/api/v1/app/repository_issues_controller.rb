@@ -96,6 +96,7 @@ module Api
           open_issues = []
           closed_issues = []
           error_message = nil
+          client = nil
           begin
             client = GithubClient.for(repository: repository, user: Current.user)
             open_issues = client.list_all_issues(repository.slug, state: "open")
@@ -114,6 +115,8 @@ module Api
             "closed" => closed_issues
           }
           matching_issues = filter_by_query(folder_issues.fetch(folder), filter.query)
+          visible_issues = matching_issues.first(ISSUES_PER_PAGE)
+          linked_pull_requests = linked_pull_requests_for(repository, client, visible_issues)
 
           {
             message: message,
@@ -125,7 +128,7 @@ module Api
             filter: filter.to_h,
             filter_schema: GithubSource::IssuesFilter.schema,
             issue_count: matching_issues.size,
-            issues: matching_issues.first(ISSUES_PER_PAGE).map { |issue| issue_json(repository, issue) },
+            issues: visible_issues.map { |issue| issue_json(repository, issue, linked_pull_requests.fetch(issue.number, nil)) },
             folder_counts: folder_issues.transform_values(&:size),
             folder_paths: FOLDERS.index_with { |value| "/repositories/#{repository.id}/plugin/issues?folder=#{value}" },
             paths: {
@@ -139,7 +142,7 @@ module Api
         end
 
 
-        def issue_json(repository, issue)
+        def issue_json(repository, issue, linked_pull_request = nil)
           labels = Array(issue.labels)
           {
             number: issue.number,
@@ -150,8 +153,24 @@ module Api
             user_login: issue.user&.login,
             created_at: issue.created_at&.iso8601,
             labels: labels.map { |label| issue_label_json(label) },
-            delegated: issue_delegated?(repository, issue)
+            delegated: issue_delegated?(repository, issue),
+            linked_pull_request: linked_pull_request
           }
+        end
+
+
+        def linked_pull_requests_for(repository, client, issues)
+          return {} unless client
+
+          issue_numbers = issues
+            .select { |issue| issue.state.to_s == "open" }
+            .map(&:number)
+          return {} if issue_numbers.empty?
+
+          client.linked_open_prs_for_issues(repository.slug, issue_numbers)
+        rescue Octokit::Error => e
+          Rails.logger.warn("[RepositoryIssuesController] linked PR lookup failed for #{repository.slug}: #{e.class}: #{e.message}")
+          {}
         end
 
 
