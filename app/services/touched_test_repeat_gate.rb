@@ -1,6 +1,7 @@
 require "open3"
 require "shellwords"
 require "timeout"
+require "yaml"
 
 # Reruns the touched test files TouchedTestFiles finds a few extra times, in
 # the current workspace at the current HEAD, and reports whether the results
@@ -138,12 +139,42 @@ class TouchedTestRepeatGate
   def run_once(command)
     status = nil
     Timeout.timeout(TIMEOUT_SECONDS) do
-      _output, status = Open3.capture2e(@env, "bash", "-c", command, chdir: @workspace_path)
+      _output, status = Open3.capture2e(repeat_env, "bash", "-c", command, chdir: @workspace_path)
     end
     status&.success? || false
   rescue Timeout::Error
     @log.call("[flaky_gate:#{grader_name}] repeat run timed out after #{TIMEOUT_SECONDS.to_i}s")
     false
+  end
+
+  def repeat_env
+    @repeat_env ||= begin
+      env = @env.to_h.dup
+      bundle_config = Pathname.new(@workspace_path).join(".bundle", "config")
+      if bundle_config.exist?
+        env["BUNDLE_APP_CONFIG"] = bundle_config.dirname.to_s
+        configured_path = bundler_config_value(bundle_config, "BUNDLE_PATH")
+        if configured_path.present?
+          env["BUNDLE_PATH"] = absolute_workspace_path(configured_path)
+        else
+          env.delete("BUNDLE_PATH")
+        end
+      end
+      env
+    end
+  end
+
+  def bundler_config_value(path, key)
+    YAML.safe_load(path.read).to_h[key].presence
+  rescue Psych::Exception, Errno::ENOENT
+    nil
+  end
+
+  def absolute_workspace_path(path)
+    pathname = Pathname.new(path.to_s)
+    return pathname.to_s if pathname.absolute?
+
+    Pathname.new(@workspace_path).join(pathname).to_s
   end
 
   def grader_name = @grader_step.details.to_h["name"].to_s

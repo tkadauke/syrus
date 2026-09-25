@@ -1,4 +1,5 @@
 require "rails_helper"
+require "shellwords"
 require "tmpdir"
 
 RSpec.describe TouchedTestRepeatGate do
@@ -67,6 +68,26 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.inconsistent?).to be(false)
     expect(result.pass_count).to eq(5)
     expect(result.fail_count).to eq(0)
+  end
+
+  it "honors the workspace Bundler config over a forwarded dependency bundle path" do
+    Pathname.new(@dir).join(".bundle").mkpath
+    Pathname.new(@dir).join(".bundle", "config").write("---\nBUNDLE_PATH: vendor/bundle\n")
+    stale_bundle = Pathname.new(@dir).join(".syrus", "deps", "bundle")
+    expected_bundle = Pathname.new(@dir).join("vendor", "bundle").to_s
+    stub_focused_command(<<~SH.squish)
+      test "$BUNDLE_PATH" = #{Shellwords.escape(expected_bundle)}
+    SH
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      env: { "BUNDLE_PATH" => stale_bundle.to_s },
+      repeats: 1
+    )
+
+    expect(result.consistent).to be(true)
   end
 
   it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do
