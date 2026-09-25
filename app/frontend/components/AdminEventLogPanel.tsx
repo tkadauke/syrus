@@ -2,7 +2,6 @@ import { Fragment, type ReactNode, useMemo, useState } from "react"
 import { FilterBar, type FilterChip, type FilterSchemaField, type FilterTree } from "./FilterBar"
 import { encodeFilterTree, linkFromSearch } from "./filterBar/helpers"
 import type { FilterLinkUpdates } from "./filterBar/types"
-import { PageHeading } from "./Heading"
 import { useT } from "../hooks/useT"
 import {
   DataTableColumnCells,
@@ -13,7 +12,7 @@ import {
   type DataTableColumnDef,
   type DataTableColumnPin
 } from "./dataTable"
-import { DataTable, type DataTableSortDirection } from "./ui"
+import { DataTable, Text, type DataTableSortDirection } from "./ui"
 import { classes } from "./ui/classes"
 import { Page, usePageGutterRestoreClassName } from "./ui/Page"
 
@@ -35,18 +34,21 @@ export function AdminEventPageShell({
   actions,
   ariaLabel,
   children,
+  description,
   eyebrow,
   title
 }: {
   actions?: ReactNode
   ariaLabel: string
   children: ReactNode
+  description?: ReactNode
   eyebrow: string
   title: string
 }) {
   return (
     <Page.Root aria-label={ariaLabel} gutter="responsive" size="wide">
       <AdminEventShellHeader actions={actions} eyebrow={eyebrow} title={title} />
+      {description ? <AdminEventShellDescription>{description}</AdminEventShellDescription> : null}
       {children}
     </Page.Root>
   )
@@ -62,10 +64,19 @@ function AdminEventShellHeader({ actions, eyebrow, title }: { actions?: ReactNod
     <header className={classes("flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-gray-700 lg:flex-row lg:items-end lg:justify-between", restore)}>
       <div>
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{eyebrow}</p>
-        <PageHeading className="mt-1">{title}</PageHeading>
+        <Page.Title className="mt-1">{title}</Page.Title>
       </div>
       {actions}
     </header>
+  )
+}
+
+function AdminEventShellDescription({ children }: { children: ReactNode }) {
+  const restore = usePageGutterRestoreClassName("padding")
+  return (
+    <Text className={classes("max-w-3xl", restore)} muted>
+      {children}
+    </Text>
   )
 }
 
@@ -110,6 +121,107 @@ export function AdminEventPagination({
   )
 }
 
+export type AdminDataTablePanelPagination = {
+  ariaLabel?: string
+  label: ReactNode
+  nextLabel: string
+  onNavigate: (params: URLSearchParams) => void
+  pagination: {
+    page: number
+    has_next_page?: boolean
+    has_previous_page?: boolean
+    next_page?: number | null
+    previous_page?: number | null
+    total_pages?: number | null
+  }
+  previousLabel: string
+  search: string
+}
+
+export type AdminDataTablePanelConfig = {
+  footer?: ReactNode
+  meta?: ReactNode
+  pagination?: AdminDataTablePanelPagination
+  summary?: ReactNode
+}
+
+export function AdminDataTablePanel({
+  children,
+  columnSelector,
+  config
+}: {
+  children: ReactNode
+  columnSelector?: ReactNode
+  config?: AdminDataTablePanelConfig
+}) {
+  return (
+    <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      {(config?.summary || config?.meta || config?.pagination || columnSelector) ? (
+        <AdminDataTablePanelHeader columnSelector={columnSelector} config={config} />
+      ) : null}
+      {children}
+      {config?.footer ? <div className="border-t border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">{config.footer}</div> : null}
+      {config?.pagination ? <AdminDataTablePanelFooter pagination={config.pagination} /> : null}
+    </section>
+  )
+}
+
+function AdminDataTablePanelHeader({ columnSelector, config }: { columnSelector?: ReactNode; config?: AdminDataTablePanelConfig }) {
+  return (
+    <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        {config?.summary ? <div>{config.summary}</div> : null}
+        {config?.meta ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{config.meta}</div> : null}
+      </div>
+      <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
+        {config?.pagination ? <AdminDataTablePanelPaginationControls pagination={config.pagination} /> : null}
+        {columnSelector}
+      </div>
+    </div>
+  )
+}
+
+function AdminDataTablePanelFooter({ pagination }: { pagination: AdminDataTablePanelPagination }) {
+  if (!hasMultiplePages(pagination.pagination)) return null
+
+  return (
+    <nav aria-label={pagination.ariaLabel} className={adminDataTablePanelFooterClass()}>
+      <span>{pagination.label}</span>
+      <AdminDataTablePanelPaginationControls pagination={pagination} />
+    </nav>
+  )
+}
+
+function AdminDataTablePanelPaginationControls({ pagination }: { pagination: AdminDataTablePanelPagination }) {
+  if (!hasMultiplePages(pagination.pagination)) return null
+
+  function go(page: number | null | undefined) {
+    if (!page) return
+    const params = new URLSearchParams(pagination.search)
+    params.set("page", String(page))
+    pagination.onNavigate(params)
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <button className={pageButtonClass()} disabled={!pagination.pagination.has_previous_page} onClick={() => go(pagination.pagination.previous_page)} type="button">
+        {pagination.previousLabel}
+      </button>
+      <button className={pageButtonClass()} disabled={!pagination.pagination.has_next_page} onClick={() => go(pagination.pagination.next_page)} type="button">
+        {pagination.nextLabel}
+      </button>
+    </div>
+  )
+}
+
+function hasMultiplePages(pagination: AdminDataTablePanelPagination["pagination"]) {
+  return (pagination.total_pages ?? 0) > 1 || Boolean(pagination.has_next_page || pagination.has_previous_page)
+}
+
+function adminDataTablePanelFooterClass() {
+  return "flex items-center justify-between border-t border-border px-4 py-3 text-sm text-text-secondary"
+}
+
 export type AdminEventLogTableColumn<Row> = {
   className?: string
   // Required columns are always visible and excluded from the column picker
@@ -147,6 +259,7 @@ export function AdminEventLogTable<Row>({
   columns,
   getRowKey,
   onNavigate,
+  panel,
   renderExpanded,
   rows,
   search,
@@ -156,6 +269,7 @@ export function AdminEventLogTable<Row>({
   columns: Array<AdminEventLogTableColumn<Row>>
   getRowKey: (row: Row) => string | number
   onNavigate?: (params: URLSearchParams) => void
+  panel?: AdminDataTablePanelConfig
   renderExpanded?: (row: Row) => ReactNode
   rows: Row[]
   search?: string
@@ -210,23 +324,23 @@ export function AdminEventLogTable<Row>({
     onNavigate(next)
   }
 
-  return (
-    <>
-      <div className="flex justify-end pb-2">
-        <DataTableColumnMenu
-          columns={dataTableColumns}
-          downLabel={t("event_log_table.column_down")}
-          menuId={`${storageKey}-columns-menu`}
-          moveDownLabel={(title) => t("event_log_table.column_move_down", { title })}
-          moveUpLabel={(title) => t("event_log_table.column_move_up", { title })}
-          onChange={preferences.onChange}
-          order={preferences.order}
-          triggerAriaLabel={t("event_log_table.columns")}
-          upLabel={t("event_log_table.column_up")}
-          visibleLabel={t("event_log_table.visible_columns")}
-        />
-      </div>
-      <DataTable.Root className={tableClassName}>
+  const columnMenu = (
+    <DataTableColumnMenu
+      columns={dataTableColumns}
+      downLabel={t("event_log_table.column_down")}
+      menuId={`${storageKey}-columns-menu`}
+      moveDownLabel={(title) => t("event_log_table.column_move_down", { title })}
+      moveUpLabel={(title) => t("event_log_table.column_move_up", { title })}
+      onChange={preferences.onChange}
+      order={preferences.order}
+      triggerAriaLabel={t("event_log_table.columns")}
+      upLabel={t("event_log_table.column_up")}
+      visibleLabel={t("event_log_table.visible_columns")}
+    />
+  )
+
+  const table = (
+      <DataTable.Root className={tableClassName} wrapperClassName={panel ? "rounded-none border-0" : undefined}>
         <DataTable.Header>
           <DataTableColumnHeaderRow
             columns={dataTableColumns}
@@ -259,6 +373,14 @@ export function AdminEventLogTable<Row>({
           })}
         </DataTable.Body>
       </DataTable.Root>
+  )
+
+  if (panel) return <AdminDataTablePanel columnSelector={columnMenu} config={panel}>{table}</AdminDataTablePanel>
+
+  return (
+    <>
+      <div className="flex justify-end pb-2">{columnMenu}</div>
+      {table}
     </>
   )
 }
@@ -395,8 +517,8 @@ export function shortRevision(value: string | null | undefined) {
 export function DetailBlock({ title, value }: { title: string; value?: string | null }) {
   return (
     <section>
-      <h3 className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{title}</h3>
-      <pre className="mt-2 max-h-80 overflow-auto rounded border border-gray-200 bg-white p-3 text-xs leading-5 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+      <h3 className="text-xs font-medium uppercase text-text-muted">{title}</h3>
+      <pre className="mt-2 max-h-80 overflow-auto rounded border border-border bg-surface p-3 text-xs leading-5 text-text-primary">
         {value || "-"}
       </pre>
     </section>

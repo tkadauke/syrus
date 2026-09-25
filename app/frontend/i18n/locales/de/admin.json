@@ -850,6 +850,7 @@
     "tab_recurring": "Wiederkehrend",
     "tab_workers": "Worker",
     "showing_of": "{{shown}} von {{total}} angezeigt",
+    "showing_items": "{{first}}-{{last}} von {{total}} Elementen angezeigt",
     "no_active": "Keine aktiven beanspruchten Ausführungen.",
     "no_queued": "Keine wartenden Aufgaben.",
     "no_recurring": "Keine wiederkehrenden Aufgaben registriert.",

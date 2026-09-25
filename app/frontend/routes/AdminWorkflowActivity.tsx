@@ -5,7 +5,7 @@ import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, disabledPaginationClass, durationLabel, paginationLinkClass, severityPillClass } from "../components/AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, durationLabel, severityPillClass } from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 
@@ -51,11 +51,9 @@ export function AdminWorkflowActivity() {
         { name: "run_id", label: t("activity.filter_run"), inputMode: "numeric" }
       ]} search={location.search} searchLabel={t("activity.apply_filters")} onNavigate={navigateSearch} />
 
-      <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-        {activity.isPending ? <AdminEventPanelMessage>{t("activity.loading")}</AdminEventPanelMessage> : null}
-        {activity.isError ? <AdminEventPanelMessage tone="error">{t("activity.error_load")}</AdminEventPanelMessage> : null}
-        {activity.isSuccess ? <ActivityTable payload={activity.data} prefix={prefix} search={location.search} onNavigate={navigateSearch} /> : null}
-      </section>
+      {activity.isPending ? <AdminEventPanelMessage>{t("activity.loading")}</AdminEventPanelMessage> : null}
+      {activity.isError ? <AdminEventPanelMessage tone="error">{t("activity.error_load")}</AdminEventPanelMessage> : null}
+      {activity.isSuccess ? <ActivityTable payload={activity.data} prefix={prefix} search={location.search} onNavigate={navigateSearch} /> : null}
     </AdminEventPageShell>
   )
 }
@@ -134,13 +132,34 @@ function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (p
   ]
 
   return (
-    <div>
-      <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
-        {t("activity.showing", { first: payload.pagination.first_item, last: payload.pagination.last_item, total: payload.pagination.total })}
-      </div>
-      <AdminEventLogTable columns={columns} getRowKey={(event) => event.id} rows={payload.events} search={search} storageKey="syrus.admin.workflow_activity.visible_columns" tableClassName="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700" onNavigate={onNavigate} />
-      <Pagination pagination={payload.pagination} prefix={prefix} />
-    </div>
+    <AdminEventLogTable
+      columns={columns}
+      getRowKey={(event) => event.id}
+      rows={payload.events}
+      search={search}
+      storageKey="syrus.admin.workflow_activity.visible_columns"
+      tableClassName="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700"
+      onNavigate={onNavigate}
+      panel={{
+        summary: t("activity.showing", { first: payload.pagination.first_item, last: payload.pagination.last_item, total: payload.pagination.total }),
+        pagination: {
+          ariaLabel: t("activity.aria_pagination"),
+          label: t("activity.page_of", { page: payload.pagination.page, total: payload.pagination.total_pages }),
+          nextLabel: t("activity.next"),
+          onNavigate,
+          pagination: {
+            page: payload.pagination.page,
+            has_next_page: Boolean(payload.pagination.next_path),
+            has_previous_page: Boolean(payload.pagination.previous_path),
+            next_page: payload.pagination.page + 1,
+            previous_page: payload.pagination.page - 1,
+            total_pages: payload.pagination.total_pages
+          },
+          previousLabel: t("activity.previous"),
+          search
+        }
+      }}
+    />
   )
 }
 
@@ -151,20 +170,6 @@ function ContextLinks({ event, prefix }: { event: WorkflowActivityEvent; prefix:
   if (event.run) links.push(<Link className={linkClass()} key="run" to={withRoutePrefix(event.run.path, prefix)}>Run #{event.run.id}</Link>)
   if (links.length === 0) return <span>-</span>
   return <span className="flex flex-wrap gap-x-2 gap-y-1">{links}</span>
-}
-
-function Pagination({ pagination, prefix }: { pagination: AdminWorkflowActivityPayload["pagination"]; prefix: string }) {
-  const { t } = useT("admin")
-  if (pagination.total_pages <= 1) return null
-  return (
-    <nav aria-label={t("activity.aria_pagination")} className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
-      <span>{t("activity.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
-      <div className="flex items-center gap-2">
-        {pagination.previous_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>{t("activity.previous")}</Link> : <span className={disabledPaginationClass()}>{t("activity.previous")}</span>}
-        {pagination.next_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>{t("activity.next")}</Link> : <span className={disabledPaginationClass()}>{t("activity.next")}</span>}
-      </div>
-    </nav>
-  )
 }
 
 function stateLabel(event: WorkflowActivityEvent) {

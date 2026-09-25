@@ -155,6 +155,26 @@ describe("AdminEventPageShell", () => {
     expect(screen.getByRole("heading", { name: "Backend Exceptions" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
   })
+
+  it("uses the same page title treatment as the queue page", () => {
+    renderShell()
+
+    expect(screen.getByRole("heading", { name: "Backend Exceptions" }).className).toContain("text-[length:var(--text-page-title)]")
+  })
+
+  it("supports a short page description above the filter/table content", () => {
+    render(
+      <MemoryRouter>
+        <AdminEventPageShell ariaLabel="Activity" description="Operational context" eyebrow="Admin" title="Workflow events">
+          <div>Filter bar</div>
+        </AdminEventPageShell>
+      </MemoryRouter>
+    )
+
+    const description = screen.getByText("Operational context")
+    const filterBar = screen.getByText("Filter bar")
+    expect(description.compareDocumentPosition(filterBar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
 })
 
 describe("AdminEventLogTable", () => {
@@ -225,6 +245,81 @@ describe("AdminEventLogTable", () => {
 
     expect(screen.queryByRole("columnheader", { name: "Owner" })).not.toBeInTheDocument()
     expect(screen.queryByText("Alice")).not.toBeInTheDocument()
+  })
+
+  it("renders shared table panel chrome with top pagination, column selector, and footer pagination", () => {
+    const onNavigate = vi.fn()
+
+    render(
+      <AdminEventLogTable
+        columns={[
+          { key: "time", header: "Time", className: "px-4 py-2", render: (row: { id: number }) => row.id },
+          { key: "owner", header: "Owner", className: "px-4 py-2", render: () => "Alice" }
+        ]}
+        getRowKey={(row) => row.id}
+        rows={[{ id: 7 }]}
+        search="?q=active&page=2"
+        storageKey="syrus.test.admin_event_log.panel"
+        onNavigate={onNavigate}
+        panel={{
+          summary: "Showing 26-50 of 80 items",
+          pagination: {
+            ariaLabel: "Test pagination",
+            label: "Page 2 of 4",
+            nextLabel: "Next",
+            onNavigate,
+            pagination: { page: 2, has_next_page: true, has_previous_page: true, next_page: 3, previous_page: 1, total_pages: 4 },
+            previousLabel: "Previous",
+            search: "?q=active&page=2"
+          }
+        }}
+      />
+    )
+
+    const panel = screen.getByText("Showing 26-50 of 80 items").closest("section")
+    expect(panel?.className).toContain("bg-white")
+    expect(panel?.className).toContain("border")
+
+    const topHeader = screen.getByText("Showing 26-50 of 80 items").parentElement?.parentElement
+    expect(within(topHeader as HTMLElement).getByRole("button", { name: "Previous" })).toBeInTheDocument()
+    expect(within(topHeader as HTMLElement).getByRole("button", { name: "Next" })).toBeInTheDocument()
+    expect(within(topHeader as HTMLElement).getByRole("button", { name: "Columns" })).toBeInTheDocument()
+
+    const footer = screen.getByRole("navigation", { name: "Test pagination" })
+    expect(within(footer).getByText("Page 2 of 4")).toBeInTheDocument()
+    expect(within(footer).getByRole("button", { name: "Previous" })).toBeInTheDocument()
+    expect(within(footer).getByRole("button", { name: "Next" })).toBeInTheDocument()
+
+    fireEvent.click(within(topHeader as HTMLElement).getByRole("button", { name: "Next" }))
+    expect((onNavigate.mock.calls[0][0] as URLSearchParams).toString()).toBe("q=active&page=3")
+  })
+
+  it("omits top and bottom pagination controls when there is only one page", () => {
+    render(
+      <AdminEventLogTable
+        columns={[{ key: "time", header: "Time", className: "px-4 py-2", render: (row: { id: number }) => row.id }]}
+        getRowKey={(row) => row.id}
+        rows={[{ id: 7 }]}
+        storageKey="syrus.test.admin_event_log.single_page_panel"
+        panel={{
+          summary: "Showing 1-1 of 1 items",
+          pagination: {
+            ariaLabel: "Test pagination",
+            label: "Page 1 of 1",
+            nextLabel: "Next",
+            onNavigate: vi.fn(),
+            pagination: { page: 1, has_next_page: false, has_previous_page: false, total_pages: 1 },
+            previousLabel: "Previous",
+            search: ""
+          }
+        }}
+      />
+    )
+
+    expect(screen.getByText("Showing 1-1 of 1 items")).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Test pagination" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Previous" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Columns" })).toBeInTheDocument()
   })
 
   it("keeps the expanded detail row's colSpan aligned with visible columns after a header drag reorder and a hidden column", () => {

@@ -3,11 +3,27 @@ import { useEffect, useState } from "react"
 import { useT } from "../hooks/useT"
 import { usePageGutterRestoreClassName } from "./ui"
 
-export function AdminFiltersLayout({ children, filterBar, smartFolders }: { children: ReactNode; filterBar?: ReactNode; smartFolders?: ReactNode }) {
+export function AdminFiltersLayout({
+  children,
+  description,
+  filterBar,
+  smartFolders
+}: {
+  children: ReactNode
+  description?: ReactNode
+  filterBar?: ReactNode
+  smartFolders?: ReactNode
+}) {
   const { t } = useT("nav")
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
-  const hasControls = Boolean(filterBar || smartFolders)
+  const hasControls = Boolean(description || filterBar || smartFolders)
   const marginGutterRestore = usePageGutterRestoreClassName("margin")
+  const controls = (
+    <>
+      {description ? <div className={marginGutterRestore}>{description}</div> : null}
+      {filterBar}
+    </>
+  )
 
   if (!hasControls) {
     return <div className="space-y-3">{children}</div>
@@ -19,7 +35,7 @@ export function AdminFiltersLayout({ children, filterBar, smartFolders }: { chil
         <div className="grid gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
           {smartFolders}
           <div className="min-w-0 space-y-3">
-            {filterBar}
+            {controls}
             {children}
           </div>
         </div>
@@ -28,7 +44,7 @@ export function AdminFiltersLayout({ children, filterBar, smartFolders }: { chil
 
     return (
       <div className="space-y-3">
-        {filterBar}
+        {controls}
         {children}
       </div>
     )
@@ -43,6 +59,7 @@ export function AdminFiltersLayout({ children, filterBar, smartFolders }: { chil
           <span className="hidden text-gray-400 dark:text-gray-500 group-open:inline">{t("filters_layout.hide")}</span>
         </summary>
         <div className="space-y-4 border-t border-gray-200 dark:border-gray-700 p-4">
+          {description}
           {filterBar}
           {smartFolders}
         </div>
