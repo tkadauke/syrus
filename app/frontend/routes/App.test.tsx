@@ -1297,7 +1297,7 @@ describe("App", () => {
       const sidebar = resizeHandle.closest("aside")
       expect(sidebar).toBeInstanceOf(HTMLElement)
       expect(sidebar).toHaveStyle({ width: "300px" })
-      expect(resizeHandle).toHaveAttribute("aria-valuemin", "208")
+      expect(resizeHandle).toHaveAttribute("aria-valuemin", "60")
       expect(resizeHandle).toHaveAttribute("aria-valuemax", "420")
       expect(resizeHandle).toHaveAttribute("aria-valuenow", "300")
 
@@ -1319,8 +1319,8 @@ describe("App", () => {
       await waitFor(() => expect(document.body).not.toHaveClass("cursor-col-resize"))
 
       fireEvent.keyDown(resizeHandle, { key: "Home" })
-      expect(sidebar).toHaveStyle({ width: "208px" })
-      expect(window.localStorage.getItem("syrus.sidebar.width")).toBe("208")
+      expect(sidebar).toHaveStyle({ width: "60px" })
+      expect(window.localStorage.getItem("syrus.sidebar.collapsed")).toBe("true")
     } finally {
       fetchSpy.mockRestore()
       script.remove()
