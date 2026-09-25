@@ -60,6 +60,12 @@ label/detail (`AttentionItems::ActionContext` renders the same
 
 Filtering (state/queue/urgency/repository) uses the shared `FilterBar`
 (`Admin::EventLogFilterDefinition`, the same pattern as `/admin/work_units`).
-Smart folders were deliberately not added for this surface — the queue is
-meant to stay small by design (see `AttentionItems::Opener`'s dedupe/decision
-reuse above), so a saved-view layer wasn't worth the added surface yet.
+The React page uses the shared admin data-table panel: top summary,
+pagination controls, column selector, sortable headers, table body, and bottom
+pagination. The app payload returns `filter_schema`, `filter`, `filters`, and
+`pagination`; sortable columns use `sort` / `direction` and currently cover
+urgency (the default open-queue ordering), creation time, queue, state, and
+problem code. Smart folders were deliberately not added for this surface — the
+queue is meant to stay small by design (see `AttentionItems::Opener`'s
+dedupe/decision reuse above), so a saved-view layer wasn't worth the added
+surface yet.

@@ -311,6 +311,28 @@ count; the overview embeds the first page from the cached snapshot plus
 `stuck_pagination` so the health tile can show the last known total without
 rendering every row or blocking on reconciliation.
 
+The dedicated Stuck page uses the shared admin data-table shell. It exposes a
+short operator description, a chip-based `FilterBar`, a column selector, and
+sortable headers. The app API returns `filter_schema`, `filter`, and `filters`
+metadata for severity, attention status, issue kind, Job ID, Workflow ID, and
+Run ID; these filters are applied to the cached snapshot before pagination.
+Sorts are explicit via `sort` / `direction` (`severity`, `status`, `kind`,
+`detail`, `context`, or `age`). With no explicit sort, the cached reconciler
+order is preserved so the page keeps the same priority ordering the stuck
+classifier produced.
+
+The Admin -> Work Units page (`/admin/work_units`) is the operator diagnostic
+surface for desired work (`WorkIntent`) and runtime attempts (`WorkUnit`). It
+uses the same shared table panel conventions as the other operations pages:
+chip filters, top summary/pagination/column selector, sortable headers, the
+table body, and bottom pagination. Its app payload returns `filter_schema`,
+`filter`, `filters`, and `pagination`; filterable fields include intent/unit
+state and kind, scope type, repository ID, Job ID, and Workflow ID. Sorts are
+explicit via `sort` / `direction` (`requested`, `kind`, `state`, `scope`, or
+`repository`). Because unit filters join through `work_units` and
+`work_unit_members`, the payload counts distinct WorkIntent IDs so one intent
+with several matching units does not duplicate the total or break pagination.
+
 The admin Reconciler Events page (`/admin/reconciler_activity`) is the
 operator activity log for what the reconciler did and why. Read-only inspections
 used by admin stuck surfaces do not create activity rows. Repairing reconciler

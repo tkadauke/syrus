@@ -1,6 +1,7 @@
 module Admin
   class OverviewPayload
     STUCK_ITEMS_PER_PAGE = 50
+    STUCK_SORTS = %w[severity status kind detail context age].freeze
 
     def initialize(params: {})
       @params = params
@@ -47,11 +48,14 @@ module Admin
     def stuck_json
       PerformanceLogging.phase("admin_stuck_payload") do
         snapshot = PerformanceLogging.phase("admin_stuck.snapshot") { stuck_snapshot_for_request }
-        items = snapshot.items
+        items = sorted_stuck_items(filtered_stuck_items(snapshot.items))
         {
           items: paginated_items(items),
           pagination: pagination_for(items),
-          snapshot: snapshot.as_json.except(:items)
+          snapshot: snapshot.as_json.except(:items),
+          filter_schema: stuck_filter_definition.schema,
+          filter: stuck_filter_tree,
+          filters: stuck_filter_definition.flat_filters(params).symbolize_keys.merge(sort: stuck_sort || "natural", direction: stuck_direction)
         }
       end
     end
@@ -296,7 +300,112 @@ module Admin
     end
 
     def stuck_page_path(page)
-      "/admin/stuck?page=#{page}"
+      raw_params = params.respond_to?(:to_unsafe_h) ? params.to_unsafe_h : params.to_h
+      query = raw_params.slice("q", "severity", "status", "kind", "job_id", "workflow_id", "run_id", "sort", "direction").merge("page" => page).compact_blank
+      "/admin/stuck#{query.present? ? "?#{query.to_query}" : ""}"
+    end
+
+    def stuck_filter_definition
+      @stuck_filter_definition ||= ::Admin::EventLogFilterDefinition.define(:stuck_items, model: nil) do
+        field :severity, label: "Severity", bucket: :enum, operators: %w[is is_not is_one_of is_none_of], values: option_values(%w[alarm warn])
+        field :status, label: "Status", bucket: :enum, operators: %w[is is_not is_one_of is_none_of], values: option_values(%w[auto_repairable operator_action_required repaired waiting])
+        field :kind, label: "Kind", bucket: :text, operators: %w[is is_not contains does_not_contain]
+        field :job_id, label: "Job ID", bucket: :number, operators: %w[is is_not is_set is_unset], input_mode: "numeric"
+        field :workflow_id, label: "Workflow ID", bucket: :number, operators: %w[is is_not is_set is_unset], input_mode: "numeric"
+        field :run_id, label: "Run ID", bucket: :number, operators: %w[is is_not is_set is_unset], input_mode: "numeric"
+      end
+    end
+
+    def stuck_filter_tree
+      @stuck_filter_tree ||= stuck_filter_definition.filter_tree(params)
+    end
+
+    def filtered_stuck_items(items)
+      apply_stuck_filter(items, Filters::Ast.parse(stuck_filter_tree))
+    rescue ArgumentError
+      items
+    end
+
+    def apply_stuck_filter(items, node)
+      case node
+      when Filters::Ast::AndNode
+        node.children.reduce(items) { |current, child| apply_stuck_filter(current, child) }
+      when Filters::Ast::OrNode
+        node.children.flat_map { |child| apply_stuck_filter(items, child) }.uniq
+      when Filters::Ast::NotNode
+        rejected = apply_stuck_filter(items, node.child)
+        items - rejected
+      when Filters::Ast::Chip
+        filter_stuck_chip(items, node)
+      else
+        items
+      end
+    end
+
+    def filter_stuck_chip(items, chip)
+      return items unless stuck_filter_definition.fields.key?(chip.field)
+
+      items.select { |item| stuck_chip_matches?(item, chip) }
+    end
+
+    def stuck_chip_matches?(item, chip)
+      value = stuck_filter_value(item, chip.field)
+      expected = chip.value
+      case chip.op.to_s
+      when "is", "equals"
+        stuck_values_equal?(value, expected)
+      when "is_not", "not_equals"
+        !stuck_values_equal?(value, expected)
+      when "is_one_of"
+        Array(expected).any? { |candidate| stuck_values_equal?(value, candidate) }
+      when "is_none_of"
+        Array(expected).none? { |candidate| stuck_values_equal?(value, candidate) }
+      when "contains"
+        value.to_s.include?(expected.to_s)
+      when "does_not_contain", "not_contains"
+        !value.to_s.include?(expected.to_s)
+      when "is_set"
+        value.present?
+      when "is_unset"
+        value.blank?
+      else
+        true
+      end
+    end
+
+    def stuck_values_equal?(left, right)
+      left.to_s == right.to_s
+    end
+
+    def stuck_filter_value(item, field)
+      item.with_indifferent_access[field]
+    end
+
+    def sorted_stuck_items(items)
+      return items unless stuck_sort
+
+      sorted = items.sort_by { |item| stuck_sort_value(item, stuck_sort) }
+      stuck_direction == "desc" ? sorted.reverse : sorted
+    end
+
+    def stuck_sort
+      value = params[:sort].to_s
+      STUCK_SORTS.include?(value) ? value : nil
+    end
+
+    def stuck_direction
+      params[:direction].to_s == "asc" ? "asc" : "desc"
+    end
+
+    def stuck_sort_value(item, sort)
+      row = item.with_indifferent_access
+      value = case sort
+      when "status" then row[:attention_state]
+      when "context" then [ row[:run_id], row[:workflow_trigger_kind], row[:step_kind], row[:workflow_id] ].compact.join(" ")
+      when "age" then row[:age_label]
+      else row[sort]
+      end
+      [ value.blank? ? 1 : 0, value.to_s ]
     end
   end
 end
