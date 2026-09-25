@@ -29,6 +29,7 @@ function issue(overrides: Partial<RepositoryIssue> = {}): RepositoryIssue {
     created_at: "2026-01-01T00:00:00Z",
     labels: [ { name: "bug", color: "d73a4a" } ],
     delegated: false,
+    linked_pull_request: null,
     ...overrides
   }
 }
@@ -143,6 +144,21 @@ describe("RepositoryIssuesTab", () => {
     expect(within(row).getByText(/alice/)).toBeInTheDocument()
     expect(within(row).getByText("Delegated")).toBeInTheDocument()
     expect(within(row).queryByRole("button", { name: "Delegate" })).not.toBeInTheDocument()
+  })
+
+  it("renders connected pull requests on issue rows", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({
+      issues: [ issue({
+        number: 274,
+        title: "Alert logbook too verbose",
+        linked_pull_request: { number: 411, url: "https://github.com/acme/widgets/pull/411" }
+      }) ]
+    })))
+    renderRoute()
+
+    await screen.findByText("Alert logbook too verbose")
+    const row = findRowContaining("Alert logbook too verbose")
+    expect(within(row).getByRole("link", { name: "PR #411" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/411")
   })
 
   it("closes an issue from the row action and refreshes the list", async () => {

@@ -672,6 +672,51 @@ class GithubClient
     raise
   end
 
+  def linked_open_prs_for_issues(repo_slug, issue_numbers)
+    numbers = Array(issue_numbers).filter_map { |number| Integer(number, exception: false) }.select(&:positive?).uniq
+    return {} if numbers.empty?
+
+    owner, name = repo_slug.split("/", 2)
+    variables = { owner: owner, name: name }
+    issue_fields = numbers.each_with_index.map do |number, index|
+      variable = "issue#{index}"
+      variables[variable.to_sym] = number
+      <<~GQL
+        #{variable}: issue(number: $#{variable}) {
+          closedByPullRequestsReferences(first: 5, includeClosedPrs: false) {
+            nodes { number url state }
+          }
+        }
+      GQL
+    end.join("\n")
+    issue_variables = numbers.each_index.map { |index| "$issue#{index}: Int!" }.join(", ")
+    query = <<~GQL
+      query($owner: String!, $name: String!, #{issue_variables}) {
+        repository(owner: $owner, name: $name) {
+          #{issue_fields}
+        }
+      }
+    GQL
+    body = { query: query, variables: variables }
+    result = track_rate_limits { @client.post("/graphql", body.to_json) }
+    # Sawyer preserves the GraphQL camelCase keys verbatim — access via
+    # method-missing on that name. dig with the symbol is the safest
+    # null-tolerant traversal.
+    repository = result.to_h.dig(:data, :repository) || {}
+    numbers.each_with_index.each_with_object({}) do |(number, index), linked|
+      nodes = repository.dig(:"issue#{index}", :closedByPullRequestsReferences, :nodes)
+      next unless nodes
+
+      pr = nodes.find { |node| (node[:state] || node["state"]).to_s == "OPEN" }
+      next unless pr
+
+      linked[number] = { number: pr[:number] || pr["number"], url: pr[:url] || pr["url"] }
+    end
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} linked-PR lookup: #{e.message}")
+    raise
+  end
+
   # Returns { branches: [...names], default_branch: "main" } or raises.
   def repo_branches(repo_slug)
     repo     = track_rate_limits { @client.repo(repo_slug) }
