@@ -2442,22 +2442,41 @@ function markdownToWysiwygHtmlWithContext(markdown: string, highlights: AnchorHi
       continue
     }
 
-    const paragraph: string[] = []
+    const paragraph: Array<{ html: string; hardBreak: boolean }> = []
     while (index < lines.length && lines[index].trim() !== "" && !startsWysiwygBlock(lines, index)) {
       const paragraphLine = lines[index]
       const leading = paragraphLine.length - paragraphLine.trimStart().length
       const lineStart = offset + leading
       const lineEnd = offset + paragraphLine.length
       if (!isFullyCoveredByRenderedWholeSuggestion(highlights, lineStart, lineEnd, context)) {
-        paragraph.push(renderWysiwygInline(paragraphLine.trim(), highlights, lineStart, focusedThreadId, focusedSuggestionId, context))
+        const softLine = wysiwygParagraphLine(paragraphLine)
+        paragraph.push({
+          html: renderWysiwygInline(softLine.text, highlights, lineStart, focusedThreadId, focusedSuggestionId, context),
+          hardBreak: softLine.hardBreak
+        })
       }
       offset += paragraphLine.length + 1
       index += 1
     }
-    if (paragraph.length > 0) blocks.push(`<p>${paragraph.join("<br>")}</p>`)
+    if (paragraph.length > 0) blocks.push(`<p>${renderWysiwygParagraph(paragraph)}</p>`)
   }
 
   return blocks.join("")
+}
+
+function wysiwygParagraphLine(line: string) {
+  const hardBreak = /(?: {2,}|\\)$/.test(line)
+  const text = hardBreak && line.trimEnd().endsWith("\\") ? line.trim().slice(0, -1).trimEnd() : line.trim()
+
+  return { text, hardBreak }
+}
+
+function renderWysiwygParagraph(lines: Array<{ html: string; hardBreak: boolean }>) {
+  return lines.map((line, index) => {
+    if (index === lines.length - 1) return line.html
+
+    return `${line.html}${line.hardBreak ? "<br>" : " "}`
+  }).join("")
 }
 
 function wholeMarkdownBlockSuggestionAt(highlights: AnchorHighlight[], offset: number, context: WysiwygRenderContext) {
