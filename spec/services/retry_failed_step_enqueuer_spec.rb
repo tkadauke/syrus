@@ -633,6 +633,22 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(unit.work_unit_locks.active.pluck(:lock_key)).to eq([ "job:#{job.id}" ])
   end
 
+  it "retries an explicitly targeted failed Step instead of a succeeded grade-loop fanout" do
+    job = Factories.job_record(state: "failed")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 20, state: "succeeded", loop_id: "grade-loop", iteration: 1)
+    grader = Step.create!(workflow: workflow, kind: "grader", position: 21, state: "failed", loop_id: "grade-loop", iteration: 1, details: { "name" => "tests" })
+    Step.create!(workflow: workflow, kind: "grader_collect", position: 22, state: "cancelled", loop_id: "grade-loop", iteration: 1)
+
+    result = described_class.call(workflow: workflow, failed_step: grader, restart_grade_loop: false)
+
+    expect(result).to be_success
+    expect(result.step).to eq(grader)
+    expect(grader.reload).to be_queued
+    expect(fanout.reload).to be_succeeded
+  end
+
   it "revives cancelled downstream steps when retrying a failed step in place" do
     job = Factories.job_record(state: "failed", pr_number: 807, branch_name: "syrus/direct-272")
     workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback")

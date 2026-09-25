@@ -69,6 +69,32 @@ RSpec.describe AutoRetryJob do
     expect(step.reload).to be_queued
   end
 
+  it "targets the Step that produced the automatic retry" do
+    attempt = failed_attempt!(retry_kind: "failed_step")
+    allow(RetryFailedStepEnqueuer).to receive(:call).and_call_original
+
+    described_class.perform_now(attempt.id)
+
+    expect(RetryFailedStepEnqueuer).to have_received(:call).with(
+      workflow: workflow,
+      agent_provider: "claude",
+      disable_session_resume: false,
+      restart_grade_loop: false,
+      failed_step: step
+    )
+  end
+
+  it "releases a pending attempt when retry execution crashes" do
+    attempt = failed_attempt!(retry_kind: "failed_step")
+    allow(RetryFailedStepEnqueuer).to receive(:call).and_raise(ArgumentError, "broken retry")
+
+    expect {
+      described_class.perform_now(attempt.id)
+    }.to raise_error(ArgumentError, "broken retry")
+
+    expect(attempt.reload.skipped_reason).to eq("auto-retry execution failed: ArgumentError: broken retry")
+  end
+
   it "disables provider resume for agent-resume-unavailable failed-step attempts" do
     attempt = failed_attempt!(retry_kind: "failed_step")
     attempt.update!(failure_classification: "agent_resume_unavailable")
@@ -237,7 +263,8 @@ RSpec.describe AutoRetryJob do
       workflow: workflow,
       agent_provider: "codex",
       disable_session_resume: false,
-      restart_grade_loop: false
+      restart_grade_loop: false,
+      failed_step: step
     )
     expect(attempt.reload.performed_at).to be_present
   end

@@ -134,20 +134,21 @@ class RetryFailedStepEnqueuer
   end
 
   def initialize(workflow:, parent_session_id: nil, prompt: nil, agent_provider: nil, disable_session_resume: false,
-                 restart_grade_loop: true)
+                 restart_grade_loop: true, failed_step: nil)
     @workflow = workflow
     @parent_session_id = parent_session_id
     @prompt = prompt
     @agent_provider = agent_provider.to_s.presence
     @disable_session_resume = disable_session_resume
     @restart_grade_loop = restart_grade_loop
+    @failed_step = failed_step
   end
 
   def call
     return failure("Workflow is not in a failed state.") unless workflow.failed?
     return failure(WORKSPACE_CLEANED_UP_MESSAGE) unless workflow.retry_available?
 
-    failed_step = self.class.failed_step_for(workflow)
+    failed_step = targeted_failed_step || self.class.failed_step_for(workflow)
     return failure("No failed step to retry.") unless failed_step
     return rebuild_merge_train if terminal_merge_train_rebuild_required?
 
@@ -199,7 +200,14 @@ class RetryFailedStepEnqueuer
   private
 
   attr_reader :workflow, :parent_session_id, :prompt, :agent_provider, :disable_session_resume,
-    :restart_grade_loop
+    :restart_grade_loop, :failed_step
+
+  def targeted_failed_step
+    return unless failed_step
+    return failed_step if failed_step.workflow_id == workflow.id && (failed_step.failed? || failed_step.cancelled?)
+
+    raise ArgumentError, "targeted retry Step must be a failed or cancelled Step in Workflow ##{workflow.id}"
+  end
 
   def retry_parent_session_id
     return Steps::Base::DISABLE_AGENT_RESUME if disable_session_resume
@@ -256,7 +264,7 @@ class RetryFailedStepEnqueuer
         revived_cancelled_step_attributes(step)
       )
     else
-      raise AASM::InvalidTransition, "Step #{step.id} cannot be reopened from #{step.state}"
+      raise ArgumentError, "Step #{step.id} cannot be reopened from #{step.state}"
     end
   end
 

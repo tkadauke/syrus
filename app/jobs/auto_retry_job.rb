@@ -45,6 +45,12 @@ class AutoRetryJob < ApplicationJob
     end
   rescue WorkUnits::Launcher::LockConflict => e
     reschedule_for_active_work_unit(attempt, e)
+  rescue StandardError => e
+    if defined?(attempt) && attempt&.persisted? && attempt.performed_at.blank? && attempt.skipped_reason.blank?
+      attempt.update!(skipped_reason: "auto-retry execution failed: #{e.class}: #{e.message}".truncate(1_000))
+      WorkUnits::AutoRetryBackoff.clear!(attempt)
+    end
+    raise
   end
 
   RETRY_DISPATCH = {
@@ -289,7 +295,8 @@ class AutoRetryJob < ApplicationJob
         workflow: attempt.workflow,
         agent_provider: attempt.agent_provider,
         disable_session_resume: attempt.failure_classification == "agent_resume_unavailable",
-        restart_grade_loop: false
+        restart_grade_loop: false,
+        failed_step: attempt.run&.step
       )
     else
       retry_workflow(attempt)
