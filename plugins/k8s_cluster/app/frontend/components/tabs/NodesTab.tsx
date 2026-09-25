@@ -7,14 +7,24 @@ import { fetchKubernetesNodes, type KubernetesNodeRow } from "../../api/kubernet
 import { formatAge, formatKubernetesCpu, formatKubernetesMemory } from "../../lib/k8sFormat"
 import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 export function NodesTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const nodes = useQuery({
     queryKey: [ "k8s_cluster", "nodes", clusterId ],
     queryFn: () => fetchKubernetesNodes(clusterId)
   })
+
+  if (nodes.isPending) return <PanelMessage>{t("nodes_loading")}</PanelMessage>
+  if (nodes.isError) return <PanelMessage tone="error">{errorMessage(nodes.error, t("nodes_error_loading"))}</PanelMessage>
+  if (nodes.data.nodes.length === 0) return <PanelMessage>{t("nodes_empty")}</PanelMessage>
+
+  const visible = nodes.data.nodes.filter((node) =>
+    matchesSearch(query, node.name, node.internal_ip, node.kubelet_version, ...node.roles)
+  )
 
   const open = (node: KubernetesNodeRow) =>
     detail.openDetail({
@@ -31,47 +41,45 @@ export function NodesTab({ clusterId }: { clusterId: number }) {
     })
 
   return (
-    <div aria-label={t("aria_nodes_tab")}>
-      {nodes.isPending ? <PanelMessage>{t("nodes_loading")}</PanelMessage> : null}
-      {nodes.isError ? <PanelMessage tone="error">{errorMessage(nodes.error, t("nodes_error_loading"))}</PanelMessage> : null}
-      {nodes.isSuccess ? (
-        nodes.data.nodes.length === 0 ? (
-          <PanelMessage>{t("nodes_empty")}</PanelMessage>
-        ) : (
-          <DataTable.Root density="compact">
-            <DataTable.Header>
-              <DataTable.Row>
-                <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_conditions")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_roles")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_capacity")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_allocatable")}</DataTable.HeadCell>
-                <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
+    <div aria-label={t("aria_nodes_tab")} className="space-y-3">
+      <TableSearch onChange={setQuery} query={query} />
+      {nodes.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <DataTable.Root density="compact">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_conditions")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_roles")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_capacity")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_allocatable")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {visible.map((node) => (
+              <DataTable.Row interactive key={node.name} onClick={() => open(node)}>
+                <DataTable.Cell className="font-medium">
+                  <DetailNameButton name={node.name} onOpen={() => open(node)} />
+                </DataTable.Cell>
+                <DataTable.Cell>
+                  <StatusBadge tone={node.ready ? "success" : "error"}>{node.ready ? t("node_ready") : t("node_not_ready")}</StatusBadge>
+                </DataTable.Cell>
+                <DataTable.Cell className="text-text-secondary">{node.roles.join(", ")}</DataTable.Cell>
+                <DataTable.Cell className="font-mono text-text-secondary">
+                  {formatKubernetesCpu(node.capacity_cpu)} / {formatKubernetesMemory(node.capacity_memory)}
+                </DataTable.Cell>
+                <DataTable.Cell className="font-mono text-text-secondary">
+                  {formatKubernetesCpu(node.allocatable_cpu)} / {formatKubernetesMemory(node.allocatable_memory)}
+                </DataTable.Cell>
+                <DataTable.Cell className="text-text-secondary">{formatAge(node.created_at)}</DataTable.Cell>
               </DataTable.Row>
-            </DataTable.Header>
-            <DataTable.Body>
-                {nodes.data.nodes.map((node) => (
-                  <DataTable.Row interactive key={node.name} onClick={() => open(node)}>
-                    <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">
-                      <DetailNameButton name={node.name} onOpen={() => open(node)} />
-                    </DataTable.Cell>
-                    <DataTable.Cell>
-                      <StatusBadge tone={node.ready ? "success" : "error"}>{node.ready ? t("node_ready") : t("node_not_ready")}</StatusBadge>
-                    </DataTable.Cell>
-                    <DataTable.Cell className="text-gray-700 dark:text-gray-300">{node.roles.join(", ")}</DataTable.Cell>
-                    <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">
-                      {formatKubernetesCpu(node.capacity_cpu)} / {formatKubernetesMemory(node.capacity_memory)}
-                    </DataTable.Cell>
-                    <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">
-                      {formatKubernetesCpu(node.allocatable_cpu)} / {formatKubernetesMemory(node.allocatable_memory)}
-                    </DataTable.Cell>
-                    <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(node.created_at)}</DataTable.Cell>
-                  </DataTable.Row>
-                ))}
-            </DataTable.Body>
-          </DataTable.Root>
-        )
-      ) : null}
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </div>
   )
