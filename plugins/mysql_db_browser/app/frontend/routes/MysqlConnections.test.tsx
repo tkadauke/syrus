@@ -111,6 +111,17 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
               created_at: null,
               updated_at: null,
               comment: null
+            },
+            {
+              name: "accounts",
+              type: "BASE TABLE",
+              engine: "InnoDB",
+              approximate_row_count: 3,
+              data_length_bytes: 100,
+              index_length_bytes: 50,
+              created_at: null,
+              updated_at: null,
+              comment: null
             }
           ]
         })
@@ -307,6 +318,38 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
                 "is_set",
                 "is_unset"
               ]
+            }
+          ],
+          filter: params.get("q") ? { and: [] } : null,
+          page: Number(params.get("page")) || 1,
+          per_page: 50,
+          has_more: false
+        })
+      )
+    }
+    if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/accounts\/content/.test(url) && method === "GET") {
+      const params = new URLSearchParams(url.split("?")[1] || "")
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          statement: "SELECT * FROM `app_staging`.`accounts` LIMIT 51 OFFSET 0",
+          read_only: true,
+          columns: ["id", "name"],
+          rows: [
+            { id: 1, name: "Acme" },
+            { id: 2, name: "Umbrella" }
+          ],
+          row_count: 2,
+          truncated: false,
+          duration_ms: 3,
+          generated_at: "2026-01-01T00:00:00Z",
+          filter_schema: [
+            { field: "id", label: "Id", bucket: "number", operators: ["equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset"] },
+            {
+              field: "name",
+              label: "Name",
+              bucket: "string",
+              operators: ["contains", "does_not_contain", "starts_with", "does_not_start_with", "ends_with", "does_not_end_with", "equals", "not_equals", "is_set", "is_unset"]
             }
           ],
           filter: params.get("q") ? { and: [] } : null,
@@ -740,6 +783,27 @@ describe("MysqlConnections", () => {
       const headers = within(contentRegion).getAllByRole("columnheader").map((cell) => cell.textContent)
       expect(headers[0]).toContain("email")
       expect(headers[1]).toContain("id")
+    })
+
+    it("loads default visible columns when switching to a table with a different schema", async () => {
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
+      fireEvent.click(await screen.findByText("app_staging"))
+      fireEvent.click(await screen.findByText("users"))
+      await screen.findByText("grace@example.com")
+
+      const contentRegion = screen.getByRole("region", { name: "Table content" })
+      fireEvent.click(within(contentRegion).getByRole("button", { name: "Columns" }))
+      fireEvent.click(within(contentRegion).getByLabelText("email"))
+      expect(within(contentRegion).queryByText("grace@example.com")).not.toBeInTheDocument()
+
+      fireEvent.click(await screen.findByText("accounts"))
+
+      expect(await within(contentRegion).findByText("Acme")).toBeInTheDocument()
+      expect(within(contentRegion).getByRole("columnheader", { name: /id/ })).toBeInTheDocument()
+      expect(within(contentRegion).getByRole("columnheader", { name: /name/ })).toBeInTheDocument()
     })
 
     it("reorders result columns by dragging headers", async () => {
