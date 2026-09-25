@@ -170,6 +170,59 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(step.metadata.dig("filter_capabilities", "typecheck")).to be(false)
   end
 
+  it "does not trust a bare node_modules directory when package.json typecheck needs tsc" do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "package.json"), <<~JSON)
+        { "scripts": { "typecheck": "tsc --noEmit" } }
+      JSON
+      FileUtils.mkdir_p(File.join(dir, "node_modules"))
+      File.write(File.join(dir, "npm"), <<~SH)
+        #!/bin/sh
+        echo "$*" >> npm-calls.log
+        mkdir -p node_modules/.bin
+        printf '#!/bin/sh\\n' > node_modules/.bin/tsc
+        chmod +x node_modules/.bin/tsc
+        exit 0
+      SH
+      File.chmod(0o755, File.join(dir, "npm"))
+
+      command = described_class.grade_steps(config: {}, default_failures: "strict").third.run
+      setup = command.split("run_package_script()").first
+      _stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{dir}:#{ENV.fetch("PATH")}" },
+        "bash", "-c", setup,
+        chdir: dir
+      )
+
+      expect(status).to be_success, stderr
+      expect(File.read(File.join(dir, "npm-calls.log"))).to eq("install\n")
+    end
+  end
+
+  it "keeps package.json-only installs skipped when typecheck's tsc binary is already present" do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "package.json"), <<~JSON)
+        { "scripts": { "typecheck": "tsc --noEmit" } }
+      JSON
+      FileUtils.mkdir_p(File.join(dir, "node_modules/.bin"))
+      File.write(File.join(dir, "node_modules/.bin/tsc"), "#!/bin/sh\n")
+      File.chmod(0o755, File.join(dir, "node_modules/.bin/tsc"))
+      File.write(File.join(dir, "npm"), "#!/bin/sh\necho unexpected > npm-calls.log\nexit 1\n")
+      File.chmod(0o755, File.join(dir, "npm"))
+
+      command = described_class.grade_steps(config: {}, default_failures: "strict").third.run
+      setup = command.split("run_package_script()").first
+      _stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{dir}:#{ENV.fetch("PATH")}" },
+        "bash", "-c", setup,
+        chdir: dir
+      )
+
+      expect(status).to be_success, stderr
+      expect(File).not_to exist(File.join(dir, "npm-calls.log"))
+    end
+  end
+
   it "embeds a focused-file selector script that survives shell parsing as valid Ruby" do
     focused_step = described_class.grade_steps(config: {}, default_failures: "strict").second
 
