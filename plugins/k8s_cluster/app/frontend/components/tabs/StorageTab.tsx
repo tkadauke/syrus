@@ -5,14 +5,31 @@ import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesPersistentVolumeClaims, type KubernetesPersistentVolumeClaimRow } from "../../api/kubernetesResources"
 import { formatAge } from "../../lib/k8sFormat"
 import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
+import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
 
 export function StorageTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
+  const detail = useResourceDetail()
   const pvcs = useQuery({
     queryKey: ["k8s_cluster", "pvcs", clusterId, namespace],
     queryFn: () => fetchKubernetesPersistentVolumeClaims(clusterId, namespace)
   })
+
+  const open = (pvc: KubernetesPersistentVolumeClaimRow) =>
+    detail.openDetail({
+      kind: "pvc",
+      kindLabel: t("tab_storage"),
+      name: pvc.name,
+      namespace: pvc.namespace,
+      fields: [
+        { label: t("col_namespace"), value: pvc.namespace },
+        { label: t("col_status"), value: pvc.status || "-" },
+        { label: t("col_capacity"), value: pvc.capacity || "-" },
+        { label: t("col_storage_class"), value: pvc.storage_class || "-" },
+        { label: t("col_age"), value: formatAge(pvc.created_at) }
+      ]
+    })
 
   return (
     <div aria-label={t("aria_storage_tab")}>
@@ -23,7 +40,7 @@ export function StorageTab({ clusterId, namespace }: { clusterId: number; namesp
           <PanelMessage>{t("storage_empty")}</PanelMessage>
         ) : (
           <KubernetesResourceTable
-            columns={pvcColumns(t)}
+            columns={pvcColumns(t, open)}
             defaultSort={{ column: "name", direction: "asc" }}
             empty={<PanelMessage>{t("storage_empty")}</PanelMessage>}
             getRowKey={(pvc) => `${pvc.namespace}/${pvc.name}`}
@@ -33,17 +50,18 @@ export function StorageTab({ clusterId, namespace }: { clusterId: number; namesp
           />
         )
       ) : null}
+      <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </div>
   )
 }
 
-function pvcColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResourceTableColumn<KubernetesPersistentVolumeClaimRow>> {
+function pvcColumns(t: ReturnType<typeof useT>["t"], open: (pvc: KubernetesPersistentVolumeClaimRow) => void): Array<KubernetesResourceTableColumn<KubernetesPersistentVolumeClaimRow>> {
   return [
     {
       key: "name",
       header: t("col_name"),
       className: "font-medium text-gray-900 dark:text-gray-100",
-      render: (pvc) => pvc.name,
+      render: (pvc) => <DetailNameButton name={pvc.name} onOpen={() => open(pvc)} />,
       required: true,
       sort: "name",
       sortValue: (pvc) => pvc.name
