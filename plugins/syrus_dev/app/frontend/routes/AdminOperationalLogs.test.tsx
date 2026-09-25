@@ -31,8 +31,22 @@ describe("AdminOperationalLogs", () => {
     expect(message).toHaveClass("break-words")
     expect(within(table).getByText("path=/jobs api_key=api_key=[REDACTED]")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Next" }))
+    expect(screen.getAllByRole("button", { name: "Next" })).toHaveLength(2)
+    fireEvent.click(screen.getAllByRole("button", { name: "Next" })[0])
     await waitFor(() => expect(fetchSpy).toHaveBeenLastCalledWith("/api/v1/app/admin/operational_logs?since=1h&revision_scope=current&per_page=50&page=2", expect.objectContaining({
+      credentials: "same-origin"
+    })))
+  })
+
+  it("sorts log rows through the shared event table headers", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(logsPayload()))
+
+    renderRoute(<AdminOperationalLogs />)
+    await screen.findByText("failed token=[REDACTED] migration")
+
+    fireEvent.click(screen.getByRole("button", { name: /Message/i }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenLastCalledWith("/api/v1/app/admin/operational_logs?since=1h&revision_scope=current&per_page=50&sort=message&direction=asc", expect.objectContaining({
       credentials: "same-origin"
     })))
   })

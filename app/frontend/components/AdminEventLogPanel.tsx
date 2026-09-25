@@ -80,47 +80,6 @@ function AdminEventShellDescription({ children }: { children: ReactNode }) {
   )
 }
 
-export function AdminEventPagination({
-  label,
-  nextLabel,
-  onNavigate,
-  pagination,
-  previousLabel,
-  search
-}: {
-  label: string
-  nextLabel: string
-  onNavigate: (params: URLSearchParams) => void
-  pagination: {
-    page: number
-    has_next_page: boolean
-    has_previous_page: boolean
-    next_page?: number | null
-    previous_page?: number | null
-  }
-  previousLabel: string
-  search: string
-}) {
-  function go(page: number | null | undefined) {
-    if (!page) return
-    const params = new URLSearchParams(search)
-    params.set("page", String(page))
-    onNavigate(params)
-  }
-
-  return (
-    <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm dark:border-gray-700">
-      <button className={pageButtonClass()} disabled={!pagination.has_previous_page} onClick={() => go(pagination.previous_page)} type="button">
-        {previousLabel}
-      </button>
-      <span className="text-gray-600 dark:text-gray-300">{label}</span>
-      <button className={pageButtonClass()} disabled={!pagination.has_next_page} onClick={() => go(pagination.next_page)} type="button">
-        {nextLabel}
-      </button>
-    </div>
-  )
-}
-
 export type AdminDataTablePanelPagination = {
   ariaLabel?: string
   label: ReactNode

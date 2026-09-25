@@ -6,6 +6,13 @@ class OperationalLogIndex < SearchRecord
   STALE_AFTER = 5.minutes
   FRESHNESS_CHECK_INTERVAL = 2.minutes
   REBUILD_BATCH_SIZE = 1_000
+  SORTS = {
+    "time" => [ "occurred_at", "operational_log_event_id" ],
+    "level" => [ "level", "occurred_at", "operational_log_event_id" ],
+    "process" => [ "role", "hostname", "pid", "occurred_at", "operational_log_event_id" ],
+    "refs" => [ "job_id", "workflow_id", "run_id", "request_id", "operational_log_event_id" ],
+    "message" => [ "message", "occurred_at", "operational_log_event_id" ]
+  }.freeze
 
   class << self
     def upsert(event)
@@ -66,8 +73,8 @@ class OperationalLogIndex < SearchRecord
       )
     end
 
-    def search(query: nil, since: OperationalLogEvent.retention_floor, until_time: nil, level: nil, role: nil, hostname: nil, app_revision: nil, limit: 50, offset: 0)
-      return fallback_search(query: query, since: since, until_time: until_time, level: level, role: role, hostname: hostname, app_revision: app_revision, limit: limit, offset: offset) unless available?
+    def search(query: nil, since: OperationalLogEvent.retention_floor, until_time: nil, level: nil, role: nil, hostname: nil, app_revision: nil, limit: 50, offset: 0, sort: "time", direction: "desc")
+      return fallback_search(query: query, since: since, until_time: until_time, level: level, role: role, hostname: hostname, app_revision: app_revision, limit: limit, offset: offset, sort: sort, direction: direction) unless available?
 
       ensure_fresh!
 
@@ -102,6 +109,7 @@ class OperationalLogIndex < SearchRecord
 
       binds << bind([[limit.to_i, 1].max, MAX_LIMIT].min)
       binds << bind([offset.to_i, 0].max)
+      order_sql = order_clause(sort: sort, direction: direction)
       rows = connection.exec_query(
         <<~SQL.squish,
           SELECT
@@ -123,7 +131,7 @@ class OperationalLogIndex < SearchRecord
             #{query.present? ? "bm25(operational_log_fts)" : "0"} AS rank
           FROM operational_log_fts
           WHERE #{wheres.join(" AND ")}
-          ORDER BY occurred_at DESC, operational_log_event_id DESC
+          ORDER BY #{order_sql}
           LIMIT ? OFFSET ?
         SQL
         "OperationalLogIndex Search",
@@ -300,16 +308,35 @@ class OperationalLogIndex < SearchRecord
       ]
     end
 
-    def fallback_search(query:, since:, until_time:, level:, role:, hostname:, app_revision:, limit:, offset:)
+    def order_clause(sort:, direction:)
+      selected_sort = SORTS.key?(sort.to_s) ? sort.to_s : "time"
+      selected_direction = direction.to_s == "asc" ? "ASC" : "DESC"
+      SORTS.fetch(selected_sort).map.with_index do |column, index|
+        column_direction = index == SORTS.fetch(selected_sort).length - 1 && selected_sort != "time" ? "ASC" : selected_direction
+        "#{column} #{column_direction}"
+      end.join(", ")
+    end
+
+    def fallback_search(query:, since:, until_time:, level:, role:, hostname:, app_revision:, limit:, offset:, sort:, direction:)
       scope = OperationalLogEvent.where(occurred_at: since..)
       scope = scope.where(occurred_at: ..until_time) if until_time.present?
       scope = scope.where(level: level) if level.present?
       scope = scope.where(role: role) if role.present?
       scope = scope.where(hostname: hostname) if hostname.present?
       scope = scope.where(app_revision: app_revision) if app_revision.present?
-      records = scope.order(occurred_at: :desc, id: :desc).limit(fallback_scan_limit(limit, offset)).to_a
+      records = scope.order(fallback_order(sort: sort, direction: direction)).limit(fallback_scan_limit(limit, offset)).to_a
       records = filter_fallback_query(records, query) if query.present?
       records.drop([ offset.to_i, 0 ].max).first([[ limit.to_i, 1 ].max, MAX_LIMIT].min).map { |event| fallback_row(event) }
+    end
+
+    def fallback_order(sort:, direction:)
+      selected_sort = SORTS.key?(sort.to_s) ? sort.to_s : "time"
+      selected_direction = direction.to_s == "asc" ? :asc : :desc
+      tie_breaker_direction = selected_sort == "time" ? selected_direction : :asc
+      SORTS.fetch(selected_sort).to_h do |column|
+        model_column = column == "operational_log_event_id" ? "id" : column
+        [ model_column, model_column == "id" ? tie_breaker_direction : selected_direction ]
+      end
     end
 
     def fallback_scan_limit(limit, offset)

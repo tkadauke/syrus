@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBrowserErrors, type BrowserErrorEventRow, type BrowserErrorEventsPayload } from "../api/adminBrowserErrors"
 import { AdminEventActions } from "../components/AdminEventActions"
-import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
+import { AdminDataTablePanel, type AdminDataTablePanelConfig, AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
@@ -67,26 +67,33 @@ function BrowserErrorFilters({ onNavigate, payload, search }: { onNavigate: (par
 
 function BrowserErrorsView({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload: BrowserErrorEventsPayload; search: string }) {
   const { t } = useT("admin")
+  const panel = {
+    summary: t("browser_errors.showing", { count: payload.events.length, page: payload.pagination.page }),
+    meta: t("browser_errors.revision_hint", { revision: payload.revision_scope === "all" ? t("browser_errors.all_revisions") : shortRevision(payload.current_revision) }),
+    pagination: {
+      label: t("browser_errors.page", { page: payload.pagination.page }),
+      nextLabel: t("browser_errors.next"),
+      previousLabel: t("browser_errors.previous"),
+      pagination: payload.pagination,
+      search,
+      onNavigate
+    }
+  }
+
+  if (payload.events.length === 0) {
+    return (
+      <AdminDataTablePanel config={panel}>
+        <AdminEventPanelMessage>{t("browser_errors.empty")}</AdminEventPanelMessage>
+      </AdminDataTablePanel>
+    )
+  }
+
   return (
-    <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between">
-        <span>{t("browser_errors.showing", { count: payload.events.length, page: payload.pagination.page })}</span>
-        <span>{t("browser_errors.revision_hint", { revision: payload.revision_scope === "all" ? t("browser_errors.all_revisions") : shortRevision(payload.current_revision) })}</span>
-      </div>
-      {payload.events.length > 0 ? <BrowserErrorsTable revisionScope={payload.revision_scope} rows={payload.events} search={search} onNavigate={onNavigate} /> : <AdminEventPanelMessage>{t("browser_errors.empty")}</AdminEventPanelMessage>}
-      <AdminEventPagination
-        label={t("browser_errors.page", { page: payload.pagination.page })}
-        nextLabel={t("browser_errors.next")}
-        previousLabel={t("browser_errors.previous")}
-        pagination={payload.pagination}
-        search={search}
-        onNavigate={onNavigate}
-      />
-    </section>
+    <BrowserErrorsTable panel={panel} revisionScope={payload.revision_scope} rows={payload.events} search={search} onNavigate={onNavigate} />
   )
 }
 
-function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNavigate: (params: URLSearchParams) => void; revisionScope: string; rows: BrowserErrorEventRow[]; search: string }) {
+function BrowserErrorsTable({ onNavigate, panel, revisionScope, rows, search }: { onNavigate: (params: URLSearchParams) => void; panel: AdminDataTablePanelConfig; revisionScope: string; rows: BrowserErrorEventRow[]; search: string }) {
   const { t } = useT("admin")
   const columns: Array<AdminEventLogTableColumn<BrowserErrorEventRow>> = [
     {
@@ -146,6 +153,8 @@ function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNav
       headerClassName: "w-32 px-4 py-2",
       header: t("browser_errors.col_actions"),
       key: "actions",
+      // Action controls intentionally are not sortable; every data-bearing
+      // column above declares a sort key.
       // Pin to the declared end (its natural, already-rightmost position) --
       // required columns default to start-pinning, which would otherwise
       // yank the only expand/collapse toggle in front of time/path/user.
@@ -165,6 +174,7 @@ function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNav
       search={search}
       storageKey="syrus.admin.browser_errors.visible_columns"
       onNavigate={onNavigate}
+      panel={panel}
       renderExpanded={(row) => (
         <div className="grid gap-4 lg:grid-cols-2">
           <DetailBlock title={t("browser_errors.stack")} value={row.stack} />
