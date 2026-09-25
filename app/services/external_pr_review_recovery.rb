@@ -46,7 +46,11 @@ class ExternalPrReviewRecovery
   end
 
   def syrus_grader_failure_review?(review)
-    syrus_bot_review?(review) && review_value(review, :body).to_s.start_with?(SYRUS_GRADER_FAILURE_PREFIX)
+    syrus_authored_review?(review) && review_value(review, :body).to_s.start_with?(SYRUS_GRADER_FAILURE_PREFIX)
+  end
+
+  def syrus_authored_review?(review)
+    syrus_bot_review?(review) || job_user_review?(review)
   end
 
   def syrus_bot_review?(review)
@@ -58,6 +62,14 @@ class ExternalPrReviewRecovery
 
     bot_login = "#{app_slug.delete_suffix("[bot]")}[bot]"
     login == bot_login || (type == "bot" && login == app_slug)
+  end
+
+  def job_user_review?(review)
+    expected_login = job.user&.github_handle.to_s.strip.downcase
+    return false if expected_login.blank?
+
+    user = review_value(review, :user)
+    review_value(user, :login).to_s.strip.downcase == expected_login
   end
 
   def dismiss_review(review)
