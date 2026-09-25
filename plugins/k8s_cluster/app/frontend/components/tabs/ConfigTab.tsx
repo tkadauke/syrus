@@ -7,6 +7,7 @@ import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesConfigMaps, fetchKubernetesSecrets, type KubernetesConfigMapRow, type KubernetesSecretRow } from "../../api/kubernetesResources"
 import { formatAge } from "../../lib/k8sFormat"
 import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 export function ConfigTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
@@ -27,6 +28,7 @@ export function ConfigTab({ clusterId, namespace }: { clusterId: number; namespa
 function ConfigMapsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const configMaps = useQuery({
     queryKey: ["k8s_cluster", "configmaps", clusterId, namespace],
     queryFn: () => fetchKubernetesConfigMaps(clusterId, namespace)
@@ -35,6 +37,10 @@ function ConfigMapsTable({ clusterId, namespace }: { clusterId: number; namespac
   if (configMaps.isPending) return <PanelMessage>{t("config_loading_configmaps")}</PanelMessage>
   if (configMaps.isError) return <PanelMessage tone="error">{errorMessage(configMaps.error, t("config_error_loading_configmaps"))}</PanelMessage>
   if (configMaps.data.config_maps.length === 0) return <PanelMessage>{t("config_empty_configmaps")}</PanelMessage>
+
+  const visible = configMaps.data.config_maps.filter((configMap) =>
+    matchesSearch(query, configMap.name, configMap.namespace, ...configMap.key_names)
+  )
 
   const open = (configMap: KubernetesConfigMapRow) =>
     detail.openDetail({
@@ -51,29 +57,35 @@ function ConfigMapsTable({ clusterId, namespace }: { clusterId: number; namespac
 
   return (
     <>
-      <DataTable.Root density="compact">
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_keys")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {configMaps.data.config_maps.map((configMap) => (
-            <ExpandableKeyRow
-              key={`${configMap.namespace}/${configMap.name}`}
-              age={configMap.created_at}
-              extraCells={null}
-              keyNames={configMap.key_names}
-              name={configMap.name}
-              namespace={configMap.namespace}
-              onOpen={() => open(configMap)}
-            />
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
+      <TableSearch onChange={setQuery} query={query} />
+      {configMaps.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <DataTable.Root density="compact">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_keys")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {visible.map((configMap) => (
+              <ExpandableKeyRow
+                key={`${configMap.namespace}/${configMap.name}`}
+                age={configMap.created_at}
+                extraCells={null}
+                keyNames={configMap.key_names}
+                name={configMap.name}
+                namespace={configMap.namespace}
+                onOpen={() => open(configMap)}
+              />
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
@@ -82,6 +94,7 @@ function ConfigMapsTable({ clusterId, namespace }: { clusterId: number; namespac
 function SecretsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const secrets = useQuery({
     queryKey: ["k8s_cluster", "secrets", clusterId, namespace],
     queryFn: () => fetchKubernetesSecrets(clusterId, namespace)
@@ -90,6 +103,10 @@ function SecretsTable({ clusterId, namespace }: { clusterId: number; namespace: 
   if (secrets.isPending) return <PanelMessage>{t("config_loading_secrets")}</PanelMessage>
   if (secrets.isError) return <PanelMessage tone="error">{errorMessage(secrets.error, t("config_error_loading_secrets"))}</PanelMessage>
   if (secrets.data.secrets.length === 0) return <PanelMessage>{t("config_empty_secrets")}</PanelMessage>
+
+  const visible = secrets.data.secrets.filter((secret) =>
+    matchesSearch(query, secret.name, secret.namespace, secret.type, ...secret.key_names)
+  )
 
   const open = (secret: KubernetesSecretRow) =>
     detail.openDetail({
@@ -107,31 +124,37 @@ function SecretsTable({ clusterId, namespace }: { clusterId: number; namespace: 
 
   return (
     <>
-      <DataTable.Root density="compact">
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_type")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_keys")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {secrets.data.secrets.map((secret) => (
-            <ExpandableKeyRow
-              key={`${secret.namespace}/${secret.name}`}
-              age={secret.created_at}
-              colSpan={5}
-              extraCells={<DataTable.Cell className="text-text-secondary">{secret.type || "-"}</DataTable.Cell>}
-              keyNames={secret.key_names}
-              name={secret.name}
-              namespace={secret.namespace}
-              onOpen={() => open(secret)}
-            />
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
+      <TableSearch onChange={setQuery} query={query} />
+      {secrets.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <DataTable.Root density="compact">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_type")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_keys")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {visible.map((secret) => (
+              <ExpandableKeyRow
+                key={`${secret.namespace}/${secret.name}`}
+                age={secret.created_at}
+                colSpan={5}
+                extraCells={<DataTable.Cell className="text-text-secondary">{secret.type || "-"}</DataTable.Cell>}
+                keyNames={secret.key_names}
+                name={secret.name}
+                namespace={secret.namespace}
+                onOpen={() => open(secret)}
+              />
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
