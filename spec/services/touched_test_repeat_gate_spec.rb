@@ -69,7 +69,7 @@ RSpec.describe TouchedTestRepeatGate do
     expect(result.fail_count).to eq(0)
   end
 
-  it "does not re-run setup after the owning grader already prepared and passed" do
+  it "runs provider setup once before focused repeats" do
     provider = double("focused_test_command_provider")
     allow(provider).to receive(:command_for).and_return("true")
     allow(provider).to receive(:prepare_command_for).and_return("printf prepared > prepared")
@@ -83,8 +83,8 @@ RSpec.describe TouchedTestRepeatGate do
     )
 
     expect(result.consistent).to be(true)
-    expect(Pathname.new(@dir).join("prepared")).not_to exist
-    expect(provider).not_to have_received(:prepare_command_for)
+    expect(Pathname.new(@dir).join("prepared")).to exist
+    expect(provider).to have_received(:prepare_command_for).once
   end
 
   it "preserves safe dependency environment from the original grader command" do
@@ -111,6 +111,24 @@ RSpec.describe TouchedTestRepeatGate do
     )
 
     expect(result.consistent).to be(true)
+  end
+
+  it "skips the flakiness verdict when provider setup fails" do
+    provider = double("focused_test_command_provider")
+    allow(provider).to receive(:command_for).and_return("false")
+    allow(provider).to receive(:prepare_command_for).and_return("false")
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+
+    result = described_class.call(
+      grader_step: grader_step,
+      touched_files: [ "spec/stable_spec.rb" ],
+      workspace_path: @dir,
+      repeats: 3
+    )
+
+    expect(result.ran).to be(false)
+    expect(result.reason).to eq("prepare_failed")
+    expect(result.fail_count).to eq(0)
   end
 
   it "treats consistently failing repeats as inconsistent with the grader pass that triggered the gate" do
