@@ -279,6 +279,31 @@ RSpec.describe TestInsights::TestCase do
         run_statuses: %w[failed passed]
       )
     end
+
+    it "can exclude the current workflow from scored history" do
+      identity = create_identity
+      current_workflow = run.workflow
+      previous_job = Factories.job(repository: repo, user: repo.user)
+      previous_workflow = previous_job.initial_run.workflow
+      create_grader_case(identity: identity, workflow: previous_workflow, status: "passed", iteration: 1, loop_id: "previous-loop")
+      create_grader_case(identity: identity, workflow: current_workflow, status: "failed", iteration: 2, loop_id: "current-loop")
+      create_grader_case(identity: identity, workflow: current_workflow, status: "failed", iteration: 3, loop_id: "current-loop")
+
+      result = TestInsights::TestCase.flakiness_score(
+        repository: repo,
+        suite_name: "MySpec",
+        name: "it does the thing",
+        exclude_workflow: current_workflow
+      )
+
+      expect(result).to include(
+        score: 0.0,
+        failed_count: 0,
+        total_count: 1,
+        flaky: false,
+        run_statuses: [ "passed" ]
+      )
+    end
   end
 
   describe ".runtime_percentiles" do
