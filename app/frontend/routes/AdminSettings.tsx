@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { PageHeading, SectionHeading } from "../components/Heading"
+import { SectionHeading } from "../components/Heading"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import {
@@ -19,6 +19,7 @@ import { Select } from "../components/Select"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
+import { Page } from "../components/ui"
 
 const queryKey = ["admin", "settings"] as const
 
@@ -31,17 +32,19 @@ export function AdminSettings() {
   })
 
   return (
-    <main aria-label={t("aria_settings")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <PageHeading className="mt-1">{t("settings.heading")}</PageHeading>
-      </header>
+    <Page.Root aria-label={t("aria_settings")} gutter="responsive" size="default">
+      <Page.Header className="block border-b border-gray-200 pb-4 dark:border-gray-700">
+        <Page.HeadingGroup>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <Page.Title className="mt-1">{t("settings.heading")}</Page.Title>
+        </Page.HeadingGroup>
+      </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {settings.isPending ? <PanelMessage>{t("settings.loading")}</PanelMessage> : null}
       {settings.isError ? <SettingsError error={settings.error} /> : null}
       {settings.isSuccess ? <SettingsView onNotice={setNotice} payload={settings.data} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 

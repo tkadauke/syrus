@@ -49,6 +49,19 @@ function usersPayload(overrides: Record<string, unknown> = {}) {
     controls: { filter_schema: [] },
     filters: {},
     count: 1,
+    pagination: {
+      page: 1,
+      per_page: 100,
+      total: 1,
+      total_pages: 1,
+      has_previous_page: false,
+      has_next_page: false,
+      previous_page: null,
+      next_page: null,
+      first_item: 1,
+      last_item: 1
+    },
+    sort: { column: "email", direction: "asc" },
     users: [userRow()],
     ...overrides
   }
@@ -89,6 +102,7 @@ describe("AdminUsers configurable columns", () => {
     expect(screen.getByRole("columnheader", { name: "GH API" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "GH rate" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Ada Lovelace" })).toBeInTheDocument()
+    expect(screen.getByText("Showing 1-1 of 1 users")).toBeInTheDocument()
   })
 
   it("hides an optional column through the column picker and persists it under a users-specific key", async () => {

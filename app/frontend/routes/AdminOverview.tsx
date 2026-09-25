@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { fetchAdminOverview, type AdminOverviewPayload, type ResourceAdmissionDiagnosticsPayload } from "../api/adminOverview"
-import { PageHeading, SectionHeading } from "../components/Heading"
+import { SectionHeading } from "../components/Heading"
+import { Page } from "../components/ui"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 
@@ -84,14 +85,14 @@ function AdminOverviewPage({
   })
 
   if (overview.isPending) {
-    return <main aria-label={t("overview.aria_overview")} className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("overview.loading")}</main>
+    return <Page.Root aria-label={t("overview.aria_overview")} gutter="responsive" size="default" className="text-sm text-gray-600 dark:text-gray-300">{t("overview.loading")}</Page.Root>
   }
 
   if (overview.isError) {
     return (
-      <main aria-label={t("overview.aria_overview")} className="p-6">
+      <Page.Root aria-label={t("overview.aria_overview")} gutter="responsive" size="default">
         <p className="text-sm text-red-700 dark:text-red-300">{t("overview.error_load")}</p>
-      </main>
+      </Page.Root>
     )
   }
 
@@ -104,11 +105,13 @@ function AdminOverviewPage({
   const content = renderContent?.(data, prefix)
 
   return (
-    <main aria-label={t(ariaKey)} className="mx-auto max-w-6xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <PageHeading className="mt-1">{t(headingKey)}</PageHeading>
-      </header>
+    <Page.Root aria-label={t(ariaKey)} gutter="responsive" size="default">
+      <Page.Header className="block border-b border-gray-200 pb-4 dark:border-gray-700">
+        <Page.HeadingGroup>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <Page.Title className="mt-1">{t(headingKey)}</Page.Title>
+        </Page.HeadingGroup>
+      </Page.Header>
 
       {page === "overview" ? (
         <section aria-label={t("overview.aria_metrics")} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -124,7 +127,7 @@ function AdminOverviewPage({
           <Metric title={t("overview.active_storage")} value={data.active_storage?.available ? t("overview.available") : t("overview.unavailable")} context={activeStorageContext(data.active_storage, t)} tone={data.active_storage?.available ? "ok" : "alarm"} />
         </section>
       ) : content}
-    </main>
+    </Page.Root>
   )
 }
 

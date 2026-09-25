@@ -2,11 +2,22 @@ module Admin
   module SpawnedProcesses
     class Payload
       PER_PAGE = 100
+      MAX_PER_PAGE = 200
+      SORTS = {
+        "kind" => { kind: :asc },
+        "command" => { command: :asc },
+        "hostname" => { hostname: :asc },
+        "started_at" => { started_at: :asc },
+        "last_chunk_at" => { last_chunk_at: :asc },
+        "duration" => { duration_s: :asc },
+        "outcome" => { outcome: :asc }
+      }.freeze
+      DEFAULT_SORT = "started_at"
 
       def initialize(params:, user:, per_page: PER_PAGE, default_to_running: false)
         @params = params
         @user = user
-        @per_page = per_page
+        @per_page = normalized_per_page(per_page)
         @default_to_running = default_to_running
       end
 
@@ -16,7 +27,12 @@ module Admin
           active_folder = PerformanceLogging.phase("admin_processes.active_folder") { active_smart_folder }
           base_scope = SpawnedProcess.all
           filter = PerformanceLogging.phase("admin_processes.display_filter") { display_filter(active_folder) }
-          scope = filter.apply(base_scope).includes(:agent, workflow: [ :job, :user ], chat_session: :user).order(started_at: :desc).limit(@per_page)
+          filtered = filter.apply(base_scope)
+          total = PerformanceLogging.phase("admin_processes.total") { filtered.count }
+          scope = apply_sort(filtered)
+                    .includes(:agent, workflow: [ :job, :user ], chat_session: :user)
+                    .offset(offset)
+                    .limit(@per_page)
 
           processes = PerformanceLogging.phase("admin_processes.load_processes") { scope.to_a }
           PerformanceLogging.phase("admin_processes.owner_user_cache") { warm_owner_user_cache(processes) }
@@ -28,6 +44,9 @@ module Admin
               processes.map { |process| serialize(process) }
             },
             running_total: PerformanceLogging.phase("admin_processes.running_total") { spawned_process_counts.fetch(:running) },
+            total: total,
+            pagination: pagination_payload(total),
+            sort: sort_payload,
             active_smart_folder_id: active_folder&.id,
             smart_folders: PerformanceLogging.phase("admin_processes.smart_folders") { smart_folders(base_scope, active_folder) }
           }
@@ -49,6 +68,57 @@ module Admin
       private
 
       attr_reader :params, :user, :default_to_running
+
+      def normalized_per_page(default)
+        raw = params[:per_page].to_i
+        value = raw.positive? ? raw : default
+        [ value, MAX_PER_PAGE ].min
+      end
+
+      def page
+        [ params[:page].to_i, 1 ].max
+      end
+
+      def offset
+        (page - 1) * @per_page
+      end
+
+      def sort_column
+        SORTS.key?(params[:sort].to_s) ? params[:sort].to_s : DEFAULT_SORT
+      end
+
+      def sort_direction
+        params[:direction].to_s == "asc" ? "asc" : "desc"
+      end
+
+      def apply_sort(scope)
+        order = SORTS.fetch(sort_column)
+        direction = sort_direction.to_sym
+        scope.order(order.transform_values { direction }).order(id: direction)
+      end
+
+      def sort_payload
+        {
+          column: sort_column,
+          direction: sort_direction
+        }
+      end
+
+      def pagination_payload(total)
+        total_pages = (total.to_f / @per_page).ceil
+        {
+          page: page,
+          per_page: @per_page,
+          total: total,
+          total_pages: total_pages,
+          has_previous_page: page > 1,
+          has_next_page: total_pages > page,
+          previous_page: page > 1 ? page - 1 : nil,
+          next_page: total_pages > page ? page + 1 : nil,
+          first_item: total.zero? ? 0 : offset + 1,
+          last_item: [ offset + @per_page, total ].min
+        }
+      end
 
       def active_smart_folder
         explicit_folder = ::Admin::SmartFolderNavigation.active_folder(subject: :spawned_process, user: user, params: params)

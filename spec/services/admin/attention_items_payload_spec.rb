@@ -53,6 +53,17 @@ RSpec.describe Admin::AttentionItemsPayload do
     expect(json[:items].map { |item| item[:id] }).to eq([ operator_item.id ])
   end
 
+  it "sorts by requested column and returns sort metadata" do
+    repo = Factories.repository
+    older = Factories.attention_item(repository: repo, title: "older", created_at: 2.hours.ago)
+    newer = Factories.attention_item(repository: repo, title: "newer", created_at: 1.hour.ago)
+
+    json = described_class.new(params: { sort: "created_at", direction: "desc" }).index_json
+
+    expect(json[:items].map { |item| item[:id] }).to eq([ newer.id, older.id ])
+    expect(json[:filters]).to include(sort: "created_at", direction: "desc")
+  end
+
   it "renders a single item for post-mutation re-rendering" do
     item = Factories.attention_item(repository: Factories.repository)
 

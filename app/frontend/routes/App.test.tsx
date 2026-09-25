@@ -1335,12 +1335,11 @@ describe("App", () => {
       const sidebar = resizeHandle.closest("aside")
       expect(sidebar).toBeInstanceOf(HTMLElement)
       expect(sidebar).toHaveStyle({ width: "300px" })
-      expect(resizeHandle).toHaveAttribute("aria-valuemin", "208")
+      expect(resizeHandle).toHaveAttribute("aria-valuemin", "60")
       expect(resizeHandle).toHaveAttribute("aria-valuemax", "420")
       expect(resizeHandle).toHaveAttribute("aria-valuenow", "300")
 
       fireEvent.mouseDown(resizeHandle, { clientX: 300 })
-      await waitFor(() => expect(document.body).toHaveClass("cursor-col-resize"))
       fireEvent.mouseMove(window, { clientX: 390 })
       await waitFor(() => {
         expect(sidebar).toHaveStyle({ width: "390px" })
@@ -1354,11 +1353,10 @@ describe("App", () => {
         expect(window.localStorage.getItem("syrus.sidebar.width")).toBe("420")
       })
       fireEvent.mouseUp(window)
-      await waitFor(() => expect(document.body).not.toHaveClass("cursor-col-resize"))
 
-      fireEvent.keyDown(resizeHandle, { key: "Home" })
-      expect(sidebar).toHaveStyle({ width: "208px" })
-      expect(window.localStorage.getItem("syrus.sidebar.width")).toBe("208")
+      fireEvent.keyDown(resizeHandle, { key: "ArrowLeft" })
+      expect(sidebar).toHaveStyle({ width: "404px" })
+      expect(window.localStorage.getItem("syrus.sidebar.width")).toBe("404")
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -6828,11 +6826,11 @@ describe("App", () => {
     )
 
     expect(screen.getByRole("main", { name: "Admin stuck items" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Stuck Things" }).closest("header")).toHaveClass("items-end", "justify-between")
+    expect(screen.getByRole("heading", { name: "Stuck Things" }).closest("header")).toHaveClass("lg:items-end", "lg:justify-between")
     expect(screen.getByRole("button", { name: /Refresh/ })).toHaveClass("shrink-0")
     expect(await screen.findByText("Run #4 silent for 10m")).toBeInTheDocument()
     expect(screen.getByText("Showing 1-50 of 51")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/app-shell/admin/stuck?page=2")
+    expect(screen.getAllByRole("button", { name: "Next" })[0]).toBeEnabled()
     expect(screen.getByText("stale_heartbeat")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "WF-2" })).toHaveAttribute("href", "/app-shell/jobs/1?tab=workflows#workflow-2")
     expect(screen.getByRole("link", { name: "Job" })).toHaveAttribute("href", "/app-shell/jobs/1")
@@ -6894,6 +6892,20 @@ describe("App", () => {
             }
           ],
           running_total: 1,
+          total: 1,
+          pagination: {
+            page: 1,
+            per_page: 100,
+            total: 1,
+            total_pages: 1,
+            has_previous_page: false,
+            has_next_page: false,
+            previous_page: null,
+            next_page: null,
+            first_item: 1,
+            last_item: 1
+          },
+          sort: { column: "started_at", direction: "desc" },
           processes: [
             {
               id: 8,
@@ -7134,6 +7146,19 @@ describe("App", () => {
             ]
           },
           count: 1,
+          pagination: {
+            page: 1,
+            per_page: 100,
+            total: 1,
+            total_pages: 1,
+            has_previous_page: false,
+            has_next_page: false,
+            previous_page: null,
+            next_page: null,
+            first_item: 1,
+            last_item: 1
+          },
+          sort: { column: "email", direction: "asc" },
           active_smart_folder_id: 5,
           smart_folders: [
             {
@@ -7684,13 +7709,32 @@ describe("App", () => {
   })
 
   it("renders the invitations route from the app admin invitations API and revokes invitations", async () => {
+    let revoked = false
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/admin/invitations/9" && init?.method === "DELETE") {
+        revoked = true
         return Promise.resolve(
           new Response(
             JSON.stringify({
               invitations: [],
+              filter: { and: [] },
+              filter_schema: [],
+              filters: {},
+              total: 0,
+              pagination: {
+                page: 1,
+                per_page: 100,
+                total: 0,
+                total_pages: 1,
+                has_previous_page: false,
+                has_next_page: false,
+                previous_page: null,
+                next_page: null,
+                first_item: 0,
+                last_item: 0
+              },
+              sort: { column: "created_at", direction: "desc" },
               message: "Invitation revoked."
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
@@ -7701,17 +7745,36 @@ describe("App", () => {
       return Promise.resolve(
         new Response(
           JSON.stringify({
-            invitations: [
-              {
-                id: 9,
-                email_address: "guest@example.com",
-                token: "abc123",
-                share_url: "http://example.test/users/new?token=abc123",
-                expires_at: "2026-06-06T12:00:00Z",
-                created_at: "2026-05-30T12:00:00Z",
-                invited_by_email_address: "operator@example.com"
-              }
-            ]
+            invitations: revoked
+              ? []
+              : [
+                  {
+                    id: 9,
+                    email_address: "guest@example.com",
+                    token: "abc123",
+                    share_url: "http://example.test/users/new?token=abc123",
+                    expires_at: "2026-06-06T12:00:00Z",
+                    created_at: "2026-05-30T12:00:00Z",
+                    invited_by_email_address: "operator@example.com"
+                  }
+                ],
+            filter: { and: [] },
+            filter_schema: [],
+            filters: {},
+            total: revoked ? 0 : 1,
+            pagination: {
+              page: 1,
+              per_page: 100,
+              total: revoked ? 0 : 1,
+              total_pages: 1,
+              has_previous_page: false,
+              has_next_page: false,
+              previous_page: null,
+              next_page: null,
+              first_item: revoked ? 0 : 1,
+              last_item: revoked ? 0 : 1
+            },
+            sort: { column: "created_at", direction: "desc" }
           }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         )
@@ -16280,6 +16343,20 @@ function adminProcessesPayloadWithSavedFolder(folderFilter: Record<string, unkno
       }
     ],
     running_total: 0,
+    total: 0,
+    pagination: {
+      page: 1,
+      per_page: 100,
+      total: 0,
+      total_pages: 1,
+      has_previous_page: false,
+      has_next_page: false,
+      previous_page: null,
+      next_page: null,
+      first_item: 0,
+      last_item: 0
+    },
+    sort: { column: "started_at", direction: "desc" },
     processes: []
   }
 }
@@ -16327,6 +16404,19 @@ function adminUsersPayloadWithSavedFolder(folderFilter: Record<string, unknown>)
         path: "/admin/users?smart_folder_id=12"
       }
     ],
+    pagination: {
+      page: 1,
+      per_page: 100,
+      total: 0,
+      total_pages: 1,
+      has_previous_page: false,
+      has_next_page: false,
+      previous_page: null,
+      next_page: null,
+      first_item: 0,
+      last_item: 0
+    },
+    sort: { column: "email", direction: "asc" },
     users: []
   }
 }

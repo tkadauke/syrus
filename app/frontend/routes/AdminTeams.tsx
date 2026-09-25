@@ -1,17 +1,26 @@
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
 import { Button } from "../components/Button"
-import { PageHeading, SectionHeading } from "../components/Heading"
+import { SectionHeading } from "../components/Heading"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
+import { AdminDataTablePanel } from "../components/AdminEventLogPanel"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { NoticeToast } from "../components/NoticeToast"
 import { PanelMessage } from "../components/PanelMessage"
-import { Page } from "../components/ui"
+import { DataTable, Page, type DataTableSortDirection } from "../components/ui"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  visibleColumns,
+  type DataTableColumnDef
+} from "../components/dataTable"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 import {
@@ -52,11 +61,11 @@ export function AdminTeamsIndex() {
 
   return (
     <Page.Root aria-label={t("teams.aria_index")} gutter="responsive" size="wide">
-      <Page.Header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <div>
+      <Page.Header className="border-b border-gray-200 pb-4 dark:border-gray-700">
+        <Page.HeadingGroup>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-          <PageHeading className="mt-1">{t("teams.heading")}</PageHeading>
-        </div>
+          <Page.Title className="mt-1">{t("teams.heading")}</Page.Title>
+        </Page.HeadingGroup>
       </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -65,12 +74,7 @@ export function AdminTeamsIndex() {
       {teams.isError ? <TeamsError error={teams.error} /> : null}
       {teams.isSuccess ? (
         <AdminFiltersLayout>
-          <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-              {t("teams.matching", { count: teams.data.teams.length })}
-            </div>
-            <TeamsTable teams={teams.data.teams} />
-          </section>
+          <TeamsTable teams={teams.data.teams} />
 
           <CreateTeamForm
             error={create.isError ? errorMessage(create.error, t("teams.error_create")) : null}
@@ -83,39 +87,107 @@ export function AdminTeamsIndex() {
   )
 }
 
-// Left off the shared column-config primitive: only 3 columns, all of which
-// are the table's whole point (name identifies the row; members/repositories
-// are the two counts an operator opens this page to see) -- nothing here is
-// worth hiding.
+const TEAMS_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.admin.teams.visible_columns"
+type TeamsSortColumn = "name" | "member_count" | "repository_count"
+
+function buildTeamsColumns(t: (key: string) => string): DataTableColumnDef<AdminTeamRow>[] {
+  return [
+    {
+      key: "name",
+      label: t("teams.col_name"),
+      required: true,
+      sortKey: "name",
+      renderCell: (team) => (
+        <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`/admin/teams/${team.id}`}>
+          {team.name}
+        </Link>
+      )
+    },
+    {
+      key: "member_count",
+      label: t("teams.col_members"),
+      sortKey: "member_count",
+      cellClassName: "font-mono text-gray-700 dark:text-gray-200",
+      renderCell: (team) => team.member_count
+    },
+    {
+      key: "repository_count",
+      label: t("teams.col_repositories"),
+      sortKey: "repository_count",
+      cellClassName: "font-mono text-gray-700 dark:text-gray-200",
+      renderCell: (team) => team.repository_count
+    }
+  ]
+}
+
 function TeamsTable({ teams }: { teams: AdminTeamRow[] }) {
   const { t } = useT("admin")
-  if (teams.length === 0) return <PanelMessage>{t("teams.no_match")}</PanelMessage>
+  const [sortColumn, setSortColumn] = useState<TeamsSortColumn>("name")
+  const [sortDirection, setSortDirection] = useState<DataTableSortDirection>("ascending")
+  const columns = buildTeamsColumns(t)
+  const preferences = useLocalStorageColumnPreferences({ columns, storageKey: TEAMS_VISIBLE_COLUMNS_STORAGE_KEY })
+  const colSpan = visibleColumns({ columns, order: preferences.order }).length
+  const sortedTeams = useMemo(() => {
+    const direction = sortDirection === "descending" ? -1 : 1
+    return [...teams].sort((a, b) => {
+      const left = a[sortColumn]
+      const right = b[sortColumn]
+      if (typeof left === "number" && typeof right === "number") return (left - right) * direction
+      return String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: "base" }) * direction
+    })
+  }, [sortColumn, sortDirection, teams])
+
+  function sortTo(nextColumn: string) {
+    const column = nextColumn as TeamsSortColumn
+    if (sortColumn === column) {
+      setSortDirection((current) => current === "ascending" ? "descending" : "ascending")
+      return
+    }
+    setSortColumn(column)
+    setSortDirection("ascending")
+  }
+
+  const columnMenu = (
+    <DataTableColumnMenu
+      columns={columns}
+      downLabel={t("event_log_table.column_down")}
+      menuId="admin-teams-columns-menu"
+      moveDownLabel={(title) => t("event_log_table.column_move_down", { title })}
+      moveUpLabel={(title) => t("event_log_table.column_move_up", { title })}
+      onChange={preferences.onChange}
+      order={preferences.order}
+      triggerAriaLabel={t("event_log_table.columns")}
+      upLabel={t("event_log_table.column_up")}
+      visibleLabel={t("event_log_table.visible_columns")}
+    />
+  )
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("teams.col_name")}</th>
-            <th className="px-4 py-2">{t("teams.col_members")}</th>
-            <th className="px-4 py-2">{t("teams.col_repositories")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {teams.map((team) => (
-            <tr className="hover:bg-gray-50 dark:hover:bg-gray-800" key={team.id}>
-              <td className="px-4 py-2">
-                <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={`/admin/teams/${team.id}`}>
-                  {team.name}
-                </Link>
-              </td>
-              <td className="px-4 py-2">{team.member_count}</td>
-              <td className="px-4 py-2">{team.repository_count}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <AdminDataTablePanel columnSelector={columnMenu} config={{ summary: t("teams.matching", { count: teams.length }) }}>
+      <DataTable.Root>
+        <DataTable.Header>
+          <DataTableColumnHeaderRow
+            columns={columns}
+            onReorder={preferences.onChange}
+            onSort={sortTo}
+            order={preferences.order}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+          />
+        </DataTable.Header>
+        <DataTable.Body>
+          {sortedTeams.length === 0 ? (
+            <DataTable.Empty colSpan={colSpan}>{t("teams.no_match")}</DataTable.Empty>
+          ) : (
+            sortedTeams.map((team) => (
+              <DataTable.Row key={team.id}>
+                <DataTableColumnCells columns={columns} order={preferences.order} row={team} />
+              </DataTable.Row>
+            ))
+          )}
+        </DataTable.Body>
+      </DataTable.Root>
+    </AdminDataTablePanel>
   )
 }
 
@@ -165,11 +237,11 @@ export function AdminTeamDetailRoute() {
 
   return (
     <Page.Root aria-label={t("teams.aria_detail")} gutter="responsive">
-      <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
+      <Page.Header className="block border-b border-gray-200 pb-4 dark:border-gray-700">
         <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to="/admin/teams">
           {t("teams.heading")}
         </Link>
-        <PageHeading className="mt-2">{team.data?.team.name || `Team #${id}`}</PageHeading>
+        <Page.Title className="mt-2">{team.data?.team.name || `Team #${id}`}</Page.Title>
       </Page.Header>
 
       {team.isPending ? <PanelMessage>{t("teams.loading_team")}</PanelMessage> : null}
