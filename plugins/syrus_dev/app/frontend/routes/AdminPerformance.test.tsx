@@ -41,7 +41,7 @@ describe("AdminPerformance", () => {
     renderRoute(<AdminPerformance />)
 
     expect(await screen.findByRole("heading", { name: "Performance" })).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/performance?limit=500&revision_scope=current", expect.objectContaining({
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/performance?revision_scope=current&since=1h&limit=500", expect.objectContaining({
       credentials: "same-origin"
     }))
 
@@ -56,9 +56,11 @@ describe("AdminPerformance", () => {
     expect(screen.getByRole("button", { name: "Browser" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Requests" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "SQL" })).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "SQL" }).length).toBeGreaterThan(0)
     expect(screen.getByRole("button", { name: "Phases" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Events" })).toBeInTheDocument()
+    expect(screen.getByText("Since")).toBeInTheDocument()
+    expect(screen.getByText("Revision scope")).toBeInTheDocument()
 
     expect(screen.getByText("Revision comparison vs oldsha123456")).toBeInTheDocument()
     expect(screen.getByText("/api/v1/app/chats/126")).toBeInTheDocument()
@@ -82,10 +84,7 @@ describe("AdminPerformance", () => {
     expect(screen.getByText("slow_request")).toBeInTheDocument()
     expect(screen.getByText("246 SQL · 629ms")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "All SHAs" }))
-    await waitFor(() => expect(fetchSpy).toHaveBeenLastCalledWith("/api/v1/app/admin/performance?limit=500&revision_scope=all", expect.objectContaining({
-      credentials: "same-origin"
-    })))
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 
   it("puts browser traces above backend-only slow request details", async () => {
@@ -178,6 +177,13 @@ function performancePayload() {
     enabled: true,
     current_revision: "abcdef1234567890",
     revision_scope: "current",
+    filter: { and: [{ field: "since", op: "is", value: "1h" }, { field: "revision_scope", op: "is", value: "current" }] },
+    filter_schema: [
+      { field: "app_revision", label: "SHA", bucket: "text", operators: ["is"] },
+      { field: "since", label: "Since", bucket: "text", operators: ["is"] },
+      { field: "until", label: "Until", bucket: "text", operators: ["is"] },
+      { field: "revision_scope", label: "Revision scope", bucket: "enum", operators: ["is"], values: [{ value: "current", label: "Current SHA" }, { value: "all", label: "All SHAs" }] }
+    ],
     thresholds: {
       slow_request_ms: 1000,
       slow_job_ms: 5000,

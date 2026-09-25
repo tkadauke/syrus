@@ -407,11 +407,13 @@ export type AdminEventFilterPayload = {
 }
 
 export function AdminEventFilterBar({
+  buildLink,
   filter,
   filterSchema,
   fields,
   search
 }: {
+  buildLink?: (pathname: string, search: string, updates: FilterLinkUpdates) => string
   filter?: Record<string, unknown> | null
   filterSchema?: FilterSchemaField[]
   fields?: AdminEventFilterField[]
@@ -430,7 +432,7 @@ export function AdminEventFilterBar({
 
   return (
     <FilterBar
-      buildLink={preserveExplicitEmptyFilter}
+      buildLink={buildLink ?? preserveExplicitEmptyFilter}
       className={classes("space-y-2", gutterRestore)}
       filter={activeFilter}
       filterSchema={schema}

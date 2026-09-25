@@ -238,6 +238,34 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request, requires_pl
     expect(parse_body["events"].map { |event| event["app_revision"] }).to contain_exactly("new-sha", "new-sha", "new-sha", "new-sha", "old-sha", "old-sha")
   end
 
+  it "filters performance diagnostics by SHA prefix and time frame" do
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/performance",
+      params: {
+        revision_scope: "all",
+        app_revision: "old",
+        since: "2026-08-01T11:30:00Z",
+        until: "2026-08-01T12:00:02Z"
+      }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["events"]).to contain_exactly(
+      include(
+        "event" => PerformanceLogging::SLOW_REQUEST_EVENT,
+        "app_revision" => "old-sha",
+        "occurred_at" => "2026-08-01T12:00:02Z"
+      )
+    )
+    expect(body.dig("summaries", "slow_requests").first).to include("count" => 1, "average_duration_ms" => 1500.0)
+    expect(body["filter_schema"].map { |field| field["field"] }).to include("app_revision", "since", "until")
+    expect(body["filter"]).to include("and" => include(
+      include("field" => "app_revision", "op" => "is", "value" => "old"),
+      include("field" => "since", "op" => "is", "value" => "2026-08-01T11:30:00Z")
+    ))
+  end
+
   it "keeps a prior-revision baseline when current-revision events fill the recent window" do
     sign_in_as(admin)
     PerformanceLogging::Store.clear!

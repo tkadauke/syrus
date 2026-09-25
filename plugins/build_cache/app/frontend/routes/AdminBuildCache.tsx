@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react"
-import { Button, Notice, Page, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
+import { Button, DataTable, Notice, Page, Section, SectionHeading, Text } from "@app/components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "@app/api/client"
 import {
@@ -7,7 +7,9 @@ import {
   confirmBuildCacheClearRequest,
   createBuildCacheClearRequest,
   fetchAdminBuildCache,
+  fetchAdminBuildCacheStats,
   type AdminBuildCachePayload,
+  type AdminBuildCacheStatsPayload,
   type BuildCacheClearRequest,
   type BuildCacheClearRequestScope
 } from "../api/adminBuildCache"
@@ -17,21 +19,33 @@ import { useConfirm } from "@app/hooks/useConfirm"
 import { formatBytes } from "@app/lib/format"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { Form } from "@app/components/ui"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  type DataTableColumnDef
+} from "@app/components/dataTable"
+import type { DataTableSortDirection } from "@app/components/ui/DataTable"
+import { AdminDataTablePanel } from "@app/components/AdminEventLogPanel"
 
 const QUERY_KEY = ["admin", "build_cache"]
+const STATS_QUERY_KEY = ["admin", "build_cache", "stats"]
 
 export function AdminBuildCache() {
   const { t } = useT("build_cache")
   usePageTitle(t("page_title_build_cache"))
-  const query = useQuery({ queryKey: QUERY_KEY, queryFn: fetchAdminBuildCache })
+  const query = useQuery({ queryKey: QUERY_KEY, queryFn: () => fetchAdminBuildCache() })
 
   return (
-    <Page.Root aria-label={t("build_cache.aria_main")} gutter="responsive">
+    <Page.Root aria-label={t("build_cache.aria_main")} gutter="responsive" size="wide">
       <Page.Header className="border-b border-border pb-4">
-        <Text className="font-medium uppercase" variant="caption" tone="muted">
-          {t("admin:section_label")}
-        </Text>
-        <PageHeading>{t("build_cache.heading")}</PageHeading>
+        <Page.HeadingGroup>
+          <Text as="p" muted variant="label">
+            {t("admin:section_label")}
+          </Text>
+          <Page.Title className="mt-1">{t("build_cache.heading")}</Page.Title>
+        </Page.HeadingGroup>
         <Page.Description>{t("build_cache.description")}</Page.Description>
       </Page.Header>
 
@@ -51,22 +65,44 @@ function BuildCacheContent({ payload }: { payload: AdminBuildCachePayload }) {
 
   return (
     <>
-      <StatsCard payload={payload} />
+      <StatsCard configured={payload.configured} initial={payload} />
       {payload.pending_request ? <PendingRequestCard request={payload.pending_request} /> : <ClearRequestForm />}
       <RecentRequestsCard requests={payload.recent_requests} />
     </>
   )
 }
 
-function StatsCard({ payload }: { payload: AdminBuildCachePayload }) {
+function StatsCard({ configured, initial }: { configured: boolean; initial?: AdminBuildCacheStatsPayload }) {
   const { t } = useT("build_cache")
-  const stats = payload.stats
+  const query = useQuery({
+    enabled: configured,
+    queryKey: STATS_QUERY_KEY,
+    queryFn: fetchAdminBuildCacheStats,
+    initialData: initial?.stats || initial?.stats_error ? initial : undefined
+  })
+  const payload = query.data
+  const stats = payload?.stats
 
   return (
     <Section.Root data-testid="build-cache-stats">
-      <SectionHeading>{t("build_cache.stats_heading")}</SectionHeading>
+      <Section.Header>
+        <Section.Title>{t("build_cache.stats_heading")}</Section.Title>
+        <Section.Actions>
+          <Button disabled={query.isFetching} onClick={() => void query.refetch()} size="sm" variant="secondary">
+            {query.isFetching ? t("build_cache.stats_refreshing") : t("build_cache.stats_refresh")}
+          </Button>
+        </Section.Actions>
+      </Section.Header>
 
-      {payload.stats_error ? (
+      {query.isPending ? (
+        <Text className="mt-2" tone="muted">
+          {t("build_cache.stats_loading")}
+        </Text>
+      ) : query.isError ? (
+        <Text className="mt-2" tone="danger">
+          {query.error instanceof ApiError ? query.error.message : t("build_cache.error_generic")}
+        </Text>
+      ) : payload?.stats_error ? (
         <Text className="mt-2" tone="danger">
           {payload.stats_error}
         </Text>
@@ -253,34 +289,124 @@ function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
 
 function RecentRequestsCard({ requests }: { requests: BuildCacheClearRequest[] }) {
   const { t } = useT("build_cache")
+  const [sort, setSort] = useState<{ column: string; direction: "asc" | "desc" }>({ column: "created_at", direction: "desc" })
+  const columns = recentRequestColumns(t)
+  const preferences = useLocalStorageColumnPreferences({ columns, storageKey: "syrus.admin.build_cache.recent_requests.visible_columns" })
+  const sortedRequests = sortRequests(requests, sort)
+  const sortDirection: DataTableSortDirection = sort.direction === "asc" ? "ascending" : "descending"
   if (requests.length === 0) return null
 
+  function toggleSort(column: string) {
+    setSort((current) => ({ column, direction: current.column === column && current.direction === "asc" ? "desc" : "asc" }))
+  }
+
   return (
-    <Section.Root className="overflow-hidden p-0" data-testid="build-cache-recent-requests">
-      <div className="border-b border-border px-4 py-3 text-sm font-semibold text-text-primary">{t("build_cache.recent_heading")}</div>
-      <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-        {requests.map((request) => (
-          <li className="px-4 py-3 text-sm" key={request.id}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-medium text-gray-900 dark:text-gray-100">
-                {request.scope === "full" ? t("build_cache.scope_full") : t("build_cache.pending_scope_partial_value", { days: request.older_than_days })}
-              </span>
-              <RequestStateBadge state={request.state} />
-            </div>
-            <p className="mt-1 text-gray-600 dark:text-gray-300">{request.reason}</p>
-            {request.result ? (
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {t("build_cache.result_summary", { count: request.result.deleted_count, size: formatBytes(request.result.bytes_freed) })}
-              </p>
-            ) : null}
-            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-              {request.requested_by ?? "—"} · <RelativeTimestamp value={request.created_at} />
-            </p>
-          </li>
-        ))}
-      </ul>
-    </Section.Root>
+    <div data-testid="build-cache-recent-requests">
+      <AdminDataTablePanel
+        columnSelector={
+          <DataTableColumnMenu
+            columns={columns}
+            downLabel={t("build_cache.column_down")}
+            menuId="build-cache-recent-requests-columns"
+            moveDownLabel={(title) => t("build_cache.column_move_down", { title })}
+            moveUpLabel={(title) => t("build_cache.column_move_up", { title })}
+            onChange={preferences.onChange}
+            order={preferences.order}
+            triggerAriaLabel={t("build_cache.columns")}
+            upLabel={t("build_cache.column_up")}
+            visibleLabel={t("build_cache.visible_columns")}
+          />
+        }
+        config={{ summary: t("build_cache.recent_heading"), meta: t("build_cache.recent_count", { count: requests.length }) }}
+      >
+        <DataTable.Root wrapperClassName="rounded-none border-0">
+          <DataTable.Header>
+            <DataTableColumnHeaderRow
+              columns={columns}
+              onReorder={preferences.onChange}
+              onSort={toggleSort}
+              order={preferences.order}
+              sortColumn={sort.column}
+              sortDirection={sortDirection}
+            />
+          </DataTable.Header>
+          <DataTable.Body>
+            {sortedRequests.map((request) => (
+              <DataTable.Row key={request.id}>
+                <DataTableColumnCells columns={columns} order={preferences.order} row={request} />
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      </AdminDataTablePanel>
+    </div>
   )
+}
+
+function sortRequests(requests: BuildCacheClearRequest[], sort: { column: string; direction: "asc" | "desc" }) {
+  const direction = sort.direction === "asc" ? 1 : -1
+  return [...requests].sort((a, b) => compareValues(requestSortValue(a, sort.column), requestSortValue(b, sort.column)) * direction)
+}
+
+function requestSortValue(request: BuildCacheClearRequest, column: string) {
+  if (column === "scope") return request.scope
+  if (column === "state") return request.state
+  if (column === "reason") return request.reason
+  if (column === "requested_by") return request.requested_by ?? ""
+  if (column === "created_at") return request.created_at
+  return request.id
+}
+
+function compareValues(a: string | number, b: string | number) {
+  if (typeof a === "number" && typeof b === "number") return a - b
+  return String(a).localeCompare(String(b))
+}
+
+function recentRequestColumns(t: (key: string, options?: Record<string, unknown>) => string): DataTableColumnDef<BuildCacheClearRequest>[] {
+  return [
+    {
+      key: "scope",
+      label: t("build_cache.col_scope"),
+      required: true,
+      cellClassName: "align-top font-medium",
+      sortKey: "scope",
+      renderCell: (request) => request.scope === "full" ? t("build_cache.scope_full") : t("build_cache.pending_scope_partial_value", { days: request.older_than_days })
+    },
+    {
+      key: "state",
+      label: t("build_cache.col_state"),
+      cellClassName: "align-top",
+      sortKey: "state",
+      renderCell: (request) => <RequestStateBadge state={request.state} />
+    },
+    {
+      key: "reason",
+      label: t("build_cache.col_reason"),
+      cellClassName: "max-w-xl align-top text-gray-600 dark:text-gray-300",
+      sortKey: "reason",
+      renderCell: (request) => <span className="line-clamp-3 whitespace-pre-wrap">{request.reason}</span>
+    },
+    {
+      key: "result",
+      label: t("build_cache.col_result"),
+      cellClassName: "align-top text-gray-600 dark:text-gray-300",
+      renderCell: (request) => request.result ? t("build_cache.result_summary", { count: request.result.deleted_count, size: formatBytes(request.result.bytes_freed) }) : "—"
+    },
+    {
+      key: "requested_by",
+      label: t("build_cache.col_requested_by"),
+      cellClassName: "whitespace-nowrap align-top text-gray-600 dark:text-gray-300",
+      sortKey: "requested_by",
+      renderCell: (request) => request.requested_by ?? "—"
+    },
+    {
+      key: "created_at",
+      label: t("build_cache.col_requested"),
+      cellClassName: "whitespace-nowrap align-top text-gray-600 dark:text-gray-300",
+      sortKey: "created_at",
+      renderCell: (request) => <RelativeTimestamp value={request.created_at} />
+    }
+  ]
 }
 
 function RequestStateBadge({ state }: { state: BuildCacheClearRequest["state"] }) {
