@@ -54,6 +54,7 @@ export function useResizableSplitter({
     const startWidth = collapsed ? 0 : width
     let snappedClosedDuringGesture = collapsed
     draggedRef.current = false
+    document.body.classList.add("cursor-col-resize")
 
     function resize(moveEvent: MouseEvent) {
       const pointerDelta = resizeEdge === "start" ? startX - moveEvent.clientX : moveEvent.clientX - startX
@@ -77,6 +78,7 @@ export function useResizableSplitter({
     }
 
     function stopResize() {
+      document.body.classList.remove("cursor-col-resize")
       window.removeEventListener("mousemove", resize)
       window.removeEventListener("mouseup", stopResize)
       window.setTimeout(() => {
@@ -106,6 +108,19 @@ export function useResizableSplitter({
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault()
       toggleCollapsed()
+      return
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault()
+      setCollapsed(true)
+      return
+    }
+
+    if (event.key === "End") {
+      event.preventDefault()
+      setCollapsed(false)
+      setWidth(clampWidth(Number.POSITIVE_INFINITY))
       return
     }
 
