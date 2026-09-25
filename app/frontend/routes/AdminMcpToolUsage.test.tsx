@@ -5,11 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
 import { AdminMcpToolUsage } from "./AdminMcpToolUsage"
 
-function renderRoute() {
+function renderRoute(initialEntry = "/admin/mcp_tool_usage") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/admin/mcp_tool_usage"]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={<AdminMcpToolUsage />} path="/admin/mcp_tool_usage" />
         </Routes>
@@ -136,40 +136,33 @@ describe("AdminMcpToolUsage", () => {
     renderRoute()
     await screen.findByRole("heading", { name: "MCP tool usage" })
 
-    fireEvent.change(screen.getByLabelText("Window"), { target: { value: "30d" } })
+    fireEvent.click(screen.getByRole("button", { name: "Window is Last 7 days" }))
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "30d" } })
 
     await waitFor(() => {
       expect(fetchSpy.mock.calls.some((call) => String(call[0]).includes("window_preset=30d") && String(call[0]).includes("since="))).toBe(true)
     })
   })
 
-  it("re-fetches with a surface filter when the surface changes", async () => {
+  it("reads the surface filter from shared FilterBar URL params", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
 
-    renderRoute()
+    renderRoute("/admin/mcp_tool_usage?surface=chat")
     await screen.findByRole("heading", { name: "MCP tool usage" })
 
-    fireEvent.change(screen.getByLabelText("Surface"), { target: { value: "chat" } })
-
-    await waitFor(() => {
-      expect(fetchSpy.mock.calls.some((call) => String(call[0]).includes("surface=chat"))).toBe(true)
-    })
+    expect(screen.getByRole("button", { name: "Surface is Chat" })).toBeInTheDocument()
+    expect(String(fetchSpy.mock.calls[0][0])).toContain("surface=chat")
   })
 
-  it("re-fetches with exact tool and server filters when entered", async () => {
+  it("reads exact tool and server filters from shared FilterBar URL params", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
 
-    renderRoute()
+    renderRoute("/admin/mcp_tool_usage?tool_name=browser_navigate&server_name=syrus-mcp-sidecar")
     await screen.findByRole("heading", { name: "MCP tool usage" })
 
-    fireEvent.change(screen.getByLabelText("Tool"), { target: { value: "browser_navigate" } })
-    fireEvent.keyDown(screen.getByLabelText("Tool"), { key: "Enter" })
-    fireEvent.change(screen.getByLabelText("Server"), { target: { value: "syrus-mcp-sidecar" } })
-    fireEvent.blur(screen.getByLabelText("Server"))
-
-    await waitFor(() => {
-      expect(fetchSpy.mock.calls.some((call) => String(call[0]).includes("tool_name=browser_navigate"))).toBe(true)
-      expect(fetchSpy.mock.calls.some((call) => String(call[0]).includes("server_name=syrus-mcp-sidecar"))).toBe(true)
-    })
+    expect(screen.getByRole("button", { name: "Tool is browser_navigate" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Server is syrus-mcp-sidecar" })).toBeInTheDocument()
+    expect(String(fetchSpy.mock.calls[0][0])).toContain("tool_name=browser_navigate")
+    expect(String(fetchSpy.mock.calls[0][0])).toContain("server_name=syrus-mcp-sidecar")
   })
 })
