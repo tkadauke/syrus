@@ -226,9 +226,25 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
           />
         }
       >
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t(`repository.folder_${payload.folder}`)}</h2>
-          <span className="text-sm text-gray-500 dark:text-gray-400">{t("repository.issue_count", { count: payload.issue_count })}</span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t(`repository.folder_${payload.folder}`)}</h2>
+            <span className="text-sm text-gray-500 dark:text-gray-400">{t("repository.issue_count", { count: payload.issue_count })}</span>
+          </div>
+          {payload.issues.length > 0 ? (
+            <DataTableColumnMenu
+              columns={columns}
+              downLabel={t("repository.column_down")}
+              menuId="repository-issues-columns-menu"
+              moveDownLabel={(title) => t("repository.column_move_down", { title })}
+              moveUpLabel={(title) => t("repository.column_move_up", { title })}
+              onChange={preferences.onChange}
+              order={preferences.order}
+              triggerAriaLabel={t("repository.columns")}
+              upLabel={t("repository.column_up")}
+              visibleLabel={t("repository.visible_columns")}
+            />
+          ) : null}
         </div>
 
         {payload.issues.length > 0 ? (
@@ -256,21 +272,6 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
                 </Button>
               </div>
             ) : null}
-
-            <div className="flex justify-end">
-              <DataTableColumnMenu
-                columns={columns}
-                downLabel={t("repository.column_down")}
-                menuId="repository-issues-columns-menu"
-                moveDownLabel={(title) => t("repository.column_move_down", { title })}
-                moveUpLabel={(title) => t("repository.column_move_up", { title })}
-                onChange={preferences.onChange}
-                order={preferences.order}
-                triggerAriaLabel={t("repository.columns")}
-                upLabel={t("repository.column_up")}
-                visibleLabel={t("repository.visible_columns")}
-              />
-            </div>
 
             <DataTable.Root wrapperClassName="mt-3">
               <DataTable.Header>
