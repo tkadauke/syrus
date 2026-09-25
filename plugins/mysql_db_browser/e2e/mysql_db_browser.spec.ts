@@ -181,6 +181,8 @@ test("DB Browser lists connections, databases, and tables read-only with no writ
     // more -- assert on the page we actually land on. `pluginCard` is not used
     // past this block.
     await expect(page.getByRole("button", { name: "Disable" }).first()).toBeVisible({ timeout: 60_000 })
+    await expect(page).toHaveURL(/\/admin\/plugins\/mysql_db_browser$/)
+    await expect(page.getByRole("main", { name: "Plugin detail" }).getByRole("heading", { level: 1, name: "MySQL DB Browser" })).toBeVisible()
   }
 
   await page.goto("/db_browser")
