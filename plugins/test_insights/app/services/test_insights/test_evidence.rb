@@ -60,13 +60,13 @@ module TestInsights
     end
 
     # Backs Adjudicators::KnownFlakyFailure. Delegates entirely to
-    # TestCase.flakiness_score, which already excludes a workflow's own
-    # in-loop retry_until repair failures (`.scored`) -- this must not
-    # reimplement that filtering.
-    def self.flakiness_score(repository:, suite_name:, name:)
+    # TestCase.flakiness_score, which already excludes self-repaired in-loop
+    # failures (`.scored`) and, when supplied, the workflow currently being
+    # adjudicated -- this must not reimplement that filtering.
+    def self.flakiness_score(repository:, suite_name:, name:, excluding_workflow: nil)
       return nil if repository.nil? || suite_name.blank? || name.blank?
 
-      TestCase.flakiness_score(repository: repository, suite_name: suite_name, name: name)
+      TestCase.flakiness_score(repository: repository, suite_name: suite_name, name: name, excluding_workflow: excluding_workflow)
     end
 
     # Backs Adjudicators::IsolatedReproDismissal. Writes into

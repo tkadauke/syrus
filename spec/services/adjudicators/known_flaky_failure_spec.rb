@@ -60,6 +60,38 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
     )
   end
 
+  it "declines for a mostly failing test even when its history includes a pass" do
+    stub_provider(fake_provider(
+      failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "currently broken" } ],
+      scores: { [ "spec/foo_spec.rb", "currently broken" ] => { score: 0.75, failed_count: 15, total_count: 20, flaky: true } }
+    ))
+
+    verdict = adjudicate
+
+    expect(verdict).to be_inconclusive
+    expect(verdict.reason).to eq("not_all_confirmed_flaky")
+  end
+
+  it "asks providers to exclude the adjudicated workflow when scoring flakiness" do
+    observed_workflows = []
+    provider = Module.new do
+      define_singleton_method(:failed_test_cases) do |run:, grader_name:|
+        [ { "suite_name" => "spec/foo_spec.rb", "name" => "does the thing" } ]
+      end
+
+      define_singleton_method(:flakiness_score) do |repository:, suite_name:, name:, excluding_workflow: nil|
+        observed_workflows << excluding_workflow
+        { score: 0.4, failed_count: 4, total_count: 10, flaky: true }
+      end
+    end
+    stub_provider(provider)
+
+    verdict = adjudicate
+
+    expect(verdict).to be_dismiss
+    expect(observed_workflows).to eq([ workflow ])
+  end
+
   it "derives the failed grader steps from the workflow when step: is not given" do
     grader_step.update!(kind: "grader", state: "failed")
     stub_provider(fake_provider(

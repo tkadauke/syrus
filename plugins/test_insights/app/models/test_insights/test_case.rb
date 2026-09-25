@@ -62,11 +62,14 @@ module TestInsights
     # Returns flakiness data for a specific (repository, suite_name, name) tuple.
     # A test is flaky if it has both passed and failed within the lookback window.
     # Returns nil if no history exists.
-    def self.flakiness_score(repository:, suite_name:, name:, lookback: FLAKINESS_LOOKBACK)
+    def self.flakiness_score(repository:, suite_name:, name:, lookback: FLAKINESS_LOOKBACK, excluding_workflow: nil)
       statuses = PerformanceLogging.phase("test_insights.flakiness_score", repository_id: repository.id) do
-        history_scope_for(repository: repository, suite_name: suite_name, name: name)
-          .scored
-          .limit(lookback)
+        scored_history_scope_for(
+          repository: repository,
+          suite_name: suite_name,
+          name: name,
+          excluding_workflow: excluding_workflow
+        ).limit(lookback)
           .pluck(:status)
       end
 
@@ -183,6 +186,16 @@ module TestInsights
       # same 255-byte prefix.
       where(repository_id: repository.id, suite_name: suite_name, name: name, test_identity_id: nil)
         .order(created_at: :desc, id: :desc)
+    end
+
+    def self.scored_history_scope_for(repository:, suite_name:, name:, excluding_workflow:)
+      scope = history_scope_for(repository: repository, suite_name: suite_name, name: name).scored
+      return scope unless excluding_workflow
+
+      scope
+        .joins(test_run: { run: :step })
+        .where.not(steps: { workflow_id: excluding_workflow.id })
+        .reorder(Arel.sql("test_insight_cases.created_at DESC"), Arel.sql("test_insight_cases.id DESC"))
     end
 
     def self.batch_flakiness_by_identity(cases, lookback:)

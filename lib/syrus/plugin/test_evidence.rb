@@ -18,14 +18,16 @@ module Syrus
     #
     #   .failed_test_cases(run:, grader_name:) => Array<Hash> ("suite_name", "name", "file_path", "identity",
     #                                                          "failure_message" [optional, short/bounded])
-    #   .flakiness_score(repository:, suite_name:, name:) => Hash (:score, :failed_count, :total_count, :flaky) or nil
+    #   .flakiness_score(repository:, suite_name:, name:, excluding_workflow: nil)
+    #     => Hash (:score, :failed_count, :total_count, :flaky) or nil
     #
     # `flakiness_score` backs Adjudicators::KnownFlakyFailure: a rung-0 check
     # that dismisses a required-grader failure whose every failing test
     # already has a confirmed-flaky history, independent of whether the
     # failure also reproduces on the base branch. Return nil when there is no
     # scoring history for the given test -- that is "cannot tell," not "not
-    # flaky."
+    # flaky." When supported, `excluding_workflow:` omits the workflow being
+    # adjudicated so a retry loop cannot inflate its own flaky reputation.
     #
     # Two more capabilities back Adjudicators::IsolatedReproDismissal -- a
     # different, per-occurrence signal from flakiness_score's accumulated

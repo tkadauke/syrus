@@ -279,6 +279,30 @@ RSpec.describe TestInsights::TestCase do
         run_statuses: %w[failed passed]
       )
     end
+
+    it "excludes the adjudicated workflow from flakiness scoring" do
+      identity = create_identity
+      historical_workflow = run.workflow
+      adjudicated_workflow = Factories.job(repository: repo, user: repo.user).initial_run.workflow
+      create_grader_case(identity: identity, workflow: historical_workflow, status: "passed", iteration: 1, loop_id: "historical-loop")
+      create_grader_case(identity: identity, workflow: adjudicated_workflow, status: "failed", iteration: 2, loop_id: "current-loop")
+      create_grader_case(identity: identity, workflow: adjudicated_workflow, status: "failed", iteration: 3, loop_id: "current-loop")
+
+      result = TestInsights::TestCase.flakiness_score(
+        repository: repo,
+        suite_name: "MySpec",
+        name: "it does the thing",
+        excluding_workflow: adjudicated_workflow
+      )
+
+      expect(result).to include(
+        score: 0.0,
+        failed_count: 0,
+        total_count: 1,
+        flaky: false,
+        run_statuses: [ "passed" ]
+      )
+    end
   end
 
   describe ".runtime_percentiles" do

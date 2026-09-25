@@ -21,6 +21,7 @@ module Adjudicators
     # enough to wave off a fresh failure. Repository#known_flaky_failure_min_score
     # overrides this per repository.
     DEFAULT_MIN_SCORE = 0.1
+    MAX_DISMISSIBLE_SCORE = 0.5
 
     def self.adjudicate(problem:, workflow: nil, step: nil, **)
       return Adjudication.inconclusive(adjudicator: name) unless problem&.code == "grader_failure"
@@ -33,7 +34,7 @@ module Adjudicators
       return Adjudication.inconclusive(adjudicator: name) if steps.empty?
 
       min_score = repository.known_flaky_failure_min_score || DEFAULT_MIN_SCORE
-      per_step_tests = steps.map { |grader_step| confirmed_tests_for(repository, grader_step, min_score) }
+      per_step_tests = steps.map { |grader_step| confirmed_tests_for(repository, grader_step, min_score, workflow: workflow) }
       return Adjudication.inconclusive(adjudicator: name, reason: "no_flakiness_history") if per_step_tests.any?(&:nil?)
 
       tests = per_step_tests.flatten(1)
@@ -50,7 +51,7 @@ module Adjudicators
     # flakiness verdicts -- or nil when there is not enough evidence to say
     # anything about this Step at all (no grader name, no Run, no failing
     # test cases recorded, or any one of them missing scoring history).
-    def self.confirmed_tests_for(repository, grader_step, min_score)
+    def self.confirmed_tests_for(repository, grader_step, min_score, workflow:)
       grader_name = grader_step.details.to_h["name"].to_s.presence
       return nil unless grader_name
 
@@ -61,26 +62,38 @@ module Adjudicators
       return nil if failing_tests.empty?
 
       failing_tests.map do |test_case|
-        score = flakiness_score_for(repository, test_case)
+        score = flakiness_score_for(repository, test_case, workflow: workflow)
         return nil if score.nil?
 
         {
           suite_name: test_case["suite_name"],
           name: test_case["name"],
           score: score[:score],
-          confirmed_flaky: score[:flaky] && score[:score] >= min_score
+          failed_count: score[:failed_count],
+          total_count: score[:total_count],
+          confirmed_flaky: score[:flaky] && score[:score] >= min_score && score[:score] <= MAX_DISMISSIBLE_SCORE
         }
       end
     end
 
-    def self.flakiness_score_for(repository, test_case)
+    def self.flakiness_score_for(repository, test_case, workflow:)
       TestEvidenceLookup.test_evidence_providers.each do |provider|
         next unless provider.respond_to?(:flakiness_score)
 
-        score = provider.flakiness_score(repository: repository, suite_name: test_case["suite_name"], name: test_case["name"])
+        score = provider_flakiness_score(provider, repository: repository, test_case: test_case, workflow: workflow)
         return score if score
       end
       nil
+    end
+
+    def self.provider_flakiness_score(provider, repository:, test_case:, workflow:)
+      kwargs = { repository: repository, suite_name: test_case["suite_name"], name: test_case["name"] }
+      kwargs[:excluding_workflow] = workflow if accepts_keyword?(provider.method(:flakiness_score), :excluding_workflow)
+      provider.flakiness_score(**kwargs)
+    end
+
+    def self.accepts_keyword?(method, keyword)
+      method.parameters.any? { |kind, name| kind == :keyrest || name == keyword }
     end
 
     def self.name = "known_flaky_failure"
