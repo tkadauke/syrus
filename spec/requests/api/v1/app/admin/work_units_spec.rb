@@ -66,6 +66,22 @@ RSpec.describe "API: /api/v1/app/admin/work_units", type: :request do
     expect(parse_body.fetch("intents").map { |intent| intent["id"] }).to eq([ matching.fetch(:intent).id ])
   end
 
+  it "does not force distinct sorting for the unfiltered listing" do
+    sql = Admin::WorkUnitsPayload.new(params: {}).send(:relation).to_sql
+
+    expect(sql).not_to match(/\bDISTINCT\b/i)
+    expect(sql).to include("ORDER BY work_intents.requested_at desc, work_intents.id desc")
+  end
+
+  it "keeps distinct when joined filters can duplicate intents" do
+    q = Filters::QueryParam.encode("and" => [ { "field" => "unit_state", "op" => "is", "value" => "running" } ])
+
+    sql = Admin::WorkUnitsPayload.new(params: { q: q }).send(:relation).to_sql
+
+    expect(sql).to match(/\bDISTINCT\b/i)
+    expect(sql).to include("work_units")
+  end
+
   def work_unit_fixture(user:, repository:, issue_number:, kind:)
     job = Factories.job_record(user: user, repository: repository, issue_number: issue_number, issue_title: "Do #{kind}")
     workflow = Workflow.create!(job: job, trigger_kind: kind, state: "running", agent_provider: "claude")
