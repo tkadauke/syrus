@@ -368,7 +368,7 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, prefix, prefe
   return (
     <section className="min-w-0 space-y-3" aria-label={t("index_aria")}>
       {isDesktop ? (
-        <DataTable.Root className="table-fixed text-left text-sm" data-testid="design-docs-table">
+        <DataTable.Root className="text-left text-sm" data-testid="design-docs-table">
           <DataTable.Header>
             <DataTableColumnHeaderRow
               columns={columns}
@@ -454,6 +454,7 @@ function designDocColumnDefinitions({ onSelect, optionalColumns, prefix, require
       label: column.title,
       required: requiredColumns.some((required) => required.key === column.key),
       sortKey: designDocSortKey(column.key),
+      responsiveClassName: designDocColumnResponsiveClass(column.key),
       headClassName: designDocColumnWidth(column.key),
       cellClassName: `${designDocColumnWidth(column.key)} align-top`,
       renderCell: (doc) => designDocCellContent(column.key, doc, onSelect, prefix, t)
@@ -540,16 +541,23 @@ function designDocSortKey(column: string) {
 
 function designDocColumnWidth(column: string) {
   return {
-    title: "w-[30%]",
+    title: "w-[28%]",
     state: "w-[7rem]",
-    repository: "w-[12rem]",
-    owner: "w-[10rem]",
+    repository: "w-[10rem]",
+    owner: "w-[8rem]",
     collaborators: "w-[12rem]",
     comments: "w-[6rem]",
     latest_version: "w-[7rem]",
     updated_at: "w-[9rem]",
     actions: "w-[6rem]"
   }[column] ?? ""
+}
+
+function designDocColumnResponsiveClass(column: string) {
+  return {
+    collaborators: "hidden 2xl:table-cell",
+    latest_version: "hidden 2xl:table-cell"
+  }[column]
 }
 
 const DEFAULT_DESIGN_DOC_SORT: DesignDocSort = { column: "updated_at", direction: "desc" }
