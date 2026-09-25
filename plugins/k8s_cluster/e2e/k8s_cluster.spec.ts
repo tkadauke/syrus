@@ -22,7 +22,7 @@ users:
       token: fake-e2e-token
 `
 
-const RESOURCE_PATH = /\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/(namespaces|pods|nodes|overview)$/
+const RESOURCE_PATH = /\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/(namespaces|pods|nodes|overview|pods\/[^/]+\/logs)$/
 
 const DESCRIBE_ENVELOPES: Record<string, { envelope: string; kind: string }> = {
   "/namespaces": { envelope: "namespace", kind: "Namespace" },
@@ -144,6 +144,20 @@ async function mockClusterResources(page: Page) {
       return
     }
 
+    if (/\/pods\/[^/]+\/logs$/.test(path)) {
+      await route.fulfill({
+        json: {
+          available: true,
+          generated_at: GENERATED_AT,
+          pod: "web-6f8d9c-abc12",
+          namespace: "default",
+          container: "web",
+          log: "starting server\nlistening on :8080\n"
+        }
+      })
+      return
+    }
+
     await route.continue()
   })
 }
@@ -240,6 +254,30 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   await namespacePicker.click()
   await expect(page.getByRole("option", { name: "default" })).toBeVisible()
   await expect(page.getByRole("option", { name: "kube-system" })).toBeVisible()
+
+  // Logs tab: pick a pod, tune the read-only tail options, and search the output.
+  await page.getByRole("button", { name: "Cluster view" }).click()
+  await page.getByRole("option", { name: "Logs", exact: true }).click()
+  await expect(page.getByText("Select a pod to view its log tail.")).toBeVisible()
+  await page.getByRole("button", { name: "Pod" }).click()
+  await page.getByRole("option", { name: "default/web-6f8d9c-abc12" }).click()
+  await expect(page.getByText("starting server")).toBeVisible()
+  // Single-container pod: no container picker, but tail-size and log options render.
+  await expect(page.getByRole("button", { name: "Container" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Lines" })).toBeVisible()
+  await expect(page.getByLabel("Previous container")).toBeVisible()
+  await expect(page.getByLabel("Show timestamps")).toBeVisible()
+  await expect(page.getByLabel("Follow")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible()
+  await page.getByLabel("Previous container").check()
+  await page.getByLabel("Show timestamps").check()
+  await expect(page.getByText("starting server")).toBeVisible()
+  await page.getByLabel("Search logs").fill("zzz-no-such-line")
+  await expect(page.getByText("No log lines match the current search.")).toBeVisible()
+  await page.getByLabel("Search logs").fill("listening")
+  await expect(page.getByText("listening on :8080")).toBeVisible()
+  await expect(page.getByText("starting server")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
 
   await page.getByRole("button", { name: "Cluster view" }).click()
   await page.getByRole("option", { name: "Nodes", exact: true }).click()
