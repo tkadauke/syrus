@@ -46,6 +46,12 @@ class TouchedTestRepeatGate
       return skipped("no_focused_command")
     end
 
+    prepare_command = focused_prepare_command
+    if prepare_command.present?
+      @log.call("[flaky_gate:#{grader_name}] preparing focused repeats: #{prepare_command}")
+      return skipped("prepare_failed") unless run_command(prepare_command, label: "prepare command")
+    end
+
     @log.call("[flaky_gate:#{grader_name}] rerunning #{@touched_files.join(', ')} #{@repeats}x: #{command}")
     outcomes = Array.new(@repeats) { run_once(command) }
     pass_count = outcomes.count(&:itself)
@@ -142,6 +148,19 @@ class TouchedTestRepeatGate
     nil
   end
 
+  def focused_prepare_command
+    provider = @focused_command_provider
+    return nil unless provider&.respond_to?(:prepare_command_for)
+
+    provider.prepare_command_for(
+      grader_name: grader_name,
+      grader_command: grader_command
+    ).to_s.strip.presence
+  rescue StandardError => e
+    @log.call("[flaky_gate:#{grader_name}] focused_test_command #{provider} prepare declined with #{e.class}: #{e.message}")
+    nil
+  end
+
   def run_once(command)
     run_command(command, label: "repeat run")
   end
@@ -192,5 +211,4 @@ class TouchedTestRepeatGate
       files: @touched_files, repeats: 0, pass_count: 0, fail_count: 0
     )
   end
-
 end
