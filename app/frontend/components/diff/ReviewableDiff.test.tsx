@@ -119,6 +119,32 @@ describe("ReviewableDiff", () => {
     expect(screen.getAllByTestId("diff-file-scroll")[0]).toHaveClass("overflow-x-auto")
   })
 
+  it("renders visible whitespace when enabled", () => {
+    render(
+      <ReviewableDiff
+        files={[{
+          additions: 1,
+          deletions: 0,
+          patch: [
+            "diff --git a/f.rb b/f.rb",
+            "--- a/f.rb",
+            "+++ b/f.rb",
+            "@@ -1,1 +1,2 @@",
+            " keep value",
+            "+new\tvalue  "
+          ].join("\n"),
+          path: "f.rb",
+          status: "modified"
+        }]}
+        mode="continuous"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, syntax_highlighting: false, visible_whitespace: true }}
+      />
+    )
+
+    expect(getCodeCellText("keep·value")).toBeInTheDocument()
+    expect(getCodeCellText("new→\tvalue··")).toBeInTheDocument()
+  })
+
   it("copies a file's repository-relative path from the diff header", async () => {
     const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard")
     const writeText = vi.fn(() => Promise.resolve())
@@ -563,6 +589,28 @@ describe("ReviewableDiff", () => {
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
   })
 
+  it("sorts and indents the changed-files popup from persisted file-list settings", () => {
+    render(
+      <ReviewableDiff
+        changedFilesPopup
+        files={[
+          { additions: 1, deletions: 0, patch: files[0].patch, path: "z.rb", status: "modified" },
+          { additions: 5, deletions: 4, patch: files[1].patch, path: "app/models/deep.rb", status: "modified" },
+          { additions: 2, deletions: 0, patch: files[1].patch, path: "a.rb", status: "modified" }
+        ]}
+        mode="continuous"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, file_list_layout: "nested", file_sort: "change_size" }}
+        showFileHeaders
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+
+    const changedFiles = screen.getAllByTitle(/ \(\+/)
+    expect(changedFiles.map((button) => button.textContent)).toEqual(["app/models/deep.rb+5-4", "a.rb+2-0", "z.rb+1-0"])
+    expect(screen.getByTitle("app/models/deep.rb (+5 -4)")).toHaveStyle({ paddingLeft: "2.25rem" })
+  })
+
   it("scrolls each file's table horizontally on its own instead of sharing one scroll region", () => {
     render(<ReviewableDiff files={files} mode="continuous" showFileHeaders />)
 
@@ -922,6 +970,25 @@ describe("hidden-context expansion", () => {
     expect(screen.queryByLabelText("Load 20 more lines above")).not.toBeInTheDocument()
     expect(screen.getByLabelText("Load 20 more lines below")).toBeInTheDocument()
     expect(onLoadFileContext).not.toHaveBeenCalled()
+  })
+
+  it("uses the persisted context-line increment for hidden-context controls", async () => {
+    const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n"))
+    render(
+      <ReviewableDiff
+        files={[fileWithHunkAt(20)]}
+        mode="continuous"
+        onLoadFileContext={onLoadFileContext}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, context_lines: 5 }}
+        showFileHeaders
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText("Load 5 more lines above"))
+
+    await findCodeCellText("line 15")
+    expect(getCodeCellText("line 19")).toBeInTheDocument()
+    expect(screen.getByLabelText("Load 5 more lines above")).toBeInTheDocument()
   })
 
   it("shows the up-arrow when a hunk starts past line 1, loads real context on click, and hides once the gap is exhausted", async () => {

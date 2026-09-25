@@ -12,7 +12,7 @@ import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import type { LineAnnotation } from "../../components/diff/diffRendering"
 import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
-import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
+import { ReviewableDiff, sortReviewFiles, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { refOptionsFor, sourceDiffSearch, sourceSearch } from "./sourceRefs"
 import { PanelMessage } from "./components"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
@@ -285,6 +285,7 @@ function SourceDiffBrowser({
     staleTime: Infinity
   })
   const reviewSettings = settingsQuery.data?.review_diff_settings ?? DEFAULT_REVIEW_DIFF_SETTINGS
+  const sortedDiffFiles = useMemo(() => sortReviewFiles(payload.files, reviewSettings.file_sort), [payload.files, reviewSettings.file_sort])
   const selectedFile = selectedPath ? payload.files.find((file) => file.path === selectedPath) || null : null
   const refOptions = refOptionsFor(payload, [payload.base_ref, payload.head_ref])
   const versions = payload.versions || []
@@ -370,19 +371,23 @@ function SourceDiffBrowser({
       {feedback.panel}
       <div className={`grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white ${reviewSettings.file_list ? "lg:grid-cols-[20rem_minmax(0,1fr)]" : ""} dark:border-gray-700 dark:bg-gray-900`}>
         {reviewSettings.file_list ? <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
-          {payload.files.length > 0 ? payload.files.map((file) => (
-            <button
-              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-brand/10 ${selectedFile?.path === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
-              key={file.path}
-              onClick={() => setSelectedPath(file.path)}
-              title={`${file.path} (+${file.additions} -${file.deletions})`}
-              type="button"
-            >
-              <SourceDiffStatusBadge status={file.status} />
-              <span className="min-w-0 flex-1 truncate">{file.path}</span>
-              {feedback.commentCounts[file.path] ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{feedback.commentCounts[file.path]}</span> : null}
-            </button>
-          )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</p>}
+          {sortedDiffFiles.length > 0 ? sortedDiffFiles.map((file) => {
+            const depth = reviewSettings.file_list_layout === "nested" ? Math.max(0, file.path.split("/").length - 1) : 0
+            return (
+              <button
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-brand/10 ${selectedFile?.path === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
+                key={file.path}
+                onClick={() => setSelectedPath(file.path)}
+                style={{ paddingLeft: `${0.75 + Math.min(depth, 6) * 0.75}rem` }}
+                title={`${file.path} (+${file.additions} -${file.deletions})`}
+                type="button"
+              >
+                <SourceDiffStatusBadge status={file.status ?? "modified"} />
+                <span className="min-w-0 flex-1 truncate">{file.path}</span>
+                {feedback.commentCounts[file.path] ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{feedback.commentCounts[file.path]}</span> : null}
+              </button>
+            )
+          }) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</p>}
         </div> : null}
         <div className="min-w-0 overflow-y-auto">
           {renderMode === "continuous" || selectedFile ? (

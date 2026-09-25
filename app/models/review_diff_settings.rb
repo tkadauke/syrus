@@ -5,10 +5,14 @@ class ReviewDiffSettings
     "syntax_highlighting" => true,
     "intraline_highlighting" => "word",
     "whitespace" => "show",
+    "visible_whitespace" => false,
     "tab_width" => 2,
+    "context_lines" => 20,
     "density" => "comfortable",
     "line_numbers" => true,
-    "file_list" => true
+    "file_list" => true,
+    "file_list_layout" => "flat",
+    "file_sort" => "original"
   }.freeze
 
   VALUES = {
@@ -16,11 +20,14 @@ class ReviewDiffSettings
     "desktop_view" => %w[unified split],
     "intraline_highlighting" => %w[word off],
     "whitespace" => %w[show trim_trailing],
-    "density" => %w[compact comfortable spacious]
+    "density" => %w[compact comfortable spacious],
+    "file_list_layout" => %w[flat nested],
+    "file_sort" => %w[original alphabetical change_size]
   }.freeze
-  BOOLEAN_KEYS = %w[syntax_highlighting line_numbers file_list].freeze
+  BOOLEAN_KEYS = %w[syntax_highlighting visible_whitespace line_numbers file_list].freeze
   NUMERIC_RANGES = {
-    "tab_width" => (2..8)
+    "tab_width" => (2..8),
+    "context_lines" => (5..200)
   }.freeze
 
   def self.normalize(value)
