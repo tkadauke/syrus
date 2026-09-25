@@ -55,13 +55,22 @@ RSpec.describe RunProcessParallelism do
     expect(described_class.for(run: run, hostname: "worker-a")).to eq(6)
   end
 
-  it "reads the cgroup v2 memory limit and current usage" do
+  it "reads the cgroup v2 memory limit and excludes reclaimable file cache from current usage" do
     allow(File).to receive(:read).and_call_original
     allow(File).to receive(:read).with("/sys/fs/cgroup/memory.max").and_return("17179869184\n")
     allow(File).to receive(:read).with("/sys/fs/cgroup/memory.current").and_return("4294967296\n")
+    allow(File).to receive(:read).with("/sys/fs/cgroup/memory.stat").and_return("anon 1073741824\ninactive_file 2147483648\n")
 
     expect(described_class.effective_memory_limit_bytes).to eq(16.gigabytes)
-    expect(described_class.current_memory_bytes).to eq(4.gigabytes)
+    expect(described_class.current_memory_bytes).to eq(2.gigabytes)
+  end
+
+  it "never reports a negative working set when cache races with usage sampling" do
+    allow(File).to receive(:read).and_call_original
+    allow(File).to receive(:read).with("/sys/fs/cgroup/memory.current").and_return("1024\n")
+    allow(File).to receive(:read).with("/sys/fs/cgroup/memory.stat").and_return("inactive_file 2048\n")
+
+    expect(described_class.current_memory_bytes).to eq(0)
   end
 
   it "ignores a cgroup v1 unlimited sentinel larger than physical memory" do

@@ -19,7 +19,7 @@ class RunProcessParallelism
   end
 
   def self.current_memory_bytes
-    cgroup_v2_memory_current || cgroup_v1_memory_current
+    cgroup_v2_memory_working_set || cgroup_v1_memory_working_set
   end
 
   def initialize(run:, hostname: SyrusVersion.hostname)
@@ -88,16 +88,30 @@ class RunProcessParallelism
     nil
   end
 
-  def self.cgroup_v2_memory_current
-    positive_bytes(File.read("/sys/fs/cgroup/memory.current").strip)
+  def self.cgroup_v2_memory_working_set
+    working_set_bytes(
+      usage: File.read("/sys/fs/cgroup/memory.current").strip,
+      stat: File.read("/sys/fs/cgroup/memory.stat")
+    )
   rescue Errno::ENOENT, Errno::EACCES
     nil
   end
 
-  def self.cgroup_v1_memory_current
-    positive_bytes(File.read("/sys/fs/cgroup/memory/memory.usage_in_bytes").strip)
+  def self.cgroup_v1_memory_working_set
+    working_set_bytes(
+      usage: File.read("/sys/fs/cgroup/memory/memory.usage_in_bytes").strip,
+      stat: File.read("/sys/fs/cgroup/memory/memory.stat")
+    )
   rescue Errno::ENOENT, Errno::EACCES
     nil
+  end
+
+  def self.working_set_bytes(usage:, stat:)
+    usage_bytes = positive_bytes(usage)
+    return unless usage_bytes
+
+    inactive_file = stat[/^inactive_file\s+(\d+)$/, 1].to_i
+    [ usage_bytes - inactive_file, 0 ].max
   end
 
   def self.proc_memory_total
