@@ -232,6 +232,35 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.run).to include("serial_status")
   end
 
+  it "generates a shell-parseable parallel command with no serial pass" do
+    step = described_class.grade_steps(
+      config: { "parallel_rspec" => { "enabled" => true, "rspec_modes" => [ "full" ] } },
+      default_failures: "strict"
+    ).first
+
+    _stdout, stderr, status = Open3.capture3("bash", "-n", "-c", step.run)
+
+    expect(status).to be_success, stderr
+  end
+
+  it "generates a shell-parseable parallel command with an extra serial pass" do
+    step = described_class.grade_steps(
+      config: {
+        "tags" => { "ci" => { "include" => [ "ci_only" ] } },
+        "parallel_rspec" => {
+          "enabled" => true,
+          "rspec_modes" => [ "ci" ],
+          "exec_args" => "bin/rspec-worker"
+        }
+      },
+      default_failures: "strict"
+    ).third
+
+    _stdout, stderr, status = Open3.capture3("bash", "-n", "-c", step.run)
+
+    expect(status).to be_success, stderr
+  end
+
   it "supports direct parallel_rspec command generation without a worker wrapper" do
     step = described_class.grade_steps(
       config: {
