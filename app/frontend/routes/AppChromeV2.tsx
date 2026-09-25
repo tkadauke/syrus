@@ -1,12 +1,12 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
 import { ChevronDownIcon, GripIcon, MenuIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, SystemThemeIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
-import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, withRoutePrefix } from "./appChromeV2/helpers"
+import { SIDEBAR_COLLAPSED_KEY, SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_SNAP_WIDTH, SIDEBAR_WIDTH_KEY, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storedSidebarCollapsed, storedSidebarWidth, withRoutePrefix } from "./appChromeV2/helpers"
 import { buildAdminNavItems, filterAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactElement, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import { type DragEvent, type FormEvent, type MouseEvent, type MutableRefObject, type ReactElement, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload, type SystemAlertAction } from "../api/bootstrap"
@@ -45,11 +45,13 @@ import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { updateRecentChatCache } from "../lib/chatCache"
 import { ParticipantPickerModal } from "./chat/ParticipantPicker"
 import { firstUnstartedChat } from "../lib/unstartedChat"
+import { useResizableSplitter } from "./chat/useResizableSplitter"
 
 export const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
 const SYSTEM_ALERT_DISMISSALS_KEY = "syrus.system_alert_dismissals"
 const MAINTENANCE_SIDEBAR_STATE_KEY = "syrus.maintenance_sidebar.state"
 const EMPTY_SIDEBAR_NAV_ORDER: string[] = []
+const SETTINGS_POPUP_MENU_CLASS = "absolute bottom-full left-0 z-30 mb-2 w-60 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950"
 type MaintenanceSidebarState = { collapsed: boolean; hasTaskSnapshot: boolean; taskKeys: string[] }
 
 function randomPubliliusSyrusQuote() {
@@ -113,8 +115,19 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const activeChatId = activeChatIdFromPath(location.pathname)
   const isMobileChatPage = activeChatId != null && !isDesktopSidebarViewport
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
-  const [sidebarResize, setSidebarResize] = useState<{ startX: number; startWidth: number } | null>(null)
+  const sidebarSplitter = useResizableSplitter({
+    widthKey: SIDEBAR_WIDTH_KEY,
+    collapsedKey: SIDEBAR_COLLAPSED_KEY,
+    initialWidth: storedSidebarWidth,
+    initialCollapsed: storedSidebarCollapsed,
+    defaultWidth: SIDEBAR_DEFAULT_WIDTH,
+    snapClosedWidth: SIDEBAR_SNAP_WIDTH,
+    reopenWidth: SIDEBAR_SNAP_WIDTH,
+    clampWidth: clampSidebarWidth
+  })
+  const [sidebarPeekOpen, setSidebarPeekOpen] = useState(false)
+  const sidebarPeekOpenTimerRef = useRef<number | null>(null)
+  const sidebarPeekCloseTimerRef = useRef<number | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [bugReportAttachments, setBugReportAttachments] = useState<BugReportOptionalAttachment[]>([])
   const [groupChatPickerOpen, setGroupChatPickerOpen] = useState(false)
@@ -226,55 +239,46 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   }
 
   useEffect(() => {
-    if (!sidebarResize) return
+    if (!sidebarSplitter.collapsed) setSidebarPeekOpen(false)
+  }, [sidebarSplitter.collapsed])
 
-    const resize = sidebarResize
+  useEffect(() => () => {
+    if (sidebarPeekOpenTimerRef.current != null) window.clearTimeout(sidebarPeekOpenTimerRef.current)
+    if (sidebarPeekCloseTimerRef.current != null) window.clearTimeout(sidebarPeekCloseTimerRef.current)
+  }, [])
 
-    function handleMouseMove(event: globalThis.MouseEvent) {
-      updateSidebarWidth(resize.startWidth + event.clientX - resize.startX)
-    }
+  function clearSidebarPeekTimer(ref: MutableRefObject<number | null>) {
+    if (ref.current == null) return
 
-    function handleMouseUp() {
-      setSidebarResize(null)
-    }
-
-    document.body.classList.add("select-none", "cursor-col-resize")
-    window.addEventListener("mousemove", handleMouseMove)
-    window.addEventListener("mouseup", handleMouseUp)
-
-    return () => {
-      document.body.classList.remove("select-none", "cursor-col-resize")
-      window.removeEventListener("mousemove", handleMouseMove)
-      window.removeEventListener("mouseup", handleMouseUp)
-    }
-  }, [sidebarResize])
-
-  function updateSidebarWidth(width: number) {
-    const nextWidth = clampSidebarWidth(width)
-    setSidebarWidth(nextWidth)
-    storeSidebarWidth(nextWidth)
+    window.clearTimeout(ref.current)
+    ref.current = null
   }
 
-  function startSidebarResize(event: MouseEvent<HTMLDivElement>) {
-    event.preventDefault()
-    setSidebarResize({ startX: event.clientX, startWidth: sidebarWidth })
+  function openSidebarPeekSoon() {
+    if (!sidebarSplitter.collapsed) return
+
+    clearSidebarPeekTimer(sidebarPeekCloseTimerRef)
+    clearSidebarPeekTimer(sidebarPeekOpenTimerRef)
+    sidebarPeekOpenTimerRef.current = window.setTimeout(() => {
+      setSidebarPeekOpen(true)
+      sidebarPeekOpenTimerRef.current = null
+    }, 350)
   }
 
-  function resizeSidebarWithKeyboard(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === "ArrowLeft") {
-      event.preventDefault()
-      updateSidebarWidth(sidebarWidth - 16)
-    } else if (event.key === "ArrowRight") {
-      event.preventDefault()
-      updateSidebarWidth(sidebarWidth + 16)
-    } else if (event.key === "Home") {
-      event.preventDefault()
-      updateSidebarWidth(SIDEBAR_MIN_WIDTH)
-    } else if (event.key === "End") {
-      event.preventDefault()
-      updateSidebarWidth(SIDEBAR_MAX_WIDTH)
-    }
+  function closeSidebarPeekSoon() {
+    clearSidebarPeekTimer(sidebarPeekOpenTimerRef)
+    clearSidebarPeekTimer(sidebarPeekCloseTimerRef)
+    sidebarPeekCloseTimerRef.current = window.setTimeout(() => {
+      setSidebarPeekOpen(false)
+      sidebarPeekCloseTimerRef.current = null
+    }, 150)
   }
+
+  function keepSidebarPeekOpen() {
+    clearSidebarPeekTimer(sidebarPeekCloseTimerRef)
+  }
+
+  const sidebarPeekInertAttributes = sidebarPeekOpen ? {} : { inert: "" }
 
   return (
     <ShortcutsProvider>
@@ -283,8 +287,14 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     <GlobalShortcutsHelp />
     {user ? <GlobalBugReportShortcut onOpenBugReport={openBugReport} /> : null}
     <div className="flex h-[100dvh] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
-      <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }} {...(isDesktopSidebarViewport ? {} : { "data-html2canvas-ignore": true })}>
+      <aside
+        className={`relative hidden shrink-0 transition-[width] duration-200 ease-out lg:flex ${sidebarSplitter.collapsed ? "overflow-visible" : ""}`}
+        data-testid="desktop-sidebar"
+        style={{ width: `${sidebarSplitter.collapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarSplitter.width}px` }}
+        {...(isDesktopSidebarViewport ? {} : { "data-html2canvas-ignore": true })}
+      >
         <SidebarContent
+          collapsed={sidebarSplitter.collapsed}
           csrfToken={data?.csrf_token}
           dashboardSubnavEnabled={isDesktopSidebarViewport}
           featureFlags={data?.feature_flags ?? {}}
@@ -299,16 +309,49 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           showTeamProfile={(data?.team_user_count || 0) > 1}
           startingChat={startingChat}
           user={user}
+          onHoverStart={openSidebarPeekSoon}
+          onHoverEnd={closeSidebarPeekSoon}
         />
+        {sidebarSplitter.collapsed ? (
+          <div
+            {...sidebarPeekInertAttributes}
+            aria-hidden={!sidebarPeekOpen}
+            className={`absolute bottom-0 left-0 top-0 z-30 shadow-xl transition-all duration-200 ease-out ${sidebarPeekOpen ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0 pointer-events-none"}`}
+            data-testid="sidebar-peek"
+            onMouseEnter={keepSidebarPeekOpen}
+            onMouseLeave={closeSidebarPeekSoon}
+            style={{ width: `${sidebarSplitter.width}px` }}
+          >
+            <SidebarContent
+              collapsed={false}
+              csrfToken={data?.csrf_token}
+              dashboardSubnavEnabled={isDesktopSidebarViewport}
+              featureFlags={data?.feature_flags ?? {}}
+              navItems={navItems}
+              onCloseDrawer={() => setDrawerOpen(false)}
+              onNotice={setNotice}
+              onOpenBugReport={openBugReport}
+              onReorderNavItems={reorderSidebarNav.mutate}
+              onStartChat={startChat}
+              onStartGroupChat={startGroupChat}
+              prefix={prefix}
+              searchShortcutsEnabled={sidebarPeekOpen}
+              showTeamProfile={(data?.team_user_count || 0) > 1}
+              startingChat={startingChat}
+              user={user}
+            />
+          </div>
+        ) : null}
         <div
           aria-label={t("nav:resize_sidebar")}
           aria-orientation="vertical"
           aria-valuemax={SIDEBAR_MAX_WIDTH}
-          aria-valuemin={SIDEBAR_MIN_WIDTH}
-          aria-valuenow={sidebarWidth}
+          aria-valuemin={SIDEBAR_COLLAPSED_WIDTH}
+          aria-valuenow={sidebarSplitter.collapsed ? SIDEBAR_COLLAPSED_WIDTH : Math.round(sidebarSplitter.width)}
           className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize rounded-sm outline-none transition-colors hover:bg-brand/30 focus-visible:bg-brand/40"
-          onKeyDown={resizeSidebarWithKeyboard}
-          onMouseDown={startSidebarResize}
+          onClick={sidebarSplitter.toggleCollapsed}
+          onKeyDown={sidebarSplitter.resizeWithKeyboard}
+          onMouseDown={sidebarSplitter.beginResize}
           role="separator"
           tabIndex={0}
         />
@@ -317,6 +360,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       {drawerOpen ? (
         <div className="fixed inset-0 z-40 bg-white dark:bg-gray-950 lg:hidden">
           <SidebarContent
+            collapsed={false}
             csrfToken={data?.csrf_token}
             dashboardSubnavEnabled={false}
             featureFlags={data?.feature_flags ?? {}}
@@ -881,6 +925,7 @@ function AdminNavAccordion({
 }
 
 function SidebarContent({
+  collapsed,
   csrfToken,
   dashboardSubnavEnabled,
   featureFlags,
@@ -892,10 +937,14 @@ function SidebarContent({
   onStartChat,
   onStartGroupChat,
   prefix,
+  searchShortcutsEnabled = true,
   showTeamProfile,
   startingChat,
-  user
+  user,
+  onHoverStart,
+  onHoverEnd
 }: {
+  collapsed: boolean
   csrfToken?: string
   dashboardSubnavEnabled: boolean
   featureFlags: Record<string, boolean>
@@ -907,12 +956,16 @@ function SidebarContent({
   onStartChat: () => void
   onStartGroupChat: () => void
   prefix: string
+  searchShortcutsEnabled?: boolean
   showTeamProfile: boolean
   startingChat: boolean
   user: BootstrapPayload["current_user"] | undefined
+  onHoverStart?: () => void
+  onHoverEnd?: () => void
 }) {
   const { t } = useTranslation("nav")
-  const activeSubnavItem = navItems.find((item) => item.active && itemHasSubnav(item, dashboardSubnavEnabled))
+  const subnavEnabled = dashboardSubnavEnabled && !collapsed
+  const activeSubnavItem = navItems.find((item) => item.active && itemHasSubnav(item, subnavEnabled))
   const [openSubnavItemId, setOpenSubnavItemId] = useState<string | null>(activeSubnavItem?.id ?? null)
   // "setup" (onboarding-only) is excluded from drag reordering; only the
   // plugin-extensible primary nav below it is reorderable.
@@ -937,7 +990,7 @@ function SidebarContent({
   }, [reorderableNavItems])
 
   function handlePrimaryNavClick(item: SidebarNavItem, event: MouseEvent<HTMLAnchorElement>) {
-    if (itemHasSubnav(item, dashboardSubnavEnabled)) {
+    if (itemHasSubnav(item, subnavEnabled)) {
       if (item.active) {
         event.preventDefault()
         setOpenSubnavItemId((current) => current === item.id ? null : item.id)
@@ -995,15 +1048,20 @@ function SidebarContent({
   }
 
   return (
-    <div className="flex h-full w-full flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <div className="shrink-0 border-b border-gray-200 px-4 py-4 dark:border-gray-800">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
+    <div
+      className="flex h-full w-full flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
+      data-testid={collapsed ? "sidebar-rail" : "sidebar-content"}
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
+    >
+      <div className={`shrink-0 border-b border-gray-200 py-4 dark:border-gray-800 ${collapsed ? "px-0" : "px-4"}`}>
+        <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : "justify-between"}`}>
+          <div className={`flex min-w-0 items-center gap-2 ${collapsed ? "justify-center" : ""}`}>
             <span aria-hidden="true" className="text-gray-900 dark:text-white lg:hidden"><MenuIcon /></span>
-            <Link className="text-lg font-semibold text-gray-900 dark:text-white" onClick={onCloseDrawer} to={prefix || "/"}><SyrusBrand /></Link>
-            <TestChannelBadge />
+            <Link className="text-lg font-semibold text-gray-900 dark:text-white" onClick={onCloseDrawer} to={prefix || "/"} title={collapsed ? "Syrus" : undefined}><SyrusBrand markOnly={collapsed} /></Link>
+            {collapsed ? null : <TestChannelBadge />}
           </div>
-          <div className="flex items-center gap-1">
+          <div className={`items-center gap-1 ${collapsed ? "hidden" : "flex"}`}>
             {user ? <BugReportTriggerButton onClick={onOpenBugReport} /> : null}
             {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             <button
@@ -1018,36 +1076,41 @@ function SidebarContent({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="sticky top-0 z-20 space-y-3 bg-white px-3 py-4 dark:bg-gray-950">
+        <div className={`sticky top-0 z-20 space-y-3 bg-white py-4 dark:bg-gray-950 ${collapsed ? "flex flex-col items-center px-0" : "px-3"}`}>
           <Button
-            className="w-full"
+            aria-label={collapsed ? t("nav:new_chat") : undefined}
+            className={collapsed ? "h-9 w-9 px-0" : "w-full"}
             disabled={!user || startingChat}
             onClick={onStartChat}
+            size={collapsed ? "icon" : undefined}
+            title={collapsed ? t("nav:new_chat") : undefined}
           >
             <PlusIcon />
-            <span>{t("nav:new_chat")}</span>
+            {collapsed ? null : <span>{t("nav:new_chat")}</span>}
           </Button>
           {showTeamProfile ? (
             <Button
-              className="w-full"
+              aria-label={collapsed ? t("nav:new_group_chat") : undefined}
+              className={collapsed ? "h-9 w-9 px-0" : "w-full"}
               disabled={!user}
               onClick={onStartGroupChat}
-              size="sm"
+              size={collapsed ? "icon" : "sm"}
+              title={collapsed ? t("nav:new_group_chat") : undefined}
               variant="secondary"
             >
               <TeamIcon />
-              <span>{t("nav:new_group_chat")}</span>
+              {collapsed ? null : <span>{t("nav:new_group_chat")}</span>}
             </Button>
           ) : null}
-          <SidebarSearchForm onCloseDrawer={onCloseDrawer} prefix={prefix} />
-          <SidebarMaintenanceTasks prefix={prefix} signedIn={Boolean(user)} />
+          <SidebarSearchForm collapsed={collapsed} onCloseDrawer={onCloseDrawer} prefix={prefix} searchShortcutsEnabled={searchShortcutsEnabled} />
+          {collapsed ? null : <SidebarMaintenanceTasks prefix={prefix} signedIn={Boolean(user)} />}
         </div>
-        <div className="px-3 pb-4">
-          <nav aria-label={t("nav:primary_nav_aria")} className="flex flex-col gap-1 text-sm">
+        <div className={`${collapsed ? "px-0" : "px-3"} pb-4`}>
+          <nav aria-label={t("nav:primary_nav_aria")} className={`flex flex-col gap-1 text-sm ${collapsed ? "items-center" : ""}`}>
             {setupItem ? (
-              <Link className={sidebarLinkClass(setupItem.active)} key={setupItem.id} onClick={(event) => handlePrimaryNavClick(setupItem, event)} to={setupItem.to}>
+              <Link className={sidebarLinkClass(setupItem.active, collapsed)} key={setupItem.id} onClick={(event) => handlePrimaryNavClick(setupItem, event)} title={collapsed ? setupItem.label : undefined} to={setupItem.to}>
                 {setupItem.icon}
-                <span>{setupItem.label}</span>
+                <span className={collapsed ? "sr-only" : ""}>{setupItem.label}</span>
               </Link>
             ) : null}
             {orderedNavItems.map((item, index) => (
@@ -1057,36 +1120,37 @@ function SidebarContent({
               // and isn't itself part of the draggable surface.
               <div key={item.id}>
                 <div
-                  className={`group relative -ml-4 cursor-grab rounded pl-4 active:cursor-grabbing ${draggingNavItemId === item.id ? "opacity-50" : ""}`}
-                  draggable
-                  onDragEnd={endNavItemDrag}
-                  onDragOver={(event) => dragOverNavItem(index, event)}
-                  onDragStart={(event) => startNavItemDrag(index, event)}
-                  onDrop={dropNavItem}
+                  className={collapsed ? "" : `group relative -ml-4 cursor-grab rounded pl-4 active:cursor-grabbing ${draggingNavItemId === item.id ? "opacity-50" : ""}`}
+                  draggable={!collapsed}
+                  onDragEnd={collapsed ? undefined : endNavItemDrag}
+                  onDragOver={collapsed ? undefined : (event) => dragOverNavItem(index, event)}
+                  onDragStart={collapsed ? undefined : (event) => startNavItemDrag(index, event)}
+                  onDrop={collapsed ? undefined : dropNavItem}
                 >
-                  <Link className={sidebarLinkClass(item.active)} onClick={(event) => handlePrimaryNavClick(item, event)} to={item.to}>
+                  <Link className={sidebarLinkClass(item.active, collapsed)} onClick={(event) => handlePrimaryNavClick(item, event)} title={collapsed ? item.label : undefined} to={item.to}>
                     {item.icon}
-                    <span>{item.label}</span>
-                    {item.badge ? <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-xs leading-none text-white">{item.badge}</span> : null}
+                    <span className={collapsed ? "sr-only" : ""}>{item.label}</span>
+                    {!collapsed && item.badge ? <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-xs leading-none text-white">{item.badge}</span> : null}
                   </Link>
-                  <GripIcon />
+                  {collapsed ? null : <GripIcon />}
                 </div>
-                {item.id === "dashboard" && dashboardSubnavEnabled ? (
+                {item.id === "dashboard" && subnavEnabled ? (
                   <SidebarDashboardNav expanded={openSubnavItemId === item.id} onCloseDrawer={onCloseDrawer} prefix={prefix} />
-                ) : dashboardSubnavEnabled && item.smartFolderApiPath && item.smartFolderSubject ? (
+                ) : subnavEnabled && item.smartFolderApiPath && item.smartFolderSubject ? (
                   <SidebarPluginSmartFolderNav expanded={openSubnavItemId === item.id} item={item} prefix={prefix} />
                 ) : null}
               </div>
             ))}
           </nav>
         </div>
-        <RecentChatsSidebar featureFlags={featureFlags} onCloseDrawer={onCloseDrawer} onNotice={onNotice} prefix={prefix} userPresent={Boolean(user)} />
+        {collapsed ? null : <RecentChatsSidebar featureFlags={featureFlags} onCloseDrawer={onCloseDrawer} onNotice={onNotice} prefix={prefix} userPresent={Boolean(user)} />}
       </div>
-      <ShellNotices />
-      <div className="shrink-0 border-t border-gray-200 p-3 dark:border-gray-800">
+      {collapsed ? null : <ShellNotices />}
+      <div className={`shrink-0 border-t border-gray-200 dark:border-gray-800 ${collapsed ? "p-2" : "p-3"}`}>
         {user ? (
           <nav aria-label={t("account_aria")}>
             <SettingsPopup
+              collapsed={collapsed}
               csrfToken={csrfToken}
               onCloseDrawer={onCloseDrawer}
               prefix={prefix}
@@ -1125,10 +1189,21 @@ function isCoarsePointer() {
   )
 }
 
-function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => void; prefix: string }) {
+function SidebarSearchForm({
+  collapsed,
+  onCloseDrawer,
+  prefix,
+  searchShortcutsEnabled
+}: {
+  collapsed: boolean
+  onCloseDrawer: () => void
+  prefix: string
+  searchShortcutsEnabled: boolean
+}) {
   const location = useLocation()
   const navigate = useNavigate()
   const { t } = useTranslation("nav")
+  const searchId = useId()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [query, setQuery] = useState(() => searchQueryFromLocation(location.search, location.pathname))
   const userEditedRef = useRef(false)
@@ -1150,16 +1225,18 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
   }, [location.search, location.pathname])
 
   useEffect(() => {
-    if (!userEditedRef.current || isCoarsePointer()) return
+    if (!searchShortcutsEnabled || !userEditedRef.current || isCoarsePointer()) return
 
     const timer = window.setTimeout(() => {
       navigateToSearch(query)
     }, 300)
 
     return () => window.clearTimeout(timer)
-  }, [query])
+  }, [query, searchShortcutsEnabled])
 
   useEffect(() => {
+    if (!searchShortcutsEnabled) return
+
     function focusSearch(event: globalThis.KeyboardEvent) {
       const target = event.target
       const targetElement = target instanceof HTMLElement ? target : null
@@ -1176,15 +1253,32 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
 
     window.addEventListener("keydown", focusSearch)
     return () => window.removeEventListener("keydown", focusSearch)
-  }, [])
+  }, [searchShortcutsEnabled])
+
+  if (collapsed) {
+    return (
+      <button
+        aria-label={t("nav:search_label")}
+        className="relative mx-auto flex h-9 w-9 items-center justify-center rounded-[var(--radius-control)] border-[length:var(--border-width)] border-border bg-surface text-text-muted hover:bg-surface-raised hover:text-brand dark:hover:text-brand-emphasis"
+        onClick={() => {
+          onCloseDrawer()
+          navigate(`${prefix}/search`)
+        }}
+        title={t("nav:search_label")}
+        type="button"
+      >
+        <SearchIcon />
+      </button>
+    )
+  }
 
   return (
     <form className="relative" onSubmit={submitSearch} role="search">
-      <label className="sr-only" htmlFor="sidebar-global-search">{t("nav:search_label")}</label>
+      <label className="sr-only" htmlFor={searchId}>{t("nav:search_label")}</label>
       <SearchIcon />
       <Input
         className="h-9 pl-9"
-        id="sidebar-global-search"
+        id={searchId}
         onChange={(event) => {
           userEditedRef.current = true
           setQuery(event.target.value)
@@ -1458,7 +1552,8 @@ function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseD
   )
 }
 
-function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user }: {
+function SettingsPopup({ collapsed, csrfToken, onCloseDrawer, prefix, showTeamProfile, user }: {
+  collapsed: boolean
   csrfToken?: string
   onCloseDrawer: () => void
   prefix: string
@@ -1472,18 +1567,19 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
   return (
     <div className="relative" ref={menuRef}>
       <button
+        aria-label={collapsed ? user.email_address : undefined}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="flex w-full min-w-0 items-center gap-2 rounded px-2 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-200 dark:hover:bg-gray-800"
+        className={`flex min-w-0 items-center gap-2 rounded py-2 text-left text-sm text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-200 dark:hover:bg-gray-800 ${collapsed ? "mx-auto w-9 justify-center px-0" : "w-full px-2"}`}
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
         <UserIcon />
-        <span className="min-w-0 flex-1 truncate">{user.email_address}</span>
-        <ChevronDownIcon className="rotate-180" />
+        {collapsed ? null : <span className="min-w-0 flex-1 truncate">{user.email_address}</span>}
+        {collapsed ? null : <ChevronDownIcon className="rotate-180" />}
       </button>
       {open ? (
-        <div className="absolute bottom-full left-0 z-30 mb-2 w-60 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950">
+        <div className={SETTINGS_POPUP_MENU_CLASS}>
           <ThemePicker />
           <ColorThemePicker />
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
@@ -1562,7 +1658,7 @@ function ColorThemePicker() {
       >
         <span aria-hidden="true" className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: current.tokens.light.brand }} />
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700 dark:text-gray-300">{current.name}</span>
-        <ChevronDownIcon className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform dark:text-gray-500 ${expanded ? "rotate-180" : ""}`} />
+        <ChevronDownIcon className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${expanded ? "rotate-180" : ""}`} />
       </button>
       <div
         {...inertAttributes}

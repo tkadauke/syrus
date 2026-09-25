@@ -18,7 +18,40 @@ RSpec.describe Ruby::FocusedTestCommand do
       base_retry: { "strategy" => "plugin" }
     )
 
+    expect(command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag ~ci_only spec/models/widget_spec.rb")
+  end
+
+  it "preserves ci_only inclusion for ci-only RSpec graders" do
+    command = described_class.command_for(
+      grader_name: "rspec-ci",
+      grader_command: "RUN_CI_ONLY_SPECS=true bundle exec rspec",
+      failed_cases: [ { "file_path" => "spec/migrations/widget_spec.rb", "name" => "Widget migrates" } ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(command).to eq("RUN_CI_ONLY_SPECS=true COVERAGE=false bundle exec rspec --tag ci_only spec/migrations/widget_spec.rb")
+  end
+
+  it "preserves explicit RSpec tag filters from the grader command" do
+    command = described_class.command_for(
+      grader_name: "rspec-focused",
+      grader_command: "bundle exec rspec --tag ~ci_only",
+      failed_cases: [ { "file_path" => "spec/models/widget_spec.rb" } ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
     expect(command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only spec/models/widget_spec.rb")
+  end
+
+  it "preserves RSpec tag filters passed through RSPEC_TAG_ARGS" do
+    command = described_class.command_for(
+      grader_name: "rspec-focused",
+      grader_command: "RSPEC_TAG_ARGS=--tag\\ \\~ci_only bundle exec parallel_rspec --exec-args bin/rspec-worker",
+      failed_cases: [ { "file_path" => "plugins/muse_agent/spec/services/muse_invocation_spec.rb" } ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(command).to eq("RUN_CI_ONLY_SPECS=false COVERAGE=false bundle exec rspec --tag \\~ci_only plugins/muse_agent/spec/services/muse_invocation_spec.rb")
   end
 
   it "declines when the grader did not opt into plugin strategy" do

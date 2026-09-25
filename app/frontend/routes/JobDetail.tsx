@@ -334,26 +334,15 @@ export function JobDetailView({
   return (
     <>
       <SyrusTour onEvent={(data) => handleJoyrideCallback(data)} run={tourRun} steps={tourSteps} />
-      <Page.Header className="block space-y-3">
-        <div className="min-w-0">
+      <Page.Header className="items-start gap-x-6 gap-y-3">
+        <div className="min-w-0 flex-1">
           <PageHeading className="break-words">
             <CopyableSlug slug={jobSlug(payload.job.id)} />
             <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
             <PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} />
           </PageHeading>
-          <div className="mt-1.5 flex items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <JobStateBadge state={payload.job.summary_state} />
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              <HeaderActions
-                command={command}
-                onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
-                onToggleFeedbackPanel={() => withPreviewStop(() => setFeedbackPanelOpen((current) => !current))}
-                payload={payload}
-              />
-              <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
-            </div>
+          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2">
+            <JobStateBadge state={payload.job.summary_state} />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">
@@ -431,6 +420,15 @@ export function JobDetailView({
               </span>
             ) : null}
           </div>
+        </div>
+        <div className="flex w-full shrink-0 flex-wrap items-center justify-start gap-3 sm:w-auto sm:justify-end" data-testid="job-header-actions">
+          <HeaderActions
+            command={command}
+            onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
+            onToggleFeedbackPanel={() => withPreviewStop(() => setFeedbackPanelOpen((current) => !current))}
+            payload={payload}
+          />
+          <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
         </div>
       </Page.Header>
 

@@ -10,7 +10,7 @@ import * as maintenanceApi from "../api/maintenanceTasks"
 import type { ChatGroupRecord, ChatNavRecord, ChatsIndexPayload, MoreChatsPayload } from "../api/chats"
 import type { MaintenanceTask } from "../api/maintenanceTasks"
 import { AppChromeV2 } from "./AppChromeV2"
-import { adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
+import { SIDEBAR_COLLAPSED_KEY, SIDEBAR_WIDTH_KEY, adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
 import { buildAdminNavItems, filterAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
 
 const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
@@ -1452,6 +1452,132 @@ describe("AppChromeV2 primary nav reordering", () => {
     fireEvent.drop(dashboardRow)
 
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.anything())
+  })
+})
+
+describe("AppChromeV2 desktop sidebar collapse", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it("toggles collapsed mode with a plain separator click and remembers it", () => {
+    renderAppChrome(<div>Dashboard</div>, { bootstrap: bootstrapPayload({ team_user_count: 3 }) })
+
+    const sidebar = screen.getByTestId("desktop-sidebar")
+    const separator = screen.getByRole("separator", { name: "Resize sidebar" })
+
+    expect(sidebar).toHaveStyle({ width: "240px" })
+
+    fireEvent.click(separator)
+
+    expect(sidebar).toHaveStyle({ width: "60px" })
+    expect(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe("true")
+
+    const newChatButton = within(sidebar).getByRole("button", { name: "New Chat" })
+    const newGroupChatButton = within(sidebar).getByRole("button", { name: "New group chat" })
+    expect(newChatButton.className).toContain("p-1")
+    expect(newChatButton.className).not.toContain("px-3")
+    expect(newChatButton.className).not.toContain("h-[var(--control-height-md)]")
+    expect(newChatButton.querySelector("svg")?.className.baseVal).toContain("shrink-0")
+    expect(newGroupChatButton.className).toContain("p-1")
+    expect(newGroupChatButton.className).not.toContain("px-2.5")
+    expect(newGroupChatButton.className).not.toContain("h-[var(--control-height-sm)]")
+    expect(newChatButton.parentElement).toBe(newGroupChatButton.parentElement)
+    expect(newChatButton.parentElement?.className).toContain("flex")
+    expect(newChatButton.parentElement?.className).toContain("flex-col")
+    expect(newChatButton.parentElement?.className).toContain("items-center")
+
+    fireEvent.click(separator)
+
+    expect(sidebar).toHaveStyle({ width: "240px" })
+    expect(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe("false")
+  })
+
+  it("snaps closed and reopens when dragging the separator past the threshold", () => {
+    renderAppChrome()
+
+    const sidebar = screen.getByTestId("desktop-sidebar")
+    const separator = screen.getByRole("separator", { name: "Resize sidebar" })
+
+    fireEvent.mouseDown(separator, { clientX: 240 })
+    fireEvent.mouseMove(window, { clientX: 100 })
+    fireEvent.mouseUp(window, { clientX: 100 })
+
+    expect(sidebar).toHaveStyle({ width: "60px" })
+    expect(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe("true")
+
+    fireEvent.mouseDown(separator, { clientX: 60 })
+    fireEvent.mouseMove(window, { clientX: 210 })
+    fireEvent.mouseUp(window, { clientX: 210 })
+
+    expect(sidebar).toHaveStyle({ width: "208px" })
+    expect(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe("false")
+    expect(window.localStorage.getItem(SIDEBAR_WIDTH_KEY)).toBe("208")
+  })
+
+  it("opens and closes the hover peek with delayed rail hover", () => {
+    vi.useFakeTimers()
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true")
+
+    renderAppChrome()
+
+    const rail = screen.getByTestId("sidebar-rail")
+    const peek = screen.getByTestId("sidebar-peek")
+
+    expect(peek).toHaveAttribute("aria-hidden", "true")
+    expect(peek).toHaveAttribute("inert")
+
+    fireEvent.mouseEnter(rail)
+    act(() => vi.advanceTimersByTime(349))
+    expect(peek).toHaveAttribute("aria-hidden", "true")
+    expect(peek).toHaveAttribute("inert")
+
+    act(() => vi.advanceTimersByTime(1))
+    expect(peek).toHaveAttribute("aria-hidden", "false")
+    expect(peek).not.toHaveAttribute("inert")
+
+    fireEvent.mouseLeave(rail)
+    act(() => vi.advanceTimersByTime(149))
+    expect(peek).toHaveAttribute("aria-hidden", "false")
+
+    act(() => vi.advanceTimersByTime(1))
+    expect(peek).toHaveAttribute("aria-hidden", "true")
+    expect(peek).toHaveAttribute("inert")
+  })
+
+  it("does not focus the closed peek search input from the global search shortcut", () => {
+    vi.useFakeTimers()
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true")
+
+    renderAppChrome()
+
+    const rail = screen.getByTestId("sidebar-rail")
+    const peek = screen.getByTestId("sidebar-peek")
+
+    fireEvent.keyDown(window, { key: "/" })
+    expect(document.activeElement).toBe(document.body)
+
+    fireEvent.mouseEnter(rail)
+    act(() => vi.advanceTimersByTime(350))
+
+    const peekSearch = within(peek).getByRole("searchbox", { name: "Search Syrus" })
+    fireEvent.keyDown(window, { key: "/" })
+    expect(document.activeElement).toBe(peekSearch)
+  })
+
+  it("navigates from a collapsed nav item without expanding the rail", () => {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true")
+
+    renderAppChrome(<LocationProbe />, { initialEntries: ["/settings"] })
+
+    const rail = screen.getByTestId("sidebar-rail")
+    fireEvent.click(within(rail).getByRole("link", { name: "Dashboard" }))
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/dashboard")
+    expect(screen.getByTestId("desktop-sidebar")).toHaveStyle({ width: "60px" })
+    expect(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe("true")
   })
 })
 

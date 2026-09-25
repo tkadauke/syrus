@@ -117,6 +117,10 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
     allow(AppEvents).to receive(:broadcast)
 
     job.mark_implemented!
+    # Transactional specs do not commit the Job update, so exercise the
+    # after_update_commit hook body directly after verifying the state change.
+    expect(job).to be_implemented
+    job.send(:promote_queued_chat_pending_actions)
 
     expect(pending_action.reload).to be_pending
     expect(AppEvents).to have_received(:broadcast).with(

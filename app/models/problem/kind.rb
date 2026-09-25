@@ -99,6 +99,9 @@ class Problem
       Entry.new(code: "agent_max_turns", scope: :run, retryable: false, default_remediation: :escalate),
       Entry.new(code: "agent_invocation_too_large", scope: :run, retryable: false,
                 default_remediation: :escalate),
+      Entry.new(code: "muse_rules_context_too_large", scope: :run, retryable: false,
+                default_remediation: :escalate,
+                label: "Muse rules context too large"),
       Entry.new(code: "missing_required_tool_call", scope: :run, retryable: true,
                 default_remediation: :retry_step),
       Entry.new(code: "stdin_race_failed", scope: :run, retryable: true, default_remediation: :retry_step),
@@ -120,7 +123,8 @@ class Problem
       Entry.new(code: "validation_or_user_error", scope: :run, retryable: false,
                 default_remediation: :escalate),
       Entry.new(code: "application_error", scope: :run, retryable: false,
-                default_remediation: :escalate),
+                default_remediation: :escalate,
+                issue_kinds: %w[repeated_failure_circuit_open]),
 
       # -- The world moved underneath us -------------------------------------
       #

@@ -290,7 +290,7 @@ module WorkEngine
 
           run = primary_run
           quota_reset = ProviderQuotaReset.retry_after_for_run(run, now: now)
-          return quota_reset if provider_quota_classification? && quota_reset
+          return quota_reset if provider_reset_aware_classification? && quota_reset
 
           reset_at = run&.user&.gh_rate_limit_reset_at
           if classification&.classification == "rate_limited" && reset_at&.future?
@@ -300,8 +300,8 @@ module WorkEngine
           end
         end
 
-        def provider_quota_classification?
-          classification&.classification == ProviderUsageLimit::CLASSIFICATION
+        def provider_reset_aware_classification?
+          classification&.classification.in?([ "rate_limited", ProviderUsageLimit::CLASSIFICATION ])
         end
 
         def attempt_number_for_retryable_failure(run)
@@ -832,6 +832,21 @@ module WorkEngine
             "operator_review_nonretryable_failure",
             "The failure is semantic, git-related, or otherwise nonretryable; automatic retry risks repeating or duplicating unsafe work.",
             preconditions: { classification: classification&.classification, step_repair_semantics: step_kind&.repair_semantics }
+          )
+        end
+      end
+
+      class RepeatedFailureCircuitOpen < Base
+        def plan
+          operator_plan(
+            "operator_review_repeated_failure_circuit",
+            "The same exception fingerprint has exhausted the automatic repeat-failure circuit; a deploy, code fix, or operator decision is required before retrying.",
+            preconditions: {
+              fingerprint: issue.evidence["fingerprint"],
+              app_revision: issue.evidence["app_revision"],
+              streak_count: issue.evidence["streak_count"],
+              threshold: issue.evidence["threshold"]
+            }
           )
         end
       end

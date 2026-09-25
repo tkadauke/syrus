@@ -92,7 +92,7 @@ class Epic < ApplicationRecord
     if connection.adapter_name.downcase.include?("mysql")
       where("MATCH(#{SEARCH_TEXT_COLUMNS.join(', ')}) AGAINST (?)", query)
     else
-      conditions = SEARCH_TEXT_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE '\\'" }
+      conditions = SEARCH_TEXT_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE #{like_escape_sql}" }
       where(conditions.join(" OR "), *([ like ] * conditions.size))
     end
   end
