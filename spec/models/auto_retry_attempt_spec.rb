@@ -254,6 +254,15 @@ RSpec.describe AutoRetryAttempt, type: :model do
       }.to change { attempt.reload.skipped_reason }.from(nil).to("source workflow was already superseded by a successful workflow")
     end
 
+    it "skips pending attempts whose source step has already recovered" do
+      attempt = described_class.create!(valid_attrs)
+      run.step.update_columns(state: "succeeded", finished_at: Time.current)
+
+      expect {
+        expect(described_class.prune_stale_pending!).to eq(1)
+      }.to change { attempt.reload.skipped_reason }.from(nil).to("source step already recovered")
+    end
+
     it "does not prune active repair attempts superseded only by successful maintenance" do
       attempt = described_class.create!(valid_attrs(retry_kind: "retry_workflow"))
       workflow.update_columns(trigger_kind: "ci_failure", state: "failed", finished_at: 10.minutes.ago)

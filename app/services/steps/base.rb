@@ -978,8 +978,10 @@ module Steps
       Step.suppress_cancel_cascade do
         cursor = step.next_step
         while cursor
+          if supersede_retry_until_barriers && retry_until_barrier_step?(cursor)
+            mark_retry_until_barrier_superseded!(cursor)
+          end
           if cursor.may_skip?
-            mark_retry_until_barrier_superseded!(cursor) if supersede_retry_until_barriers && retry_until_barrier_step?(cursor)
             log("[#{step.kind}] skipping downstream step ##{cursor.id} (#{cursor.kind})#{reason ? ': ' + reason : ''}")
             cursor.skip_with_reason!(reason || "downstream_not_needed")
           end
@@ -995,7 +997,10 @@ module Steps
     end
 
     def mark_retry_until_barrier_superseded!(step)
+      return if step.retry_until_barrier_superseded?
+
       step.details = step.details.to_h.merge(Step::RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY => true)
+      step.save! unless step.may_skip?
     end
   end
 end

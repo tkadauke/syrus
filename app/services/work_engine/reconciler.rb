@@ -571,7 +571,7 @@ module WorkEngine
         workflow = run.workflow
         next unless workflow&.queued? || workflow&.running?
         next if stale_auto_retry_attempt_for(workflow)
-        next if pending_auto_retry_attempt?(workflow)
+        next if pending_auto_retry_attempt?(workflow, run: run)
 
         if sqs.empty?
           issue(
@@ -1458,8 +1458,8 @@ module WorkEngine
     # Run that lost its claim in the meantime should not also be repaired by
     # reenqueue_run — racing the two paths is what turned a single grader
     # failure into a production run storm.
-    def pending_auto_retry_attempt?(workflow)
-      workflow.present? && workflow.auto_retry_attempts.pending.exists?
+    def pending_auto_retry_attempt?(workflow, run:)
+      workflow.present? && workflow.auto_retry_attempts.pending.where(run_id: [ nil, run.id ]).exists?
     end
 
     # queued_run_without_queue_claim (the Run never had a queue claim at all)

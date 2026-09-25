@@ -119,6 +119,19 @@ RSpec.describe Steps::PreflightGraderCollect do
       expect(workflow.reload.uncleared_retry_until_barrier?).to be false
     end
 
+    it "repairs an already-skipped grade-loop barrier when the successful preflight is replayed" do
+      downstream = create_downstream_steps_with_retry_until_loop
+      grader_collect = downstream.find { |s| s.kind == "grader_collect" }
+      downstream.each { |candidate| candidate.skip! if candidate.may_skip? }
+
+      expect(workflow.reload).to be_uncleared_retry_until_barrier
+
+      handler.call
+
+      expect(grader_collect.reload).to be_retry_until_barrier_superseded
+      expect(workflow.reload).not_to be_uncleared_retry_until_barrier
+    end
+
     it "does not mark non-barrier downstream steps as retry_until_barrier_superseded" do
       downstream = create_downstream_steps_with_retry_until_loop
       implement = downstream.find { |s| s.kind == "implement" }

@@ -485,6 +485,38 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :reenqueue_run)).to be_nil
   end
 
+  it "re-enqueues a queued Run when only an older workflow Run has a pending auto-retry" do
+    ensure_solid_queue_test_tables!
+    older_run = run
+    older_run.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+    queued_step = workflow.steps.create!(kind: "pr_open", position: step.position + 1, state: "queued")
+    queued_run = queued_step.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "queued",
+      created_at: 5.minutes.ago,
+      updated_at: 5.minutes.ago
+    )
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+    AutoRetryAttempt.create!(
+      job: job,
+      workflow: workflow,
+      run: older_run,
+      agent_provider: "claude",
+      failure_classification: "timeout",
+      retry_kind: "failed_step",
+      attempt_number: 1,
+      scheduled_at: 1.minute.from_now
+    )
+
+    result = reconcile(run_id: queued_run.id)
+
+    expect(kind(result, :queued_run_without_queue_claim)).to be_present
+    expect(plan(result, :reenqueue_run)).to have_attributes(auto_executable: true, target_id: queued_run.id)
+  end
+
   it "marks a queued grader_collect Run failed instead of reenqueueing once its required grader conclusion is already cached failed for the same commit" do
     ensure_solid_queue_test_tables!
     loop_id = SecureRandom.uuid

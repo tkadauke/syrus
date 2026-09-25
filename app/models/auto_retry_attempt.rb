@@ -113,6 +113,7 @@ class AutoRetryAttempt < ApplicationRecord
   def stale_pending_reason
     return "job is terminal" if job&.state.in?(Job::TERMINAL_STATES)
     return "source workflow was already superseded by a successful workflow" if superseded_by_successful_workflow?
+    return "source step already recovered" if run&.step&.state.in?(%w[succeeded skipped])
 
     nil
   end
