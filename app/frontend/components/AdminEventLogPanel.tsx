@@ -246,17 +246,19 @@ export type AdminEventLogTableColumn<Row> = {
   sort?: string
 }
 
-// Reads the current `sort`/`direction` query params, defaulting to a
-// time-descending sort when neither is present -- every AdminEventLogTable
-// consumer's backend already defaults to that ordering server-side, so the
-// "no sort param yet" state should render as if `sort=time` were explicit.
-function parseEventLogSort(search: string | undefined): { column: string; direction: "asc" | "desc" } {
+export type AdminEventLogTableDefaultSort = { column: string; direction?: "asc" | "desc" }
+
+// Reads the current `sort`/`direction` query params, defaulting to the
+// backend's declared ordering so the first render shows the same active
+// indicator as an explicit sort URL.
+function parseEventLogSort(search: string | undefined, defaultSort: AdminEventLogTableDefaultSort): { column: string; direction: "asc" | "desc" } {
   const params = new URLSearchParams(search || "")
-  return { column: params.get("sort") || "time", direction: params.get("direction") === "asc" ? "asc" : "desc" }
+  return { column: params.get("sort") || defaultSort.column, direction: params.get("direction") === "asc" ? "asc" : defaultSort.direction || "desc" }
 }
 
 export function AdminEventLogTable<Row>({
   columns,
+  defaultSort = { column: "time", direction: "desc" },
   getRowKey,
   onNavigate,
   panel,
@@ -267,6 +269,7 @@ export function AdminEventLogTable<Row>({
   tableClassName = "table-fixed"
 }: {
   columns: Array<AdminEventLogTableColumn<Row>>
+  defaultSort?: AdminEventLogTableDefaultSort
   getRowKey: (row: Row) => string | number
   onNavigate?: (params: URLSearchParams) => void
   panel?: AdminDataTablePanelConfig
@@ -309,7 +312,7 @@ export function AdminEventLogTable<Row>({
   )
 
   const preferences = useLocalStorageColumnPreferences({ columns: dataTableColumns, storageKey })
-  const activeSort = parseEventLogSort(search)
+  const activeSort = parseEventLogSort(search, defaultSort)
   const sortDirection: DataTableSortDirection = activeSort.direction === "asc" ? "ascending" : "descending"
   const colSpan = visibleColumns({ columns: dataTableColumns, order: preferences.order }).length
 

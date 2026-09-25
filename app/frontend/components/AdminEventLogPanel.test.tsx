@@ -224,6 +224,27 @@ describe("AdminEventLogTable", () => {
     expect(screen.getByRole("button", { name: "Hide" })).toBeInTheDocument()
   })
 
+  it("uses a caller-provided default sort for the active header indicator", () => {
+    render(
+      <AdminEventLogTable
+        columns={[
+          { key: "requested", header: "Requested", sort: "requested", className: "px-4 py-2", render: (row: { id: number }) => row.id },
+          { key: "kind", header: "Kind", sort: "kind", className: "px-4 py-2", render: () => "initial" }
+        ]}
+        defaultSort={{ column: "requested", direction: "desc" }}
+        getRowKey={(row) => row.id}
+        rows={[{ id: 7 }]}
+        storageKey="syrus.test.admin_event_log.default_sort"
+      />
+    )
+
+    const requestedHeader = screen.getByRole("columnheader", { name: /Requested/ })
+    const kindHeader = screen.getByRole("columnheader", { name: /Kind/ })
+    expect(requestedHeader).toHaveAttribute("aria-sort", "descending")
+    expect(requestedHeader.querySelector("[data-sort-indicator]")).toHaveAttribute("data-sort-direction", "descending")
+    expect(kindHeader).toHaveAttribute("aria-sort", "none")
+  })
+
   it("hides an optional column from both the header and body cells via the column picker", () => {
     render(
       <AdminEventLogTable

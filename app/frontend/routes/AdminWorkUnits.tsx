@@ -133,6 +133,7 @@ function WorkUnitsTable({ onNavigate, payload, prefix, search }: { onNavigate: (
   return (
     <AdminEventLogTable
       columns={columns}
+      defaultSort={{ column: "requested", direction: "desc" }}
       getRowKey={(intent) => intent.id}
       rows={payload.intents}
       search={search}
