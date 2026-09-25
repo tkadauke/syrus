@@ -1,6 +1,19 @@
 module App
   class MaintenanceTasksPayload
     EVENT_LOG_PER_PAGE = 100
+    INDEX_PER_PAGE = 100
+    MAX_INDEX_PER_PAGE = 200
+    SORTS = {
+      "title" => { title: :asc },
+      "state" => { state: :asc },
+      "recurrence" => { recurrence: :asc },
+      "category" => { category: :asc },
+      "definition_key" => { definition_key: :asc },
+      "trigger_kind" => { trigger_kind: :asc },
+      "started_at" => { started_at: :asc },
+      "updated_at" => { updated_at: :asc }
+    }.freeze
+    DEFAULT_SORT = "updated_at"
 
     FILTER_FIELDS = [
       { name: "state", label: "State" },
@@ -18,7 +31,7 @@ module App
     end
 
     def self.index(params:)
-      scope = MaintenanceTask.includes(:requested_by_user).order(updated_at: :desc, id: :desc)
+      scope = MaintenanceTask.includes(:requested_by_user)
       filter_tree = self.filter_tree(params)
       filters = flat_filters(filter_tree)
       states = Array(filters["state"])
@@ -31,13 +44,20 @@ module App
         pattern = "%#{ActiveRecord::Base.sanitize_sql_like(filters["query"].to_s)}%"
         scope = scope.where("title LIKE :q OR summary LIKE :q OR task_key LIKE :q", q: pattern)
       end
+      total = scope.count
+      page = normalized_page(params)
+      per_page = normalized_index_per_page(params)
+      offset = (page - 1) * per_page
 
       {
-        tasks: scope.limit(200).map { |task| serialize_task(task, include_documentation: false) },
+        tasks: apply_index_sort(scope, params).offset(offset).limit(per_page).map { |task| serialize_task(task, include_documentation: false) },
         definitions: MaintenanceTasks::Registry.all.map { |definition| serialize_definition(definition) },
         filter: filter_tree,
         filter_schema: FILTER_FIELDS.map { |field| filter_schema_field(field) },
-        filters: filters
+        filters: filters,
+        total: total,
+        pagination: pagination_payload(total, page, per_page),
+        sort: sort_payload(params)
       }
     end
 
@@ -173,6 +193,54 @@ module App
         field: field.fetch(:name),
         label: field.fetch(:label),
         operators: [ "is" ]
+      }
+    end
+
+    def self.normalized_page(params)
+      [ params[:page].to_i, 1 ].max
+    end
+
+    def self.normalized_index_per_page(params)
+      raw = params[:per_page].to_i
+      return INDEX_PER_PAGE unless raw.positive?
+
+      [ raw, MAX_INDEX_PER_PAGE ].min
+    end
+
+    def self.sort_column(params)
+      SORTS.key?(params[:sort].to_s) ? params[:sort].to_s : DEFAULT_SORT
+    end
+
+    def self.sort_direction(params)
+      params[:direction].to_s == "asc" ? "asc" : "desc"
+    end
+
+    def self.apply_index_sort(scope, params)
+      direction = sort_direction(params).to_sym
+      scope.order(SORTS.fetch(sort_column(params)).transform_values { direction }).order(id: direction)
+    end
+
+    def self.sort_payload(params)
+      {
+        column: sort_column(params),
+        direction: sort_direction(params)
+      }
+    end
+
+    def self.pagination_payload(total, page, per_page)
+      total_pages = (total.to_f / per_page).ceil
+      offset = (page - 1) * per_page
+      {
+        page: page,
+        per_page: per_page,
+        total: total,
+        total_pages: total_pages,
+        has_previous_page: page > 1,
+        has_next_page: total_pages > page,
+        previous_page: page > 1 ? page - 1 : nil,
+        next_page: total_pages > page ? page + 1 : nil,
+        first_item: total.zero? ? 0 : offset + 1,
+        last_item: [ offset + per_page, total ].min
       }
     end
 

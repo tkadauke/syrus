@@ -58,6 +58,33 @@ RSpec.describe "API: /api/v1/app/admin/invitations", type: :request do
       "share_url" => "http://www.example.com/users/new?token=#{pending.token}",
       "invited_by_email_address" => admin.email_address
     )
+    expect(parse_body).to include("total" => 1)
+    expect(parse_body["pagination"]).to include("page" => 1, "total" => 1, "total_pages" => 1)
+    expect(parse_body["sort"]).to eq("column" => "created_at", "direction" => "desc")
+  end
+
+  it "filters, sorts, and paginates pending invitations" do
+    sign_in_as(admin)
+    zebra = Invitation.create!(invited_by: admin, email_address: "zebra@example.com")
+    Invitation.create!(invited_by: admin, email_address: "alpha@example.com")
+    Invitation.create!(invited_by: admin, email_address: "other@example.net")
+
+    get "/api/v1/app/admin/invitations", params: { email: "example.com", sort: "email", direction: "desc", per_page: 1 }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.fetch("invitations").map { |invitation| invitation.fetch("id") }).to eq([ zebra.id ])
+    expect(body.fetch("filters")).to eq("email" => "example.com")
+    expect(body.fetch("pagination")).to include(
+      "page" => 1,
+      "per_page" => 1,
+      "total" => 2,
+      "total_pages" => 2,
+      "first_item" => 1,
+      "last_item" => 1,
+      "next_page" => 2
+    )
+    expect(body.fetch("sort")).to eq("column" => "email", "direction" => "desc")
   end
 
   it "preloads inviters when listing pending invitations" do

@@ -1,13 +1,14 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
-import { PageHeading, SectionHeading } from "../components/Heading"
+import { SectionHeading } from "../components/Heading"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
-import { Link, useLocation, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
+import { AdminEventLogTable, type AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { Button } from "../components/Button"
 import { FilterBar } from "../components/FilterBar"
@@ -16,24 +17,19 @@ import {
   fetchAdminProcess,
   fetchAdminProcesses,
   killAdminProcess,
+  type AdminProcessesPayload,
   type SpawnedProcessOwner,
   type SpawnedProcessPayload,
   type SpawnedProcessUser
 } from "../api/adminProcesses"
 import { workflowSlug } from "../lib/slugs"
 import { DataTable, Page } from "../components/ui"
-import {
-  DataTableColumnCells,
-  DataTableColumnHeaderRow,
-  DataTableColumnMenu,
-  useLocalStorageColumnPreferences,
-  type DataTableColumnDef
-} from "../components/dataTable"
 
 export function AdminProcessesIndex() {
   const { t } = useT("admin")
   usePageTitle(t("page_title_processes"))
   const location = useLocation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const prefix = routePrefix(location.pathname)
   const basePath = location.pathname.startsWith("/app-shell") ? "/app-shell/admin/processes" : "/admin/processes"
@@ -53,8 +49,10 @@ export function AdminProcessesIndex() {
   return (
     <Page.Root aria-label={t("processes.aria_index")} gutter="responsive" size="wide">
       <Page.Header className="block border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <PageHeading className="mt-1">{t("processes.heading")}</PageHeading>
+        <Page.HeadingGroup>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+          <Page.Title className="mt-1">{t("processes.heading")}</Page.Title>
+        </Page.HeadingGroup>
       </Page.Header>
 
       {processes.isPending ? <PanelMessage>{t("processes.loading")}</PanelMessage> : null}
@@ -89,12 +87,13 @@ export function AdminProcessesIndex() {
             />
           }
         >
-          <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-              {t("processes.running_summary", { running: processes.data.running_total, shown: processes.data.processes.length })}
-            </div>
-            <ProcessesTable basePath={basePath} prefix={prefix} processes={processes.data.processes} />
-          </section>
+          <ProcessesTable
+            basePath={basePath}
+            onNavigate={(params) => navigate(`${location.pathname}?${params.toString()}`)}
+            payload={processes.data}
+            prefix={prefix}
+            search={location.search}
+          />
         </AdminFiltersLayout>
       ) : null}
     </Page.Root>
@@ -122,10 +121,10 @@ export function AdminProcessDetail() {
         <Link className="text-sm text-brand underline hover:no-underline" to={basePath}>
           {t("processes.heading")}
         </Link>
-        <PageHeading className="mt-2">
+        <Page.Title className="mt-2">
           {t("processes.detail_heading")}
           {id ? ` #${id}` : ""}
-        </PageHeading>
+        </Page.Title>
       </Page.Header>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -147,40 +146,43 @@ function buildProcessesColumns({
   basePath: string
   prefix: string
   t: (key: string) => string
-}): DataTableColumnDef<SpawnedProcessPayload>[] {
+}): Array<AdminEventLogTableColumn<SpawnedProcessPayload>> {
   return [
     {
       key: "kind",
-      label: t("processes.col_kind"),
+      header: t("processes.col_kind"),
       required: true,
-      cellClassName: "align-top",
-      renderCell: (process) => (
+      sort: "kind",
+      className: "align-top",
+      render: (process) => (
         <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-200">{process.kind}</span>
       )
     },
     {
       key: "command",
-      label: t("processes.col_command"),
-      cellClassName: "max-w-md truncate align-top font-mono text-xs text-gray-700 dark:text-gray-200",
-      renderCell: (process) => <span title={process.command}>{process.command}</span>
+      header: t("processes.col_command"),
+      sort: "command",
+      className: "max-w-md truncate align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      render: (process) => <span title={process.command}>{process.command}</span>
     },
     {
       key: "user",
-      label: t("processes.col_user"),
-      cellClassName: "max-w-xs align-top text-xs text-gray-700 dark:text-gray-200",
-      renderCell: (process) => <UserLabel prefix={prefix} user={process.user} />
+      header: t("processes.col_user"),
+      className: "max-w-xs align-top text-xs text-gray-700 dark:text-gray-200",
+      render: (process) => <UserLabel prefix={prefix} user={process.user} />
     },
     {
       key: "owner",
-      label: t("processes.col_owner"),
-      cellClassName: "max-w-xs align-top text-xs text-gray-700 dark:text-gray-200",
-      renderCell: (process) => <OwnerLabel owner={process.owner} prefix={prefix} />
+      header: t("processes.col_owner"),
+      className: "max-w-xs align-top text-xs text-gray-700 dark:text-gray-200",
+      render: (process) => <OwnerLabel owner={process.owner} prefix={prefix} />
     },
     {
       key: "host_pid",
-      label: t("processes.col_host_pid"),
-      cellClassName: "align-top font-mono text-xs text-gray-600 dark:text-gray-300",
-      renderCell: (process) => (
+      header: t("processes.col_host_pid"),
+      sort: "hostname",
+      className: "align-top font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (process) => (
         <>
           {process.hostname || "-"}
           {process.pid ? <div className="text-gray-500 dark:text-gray-400">pid {process.pid}</div> : null}
@@ -189,15 +191,17 @@ function buildProcessesColumns({
     },
     {
       key: "started",
-      label: t("processes.col_started"),
-      cellClassName: "whitespace-nowrap align-top text-xs text-gray-700 dark:text-gray-200",
-      renderCell: (process) => <RelativeTimestamp value={process.started_at} />
+      header: t("processes.col_started"),
+      sort: "started_at",
+      className: "whitespace-nowrap align-top text-xs text-gray-700 dark:text-gray-200",
+      render: (process) => <RelativeTimestamp value={process.started_at} />
     },
     {
       key: "last_chunk",
-      label: t("processes.col_last_chunk"),
-      cellClassName: "whitespace-nowrap align-top text-xs text-gray-700 dark:text-gray-200",
-      renderCell: (process) => (
+      header: t("processes.col_last_chunk"),
+      sort: "last_chunk_at",
+      className: "whitespace-nowrap align-top text-xs text-gray-700 dark:text-gray-200",
+      render: (process) => (
         <>
           <RelativeTimestamp value={process.last_chunk_at} />
           {process.stale ? (
@@ -210,19 +214,19 @@ function buildProcessesColumns({
     },
     {
       key: "duration",
-      label: t("processes.col_duration"),
-      cellClassName: "align-top text-xs text-gray-700 dark:text-gray-200",
-      renderCell: (process) => formatDuration(process.duration_s)
+      header: t("processes.col_duration"),
+      sort: "duration",
+      className: "align-top text-xs text-gray-700 dark:text-gray-200",
+      render: (process) => formatDuration(process.duration_s)
     },
-    { key: "outcome", label: t("processes.col_outcome"), cellClassName: "align-top text-xs", renderCell: (process) => <Outcome process={process} /> },
+    { key: "outcome", header: t("processes.col_outcome"), sort: "outcome", className: "align-top text-xs", render: (process) => <Outcome process={process} /> },
     {
       key: "actions",
-      label: t("processes.col_actions"),
+      header: t("processes.col_actions"),
       required: true,
       pin: "end",
-      align: "right",
-      cellClassName: "space-x-3 whitespace-nowrap align-top text-xs",
-      renderCell: (process) => (
+      className: "space-x-3 whitespace-nowrap align-top text-right text-xs",
+      render: (process) => (
         <>
           <Link className="text-brand underline hover:no-underline" to={`${basePath}/${process.id}`}>
             {t("processes.detail")}
@@ -234,43 +238,59 @@ function buildProcessesColumns({
   ]
 }
 
-function ProcessesTable({ processes, basePath, prefix }: { processes: SpawnedProcessPayload[]; basePath: string; prefix: string }) {
+function ProcessesTable({
+  basePath,
+  onNavigate,
+  payload,
+  prefix,
+  search
+}: {
+  basePath: string
+  onNavigate: (params: URLSearchParams) => void
+  payload: AdminProcessesPayload
+  prefix: string
+  search: string
+}) {
   const { t } = useT("admin")
   const columns = buildProcessesColumns({ basePath, prefix, t })
-  const preferences = useLocalStorageColumnPreferences({ columns, storageKey: PROCESSES_VISIBLE_COLUMNS_STORAGE_KEY })
+  const processes = payload.processes
 
   if (processes.length === 0) return <PanelMessage>{t("processes.no_match")}</PanelMessage>
 
   return (
-    <div>
-      <div className="flex justify-end border-b border-gray-200 px-4 py-2 dark:border-gray-700">
-        <DataTableColumnMenu
-          columns={columns}
-          downLabel={t("event_log_table.column_down")}
-          menuId="admin-processes-columns-menu"
-          moveDownLabel={(title) => t("event_log_table.column_move_down", { title })}
-          moveUpLabel={(title) => t("event_log_table.column_move_up", { title })}
-          onChange={preferences.onChange}
-          order={preferences.order}
-          triggerAriaLabel={t("event_log_table.columns")}
-          upLabel={t("event_log_table.column_up")}
-          visibleLabel={t("event_log_table.visible_columns")}
-        />
-      </div>
-      <DataTable.Root>
-        <DataTable.Header>
-          <DataTableColumnHeaderRow columns={columns} onReorder={preferences.onChange} order={preferences.order} />
-        </DataTable.Header>
-        <DataTable.Body>
-          {processes.map((process) => (
-            <DataTable.Row className={process.stale ? "bg-amber-50 dark:bg-amber-950/40" : ""} key={process.id}>
-              <DataTableColumnCells columns={columns} order={preferences.order} row={process} />
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
-    </div>
+    <AdminEventLogTable
+      columns={columns}
+      defaultSort={payload.sort}
+      getRowKey={(process) => process.id}
+      onNavigate={onNavigate}
+      panel={processesTablePanel(t, payload, onNavigate, search)}
+      rows={processes}
+      search={search}
+      storageKey={PROCESSES_VISIBLE_COLUMNS_STORAGE_KEY}
+      tableClassName="min-w-[78rem] table-auto divide-y divide-border text-sm"
+    />
   )
+}
+
+function processesTablePanel(
+  t: (key: string, options?: Record<string, number>) => string,
+  payload: AdminProcessesPayload,
+  onNavigate: (params: URLSearchParams) => void,
+  search: string
+) {
+  return {
+    meta: t("processes.running_count", { count: payload.running_total }),
+    pagination: {
+      ariaLabel: t("processes.pagination_aria"),
+      label: t("processes.page_of", { page: payload.pagination.page, total: payload.pagination.total_pages }),
+      nextLabel: t("processes.next"),
+      onNavigate,
+      pagination: payload.pagination,
+      previousLabel: t("processes.previous"),
+      search
+    },
+    summary: t("processes.showing", { first: payload.pagination.first_item, last: payload.pagination.last_item, total: payload.pagination.total })
+  }
 }
 
 function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; prefix: string }) {
