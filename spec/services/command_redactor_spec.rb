@@ -30,6 +30,15 @@ RSpec.describe CommandRedactor do
       end
     end
 
+    it "redacts generic secret-shaped command assignments" do
+      text = "bin/deploy password=super-secret-token api_key=abc123 refresh_token=xyz789 --safe=true"
+
+      redacted = described_class.redact(text)
+
+      expect(redacted).to eq("bin/deploy password=[REDACTED] api_key=[REDACTED] refresh_token=[REDACTED] --safe=true")
+      expect(redacted).not_to include("super-secret-token", "abc123", "xyz789")
+    end
+
     it "redacts multiple occurrences in the same string" do
       text = "ghp_aaaaaaaaaaaaaaaaaaaa and ghp_bbbbbbbbbbbbbbbbbbbb"
 
