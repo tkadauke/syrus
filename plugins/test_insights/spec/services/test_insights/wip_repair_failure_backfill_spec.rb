@@ -176,7 +176,7 @@ RSpec.describe TestInsights::WipRepairFailureBackfill do
       expect(task.reload.state).to eq("succeeded")
       expect(repaired_failure.reload.wip_repair_failure).to be(true)
       expect(negative_case.reload.wip_repair_failure).to be(false)
-      expect(described_class.pending_count).to eq(0)
+      expect(definition.estimate_total_units).to eq(0)
 
       allow(MaintenanceTasks::Registry).to receive(:all).and_return([ definition ])
       expect { MaintenanceTasks::Discovery.call }.not_to change { task.reload.state }
@@ -185,7 +185,7 @@ RSpec.describe TestInsights::WipRepairFailureBackfill do
       later_identity = create_identity(name: "later_case")
       create_grader_case(identity: later_identity, status: "failed", iteration: 5)
 
-      expect(described_class.pending_count).to eq(1)
+      expect(definition.estimate_total_units).to eq(1)
 
       MaintenanceTasks::Discovery.call
 
