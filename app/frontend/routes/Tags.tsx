@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
-import { useState } from "react"
-import { Link } from "react-router-dom"
+import { useMemo, useState } from "react"
+import { useLocation } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useConfirm } from "../hooks/useConfirm"
@@ -19,8 +19,37 @@ import {
   type TagsPayload
 } from "../api/tags"
 import { errorMessage } from "../lib/errorMessage"
+import { DataTable } from "../components/ui"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  type DataTableColumnDef
+} from "../components/dataTable"
+import { FilterBar, type FilterSchemaField } from "../components/FilterBar"
+import type { FilterChip, FilterNode, FilterTree } from "../components/filterBar/types"
 
 const queryKey = ["tags"] as const
+const TAGS_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.settings.tags.visible_columns"
+
+type TagSortColumn = "name" | "jobs_count" | "color"
+type SortDirection = "ascending" | "descending"
+type TagSortState = { column: TagSortColumn; direction: SortDirection }
+type SortValue = number | string | null
+
+const DEFAULT_TAG_SORT: TagSortState = { column: "name", direction: "ascending" }
+const TAG_SORT_ACCESSORS: Record<TagSortColumn, (tag: TagRow) => SortValue> = {
+  name: (tag) => tag.name,
+  jobs_count: (tag) => tag.jobs_count,
+  color: (tag) => tag.color
+}
+
+const TAG_FILTER_SCHEMA: FilterSchemaField[] = [
+  { field: "query", label: "Tag", bucket: "text", operators: ["contains"], free_text_search: true },
+  { field: "color", label: "Color", bucket: "text", operators: ["is", "is_not", "contains"] },
+  { field: "jobs_count", label: "Jobs", bucket: "number", operators: ["is", "gt", "lt", "gte", "lte"] }
+]
 
 export function Tags() {
   const { t } = useT("settings")
@@ -125,32 +154,133 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
 // affordances, not application data -- nothing here is worth hiding.
 function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPaletteColor[]; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
+  const location = useLocation()
+  const [sortState, setSortState] = useState<TagSortState>(DEFAULT_TAG_SORT)
+  const filterTree = filterTreeFromSearch(location.search)
+  const visibleTags = useMemo(
+    () => sortedTags(filteredTags(tags, filterTree), sortState),
+    [filterTree, sortState, tags]
+  )
+  const columns = buildTagColumns({ onNotice, palette, t })
+  const preferences = useLocalStorageColumnPreferences({ columns, storageKey: TAGS_VISIBLE_COLUMNS_STORAGE_KEY })
+
+  function toggleSortColumn(column: TagSortColumn) {
+    setSortState((current) => toggleSort(current, column))
+  }
+
   return (
-    <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t('tags.col_tag')}</th>
-            <th className="px-4 py-2">{t('tags.col_jobs')}</th>
-            <th className="px-4 py-2">{t('tags.col_rename')}</th>
-            <th className="px-4 py-2"><span className="sr-only">{t("tags.col_actions")}</span></th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
-          {tags.length === 0 ? (
-            <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={4}>{t('tags.empty')}</td></tr>
-          ) : tags.map((tag) => (
-            <TagTableRow key={tag.id} onNotice={onNotice} palette={palette} tag={tag} />
+    <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <FilterBar
+          filter={filterTree}
+          filterSchema={TAG_FILTER_SCHEMA}
+          pathname={location.pathname}
+          search={location.search}
+        />
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 dark:text-gray-400">{visibleTags.length} / {tags.length}</span>
+          <DataTableColumnMenu
+            columns={columns}
+            downLabel={t("tags.column_down")}
+            menuId="tags-columns-menu"
+            moveDownLabel={(title) => t("tags.column_move_down", { title })}
+            moveUpLabel={(title) => t("tags.column_move_up", { title })}
+            onChange={preferences.onChange}
+            order={preferences.order}
+            triggerAriaLabel={t("tags.columns")}
+            triggerClassName="h-[var(--control-height-md)] w-[var(--control-height-md)]"
+            triggerSize="icon"
+            upLabel={t("tags.column_up")}
+            visibleLabel={t("tags.visible_columns")}
+          />
+        </div>
+      </div>
+
+      <DataTable.Root aria-label={t('tags.heading')}>
+        <DataTable.Header>
+          <DataTableColumnHeaderRow
+            columns={columns}
+            onReorder={preferences.onChange}
+            onSort={(column) => toggleSortColumn(column as TagSortColumn)}
+            order={preferences.order}
+            sortColumn={sortState.column}
+            sortDirection={sortState.direction}
+          />
+        </DataTable.Header>
+        <DataTable.Body>
+          {visibleTags.length === 0 ? (
+            <DataTable.Row>
+              <DataTable.Empty colSpan={columns.length}>{t('tags.empty')}</DataTable.Empty>
+            </DataTable.Row>
+          ) : visibleTags.map((tag) => (
+            <TagTableRow columns={columns} key={tag.id} onNotice={onNotice} order={preferences.order} palette={palette} tag={tag} />
           ))}
-        </tbody>
-      </table>
+        </DataTable.Body>
+      </DataTable.Root>
     </section>
   )
 }
 
-function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPaletteColor[]; onNotice: (message: string | null) => void }) {
+function buildTagColumns({
+  onNotice,
+  palette,
+  t
+}: {
+  onNotice: (message: string | null) => void
+  palette: TagPaletteColor[]
+  t: (key: string, options?: Record<string, unknown>) => string
+}): DataTableColumnDef<TagRow>[] {
+  return [
+    {
+      key: "tag",
+      label: t("tags.col_tag"),
+      required: true,
+      sortKey: "name",
+      renderCell: (tag) => <TagChip palette={palette} tag={tag} />
+    },
+    {
+      key: "jobs",
+      label: t("tags.col_jobs"),
+      align: "right",
+      sortKey: "jobs_count",
+      renderCell: (tag) => tag.jobs_count
+    },
+    {
+      key: "color",
+      label: t("tags.col_color"),
+      sortKey: "color",
+      defaultVisible: false,
+      renderCell: (tag) => palette.find((option) => option.key === tag.color)?.label || tag.color
+    },
+    {
+      key: "rename",
+      label: t("tags.col_rename"),
+      required: true,
+      pin: "end",
+      renderCell: (tag) => <TagEditForm onNotice={onNotice} palette={palette} tag={tag} />
+    },
+    {
+      key: "actions",
+      label: t("tags.col_actions"),
+      required: true,
+      pin: "end",
+      align: "right",
+      renderHeader: () => <span className="sr-only">{t("tags.col_actions")}</span>,
+      renderCell: (tag) => <TagDeleteButton onNotice={onNotice} tag={tag} />
+    }
+  ]
+}
+
+function TagTableRow({ tag, columns, order }: { tag: TagRow; columns: DataTableColumnDef<TagRow>[]; order: string[] | null | undefined; palette: TagPaletteColor[]; onNotice: (message: string | null) => void }) {
+  return (
+    <DataTable.Row>
+      <DataTableColumnCells columns={columns} order={order} row={tag} />
+    </DataTable.Row>
+  )
+}
+
+function TagEditForm({ tag, palette, onNotice }: { tag: TagRow; palette: TagPaletteColor[]; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
-  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [name, setName] = useState(tag.name)
   const [color, setColor] = useState(tag.color)
@@ -176,58 +306,70 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
   }
 
   return (
-    <tr>
-      <td className="px-4 py-3"><TagChip palette={palette} tag={tag} /></td>
-      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{tag.jobs_count}</td>
-      <td className="px-4 py-3">
-        <form className="flex flex-wrap items-center gap-2" onSubmit={submit}>
-          <div className="w-48">
-            <Input
-              aria-label={t('tags.name_for', { name: tag.name })}
-              onChange={(event) => setName(event.target.value)}
-              required
-              type="text"
-              value={name}
-            />
-          </div>
-          <Select
-            aria-label={t('tags.color_for', { name: tag.name })}
-            fullWidth={false}
-            onChange={(event) => setColor(event.target.value)}
-            value={color}
-          >
-            {palette.map((option) => (
-              <option key={option.key} value={option.key}>{option.label}</option>
-            ))}
-          </Select>
-          <button
-            className="rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
-            disabled={update.isPending}
-            type="submit"
-          >
-            {update.isPending ? t('tags.saving') : t('tags.save')}
-          </button>
-        </form>
-        {update.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("tags.error_update"))}</p> : null}
-      </td>
-      <td className="px-4 py-3 text-right">
-        <button
-          className="text-sm text-red-600 dark:text-red-300 underline hover:no-underline disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
-          disabled={destroy.isPending}
-          onClick={async () => {
-            if (await confirm({ message: t('tags.confirm_delete', { name: tag.name }), destructive: true })) {
-              onNotice(null)
-              destroy.mutate()
-            }
-          }}
-          type="button"
+    <>
+      <form className="flex flex-wrap items-center gap-2" onSubmit={submit}>
+        <div className="w-48">
+          <Input
+            aria-label={t('tags.name_for', { name: tag.name })}
+            onChange={(event) => setName(event.target.value)}
+            required
+            type="text"
+            value={name}
+          />
+        </div>
+        <Select
+          aria-label={t('tags.color_for', { name: tag.name })}
+          fullWidth={false}
+          onChange={(event) => setColor(event.target.value)}
+          value={color}
         >
-          {destroy.isPending ? t('tags.deleting') : t('tags.delete')}
+          {palette.map((option) => (
+            <option key={option.key} value={option.key}>{option.label}</option>
+          ))}
+        </Select>
+        <button
+          className="rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
+          disabled={update.isPending}
+          type="submit"
+        >
+          {update.isPending ? t('tags.saving') : t('tags.save')}
         </button>
-        {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, t("tags.error_delete"))}</p> : null}
-        {dialog}
-      </td>
-    </tr>
+      </form>
+      {update.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("tags.error_update"))}</p> : null}
+    </>
+  )
+}
+
+function TagDeleteButton({ tag, onNotice }: { tag: TagRow; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
+  const queryClient = useQueryClient()
+  const destroy = useMutation({
+    mutationFn: () => deleteTag(tag.id),
+    onSuccess: (payload) => {
+      queryClient.setQueryData(queryKey, payload)
+      onNotice(payload.message || t('tags.deleted'))
+    }
+  })
+
+  return (
+    <>
+      <button
+        className="text-sm text-red-600 dark:text-red-300 underline hover:no-underline disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
+        disabled={destroy.isPending}
+        onClick={async () => {
+          if (await confirm({ message: t('tags.confirm_delete', { name: tag.name }), destructive: true })) {
+            onNotice(null)
+            destroy.mutate()
+          }
+        }}
+        type="button"
+      >
+        {destroy.isPending ? t('tags.deleting') : t('tags.delete')}
+      </button>
+      {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, t("tags.error_delete"))}</p> : null}
+      {dialog}
+    </>
   )
 }
 
@@ -267,4 +409,80 @@ function readableTextColor(hex: string) {
   const blue = parseInt(value.slice(4, 6), 16)
   const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255
   return luminance > 0.62 ? "#111827" : "#ffffff"
+}
+
+function filteredTags(tags: TagRow[], tree: FilterTree) {
+  const filters = topLevelChips(tree)
+  if (filters.length === 0) return tags
+
+  return tags.filter((tag) => filters.every((chip) => tagMatchesFilter(tag, chip)))
+}
+
+function tagMatchesFilter(tag: TagRow, chip: FilterChip) {
+  if (chip.field === "query") return tag.name.toLowerCase().includes(String(chip.value || "").toLowerCase())
+  if (chip.field === "color") return matchesTextFilter(tag.color, chip)
+  if (chip.field === "jobs_count") return matchesNumberFilter(tag.jobs_count, chip)
+  return true
+}
+
+function sortedTags(tags: TagRow[], sortState: TagSortState) {
+  const factor = sortState.direction === "ascending" ? 1 : -1
+  const valueFor = TAG_SORT_ACCESSORS[sortState.column]
+  return [...tags].sort((left, right) => {
+    const compared = compareSortValues(valueFor(left), valueFor(right))
+    if (compared !== 0) return compared * factor
+    return left.name.localeCompare(right.name)
+  })
+}
+
+function toggleSort<TColumn extends string>(current: { column: TColumn; direction: SortDirection }, column: TColumn) {
+  if (current.column !== column) return { column, direction: "ascending" as const }
+  return { column, direction: current.direction === "ascending" ? "descending" as const : "ascending" as const }
+}
+
+function compareSortValues(left: SortValue, right: SortValue) {
+  if (left == null && right == null) return 0
+  if (left == null) return -1
+  if (right == null) return 1
+  if (typeof left === "number" && typeof right === "number") return left - right
+  return String(left).localeCompare(String(right))
+}
+
+function matchesTextFilter(value: string, chip: FilterChip) {
+  const target = value.toLowerCase()
+  const expected = String(chip.value || "").toLowerCase()
+  if (chip.op === "is") return target === expected
+  if (chip.op === "is_not") return target !== expected
+  return target.includes(expected)
+}
+
+function matchesNumberFilter(value: number, chip: FilterChip) {
+  const expected = Number(chip.value)
+  if (Number.isNaN(expected)) return true
+  if (chip.op === "gt") return value > expected
+  if (chip.op === "lt") return value < expected
+  if (chip.op === "gte") return value >= expected
+  if (chip.op === "lte") return value <= expected
+  return value === expected
+}
+
+function filterTreeFromSearch(search: string): FilterTree {
+  const encoded = new URLSearchParams(search).get("q")
+  if (!encoded) return { and: [] }
+  try {
+    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - encoded.length % 4) % 4)}`
+    const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as FilterTree
+    return { and: topLevelNodes(parsed) }
+  } catch {
+    return { and: [] }
+  }
+}
+
+function topLevelChips(tree: FilterTree): FilterChip[] {
+  return topLevelNodes(tree).filter((node): node is FilterChip => "field" in node)
+}
+
+function topLevelNodes(tree: FilterTree): FilterNode[] {
+  return tree && Array.isArray(tree.and) ? tree.and : []
 }

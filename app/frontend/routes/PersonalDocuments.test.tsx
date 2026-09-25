@@ -57,6 +57,59 @@ function renderRouteWithDocuments(documents: Record<string, unknown>[], rawConte
   return fetchSpy
 }
 
+function renderRouteWithDocumentsAt(documents: Record<string, unknown>[], entry = "/documents") {
+  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(documentsPayload({ documents })))
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[entry]}>
+        <PersonalDocumentsRoute />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function documentRows() {
+  return screen.getAllByRole("row").slice(1).map((row) => row.textContent || "")
+}
+
+function dataTransfer() {
+  return { dropEffect: "", effectAllowed: "", getData: vi.fn(), setData: vi.fn() }
+}
+
+const TABLE_DOCUMENTS = [
+  {
+    id: 41,
+    kind: "file",
+    google_doc_url: null,
+    filename: "z-notes.md",
+    content_type: "text/markdown",
+    byte_size: 1024,
+    created_at: "2026-01-01T00:00:00Z",
+    file_path: "/api/v1/app/credentials/documents/41/file"
+  },
+  {
+    id: 42,
+    kind: "file",
+    google_doc_url: null,
+    filename: "screenshot.png",
+    content_type: "image/png",
+    byte_size: 512,
+    created_at: "2026-01-02T00:00:00Z",
+    file_path: "/api/v1/app/credentials/documents/42/file"
+  },
+  {
+    id: 43,
+    kind: "google_doc",
+    google_doc_url: "https://docs.google.com/document/d/a-plan/edit",
+    filename: null,
+    content_type: null,
+    byte_size: null,
+    created_at: "2025-12-31T00:00:00Z",
+    file_path: null
+  }
+]
+
 describe("PersonalDocumentsRoute delete", () => {
   let mockConfirm: ReturnType<typeof vi.fn>
 
@@ -116,6 +169,67 @@ describe("PersonalDocumentsRoute delete", () => {
     )
   })
 })
+
+describe("PersonalDocumentsRoute table controls", () => {
+  afterEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("filters documents through the shared FilterBar", async () => {
+    renderRouteWithDocumentsAt(TABLE_DOCUMENTS)
+
+    expect(await screen.findByRole("button", { name: /z-notes\.md/ })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /screenshot\.png/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "shot" } })
+    fireEvent.click(screen.getByRole("button", { name: "Search for shot" }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /z-notes\.md/ })).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole("button", { name: /screenshot\.png/ })).toBeInTheDocument()
+  })
+
+  it("sorts documents by an eligible column", async () => {
+    renderRouteWithDocumentsAt(TABLE_DOCUMENTS)
+
+    expect((await screen.findByRole("button", { name: /screenshot\.png/ })).closest("tr")).toBe(documentRowsElements()[0])
+
+    fireEvent.click(screen.getByRole("button", { name: /Document/ }))
+
+    await waitFor(() => {
+      expect(documentRows()[0]).toContain("https://docs.google.com/document/d/a-plan/edit")
+    })
+  })
+
+  it("hides columns from the selector and reorders visible headers by drag", async () => {
+    renderRouteWithDocumentsAt(TABLE_DOCUMENTS)
+    await screen.findByRole("button", { name: /screenshot\.png/ })
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    fireEvent.click(screen.getByLabelText("Kind"))
+
+    expect(screen.queryByRole("columnheader", { name: /Kind/ })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Kind"))
+    const kindHeader = screen.getByRole("columnheader", { name: /Kind/ })
+    const createdHeader = screen.getByRole("columnheader", { name: /Created/ })
+    const transfer = dataTransfer()
+
+    fireEvent.dragStart(kindHeader, { dataTransfer: transfer })
+    fireEvent.dragOver(createdHeader, { dataTransfer: transfer })
+    fireEvent.drop(createdHeader, { dataTransfer: transfer })
+
+    const headers = screen.getAllByRole("columnheader").map((header) => header.textContent)
+    expect(headers).toEqual(["Document", "Size", "Kind", "Created", "Actions"])
+  })
+})
+
+function documentRowsElements() {
+  return screen.getAllByRole("row").slice(1)
+}
 
 describe("PersonalDocumentsRoute preview", () => {
   afterEach(() => vi.restoreAllMocks())
