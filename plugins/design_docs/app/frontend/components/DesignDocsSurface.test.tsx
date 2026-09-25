@@ -346,6 +346,10 @@ function indexPayload(detail = docDetail) {
       visible_columns: ["title", "state", "repository", "owner", "collaborators", "comments", "latest_version", "updated_at", "actions"],
       raw: {}
     },
+    sort: {
+      column: "updated_at",
+      direction: "desc"
+    },
     controls: {
       columns: {
         required: [{ key: "title", title: "Title" }],
@@ -391,6 +395,10 @@ function indexPayload(detail = docDetail) {
     ],
     design_docs: [detail, secondDocDetail]
   }
+}
+
+function dataTransfer() {
+  return { dropEffect: "", effectAllowed: "", getData: vi.fn(), setData: vi.fn() }
 }
 
 function mockFetch(detail = docDetail) {
@@ -1095,6 +1103,62 @@ describe("DesignDocsSurface", () => {
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({
       preferences: {
         visible_columns: ["repository", "state", "owner", "collaborators", "comments", "latest_version", "updated_at", "actions"]
+      }
+    })
+  })
+
+  it("persists reordered Design Docs columns from global table header drag", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface()
+
+    const stateHeader = await screen.findByRole("columnheader", { name: /State/ })
+    const ownerHeader = screen.getByRole("columnheader", { name: "Owner" })
+    const transfer = dataTransfer()
+
+    fireEvent.dragStart(stateHeader, { dataTransfer: transfer })
+    fireEvent.dragOver(ownerHeader, { dataTransfer: transfer })
+    fireEvent.drop(ownerHeader, { dataTransfer: transfer })
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/preferences", expect.objectContaining({ method: "PATCH" })))
+    const request = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/preferences")
+    expect(JSON.parse(String(request?.[1]?.body))).toEqual({
+      preferences: {
+        visible_columns: ["repository", "owner", "state", "collaborators", "comments", "latest_version", "updated_at", "actions"]
+      }
+    })
+  })
+
+  it("keeps dashboard-style sort indicators and navigates with sort params", async () => {
+    mockFetch()
+    renderSurface()
+
+    const updatedHeader = await screen.findByRole("columnheader", { name: /Updated/ })
+    expect(updatedHeader).toHaveAttribute("aria-sort", "descending")
+
+    fireEvent.click(screen.getByRole("button", { name: /Title/ }))
+
+    expect(await screen.findByTestId("location")).toHaveTextContent("/design_docs?sort=title&direction=asc")
+  })
+
+  it("persists reordered Design Docs columns from repository table header drag", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/repositories/10/design_docs")
+
+    const repositoryHeader = await screen.findByRole("columnheader", { name: "Repository" })
+    const ownerHeader = screen.getByRole("columnheader", { name: "Owner" })
+    const transfer = dataTransfer()
+    expect(repositoryHeader).toHaveClass("hidden")
+    expect(repositoryHeader).toHaveClass("2xl:table-cell")
+
+    fireEvent.dragStart(repositoryHeader, { dataTransfer: transfer })
+    fireEvent.dragOver(ownerHeader, { dataTransfer: transfer })
+    fireEvent.drop(ownerHeader, { dataTransfer: transfer })
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/preferences", expect.objectContaining({ method: "PATCH" })))
+    const request = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/preferences")
+    expect(JSON.parse(String(request?.[1]?.body))).toEqual({
+      preferences: {
+        visible_columns: ["state", "owner", "repository", "collaborators", "comments", "latest_version", "updated_at", "actions"]
       }
     })
   })

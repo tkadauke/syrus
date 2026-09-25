@@ -102,14 +102,43 @@ afterEach(() => {
 
 function renderRoute() {
   vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload()))
+  renderRouteWithClient()
+}
+
+function renderRouteWithClient(initialPath = "/app-shell/repositories") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+      <MemoryRouter initialEntries={[initialPath]}>
         <RepositoriesIndex />
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function visibleSlugOrder() {
+  return screen
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => within(row).getAllByRole("link")[0]?.textContent)
+}
+
+const ALL_OPTIONAL_COLUMNS = [
+  "github_owner",
+  "open_jobs",
+  "last_activity",
+  "health",
+  "agent",
+  "polling_status",
+  "last_poll",
+  "trigger_label",
+  "default_branch",
+  "syrus_owner",
+  "upstream_slug"
+]
+
+function showAllRepositoryColumns() {
+  window.localStorage.setItem("syrus.repositories.visible_columns", JSON.stringify(ALL_OPTIONAL_COLUMNS))
 }
 
 // Below the lg breakpoint the app sidebar's Repositories subnav collapses
@@ -257,7 +286,99 @@ describe("RepositoriesIndex data table", () => {
     expect(screen.getAllByRole("columnheader").map((header) => header.textContent?.trim())[0]).toBe("Repository")
   })
 
-  it("sorts repositories by clicking a sortable column header", async () => {
+  it.each([
+    ["Repository", ["acme/zulu", "acme/widgets", "acme/apex"], "descending"],
+    ["GitHub owner", ["acme/apex", "acme/zulu", "acme/widgets"], "ascending"],
+    ["Open jobs", ["acme/widgets", "acme/zulu", "acme/apex"], "ascending"],
+    ["Last activity", ["acme/apex", "acme/zulu", "acme/widgets"], "ascending"],
+    ["Health", ["acme/apex", "acme/zulu", "acme/widgets"], "ascending"],
+    ["Agent", ["acme/zulu", "acme/apex", "acme/widgets"], "ascending"],
+    ["Polling", ["acme/apex", "acme/widgets", "acme/zulu"], "ascending"],
+    ["Last poll", ["acme/apex", "acme/zulu", "acme/widgets"], "ascending"],
+    ["Trigger label", ["acme/apex", "acme/zulu", "acme/widgets"], "ascending"],
+    ["Default branch", ["acme/apex", "acme/zulu", "acme/widgets"], "ascending"],
+    ["Syrus owner", ["acme/apex", "acme/zulu", "acme/widgets"], "ascending"],
+    ["Upstream", ["acme/apex", "acme/zulu", "acme/widgets"], "ascending"]
+  ])("sorts repositories by %s with the shared header indicator", async (columnName, expectedOrder, expectedDirection) => {
+    showAllRepositoryColumns()
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        repositoriesPayload({
+          active_repositories: [
+            repositoryRow({
+              id: 1,
+              slug: "acme/widgets",
+              owner: "zeus",
+              open_jobs_count: 1,
+              last_job_activity_at: "2026-02-01T00:00:00Z",
+              main_health: "unknown",
+              agent_provider_label: "Zulu",
+              polling_enabled: true,
+              last_poll_status: "ok",
+              last_poll_started_at: "2026-01-03T00:00:00Z",
+              trigger_label: "z-label",
+              default_branch: "release",
+              owner_user: { id: 2, display_name: "Zoe", email_address: "zoe@example.com", admin: false },
+              upstream_slug: "core/z",
+              upstream_default_branch: "main"
+            }),
+            repositoryRow({
+              id: 2,
+              slug: "acme/apex",
+              owner: "acme",
+              open_jobs_count: 9,
+              last_job_activity_at: null,
+              main_health: "broken",
+              agent_provider_label: "Codex",
+              polling_enabled: false,
+              last_poll_status: null,
+              last_poll_started_at: null,
+              trigger_label: "a-label",
+              default_branch: "develop",
+              owner_user: { id: 3, display_name: "Ada", email_address: "ada@example.com", admin: false },
+              upstream_slug: null
+            }),
+            repositoryRow({
+              id: 3,
+              slug: "acme/zulu",
+              owner: "mid",
+              open_jobs_count: 5,
+              last_job_activity_at: "2026-01-01T00:00:00Z",
+              main_health: "healthy",
+              agent_provider_label: "Claude",
+              polling_enabled: true,
+              last_poll_status: "ok",
+              last_poll_started_at: "2026-01-01T00:00:00Z",
+              trigger_label: "m-label",
+              default_branch: "main",
+              owner_user: { id: 4, display_name: "Maya", email_address: "maya@example.com", admin: false },
+              upstream_slug: "core/a",
+              upstream_default_branch: "main"
+            })
+          ]
+        })
+      )
+    )
+    renderRouteWithClient()
+
+    await screen.findByRole("link", { name: "acme/widgets" })
+
+    expect(visibleSlugOrder()).toEqual(["acme/apex", "acme/widgets", "acme/zulu"])
+
+    const sortButton = screen.getByRole("button", { name: new RegExp(columnName) })
+    const header = sortButton.closest("th")
+    expect(header?.querySelector("[data-sort-indicator]")).toBeInTheDocument()
+
+    fireEvent.click(sortButton)
+
+    await waitFor(() => {
+      expect(visibleSlugOrder()).toEqual(expectedOrder)
+    })
+
+    expect(header).toHaveAttribute("aria-sort", expectedDirection)
+  })
+
+  it("keeps sorting intact after optional columns are reordered", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse(
         repositoriesPayload({
@@ -269,36 +390,27 @@ describe("RepositoriesIndex data table", () => {
         })
       )
     )
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/app-shell/repositories"]}>
-          <RepositoriesIndex />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
+    renderRouteWithClient()
 
     await screen.findByRole("link", { name: "acme/widgets" })
 
-    function slugOrder() {
-      return screen
-        .getAllByRole("row")
-        .slice(1)
-        .map((row) => within(row).getAllByRole("link")[0]?.textContent)
-    }
-
-    expect(slugOrder()).toEqual(["acme/apex", "acme/widgets", "acme/zulu"])
-
-    fireEvent.click(screen.getByRole("button", { name: /Open jobs/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    const menu = await screen.findByRole("menu")
+    fireEvent.click(within(menu).getByRole("button", { name: "Move Open jobs up" }))
 
     await waitFor(() => {
-      expect(slugOrder()).toEqual(["acme/widgets", "acme/zulu", "acme/apex"])
+      expect(
+        screen
+          .getAllByRole("columnheader")
+          .map((header) => header.textContent?.trim())
+          .slice(0, 3)
+      ).toEqual(["Repository", "Open jobs", "GitHub owner"])
     })
 
-    fireEvent.click(screen.getByRole("button", { name: /Open jobs/ }))
+    fireEvent.click(within(screen.getByRole("columnheader", { name: /Open jobs/ })).getByRole("button", { name: /Open jobs/ }))
 
     await waitFor(() => {
-      expect(slugOrder()).toEqual(["acme/apex", "acme/zulu", "acme/widgets"])
+      expect(visibleSlugOrder()).toEqual(["acme/widgets", "acme/zulu", "acme/apex"])
     })
   })
 

@@ -14,7 +14,12 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     Base64.urlsafe_encode64(JSON.generate(tree), padding: false)
   end
 
-  def fake_issue(number:, title: "Fix something", state: "open", labels: [], body: nil)
+  def encoded_filter(chips)
+    tree = { "and" => chips }
+    Base64.urlsafe_encode64(JSON.generate(tree), padding: false)
+  end
+
+  def fake_issue(number:, title: "Fix something", state: "open", labels: [], body: nil, user_login: "alice", created_at: 1.day.ago)
     double(
       "issue",
       number: number,
@@ -22,10 +27,14 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
       state: state,
       html_url: "https://github.com/acme/widgets/issues/#{number}",
       body: body,
-      created_at: 1.day.ago,
-      user: double("user", login: "alice"),
+      created_at: created_at,
+      user: user_login ? double("user", login: user_login) : nil,
       labels: labels.map { |name| double("label", name: name, color: "0075ca") }
     )
+  end
+
+  def stub_no_linked_pull_requests(client)
+    allow(client).to receive(:linked_open_prs_for_issues).and_return({})
   end
 
 
@@ -35,6 +44,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     open_issue = fake_issue(number: 5, title: "Open one", labels: [])
     closed_issue = fake_issue(number: 7, title: "Fix the forum", state: "closed", labels: [ "syrus", "bug" ], body: "Line one\nLine two")
     client = instance_double(GithubClient)
+    stub_no_linked_pull_requests(client)
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ open_issue ])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([ closed_issue ])
     allow(GithubClient).to receive(:for).and_return(client)
@@ -65,6 +75,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     inbox_issue = fake_issue(number: 1, title: "Needs triage", labels: [])
     delegated_issue = fake_issue(number: 2, title: "Already delegated", labels: [ "syrus" ])
     client = instance_double(GithubClient)
+    stub_no_linked_pull_requests(client)
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ inbox_issue, delegated_issue ])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
     allow(GithubClient).to receive(:for).and_return(client)
@@ -83,6 +94,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     matching = fake_issue(number: 1, title: "Fix the forum", labels: [])
     other = fake_issue(number: 2, title: "Unrelated", labels: [])
     client = instance_double(GithubClient)
+    stub_no_linked_pull_requests(client)
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ matching, other ])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
     allow(GithubClient).to receive(:for).and_return(client)
@@ -102,6 +114,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
     client = instance_double(GithubClient)
+    stub_no_linked_pull_requests(client)
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
     allow(GithubClient).to receive(:for).and_return(client)
@@ -110,6 +123,55 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
 
     fields = parse_body["filter_schema"].index_by { |field| field["field"] }
     expect(fields.fetch("query")).to include("free_text_search" => true, "bucket" => "string")
+    expect(fields.keys).to include("author", "label", "delegated", "state")
+  end
+
+
+  it "filters issues by author, label, delegated state, and issue state" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
+    matching = fake_issue(number: 1, title: "Matching", labels: [ "syrus", "bug" ], user_login: "ada")
+    other_author = fake_issue(number: 2, title: "Wrong author", labels: [ "syrus", "bug" ], user_login: "grace")
+    other_label = fake_issue(number: 3, title: "Wrong label", labels: [ "syrus", "feature" ], user_login: "ada")
+    not_delegated = fake_issue(number: 4, title: "Not delegated", labels: [ "bug" ], user_login: "ada")
+    closed = fake_issue(number: 5, title: "Closed", state: "closed", labels: [ "syrus", "bug" ], user_login: "ada")
+    client = instance_double(GithubClient)
+    stub_no_linked_pull_requests(client)
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ matching, other_author, other_label, not_delegated ])
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([ closed ])
+    allow(GithubClient).to receive(:for).and_return(client)
+
+    q = encoded_filter([
+      { "field" => "author", "op" => "contains", "value" => "ada" },
+      { "field" => "label", "op" => "contains", "value" => "bug" },
+      { "field" => "delegated", "op" => "is", "value" => "true" },
+      { "field" => "state", "op" => "is", "value" => "open" }
+    ])
+    get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "open", q: q }
+
+    body = parse_body
+    expect(body["issues"].map { |issue| issue["number"] }).to eq([ 1 ])
+    expect(body["issue_count"]).to eq(1)
+    expect(body["folder_counts"]).to eq({ "inbox" => 1, "delegated" => 3, "open" => 4, "closed" => 1 })
+  end
+
+
+  it "sorts issues by requested columns before pagination" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    older = fake_issue(number: 1, title: "Zebra", created_at: 2.days.ago)
+    newer = fake_issue(number: 2, title: "Alpha", created_at: 1.hour.ago)
+    client = instance_double(GithubClient)
+    stub_no_linked_pull_requests(client)
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ older, newer ])
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
+    allow(GithubClient).to receive(:for).and_return(client)
+
+    get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "open", sort: "title", direction: "asc" }
+
+    body = parse_body
+    expect(body["sort"]).to eq({ "column" => "title", "direction" => "asc" })
+    expect(body["issues"].map { |issue| issue["number"] }).to eq([ 2, 1 ])
   end
 
 
@@ -117,6 +179,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
     client = instance_double(GithubClient)
+    stub_no_linked_pull_requests(client)
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
     allow(GithubClient).to receive(:for).and_return(client)
@@ -139,11 +202,11 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     expect(parse_body["error_message"]).to include("No GitHub token configured")
   end
 
-
   it "closes and delegates GitHub issues" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
     client = instance_double(GithubClient)
+    stub_no_linked_pull_requests(client)
     expect(client).to receive(:close_issue).with("acme/widgets", 12)
     expect(client).to receive(:add_label_to_issue).with("acme/widgets", 13, "syrus")
     expect(client).to receive(:list_all_issues).twice.with("acme/widgets", state: "open").and_return([])
@@ -164,6 +227,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
     client = instance_double(GithubClient)
+    stub_no_linked_pull_requests(client)
     expect(client).to receive(:add_label_to_issue).with("acme/widgets", 4, "syrus")
     expect(client).to receive(:add_label_to_issue).with("acme/widgets", 8, "syrus")
     expect(client).to receive(:close_issue).with("acme/widgets", 4)

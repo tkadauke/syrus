@@ -28,9 +28,37 @@ import { classes } from "../components/ui/classes"
 
 const VISIBLE_COLUMNS_STORAGE_KEY = "syrus.repositories.visible_columns"
 
-type SortColumn = "slug" | "open_jobs_count" | "last_job_activity_at"
+type SortColumn =
+  | "slug"
+  | "owner"
+  | "open_jobs_count"
+  | "last_job_activity_at"
+  | "main_health"
+  | "agent_provider_label"
+  | "polling_enabled"
+  | "last_poll_started_at"
+  | "trigger_label"
+  | "default_branch"
+  | "owner_user_email"
+  | "upstream_slug"
 type SortDirection = "ascending" | "descending"
 type SortState = { column: SortColumn; direction: SortDirection }
+type SortValue = boolean | number | string | null
+
+const REPOSITORY_SORT_ACCESSORS: Record<SortColumn, (repository: RepositoryRow) => SortValue> = {
+  slug: (repository) => repository.slug,
+  owner: (repository) => repository.owner,
+  open_jobs_count: (repository) => repository.open_jobs_count,
+  last_job_activity_at: (repository) => repository.last_job_activity_at,
+  main_health: (repository) => repository.main_health,
+  agent_provider_label: (repository) => repository.agent_provider_label,
+  polling_enabled: (repository) => repository.polling_enabled,
+  last_poll_started_at: (repository) => repository.last_poll_started_at,
+  trigger_label: (repository) => repository.trigger_label,
+  default_branch: (repository) => repository.default_branch,
+  owner_user_email: (repository) => repository.owner_user.email_address,
+  upstream_slug: (repository) => repository.upstream_slug
+}
 
 const DEFAULT_SORT: SortState = { column: "slug", direction: "ascending" }
 
@@ -41,15 +69,24 @@ function toggleSort(current: SortState, column: SortColumn): SortState {
 
 function sortedRepositories(repositories: RepositoryRow[], sortState: SortState): RepositoryRow[] {
   const factor = sortState.direction === "ascending" ? 1 : -1
+  const valueFor = REPOSITORY_SORT_ACCESSORS[sortState.column]
 
   return [...repositories].sort((left, right) => {
-    if (sortState.column === "slug") return left.slug.localeCompare(right.slug) * factor
-    if (sortState.column === "open_jobs_count") return (left.open_jobs_count - right.open_jobs_count) * factor
+    const compared = compareSortValues(valueFor(left), valueFor(right))
+    if (compared !== 0) return compared * factor
 
-    const leftTime = left.last_job_activity_at ? new Date(left.last_job_activity_at).getTime() : -Infinity
-    const rightTime = right.last_job_activity_at ? new Date(right.last_job_activity_at).getTime() : -Infinity
-    return (leftTime - rightTime) * factor
+    return left.slug.localeCompare(right.slug)
   })
+}
+
+function compareSortValues(left: SortValue, right: SortValue): number {
+  if (left == null && right == null) return 0
+  if (left == null) return -1
+  if (right == null) return 1
+  if (typeof left === "number" && typeof right === "number") return left - right
+  if (typeof left === "boolean" && typeof right === "boolean") return Number(left) - Number(right)
+
+  return String(left).localeCompare(String(right))
 }
 
 const HEALTH_TONE: Record<string, PillTone> = {
@@ -100,6 +137,7 @@ function buildRepositoryColumns({
     {
       key: "github_owner",
       label: t("repositories.col_github_owner"),
+      sortKey: "owner",
       cellClassName: "font-mono text-xs text-text-secondary",
       renderCell: (repository) => repository.owner
     },
@@ -118,35 +156,41 @@ function buildRepositoryColumns({
     {
       key: "health",
       label: t("repositories.col_health"),
+      sortKey: "main_health",
       renderCell: (repository) => <RepositoryHealthPill health={repository.main_health} />
     },
     {
       key: "agent",
       label: t("repositories.col_agent"),
+      sortKey: "agent_provider_label",
       renderCell: (repository) => repository.agent_provider_label
     },
     {
       key: "polling_status",
       label: t("repositories.col_polling"),
       defaultVisible: false,
+      sortKey: "polling_enabled",
       renderCell: (repository) => <PollingPill enabled={repository.polling_enabled} />
     },
     {
       key: "last_poll",
       label: t("repositories.col_last_poll"),
       defaultVisible: false,
+      sortKey: "last_poll_started_at",
       renderCell: (repository) => <LastPoll repository={repository} />
     },
     {
       key: "trigger_label",
       label: t("repositories.col_trigger_label"),
       defaultVisible: false,
+      sortKey: "trigger_label",
       renderCell: (repository) => <code className="rounded bg-surface-subtle px-1 text-xs">{repository.trigger_label}</code>
     },
     {
       key: "default_branch",
       label: t("repositories.col_default_branch"),
       defaultVisible: false,
+      sortKey: "default_branch",
       cellClassName: "font-mono text-xs text-text-secondary",
       renderCell: (repository) => repository.default_branch
     },
@@ -154,6 +198,7 @@ function buildRepositoryColumns({
       key: "syrus_owner",
       label: t("repositories.syrus_owner"),
       defaultVisible: false,
+      sortKey: "owner_user_email",
       cellClassName: "text-xs text-text-secondary",
       renderCell: (repository) => repository.owner_user.email_address
     },
@@ -161,6 +206,7 @@ function buildRepositoryColumns({
       key: "upstream_slug",
       label: t("repositories.col_upstream_slug"),
       defaultVisible: false,
+      sortKey: "upstream_slug",
       cellClassName: "font-mono text-xs text-text-secondary",
       renderCell: (repository) =>
         repository.upstream_slug ? `${repository.upstream_slug}${repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}` : "-"

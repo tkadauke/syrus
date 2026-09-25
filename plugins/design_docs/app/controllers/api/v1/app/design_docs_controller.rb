@@ -200,7 +200,7 @@ module Api
         def scoped_design_docs
           default_list_scope(filtered_design_docs(policy_scope(DesignDoc)))
             .includes(*DesignDoc.summary_associations)
-            .newest_first
+            .then { |scope| sorted_design_docs(scope) }
         end
 
         def design_docs_payload(scope)
@@ -211,6 +211,7 @@ module Api
             active_smart_folder_id: active_smart_folder&.id,
             filter: current_filter.to_h,
             filter_schema: ::Filters::Schema.for(subject: ::DesignDocs::SmartFolders::SUBJECT, user: Current.user),
+            sort: current_sort,
             preferences: design_doc_preferences,
             controls: design_doc_controls,
             smart_folders: ::Admin::SmartFolderNavigation.new(
@@ -222,6 +223,29 @@ module Api
             ).folders,
             design_docs: scope.map { |design_doc| serializer.summary(design_doc) }
           }
+        end
+
+        DESIGN_DOC_SORTS = {
+          "title" => "design_docs.title",
+          "state" => "design_docs.state",
+          "updated_at" => "design_docs.updated_at",
+          "created_at" => "design_docs.created_at"
+        }.freeze
+        DESIGN_DOC_SORT_DIRECTIONS = %w[asc desc].freeze
+        DESIGN_DOC_DEFAULT_SORT = { column: "updated_at", direction: "desc" }.freeze
+
+        def current_sort
+          column = params[:sort].to_s.presence_in(DESIGN_DOC_SORTS.keys) || DESIGN_DOC_DEFAULT_SORT.fetch(:column)
+          direction = params[:direction].to_s.presence_in(DESIGN_DOC_SORT_DIRECTIONS) || DESIGN_DOC_DEFAULT_SORT.fetch(:direction)
+          { column: column, direction: direction }
+        end
+
+        def sorted_design_docs(scope)
+          sort = current_sort
+          column_sql = DESIGN_DOC_SORTS.fetch(sort.fetch(:column))
+          direction_sql = sort.fetch(:direction)
+
+          scope.reorder(Arel.sql("#{column_sql} #{direction_sql.upcase}"), id: direction_sql.to_sym)
         end
 
         def design_doc_preferences

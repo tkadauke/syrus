@@ -119,12 +119,34 @@ RSpec.describe "App API repository tests", type: :request do
       expect(parse_body.fetch("tests").map { |test| test.fetch("name") }).to eq([ "needle fails recently" ])
     end
 
-    it "exposes the filter schema for the FilterBar so the search box and reason toggles can go" do
+    it "filters durable tests by status, suite, and file path chips" do
+      matching = make_identity(name: "matches metadata", suite_name: "Models::JobSpec", file_path: "spec/models/job_spec.rb")
+      wrong_status = make_identity(name: "wrong status", suite_name: "Models::JobSpec", file_path: "spec/models/job_spec.rb")
+      wrong_suite = make_identity(name: "wrong suite", suite_name: "Requests::JobSpec", file_path: "spec/models/job_spec.rb")
+      wrong_file = make_identity(name: "wrong file", suite_name: "Models::JobSpec", file_path: "spec/services/job_service_spec.rb")
+
+      make_case(identity: matching, status: "passed")
+      make_case(identity: wrong_status, status: "failed")
+      make_case(identity: wrong_suite, status: "passed")
+      make_case(identity: wrong_file, status: "passed")
+
+      q = encoded_filter([
+        { "field" => "status", "op" => "is", "value" => "passed" },
+        { "field" => "suite_name", "op" => "contains", "value" => "Models" },
+        { "field" => "file_path", "op" => "contains", "value" => "models/job" }
+      ])
+      get "/api/v1/app/repositories/#{repo.id}/tests", params: { q: q }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("tests").map { |test| test.fetch("name") }).to eq([ "matches metadata" ])
+    end
+
+    it "exposes the filter schema for the FilterBar so search and metadata chips can go" do
       get "/api/v1/app/repositories/#{repo.id}/tests"
 
       expect(response).to have_http_status(:ok)
       fields = parse_body.fetch("filter_schema").map { |field| field.fetch("field") }
-      expect(fields).to contain_exactly("query", "reason")
+      expect(fields).to contain_exactly("query", "reason", "status", "suite_name", "file_path")
     end
 
     it "uses persisted recent stats without reading raw test cases" do
