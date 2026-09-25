@@ -6,6 +6,8 @@
   "loading": "Loading clusters…",
   "error_loading": "Unable to load clusters.",
   "empty": "No clusters yet. Add one to get started.",
+  "table_count_one": "{{count}} cluster",
+  "table_count_other": "{{count}} clusters",
   "add_heading": "Add cluster",
   "edit_heading": "Edit cluster",
   "field_label": "Label",

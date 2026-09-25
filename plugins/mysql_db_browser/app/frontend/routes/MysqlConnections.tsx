@@ -6,6 +6,7 @@ import { useConfirm } from "@app/hooks/useConfirm"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { CloseIcon } from "@app/components/CloseIcon"
 import { Modal } from "@app/components/Modal"
+import { AdminEventLogTable, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
 import { Button, DataTable, DescriptionList, Form, Page } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
@@ -226,83 +227,64 @@ function ConnectionsTable({
   }
 
   return (
-    <section>
-      <DataTable.Root>
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("col_label")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_host")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_username")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_default_database")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_password")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_agentic_access")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_allow_writes")}</DataTable.HeadCell>
-            <DataTable.HeadCell>
-              <span className="sr-only">{t("col_actions")}</span>
-            </DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {connections.length === 0 ? (
-            <DataTable.Empty colSpan={8}>{t("empty")}</DataTable.Empty>
-          ) : (
-            connections.map((connection) => (
-              <ConnectionRow
-                connection={connection}
-                key={connection.id}
-                onBrowse={() => onBrowse(connection)}
-                onEdit={() => onEdit(connection)}
-                onNotice={onNotice}
-              />
-            ))
-          )}
-        </DataTable.Body>
-      </DataTable.Root>
-    </section>
+    <AdminEventLogTable
+      columns={connectionColumns({ onBrowse, onEdit, onNotice, t })}
+      defaultSort={{ column: "label", direction: "asc" }}
+      getRowKey={(connection) => connection.id}
+      localSort
+      panel={{ summary: t("heading"), meta: connections.length === 0 ? t("empty") : t("table_count", { count: connections.length }) }}
+      rows={connections}
+      storageKey="syrus.admin.mysql_connections.columns"
+    />
   )
 }
 
-function ConnectionRow({
-  connection,
+function connectionColumns({
   onBrowse,
   onEdit,
-  onNotice
+  onNotice,
+  t
 }: {
-  connection: MysqlConnectionRow
-  onBrowse: () => void
-  onEdit: () => void
+  onBrowse: (connection: MysqlConnectionRow) => void
+  onEdit: (connection: MysqlConnectionRow) => void
   onNotice: (message: string | null) => void
-}) {
-  const { t } = useT("mysql_db_browser")
-
-  return (
-    <DataTable.Row>
-      <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{connection.label}</DataTable.Cell>
-      <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">
-        {connection.host}:{connection.port}
-      </DataTable.Cell>
-      <DataTable.Cell className="text-gray-700 dark:text-gray-300">{connection.username}</DataTable.Cell>
-      <DataTable.Cell className="text-gray-700 dark:text-gray-300">{connection.default_database || "-"}</DataTable.Cell>
-      <DataTable.Cell>
-        <StatusBadge tone={connection.has_password ? "success" : "neutral"}>
-          {connection.has_password ? t("has_password_yes") : t("has_password_no")}
-        </StatusBadge>
-      </DataTable.Cell>
-      <DataTable.Cell>
-        <StatusBadge tone={connection.agentic_access_enabled ? "success" : "neutral"}>
-          {connection.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled")}
-        </StatusBadge>
-      </DataTable.Cell>
-      <DataTable.Cell>
-        <StatusBadge tone={connection.allow_writes ? "warning" : "neutral"}>
-          {connection.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}
-        </StatusBadge>
-      </DataTable.Cell>
-      <DataTable.Cell>
-        <ConnectionActions align="end" connection={connection} onBrowse={onBrowse} onEdit={onEdit} onNotice={onNotice} />
-      </DataTable.Cell>
-    </DataTable.Row>
-  )
+  t: ReturnType<typeof useT>["t"]
+}): Array<AdminEventLogTableColumn<MysqlConnectionRow>> {
+  return [
+    { key: "label", header: t("col_label"), className: "font-medium text-gray-900 dark:text-gray-100", render: (connection) => connection.label, sort: "label", sortValue: (connection) => connection.label },
+    { key: "host", header: t("col_host"), className: "font-mono text-gray-700 dark:text-gray-300", render: (connection) => `${connection.host}:${connection.port}`, sort: "host", sortValue: (connection) => `${connection.host}:${connection.port}` },
+    { key: "username", header: t("col_username"), className: "text-gray-700 dark:text-gray-300", render: (connection) => connection.username, sort: "username", sortValue: (connection) => connection.username },
+    { key: "default_database", header: t("col_default_database"), className: "text-gray-700 dark:text-gray-300", render: (connection) => connection.default_database || "-", sort: "default_database", sortValue: (connection) => connection.default_database || "" },
+    {
+      key: "password",
+      header: t("col_password"),
+      render: (connection) => <StatusBadge tone={connection.has_password ? "success" : "neutral"}>{connection.has_password ? t("has_password_yes") : t("has_password_no")}</StatusBadge>,
+      sort: "password",
+      sortValue: (connection) => Number(connection.has_password)
+    },
+    {
+      key: "agentic_access",
+      header: t("col_agentic_access"),
+      render: (connection) => <StatusBadge tone={connection.agentic_access_enabled ? "success" : "neutral"}>{connection.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled")}</StatusBadge>,
+      sort: "agentic_access",
+      sortValue: (connection) => Number(connection.agentic_access_enabled)
+    },
+    {
+      key: "allow_writes",
+      header: t("col_allow_writes"),
+      render: (connection) => <StatusBadge tone={connection.allow_writes ? "warning" : "neutral"}>{connection.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}</StatusBadge>,
+      sort: "allow_writes",
+      sortValue: (connection) => Number(connection.allow_writes)
+    },
+    {
+      key: "actions",
+      header: <span className="sr-only">{t("col_actions")}</span>,
+      label: t("col_actions"),
+      pin: "end",
+      render: (connection) => <ConnectionActions align="end" connection={connection} onBrowse={() => onBrowse(connection)} onEdit={() => onEdit(connection)} onNotice={onNotice} />,
+      required: true
+    }
+  ]
 }
 
 function MobileConnectionCard({

@@ -1,16 +1,14 @@
 import { withRoutePrefix } from "@app/lib/routing"
 import { formatCurrency } from "@app/lib/format"
 import { FilterBar } from "@app/components/FilterBar"
+import { AdminEventLogTable, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
 import { Notice, Page, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
 import { useQuery } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { fetchSpending, type SpendingBreakdownRow, type SpendingPayload, type SpendingTriggerRow } from "../api/spending"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 
-type SortKey = "label" | "jobs_count" | "total_usd" | "average_job_usd" | "last_30_days_usd" | "runs_count" | "average_usd"
-type SortState = { key: SortKey; direction: "asc" | "desc" }
 const formatSpendingCurrency = (value: number) => formatCurrency(value, 2)
 
 export function SpendingInsightsRoute() {
@@ -109,6 +107,7 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
           prefix={prefix}
           columns="standard"
           emptyLabel={t("empty_epic")}
+          storageKey="syrus.spending.epics.columns"
         />
         <BreakdownTable
           title={t("by_user")}
@@ -117,6 +116,7 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
           prefix={prefix}
           columns="users"
           emptyLabel={t("empty_user")}
+          storageKey="syrus.spending.users.columns"
         />
         <BreakdownTable
           title={t("by_repository")}
@@ -125,6 +125,7 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
           prefix={prefix}
           columns="standard"
           emptyLabel={t("empty_repository")}
+          storageKey="syrus.spending.repositories.columns"
         />
         <TriggerTable rows={payload.breakdowns.trigger_kinds} />
       </div>
@@ -186,7 +187,8 @@ function BreakdownTable({
   rows,
   prefix,
   columns,
-  emptyLabel
+  emptyLabel,
+  storageKey
 }: {
   title: string
   entityLabel: string
@@ -194,166 +196,81 @@ function BreakdownTable({
   prefix: string
   columns: "standard" | "users"
   emptyLabel: string
+  storageKey: string
 }) {
   const { t } = useT("spending")
-  const [sort, setSort] = useState<SortState>({ key: "total_usd", direction: "desc" })
-  const sorted = useMemo(() => sortRows(rows, sort), [rows, sort])
+
+  if (rows.length === 0) {
+    return (
+      <Section.Root aria-label={title} className="overflow-hidden p-0">
+        <TableHeader title={title} />
+        <EmptyTable label={emptyLabel} />
+      </Section.Root>
+    )
+  }
 
   return (
-    <Section.Root aria-label={title} className="overflow-hidden p-0">
-      <TableHeader title={title} />
-      {rows.length === 0 ? (
-        <EmptyTable label={emptyLabel} />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-[40rem] table-fixed w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-            <colgroup>
-              <col />
-              <col className="w-20" />
-              <col className="w-32" />
-              <col className="w-32" />
-            </colgroup>
-            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              <tr>
-                <SortableHeader label={entityLabel} sortKey="label" sort={sort} setSort={setSort} />
-                <SortableHeader label={t("col_jobs")} sortKey="jobs_count" sort={sort} setSort={setSort} align="right" />
-                <SortableHeader label={t("col_total")} sortKey="total_usd" sort={sort} setSort={setSort} align="right" />
-                <SortableHeader
-                  label={columns === "users" ? t("col_last_30") : t("col_avg_job")}
-                  sortKey={columns === "users" ? "last_30_days_usd" : "average_job_usd"}
-                  sort={sort}
-                  setSort={setSort}
-                  align="right"
-                />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-              {sorted.map((row) => (
-                <tr key={row.id}>
-                  <td className="max-w-0 px-4 py-3">
-                    <Link
-                      className="block truncate font-medium text-brand dark:text-brand-emphasis underline hover:no-underline"
-                      title={breakdownLabel(row)}
-                      to={withRoutePrefix(row.path, prefix)}
-                    >
-                      {breakdownLabel(row)}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{row.jobs_count}</td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatSpendingCurrency(row.total_usd)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">
-                    {formatSpendingCurrency(columns === "users" ? row.last_30_days_usd || 0 : row.average_job_usd)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Section.Root>
+    <AdminEventLogTable
+      columns={breakdownColumns({ columns, entityLabel, prefix, t })}
+      defaultSort={{ column: "total_usd", direction: "desc" }}
+      getRowKey={(row) => row.id}
+      localSort
+      panel={{ summary: title }}
+      rows={rows}
+      storageKey={storageKey}
+      tableClassName="table-fixed"
+    />
   )
 }
 
 function TriggerTable({ rows }: { rows: SpendingTriggerRow[] }) {
   const { t } = useT("spending")
-  const [sort, setSort] = useState<SortState>({ key: "total_usd", direction: "desc" })
-  const sorted = useMemo(() => sortRows(rows, sort), [rows, sort])
+
+  if (rows.length === 0) {
+    return (
+      <Section.Root aria-label={t("trigger_aria")} className="overflow-hidden p-0">
+        <TableHeader title={t("by_trigger_kind")} />
+        <EmptyTable label={t("empty_trigger")} />
+      </Section.Root>
+    )
+  }
 
   return (
-    <Section.Root aria-label={t("trigger_aria")} className="overflow-hidden p-0">
-      <TableHeader title={t("by_trigger_kind")} />
-      {rows.length === 0 ? (
-        <EmptyTable label={t("empty_trigger")} />
-      ) : (
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            <tr>
-              <SortableHeader label={t("col_trigger")} sortKey="label" sort={sort} setSort={setSort} />
-              <SortableHeader label={t("col_runs")} sortKey="runs_count" sort={sort} setSort={setSort} align="right" />
-              <SortableHeader label={t("col_total")} sortKey="total_usd" sort={sort} setSort={setSort} align="right" />
-              <SortableHeader label={t("col_avg_run")} sortKey="average_usd" sort={sort} setSort={setSort} align="right" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-            {sorted.map((row) => (
-              <tr key={row.trigger_kind}>
-                <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{humanize(row.trigger_kind)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{row.runs_count}</td>
-                <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatSpendingCurrency(row.total_usd)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{formatSpendingCurrency(row.average_usd)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </Section.Root>
+    <AdminEventLogTable
+      columns={triggerColumns(t)}
+      defaultSort={{ column: "total_usd", direction: "desc" }}
+      getRowKey={(row) => row.trigger_kind}
+      localSort
+      panel={{ summary: t("by_trigger_kind") }}
+      rows={rows}
+      storageKey="syrus.spending.trigger_kinds.columns"
+      tableClassName="table-fixed"
+    />
   )
 }
 
 function TopRunsTable({ payload, prefix }: { payload: SpendingPayload; prefix: string }) {
   const { t } = useT("spending")
-  return (
-    <Section.Root aria-label={t("top_runs_aria")} className="overflow-hidden p-0">
-      <TableHeader title={t("top_runs")} />
-      {payload.top_runs.length === 0 ? (
+  if (payload.top_runs.length === 0) {
+    return (
+      <Section.Root aria-label={t("top_runs_aria")} className="overflow-hidden p-0">
+        <TableHeader title={t("top_runs")} />
         <EmptyTable label={t("empty_top_runs")} />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-[56rem] table-fixed divide-y divide-gray-200 dark:divide-gray-700 text-sm w-full">
-            <colgroup>
-              <col className="w-1/4" />
-              <col className="w-1/2" />
-              <col className="w-40" />
-              <col className="w-28" />
-            </colgroup>
-            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-2 font-medium">{t("col_run")}</th>
-                <th className="px-4 py-2 font-medium">{t("col_job")}</th>
-                <th className="px-4 py-2 font-medium">{t("col_repository")}</th>
-                <th className="px-4 py-2 text-right font-medium">{t("col_cost")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-              {payload.top_runs.map((run) => (
-                <tr key={run.id}>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900 dark:text-gray-100">{t("run_number", { id: run.id })}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {humanize(run.trigger_kind)} / {run.agent_provider}
-                    </div>
-                  </td>
-                  <td className="max-w-0 px-4 py-3">
-                    <Link
-                      className="block truncate text-brand dark:text-brand-emphasis underline hover:no-underline"
-                      title={run.job.title || `JOB-${run.job.id}`}
-                      to={withRoutePrefix(run.job.path, prefix)}
-                    >
-                      {run.job.title || `JOB-${run.job.id}`}
-                    </Link>
-                    {run.epic ? (
-                      <div className="truncate text-xs text-gray-500 dark:text-gray-400" title={`${run.epic.display_number} / ${run.epic.title}`}>
-                        {run.epic.display_number} / {run.epic.title}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="max-w-0 px-4 py-3">
-                    <Link
-                      className="block truncate font-mono text-xs text-brand dark:text-brand-emphasis underline hover:no-underline"
-                      title={run.repository.slug}
-                      to={withRoutePrefix(run.repository.path, prefix)}
-                    >
-                      {run.repository.slug}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatSpendingCurrency(run.cost_usd)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Section.Root>
+      </Section.Root>
+    )
+  }
+
+  return (
+    <AdminEventLogTable
+      columns={topRunColumns({ prefix, t })}
+      defaultSort={{ column: "cost_usd", direction: "desc" }}
+      getRowKey={(run) => run.id}
+      localSort
+      panel={{ summary: t("top_runs") }}
+      rows={payload.top_runs}
+      storageKey="syrus.spending.top_runs.columns"
+      tableClassName="table-fixed"
+    />
   )
 }
 
@@ -365,56 +282,102 @@ function EmptyTable({ label }: { label: string }) {
   return <div className="px-4 py-8 text-sm text-gray-500 dark:text-gray-400">{label}</div>
 }
 
-function SortableHeader({
-  label,
-  sortKey,
-  sort,
-  setSort,
-  align = "left"
+function breakdownColumns({
+  columns,
+  entityLabel,
+  prefix,
+  t
 }: {
-  label: string
-  sortKey: SortKey
-  sort: SortState
-  setSort: (sort: SortState) => void
-  align?: "left" | "right"
-}) {
-  const { t } = useT("spending")
-  const active = sort.key === sortKey
-  const nextDirection = active && sort.direction === "desc" ? "asc" : "desc"
-  return (
-    <th className={`px-4 py-2 font-medium ${align === "right" ? "text-right" : "text-left"}`}>
-      <button
-        className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100"
-        type="button"
-        onClick={() => setSort({ key: sortKey, direction: nextDirection })}
-      >
-        {label}
-        <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">
-          {active ? (sort.direction === "desc" ? t("sort_desc") : t("sort_asc")) : t("sort_none")}
-        </span>
-      </button>
-    </th>
-  )
+  columns: "standard" | "users"
+  entityLabel: string
+  prefix: string
+  t: ReturnType<typeof useT>["t"]
+}): Array<AdminEventLogTableColumn<SpendingBreakdownRow>> {
+  return [
+    {
+      key: "label",
+      header: entityLabel,
+      className: "max-w-0",
+      render: (row) => (
+        <Link className="block truncate font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" title={breakdownLabel(row)} to={withRoutePrefix(row.path, prefix)}>
+          {breakdownLabel(row)}
+        </Link>
+      ),
+      sort: "label",
+      sortValue: (row) => breakdownLabel(row)
+    },
+    { key: "jobs", header: t("col_jobs"), align: "right", className: "tabular-nums text-gray-700 dark:text-gray-300", render: (row) => row.jobs_count, sort: "jobs_count", sortValue: (row) => row.jobs_count },
+    { key: "total", header: t("col_total"), align: "right", className: "tabular-nums font-medium text-gray-900 dark:text-gray-100", render: (row) => formatSpendingCurrency(row.total_usd), sort: "total_usd", sortValue: (row) => row.total_usd },
+    {
+      key: columns === "users" ? "last_30_days" : "average_job",
+      header: columns === "users" ? t("col_last_30") : t("col_avg_job"),
+      align: "right",
+      className: "tabular-nums text-gray-700 dark:text-gray-300",
+      render: (row) => formatSpendingCurrency(columns === "users" ? row.last_30_days_usd || 0 : row.average_job_usd),
+      sort: columns === "users" ? "last_30_days_usd" : "average_job_usd",
+      sortValue: (row) => columns === "users" ? row.last_30_days_usd || 0 : row.average_job_usd
+    }
+  ]
 }
 
-function sortRows<T extends SpendingBreakdownRow | SpendingTriggerRow>(rows: T[], sort: SortState) {
-  return [...rows].sort((a, b) => {
-    const aValue = sortValue(a, sort.key)
-    const bValue = sortValue(b, sort.key)
-    const comparison = typeof aValue === "string" || typeof bValue === "string" ? String(aValue).localeCompare(String(bValue)) : Number(aValue) - Number(bValue)
-
-    return sort.direction === "asc" ? comparison : -comparison
-  })
+function triggerColumns(t: ReturnType<typeof useT>["t"]): Array<AdminEventLogTableColumn<SpendingTriggerRow>> {
+  return [
+    { key: "trigger", header: t("col_trigger"), className: "font-medium text-gray-900 dark:text-gray-100", render: (row) => humanize(row.trigger_kind), sort: "label", sortValue: (row) => humanize(row.trigger_kind) },
+    { key: "runs", header: t("col_runs"), align: "right", className: "tabular-nums text-gray-700 dark:text-gray-300", render: (row) => row.runs_count, sort: "runs_count", sortValue: (row) => row.runs_count },
+    { key: "total", header: t("col_total"), align: "right", className: "tabular-nums font-medium text-gray-900 dark:text-gray-100", render: (row) => formatSpendingCurrency(row.total_usd), sort: "total_usd", sortValue: (row) => row.total_usd },
+    { key: "average", header: t("col_avg_run"), align: "right", className: "tabular-nums text-gray-700 dark:text-gray-300", render: (row) => formatSpendingCurrency(row.average_usd), sort: "average_usd", sortValue: (row) => row.average_usd }
+  ]
 }
 
-function sortValue(row: SpendingBreakdownRow | SpendingTriggerRow, key: SortKey) {
-  if (key === "label") return "label" in row ? row.label : row.trigger_kind
-  if (key === "jobs_count") return row.jobs_count
-  if (key === "total_usd") return row.total_usd
-  if (key === "runs_count") return "runs_count" in row ? row.runs_count : 0
-  if (key === "average_usd") return "average_usd" in row ? row.average_usd : 0
-  if (key === "last_30_days_usd") return "last_30_days_usd" in row ? row.last_30_days_usd || 0 : 0
-  return "average_job_usd" in row ? row.average_job_usd : 0
+function topRunColumns({ prefix, t }: { prefix: string; t: ReturnType<typeof useT>["t"] }): Array<AdminEventLogTableColumn<SpendingPayload["top_runs"][number]>> {
+  return [
+    {
+      key: "run",
+      header: t("col_run"),
+      render: (run) => (
+        <>
+          <div className="font-medium text-gray-900 dark:text-gray-100">{t("run_number", { id: run.id })}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            {humanize(run.trigger_kind)} / {run.agent_provider}
+          </div>
+        </>
+      ),
+      sort: "run_id",
+      sortValue: (run) => run.id
+    },
+    {
+      key: "job",
+      header: t("col_job"),
+      className: "max-w-0",
+      render: (run) => (
+        <>
+          <Link className="block truncate text-brand underline hover:no-underline dark:text-brand-emphasis" title={run.job.title || `JOB-${run.job.id}`} to={withRoutePrefix(run.job.path, prefix)}>
+            {run.job.title || `JOB-${run.job.id}`}
+          </Link>
+          {run.epic ? (
+            <div className="truncate text-xs text-gray-500 dark:text-gray-400" title={`${run.epic.display_number} / ${run.epic.title}`}>
+              {run.epic.display_number} / {run.epic.title}
+            </div>
+          ) : null}
+        </>
+      ),
+      sort: "job",
+      sortValue: (run) => run.job.title || run.job.id
+    },
+    {
+      key: "repository",
+      header: t("col_repository"),
+      className: "max-w-0",
+      render: (run) => (
+        <Link className="block truncate font-mono text-xs text-brand underline hover:no-underline dark:text-brand-emphasis" title={run.repository.slug} to={withRoutePrefix(run.repository.path, prefix)}>
+          {run.repository.slug}
+        </Link>
+      ),
+      sort: "repository",
+      sortValue: (run) => run.repository.slug
+    },
+    { key: "cost", header: t("col_cost"), align: "right", className: "tabular-nums font-medium text-gray-900 dark:text-gray-100", render: (run) => formatSpendingCurrency(run.cost_usd), sort: "cost_usd", sortValue: (run) => run.cost_usd }
+  ]
 }
 
 function breakdownLabel(row: SpendingBreakdownRow) {

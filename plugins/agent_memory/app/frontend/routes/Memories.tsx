@@ -30,7 +30,8 @@ import { Markdown } from "@app/lib/Markdown"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { Button, buttonClasses } from "@app/components/Button"
 import { PILL_TONE_CLASSES, TonePill } from "@app/components/StatusPill"
-import { DataTable, Form, Notice, Page, PageHeading, Section, Text } from "@app/components/ui"
+import { AdminEventLogTable, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
+import { Form, Notice, Page, PageHeading, Section, Text } from "@app/components/ui"
 
 const kindKeys: Record<string, string> = {
   user_pref: "kind_user_pref",
@@ -123,59 +124,171 @@ function MemoriesView({ payload, onNotice }: { payload: MemoriesPayload; onNotic
 function MemoriesTable({ payload, onNotice, showDeleted }: { payload: MemoriesPayload; onNotice: (message: string | null) => void; showDeleted: boolean }) {
   const { t } = useT("agent_memory")
   const showOwner = payload.current_user.admin
-  const columnCount = showOwner ? 7 : 6
+  const columns = memoryColumns({ onNotice, payload, showDeleted, showOwner, t })
+
+  if (payload.memories.length === 0) {
+    return (
+      <Section.Root>
+        <p className="text-sm text-text-muted">{showDeleted ? t("no_deleted_results") : t("no_results")}</p>
+      </Section.Root>
+    )
+  }
 
   return (
-    <Section.Root className="overflow-hidden p-0">
-      <DataTable.Root wrapperClassName="rounded-none border-0">
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("col_kind")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_scope")}</DataTable.HeadCell>
-            {showOwner ? <DataTable.HeadCell>{t("col_owner")}</DataTable.HeadCell> : null}
-            <DataTable.HeadCell>{t("col_content")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{showDeleted ? t("col_deleted") : t("col_published")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_created")}</DataTable.HeadCell>
-            <DataTable.HeadCell>
-              <span className="sr-only">{t("col_actions")}</span>
-            </DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {payload.memories.length === 0 ? (
-            <DataTable.Row>
-              <DataTable.Cell className="py-6 text-center text-text-muted" colSpan={columnCount}>
-                {showDeleted ? t("no_deleted_results") : t("no_results")}
-              </DataTable.Cell>
-            </DataTable.Row>
-          ) : (
-            payload.memories.map((memory) => (
-              <MemoryRowView key={memory.id} memory={memory} onNotice={onNotice} payload={payload} showDeleted={showDeleted} showOwner={showOwner} />
-            ))
-          )}
-        </DataTable.Body>
-      </DataTable.Root>
+    <Section.Root className="p-0">
+      <AdminEventLogTable
+        columns={columns}
+        defaultSort={{ column: "created", direction: "desc" }}
+        getRowKey={(memory) => memory.id}
+        localSort
+        panel={{ summary: t("heading"), meta: t("table_count", { count: payload.memories.length }) }}
+        rows={payload.memories}
+        storageKey={showDeleted ? "syrus.agent_memory.deleted.columns" : "syrus.agent_memory.active.columns"}
+      />
     </Section.Root>
   )
 }
 
-function MemoryRowView({
+function memoryColumns({
+  onNotice,
+  payload,
+  showDeleted,
+  showOwner,
+  t
+}: {
+  onNotice: (message: string | null) => void
+  payload: MemoriesPayload
+  showDeleted: boolean
+  showOwner: boolean
+  t: (key: string, options?: Record<string, unknown>) => string
+}): Array<AdminEventLogTableColumn<MemoryRow>> {
+  const columns: Array<AdminEventLogTableColumn<MemoryRow>> = [
+    {
+      key: "kind",
+      header: t("col_kind"),
+      sort: "kind",
+      sortValue: (memory) => t(memoryKindKey(memory.kind)),
+      render: (memory) => <KindBadge kind={memory.kind} />
+    },
+    {
+      key: "scope",
+      header: t("col_scope"),
+      sort: "scope",
+      sortValue: (memory) => scopeLabel(memory, t),
+      render: (memory) => <span className="text-text-secondary">{scopeLabel(memory, t)}</span>
+    },
+    {
+      key: "content",
+      header: t("col_content"),
+      className: "max-w-2xl",
+      sort: "content",
+      sortValue: (memory) => memory.content,
+      render: (memory) => <MemoryContentCell memory={memory} />
+    },
+    {
+      key: showDeleted ? "deleted" : "published",
+      header: showDeleted ? t("col_deleted") : t("col_published"),
+      sort: showDeleted ? "deleted" : "published",
+      sortValue: (memory) => (showDeleted ? memory.deleted_at : memory.published ? 1 : 0),
+      render: (memory) => <MemoryStateCell memory={memory} showDeleted={showDeleted} />
+    },
+    {
+      key: "created",
+      header: t("col_created"),
+      sort: "created",
+      sortValue: (memory) => memory.created_at,
+      render: (memory) => <RelativeTimestamp value={memory.created_at} />
+    },
+    {
+      key: "actions",
+      header: <span className="sr-only">{t("col_actions")}</span>,
+      label: t("col_actions"),
+      align: "right",
+      pin: "end",
+      required: true,
+      render: (memory) => <MemoryActions memory={memory} onNotice={onNotice} payload={payload} showDeleted={showDeleted} />
+    }
+  ]
+
+  if (showOwner) {
+    columns.splice(2, 0, {
+      key: "owner",
+      header: t("col_owner"),
+      sort: "owner",
+      sortValue: (memory) => memory.owner.name,
+      render: (memory) => <span className="text-text-secondary">{memory.owner.name}</span>
+    })
+  }
+
+  return columns
+}
+
+function scopeLabel(memory: MemoryRow, t: (key: string, options?: Record<string, unknown>) => string) {
+  return memory.scope === "global" ? t("scope_global") : memory.repository_name || `${t("scope_repository")} #${memory.scope_id}`
+}
+
+function memoryKindKey(kind: MemoryKind) {
+  return kindKeys[kind] || kind
+}
+
+function MemoryContentCell({ memory }: { memory: MemoryRow }) {
+  const { t } = useT("agent_memory")
+  const [viewing, setViewing] = useState(false)
+  const [viewingHistory, setViewingHistory] = useState(false)
+
+  return (
+    <div className="text-text-primary">
+      <Markdown className="chat-prose line-clamp-2 text-sm text-text-primary break-words" text={memory.content} />
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <button className="text-xs text-brand-emphasis underline hover:no-underline" onClick={() => setViewing(true)} type="button">
+          {t("see_more")}
+        </button>
+        {memory.changed && memory.permissions.can_manage ? (
+          <button className="contents" onClick={() => setViewingHistory(true)} type="button">
+            <TonePill tone="amber">{t("changed_badge")}</TonePill>
+          </button>
+        ) : null}
+      </div>
+      {viewing ? <MemoryContentModal memory={memory} onClose={() => setViewing(false)} /> : null}
+      {viewingHistory ? <MemoryHistoryModal memory={memory} onClose={() => setViewingHistory(false)} /> : null}
+    </div>
+  )
+}
+
+function MemoryStateCell({ memory, showDeleted }: { memory: MemoryRow; showDeleted: boolean }) {
+  const { t } = useT("agent_memory")
+
+  if (!showDeleted) {
+    return <TonePill tone={memory.published ? "green" : "gray"}>{memory.published ? t("published_label") : t("unpublished_label")}</TonePill>
+  }
+
+  return (
+    <Text as="span">
+      {memory.deleted_by ? t("deleted_by", { name: memory.deleted_by.name }) : t("deleted_by_unknown")}
+      {memory.deleted_at ? (
+        <>
+          <br />
+          <RelativeTimestamp value={memory.deleted_at} />
+        </>
+      ) : null}
+    </Text>
+  )
+}
+
+function MemoryActions({
   memory,
   payload,
-  showOwner,
   showDeleted,
   onNotice
 }: {
   memory: MemoryRow
   payload: MemoriesPayload
-  showOwner: boolean
   showDeleted: boolean
   onNotice: (message: string | null) => void
 }) {
   const { t } = useT("agent_memory")
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
-  const [viewing, setViewing] = useState(false)
   const [editing, setEditing] = useState(false)
   const [viewingHistory, setViewingHistory] = useState(false)
   const publish = useMutation({
@@ -194,94 +307,53 @@ function MemoryRowView({
   })
 
   return (
-    <DataTable.Row className="align-top">
-      <DataTable.Cell>
-        <KindBadge kind={memory.kind} />
-      </DataTable.Cell>
-      <DataTable.Cell className="text-text-secondary">
-        {memory.scope === "global" ? t("scope_global") : memory.repository_name || `${t("scope_repository")} #${memory.scope_id}`}
-      </DataTable.Cell>
-      {showOwner ? <DataTable.Cell className="text-text-secondary">{memory.owner.name}</DataTable.Cell> : null}
-      <DataTable.Cell className="max-w-2xl text-text-primary">
-        <Markdown className="chat-prose line-clamp-2 text-sm text-text-primary break-words" text={memory.content} />
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <button className="text-xs text-brand-emphasis underline hover:no-underline" onClick={() => setViewing(true)} type="button">
-            {t("see_more")}
-          </button>
-          {memory.changed && memory.permissions.can_manage ? (
-            <button className="contents" onClick={() => setViewingHistory(true)} type="button">
-              <TonePill tone="amber">{t("changed_badge")}</TonePill>
-            </button>
-          ) : null}
-        </div>
-      </DataTable.Cell>
-      <DataTable.Cell>
-        {showDeleted ? (
-          <Text as="span">
-            {memory.deleted_by ? t("deleted_by", { name: memory.deleted_by.name }) : t("deleted_by_unknown")}
-            {memory.deleted_at ? (
-              <>
-                <br />
-                <RelativeTimestamp value={memory.deleted_at} />
-              </>
-            ) : null}
-          </Text>
-        ) : (
-          <TonePill tone={memory.published ? "green" : "gray"}>{memory.published ? t("published_label") : t("unpublished_label")}</TonePill>
-        )}
-      </DataTable.Cell>
-      <DataTable.Cell className="text-text-secondary">
-        <RelativeTimestamp value={memory.created_at} />
-      </DataTable.Cell>
-      <DataTable.Cell>
-        <div className="flex justify-end gap-2">
-          {memory.permissions.can_manage ? (
-            <Button onClick={() => setViewingHistory(true)} size="sm" variant="secondary">
-              {t("history")}
-            </Button>
-          ) : null}
-          {!showDeleted && memory.permissions.can_manage ? (
-            <Button onClick={() => setEditing(true)} size="sm" variant="secondary">
-              {t("edit")}
-            </Button>
-          ) : null}
-          {!showDeleted && memory.permissions.can_publish ? (
-            <Button disabled={publish.isPending} onClick={() => publish.mutate()} size="sm" variant="secondary">
-              {memory.published ? t("unpublish") : t("publish")}
-            </Button>
-          ) : null}
-          {!showDeleted && memory.permissions.can_manage ? (
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={destroy.isPending}
-              onClick={async () => {
-                if (await confirm({ message: t("confirm_delete"), destructive: true })) {
-                  onNotice(null)
-                  destroy.mutate()
-                }
-              }}
-            >
-              {destroy.isPending ? t("deleting") : t("delete")}
-            </Button>
-          ) : null}
-        </div>
-        {publish.isError ? (
-          <Text as="p" className="mt-2 font-medium" role="alert" variant="caption" tone="danger">
-            {errorMessage(publish.error, "Unable to change publish state.")}
-          </Text>
+    <>
+      <div className="flex justify-end gap-2">
+        {memory.permissions.can_manage ? (
+          <Button onClick={() => setViewingHistory(true)} size="sm" variant="secondary">
+            {t("history")}
+          </Button>
         ) : null}
-        {destroy.isError ? (
-          <Text as="p" className="mt-2 font-medium" role="alert" variant="caption" tone="danger">
-            {errorMessage(destroy.error, "Unable to delete memory.")}
-          </Text>
+        {!showDeleted && memory.permissions.can_manage ? (
+          <Button onClick={() => setEditing(true)} size="sm" variant="secondary">
+            {t("edit")}
+          </Button>
         ) : null}
-        {viewing ? <MemoryContentModal memory={memory} onClose={() => setViewing(false)} /> : null}
-        {editing ? <MemoryModal memory={memory} mode="edit" onClose={() => setEditing(false)} onNotice={onNotice} payload={payload} /> : null}
-        {viewingHistory ? <MemoryHistoryModal memory={memory} onClose={() => setViewingHistory(false)} /> : null}
-        {dialog}
-      </DataTable.Cell>
-    </DataTable.Row>
+        {!showDeleted && memory.permissions.can_publish ? (
+          <Button disabled={publish.isPending} onClick={() => publish.mutate()} size="sm" variant="secondary">
+            {memory.published ? t("unpublish") : t("publish")}
+          </Button>
+        ) : null}
+        {!showDeleted && memory.permissions.can_manage ? (
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={destroy.isPending}
+            onClick={async () => {
+              if (await confirm({ message: t("confirm_delete"), destructive: true })) {
+                onNotice(null)
+                destroy.mutate()
+              }
+            }}
+          >
+            {destroy.isPending ? t("deleting") : t("delete")}
+          </Button>
+        ) : null}
+      </div>
+      {publish.isError ? (
+        <Text as="p" className="mt-2 font-medium" role="alert" variant="caption" tone="danger">
+          {errorMessage(publish.error, "Unable to change publish state.")}
+        </Text>
+      ) : null}
+      {destroy.isError ? (
+        <Text as="p" className="mt-2 font-medium" role="alert" variant="caption" tone="danger">
+          {errorMessage(destroy.error, "Unable to delete memory.")}
+        </Text>
+      ) : null}
+      {editing ? <MemoryModal memory={memory} mode="edit" onClose={() => setEditing(false)} onNotice={onNotice} payload={payload} /> : null}
+      {viewingHistory ? <MemoryHistoryModal memory={memory} onClose={() => setViewingHistory(false)} /> : null}
+      {dialog}
+    </>
   )
 }
 

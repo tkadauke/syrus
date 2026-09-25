@@ -84,6 +84,7 @@ export function ScheduledTasksIndex() {
             basePath={tasksBase(location.pathname)}
             empty={t("scheduled_tasks.empty_active")}
             prefix={prefix}
+            storageKey="syrus.scheduled_tasks.active.columns"
             tasks={tasks.data.active_tasks}
             title={t("scheduled_tasks.section_active")}
           />
@@ -91,6 +92,7 @@ export function ScheduledTasksIndex() {
             basePath={tasksBase(location.pathname)}
             empty={t("scheduled_tasks.empty_fired")}
             prefix={prefix}
+            storageKey="syrus.scheduled_tasks.fired_one_shots.columns"
             tasks={tasks.data.fired_one_shots}
             title={t("scheduled_tasks.section_fired")}
           />
@@ -98,6 +100,7 @@ export function ScheduledTasksIndex() {
             basePath={tasksBase(location.pathname)}
             empty={t("scheduled_tasks.empty_archived")}
             prefix={prefix}
+            storageKey="syrus.scheduled_tasks.archived.columns"
             tasks={tasks.data.archived_tasks}
             title={t("scheduled_tasks.section_archived")}
           />
@@ -246,7 +249,7 @@ function RepositoryPicker({
   )
 }
 
-function TaskSection({ title, tasks, empty, basePath, prefix }: { title: string; tasks: ScheduledTaskRow[]; empty: string; basePath: string; prefix: string }) {
+function TaskSection({ title, tasks, empty, basePath, prefix, storageKey }: { title: string; tasks: ScheduledTaskRow[]; empty: string; basePath: string; prefix: string; storageKey: string }) {
   const { t } = useT("settings")
   const columns = taskColumns({ basePath, prefix, t })
 
@@ -267,9 +270,9 @@ function TaskSection({ title, tasks, empty, basePath, prefix }: { title: string;
       defaultSort={{ column: "last_fired_at", direction: "desc" }}
       getRowKey={(task) => task.id}
       localSort
-      panel={{ summary: title, meta: `${tasks.length} ${tasks.length === 1 ? "row" : "rows"}` }}
+      panel={{ summary: title, meta: t("scheduled_tasks.table_count", { count: tasks.length }) }}
       rows={tasks}
-      storageKey={`syrus.scheduled_tasks.${title.toLowerCase().replace(/[^a-z0-9]+/g, "_")}.columns`}
+      storageKey={storageKey}
     />
   )
 }

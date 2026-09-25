@@ -144,7 +144,7 @@ function TemplatesTable({ templates, basePath }: { templates: CronTemplateRow[];
       defaultSort={{ column: "name", direction: "asc" }}
       getRowKey={(template) => template.id}
       localSort
-      panel={{ summary: t("cron_templates.heading"), meta: `${templates.length} ${templates.length === 1 ? "row" : "rows"}` }}
+      panel={{ summary: t("cron_templates.heading"), meta: t("cron_templates.table_count", { count: templates.length }) }}
       rows={templates}
       storageKey="syrus.cron_templates.columns"
     />
