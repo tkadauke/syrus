@@ -195,11 +195,8 @@ test("Syrus Dev Performance UI drills into a seeded request/run and runs a real 
   const enableButton = pluginCard.getByRole("button", { name: "Enable" })
   if (await enableButton.isVisible()) {
     await enableButton.click()
-    // Enabling reloads the whole page. A cold dev-mode render of this app can
-    // take the better part of a minute, so wait for the load itself and then
-    // give the card room to come back.
-    await page.waitForLoadState("load")
-    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible({ timeout: 60_000 })
+    await expect(page).toHaveURL(/\/admin\/plugins\/syrus_dev$/)
+    await expect(page.getByRole("main", { name: "Plugin detail" }).getByRole("heading", { level: 1, name: "Syrus Dev" })).toBeVisible()
   }
 
   await page.goto("/admin/performance")

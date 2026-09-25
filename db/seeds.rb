@@ -422,7 +422,8 @@ if Rails.env.development?
   # Picking the already-"implemented" job keeps this consistent with its
   # own state (implemented == a completed initial workflow that opened a PR).
   implemented_job = demo_jobs_by_title.fetch("Inspect preview dashboard states")
-  if implemented_job.workflows.none?
+  demo_workflow = implemented_job.workflows.order(:id).first
+  if demo_workflow.nil?
     demo_workflow = Workflow.create!(
       job: implemented_job,
       user: demo_user,
@@ -437,64 +438,82 @@ if Rails.env.development?
         "summary" => "Seeded a demo repository, epic, and jobs spanning several states for preview navigation."
       }
     )
+  else
+    demo_workflow.update!(
+      user: demo_user,
+      trigger_kind: "initial",
+      agent_provider: "codex",
+      state: "succeeded",
+      started_at: 2.hours.ago,
+      finished_at: 90.minutes.ago,
+      artifacts: demo_workflow.artifacts.to_h.merge(
+        "pr_title" => "Inspect preview dashboard states",
+        "pr_body" => "Adds representative demo data so the dashboard and job detail views aren't empty in a fresh preview.",
+        "summary" => "Seeded a demo repository, epic, and jobs spanning several states for preview navigation."
+      )
+    )
+  end
 
-    step_specs = [
-      { kind: "prepare" },
-      { kind: "implement" },
-      { kind: "summarize" },
-      { kind: "test_plan" },
-      { kind: "pr_open" }
-    ]
+  step_specs = [
+    { kind: "prepare" },
+    { kind: "implement" },
+    { kind: "summarize" },
+    { kind: "test_plan" },
+    { kind: "pr_open" }
+  ]
 
-    steps = step_specs.each_with_index.map do |spec, index|
-      step_started = 2.hours.ago + (index * 5).minutes
-      Step.create!(
-        workflow: demo_workflow,
-        kind: spec.fetch(:kind),
+  steps = step_specs.each_with_index.map do |spec, index|
+    step_started = 2.hours.ago + (index * 5).minutes
+    Step.find_or_initialize_by(workflow: demo_workflow, kind: spec.fetch(:kind), iteration: 1).tap do |step|
+      step.assign_attributes(
         position: index,
-        iteration: 1,
         state: "succeeded",
         started_at: step_started,
         finished_at: step_started + 4.minutes
       )
+      step.save!
     end
-    steps.each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
+  end
+  steps.each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
+  steps.last.update!(next_step_id: nil)
 
-    implement_diff = <<~DIFF
-      diff --git a/db/seeds.rb b/db/seeds.rb
-      +  demo_jobs_by_title = {}
-      +  # ...representative jobs in a few more states, plus a full
-      +  # Workflow/Step/Run chain for one of them.
-    DIFF
+  implement_diff = <<~DIFF
+    diff --git a/db/seeds.rb b/db/seeds.rb
+    +  demo_jobs_by_title = {}
+    +  # ...representative jobs in a few more states, plus a full
+    +  # Workflow/Step/Run chain for one of them.
+  DIFF
 
-    steps.each do |step|
-      run = Run.create!(
-        job: implemented_job,
-        user: demo_user,
-        step: step,
-        trigger_kind: "initial",
-        agent_provider: "codex",
-        state: "succeeded",
-        iteration: 1,
-        started_at: step.started_at,
-        finished_at: step.finished_at,
-        base_sha: "a1b2c3d",
-        head_sha: "e5f6a7b",
-        prompt: step.kind == "implement" ? "Broaden db/seeds.rb so the preview has richer Job/Workflow/Step/Run data to click through." : nil,
-        agent_diff: step.kind == "implement" ? implement_diff : nil,
-        agent_summary: step.kind == "summarize" ? "Broadened db/seeds.rb with a full Workflow/Step/Run chain and two additional Job states." : nil,
-        agent_pr_title: step.kind == "summarize" ? "Inspect preview dashboard states" : nil,
-        agent_pr_body: step.kind == "summarize" ? "Seeds a representative Workflow/Step/Run chain and a couple of extra Job states for preview navigation." : nil,
-        cost_usd: step.kind.in?(%w[implement summarize test_plan]) ? 0.0421 : nil,
-        input_tokens: step.kind.in?(%w[implement summarize test_plan]) ? 18342 : nil,
-        output_tokens: step.kind.in?(%w[implement summarize test_plan]) ? 1211 : nil
-      )
+  steps.each do |step|
+    run = step.runs.order(:id).first || Run.new(step: step, job: implemented_job)
+    run.assign_attributes(
+      job: implemented_job,
+      user: demo_user,
+      step: step,
+      trigger_kind: "initial",
+      agent_provider: "codex",
+      state: "succeeded",
+      iteration: 1,
+      started_at: step.started_at,
+      finished_at: step.finished_at,
+      base_sha: "a1b2c3d",
+      head_sha: "e5f6a7b",
+      prompt: step.kind == "implement" ? "Broaden db/seeds.rb so the preview has richer Job/Workflow/Step/Run data to click through." : nil,
+      agent_diff: step.kind == "implement" ? implement_diff : nil,
+      agent_summary: step.kind == "summarize" ? "Broadened db/seeds.rb with a full Workflow/Step/Run chain and two additional Job states." : nil,
+      agent_pr_title: step.kind == "summarize" ? "Inspect preview dashboard states" : nil,
+      agent_pr_body: step.kind == "summarize" ? "Seeds a representative Workflow/Step/Run chain and a couple of extra Job states for preview navigation." : nil,
+      cost_usd: step.kind.in?(%w[implement summarize test_plan]) ? 0.0421 : nil,
+      input_tokens: step.kind.in?(%w[implement summarize test_plan]) ? 18342 : nil,
+      output_tokens: step.kind.in?(%w[implement summarize test_plan]) ? 1211 : nil
+    )
+    run.save!
 
-      next unless step.kind == "implement"
+    next unless step.kind == "implement"
+    next if JobLog.where(run: run, kind: "agent").exists?
 
-      JobLog.append!(run: run, kind: "agent", chunk: "Reviewing db/seeds.rb for preview coverage gaps.")
-      JobLog.append!(run: run, kind: "agent", chunk: "Adding a full Workflow/Step/Run chain for the implemented demo job, plus queued/approved demo jobs.")
-    end
+    JobLog.append!(run: run, kind: "agent", chunk: "Reviewing db/seeds.rb for preview coverage gaps.")
+    JobLog.append!(run: run, kind: "agent", chunk: "Adding a full Workflow/Step/Run chain for the implemented demo job, plus queued/approved demo jobs.")
   end
 
   # The seeded "failed" Job also gets a real (failed) Workflow/Step chain --

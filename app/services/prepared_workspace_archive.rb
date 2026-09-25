@@ -156,7 +156,8 @@ class PreparedWorkspaceArchive
   def archive_pipeline
     Open3.pipeline_r(
       ["tar", "--exclude=./.syrus/immutable-checkouts", "-cf", "-", "-C", @path.to_s, "."],
-      compressor_command
+      compressor_command,
+      err: File::NULL
     )
   end
 
