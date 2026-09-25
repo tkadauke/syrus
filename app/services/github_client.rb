@@ -645,30 +645,51 @@ class GithubClient
   # false positives from prose mentions. `includeClosedPrs: false`
   # filters merged/closed PRs at the API layer.
   def linked_open_pr_for_issue(repo_slug, issue_number)
+    linked_open_prs_for_issues(repo_slug, [ issue_number ])[issue_number]
+  end
+
+  def linked_open_prs_for_issues(repo_slug, issue_numbers)
+    numbers = Array(issue_numbers).filter_map { |number| Integer(number, exception: false) }.select(&:positive?).uniq
+    return {} if numbers.empty?
+
     owner, name = repo_slug.split("/", 2)
-    query = <<~GQL
-      query($owner: String!, $name: String!, $number: Int!) {
-        repository(owner: $owner, name: $name) {
-          issue(number: $number) {
-            closedByPullRequestsReferences(first: 5, includeClosedPrs: false) {
-              nodes { number url state }
-            }
+    variables = { owner: owner, name: name }
+    issue_fields = numbers.each_with_index.map do |number, index|
+      variable = "issue#{index}"
+      variables[variable.to_sym] = number
+      <<~GQL
+        #{variable}: issue(number: $#{variable}) {
+          closedByPullRequestsReferences(first: 5, includeClosedPrs: false) {
+            nodes { number url state }
           }
+        }
+      GQL
+    end.join("\n")
+    issue_variables = numbers.each_index.map { |index| "$issue#{index}: Int!" }.join(", ")
+    query = <<~GQL
+      query($owner: String!, $name: String!, #{issue_variables}) {
+        repository(owner: $owner, name: $name) {
+          #{issue_fields}
         }
       }
     GQL
-    body = { query: query, variables: { owner: owner, name: name, number: issue_number } }
+    body = { query: query, variables: variables }
     result = track_rate_limits { @client.post("/graphql", body.to_json) }
     # Sawyer preserves the GraphQL camelCase keys verbatim — access via
     # method-missing on that name. dig with the symbol is the safest
     # null-tolerant traversal.
-    nodes = result.to_h.dig(:data, :repository, :issue, :closedByPullRequestsReferences, :nodes)
-    return nil unless nodes
-    pr = nodes.find { |n| (n[:state] || n["state"]).to_s == "OPEN" }
-    return nil unless pr
-    { number: pr[:number] || pr["number"], url: pr[:url] || pr["url"] }
+    repository = result.to_h.dig(:data, :repository) || {}
+    numbers.each_with_index.each_with_object({}) do |(number, index), linked|
+      nodes = repository.dig(:"issue#{index}", :closedByPullRequestsReferences, :nodes)
+      next unless nodes
+
+      pr = nodes.find { |node| (node[:state] || node["state"]).to_s == "OPEN" }
+      next unless pr
+
+      linked[number] = { number: pr[:number] || pr["number"], url: pr[:url] || pr["url"] }
+    end
   rescue Octokit::TooManyRequests => e
-    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}##{issue_number} linked-PR lookup: #{e.message}")
+    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} linked-PR lookup: #{e.message}")
     raise
   end
 

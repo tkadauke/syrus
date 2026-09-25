@@ -67,6 +67,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     client = instance_double(GithubClient)
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ inbox_issue, delegated_issue ])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
+    expect(client).to receive(:linked_open_prs_for_issues).with("acme/widgets", [ 1 ]).and_return({})
     allow(GithubClient).to receive(:for).and_return(client)
 
     get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "inbox" }
@@ -85,6 +86,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     client = instance_double(GithubClient)
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ matching, other ])
     expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
+    expect(client).to receive(:linked_open_prs_for_issues).with("acme/widgets", [ 1 ]).and_return({})
     allow(GithubClient).to receive(:for).and_return(client)
 
     get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "open", q: encoded_query_filter("forum") }
@@ -95,6 +97,30 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     expect(body["issue_count"]).to eq(1)
     expect(body["issues"].map { |issue| issue["number"] }).to eq([ 1 ])
     expect(body["folder_counts"]["open"]).to eq(2)
+  end
+
+
+  it "links open pull requests connected to displayed GitHub issues" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
+    linked_issue = fake_issue(number: 274, title: "Alert logbook too verbose", labels: [])
+    unlinked_issue = fake_issue(number: 307, title: "Deploy script reports success", labels: [])
+    client = instance_double(GithubClient)
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "open").and_return([ linked_issue, unlinked_issue ])
+    expect(client).to receive(:list_all_issues).with("acme/widgets", state: "closed").and_return([])
+    expect(client).to receive(:linked_open_prs_for_issues).with("acme/widgets", [ 274, 307 ]).and_return({
+      274 => { number: 411, url: "https://github.com/acme/widgets/pull/411" }
+    })
+    allow(GithubClient).to receive(:for).and_return(client)
+
+    get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "open" }
+
+    issues = parse_body["issues"].index_by { |issue| issue["number"] }
+    expect(issues.fetch(274)["linked_pull_request"]).to eq({
+      "number" => 411,
+      "url" => "https://github.com/acme/widgets/pull/411"
+    })
+    expect(issues.fetch(307)["linked_pull_request"]).to be_nil
   end
 
 

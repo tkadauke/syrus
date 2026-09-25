@@ -1011,7 +1011,7 @@ RSpec.describe GithubClient do
     end
 
     it "returns {number, url} for the first OPEN linked PR" do
-      stub_graphql(data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [
+      stub_graphql(data: { repository: { issue0: { closedByPullRequestsReferences: { nodes: [
         { number: 7, url: "https://github.com/acme/widgets/pull/7", state: "OPEN" }
       ] } } } })
 
@@ -1019,18 +1019,38 @@ RSpec.describe GithubClient do
       expect(result).to eq(number: 7, url: "https://github.com/acme/widgets/pull/7")
     end
 
+    it "returns linked open PRs for multiple issues in one GraphQL call" do
+      stub_graphql(data: { repository: {
+        issue0: { closedByPullRequestsReferences: { nodes: [
+          { number: 7, url: "https://github.com/acme/widgets/pull/7", state: "OPEN" }
+        ] } },
+        issue1: { closedByPullRequestsReferences: { nodes: [] } },
+        issue2: { closedByPullRequestsReferences: { nodes: [
+          { number: 8, url: "https://github.com/acme/widgets/pull/8", state: "CLOSED" },
+          { number: 9, url: "https://github.com/acme/widgets/pull/9", state: "OPEN" }
+        ] } }
+      } })
+
+      result = client.linked_open_prs_for_issues("acme/widgets", [ 42, 43, 44 ])
+
+      expect(result).to eq({
+        42 => { number: 7, url: "https://github.com/acme/widgets/pull/7" },
+        44 => { number: 9, url: "https://github.com/acme/widgets/pull/9" }
+      })
+    end
+
     it "returns nil when there are no linked PRs" do
-      stub_graphql(data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [] } } } })
+      stub_graphql(data: { repository: { issue0: { closedByPullRequestsReferences: { nodes: [] } } } })
       expect(client.linked_open_pr_for_issue("acme/widgets", 42)).to be_nil
     end
 
     it "returns nil when the issue path resolves to nil (e.g. issue deleted between calls)" do
-      stub_graphql(data: { repository: { issue: nil } })
+      stub_graphql(data: { repository: { issue0: nil } })
       expect(client.linked_open_pr_for_issue("acme/widgets", 42)).to be_nil
     end
 
     it "skips non-OPEN states defensively (in case the API returns one despite includeClosedPrs:false)" do
-      stub_graphql(data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [
+      stub_graphql(data: { repository: { issue0: { closedByPullRequestsReferences: { nodes: [
         { number: 5, url: "https://github.com/acme/widgets/pull/5", state: "CLOSED" }
       ] } } } })
 
@@ -1039,9 +1059,9 @@ RSpec.describe GithubClient do
 
     it "sends the right GraphQL query (variables include owner/name/number)" do
       stub = stub_request(:post, "https://api.github.com/graphql")
-        .with(body: hash_including("variables" => { "owner" => "acme", "name" => "widgets", "number" => 42 }))
+        .with(body: hash_including("variables" => { "owner" => "acme", "name" => "widgets", "issue0" => 42 }))
         .to_return(status: 200, headers: { "Content-Type" => "application/json" },
-                   body: { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [] } } } } }.to_json)
+                   body: { data: { repository: { issue0: { closedByPullRequestsReferences: { nodes: [] } } } } }.to_json)
 
       client.linked_open_pr_for_issue("acme/widgets", 42)
       expect(stub).to have_been_requested
