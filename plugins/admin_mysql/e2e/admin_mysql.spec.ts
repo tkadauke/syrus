@@ -151,6 +151,8 @@ test("Admin MySQL plugin renders live diagnostics and guarded query termination"
     // more -- assert on the page we actually land on. `pluginCard` is not used
     // past this block.
     await expect(page.getByRole("button", { name: "Disable" }).first()).toBeVisible({ timeout: 60_000 })
+    await expect(page).toHaveURL(/\/admin\/plugins\/admin_mysql$/)
+    await expect(page.getByRole("main", { name: "Plugin detail" }).getByRole("heading", { level: 1, name: "Admin MySQL" })).toBeVisible()
   }
 
   // The preview database is SQLite, so AdminMysql::AdminPages intentionally
