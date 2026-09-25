@@ -736,13 +736,13 @@ class ImmutableSourceCheckout
     attr_reader :root
 
     def node_manifest
-      return nil unless root.join("node_modules").directory?
+      return nil unless node_artifacts_expected?
 
       {
         "lockfile" => node_lockfile&.basename&.to_s,
         "lockfile_sha256" => node_lockfile && Digest::SHA256.file(node_lockfile).hexdigest,
         "package_json_sha256" => package_json_sha256,
-        "bins" => installed_node_bins
+        "bins" => expected_node_bins
       }.compact
     end
 
@@ -793,6 +793,26 @@ class ImmutableSourceCheckout
       Digest::SHA256.file(package_json).hexdigest
     end
 
+    def expected_node_bins
+      package_lock_declared_bins.presence || installed_node_bins
+    end
+
+    def package_lock_declared_bins
+      package_lock = root.join("package-lock.json")
+      return [] unless package_lock.file?
+
+      packages = JSON.parse(package_lock.read)["packages"]
+      return [] unless packages.is_a?(Hash)
+
+      packages.flat_map do |package_path, package|
+        next [] unless package_path.to_s.start_with?("node_modules/")
+
+        node_bin_paths(package, fallback_name: package_path.to_s.delete_prefix("node_modules/"))
+      end.uniq.sort
+    rescue JSON::ParserError
+      []
+    end
+
     def installed_node_bins
       node_modules = root.join("node_modules")
       package_json_paths = node_modules.children.select(&:directory?).flat_map do |entry|
@@ -812,12 +832,20 @@ class ImmutableSourceCheckout
 
     def bins_for_package(path)
       package = JSON.parse(path.read)
+      node_bin_paths(package, fallback_name: package["name"])
+    rescue Errno::ENOENT, JSON::ParserError
+      []
+    end
+
+    def node_bin_paths(package, fallback_name:)
+      return [] unless package.is_a?(Hash)
+
       raw = package["bin"]
       names =
         if raw.is_a?(Hash)
           raw.keys
         elsif raw.is_a?(String)
-          [ package["name"] ]
+          [ fallback_name ]
         else
           []
         end
@@ -827,8 +855,6 @@ class ImmutableSourceCheckout
 
         "node_modules/.bin/#{name}"
       end
-    rescue Errno::ENOENT, JSON::ParserError
-      []
     end
   end
 end
