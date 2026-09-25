@@ -41,6 +41,8 @@ RSpec.describe K8sCluster::WorkflowToolSet do
       "k8s_cluster_daemonsets",
       "k8s_cluster_jobs",
       "k8s_cluster_services",
+      "k8s_cluster_configmaps",
+      "k8s_cluster_secrets",
       "k8s_cluster_events",
       "k8s_cluster_pvcs",
       "k8s_cluster_cronjobs",

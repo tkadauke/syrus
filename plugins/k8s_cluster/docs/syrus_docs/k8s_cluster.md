@@ -227,6 +227,8 @@ GET .../kubernetes_clusters/:id/services[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/endpoints[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/events[?namespace=]
 GET .../kubernetes_clusters/:id/pvcs[?namespace=][?name=&namespace=]
+GET .../kubernetes_clusters/:id/configmaps[?namespace=][?name=&namespace=]
+GET .../kubernetes_clusters/:id/secrets[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/nodes[?name=]
 GET .../kubernetes_clusters/:id/cronjobs[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/overview
@@ -271,6 +273,11 @@ mirroring `mysql_db_browser`'s connections-list-to-schema-browser flow:
   needs.
 - **Storage** - PersistentVolumeClaims with bound status, capacity, and
   storage class.
+- **Config** - ConfigMaps and Secrets over the shared namespace filter,
+  each with key counts, expandable key names, and an age column. Secret
+  values are never displayed: the API returns metadata only (name,
+  namespace, type, key names, `created_at`), stated in a note above the
+  Secrets table.
 - **Nodes** - the cluster-scoped node list with readiness, roles,
   capacity, and allocatable capacity.
 - **Events** - namespaced/cluster events as returned by `Events#list`
@@ -287,7 +294,7 @@ mirroring `mysql_db_browser`'s connections-list-to-schema-browser flow:
 
 A shared namespace filter (`ClusterBrowser`'s `NamespacePicker`, populated
 from `Namespaces#list`) appears only for the namespace-scoped tabs
-(Workloads/Services/Storage/Events/Logs); Overview and Nodes are always
+(Workloads/Services/Storage/Config/Events/Logs); Overview and Nodes are always
 cluster-wide. The top-level tab switcher and the namespace/workload-kind/
 pod/container pickers all use the same toolbar dropdown control
 (`components/Dropdown.tsx`, a button+listbox pattern) per CLAUDE.md's
@@ -301,7 +308,7 @@ Each `KubernetesCluster` carries its own `agentic_access_enabled` opt-in
 (surfaced as a checkbox on the connection create/edit form, default `false`),
 independent of the plugin's own enable/disable toggle. When set, that
 specific cluster becomes browsable read-only by workflow and chat agents
-through fourteen read-only MCP tools (plus four write tools gated separately -
+through sixteen read-only MCP tools (plus four write tools gated separately -
 see "Write-capable agentic tools" below) exposed via `mcp_tool_set`/`chat_mcp_tool_set`
 (`K8sCluster::WorkflowToolSet` / `K8sCluster::ChatToolSet`,
 `plugins/k8s_cluster/app/services/k8s_cluster/{workflow,chat}_tool_set.rb`),
@@ -318,13 +325,17 @@ mirroring `mysql_db_browser`'s own MCP tool sets:
 - `k8s_cluster_pods` / `k8s_cluster_deployments` /
   `k8s_cluster_statefulsets` / `k8s_cluster_daemonsets` / `k8s_cluster_jobs` /
   `k8s_cluster_services` /
-  `k8s_cluster_pvcs` / `k8s_cluster_cronjobs` - list or describe the
+  `k8s_cluster_pvcs` / `k8s_cluster_cronjobs` /
+  `k8s_cluster_configmaps` - list or describe the
   namespace-scoped kinds. Omitting `namespace` lists across every namespace
   (matching `kubectl get <kind> -A`); passing `name` describes a single
   object and requires `namespace` alongside it (rejected with a
   `namespace is required` tool error otherwise) - the same list-vs-describe
   contract `KubernetesResourcesController` uses for the browsing UI's
   endpoints.
+- `k8s_cluster_secrets` - list or describe Secrets redacted server-side:
+  metadata only (name, namespace, type, key names, `created_at`) - secret
+  data values never appear in any payload, log, or tool response.
 - `k8s_cluster_events` - list-only, `namespace` optional, most-recent-first
   (an individual Event has no useful describe beyond its list row).
 - `k8s_cluster_pod_logs` - a pod's log tail via `Pods#logs`; `container` is
