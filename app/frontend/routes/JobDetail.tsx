@@ -2,12 +2,13 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { DeploymentStagePipeline } from "../components/DeploymentStagePipeline"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { subscribeToJobResourceEvents } from "../lib/actionCable"
-import type { FormEvent } from "react"
+import type { FormEvent, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { KeyValue } from "../components/KeyValue"
+import { ChevronIcon } from "../components/ChevronIcon"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
@@ -755,53 +756,7 @@ function SummaryTab({
     <div className="space-y-4">
       <NeedsAttentionBanner job={payload.job} />
       <TriageDecisionBanner job={payload.job} />
-      {payload.merge_train_status ? <JobMergeTrainPanel payload={payload} /> : null}
-      {payload.landing_queue_entry ? (
-        <PanelMessage>
-          {payload.landing_queue_entry.position ? t("landing_queue_position", { position: payload.landing_queue_entry.position }) : t("landing_queue")}
-          {payload.landing_queue_entry.blocked_reason ? (
-            <>
-              {" ("}
-              {translateBlockedReason(payload.landing_queue_entry.blocked_reason, t)}
-              {payload.landing_queue_entry.blocked_reason.key === "auto_merge_not_enabled" ? (
-                <>
-                  {" — "}
-                  <Link
-                    className="font-medium text-brand underline hover:no-underline"
-                    to={withRoutePrefix(`${payload.repository.edit_repository_path}#auto-merge`, prefix)}
-                  >
-                    {t("landing_queue_enable_auto_merge")}
-                  </Link>
-                </>
-              ) : null}
-              {")"}
-            </>
-          ) : (
-            ""
-          )}
-          {payload.landing_queue_entry.waiting_for_jobs.length > 0 ? (
-            <>
-              {" "}
-              {t("landing_queue_waiting_for")}{" "}
-              {payload.landing_queue_entry.waiting_for_jobs.map((job, index) => (
-                <span key={job.id}>
-                  {index > 0 ? ", " : null}
-                  <Link className="font-medium text-brand underline hover:no-underline" to={`${prefix}${job.job_path}`}>
-                    {job.label} {job.title}
-                  </Link>
-                </span>
-              ))}
-            </>
-          ) : null}
-        </PanelMessage>
-      ) : null}
-      {payload.job.landing_failure_reason ? (
-        <PanelMessage tone="error">{t("landing_failed", { reason: payload.job.landing_failure_reason })}</PanelMessage>
-      ) : null}
-      <PrChecksBanner command={command} payload={payload} />
-      <StartBlockedPanel payload={payload} />
-      <RetryStatePanel payload={payload} />
-      {showUnsatisfiedDependencies ? <UnsatisfiedDependencies command={command} payload={payload} /> : null}
+      <JobSummaryNotices command={command} payload={payload} prefix={prefix} showUnsatisfiedDependencies={showUnsatisfiedDependencies} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[62%_38%]">
         <div className="min-w-0 space-y-4">
@@ -1441,6 +1396,98 @@ function feedbackTriggerLabel(triggerKind: string, t: ReturnType<typeof useT>["t
   return triggerKind.replaceAll("_", " ")
 }
 
+type JobSummaryNotice = {
+  id: string
+  node: ReactNode
+}
+
+function JobSummaryNotices({
+  command,
+  payload,
+  prefix,
+  showUnsatisfiedDependencies
+}: {
+  command: JobCommand
+  payload: JobDetailPayload
+  prefix: string
+  showUnsatisfiedDependencies: boolean
+}) {
+  const { t } = useT("jobs")
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const notices = jobSummaryNotices({ command, payload, prefix, showUnsatisfiedDependencies })
+  const activeIndex = Math.min(currentIndex, Math.max(notices.length - 1, 0))
+  const notice = notices[activeIndex]
+  const hasMultiple = notices.length > 1
+
+  useEffect(() => {
+    if (currentIndex >= notices.length) {
+      setCurrentIndex(Math.max(notices.length - 1, 0))
+    }
+  }, [currentIndex, notices.length])
+
+  if (!notice) return null
+
+  return (
+    <section aria-label={t("summary_notices")} className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-secondary">
+        <span className="font-medium">{t("summary_notice_position", { index: activeIndex + 1, count: notices.length })}</span>
+        {hasMultiple ? (
+          <div className="flex items-center gap-1">
+            <button
+              aria-label={t("previous_notice")}
+              className="inline-flex h-7 w-7 items-center justify-center rounded border border-border bg-surface hover:bg-surface-muted disabled:opacity-40"
+              onClick={() => setCurrentIndex((index) => (index - 1 + notices.length) % notices.length)}
+              type="button"
+            >
+              <ChevronIcon className="h-4 w-4 rotate-180" />
+            </button>
+            <button
+              aria-label={t("next_notice")}
+              className="inline-flex h-7 w-7 items-center justify-center rounded border border-border bg-surface hover:bg-surface-muted disabled:opacity-40"
+              onClick={() => setCurrentIndex((index) => (index + 1) % notices.length)}
+              type="button"
+            >
+              <ChevronIcon className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <div key={notice.id}>{notice.node}</div>
+    </section>
+  )
+}
+
+function jobSummaryNotices({
+  command,
+  payload,
+  prefix,
+  showUnsatisfiedDependencies
+}: {
+  command: JobCommand
+  payload: JobDetailPayload
+  prefix: string
+  showUnsatisfiedDependencies: boolean
+}): JobSummaryNotice[] {
+  const notices: JobSummaryNotice[] = []
+  const mergeTrainFailed = payload.merge_train_status?.phase === "failed"
+  const prChecksFailing = payload.job.pr_checks?.state === "failing"
+  const prChecksPending = payload.job.pr_checks?.state === "pending"
+
+  if (mergeTrainFailed) notices.push({ id: "merge-train", node: <JobMergeTrainPanel payload={payload} /> })
+  if (payload.job.landing_failure_reason) notices.push({ id: "landing-failed", node: <LandingFailedPanel payload={payload} /> })
+  if (prChecksFailing) notices.push({ id: "pr-checks", node: <PrChecksBanner command={command} payload={payload} /> })
+  if (payload.job.start_blocked_reason && !mainHealthBannerVisible(payload)) notices.push({ id: "start-blocked", node: <StartBlockedPanel payload={payload} /> })
+  if (showUnsatisfiedDependencies) notices.push({ id: "dependencies", node: <UnsatisfiedDependencies command={command} payload={payload} /> })
+  if (payload.merge_train_status && !mergeTrainFailed) notices.push({ id: "merge-train", node: <JobMergeTrainPanel payload={payload} /> })
+  if (payload.landing_queue_entry) notices.push({ id: "landing-queue", node: <LandingQueuePanel payload={payload} prefix={prefix} /> })
+  if (prChecksPending) notices.push({ id: "pr-checks", node: <PrChecksBanner command={command} payload={payload} /> })
+  if (payload.job.retry_state && (payload.job.retry_state.state_label !== "No failure" || payload.job.retry_state.classification)) {
+    notices.push({ id: "retry-state", node: <RetryStatePanel payload={payload} /> })
+  }
+
+  return notices
+}
+
 function JobMergeTrainPanel({ payload }: { payload: JobDetailPayload }) {
   const { t } = useT("jobs")
   const status = payload.merge_train_status
@@ -1466,6 +1513,59 @@ function jobMergeTrainDetail(status: NonNullable<JobDetailPayload["merge_train_s
   if (status.reconciliation?.result === "failed") return t("merge_train_reconcile_failed")
   if (status.current_step_label) return t("merge_train_current_step", { step: status.current_step_label })
   return t("merge_train_running")
+}
+
+function LandingQueuePanel({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
+  const { t } = useT("jobs")
+  const entry = payload.landing_queue_entry
+  if (!entry) return null
+
+  return (
+    <PanelMessage>
+      {entry.position ? t("landing_queue_position", { position: entry.position }) : t("landing_queue")}
+      {entry.blocked_reason ? (
+        <>
+          {" ("}
+          {translateBlockedReason(entry.blocked_reason, t)}
+          {entry.blocked_reason.key === "auto_merge_not_enabled" ? (
+            <>
+              {" — "}
+              <Link
+                className="font-medium text-brand underline hover:no-underline"
+                to={withRoutePrefix(`${payload.repository.edit_repository_path}#auto-merge`, prefix)}
+              >
+                {t("landing_queue_enable_auto_merge")}
+              </Link>
+            </>
+          ) : null}
+          {")"}
+        </>
+      ) : (
+        ""
+      )}
+      {entry.waiting_for_jobs.length > 0 ? (
+        <>
+          {" "}
+          {t("landing_queue_waiting_for")}{" "}
+          {entry.waiting_for_jobs.map((job, index) => (
+            <span key={job.id}>
+              {index > 0 ? ", " : null}
+              <Link className="font-medium text-brand underline hover:no-underline" to={`${prefix}${job.job_path}`}>
+                {job.label} {job.title}
+              </Link>
+            </span>
+          ))}
+        </>
+      ) : null}
+    </PanelMessage>
+  )
+}
+
+function LandingFailedPanel({ payload }: { payload: JobDetailPayload }) {
+  const { t } = useT("jobs")
+  if (!payload.job.landing_failure_reason) return null
+
+  return <PanelMessage tone="error">{t("landing_failed", { reason: payload.job.landing_failure_reason })}</PanelMessage>
 }
 
 function PrChecksBanner({ command, payload }: { command: JobCommand; payload: JobDetailPayload }) {
@@ -1586,6 +1686,8 @@ function PrCheckAttributionDetail({ attribution }: { attribution: JobPrCheckAttr
 // is `running`, so the one banner that would have explained the wait was the
 // one surface guaranteed not to show it. The gate is now the block itself.
 const MAIN_HEALTH_REASONS = [ "main_branch_health", "main_branch_broken" ]
+const EPIC_DEPENDENCY_NO_MATCHES_CLASS = "absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"
+const ATTACHMENT_REMOVE_BUTTON_CLASS = "absolute right-2 top-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:text-red-300 dark:hover:bg-red-950/40"
 
 function mainHealthBannerVisible(payload: JobDetailPayload) {
   if (payload.job.state === "closed" || payload.job.state === "failed") return false
@@ -2053,7 +2155,7 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                     ))}
                   </div>
                 ) : trimmedQuery.length > 0 ? (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">
+                  <div className={EPIC_DEPENDENCY_NO_MATCHES_CLASS}>
                     {t("dependency_no_matches")}
                   </div>
                 ) : null}
@@ -2232,7 +2334,7 @@ function AttachmentsTab({
             <div className="relative" key={attachment.id}>
               <AttachmentCard attachment={attachment} />
               <button
-                className="absolute right-2 top-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:text-red-300 dark:hover:bg-red-950/40"
+                className={ATTACHMENT_REMOVE_BUTTON_CLASS}
                 disabled={remove.isPending}
                 onClick={() => remove.mutate(attachment.app_delete_path)}
                 type="button"
