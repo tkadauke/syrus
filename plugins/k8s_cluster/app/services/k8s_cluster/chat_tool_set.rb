@@ -28,6 +28,7 @@ module K8sCluster
       DaemonSetsTool,
       JobsTool,
       ServicesTool,
+      IngressesTool,
       ConfigMapsTool,
       SecretsTool,
       EventsTool,

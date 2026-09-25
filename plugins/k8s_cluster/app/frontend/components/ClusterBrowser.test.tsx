@@ -145,6 +145,23 @@ const DEFAULT_SERVICES = {
   ]
 }
 
+const DEFAULT_INGRESSES = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  ingresses: [
+    {
+      name: "web",
+      namespace: "default",
+      ingress_class: "nginx",
+      hosts: ["web.example.com"],
+      rules: [{ host: "web.example.com", paths: [{ path: "/", path_type: "Prefix", service_name: "web", service_port: 80 }] }],
+      tls_hosts: ["web.example.com"],
+      created_at: GENERATED_AT
+    }
+  ]
+}
+
 const DEFAULT_ENDPOINTS = {
   available: true,
   generated_at: GENERATED_AT,
@@ -249,6 +266,7 @@ type ResourceKey =
   | "jobs"
   | "cronjobs"
   | "services"
+  | "ingresses"
   | "endpoints"
   | "configmaps"
   | "secrets"
@@ -281,6 +299,7 @@ function setupFetchMock(overrides: Partial<Record<ResourceKey, unknown>> = {}, e
     if (/\/jobs$/.test(path)) return respond("jobs", DEFAULT_JOBS)
     if (/\/cronjobs$/.test(path)) return respond("cronjobs", DEFAULT_CRONJOBS)
     if (/\/services$/.test(path)) return respond("services", DEFAULT_SERVICES)
+    if (/\/ingresses$/.test(path)) return respond("ingresses", DEFAULT_INGRESSES)
     if (/\/endpoints$/.test(path)) return respond("endpoints", DEFAULT_ENDPOINTS)
     if (/\/configmaps$/.test(path)) return respond("configmaps", DEFAULT_CONFIGMAPS)
     if (/\/secrets$/.test(path)) return respond("secrets", DEFAULT_SECRETS)
@@ -581,6 +600,58 @@ describe("ClusterBrowser", () => {
       await switchTab("Services")
 
       expect(await screen.findByText("boom-services")).toBeInTheDocument()
+    })
+
+    it("switches to ingresses via the network kind dropdown, tracing hosts to backing services", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Services")
+      await screen.findByText("web")
+
+      fireEvent.click(screen.getByRole("button", { name: "Network kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Ingresses" }))
+
+      expect(await screen.findByText("web.example.com")).toBeInTheDocument()
+      expect(screen.getByText("web:80")).toBeInTheDocument()
+      expect(screen.getByText("nginx")).toBeInTheDocument()
+    })
+
+    it("shows the empty state when there are no ingresses", async () => {
+      setupFetchMock({ ingresses: { available: true, generated_at: GENERATED_AT, truncated: false, ingresses: [] } })
+      renderBrowser()
+      await switchTab("Services")
+
+      fireEvent.click(screen.getByRole("button", { name: "Network kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Ingresses" }))
+
+      expect(await screen.findByText("No ingresses found.")).toBeInTheDocument()
+    })
+
+    it("shows an error when ingresses fail to load", async () => {
+      setupFetchMock({}, { ingresses: 502 })
+      renderBrowser()
+      await switchTab("Services")
+
+      fireEvent.click(screen.getByRole("button", { name: "Network kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Ingresses" }))
+
+      expect(await screen.findByText("boom-ingresses")).toBeInTheDocument()
+    })
+
+    it("re-fetches ingresses scoped to the selected namespace", async () => {
+      const { calls } = setupFetchMock()
+      renderBrowser()
+      await switchTab("Services")
+
+      fireEvent.click(screen.getByRole("button", { name: "Network kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Ingresses" }))
+      await screen.findByText("web.example.com")
+
+      fireEvent.click(screen.getByRole("button", { name: "Namespace" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default" }))
+
+      await screen.findByText("web.example.com")
+      expect(calls.some((url) => url.includes("/ingresses?namespace=default"))).toBe(true)
     })
   })
 
