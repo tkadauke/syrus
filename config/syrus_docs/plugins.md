@@ -3141,7 +3141,7 @@ Bundled plugins:
   (`Python::DependencyAuditCommand` — `pip-audit`, gated on
   `uv.lock`/`poetry.lock`/`requirements.txt`).
 - `go` — default-enabled. Provides `:prepare_detector` for Go repos: `go.mod`
-  → `go mod download` (`prepare_priority: 40`). Does not provide a custom
+  → `GOWORK=off go mod download` (`prepare_priority: 40`). Does not provide a custom
   `:test_result_parser` — plain `gotestsum --junitfile=report.xml ./...`
   output is already handled by core's `JunitXmlParser` fallback, same as the
   `python` plugin's `pytest --junitxml=` case, via `.syrus.yml` wiring only.
