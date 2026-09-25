@@ -10,7 +10,7 @@ import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
 import { Select } from "../components/Select"
 import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
-import { Page } from "../components/ui"
+import { DataTable, Page } from "../components/ui"
 import {
   fetchAdminUser,
   fetchAdminUsers,
@@ -331,21 +331,17 @@ function RecentTable({ title, rows }: { title: string; rows: ReactNode[][] }) {
       {rows.length === 0 ? (
         <PanelMessage>{t("users.no_rows")}</PanelMessage>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {rows.map((row, rowIndex) => (
-                <tr key={rowIndex}>
-                  {row.map((cell, cellIndex) => (
-                    <td className="px-4 py-2" key={cellIndex}>
-                      {cell}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable.Root wrapperClassName="rounded-none border-0">
+          <DataTable.Body>
+            {rows.map((row, rowIndex) => (
+              <DataTable.Row key={rowIndex}>
+                {row.map((cell, cellIndex) => (
+                  <DataTable.Cell key={cellIndex}>{cell}</DataTable.Cell>
+                ))}
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
       )}
     </section>
   )

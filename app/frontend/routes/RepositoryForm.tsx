@@ -41,7 +41,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
 import { Button } from "../components/Button"
 import { Checkbox as CheckboxPrimitive } from "../components/Checkbox"
-import { Form, Surface, Text } from "../components/ui"
+import { DataTable, Form, Surface, Text } from "../components/ui"
 import { useConfirm } from "../hooks/useConfirm"
 import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
 
@@ -970,28 +970,22 @@ function CredentialModeComparison() {
   ]
 
   return (
-    <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-xs uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2 text-left">
-              {t('repository_form.pat_only')}
-            </th>
-            <th className="px-4 py-2 text-left">
-              {t('repository_form.app_installed')}
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {rows.map(([pat, app]) => (
-            <tr key={pat}>
-              <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{pat}</td>
-              <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{app}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable.Root>
+      <DataTable.Header>
+        <DataTable.Row>
+          <DataTable.HeadCell>{t('repository_form.pat_only')}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t('repository_form.app_installed')}</DataTable.HeadCell>
+        </DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
+        {rows.map(([pat, app]) => (
+          <DataTable.Row key={pat}>
+            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{pat}</DataTable.Cell>
+            <DataTable.Cell className="text-gray-700 dark:text-gray-300">{app}</DataTable.Cell>
+          </DataTable.Row>
+        ))}
+      </DataTable.Body>
+    </DataTable.Root>
   )
 }
 

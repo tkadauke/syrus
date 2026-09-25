@@ -20,7 +20,7 @@ import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Markdown } from "../lib/Markdown"
 import * as pageReload from "../lib/pageReload"
-import { Page } from "../components/ui"
+import { DataTable, Page } from "../components/ui"
 
 export function AdminPlugins() {
   const { t } = useT("admin")
@@ -410,38 +410,36 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
               filter/reorder -- same reasoning as ExtensionPointsTable below. */}
           <DetailSection title={t("plugins.metrics_heading")}>
             {(plugin.metrics || []).length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-gray-200 text-xs uppercase text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                    <tr>
-                      <th className="py-2 pr-4 font-medium">{t("plugins.col_metric")}</th>
-                      <th className="py-2 pr-4 font-medium">{t("plugins.col_type")}</th>
-                      <th className="py-2 pr-4 font-medium">{t("plugins.col_tags")}</th>
-                      <th className="py-2 font-medium">{t("plugins.col_availability")}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {(plugin.metrics || []).map((metric) => (
-                      <tr key={metric.name}>
-                        <td className="py-3 pr-4">
-                          <div className="font-mono text-xs text-gray-800 dark:text-gray-100">{metric.name}</div>
-                          {metric.comment ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{metric.comment}</div> : null}
-                        </td>
-                        <td className="py-3 pr-4 font-mono text-xs text-gray-700 dark:text-gray-200">{metric.type}</td>
-                        <td className="py-3 pr-4 font-mono text-xs text-gray-700 dark:text-gray-200">
-                          {metric.tags.length > 0 ? metric.tags.join(", ") : "-"}
-                        </td>
-                        <td className="py-3">
-                          <StatusBadge
-                            status={metric.available ? "available" : "disabled"}
-                            label={metric.available ? t("plugins.metric_available") : t("plugins.metric_unavailable")}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable.Root>
+                <DataTable.Header>
+                  <DataTable.Row>
+                    <DataTable.HeadCell>{t("plugins.col_metric")}</DataTable.HeadCell>
+                    <DataTable.HeadCell>{t("plugins.col_type")}</DataTable.HeadCell>
+                    <DataTable.HeadCell>{t("plugins.col_tags")}</DataTable.HeadCell>
+                    <DataTable.HeadCell>{t("plugins.col_availability")}</DataTable.HeadCell>
+                  </DataTable.Row>
+                </DataTable.Header>
+                <DataTable.Body>
+                  {(plugin.metrics || []).map((metric) => (
+                    <DataTable.Row key={metric.name}>
+                      <DataTable.Cell>
+                        <div className="font-mono text-xs text-gray-800 dark:text-gray-100">{metric.name}</div>
+                        {metric.comment ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{metric.comment}</div> : null}
+                      </DataTable.Cell>
+                      <DataTable.Cell className="font-mono text-xs text-gray-700 dark:text-gray-200">{metric.type}</DataTable.Cell>
+                      <DataTable.Cell className="font-mono text-xs text-gray-700 dark:text-gray-200">
+                        {metric.tags.length > 0 ? metric.tags.join(", ") : "-"}
+                      </DataTable.Cell>
+                      <DataTable.Cell>
+                        <StatusBadge
+                          status={metric.available ? "available" : "disabled"}
+                          label={metric.available ? t("plugins.metric_available") : t("plugins.metric_unavailable")}
+                        />
+                      </DataTable.Cell>
+                    </DataTable.Row>
+                  ))}
+                </DataTable.Body>
+              </DataTable.Root>
             ) : (
               <EmptyText>{t("plugins.no_metrics")}</EmptyText>
             )}
@@ -519,22 +517,20 @@ function KeyValueLine({ label, value }: { label: string; value: ReactNode }) {
 function ExtensionPointsTable({ extensions }: { extensions: AdminPluginExtensionPoint[] }) {
   const { t } = useT("admin")
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-left text-sm">
-        <thead className="border-b border-gray-200 text-xs uppercase text-gray-500 dark:border-gray-800 dark:text-gray-400">
-          <tr>
-            <th className="py-2 pr-4 font-medium">{t("plugins.col_extension_point")}</th>
-            <th className="py-2 pr-4 font-medium">{t("plugins.col_class")}</th>
-            <th className="py-2 font-medium">{t("plugins.col_availability")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {extensions.map((extension) => (
-            <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable.Root>
+      <DataTable.Header>
+        <DataTable.Row>
+          <DataTable.HeadCell>{t("plugins.col_extension_point")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("plugins.col_class")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("plugins.col_availability")}</DataTable.HeadCell>
+        </DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
+        {extensions.map((extension) => (
+          <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />
+        ))}
+      </DataTable.Body>
+    </DataTable.Root>
   )
 }
 
@@ -549,17 +545,17 @@ function ExtensionPointRow({ extension }: { extension: AdminPluginExtensionPoint
   const count = extension.availability.configured_count
 
   return (
-    <tr>
-      <td className="py-3 pr-4 font-mono text-xs text-gray-700 dark:text-gray-200">{extensionPointLabel(extension.extension_point, t)}</td>
-      <td className="py-3 pr-4 font-mono text-xs text-gray-700 dark:text-gray-200">{extension.class_name}</td>
-      <td className="py-3">
+    <DataTable.Row>
+      <DataTable.Cell className="font-mono text-xs text-gray-700 dark:text-gray-200">{extensionPointLabel(extension.extension_point, t)}</DataTable.Cell>
+      <DataTable.Cell className="font-mono text-xs text-gray-700 dark:text-gray-200">{extension.class_name}</DataTable.Cell>
+      <DataTable.Cell>
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge label={extension.availability.label} status={extension.availability.status} />
           {typeof count === "number" ? <span className="text-xs text-gray-500 dark:text-gray-400">{t("plugins.configured_repos", { count })}</span> : null}
           {extension.availability.detail ? <span className="text-xs text-red-700 dark:text-red-300">{extension.availability.detail}</span> : null}
         </div>
-      </td>
-    </tr>
+      </DataTable.Cell>
+    </DataTable.Row>
   )
 }
 
