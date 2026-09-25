@@ -10,6 +10,13 @@ RSpec.describe RunProcessParallelism do
 
   before do
     allow(described_class).to receive(:host_capacity).and_return(6)
+    stub_const("ENV", ENV.to_h.merge("JOB_CONCURRENCY" => "1"))
+  end
+
+  it "reserves capacity for simultaneously starting worker threads" do
+    stub_const("ENV", ENV.to_h.merge("JOB_CONCURRENCY" => "3"))
+
+    expect(described_class.for(run: run, hostname: "worker-a")).to eq(2)
   end
 
   it "reserves headroom and caps one grader's process fanout" do

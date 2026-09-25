@@ -69,23 +69,29 @@ class PreparedWorkspaceArchive
   def publish!
     return false if already_published?
 
-    service = ActiveStorage::Blob.service
-    key = ActiveStorage::Blob.generate_unique_secure_token
-    source = stream_archive!(service: service, key: key)
+    service = nil
+    key = nil
+    WorkerIoGate.synchronize do
+      return false if already_published?
 
-    blob = ActiveStorage::Blob.create_before_direct_upload!(
-      key: key,
-      filename: filename,
-      byte_size: source.bytes,
-      checksum: source.checksum,
-      content_type: CONTENT_TYPE,
-      metadata: metadata.merge("sha256" => source.sha256),
-      service_name: service.name
-    )
-    @snapshot.prepared_workspace_archive.attach(blob)
-    log("uploaded prepared workspace archive for snapshot ##{@snapshot.id} " \
-      "(#{source.bytes} bytes, #{self.class.pigz_available? ? "pigz" : "gzip"})")
-    true
+      service = ActiveStorage::Blob.service
+      key = ActiveStorage::Blob.generate_unique_secure_token
+      source = stream_archive!(service: service, key: key)
+
+      blob = ActiveStorage::Blob.create_before_direct_upload!(
+        key: key,
+        filename: filename,
+        byte_size: source.bytes,
+        checksum: source.checksum,
+        content_type: CONTENT_TYPE,
+        metadata: metadata.merge("sha256" => source.sha256),
+        service_name: service.name
+      )
+      @snapshot.prepared_workspace_archive.attach(blob)
+      log("uploaded prepared workspace archive for snapshot ##{@snapshot.id} " \
+        "(#{source.bytes} bytes, #{self.class.pigz_available? ? "pigz" : "gzip"})")
+      true
+    end
   rescue ArchiveTooLargeError => e
     log("prepared archive upload skipped: #{e.message}")
     cleanup_partial_upload!(service, key)

@@ -361,13 +361,15 @@ class ImmutableSourceCheckout
     return false unless prepared_archive_metadata_matches?(attachment.blob.metadata, snapshot, prepare_cache)
 
     archive_path = temporary_archive_path("restore")
-    File.open(archive_path, "wb") do |file|
-      attachment.download { |chunk| file.write(chunk) }
-    end
+    WorkerIoGate.synchronize do
+      File.open(archive_path, "wb") do |file|
+        attachment.download { |chunk| file.write(chunk) }
+      end
 
-    FileUtils.rm_rf(path.to_s)
-    FileUtils.mkdir_p(path)
-    run_tar!("tar", "-xzf", archive_path.to_s, "-C", path.to_s)
+      FileUtils.rm_rf(path.to_s)
+      FileUtils.mkdir_p(path)
+      run_tar!("tar", "-xzf", archive_path.to_s, "-C", path.to_s)
+    end
     verify_head!(snapshot)
     ensure_base_ref!
     ensure_exclude_entry
@@ -422,13 +424,15 @@ class ImmutableSourceCheckout
     return false unless prepared_archive_snapshot_metadata_matches?(attachment.blob.metadata, snapshot)
 
     archive_path = temporary_archive_path("checkout-restore")
-    File.open(archive_path, "wb") do |file|
-      attachment.download { |chunk| file.write(chunk) }
-    end
+    WorkerIoGate.synchronize do
+      File.open(archive_path, "wb") do |file|
+        attachment.download { |chunk| file.write(chunk) }
+      end
 
-    FileUtils.rm_rf(path.to_s)
-    FileUtils.mkdir_p(path)
-    run_tar!("tar", "-xzf", archive_path.to_s, "-C", path.to_s)
+      FileUtils.rm_rf(path.to_s)
+      FileUtils.mkdir_p(path)
+      run_tar!("tar", "-xzf", archive_path.to_s, "-C", path.to_s)
+    end
     verify_head!(snapshot)
     ensure_base_ref!
     ensure_exclude_entry

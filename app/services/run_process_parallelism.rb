@@ -28,7 +28,7 @@ class RunProcessParallelism
   end
 
   def call
-    [ cpu_budget / concurrent_grader_count, 1 ].max
+    [ cpu_budget / reserved_grader_slots, 1 ].max
   end
 
   private
@@ -46,6 +46,20 @@ class RunProcessParallelism
       .distinct
       .count(:run_id)
     active + 1
+  end
+
+  # Several grader Runs can be claimed by the same threaded Solid Queue worker
+  # before any of them has registered its SpawnedProcess. Reserving against the
+  # configured worker width closes that startup race: parallel test runners
+  # cannot each claim the full host budget just because they started together.
+  def reserved_grader_slots
+    [ concurrent_grader_count, configured_job_concurrency ].max
+  end
+
+  def configured_job_concurrency
+    Integer(ENV.fetch("JOB_CONCURRENCY", 3), 10).clamp(1, cpu_budget)
+  rescue ArgumentError
+    3.clamp(1, cpu_budget)
   end
 
   def self.cgroup_v2_cpu_count
