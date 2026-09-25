@@ -25,6 +25,7 @@ module Admin
       "get_walkthrough_analysis" => "deferred",
       "k8s_cluster_configmaps" => "generic",
       "k8s_cluster_daemonsets" => "generic",
+      "k8s_cluster_ingresses" => "generic",
       "k8s_cluster_jobs" => "generic",
       "k8s_cluster_secrets" => "generic",
       "k8s_cluster_statefulsets" => "generic",
