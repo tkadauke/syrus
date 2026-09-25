@@ -1,16 +1,19 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { DataTable } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
   fetchKubernetesCronJobs,
   fetchKubernetesDeployments,
-  fetchKubernetesPods
+  fetchKubernetesPods,
+  type KubernetesCronJobRow,
+  type KubernetesDeploymentRow,
+  type KubernetesPodRow
 } from "../../api/kubernetesResources"
 import { explainCronSchedule, formatAge, type CronScheduleExplanation } from "../../lib/k8sFormat"
 import { Dropdown } from "../Dropdown"
+import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
 import { StatusBadge } from "../StatusBadge"
 
 type WorkloadKind = "pods" | "deployments" | "cronjobs"
@@ -38,7 +41,7 @@ export function WorkloadsTab({ clusterId, namespace }: { clusterId: number; name
 function PodsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const pods = useQuery({
-    queryKey: [ "k8s_cluster", "pods", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "pods", clusterId, namespace],
     queryFn: () => fetchKubernetesPods(clusterId, namespace)
   })
 
@@ -47,39 +50,22 @@ function PodsTable({ clusterId, namespace }: { clusterId: number; namespace: str
   if (pods.data.pods.length === 0) return <PanelMessage>{t("workloads_empty_pods")}</PanelMessage>
 
   return (
-    <DataTable.Root density="compact">
-      <DataTable.Header>
-        <DataTable.Row>
-          <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_status")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_ready")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_restarts")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-        </DataTable.Row>
-      </DataTable.Header>
-      <DataTable.Body>
-          {pods.data.pods.map((pod) => (
-            <DataTable.Row key={`${pod.namespace}/${pod.name}`}>
-              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{pod.name}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{pod.namespace}</DataTable.Cell>
-              <DataTable.Cell>
-                <StatusBadge tone={pod.status === "Running" ? "success" : pod.status === "Failed" ? "error" : "neutral"}>{pod.status || "-"}</StatusBadge>
-              </DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{pod.ready}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{pod.restart_count}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(pod.created_at)}</DataTable.Cell>
-            </DataTable.Row>
-          ))}
-      </DataTable.Body>
-    </DataTable.Root>
+    <KubernetesResourceTable
+      columns={podColumns(t)}
+      defaultSort={{ column: "name", direction: "asc" }}
+      empty={<PanelMessage>{t("workloads_empty_pods")}</PanelMessage>}
+      getRowKey={(pod) => `${pod.namespace}/${pod.name}`}
+      rows={pods.data.pods}
+      storageKey="syrus.k8s_cluster.pods.columns"
+      summary={t("workload_kind_pods")}
+    />
   )
 }
 
 function DeploymentsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const deployments = useQuery({
-    queryKey: [ "k8s_cluster", "deployments", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "deployments", clusterId, namespace],
     queryFn: () => fetchKubernetesDeployments(clusterId, namespace)
   })
 
@@ -88,37 +74,22 @@ function DeploymentsTable({ clusterId, namespace }: { clusterId: number; namespa
   if (deployments.data.deployments.length === 0) return <PanelMessage>{t("workloads_empty_deployments")}</PanelMessage>
 
   return (
-    <DataTable.Root density="compact">
-      <DataTable.Header>
-        <DataTable.Row>
-          <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_ready")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_available")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_updated")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-        </DataTable.Row>
-      </DataTable.Header>
-      <DataTable.Body>
-          {deployments.data.deployments.map((deployment) => (
-            <DataTable.Row key={`${deployment.namespace}/${deployment.name}`}>
-              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{deployment.name}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{deployment.namespace}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{deployment.ready_replicas}/{deployment.replicas ?? "-"}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{deployment.available_replicas}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{deployment.updated_replicas}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(deployment.created_at)}</DataTable.Cell>
-            </DataTable.Row>
-          ))}
-      </DataTable.Body>
-    </DataTable.Root>
+    <KubernetesResourceTable
+      columns={deploymentColumns(t)}
+      defaultSort={{ column: "name", direction: "asc" }}
+      empty={<PanelMessage>{t("workloads_empty_deployments")}</PanelMessage>}
+      getRowKey={(deployment) => `${deployment.namespace}/${deployment.name}`}
+      rows={deployments.data.deployments}
+      storageKey="syrus.k8s_cluster.deployments.columns"
+      summary={t("workload_kind_deployments")}
+    />
   )
 }
 
 function CronJobsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const cronJobs = useQuery({
-    queryKey: [ "k8s_cluster", "cronjobs", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "cronjobs", clusterId, namespace],
     queryFn: () => fetchKubernetesCronJobs(clusterId, namespace)
   })
 
@@ -127,37 +98,181 @@ function CronJobsTable({ clusterId, namespace }: { clusterId: number; namespace:
   if (cronJobs.data.cron_jobs.length === 0) return <PanelMessage>{t("workloads_empty_cronjobs")}</PanelMessage>
 
   return (
-    <DataTable.Root density="compact">
-      <DataTable.Header>
-        <DataTable.Row>
-          <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_schedule")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_suspended")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_active")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-        </DataTable.Row>
-      </DataTable.Header>
-      <DataTable.Body>
-          {cronJobs.data.cron_jobs.map((cronJob) => (
-            <DataTable.Row key={`${cronJob.namespace}/${cronJob.name}`}>
-              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{cronJob.name}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{cronJob.namespace}</DataTable.Cell>
-              <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">
-                <CronSchedule schedule={cronJob.schedule} />
-              </DataTable.Cell>
-              <DataTable.Cell>
-                <StatusBadge tone={cronJob.suspended ? "warning" : "success"}>
-                  {cronJob.suspended ? t("yes") : t("no")}
-                </StatusBadge>
-              </DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{cronJob.active_count}</DataTable.Cell>
-              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(cronJob.created_at)}</DataTable.Cell>
-            </DataTable.Row>
-          ))}
-      </DataTable.Body>
-    </DataTable.Root>
+    <KubernetesResourceTable
+      columns={cronJobColumns(t)}
+      defaultSort={{ column: "name", direction: "asc" }}
+      empty={<PanelMessage>{t("workloads_empty_cronjobs")}</PanelMessage>}
+      getRowKey={(cronJob) => `${cronJob.namespace}/${cronJob.name}`}
+      rows={cronJobs.data.cron_jobs}
+      storageKey="syrus.k8s_cluster.cron_jobs.columns"
+      summary={t("workload_kind_cronjobs")}
+    />
   )
+}
+
+function podColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResourceTableColumn<KubernetesPodRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (pod) => pod.name,
+      required: true,
+      sort: "name",
+      sortValue: (pod) => pod.name
+    },
+    {
+      key: "namespace",
+      header: t("col_namespace"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (pod) => pod.namespace,
+      sort: "namespace",
+      sortValue: (pod) => pod.namespace
+    },
+    {
+      key: "status",
+      header: t("col_status"),
+      filterValue: (pod) => pod.status,
+      render: (pod) => (
+        <StatusBadge tone={pod.status === "Running" ? "success" : pod.status === "Failed" ? "error" : "neutral"}>{pod.status || "-"}</StatusBadge>
+      ),
+      sort: "status",
+      sortValue: (pod) => pod.status
+    },
+    {
+      key: "ready",
+      header: t("col_ready"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (pod) => pod.ready,
+      sort: "ready",
+      sortValue: (pod) => pod.ready
+    },
+    {
+      key: "restart_count",
+      header: t("col_restarts"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (pod) => pod.restart_count,
+      sort: "restart_count",
+      sortValue: (pod) => pod.restart_count
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (pod) => formatAge(pod.created_at),
+      sort: "created_at",
+      sortValue: (pod) => pod.created_at
+    }
+  ]
+}
+
+function deploymentColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResourceTableColumn<KubernetesDeploymentRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (deployment) => deployment.name,
+      required: true,
+      sort: "name",
+      sortValue: (deployment) => deployment.name
+    },
+    {
+      key: "namespace",
+      header: t("col_namespace"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (deployment) => deployment.namespace,
+      sort: "namespace",
+      sortValue: (deployment) => deployment.namespace
+    },
+    {
+      key: "ready",
+      header: t("col_ready"),
+      className: "text-gray-700 dark:text-gray-300",
+      filterValue: (deployment) => `${deployment.ready_replicas}/${deployment.replicas ?? "-"}`,
+      render: (deployment) => `${deployment.ready_replicas}/${deployment.replicas ?? "-"}`,
+      sort: "ready",
+      sortValue: (deployment) => deployment.ready_replicas
+    },
+    {
+      key: "available_replicas",
+      header: t("col_available"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (deployment) => deployment.available_replicas,
+      sort: "available_replicas",
+      sortValue: (deployment) => deployment.available_replicas
+    },
+    {
+      key: "updated_replicas",
+      header: t("col_updated"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (deployment) => deployment.updated_replicas,
+      sort: "updated_replicas",
+      sortValue: (deployment) => deployment.updated_replicas
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (deployment) => formatAge(deployment.created_at),
+      sort: "created_at",
+      sortValue: (deployment) => deployment.created_at
+    }
+  ]
+}
+
+function cronJobColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResourceTableColumn<KubernetesCronJobRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (cronJob) => cronJob.name,
+      required: true,
+      sort: "name",
+      sortValue: (cronJob) => cronJob.name
+    },
+    {
+      key: "namespace",
+      header: t("col_namespace"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (cronJob) => cronJob.namespace,
+      sort: "namespace",
+      sortValue: (cronJob) => cronJob.namespace
+    },
+    {
+      key: "schedule",
+      header: t("col_schedule"),
+      className: "font-mono text-gray-700 dark:text-gray-300",
+      render: (cronJob) => <CronSchedule schedule={cronJob.schedule} />,
+      sort: "schedule",
+      sortValue: (cronJob) => cronJob.schedule
+    },
+    {
+      key: "suspended",
+      header: t("col_suspended"),
+      filterValue: (cronJob) => (cronJob.suspended ? t("yes") : t("no")),
+      render: (cronJob) => <StatusBadge tone={cronJob.suspended ? "warning" : "success"}>{cronJob.suspended ? t("yes") : t("no")}</StatusBadge>,
+      sort: "suspended",
+      sortValue: (cronJob) => Number(cronJob.suspended)
+    },
+    {
+      key: "active_count",
+      header: t("col_active"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (cronJob) => cronJob.active_count,
+      sort: "active_count",
+      sortValue: (cronJob) => cronJob.active_count
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (cronJob) => formatAge(cronJob.created_at),
+      sort: "created_at",
+      sortValue: (cronJob) => cronJob.created_at
+    }
+  ]
 }
 
 function CronSchedule({ schedule }: { schedule: string | null }) {
@@ -166,7 +281,13 @@ function CronSchedule({ schedule }: { schedule: string | null }) {
   const label = schedule || "-"
   const title = explanation ? cronScheduleTitle(explanation, t) : null
 
-  return title ? <span className="cursor-help" title={title}>{label}</span> : <span>{label}</span>
+  return title ? (
+    <span className="cursor-help" title={title}>
+      {label}
+    </span>
+  ) : (
+    <span>{label}</span>
+  )
 }
 
 function cronScheduleTitle(explanation: CronScheduleExplanation, t: (key: string, options?: Record<string, unknown>) => string) {
