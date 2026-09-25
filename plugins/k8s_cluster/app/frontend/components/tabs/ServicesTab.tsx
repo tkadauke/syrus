@@ -16,6 +16,7 @@ import { formatAge } from "../../lib/k8sFormat"
 import { Dropdown } from "../Dropdown"
 import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 type NetworkKind = "services" | "ingresses"
 
@@ -40,6 +41,7 @@ export function ServicesTab({ clusterId, namespace }: { clusterId: number; names
 function ServicesTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const services = useQuery({
     queryKey: [ "k8s_cluster", "services", clusterId, namespace ],
     queryFn: () => fetchKubernetesServices(clusterId, namespace)
@@ -61,6 +63,10 @@ function ServicesTable({ clusterId, namespace }: { clusterId: number; namespace:
   if (services.isError) return <PanelMessage tone="error">{errorMessage(services.error, t("services_error_loading"))}</PanelMessage>
   if (services.data.services.length === 0) return <PanelMessage>{t("services_empty")}</PanelMessage>
 
+  const visible = services.data.services.filter((service) =>
+    matchesSearch(query, service.name, service.namespace, service.type, service.cluster_ip)
+  )
+
   const open = (service: KubernetesServiceRow) =>
     detail.openDetail({
       kind: "service",
@@ -81,48 +87,54 @@ function ServicesTable({ clusterId, namespace }: { clusterId: number; namespace:
 
   return (
     <>
-      <DataTable.Root density="compact">
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_type")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_cluster_ip")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_ports")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_endpoints")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {services.data.services.map((service) => {
-            const endpoint = endpointsByKey.get(`${service.namespace}/${service.name}`)
+      <TableSearch onChange={setQuery} query={query} />
+      {services.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <DataTable.Root density="compact">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_type")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_cluster_ip")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_ports")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_endpoints")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {visible.map((service) => {
+              const endpoint = endpointsByKey.get(`${service.namespace}/${service.name}`)
 
-            return (
-              <DataTable.Row interactive key={`${service.namespace}/${service.name}`} onClick={() => open(service)}>
-                <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">
-                  <DetailNameButton name={service.name} onOpen={() => open(service)} />
-                </DataTable.Cell>
-                <DataTable.Cell className="text-gray-700 dark:text-gray-300">{service.namespace}</DataTable.Cell>
-                <DataTable.Cell className="text-gray-700 dark:text-gray-300">{service.type || "-"}</DataTable.Cell>
-                <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">{service.cluster_ip || "-"}</DataTable.Cell>
-                <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">
-                  {service.ports.length === 0
-                    ? "-"
-                    : service.ports.map((port) => `${port.port}${port.protocol ? `/${port.protocol}` : ""}`).join(", ")}
-                </DataTable.Cell>
-                <DataTable.Cell>
-                  {endpoint ? (
-                    <StatusBadge tone={endpoint.not_ready_addresses > 0 ? "warning" : endpoint.ready_addresses > 0 ? "success" : "neutral"}>
-                      {t("services_endpoints_ready", { ready: endpoint.ready_addresses, total: endpoint.ready_addresses + endpoint.not_ready_addresses })}
-                    </StatusBadge>
-                  ) : "-"}
-                </DataTable.Cell>
-                <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(service.created_at)}</DataTable.Cell>
-              </DataTable.Row>
-            )
-          })}
-        </DataTable.Body>
-      </DataTable.Root>
+              return (
+                <DataTable.Row interactive key={`${service.namespace}/${service.name}`} onClick={() => open(service)}>
+                  <DataTable.Cell className="font-medium">
+                    <DetailNameButton name={service.name} onOpen={() => open(service)} />
+                  </DataTable.Cell>
+                  <DataTable.Cell className="text-text-secondary">{service.namespace}</DataTable.Cell>
+                  <DataTable.Cell className="text-text-secondary">{service.type || "-"}</DataTable.Cell>
+                  <DataTable.Cell className="font-mono text-text-secondary">{service.cluster_ip || "-"}</DataTable.Cell>
+                  <DataTable.Cell className="font-mono text-text-secondary">
+                    {service.ports.length === 0
+                      ? "-"
+                      : service.ports.map((port) => `${port.port}${port.protocol ? `/${port.protocol}` : ""}`).join(", ")}
+                  </DataTable.Cell>
+                  <DataTable.Cell>
+                    {endpoint ? (
+                      <StatusBadge tone={endpoint.not_ready_addresses > 0 ? "warning" : endpoint.ready_addresses > 0 ? "success" : "neutral"}>
+                        {t("services_endpoints_ready", { ready: endpoint.ready_addresses, total: endpoint.ready_addresses + endpoint.not_ready_addresses })}
+                      </StatusBadge>
+                    ) : "-"}
+                  </DataTable.Cell>
+                  <DataTable.Cell className="text-text-secondary">{formatAge(service.created_at)}</DataTable.Cell>
+                </DataTable.Row>
+              )
+            })}
+          </DataTable.Body>
+        </DataTable.Root>
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
@@ -131,6 +143,7 @@ function ServicesTable({ clusterId, namespace }: { clusterId: number; namespace:
 function IngressesTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const ingresses = useQuery({
     queryKey: [ "k8s_cluster", "ingresses", clusterId, namespace ],
     queryFn: () => fetchKubernetesIngresses(clusterId, namespace)
@@ -139,6 +152,10 @@ function IngressesTable({ clusterId, namespace }: { clusterId: number; namespace
   if (ingresses.isPending) return <PanelMessage>{t("ingresses_loading")}</PanelMessage>
   if (ingresses.isError) return <PanelMessage tone="error">{errorMessage(ingresses.error, t("ingresses_error_loading"))}</PanelMessage>
   if (ingresses.data.ingresses.length === 0) return <PanelMessage>{t("ingresses_empty")}</PanelMessage>
+
+  const visible = ingresses.data.ingresses.filter((ingress) =>
+    matchesSearch(query, ingress.name, ingress.namespace, ingress.ingress_class, ...ingress.hosts)
+  )
 
   const open = (ingress: KubernetesIngressRow) =>
     detail.openDetail({
@@ -158,38 +175,44 @@ function IngressesTable({ clusterId, namespace }: { clusterId: number; namespace
 
   return (
     <>
-      <DataTable.Root density="compact">
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_hosts")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_backend")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_tls")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_ingress_class")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {ingresses.data.ingresses.map((ingress) => (
-            <DataTable.Row interactive key={`${ingress.namespace}/${ingress.name}`} onClick={() => open(ingress)}>
-              <DataTable.Cell className="font-medium">
-                <DetailNameButton name={ingress.name} onOpen={() => open(ingress)} />
-              </DataTable.Cell>
-              <DataTable.Cell className="text-text-secondary">{ingress.namespace}</DataTable.Cell>
-              <DataTable.Cell className="font-mono text-text-secondary">{ingress.hosts.length === 0 ? "-" : ingress.hosts.join(", ")}</DataTable.Cell>
-              <DataTable.Cell className="font-mono text-text-secondary">{backendSummary(ingress)}</DataTable.Cell>
-              <DataTable.Cell>
-                <StatusBadge tone={ingress.tls_hosts.length > 0 ? "success" : "neutral"}>
-                  {ingress.tls_hosts.length > 0 ? t("yes") : t("no")}
-                </StatusBadge>
-              </DataTable.Cell>
-              <DataTable.Cell className="text-text-secondary">{ingress.ingress_class || "-"}</DataTable.Cell>
-              <DataTable.Cell className="text-text-secondary">{formatAge(ingress.created_at)}</DataTable.Cell>
+      <TableSearch onChange={setQuery} query={query} />
+      {ingresses.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <DataTable.Root density="compact">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_hosts")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_backend")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_tls")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_ingress_class")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
             </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
+          </DataTable.Header>
+          <DataTable.Body>
+            {visible.map((ingress) => (
+              <DataTable.Row interactive key={`${ingress.namespace}/${ingress.name}`} onClick={() => open(ingress)}>
+                <DataTable.Cell className="font-medium">
+                  <DetailNameButton name={ingress.name} onOpen={() => open(ingress)} />
+                </DataTable.Cell>
+                <DataTable.Cell className="text-text-secondary">{ingress.namespace}</DataTable.Cell>
+                <DataTable.Cell className="font-mono text-text-secondary">{ingress.hosts.length === 0 ? "-" : ingress.hosts.join(", ")}</DataTable.Cell>
+                <DataTable.Cell className="font-mono text-text-secondary">{backendSummary(ingress)}</DataTable.Cell>
+                <DataTable.Cell>
+                  <StatusBadge tone={ingress.tls_hosts.length > 0 ? "success" : "neutral"}>
+                    {ingress.tls_hosts.length > 0 ? t("yes") : t("no")}
+                  </StatusBadge>
+                </DataTable.Cell>
+                <DataTable.Cell className="text-text-secondary">{ingress.ingress_class || "-"}</DataTable.Cell>
+                <DataTable.Cell className="text-text-secondary">{formatAge(ingress.created_at)}</DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
