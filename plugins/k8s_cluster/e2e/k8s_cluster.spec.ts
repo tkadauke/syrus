@@ -191,6 +191,8 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
     // more -- assert on the page we actually land on. `pluginCard` is not used
     // past this block.
     await expect(page.getByRole("button", { name: "Disable" }).first()).toBeVisible({ timeout: 60_000 })
+    await expect(page).toHaveURL(/\/admin\/plugins\/k8s_cluster$/)
+    await expect(page.getByRole("heading", { name: "Kubernetes Cluster Viewer", exact: true })).toBeVisible()
   }
 
   await page.goto("/k8s_clusters")
@@ -203,10 +205,10 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   // then scope the fields and the submit to the dialog so the duplicate name
   // cannot go ambiguous.
   await page.getByRole("button", { name: "Add cluster", exact: true }).click()
-  const addClusterDialog = page.getByRole("dialog")
-  await addClusterDialog.getByLabel("Label", { exact: true }).fill(clusterLabel)
-  await addClusterDialog.getByLabel("Kubeconfig", { exact: true }).fill(KUBECONFIG)
-  await addClusterDialog.getByRole("button", { name: "Add cluster", exact: true }).click()
+  const createDialog = page.getByRole("dialog", { name: "Add cluster" })
+  await createDialog.getByLabel("Label", { exact: true }).fill(clusterLabel)
+  await createDialog.getByLabel("Kubeconfig", { exact: true }).fill(KUBECONFIG)
+  await createDialog.getByRole("button", { name: "Add cluster", exact: true }).click()
 
   const clusterRow = page.getByRole("row", { name: new RegExp(clusterLabel) })
   await expect(clusterRow).toBeVisible()
@@ -320,9 +322,9 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   await clusterRow.getByRole("button", { name: "Edit" }).click()
   // Editing opens a dialog, same as registration above -- the fields are not
   // inline in the row any more.
-  const editClusterDialog = page.getByRole("dialog")
-  await editClusterDialog.getByLabel("Allow write actions").check()
-  await editClusterDialog.getByRole("button", { name: "Save", exact: true }).click()
+  const editDialog = page.getByRole("dialog", { name: "Edit cluster" })
+  await editDialog.getByLabel("Allow write actions").check()
+  await editDialog.getByRole("button", { name: "Save", exact: true }).click()
   await expect(clusterRow.getByText("Read-write")).toBeVisible()
 
   await clusterRow.getByRole("button", { name: "Browse" }).click()
