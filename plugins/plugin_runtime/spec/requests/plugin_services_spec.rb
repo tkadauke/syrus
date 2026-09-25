@@ -50,6 +50,19 @@ RSpec.describe "API: admin plugin services", type: :request do
     expect(json["services"].sole).to include("service" => "git-mirror", "state" => "pending")
   end
 
+  it "keeps the diagnostic index available when Plugin Runtime is disabled" do
+    PluginRecord.find_by!(name: "plugin_runtime").update!(enabled: false)
+    allow(PluginRuntime).to receive(:enabled?).and_return(false)
+    allow(PluginRuntime::Configuration).to receive(:current).and_return(PluginRuntime::Configuration.new({}))
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/plugin_services"
+
+    expect(response).to have_http_status(:ok)
+    expect(json).to include("mode" => "external", "manageable" => false, "manager_error" => nil)
+    expect(json["services"].sole).to include("service" => "git-mirror", "state" => "pending", "actions" => [])
+  end
+
   it "stops a service and returns its status" do
     stub_request(:post, "#{manager}/v1/services/git-mirror/stop")
       .to_return(status: 200, body: { service: "git-mirror", state: "stopped" }.to_json)

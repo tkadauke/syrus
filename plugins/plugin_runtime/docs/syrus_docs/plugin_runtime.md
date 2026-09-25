@@ -132,6 +132,12 @@ state (asked of the runtime manager on each load, or the last reconcile's view
 if the manager is unreachable), image, and endpoint, plus managed containers no
 enabled plugin wants any more, which the next reconcile removes.
 
+The services table uses the shared admin data-table panel rather than a nested
+box: sortable headers with dashboard-style sort indicators, a column selector,
+and drag reordering for optional columns. The action column stays pinned so the
+operator can always reach service controls. The stored-data volumes table uses
+the same shared table behavior while keeping delete actions pinned.
+
 On a managed (Compose) install an admin can:
 
 - **Stop** a service. The container is stopped, not removed, and the service

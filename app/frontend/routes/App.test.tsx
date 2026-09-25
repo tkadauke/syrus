@@ -214,6 +214,44 @@ describe("App", () => {
     }
   })
 
+  it("routes Plugin Services through the stable admin route", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload())
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const path = String(input)
+      if (path.startsWith("/api/v1/app/admin/plugin_services")) {
+        return jsonResponse({ mode: "external", manageable: false, manager_error: null, services: [], volumes: [] })
+      }
+      if (path.startsWith("/api/v1/app/sidebar_pages") || path.startsWith("/api/v1/app/admin/plugin_pages")) {
+        return jsonResponse({ pages: [] })
+      }
+      return jsonResponse({})
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/admin/plugin_services"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("heading", { level: 1, name: "Plugin Services" })).toBeInTheDocument()
+      expect(screen.queryByRole("heading", { level: 1, name: "Page unavailable" })).not.toBeInTheDocument()
+      expect(await screen.findByText("No enabled plugin runs a service.")).toBeInTheDocument()
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/plugin_services",
+        expect.objectContaining({ credentials: "same-origin" })
+      )
+    } finally {
+      script.remove()
+    }
+  })
+
   it("renders system alert banners from bootstrap data", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"

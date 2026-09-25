@@ -69,6 +69,7 @@ import { PluginRepoPageTabRoute } from "../pluginRepoPageTabs"
 import { PluginSidebarPageRoute, usePluginSidebarPaths } from "../pluginSidebarPages"
 import { isAuthPath } from "./appChromeV2/helpers"
 import { fetchSidebarPluginPages } from "../api/sidebarPages"
+import { AdminPluginServices } from "@plugins/plugin_runtime/app/frontend/routes/AdminPluginServices"
 
 type AppRouteDefinition = {
   path: string
@@ -102,6 +103,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/backend_exceptions", element: <AdminBackendExceptions /> },
   { path: "/admin/plugins", element: <AdminPlugins /> },
   { path: "/admin/plugins/:name", element: <AdminPluginDetail /> },
+  { path: "/admin/plugin_services", element: <AdminPluginServices /> },
   { path: "/admin/processes", element: <AdminProcessesIndex /> },
   { path: "/admin/processes/:id", element: <AdminProcessDetail /> },
   { path: "/admin/mcp_tool_usage", element: <AdminMcpToolUsage /> },
