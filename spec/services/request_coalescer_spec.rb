@@ -63,6 +63,7 @@ RSpec.describe RequestCoalescer do
     entered = Queue.new
 
     leader = Thread.new do
+      Thread.current.report_on_exception = false
       described_class.call("job:1:workflows") do
         entered << true
         release.pop
@@ -72,7 +73,10 @@ RSpec.describe RequestCoalescer do
 
     entered.pop
 
-    follower = Thread.new { described_class.call("job:1:workflows") { "unreachable" } }
+    follower = Thread.new do
+      Thread.current.report_on_exception = false
+      described_class.call("job:1:workflows") { "unreachable" }
+    end
     sleep 0.05
     release << true
 
