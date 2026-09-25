@@ -192,4 +192,5 @@ class TouchedTestRepeatGate
       files: @touched_files, repeats: 0, pass_count: 0, fail_count: 0
     )
   end
+
 end
