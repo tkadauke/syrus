@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/admin/worker_timeline", type: :request do
+  before(:all) { ensure_solid_queue_test_tables! }
+  after(:all) { drop_solid_queue_test_tables! }
+  before { clear_solid_queue_test_tables! }
+
   let(:admin) { Factories.user }
   let(:admin_token) { admin.generate_api_token! }
   def auth = { "Authorization" => "Bearer #{admin_token}" }
@@ -156,6 +160,57 @@ RSpec.describe "API: /api/v1/admin/worker_timeline", type: :request do
       get "/api/v1/admin/worker_timeline/workflow", params: { id: 999_999_999 }, headers: auth
 
       expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "GET /live" do
+    it "answers plugin_disabled while the plugin is disabled" do
+      get "/api/v1/admin/worker_timeline/live", headers: auth
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body.dig("error", "code")).to eq("plugin_disabled")
+    end
+
+    it "requires an API token" do
+      enable_plugin!
+
+      get "/api/v1/admin/worker_timeline/live"
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "returns the live workers payload for an admin token" do
+      enable_plugin!
+      SolidQueue::Process.create!(
+        kind: "Worker",
+        name: "worker-101",
+        hostname: "worker-a",
+        pid: 101,
+        last_heartbeat_at: Time.current,
+        created_at: Time.current,
+        metadata: { "queues" => "runs", "thread_pool_size" => 1 }
+      )
+      WorkerHostHealthSample.create!(
+        hostname: "worker-a",
+        worker_storage_key: "storage-a",
+        role: "worker",
+        version: "abc123",
+        observed_at: 1.minute.ago,
+        cpu_used_percent: 10,
+        memory_used_percent: 20,
+        io_pressure_some: 0
+      )
+
+      get "/api/v1/admin/worker_timeline/live", headers: auth
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body.fetch("workers").first).to include(
+        "hostname" => "worker-a",
+        "worker_storage_key" => "storage-a",
+        "status" => "idle"
+      )
+      expect(body.dig("attribution", "exact_thread_ownership")).to be(false)
     end
   end
 end

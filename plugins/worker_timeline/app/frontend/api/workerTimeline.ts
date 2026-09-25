@@ -116,8 +116,101 @@ export type WorkerTimelineFilterUsagePayload = {
   recorded: boolean
 }
 
+export type WorkerTimelineLiveStatus = "idle" | "busy" | "degraded" | "overloaded"
+
+export type WorkerTimelineLiveSparklinePoint = {
+  observed_at: string
+  value: number
+}
+
+export type WorkerTimelineLiveSlot = {
+  id: string
+  attribution: string
+  confidence: string
+  hostname: string | null
+  worker_storage_key: string | null
+  queue_role: string | null
+  job_id: number | null
+  job_slug: string | null
+  job_title: string | null
+  workflow_id: number | null
+  workflow_slug: string | null
+  workflow_type: string | null
+  trigger_kind: string | null
+  step_id: number | null
+  step_slug: string | null
+  step_kind: string | null
+  run_id: number | null
+  run_slug: string | null
+  spawned_process_id: number | null
+  pid: number | null
+  process_kind: string | null
+  started_at: string | null
+  elapsed_seconds: number | null
+  command: string | null
+  command_excerpt: string | null
+}
+
+export type WorkerTimelineLivePool = {
+  key: string
+  hostname: string | null
+  pid: number | null
+  queues: string[]
+  capacity: number
+  used: number
+  status: WorkerTimelineLiveStatus | "idle"
+  last_heartbeat_at: string | null
+  slots: WorkerTimelineLiveSlot[]
+}
+
+export type WorkerTimelineLiveWorker = {
+  key: string
+  hostname: string | null
+  worker_storage_key: string | null
+  status: WorkerTimelineLiveStatus
+  status_reasons: string[]
+  occupancy: { used: number; total: number }
+  health: {
+    level: string
+    reasons: string[]
+    observed_at: string | null
+    cpu_used_percent?: number | null
+    memory_used_percent?: number | null
+    io_pressure_some?: number | null
+    data_root_used_percent?: number | null
+  }
+  pools: WorkerTimelineLivePool[]
+  sparklines: {
+    cpu: WorkerTimelineLiveSparklinePoint[]
+    memory: WorkerTimelineLiveSparklinePoint[]
+    io: WorkerTimelineLiveSparklinePoint[]
+  }
+}
+
+export type WorkerTimelineLivePayload = {
+  generated_at: string
+  range: { from: string; to: string }
+  attribution: { exact_thread_ownership: boolean; strategy: string }
+  summary: {
+    total_workers: number
+    idle: number
+    busy: number
+    degraded: number
+    overloaded: number
+    used_slots: number
+    total_slots: number
+  }
+  workers: WorkerTimelineLiveWorker[]
+  filter: Record<string, unknown> | null
+  filter_schema: FilterSchemaField[]
+}
+
 export function fetchWorkerTimelineMacro(search = "") {
   return getJson<WorkerTimelineMacroPayload>(`/api/v1/app/admin/worker_timeline/macro${search}`)
+}
+
+export function fetchWorkerTimelineLive(search = "") {
+  return getJson<WorkerTimelineLivePayload>(`/api/v1/app/admin/worker_timeline/live${search}`)
 }
 
 export function fetchWorkerTimelineWorkflow(workflowId: string) {
