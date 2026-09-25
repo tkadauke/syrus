@@ -3,16 +3,32 @@ import { PanelMessage } from "@app/components/PanelMessage"
 import { DataTable } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
-import { fetchKubernetesNodes } from "../../api/kubernetesResources"
+import { fetchKubernetesNodes, type KubernetesNodeRow } from "../../api/kubernetesResources"
 import { formatAge, formatKubernetesCpu, formatKubernetesMemory } from "../../lib/k8sFormat"
+import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
 
 export function NodesTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
+  const detail = useResourceDetail()
   const nodes = useQuery({
     queryKey: [ "k8s_cluster", "nodes", clusterId ],
     queryFn: () => fetchKubernetesNodes(clusterId)
   })
+
+  const open = (node: KubernetesNodeRow) =>
+    detail.openDetail({
+      kind: "node",
+      kindLabel: t("tab_nodes"),
+      name: node.name,
+      namespace: null,
+      fields: [
+        { label: t("col_roles"), value: node.roles.length === 0 ? "-" : node.roles.join(", ") },
+        { label: t("col_capacity"), value: `${formatKubernetesCpu(node.capacity_cpu)} / ${formatKubernetesMemory(node.capacity_memory)}` },
+        { label: t("col_allocatable"), value: `${formatKubernetesCpu(node.allocatable_cpu)} / ${formatKubernetesMemory(node.allocatable_memory)}` },
+        { label: t("col_age"), value: formatAge(node.created_at) }
+      ]
+    })
 
   return (
     <div aria-label={t("aria_nodes_tab")}>
@@ -35,8 +51,10 @@ export function NodesTab({ clusterId }: { clusterId: number }) {
             </DataTable.Header>
             <DataTable.Body>
                 {nodes.data.nodes.map((node) => (
-                  <DataTable.Row key={node.name}>
-                    <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{node.name}</DataTable.Cell>
+                  <DataTable.Row interactive key={node.name} onClick={() => open(node)}>
+                    <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">
+                      <DetailNameButton name={node.name} onOpen={() => open(node)} />
+                    </DataTable.Cell>
                     <DataTable.Cell>
                       <StatusBadge tone={node.ready ? "success" : "error"}>{node.ready ? t("node_ready") : t("node_not_ready")}</StatusBadge>
                     </DataTable.Cell>
@@ -54,6 +72,7 @@ export function NodesTab({ clusterId }: { clusterId: number }) {
           </DataTable.Root>
         )
       ) : null}
+      <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </div>
   )
 }
