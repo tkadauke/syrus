@@ -32,6 +32,7 @@
     "delegate": "Delegare",
     "delegated": "Delegatum",
     "not_delegated": "Non delegatum",
+    "linked_pull_request": "PR #{{number}}",
     "load_error": "Quaestiones onerari non potuerunt.",
     "folders_heading": "Fasciculi",
     "folders_aria": "Fasciculi quaestionum",
