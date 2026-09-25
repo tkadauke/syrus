@@ -118,19 +118,19 @@ function MetricsCard({ heading, section }: { heading: string; section: Kubernete
   const { t } = useT("k8s_cluster")
 
   return (
-    <div className="rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
-      <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{heading}</h4>
+    <div className="rounded border border-border bg-surface p-4">
+      <h4 className="text-sm font-semibold text-text-primary">{heading}</h4>
       {section.available ? (
         <DescriptionList.Root className="mt-2 grid-cols-2 sm:grid-cols-2" density="compact">
-          <DescriptionList.Item descriptionClassName="font-medium text-gray-900 dark:text-gray-100" label={t("overview_total_cpu")} termClassName="normal-case tracking-normal">
+          <DescriptionList.Item descriptionClassName="font-medium text-text-primary" label={t("overview_total_cpu")} termClassName="normal-case tracking-normal">
             {formatMillicores(section.total_cpu_millicores)}
           </DescriptionList.Item>
-          <DescriptionList.Item descriptionClassName="font-medium text-gray-900 dark:text-gray-100" label={t("overview_total_memory")} termClassName="normal-case tracking-normal">
+          <DescriptionList.Item descriptionClassName="font-medium text-text-primary" label={t("overview_total_memory")} termClassName="normal-case tracking-normal">
             {formatBytes(section.total_memory_bytes)}
           </DescriptionList.Item>
         </DescriptionList.Root>
       ) : (
-        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-2 text-xs text-text-muted">
           <p>{t("overview_metrics_unavailable")}</p>
           <p className="mt-1 font-mono">{section.message}</p>
         </div>
