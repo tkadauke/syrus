@@ -183,6 +183,35 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
       expect(parse_body.dig("error", "code")).to eq("namespace_required")
     end
 
+    it "lists ingresses" do
+      ingresses = instance_double(K8sCluster::Ingresses)
+      allow(K8sCluster::Ingresses).to receive(:new).with(cluster).and_return(ingresses)
+      allow(ingresses).to receive(:list).with(namespace: nil).and_return(available: true, ingresses: [ { name: "web" } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/ingresses"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("ingresses", 0, "name")).to eq("web")
+    end
+
+    it "requires a namespace to describe a specific ingress" do
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/ingresses", params: { name: "web" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("namespace_required")
+    end
+
+    it "describes an ingress when both name and namespace are given" do
+      ingresses = instance_double(K8sCluster::Ingresses)
+      allow(K8sCluster::Ingresses).to receive(:new).with(cluster).and_return(ingresses)
+      allow(ingresses).to receive(:describe).with("web", namespace: "default").and_return(available: true, ingress: { "metadata" => { "name" => "web" } })
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/ingresses", params: { name: "web", namespace: "default" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("ingress", "metadata", "name")).to eq("web")
+    end
+
     it "lists endpoints" do
       endpoints = instance_double(K8sCluster::Endpoints)
       allow(K8sCluster::Endpoints).to receive(:new).with(cluster).and_return(endpoints)
