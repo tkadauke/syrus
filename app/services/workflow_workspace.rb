@@ -608,7 +608,7 @@ class WorkflowWorkspace
   end
 
   def checkpoint_ref
-    @workflow.artifact("checkpoint_ref").presence
+    @recovery_checkpoint_ref.presence || @workflow.artifact("checkpoint_ref").presence
   end
 
   def checkout_checkpoint_ref!
@@ -704,9 +704,13 @@ class WorkflowWorkspace
       )
     end
 
-    notify("#{message}; recloning")
+    recovery_ref = published_workspace_recovery_ref
+    @recovery_checkpoint_ref = recovery_ref if recovery_ref.present?
+    notify("#{message}; recloning#{recovery_ref.present? ? " from #{recovery_ref}" : ""}")
     FileUtils.rm_rf(path)
     clone_and_checkout
+  ensure
+    @recovery_checkpoint_ref = nil
   end
 
   def valid_head?
@@ -721,11 +725,43 @@ class WorkflowWorkspace
     return true if succeeded_steps.none?
 
     return true if required_branch_restorable?
+    return true if published_workspace_recovery_ref.present?
 
     # A broken checkout with no valid HEAD cannot preserve meaningful git state.
     # Reclone when only deterministic/read-only setup has succeeded; keep
     # failing loudly if a prior agentic step may have produced unpushed commits.
     succeeded_steps.where(kind: Step::AGENTIC_KINDS).none?
+  end
+
+  def published_workspace_recovery_ref
+    return @published_workspace_recovery_ref if defined?(@published_workspace_recovery_ref)
+
+    @published_workspace_recovery_ref = [
+      restorable_source_snapshot,
+      restorable_run_checkpoint
+    ].compact.max_by { |candidate| [ candidate.fetch(:published_at), candidate.fetch(:id) ] }&.fetch(:ref)
+  end
+
+  def restorable_source_snapshot
+    snapshot = WorkflowSourceSnapshots.current_for(@workflow)
+    return nil unless snapshot
+    return nil unless remote_ref_sha(snapshot.source_ref) == snapshot.source_sha
+
+    { ref: snapshot.source_ref, published_at: snapshot.published_at, id: snapshot.id }
+  rescue GitRunner::GitError
+    nil
+  end
+
+  def restorable_run_checkpoint
+    checkpoint = RunCheckpoint.published
+      .where(workflow_id: @workflow.id)
+      .recent
+      .detect { |checkpoint| remote_ref_sha(checkpoint.remote_ref) == checkpoint.commit_sha }
+    return nil unless checkpoint
+
+    { ref: checkpoint.remote_ref, published_at: checkpoint.published_at, id: checkpoint.id }
+  rescue GitRunner::GitError
+    nil
   end
 
   def required_branch_restorable?
