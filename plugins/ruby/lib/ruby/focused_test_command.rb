@@ -28,7 +28,9 @@ module Ruby
 
       files = failed_spec_files
       return nil if files.empty?
-      return nil if files.any? { |path| path.start_with?("plugins/") }
+
+      files = files_in_grader_scope(files)
+      return nil if files.empty?
 
       "bundle exec rspec #{Shellwords.join(files)}"
     end
@@ -44,6 +46,23 @@ module Ruby
         path = test_case["file_path"].presence || test_case["suite_name"].presence
         path if path.to_s.end_with?("_spec.rb")
       end.uniq.sort
+    end
+
+    def files_in_grader_scope(files)
+      scopes = rspec_path_args
+      return files if scopes.empty?
+
+      files.select do |file|
+        scopes.any? { |scope| file == scope || file.start_with?("#{scope}/") }
+      end
+    end
+
+    def rspec_path_args
+      Shellwords.split(@grader_command).select do |token|
+        token == "spec" || token.end_with?("/spec") || token.end_with?("_spec.rb")
+      end
+    rescue ArgumentError
+      []
     end
   end
 end
