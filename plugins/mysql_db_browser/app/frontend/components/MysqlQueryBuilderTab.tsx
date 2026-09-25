@@ -317,7 +317,11 @@ export function MysqlQueryBuilderTab({ connectionId, database, table }: { connec
           {result.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(result.error, t("query_error_fallback"))}</p> : null}
           {result.data && !result.data.available ? <MysqlQueryErrorPanel error={result.data.error} /> : null}
           {result.data?.available ? (
-            <MysqlResultsGrid columns={result.data.columns} rows={result.data.rows} />
+            <MysqlResultsGrid
+              columns={result.data.columns}
+              rows={result.data.rows}
+              storageKey={`syrus.mysql_db_browser.builder.${connectionId}.${database}.${builderTable}.columns`}
+            />
           ) : null}
         </>
       ) : null}
