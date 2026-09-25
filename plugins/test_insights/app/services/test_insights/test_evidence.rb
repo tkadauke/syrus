@@ -36,14 +36,15 @@ module TestInsights
 
       TestCase.joins(:test_run)
               .where(test_insight_runs: { run_id: run.id, grader_name: grader_name }, status: FAILURE_STATUSES)
-              .select(:suite_name, :name, :file_path, :failure_message)
+              .select(:repository_id, :suite_name, :name, :file_path, :failure_message, :test_identity_id)
               .map do |test_case|
                 {
                   "suite_name" => test_case.suite_name,
                   "name" => test_case.name,
                   "file_path" => test_case.file_path,
                   "identity" => [ test_case.suite_name, test_case.name ].join(0.chr),
-                  "failure_message" => failure_message_snippet(test_case.failure_message)
+                  "failure_message" => failure_message_snippet(test_case.failure_message),
+                  "app_path" => "/repositories/#{test_case.repository_id}/plugin/tests?test_id=#{test_case.test_identity_id}"
                 }
               end
               .uniq

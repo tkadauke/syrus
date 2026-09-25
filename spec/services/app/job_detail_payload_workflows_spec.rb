@@ -1415,9 +1415,9 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
       end
 
-      def failed_grader_run(job)
+      def failed_grader_run(job, details: {})
         workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
-        step = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "failed", details: { "name" => "rspec" })
+        step = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "failed", details: { "name" => "rspec" }.merge(details))
         Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude", state: "failed")
       end
 
@@ -1450,6 +1450,24 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         expect(summary["failed_count"]).to eq(7)
         expect(summary["failures"].size).to eq(5)
         expect(summary["omitted_count"]).to eq(2)
+      end
+
+      it "explains accepted flaky failures and skipped base-revision comparison" do
+        job = Factories.job_record(repository: repo)
+        failed_grader_run(job, details: {
+          "failures" => "strict",
+          "accepted_failure" => { "reason" => "known_flaky_failure" }
+        })
+        stub_test_evidence_provider(fake_test_evidence_provider(failed_test_cases: [
+          { "suite_name" => "spec/a_spec.rb", "name" => "sometimes fails", "identity" => "1" }
+        ]))
+
+        summary = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :test_failure_summary)
+
+        expect(summary).to include(
+          "accepted_failure_reason" => "known_flaky_failure",
+          "base_retry_status" => "not_configured"
+        )
       end
 
       it "is nil when no test_evidence provider has data for the run" do

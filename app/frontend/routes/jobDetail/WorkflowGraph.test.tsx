@@ -239,9 +239,11 @@ describe("WorkflowsTab", () => {
       failed_count: 7,
       omitted_count: 2,
       failures: [
-        { suite_name: "spec/a_spec.rb", name: "does a", file_path: "spec/a_spec.rb" },
+        { suite_name: "spec/a_spec.rb", name: "does a", file_path: "spec/a_spec.rb", app_path: "/repositories/7/plugin/tests?test_id=11" },
         { suite_name: "spec/b_spec.rb", name: "does b", file_path: "spec/b_spec.rb" }
-      ]
+      ],
+      accepted_failure_reason: "known_flaky_failure",
+      base_retry_status: "not_configured"
     }
 
     render(
@@ -259,6 +261,9 @@ describe("WorkflowsTab", () => {
     expect(summary).toHaveTextContent("does a")
     expect(summary).toHaveTextContent("does b")
     expect(summary).toHaveTextContent("+2 more failed tests")
+    expect(summary).toHaveTextContent("Accepted as a known flaky failure")
+    expect(summary).toHaveTextContent("Base revision retry was not run")
+    expect(screen.getByRole("link", { name: /does a/ })).toHaveAttribute("href", "/repositories/7/plugin/tests?test_id=11")
 
     // The run card's left column must be able to shrink (min-w-0) so the
     // truncate utility on failed-test rows constrains width instead of

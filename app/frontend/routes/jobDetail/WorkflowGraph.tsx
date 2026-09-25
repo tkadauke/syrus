@@ -1435,7 +1435,7 @@ function RunRow({ run, payload, command, prefix, active = false, agentic = true,
             </p>
           ) : null}
           {run.run_diagnostic?.present ? <p className="mt-1 text-xs text-warning-text">{t("run_diagnostic_captured")} <RelativeTimestamp value={run.run_diagnostic.created_at} />{run.run_diagnostic.error_message ? `: ${run.run_diagnostic.error_message}` : ""}</p> : null}
-          {run.test_failure_summary ? <TestFailureSummary summary={run.test_failure_summary} /> : null}
+          {run.test_failure_summary ? <TestFailureSummary prefix={prefix} summary={run.test_failure_summary} /> : null}
           {run.command_spans_truncated ? (
             <p className="mt-1 text-xs text-warning-text">
               {t("run_command_spans_truncated", { displayed: run.command_spans_displayed || run.command_spans?.length || 0, total: run.command_spans_total || run.command_spans?.length || 0 })}
@@ -1510,16 +1510,27 @@ function RunRow({ run, payload, command, prefix, active = false, agentic = true,
   )
 }
 
-function TestFailureSummary({ summary }: { summary: RunTestFailureSummary }) {
+function TestFailureSummary({ prefix, summary }: { prefix: string; summary: RunTestFailureSummary }) {
   const { t } = useT("jobs")
+  const acceptedAsKnownFlaky = summary.accepted_failure_reason === "known_flaky_failure"
+  const toneClasses = acceptedAsKnownFlaky
+    ? "border-warning-border bg-warning-surface text-warning-text"
+    : "border-danger-border bg-danger-surface text-danger-text"
+
   return (
-    <div className="mt-2 rounded border border-danger-border bg-danger-surface p-2 text-xs text-danger-text" data-testid="run-test-failure-summary">
+    <div className={`mt-2 rounded border p-2 text-xs ${toneClasses}`} data-testid="run-test-failure-summary">
       <p className="font-semibold">{t("run_test_failure_count", { count: summary.failed_count })}</p>
+      {acceptedAsKnownFlaky ? <p className="mt-1">{t("run_test_failure_known_flaky")}</p> : null}
+      {summary.base_retry_status === "not_configured" ? <p className="mt-1">{t("run_test_failure_brr_not_configured")}</p> : null}
+      {summary.base_retry_status === "unavailable" ? <p className="mt-1">{t("run_test_failure_brr_unavailable")}</p> : null}
       <ul className="mt-1 space-y-0.5">
         {summary.failures.map((failure, index) => (
           <li className="truncate" key={index}>
-            {failure.file_path || failure.suite_name ? <span className="font-mono">{failure.file_path || failure.suite_name}</span> : null}
-            {failure.name ? <span>{failure.file_path || failure.suite_name ? " — " : ""}{failure.name}</span> : null}
+            {failure.app_path ? (
+              <Link className="hover:underline" to={withRoutePrefix(failure.app_path, prefix)}>
+                <TestFailureLabel failure={failure} />
+              </Link>
+            ) : <TestFailureLabel failure={failure} />}
           </li>
         ))}
       </ul>
@@ -1527,6 +1538,15 @@ function TestFailureSummary({ summary }: { summary: RunTestFailureSummary }) {
         <p className="mt-1">{t("run_test_failure_more", { count: summary.omitted_count })}</p>
       ) : null}
     </div>
+  )
+}
+
+function TestFailureLabel({ failure }: { failure: RunTestFailureSummary["failures"][number] }) {
+  return (
+    <>
+      {failure.file_path || failure.suite_name ? <span className="font-mono">{failure.file_path || failure.suite_name}</span> : null}
+      {failure.name ? <span>{failure.file_path || failure.suite_name ? " — " : ""}{failure.name}</span> : null}
+    </>
   )
 }
 

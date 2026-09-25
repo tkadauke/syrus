@@ -1318,7 +1318,24 @@ module App
         name = grader_output_name(step)
         return nil if name.blank?
 
-        TestEvidenceLookup.failed_test_summary_for(run, name)
+        TestEvidenceLookup.failed_test_summary_for(run, name)&.merge(test_failure_adjudication_json(step))
+      end
+
+      def test_failure_adjudication_json(step)
+        details = step.details.to_h
+        accepted = details["accepted_failure"].to_h
+        base_retry = details["base_retry_result"].to_h
+
+        {
+          "accepted_failure_reason" => accepted["reason"],
+          "base_retry_status" => if base_retry.present?
+            base_retry["status"] || base_retry["outcome"] || "completed"
+          elsif details["failures"] == MainBranchFailureClassifier::ALLOW_INHERITED
+            "unavailable"
+          else
+            "not_configured"
+          end
+        }
       end
 
       def grader_output_name(step)

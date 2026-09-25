@@ -783,11 +783,14 @@ export type RunTestFailureSummary = {
   grader_name: string
   failed_count: number
   omitted_count: number
+  accepted_failure_reason?: string | null
+  base_retry_status?: string | null
   failures: Array<{
     suite_name?: string | null
     name?: string | null
     file_path?: string | null
     failure_message?: string | null
+    app_path?: string | null
   }>
 }
 

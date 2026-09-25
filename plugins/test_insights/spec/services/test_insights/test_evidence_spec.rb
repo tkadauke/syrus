@@ -107,7 +107,7 @@ RSpec.describe TestInsights::TestEvidence do
 
     it "returns only failed/error cases for the given run and grader, with a short failure_message snippet" do
       create_test_case(status: "passed", name: "passes")
-      create_test_case(status: "failed", name: "fails", failure_message: "expected true\n  got false\nbacktrace line")
+      failed_case = create_test_case(status: "failed", name: "fails", failure_message: "expected true\n  got false\nbacktrace line")
       create_test_case(status: "error", name: "errors", failure_message: "boom")
 
       cases = described_class.failed_test_cases(run: run, grader_name: "rspec")
@@ -117,6 +117,7 @@ RSpec.describe TestInsights::TestEvidence do
       expect(failing["failure_message"]).to eq("expected true")
       expect(failing["suite_name"]).to eq("spec/foo_spec.rb")
       expect(failing["identity"]).to eq([ "spec/foo_spec.rb", "fails" ].join(0.chr))
+      expect(failing["app_path"]).to eq("/repositories/#{repo.id}/plugin/tests?test_id=#{failed_case.test_identity_id}")
     end
 
     it "returns nil failure_message when the underlying test case has none" do
