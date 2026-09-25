@@ -368,7 +368,7 @@ module WorkerTimeline
     def command_excerpt(command)
       return nil if command.blank?
 
-      command.squish.truncate(180, omission: "...")
+      CommandRedactor.redact(command).squish.truncate(180, omission: "...")
     end
 
     def elapsed_seconds(started_at)
