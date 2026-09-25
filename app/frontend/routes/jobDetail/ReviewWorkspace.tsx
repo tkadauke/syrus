@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "../../components/Button"
 import { SectionHeading } from "../../components/Heading"
@@ -17,9 +17,10 @@ import {
   type JobDetailPayload,
   type JobWorkflow
 } from "../../api/jobs"
-import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings } from "../../api/reviewDiffSettings"
+import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings, patchReviewDiffSettings, type ReviewDiffSettings, type ReviewDiffSettingsPayload } from "../../api/reviewDiffSettings"
 import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
 import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
+import { useOptionalShortcut } from "../../contexts/ShortcutsContext"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { DiffReviewVersionSelector, canonicalReviewVersions, type DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
 import { ReviewDiffSettingsModal } from "./ReviewDiffSettingsModal"
@@ -43,6 +44,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     staleTime: Infinity
   })
   const reviewSettings = settingsQuery.data?.review_diff_settings ?? DEFAULT_REVIEW_DIFF_SETTINGS
+  useReviewDiffSettingsShortcuts(reviewSettings)
   // Paint-phase (not just commit-phase) because the diff view keeps doing
   // virtualizer/Shiki work across several frames after the initial commit;
   // "paint" is a closer proxy for when the reviewer actually sees something.
@@ -277,6 +279,66 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
       {settingsOpen ? <ReviewDiffSettingsModal initialSettings={reviewSettings} onClose={() => setSettingsOpen(false)} /> : null}
     </div>
   )
+}
+
+const REVIEW_SHORTCUT_GROUP_ORDER = 2
+
+function useReviewDiffSettingsShortcuts(reviewSettings: ReviewDiffSettings) {
+  const { t } = useT("jobs")
+  const queryClient = useQueryClient()
+  const shortcutGroup = t("review_shortcuts_group")
+  const mutation = useMutation({
+    mutationFn: patchReviewDiffSettings,
+    onMutate: async (patch: Partial<ReviewDiffSettings>) => {
+      await queryClient.cancelQueries({ queryKey: ["review_diff_settings"] })
+      const previous = queryClient.getQueryData<ReviewDiffSettingsPayload>(["review_diff_settings"])
+      const currentSettings = previous?.review_diff_settings ?? reviewSettings
+      queryClient.setQueryData<ReviewDiffSettingsPayload>(["review_diff_settings"], {
+        ...previous,
+        review_diff_settings: { ...currentSettings, ...patch }
+      })
+      return { previous }
+    },
+    onError: (_error, _patch, context) => {
+      if (context?.previous) queryClient.setQueryData(["review_diff_settings"], context.previous)
+    },
+    onSuccess: (payload) => {
+      queryClient.setQueryData(["review_diff_settings"], payload)
+    }
+  })
+
+  function updateSetting<Key extends keyof ReviewDiffSettings>(key: Key, value: ReviewDiffSettings[Key]) {
+    mutation.mutate({ [key]: value } as Partial<ReviewDiffSettings>)
+  }
+
+  useOptionalShortcut("alt+shift+w", () => {
+    updateSetting("line_wrapping", reviewSettings.line_wrapping === "wrap" ? "scroll" : "wrap")
+  }, {
+    description: t("review_shortcut_toggle_wrapping"),
+    group: shortcutGroup,
+    groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+  })
+  useOptionalShortcut("alt+shift+v", () => {
+    updateSetting("desktop_view", reviewSettings.desktop_view === "unified" ? "split" : "unified")
+  }, {
+    description: t("review_shortcut_cycle_view"),
+    group: shortcutGroup,
+    groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+  })
+  useOptionalShortcut("alt+shift+h", () => {
+    updateSetting("syntax_highlighting", !reviewSettings.syntax_highlighting)
+  }, {
+    description: t("review_shortcut_toggle_syntax"),
+    group: shortcutGroup,
+    groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+  })
+  useOptionalShortcut("alt+shift+s", () => {
+    updateSetting("whitespace", reviewSettings.whitespace === "show" ? "trim_trailing" : "show")
+  }, {
+    description: t("review_shortcut_cycle_whitespace"),
+    group: shortcutGroup,
+    groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+  })
 }
 
 function preferredReviewVersionId(payloadVersion: DiffReviewVersion | null, versions: DiffReviewVersion[]) {
