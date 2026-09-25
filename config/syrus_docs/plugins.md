@@ -1197,9 +1197,12 @@ own private shapes: `inherited_grader_failure` (`.syrus.yml`'s
 two dismiss a required-grader failure on flakiness grounds, from two
 different kinds of evidence: `known_flaky_failure`
 (`Adjudicators::KnownFlakyFailure`) when every one of its failing tests
-already has a confirmed-flaky history -- the case `inherited_grader_failure`
-cannot catch because the flake reproduces on the base branch too, just
-intermittently -- and `isolated_repro_dismissal`
+already has a confirmed-flaky history after excluding the workflow currently
+being adjudicated. It also refuses mostly-failing recent histories, because a
+test that is failing more often than it passes is more likely a live
+regression than a safe-to-dismiss flake. `known_flaky_failure` covers the
+case `inherited_grader_failure` cannot catch because the flake reproduces on
+the base branch too, just intermittently -- and `isolated_repro_dismissal`
 (`Adjudicators::IsolatedReproDismissal`, see `landing_queue.md`'s
 `isolated_repro_dismissal_enabled`) when every one of its failing tests has
 an agent-recorded, same-SHA, pre-fix "did not reproduce in isolation" record
