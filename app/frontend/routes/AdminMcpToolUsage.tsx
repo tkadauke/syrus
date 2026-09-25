@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { SectionHeading } from "../components/Heading"
-import { Link, useLocation, useNavigate } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import {
   fetchAdminMcpToolUsage,
   type McpStartupPhaseLatencyRow,
@@ -12,6 +12,7 @@ import {
   type McpToolUsageToolRow
 } from "../api/adminMcpToolUsage"
 import {
+  AdminEventFilterBar,
   AdminEventLogTable,
   type AdminEventLogTableColumn,
   AdminEventPageShell,
@@ -19,19 +20,11 @@ import {
   formatEventDate
 } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
-import { Input } from "../components/Input"
-import { Select } from "../components/Select"
 import { DataTable, PanelMessage, Section, Text } from "../components/ui"
-import {
-  DataTableColumnCells,
-  DataTableColumnHeaderRow,
-  DataTableColumnMenu,
-  useLocalStorageColumnPreferences,
-  type DataTableColumnDef
-} from "../components/dataTable"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import { buildFlatFilterLink } from "../lib/flatFilterLink"
 
 const WINDOW_PRESETS = [
   { value: "24h", hours: 24 },
@@ -46,18 +39,12 @@ export function AdminMcpToolUsage() {
   const { t } = useT("admin")
   usePageTitle(t("page_title_mcp_tool_usage"))
   const location = useLocation()
-  const navigate = useNavigate()
   const search = location.search
   const usage = useQuery({
     queryKey: ["admin", "mcp_tool_usage", search],
     queryFn: () => fetchAdminMcpToolUsage(search),
     placeholderData: keepPreviousData
   })
-
-  function navigateSearch(params: URLSearchParams) {
-    const next = params.toString()
-    navigate({ pathname: location.pathname, search: next ? `?${next}` : "" })
-  }
 
   return (
     <AdminEventPageShell
@@ -75,7 +62,7 @@ export function AdminMcpToolUsage() {
       eyebrow={t("section_label")}
       title={t("mcp_tool_usage.heading")}
     >
-      <McpToolUsageFilters search={search} onNavigate={navigateSearch} />
+      <McpToolUsageFilters search={search} />
       {usage.isPending ? <AdminEventPanelMessage>{t("mcp_tool_usage.loading")}</AdminEventPanelMessage> : null}
       {usage.isError ? <AdminEventPanelMessage tone="error">{errorMessage(usage.error, t("mcp_tool_usage.error_load"))}</AdminEventPanelMessage> : null}
       {usage.isSuccess ? <McpToolUsageView payload={usage.data} /> : null}
@@ -83,93 +70,42 @@ export function AdminMcpToolUsage() {
   )
 }
 
-function McpToolUsageFilters({ onNavigate, search }: { onNavigate: (params: URLSearchParams) => void; search: string }) {
+function McpToolUsageFilters({ search }: { search: string }) {
   const { t } = useT("admin")
   const params = new URLSearchParams(search)
-  const activeSurface = params.get("surface") || "all"
-  const activeWindow = params.get("window_preset") || "7d"
-  const activeToolName = params.get("tool_name") || ""
-  const activeServerName = params.get("server_name") || ""
-
-  function setWindow(value: string) {
-    const preset = WINDOW_PRESETS.find((entry) => entry.value === value)
-    const next = new URLSearchParams(search)
-    if (!preset) {
-      next.delete("window_preset")
+  const filter = {
+    and: [
+      { field: "window_preset", op: "is", value: params.get("window_preset") || "7d" },
+      ...(params.get("surface") ? [{ field: "surface", op: "is", value: params.get("surface") || "all" }] : []),
+      ...(params.get("tool_name") ? [{ field: "tool_name", op: "is", value: params.get("tool_name") || "" }] : []),
+      ...(params.get("server_name") ? [{ field: "server_name", op: "is", value: params.get("server_name") || "" }] : [])
+    ]
+  }
+  const filterLink = buildFlatFilterLink(["window_preset", "surface", "tool_name", "server_name"], (next) => {
+    const preset = WINDOW_PRESETS.find((entry) => entry.value === next.get("window_preset"))
+    if (preset) {
+      next.set("since", new Date(Date.now() - preset.hours * 60 * 60 * 1000).toISOString())
+      next.delete("until")
+    } else {
       next.delete("since")
-      onNavigate(next)
-      return
     }
-    next.set("window_preset", preset.value)
-    next.set("since", new Date(Date.now() - preset.hours * 60 * 60 * 1000).toISOString())
-    next.delete("until")
-    onNavigate(next)
-  }
-
-  function setSurface(value: string) {
-    const next = new URLSearchParams(search)
-    if (value === "all") {
-      next.delete("surface")
-    } else {
-      next.set("surface", value)
-    }
-    onNavigate(next)
-  }
-
-  function setTextFilter(key: "tool_name" | "server_name", value: string) {
-    const next = new URLSearchParams(search)
-    const trimmed = value.trim()
-    if (trimmed) {
-      next.set(key, trimmed)
-    } else {
-      next.delete(key)
-    }
-    onNavigate(next)
-  }
+    if (next.get("surface") === "all") next.delete("surface")
+  })
 
   return (
-    <section className="flex flex-wrap items-end gap-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <label className="space-y-1">
-        <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mcp_tool_usage.window_label")}</span>
-        <Select value={activeWindow} onChange={(event) => setWindow(event.target.value)}>
-          {WINDOW_PRESETS.map((preset) => (
-            <option key={preset.value} value={preset.value}>{t(`mcp_tool_usage.window_${preset.value}`)}</option>
-          ))}
-        </Select>
-      </label>
-      <label className="space-y-1">
-        <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mcp_tool_usage.surface_label")}</span>
-        <Select value={activeSurface} onChange={(event) => setSurface(event.target.value)}>
-          {SURFACES.map((value) => (
-            <option key={value} value={value}>{t(`mcp_tool_usage.surface_${value}`)}</option>
-          ))}
-        </Select>
-      </label>
-      <label className="space-y-1">
-        <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mcp_tool_usage.tool_label")}</span>
-        <Input
-          onBlur={(event) => setTextFilter("tool_name", event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") setTextFilter("tool_name", event.currentTarget.value)
-          }}
-          placeholder={t("mcp_tool_usage.tool_placeholder")}
-          type="text"
-          defaultValue={activeToolName}
-        />
-      </label>
-      <label className="space-y-1">
-        <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mcp_tool_usage.server_label")}</span>
-        <Input
-          onBlur={(event) => setTextFilter("server_name", event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") setTextFilter("server_name", event.currentTarget.value)
-          }}
-          placeholder={t("mcp_tool_usage.server_placeholder")}
-          type="text"
-          defaultValue={activeServerName}
-        />
-      </label>
-    </section>
+    <AdminEventFilterBar
+      buildLink={filterLink}
+      clearLabel={t("clear_filters")}
+      fields={[
+        { name: "window_preset", label: t("mcp_tool_usage.window_label"), options: WINDOW_PRESETS.map((preset) => ({ label: t(`mcp_tool_usage.window_${preset.value}`), value: preset.value })) },
+        { name: "surface", label: t("mcp_tool_usage.surface_label"), options: SURFACES.map((value) => ({ label: t(`mcp_tool_usage.surface_${value}`), value })) },
+        { name: "tool_name", label: t("mcp_tool_usage.tool_label"), placeholder: t("mcp_tool_usage.tool_placeholder") },
+        { name: "server_name", label: t("mcp_tool_usage.server_label"), placeholder: t("mcp_tool_usage.server_placeholder") }
+      ]}
+      filter={filter}
+      search={search}
+      searchLabel={t("search")}
+    />
   )
 }
 
@@ -374,16 +310,15 @@ function formatRecommendation(value: string | undefined) {
   return value ? value.replaceAll("_", " ") : "-"
 }
 
-const CARD_GAP_RANKING_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.admin.mcp_tool_usage.card_gap_ranking.visible_columns"
-
-function buildCardGapRankingColumns(t: (key: string) => string): DataTableColumnDef<McpToolCardGapRow>[] {
+function buildCardGapRankingColumns(t: (key: string) => string): Array<AdminEventLogTableColumn<McpToolCardGapRow>> {
   return [
     {
       key: "tool",
-      label: t("mcp_tool_usage.col_tool"),
+      header: t("mcp_tool_usage.col_tool"),
       required: true,
-      cellClassName: "align-top",
-      renderCell: (row) => (
+      sort: "tool",
+      sortValue: (row) => row.tool_name,
+      render: (row) => (
         <>
           <div className="font-medium text-gray-900 dark:text-gray-100">{row.tool_name}</div>
           <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{row.card_status}</div>
@@ -391,64 +326,43 @@ function buildCardGapRankingColumns(t: (key: string) => string): DataTableColumn
         </>
       )
     },
-    { key: "calls", label: t("mcp_tool_usage.col_calls"), cellClassName: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", renderCell: (row) => row.calls ?? 0 },
-    { key: "errors", label: t("mcp_tool_usage.col_errors"), cellClassName: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", renderCell: (row) => row.errors ?? 0 },
-    { key: "result_bytes", label: t("mcp_tool_usage.col_result_bytes"), cellClassName: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", renderCell: (row) => formatBytes(row.result_bytes) },
+    { key: "calls", header: t("mcp_tool_usage.col_calls"), sort: "calls", sortValue: (row) => row.calls ?? 0, className: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", render: (row) => row.calls ?? 0 },
+    { key: "errors", header: t("mcp_tool_usage.col_errors"), sort: "errors", sortValue: (row) => row.errors ?? 0, className: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", render: (row) => row.errors ?? 0 },
+    { key: "result_bytes", header: t("mcp_tool_usage.col_result_bytes"), sort: "result_bytes", sortValue: (row) => row.result_bytes ?? 0, className: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", render: (row) => formatBytes(row.result_bytes) },
     {
       key: "owner",
-      label: t("mcp_tool_usage.col_owner"),
-      cellClassName: "align-top text-xs text-gray-700 dark:text-gray-200",
-      renderCell: (row) => (
+      header: t("mcp_tool_usage.col_owner"),
+      sort: "owner",
+      sortValue: (row) => `${row.owner_type}.${row.owner_name}`,
+      className: "align-top text-xs text-gray-700 dark:text-gray-200",
+      render: (row) => (
         <>
           <div>{row.owner_type === "plugin" ? row.owner_name : t("mcp_tool_usage.owner_core")}</div>
           <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{row.recommendation_target}</div>
         </>
       )
     },
-    { key: "last_used", label: t("mcp_tool_usage.col_last_used"), cellClassName: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", renderCell: (row) => row.last_used_at ? formatEventDate(row.last_used_at) : t("mcp_tool_usage.never_used") },
-    { key: "recommendation", label: t("mcp_tool_usage.col_recommendation"), cellClassName: "align-top text-xs text-gray-700 dark:text-gray-200", renderCell: (row) => formatRecommendation(row.recommendation) }
+    { key: "last_used", header: t("mcp_tool_usage.col_last_used"), sort: "last_used", sortValue: (row) => row.last_used_at || "", className: "align-top font-mono text-xs text-gray-700 dark:text-gray-200", render: (row) => row.last_used_at ? formatEventDate(row.last_used_at) : t("mcp_tool_usage.never_used") },
+    { key: "recommendation", header: t("mcp_tool_usage.col_recommendation"), sort: "recommendation", sortValue: (row) => row.recommendation || "", className: "align-top text-xs text-gray-700 dark:text-gray-200", render: (row) => formatRecommendation(row.recommendation) }
   ]
 }
 
 function CardGapRankingPanel({ rows }: { rows: McpToolCardGapRow[] }) {
   const { t } = useT("admin")
   const columns = buildCardGapRankingColumns(t)
-  const preferences = useLocalStorageColumnPreferences({ columns, storageKey: CARD_GAP_RANKING_VISIBLE_COLUMNS_STORAGE_KEY })
 
   return (
-    <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-        <SectionHeading>{t("mcp_tool_usage.card_gap_ranking_heading")}</SectionHeading>
-        {rows.length > 0 ? (
-          <DataTableColumnMenu
-            columns={columns}
-            downLabel={t("event_log_table.column_down")}
-            menuId="admin-mcp-tool-usage-card-gap-columns-menu"
-            moveDownLabel={(title) => t("event_log_table.column_move_down", { title })}
-            moveUpLabel={(title) => t("event_log_table.column_move_up", { title })}
-            onChange={preferences.onChange}
-            order={preferences.order}
-            triggerAriaLabel={t("event_log_table.columns")}
-            upLabel={t("event_log_table.column_up")}
-            visibleLabel={t("event_log_table.visible_columns")}
-          />
-        ) : null}
-      </div>
-      {rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.card_gap_ranking_empty")}</AdminEventPanelMessage> : (
-        <DataTable.Root>
-          <DataTable.Header>
-            <DataTableColumnHeaderRow columns={columns} onReorder={preferences.onChange} order={preferences.order} />
-          </DataTable.Header>
-          <DataTable.Body>
-            {rows.map((row) => (
-              <DataTable.Row key={`${row.card_status}.${row.tool_name}`}>
-                <DataTableColumnCells columns={columns} order={preferences.order} row={row} />
-              </DataTable.Row>
-            ))}
-          </DataTable.Body>
-        </DataTable.Root>
-      )}
-    </section>
+    rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.card_gap_ranking_empty")}</AdminEventPanelMessage> : (
+      <AdminEventLogTable
+        columns={columns}
+        defaultSort={{ column: "calls", direction: "desc" }}
+        getRowKey={(row) => `${row.card_status}.${row.tool_name}`}
+        localSort
+        panel={{ summary: t("mcp_tool_usage.card_gap_ranking_heading"), meta: `${rows.length} tools` }}
+        rows={rows}
+        storageKey="syrus.admin.mcp_tool_usage.card_gap_ranking.visible_columns"
+      />
+    )
   )
 }
 
@@ -460,6 +374,8 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       headerClassName: "w-40 px-4 py-2",
       header: t("mcp_tool_usage.col_time"),
       key: "time",
+      sort: "time",
+      sortValue: (row) => row.occurred_at,
       render: (row) => formatEventDate(row.occurred_at)
     },
     {
@@ -467,6 +383,8 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       headerClassName: "px-4 py-2",
       header: t("mcp_tool_usage.col_call"),
       key: "call",
+      sort: "call",
+      sortValue: (row) => row.tool_name,
       render: (row) => (
         <>
           <div className="font-medium text-gray-900 dark:text-gray-100">{row.tool_name}</div>
@@ -479,6 +397,8 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       headerClassName: "px-4 py-2",
       header: t("mcp_tool_usage.col_status"),
       key: "status",
+      sort: "status",
+      sortValue: (row) => row.status,
       render: (row) => (
         <>
           <span className={`rounded px-2 py-0.5 font-medium ${row.error ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>{row.status}</span>
@@ -503,12 +423,17 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
   ]
 
   return (
-    <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{t("mcp_tool_usage.recent_calls_heading")}</SectionHeading>
-      {calls.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.recent_calls_empty")}</AdminEventPanelMessage> : (
-        <AdminEventLogTable columns={columns} getRowKey={(row) => row.id} rows={calls} storageKey="syrus.admin.mcp_tool_usage.recent_calls.visible_columns" />
-      )}
-    </section>
+    calls.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.recent_calls_empty")}</AdminEventPanelMessage> : (
+      <AdminEventLogTable
+        columns={columns}
+        defaultSort={{ column: "time", direction: "desc" }}
+        getRowKey={(row) => row.id}
+        localSort
+        panel={{ summary: t("mcp_tool_usage.recent_calls_heading"), meta: `${calls.length} calls` }}
+        rows={calls}
+        storageKey="syrus.admin.mcp_tool_usage.recent_calls.visible_columns"
+      />
+    )
   )
 }
 
