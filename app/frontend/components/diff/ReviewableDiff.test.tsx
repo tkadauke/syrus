@@ -156,6 +156,10 @@ describe("ReviewableDiff", () => {
     ])
     expect(oldCell).toHaveClass("min-w-0", "whitespace-pre-wrap", "break-words")
     expect(newCell).toHaveClass("min-w-0", "whitespace-pre-wrap", "break-words")
+    expect(oldCell.getAttribute("style")).toContain("max-width: 0px")
+    expect(oldCell.getAttribute("style")).toContain("width: calc(0.5 * (100% - 7.5rem))")
+    expect(newCell.getAttribute("style")).toContain("max-width: 0px")
+    expect(newCell.getAttribute("style")).toContain("width: calc(0.5 * (100% - 7.5rem))")
   })
 
   it("clips desktop split panes instead of letting horizontal-scroll long lines move the center boundary", () => {
@@ -175,8 +179,12 @@ describe("ReviewableDiff", () => {
     ])
     expect(oldCell).toHaveClass("min-w-0", "overflow-hidden", "whitespace-pre")
     expect(oldCell).not.toHaveClass("min-w-[40rem]")
+    expect(oldCell.getAttribute("style")).toContain("max-width: 0px")
+    expect(oldCell.getAttribute("style")).toContain("width: calc(0.5 * (100% - 1.5rem))")
     expect(newCell).toHaveClass("min-w-0", "overflow-hidden", "whitespace-pre")
     expect(newCell).not.toHaveClass("min-w-[40rem]")
+    expect(newCell.getAttribute("style")).toContain("max-width: 0px")
+    expect(newCell.getAttribute("style")).toContain("width: calc(0.5 * (100% - 1.5rem))")
   })
 
   it("keeps commented desktop split lines on the split column grid", () => {
