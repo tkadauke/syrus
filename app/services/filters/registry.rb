@@ -205,7 +205,21 @@ module Filters
         "search"           => "Filters::Chips::AdminUsers::Search",
         "email"            => "Filters::Chips::AdminUsers::Email",
         "admin"            => "Filters::Chips::AdminUsers::Admin",
+        "role"             => "Filters::Chips::AdminUsers::Role",
+        "scheduling_paused" => "Filters::Chips::AdminUsers::SchedulingPaused",
+        "agent_provider"   => "Filters::Chips::AdminUsers::AgentProvider",
+        "chat_provider"    => "Filters::Chips::AdminUsers::ChatProvider",
+        "codex_auth_mode"  => "Filters::Chips::AdminUsers::CodexAuthMode",
+        "has_api_token"    => "Filters::Chips::AdminUsers::HasApiToken",
         "has_github_token" => "Filters::Chips::AdminUsers::HasGithubToken",
+        "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken",
+        "has_codex_token"  => "Filters::Chips::AdminUsers::HasCodexToken",
+        "has_muse_token"   => "Filters::Chips::AdminUsers::HasMuseToken",
+        "github_api_blocked" => "Filters::Chips::AdminUsers::GithubApiBlocked",
+        "github_api_blocked_at" => "Filters::Chips::AdminUsers::GithubApiBlockedAt",
+        "github_api_blocked_reason" => "Filters::Chips::AdminUsers::GithubApiBlockedReason",
+        "created_at"       => "Filters::Chips::CreatedAt",
+        "updated_at"       => "Filters::Chips::UpdatedAt",
         "gh_rate"          => "Filters::Chips::AdminUsers::GhRate"
       }
     ),
@@ -215,6 +229,10 @@ module Filters
       chips: {
         "queue_name"   => "Filters::Chips::AdminQueue::QueueName",
         "job_class"    => "Filters::Chips::AdminQueue::JobClass",
+        "job_id"       => "Filters::Chips::AdminQueue::JobId",
+        "priority"     => "Filters::Chips::AdminQueue::Priority",
+        "created_at"   => "Filters::Chips::AdminQueue::CreatedAt",
+        "scheduled_at" => "Filters::Chips::AdminQueue::ScheduledAt",
         "failed_since" => "Filters::Chips::AdminQueue::FailedSince"
       }
     ),
@@ -240,6 +258,15 @@ module Filters
         "hostname"    => "Filters::Chips::SpawnedProcesses::Hostname",
         "run_id"      => "Filters::Chips::SpawnedProcesses::RunId",
         "workflow_id" => "Filters::Chips::SpawnedProcesses::WorkflowId",
+        "chat_session_id" => "Filters::Chips::SpawnedProcesses::ChatSessionId",
+        "command"     => "Filters::Chips::SpawnedProcesses::Command",
+        "workdir"     => "Filters::Chips::SpawnedProcesses::Workdir",
+        "exit_status" => "Filters::Chips::SpawnedProcesses::ExitStatus",
+        "kill_requested_at" => "Filters::Chips::SpawnedProcesses::KillRequestedAt",
+        "kill_requested_by_user_id" => "Filters::Chips::SpawnedProcesses::KillRequestedByUserId",
+        "wall_timeout_s" => "Filters::Chips::SpawnedProcesses::WallTimeout",
+        "silent_timeout_s" => "Filters::Chips::SpawnedProcesses::SilentTimeout",
+        "last_chunk_at" => "Filters::Chips::SpawnedProcesses::LastChunkAt",
         "stale"       => "Filters::Chips::SpawnedProcesses::Stale",
         "started_at"  => "Filters::Chips::SpawnedProcesses::StartedAt"
       }

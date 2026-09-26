@@ -7,6 +7,7 @@ module Api
           MAX_PER_PAGE = 200
           SORTS = {
             "email" => { email_address: :asc },
+            "inviter" => { invited_by_email_address: :asc },
             "expires_at" => { expires_at: :asc },
             "created_at" => { created_at: :asc }
           }.freeze
@@ -17,6 +18,24 @@ module Api
               field: "email",
               label: "Email",
               operators: [ "contains" ]
+            },
+            {
+              bucket: "text",
+              field: "inviter",
+              label: "Inviter",
+              operators: [ "contains" ]
+            },
+            {
+              bucket: "date",
+              field: "expires_at",
+              label: "Expires",
+              operators: [ "before", "after", "between", "within_last", "more_than_ago" ]
+            },
+            {
+              bucket: "date",
+              field: "created_at",
+              label: "Created",
+              operators: [ "before", "after", "between", "within_last", "more_than_ago" ]
             }
           ].freeze
 
@@ -49,7 +68,7 @@ module Api
 
           def invitations_payload
             filter = filter_tree
-            scope = apply_filter(Invitation.pending.includes(:invited_by), filter)
+            scope = apply_filter(Invitation.pending.joins(:invited_by).includes(:invited_by), filter)
             total = scope.count
             {
               invitations: apply_sort(scope).offset(offset).limit(per_page).map { |invitation| invitation_json(invitation) },
@@ -75,11 +94,52 @@ module Api
           end
 
           def apply_filter(scope, tree)
-            email = flat_filters(tree)["email"]
-            return scope if email.blank?
+            chips = []
+            collect_chips(::Filters::Ast.parse(tree), chips)
+            chips.reduce(scope) do |relation, chip|
+              apply_chip_filter(relation, chip)
+            end
+          end
 
-            pattern = "%#{ActiveRecord::Base.sanitize_sql_like(email.to_s)}%"
-            scope.where("email_address LIKE ?", pattern)
+          def apply_chip_filter(scope, chip)
+            case chip.field
+            when "email"
+              pattern = "%#{ActiveRecord::Base.sanitize_sql_like(chip.value.to_s)}%"
+              scope.where("invitations.email_address LIKE ?", pattern)
+            when "inviter"
+              pattern = "%#{ActiveRecord::Base.sanitize_sql_like(chip.value.to_s)}%"
+              scope.where("users.email_address LIKE ?", pattern)
+            when "expires_at", "created_at"
+              apply_date_filter(scope, chip.field, chip.op, chip.value)
+            else
+              scope
+            end
+          end
+
+          def apply_date_filter(scope, field, op, value)
+            column = "invitations.#{field}"
+            case op
+            when "before" then scope.where("#{column} <= ?", Time.zone.parse(value.to_s))
+            when "after" then scope.where("#{column} >= ?", Time.zone.parse(value.to_s))
+            when "between"
+              range = Array(value)
+              scope.where("#{column} BETWEEN ? AND ?", Time.zone.parse(range.first.to_s), Time.zone.parse(range.last.to_s))
+            when "within_last"
+              scope.where("#{column} >= ?", duration_for(value).ago)
+            when "more_than_ago"
+              scope.where("#{column} <= ?", duration_for(value).ago)
+            else
+              scope
+            end
+          rescue ArgumentError, TypeError
+            scope
+          end
+
+          def duration_for(value)
+            spec = value.is_a?(Hash) ? value : {}
+            n = Integer(spec["n"] || spec[:n] || 0)
+            unit = (spec["unit"] || spec[:unit]).to_s
+            { "minutes" => 1.minute, "hours" => 1.hour, "days" => 1.day, "weeks" => 1.week, "months" => 1.month }.fetch(unit) * n
           end
 
           def flat_filters(tree)
@@ -124,6 +184,10 @@ module Api
 
           def apply_sort(scope)
             direction = sort_direction.to_sym
+            if sort_column == "inviter"
+              return scope.order(Arel.sql("users.email_address #{sort_direction.upcase}")).order(id: direction)
+            end
+
             scope.order(SORTS.fetch(sort_column).transform_values { direction }).order(id: direction)
           end
 

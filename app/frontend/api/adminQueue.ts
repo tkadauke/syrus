@@ -12,15 +12,21 @@ export type QueueJob = {
   id: number
   class_name: string
   queue_name: string
+  priority: number
   arguments: unknown[] | null
   created_at: string
+  scheduled_at: string | null
   claimed_at?: string | null
+  ready_at?: string | null
 }
 
 export type QueueFailure = {
   id: number
+  job_id: number
   created_at: string
   class_name: string | null
+  priority: number | null
+  scheduled_at: string | null
   arguments: unknown[] | null
   exception_class: string | null
   message: string | null

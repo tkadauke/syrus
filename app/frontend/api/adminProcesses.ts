@@ -34,6 +34,7 @@ export type SpawnedProcessPayload = {
   silent_timeout_s: number | null
   run_id: number | null
   workflow_id: number | null
+  chat_session_id: number | null
   workflow_slug: string | null
   workflow_path: string | null
   stale: boolean

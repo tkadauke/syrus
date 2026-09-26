@@ -87,6 +87,28 @@ RSpec.describe "API: /api/v1/app/admin/invitations", type: :request do
     expect(body.fetch("sort")).to eq("column" => "email", "direction" => "desc")
   end
 
+  it "filters by inviter and sorts by created or inviter fields" do
+    sign_in_as(admin)
+    ada = Factories.user(email_address: "ada-admin@example.com")
+    bob = Factories.user(email_address: "bob-admin@example.com")
+    selected = Invitation.create!(invited_by: ada, email_address: "guest-a@example.com", created_at: 2.hours.ago)
+    Invitation.create!(invited_by: bob, email_address: "guest-b@example.com", created_at: 1.hour.ago)
+    tree = {
+      "and" => [
+        { "field" => "inviter", "op" => "contains", "value" => "ada-admin" },
+        { "field" => "created_at", "op" => "more_than_ago", "value" => { "n" => 30, "unit" => "minutes" } }
+      ]
+    }
+
+    get "/api/v1/app/admin/invitations", params: { q: Filters::QueryParam.encode(tree), sort: "inviter", direction: "asc" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.fetch("invitations").map { |invitation| invitation.fetch("id") }).to eq([ selected.id ])
+    expect(body.fetch("filter_schema").map { |field| field.fetch("field") }).to include("email", "inviter", "expires_at", "created_at")
+    expect(body.fetch("sort")).to eq("column" => "inviter", "direction" => "asc")
+  end
+
   it "preloads inviters when listing pending invitations" do
     sign_in_as(admin)
     inviters = Array.new(4) { |index| Factories.user(email_address: "inviter-#{index}@example.com") }

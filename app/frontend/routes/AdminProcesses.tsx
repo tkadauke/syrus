@@ -166,6 +166,20 @@ function buildProcessesColumns({
       render: (process) => <span title={process.command}>{process.command}</span>
     },
     {
+      key: "chat_session_id",
+      header: t("processes.col_chat_session"),
+      sort: "chat_session_id",
+      className: "align-top font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (process) => (process.owner?.type === "chat" ? process.owner.label : process.chat_session_id ? `#${process.chat_session_id}` : "-")
+    },
+    {
+      key: "workdir",
+      header: t("processes.col_workdir"),
+      sort: "workdir",
+      className: "max-w-md truncate align-top font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (process) => <span title={process.workdir || undefined}>{process.workdir || "-"}</span>
+    },
+    {
       key: "user",
       header: t("processes.col_user"),
       className: "max-w-xs align-top text-xs text-gray-700 dark:text-gray-200",
@@ -219,7 +233,27 @@ function buildProcessesColumns({
       className: "align-top text-xs text-gray-700 dark:text-gray-200",
       render: (process) => formatDuration(process.duration_s)
     },
+    {
+      key: "timeouts",
+      header: t("processes.col_timeouts"),
+      className: "align-top font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (process) => `${formatDuration(process.wall_timeout_s)} / ${formatDuration(process.silent_timeout_s)}`
+    },
+    {
+      key: "exit_status",
+      header: t("processes.col_exit_status"),
+      sort: "exit_status",
+      className: "align-top font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (process) => process.exit_status ?? "-"
+    },
     { key: "outcome", header: t("processes.col_outcome"), sort: "outcome", className: "align-top text-xs", render: (process) => <Outcome process={process} /> },
+    {
+      key: "kill_requested",
+      header: t("processes.col_kill_requested"),
+      sort: "kill_requested_at",
+      className: "whitespace-nowrap align-top text-xs text-gray-700 dark:text-gray-200",
+      render: (process) => <RelativeTimestamp value={process.kill_requested_at} />
+    },
     {
       key: "actions",
       header: t("processes.col_actions"),
