@@ -204,6 +204,44 @@ describe("ReviewableDiff", () => {
     expect(newCell).not.toHaveClass("min-w-[40rem]")
   })
 
+  it("keeps commented desktop split lines on the split column grid", () => {
+    render(
+      <ReviewableDiff
+        comments={{
+          "app/models/job.rb": {
+            "right::1": [{ id: 1, author: "Ada", body: "Please cover this branch.", state: "draft" }]
+          }
+        }}
+        files={files}
+        mode="continuous"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "wrap", line_numbers: true }}
+        showFileHeaders
+      />
+    )
+
+    expect(screen.getByText("new").closest("tr")).toHaveAttribute("data-diff-split-row", "true")
+    expect(screen.getByTestId("diff-review-thread").querySelectorAll("td")).toHaveLength(1)
+    expect(screen.getByTestId("diff-review-thread").querySelector("td")).toHaveAttribute("colspan", "5")
+  })
+
+  it("keeps desktop split composer rows aligned to the split column grid", () => {
+    render(
+      <ReviewableDiff
+        composingBody="Please keep this visible."
+        composingSelection={{ file: files[0], line: { code: "new", kind: "add", newLine: 1, oldLine: null, marker: "+", hunkId: 0 }, side: "new" }}
+        files={files}
+        mode="continuous"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "wrap", line_numbers: true }}
+        showFileHeaders
+      />
+    )
+
+    expect(screen.getByText("new").closest("tr")).toHaveAttribute("data-diff-split-row", "true")
+    expect(screen.getByTestId("diff-review-composer").querySelectorAll("td")).toHaveLength(1)
+    expect(screen.getByTestId("diff-review-composer").querySelector("td")).toHaveAttribute("colspan", "5")
+    expect(within(screen.getByTestId("diff-review-composer")).getByLabelText("Comment")).toHaveValue("Please keep this visible.")
+  })
+
   it("keeps mobile scroll-mode diffs in touch-friendly horizontal scrollers", () => {
     const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
     Object.defineProperty(window, "matchMedia", {
