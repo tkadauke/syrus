@@ -521,7 +521,9 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findByText("Diff comments")
-    expect(screen.getByRole("separator", { name: "Resize diff comments" })).toHaveAttribute("aria-valuenow", "384")
+    const separator = screen.getByRole("separator", { name: "Resize diff comments" })
+    expect(separator).toHaveAttribute("aria-valuenow", "384")
+    expect(separator).toHaveClass("h-screen", "lg:sticky", "lg:top-0")
     expect(screen.getByTestId("review-comments-panel")).toHaveStyle({ width: "384px" })
     expect(screen.queryByTestId("review-comments-rail")).not.toBeInTheDocument()
   })
