@@ -464,6 +464,7 @@ function RecentChatsSettingsMenu({ settings, setSettings }: {
   settings: ChatSidebarSettings
   setSettings: (updater: (current: ChatSidebarSettings) => ChatSidebarSettings) => void
 }) {
+  const { t } = useTranslation("nav")
   const [open, setOpen] = useState(false)
   const [submenu, setSubmenu] = useState<"root" | "status" | "group_by" | "sort_by" | "per_group">("root")
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
@@ -498,10 +499,10 @@ function RecentChatsSettingsMenu({ settings, setSettings }: {
     <div className="relative" ref={referenceRef}>
       <button
         aria-expanded={open}
-        aria-label="Recent chats settings"
+        aria-label={t("recent_chats_settings")}
         className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-400 dark:hover:bg-gray-800"
         onClick={() => setOpen((value) => !value)}
-        title="Recent chats settings"
+        title={t("recent_chats_settings")}
         type="button"
       >
         <SettingsSlidersIcon />
@@ -516,9 +517,9 @@ function RecentChatsSettingsMenu({ settings, setSettings }: {
           >
             {isDesktop ? null : (
               <div className="mb-2 flex items-center justify-between border-b border-border px-4 pb-3">
-                <div className="font-semibold text-text-primary">Recent chats settings</div>
+                <div className="font-semibold text-text-primary">{t("recent_chats_settings")}</div>
                 <button
-                  aria-label="Close recent chats settings"
+                  aria-label={t("recent_chats_settings_close")}
                   className={SIDEBAR_DIALOG_CLOSE_CLASS}
                   onClick={closeMenu}
                   type="button"
@@ -541,7 +542,7 @@ function RecentChatsSettingsMenu({ settings, setSettings }: {
                       aria-checked={settings.show_empty_groups}
                       type="button"
                     >
-                      <span>Show empty groups</span>
+                      <span>{t("recent_chats_show_empty_groups")}</span>
                       <span className={`h-5 w-9 rounded-full p-0.5 ${settings.show_empty_groups ? "bg-brand" : "bg-border"}`}>
                         <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${settings.show_empty_groups ? "translate-x-4" : ""}`} />
                       </span>
