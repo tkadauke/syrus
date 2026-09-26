@@ -11,6 +11,7 @@ module Steps
       ) do
         run.update!(prompt: compose_prompt) if run.prompt.blank?
       end
+      CodingHandoffRevisionGuard.record_fix!(workflow: workflow, run: run.reload)
     end
 
     private

@@ -3461,12 +3461,11 @@ describe("Job detail tour", () => {
     expect(secondLine?.lastElementChild).toBe(actionSlot)
     expect(secondLine).toHaveClass("flex-col", "sm:flex-row", "sm:justify-between")
     expect(metadata).toHaveClass("w-full", "sm:flex-1")
-    expect(actionSlot).toHaveClass("w-full", "sm:w-auto", "sm:justify-end", "shrink-0")
+    expect(actionSlot).toHaveClass("w-full", "sm:w-auto", "justify-end", "shrink-0")
     expect(actionSlot).toContainElement(screen.getByRole("button", { name: "More actions" }))
     const navigation = screen.getByLabelText("Job navigation")
     expect(actionSlot).toContainElement(navigation)
-    expect(navigation).toHaveClass("inline-flex")
-    expect(navigation).not.toHaveClass("hidden", "md:inline-flex")
+    expect(navigation).toHaveClass("hidden", "sm:inline-flex")
   })
 
   it("renders the compact second-line metadata in the requested order", () => {
