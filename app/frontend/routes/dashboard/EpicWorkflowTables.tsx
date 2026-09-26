@@ -1,6 +1,6 @@
 import { epicApparentState, SortableColumnHeader, TimestampCell, useMediaQuery, EpicCommitsBehindBadge, EpicProgressBar, EpicStuckBadge, NeutralStatePill, OwnerBadge, RepositorySlugLink, workflowLabel } from "./components"
 import { formatRelativeDate } from "../../lib/relativeTime"
-import { bulkButtonClass, columnAriaSort, compactText, epicDateValue, withRoutePrefix, workflowDateValue } from "./helpers"
+import { bulkButtonClass, columnAriaSort, compactText, epicDateValue, humanizeOption, withRoutePrefix, workflowDateValue } from "./helpers"
 import type { DashboardSortState } from "./helpers"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
@@ -218,6 +218,13 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
     return <DataTable.Cell><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={epic.repository} /></DataTable.Cell>
   }
   if (column === "updated") return <TimestampCell value={epic.updated_at} />
+  if (column === "number") return <TextCell mono value={String(epic.number)} />
+  if (column === "auto_approve_mode") return <TextCell value={humanizeOption(epic.auto_approve_mode)} />
+  if (column === "child_job_count") return <TextCell value={String(epic.jobs_count)} />
+  if (column === "open_child_count") return <TextCell value={String(epic.open_child_count ?? 0)} />
+  if (column === "blocked_child_count") return <TextCell value={String(epic.blocked_child_count ?? 0)} />
+  if (column === "dependency_count") return <TextCell value={String(epic.dependency_count ?? 0)} />
+  if (column === "child_progress_percent") return <TextCell value={`${epic.child_progress_percent ?? 0}%`} />
 
   return <TimestampCell value={epicDateValue(epic, column)} />
 }
@@ -325,8 +332,18 @@ function WorkflowCell({ workflow, column, prefix }: { workflow: DashboardWorkflo
   }
   if (column === "trigger") return <DataTable.Cell className="text-gray-700 dark:text-gray-200">{workflow.trigger_kind}</DataTable.Cell>
   if (column === "agent") return <DataTable.Cell className="text-gray-700 dark:text-gray-200">{workflow.agent_provider}</DataTable.Cell>
+  if (column === "trigger_kind") return <TextCell value={humanizeOption(workflow.trigger_kind)} />
+  if (column === "agent_provider") return <TextCell value={humanizeOption(workflow.agent_provider)} />
+  if (column === "failure_reason") return <TextCell value={workflow.failure_reason ? humanizeOption(workflow.failure_reason) : null} />
+  if (column === "run_count") return <TextCell value={String(workflow.run_count ?? 0)} />
+  if (column === "worker_hostname") return <TextCell mono value={workflow.worker_hostname} />
+  if (column === "worker_storage_key") return <TextCell mono value={workflow.worker_storage_key} />
   if (column === "started") return <TimestampCell value={workflow.started_at || workflow.created_at} />
   if (column === "finished") return <TimestampCell value={workflow.finished_at} />
 
   return <TimestampCell value={workflowDateValue(workflow, column)} />
+}
+
+function TextCell({ value, mono = false }: { value: string | null | undefined; mono?: boolean }) {
+  return <DataTable.Cell className={`max-w-56 truncate text-xs text-gray-700 dark:text-gray-200 ${mono ? "font-mono" : ""}`} title={value || undefined}>{value || "-"}</DataTable.Cell>
 }

@@ -93,6 +93,8 @@ export function sortableColumnFor(subject: DashboardSubject, column: string) {
     workflow: {
       workflow: "title",
       title: "title",
+      trigger: "trigger_kind",
+      agent: "agent_provider",
       started: "started_at",
       finished: "finished_at"
     }
@@ -156,6 +158,7 @@ export function jobDateValue(job: DashboardJobItem, column: string) {
     started_at: job.started_at,
     finished_at: job.finished_at,
     approved_at: job.approved_at,
+    claimed_at: job.claimed_at,
     dependencies_overridden_at: job.dependencies_overridden_at,
     last_feedback_addressed_at: job.last_feedback_addressed_at,
     last_seen_comment_at: job.last_seen_comment_at,
