@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react"
+import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from "react"
 import { createPortal } from "react-dom"
 import type { ThemedToken } from "@shikijs/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
@@ -1350,8 +1350,8 @@ export function UnifiedDiffTable({
   const hideOldLineGutter = isAddedFileDiff(file)
   const showLineNumbers = reviewSettings.line_numbers
   const gutterColSpan = showLineNumbers ? (hideOldLineGutter ? 1 : 2) : 1
-  const codeCellClass = diffCodeCellClass(reviewSettings, lineWrapping)
   const splitView = !isMobileViewport && reviewSettings.desktop_view === "split" && !hideOldLineGutter
+  const codeCellClass = diffCodeCellClass(reviewSettings, lineWrapping, splitView)
 
   let hunkIndex = -1
 
@@ -1378,17 +1378,148 @@ export function UnifiedDiffTable({
   const scrollClass = lineWrapping === "scroll"
     ? "w-full min-w-0 max-w-full overflow-x-scroll overscroll-x-contain [-webkit-overflow-scrolling:touch]"
     : "w-full min-w-0 max-w-full overflow-x-hidden"
+  const splitInlineColSpan = showLineNumbers ? 5 : 3
+
+  function renderThreadRow(threads: DiffReviewThread[], splitRow: boolean) {
+    if (threads.length === 0) return null
+
+    const panel = (
+      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} space-y-2 bg-amber-50/70 max-md:static dark:bg-amber-950/30`}>
+        {threads.map((thread) => (
+          <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
+            <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+              <div className="flex flex-wrap items-center gap-2">
+                {thread.author ? <span>{thread.author}</span> : null}
+                <span>{thread.state}</span>
+                {thread.workflowState ? <span>{thread.workflowState}</span> : null}
+              </div>
+              {thread.state === "draft" && onStartEditThread && editingThreadId !== thread.id ? (
+                <button
+                  className="normal-case tracking-normal text-amber-700 underline hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
+                  onClick={() => onStartEditThread(thread)}
+                  type="button"
+                >
+                  {t("diff_review_composer.edit")}
+                </button>
+              ) : null}
+              {thread.state === "draft" && onDeleteThread && editingThreadId !== thread.id ? (
+                <button
+                  className="normal-case tracking-normal text-red-700 underline hover:text-red-900 dark:text-red-300 dark:hover:text-red-100"
+                  onClick={() => onDeleteThread(thread)}
+                  type="button"
+                >
+                  {t("diff_review_composer.delete")}
+                </button>
+              ) : null}
+            </div>
+            {editingThreadId === thread.id ? (
+              <div className="space-y-2">
+                <textarea
+                  aria-label={t("diff_review_composer.edit_comment_aria", { id: thread.id })}
+                  className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                  onChange={(event) => onChangeEditingThreadBody?.(event.target.value)}
+                  value={editingThreadBody ?? ""}
+                />
+                <div className="flex gap-2">
+                  <Button disabled={!editingThreadBody?.trim()} onClick={onSaveEditThread} size="sm">{t("save")}</Button>
+                  <Button onClick={onCancelEditThread} size="sm" variant="secondary">{t("cancel")}</Button>
+                </div>
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap break-words text-sm normal-case tracking-normal text-gray-800 dark:text-gray-200">{thread.body}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    )
+
+    if (splitRow) {
+      return (
+        <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread" style={splitRowStyle(showLineNumbers)}>
+          <td className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-amber-950 dark:text-amber-100`} colSpan={splitInlineColSpan} style={splitInlineCellStyle}>
+            {panel}
+          </td>
+        </tr>
+      )
+    }
+
+    return (
+      <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
+        <td className="border-r border-amber-200 dark:border-amber-900" colSpan={gutterColSpan} />
+        <td className={`text-amber-700 dark:text-amber-300 ${diffDensityClasses(reviewSettings).marker}`}>*</td>
+        <td className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-amber-950 dark:text-amber-100`} colSpan={2}>
+          {panel}
+        </td>
+      </tr>
+    )
+  }
+
+  function renderComposerRow(isComposingHere: boolean, splitRow: boolean) {
+    if (!isComposingHere) return null
+
+    const panel = (
+      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} bg-brand/5 max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:bg-white max-md:dark:bg-gray-950`}>
+        <div className="hidden shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2 max-md:flex dark:border-gray-700">
+          <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("diff_review_composer.title")}</h4>
+          <button aria-label={t("diff_review_composer.close")} className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onCancelComposing} type="button">
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="space-y-2 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:space-y-0 max-md:gap-2 max-md:overflow-auto max-md:p-3">
+          <textarea
+            aria-label={t("diff_review_composer.comment")}
+            autoFocus
+            className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 max-md:flex-1"
+            onChange={(event) => onChangeComposingBody?.(event.target.value)}
+            value={composingBody ?? ""}
+          />
+          <div className="flex gap-2">
+            <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">{t("diff_review_composer.create_comment")}</Button>
+            {onDiscussComposing ? (
+              <Button disabled={!composingBody?.trim() || composingDiscussPending} onClick={onDiscussComposing} size="sm" variant="secondary">
+                {composingDiscussPending ? t("diff_review_composer.discussing") : t("diff_review_composer.discuss")}
+              </Button>
+            ) : null}
+            <Button onClick={onCancelComposing} size="sm" variant="secondary">{t("cancel")}</Button>
+          </div>
+          {composingError ? <p className="text-xs text-red-700 dark:text-red-300">{t("diff_review_composer.create_error")}</p> : null}
+          {composingDiscussError ? <p className="text-xs text-danger-text">{t("diff_review_composer.discuss_error")}</p> : null}
+        </div>
+      </div>
+    )
+
+    if (splitRow) {
+      return (
+        <tr className="font-sans" data-testid="diff-review-composer" style={splitRowStyle(showLineNumbers)}>
+          <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={splitInlineColSpan} style={splitInlineCellStyle}>
+            {panel}
+          </td>
+        </tr>
+      )
+    }
+
+    return (
+      <tr className="font-sans" data-testid="diff-review-composer">
+        <td className="border-r border-brand/20 max-md:hidden" colSpan={gutterColSpan} />
+        <td className={`text-brand max-md:hidden ${diffDensityClasses(reviewSettings).marker}`}>*</td>
+        <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={2}>
+          {panel}
+        </td>
+      </tr>
+    )
+  }
 
   return (
     <div className={`${scrollClass} [container-type:inline-size]`} data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
-      <table className={diffTableClass(reviewSettings)} data-review-diff-view={isMobileViewport ? "unified" : reviewSettings.desktop_view} style={{ tabSize: reviewSettings.tab_width }} data-testid={testId}>
+      <table className={diffTableClass(reviewSettings, splitView)} data-review-diff-view={isMobileViewport ? "unified" : reviewSettings.desktop_view} style={{ tabSize: reviewSettings.tab_width }} data-testid={testId}>
+        {splitView ? <SplitDiffColGroup showLineNumbers={showLineNumbers} /> : null}
         <tbody>
           {lines.map((line, index) => {
             if (line.kind === "hunk") {
               hunkIndex += 1
               const controls = hunkControls?.[hunkIndex]
               if (controls && !controls.up && !controls.down) return null
-              return <HunkRow controls={controls} hideOldLineGutter={hideOldLineGutter} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} reviewSettings={reviewSettings} showLineNumbers={showLineNumbers} />
+              return <HunkRow controls={controls} hideOldLineGutter={hideOldLineGutter} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} reviewSettings={reviewSettings} showLineNumbers={showLineNumbers} splitView={splitView} />
             }
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
@@ -1398,24 +1529,27 @@ export function UnifiedDiffTable({
             const lineAnchorKey = commentSide ? anchorKeyForLine(line, commentSide) : null
             const threads = lineAnchorKey ? comments?.[lineAnchorKey] || [] : []
             const isComposingHere = Boolean(lineAnchorKey && composingKey && composingKey === lineAnchorKey)
-            if (splitView && isDiffCodeLine(line.kind) && threads.length === 0 && !isComposingHere) {
+            if (splitView && isDiffCodeLine(line.kind)) {
               return (
-                <SplitDiffRow
-                  annotation={annotation}
-                  canComment={canComment}
-                  codeCellClass={codeCellClass}
-                  file={file}
-                  highlightedToken={activeHighlight}
-                  key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}
-                  line={line}
-                  lineAnchorKey={lineAnchorKey}
-                  onCommentLine={onCommentLine}
-                  onMobileTokenTap={commentSelection ? (event) => handleTokenTap(event, commentSelection) : undefined}
-                  onToggleHighlightToken={toggleHighlight}
-                  reviewSettings={reviewSettings}
-                  showLineNumbers={showLineNumbers}
-                  tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
-                />
+                <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
+                  <SplitDiffRow
+                    annotation={annotation}
+                    canComment={canComment}
+                    codeCellClass={codeCellClass}
+                    file={file}
+                    highlightedToken={activeHighlight}
+                    line={line}
+                    lineAnchorKey={lineAnchorKey}
+                    onCommentLine={onCommentLine}
+                    onMobileTokenTap={commentSelection ? (event) => handleTokenTap(event, commentSelection) : undefined}
+                    onToggleHighlightToken={toggleHighlight}
+                    reviewSettings={reviewSettings}
+                    showLineNumbers={showLineNumbers}
+                    tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
+                  />
+                  {renderThreadRow(threads, true)}
+                  {renderComposerRow(isComposingHere, true)}
+                </Fragment>
               )
             }
             return (
@@ -1458,97 +1592,8 @@ export function UnifiedDiffTable({
                     : null}
                 </td>
               </tr>
-              {threads.length > 0 ? (
-                <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
-                  <td className="border-r border-amber-200 dark:border-amber-900" colSpan={gutterColSpan} />
-                  <td className={`text-amber-700 dark:text-amber-300 ${diffDensityClasses(reviewSettings).marker}`}>*</td>
-                  <td className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-amber-950 dark:text-amber-100`} colSpan={2}>
-                    <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} space-y-2 bg-amber-50/70 max-md:static dark:bg-amber-950/30`}>
-                      {threads.map((thread) => (
-                        <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
-                          <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                            <div className="flex flex-wrap items-center gap-2">
-                              {thread.author ? <span>{thread.author}</span> : null}
-                              <span>{thread.state}</span>
-                              {thread.workflowState ? <span>{thread.workflowState}</span> : null}
-                            </div>
-                            {thread.state === "draft" && onStartEditThread && editingThreadId !== thread.id ? (
-                              <button
-                                className="normal-case tracking-normal text-amber-700 underline hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
-                                onClick={() => onStartEditThread(thread)}
-                                type="button"
-                              >
-                                {t("diff_review_composer.edit")}
-                              </button>
-                            ) : null}
-                            {thread.state === "draft" && onDeleteThread && editingThreadId !== thread.id ? (
-                              <button
-                                className="normal-case tracking-normal text-red-700 underline hover:text-red-900 dark:text-red-300 dark:hover:text-red-100"
-                                onClick={() => onDeleteThread(thread)}
-                                type="button"
-                              >
-                                {t("diff_review_composer.delete")}
-                              </button>
-                            ) : null}
-                          </div>
-                          {editingThreadId === thread.id ? (
-                            <div className="space-y-2">
-                              <textarea
-                                aria-label={t("diff_review_composer.edit_comment_aria", { id: thread.id })}
-                                className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                                onChange={(event) => onChangeEditingThreadBody?.(event.target.value)}
-                                value={editingThreadBody ?? ""}
-                              />
-                              <div className="flex gap-2">
-                                <Button disabled={!editingThreadBody?.trim()} onClick={onSaveEditThread} size="sm">{t("save")}</Button>
-                                <Button onClick={onCancelEditThread} size="sm" variant="secondary">{t("cancel")}</Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap break-words text-sm normal-case tracking-normal text-gray-800 dark:text-gray-200">{thread.body}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              ) : null}
-              {isComposingHere ? (
-                <tr className="font-sans" data-testid="diff-review-composer">
-                  <td className="border-r border-brand/20 max-md:hidden" colSpan={gutterColSpan} />
-                  <td className={`text-brand max-md:hidden ${diffDensityClasses(reviewSettings).marker}`}>*</td>
-                  <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={2}>
-                    <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} bg-brand/5 max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:bg-white max-md:dark:bg-gray-950`}>
-                      <div className="hidden shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2 max-md:flex dark:border-gray-700">
-                        <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("diff_review_composer.title")}</h4>
-                        <button aria-label={t("diff_review_composer.close")} className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onCancelComposing} type="button">
-                          <CloseIcon className="h-5 w-5" />
-                        </button>
-                      </div>
-                      <div className="space-y-2 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:space-y-0 max-md:gap-2 max-md:overflow-auto max-md:p-3">
-                        <textarea
-                          aria-label={t("diff_review_composer.comment")}
-                          autoFocus
-                          className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 max-md:flex-1"
-                          onChange={(event) => onChangeComposingBody?.(event.target.value)}
-                          value={composingBody ?? ""}
-                        />
-                        <div className="flex gap-2">
-                          <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">{t("diff_review_composer.create_comment")}</Button>
-                          {onDiscussComposing ? (
-                            <Button disabled={!composingBody?.trim() || composingDiscussPending} onClick={onDiscussComposing} size="sm" variant="secondary">
-                              {composingDiscussPending ? t("diff_review_composer.discussing") : t("diff_review_composer.discuss")}
-                            </Button>
-                          ) : null}
-                          <Button onClick={onCancelComposing} size="sm" variant="secondary">{t("cancel")}</Button>
-                        </div>
-                        {composingError ? <p className="text-xs text-red-700 dark:text-red-300">{t("diff_review_composer.create_error")}</p> : null}
-                        {composingDiscussError ? <p className="text-xs text-danger-text">{t("diff_review_composer.discuss_error")}</p> : null}
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ) : null}
+              {renderThreadRow(threads, false)}
+              {renderComposerRow(isComposingHere, false)}
               </Fragment>
             )
           })}
@@ -1666,6 +1711,7 @@ function DiffCode({
   )
 }
 
+/* eslint-disable design-system/no-raw-table-classes */
 function SplitDiffRow({
   annotation,
   canComment,
@@ -1705,6 +1751,7 @@ function SplitDiffRow({
       data-diff-anchor={lineAnchorKey || undefined}
       data-diff-kind={line.kind}
       data-diff-split-row="true"
+      style={splitRowStyle(showLineNumbers)}
     >
       {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
         {line.kind === "delete" && canComment ? <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="old" /> : null}
@@ -1747,12 +1794,15 @@ function SplitDiffRow({
   )
 }
 
-function diffTableClass(settings: ReviewDiffSettings) {
-  return `min-w-full border-separate border-spacing-0 font-mono ${diffDensityClasses(settings).tableText}`
+function diffTableClass(settings: ReviewDiffSettings, splitView = false) {
+  const layoutClass = splitView ? "w-full table-fixed" : "min-w-full"
+  return `${layoutClass} border-separate border-spacing-0 font-mono ${diffDensityClasses(settings).tableText}`
 }
 
-function diffCodeCellClass(settings: ReviewDiffSettings, lineWrapping: ReviewDiffSettings["line_wrapping"]) {
-  const wrapClass = lineWrapping === "wrap" ? "min-w-0 whitespace-pre-wrap break-words" : "min-w-[40rem] whitespace-pre"
+function diffCodeCellClass(settings: ReviewDiffSettings, lineWrapping: ReviewDiffSettings["line_wrapping"], splitView = false) {
+  const wrapClass = lineWrapping === "wrap"
+    ? "min-w-0 whitespace-pre-wrap break-words"
+    : splitView ? "min-w-0 overflow-hidden whitespace-pre" : "min-w-[40rem] whitespace-pre"
   return `${wrapClass} ${diffDensityClasses(settings).codeCell} text-text-primary`
 }
 
@@ -1773,8 +1823,56 @@ function reviewDisplayCode(code: string, settings: ReviewDiffSettings) {
     .replace(/ /gu, "·")
 }
 
-/* eslint-disable design-system/no-raw-table-classes */
-function HunkRow({ controls, hideOldLineGutter, line, reviewSettings, showLineNumbers = true }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine; reviewSettings: ReviewDiffSettings; showLineNumbers?: boolean }) {
+function SplitDiffColGroup({ showLineNumbers }: { showLineNumbers: boolean }) {
+  if (!showLineNumbers) {
+    return (
+      <colgroup>
+        <col style={{ width: "calc(0.5 * (100% - 1.5rem))" }} />
+        <col style={{ width: "calc(0.5 * (100% - 1.5rem))" }} />
+        <col style={{ width: "1.5rem" }} />
+      </colgroup>
+    )
+  }
+
+  return (
+    <colgroup>
+      <col style={{ width: "3rem" }} />
+      <col style={{ width: "calc(0.5 * (100% - 7.5rem))" }} />
+      <col style={{ width: "3rem" }} />
+      <col style={{ width: "calc(0.5 * (100% - 7.5rem))" }} />
+      <col style={{ width: "1.5rem" }} />
+    </colgroup>
+  )
+}
+
+function splitRowStyle(showLineNumbers: boolean): CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: showLineNumbers ? "3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem" : "minmax(0, 1fr) minmax(0, 1fr) 1.5rem"
+  }
+}
+
+const splitInlineCellStyle: CSSProperties = { gridColumn: "1 / -1" }
+
+function HunkRow({ controls, hideOldLineGutter, line, reviewSettings, showLineNumbers = true, splitView = false }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine; reviewSettings: ReviewDiffSettings; showLineNumbers?: boolean; splitView?: boolean }) {
+  if (splitView) {
+    const codeColSpan = showLineNumbers ? 3 : 2
+    const codeCellStyle = showLineNumbers ? { gridColumn: "2 / 5" } : { gridColumn: "1 / 3" }
+    return (
+      <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk" style={splitRowStyle(showLineNumbers)}>
+        {showLineNumbers ? (
+          <td className={`${diffGutterClass("hunk")} ${diffDensityClasses(reviewSettings).gutter}`}>
+            {controls?.up ? <HunkContextButton direction="up" lineCount={controls.up.lineCount} loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
+          </td>
+        ) : null}
+        <td className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).hunkCodeCell}`} colSpan={codeColSpan} style={codeCellStyle}>{line.code}</td>
+        <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
+          {showLineNumbers && controls?.down ? <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
+        </td>
+      </tr>
+    )
+  }
+
   return (
     <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk">
       {hideOldLineGutter || !showLineNumbers ? null : (
