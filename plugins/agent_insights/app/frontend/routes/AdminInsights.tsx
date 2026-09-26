@@ -224,6 +224,14 @@ function adminInsightColumns(
       render: (suggestion) => suggestion.user.display_name
     },
     {
+      key: "job",
+      header: t("col_job"),
+      sort: "job",
+      defaultVisible: false,
+      className: "whitespace-nowrap text-xs text-text-secondary",
+      render: (suggestion) => suggestion.job_slug
+    },
+    {
       key: "severity",
       header: t("col_severity"),
       sort: "severity",
@@ -235,6 +243,21 @@ function adminInsightColumns(
       sort: "confidence",
       className: "text-xs text-text-secondary",
       render: (suggestion) => `${Math.round(suggestion.confidence * 100)}%`
+    },
+    {
+      key: "category",
+      header: t("col_category"),
+      sort: "category",
+      defaultVisible: false,
+      className: "whitespace-nowrap text-xs text-text-secondary",
+      render: (suggestion) => suggestion.category
+    },
+    {
+      key: "proposal_type",
+      header: t("col_proposal_type"),
+      sort: "proposal_type",
+      defaultVisible: false,
+      render: (suggestion) => <TonePill tone={suggestion.proposal_type === "remove_memory" ? "red" : "gray"}>{t(`proposal_${suggestion.proposal_type}`)}</TonePill>
     },
     {
       key: "state",
@@ -251,6 +274,51 @@ function adminInsightColumns(
       render: (suggestion) => <RelativeTimestamp value={suggestion.created_at} />
     },
     {
+      key: "accepted_at",
+      header: t("col_accepted"),
+      sort: "accepted_at",
+      defaultVisible: false,
+      className: "text-xs text-text-secondary",
+      render: (suggestion) => suggestion.accepted_at ? <RelativeTimestamp value={suggestion.accepted_at} /> : "—"
+    },
+    {
+      key: "dismissed_at",
+      header: t("col_dismissed"),
+      sort: "dismissed_at",
+      defaultVisible: false,
+      className: "text-xs text-text-secondary",
+      render: (suggestion) => suggestion.dismissed_at ? <RelativeTimestamp value={suggestion.dismissed_at} /> : "—"
+    },
+    {
+      key: "retired_at",
+      header: t("col_retired"),
+      sort: "retired_at",
+      defaultVisible: false,
+      className: "text-xs text-text-secondary",
+      render: (suggestion) => suggestion.retired_at ? <RelativeTimestamp value={suggestion.retired_at} /> : "—"
+    },
+    {
+      key: "target_ids",
+      header: t("col_target_ids"),
+      defaultVisible: false,
+      className: "font-mono text-xs text-text-secondary",
+      render: (suggestion) => targetIds(suggestion)
+    },
+    {
+      key: "superseded_ids",
+      header: t("col_superseded_ids"),
+      defaultVisible: false,
+      className: "font-mono text-xs text-text-secondary",
+      render: (suggestion) => supersededIds(suggestion)
+    },
+    {
+      key: "flags",
+      header: t("col_flags"),
+      defaultVisible: false,
+      className: "text-xs text-text-secondary",
+      render: (suggestion) => insightFlags(t, suggestion)
+    },
+    {
       key: "actions",
       header: t("col_actions"),
       label: t("col_actions"),
@@ -260,6 +328,31 @@ function adminInsightColumns(
       render: (suggestion) => <SuggestionActions prefix={prefix} suggestion={suggestion} />
     }
   ]
+}
+
+function targetIds(suggestion: AdminInsightSuggestion) {
+  const parts = [
+    suggestion.target_memory_id ? `memory:${suggestion.target_memory_id}` : null,
+    suggestion.target_insight_id ? `insight:${suggestion.target_insight_id}` : null,
+    suggestion.created_job?.id ? `created_job:${suggestion.created_job.id}` : null
+  ].filter(Boolean)
+  return parts.length ? parts.join(", ") : "—"
+}
+
+function supersededIds(suggestion: AdminInsightSuggestion) {
+  const parts = [
+    suggestion.superseded_by_insight_id ? `insight:${suggestion.superseded_by_insight_id}` : null,
+    suggestion.superseded_by_job_id ? `job:${suggestion.superseded_by_job_id}` : null
+  ].filter(Boolean)
+  return parts.length ? parts.join(", ") : "—"
+}
+
+function insightFlags(t: (key: string, options?: Record<string, unknown>) => string, suggestion: AdminInsightSuggestion) {
+  const flags = [
+    suggestion.has_memory_suggestion ? t("flag_memory") : null,
+    suggestion.suggested_prompt ? t("flag_proposal") : null
+  ].filter(Boolean)
+  return flags.length ? flags.join(", ") : "—"
 }
 
 function adminInsightsPanel(

@@ -97,5 +97,16 @@
   "pagination_previous": "Vorherige",
   "pagination_next": "Nächste",
   "tab_insights": "Insights",
-  "nav_insights": "Insights"
+  "nav_insights": "Insights",
+  "col_job": "Job",
+  "col_category": "Category",
+  "col_proposal_type": "Proposal type",
+  "col_accepted": "Accepted",
+  "col_dismissed": "Dismissed",
+  "col_retired": "Retired",
+  "col_target_ids": "Target IDs",
+  "col_superseded_ids": "Superseded IDs",
+  "col_flags": "Flags",
+  "flag_memory": "memory",
+  "flag_proposal": "proposal"
 }

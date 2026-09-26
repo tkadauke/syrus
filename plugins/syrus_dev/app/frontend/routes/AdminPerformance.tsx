@@ -61,11 +61,19 @@ function performanceFilterFields(t: (key: string) => string) {
         { value: "current", label: t("performance.current_revision") },
         { value: "all", label: t("performance.all_revisions") }
       ]
-    }
+    },
+    { name: "event_name", label: t("performance.filter_event"), placeholder: "syrus.performance.slow_request" },
+    { name: "request_id", label: t("performance.filter_request_id") },
+    { name: "trace_id", label: t("performance.filter_trace_id") },
+    { name: "job_class", label: t("performance.filter_job_class"), placeholder: "PollRepositoryJob" },
+    { name: "path", label: t("performance.filter_path"), placeholder: "/api/v1/app/..." },
+    { name: "controller", label: t("performance.filter_controller") },
+    { name: "action", label: t("performance.filter_action") },
+    { name: "sql_fingerprint", label: t("performance.filter_sql_fingerprint") }
   ]
 }
 
-const performanceFilterLink = buildFlatFilterLink(["app_revision", "since", "until", "revision_scope"], (params) => {
+const performanceFilterLink = buildFlatFilterLink(["app_revision", "since", "until", "revision_scope", "event_name", "request_id", "trace_id", "job_class", "path", "controller", "action", "sql_fingerprint"], (params) => {
   if (!params.has("revision_scope")) params.set("revision_scope", "current")
   if (!params.has("since")) params.set("since", "1h")
 })

@@ -17,7 +17,19 @@ module AgentInsights
       "category" => "Filters::Chips::AgentInsights::Category",
       "confidence" => "Filters::Chips::AgentInsights::Confidence",
       "created_job_present" => "Filters::Chips::AgentInsights::CreatedJobPresent",
-      "created_at" => "Filters::Chips::CreatedAt"
+      "has_memory_suggestion" => "Filters::Chips::AgentInsights::HasMemorySuggestion",
+      "repository_id" => "Filters::Chips::RepositoryId",
+      "user_id" => "Filters::Chips::AgentInsights::UserId",
+      "job_id" => "Filters::Chips::AgentInsights::JobId",
+      "created_job_id" => "Filters::Chips::AgentInsights::CreatedJobId",
+      "target_memory_id" => "Filters::Chips::AgentInsights::TargetMemoryId",
+      "target_insight_id" => "Filters::Chips::AgentInsights::TargetInsightId",
+      "superseded_by_insight_id" => "Filters::Chips::AgentInsights::SupersededByInsightId",
+      "superseded_by_job_id" => "Filters::Chips::AgentInsights::SupersededByJobId",
+      "created_at" => "Filters::Chips::CreatedAt",
+      "accepted_at" => "Filters::Chips::AgentInsights::AcceptedAt",
+      "dismissed_at" => "Filters::Chips::AgentInsights::DismissedAt",
+      "retired_at" => "Filters::Chips::AgentInsights::RetiredAt"
     }.freeze
 
     module_function

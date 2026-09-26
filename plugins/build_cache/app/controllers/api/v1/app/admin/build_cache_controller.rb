@@ -49,7 +49,7 @@ module Api
           private
 
           def payload
-            ::BuildCache::Payload.new
+            ::BuildCache::Payload.new(params: params)
           end
 
           def include_stats?

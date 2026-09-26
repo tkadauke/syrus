@@ -88,6 +88,44 @@ RSpec.describe "API: /api/v1/app/admin/build_cache", type: :request do
       expect(s3.api_requests.map { |request| request[:operation_name] }).not_to include(:list_objects_v2)
     end
 
+    it "returns FilterBar schema fields and filters clear request history" do
+      stub_s3
+      sign_in_as(admin)
+      wanted = BuildCache::ClearRequest.create!(user: admin, scope: "partial", older_than_days: 30, reason: "stale compiler objects")
+      wanted.update!(state: "confirmed", confirmed_at: 5.minutes.ago, result: { "deleted_count" => 2, "bytes_freed" => 1234, "truncated" => false })
+      BuildCache::ClearRequest.create!(user: admin, scope: "full", reason: "different cleanup").update!(state: "cancelled", cancelled_at: 5.minutes.ago)
+
+      get "/api/v1/app/admin/build_cache", params: {
+        state: "confirmed",
+        scope: "partial",
+        older_than_days: "30",
+        reason: "compiler",
+        user_id: admin.id,
+        result_status: "present"
+      }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["filter_schema"].map { |field| field["field"] }).to include(
+        "state",
+        "scope",
+        "older_than_days",
+        "reason",
+        "user_id",
+        "confirmed_since",
+        "cancelled_since",
+        "created_since",
+        "updated_since",
+        "result_status"
+      )
+      expect(body["recent_requests"].map { |request| request["id"] }).to eq([ wanted.id ])
+      expect(body["recent_requests"].first).to include(
+        "older_than_days" => 30,
+        "result_status" => "present",
+        "updated_at" => be_present
+      )
+    end
+
     it "loads bucket stats from a separate endpoint" do
       stub_s3(objects: [ { key: "a", size: 100, last_modified: 3.days.ago } ])
       sign_in_as(admin)
