@@ -1695,7 +1695,7 @@ function DiffCode({
           <Fragment key={tokenIndex}>
             {tokenizeCode(shikiToken.content).map((word, wordIndex) => word.highlightable ? (
               <span
-                className={`cursor-pointer rounded-sm ${highlightedToken === word.text ? "bg-amber-200 text-amber-950 dark:bg-amber-500/50 dark:text-amber-50" : "hover:bg-amber-100 dark:hover:bg-amber-500/20"}`}
+                className={`cursor-pointer rounded-sm ${highlightedToken === word.text ? "bg-warning-surface text-warning-text" : "hover:bg-warning-surface"}`}
                 data-diff-highlight-token
                 key={wordIndex}
                 onClick={(event) => {
@@ -1718,7 +1718,7 @@ function DiffCode({
     <>
       {wordTokens.map((token, index) => token.highlightable ? (
         <span
-          className={`cursor-pointer rounded-sm ${highlightedToken === token.text ? "bg-amber-200 text-amber-950 dark:bg-amber-500/50 dark:text-amber-50" : "hover:bg-amber-100 dark:hover:bg-amber-500/20"}`}
+          className={`cursor-pointer rounded-sm ${highlightedToken === token.text ? "bg-warning-surface text-warning-text" : "hover:bg-warning-surface"}`}
           data-diff-highlight-token
           key={index}
           onClick={(event) => {
@@ -1807,7 +1807,7 @@ function SplitDiffRow({
         ) : null}
       </td>
       <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
-        {annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+        {annotation === "covered" ? <span className="text-success-text">✓</span>
           : annotation === "uncovered" ? <span className="text-danger-text">✗</span>
           : null}
       </td>
