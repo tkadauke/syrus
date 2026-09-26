@@ -18,15 +18,17 @@ module TestInsights
   class WipRepairFailureBackfill
     Result = Struct.new(:done, :processed, :next_after_id, keyword_init: true)
 
-    def self.pending_count(after_id: 0) = new.pending_count(after_id: after_id)
+    def self.pending_count(after_id: 0, up_to_id: nil) = new.pending_count(after_id: after_id, up_to_id: up_to_id)
 
-    def pending_count(after_id: 0)
-      candidate_test_runs(after_id).count
+    def self.max_test_run_id = TestInsights::TestRun.maximum(:id).to_i
+
+    def pending_count(after_id: 0, up_to_id: nil)
+      candidate_test_runs(after_id, up_to_id).count
     end
 
-    def call(after_id: 0, limit:)
-      test_runs = candidate_test_runs(after_id).limit(limit).to_a
-      return Result.new(done: true, processed: 0, next_after_id: after_id) if test_runs.empty?
+    def call(after_id: 0, up_to_id: nil, limit:)
+      test_runs = candidate_test_runs(after_id, up_to_id).limit(limit).to_a
+      return Result.new(done: true, processed: 0, next_after_id: up_to_id || after_id) if test_runs.empty?
 
       test_runs.each do |test_run|
         TestInsights::WipRepairFailureClassifier.mark_superseded!(test_run: test_run, step: test_run.run.step)
@@ -37,8 +39,8 @@ module TestInsights
 
     private
 
-    def candidate_test_runs(after_id)
-      TestInsights::TestRun
+    def candidate_test_runs(after_id, up_to_id)
+      scope = TestInsights::TestRun
         .joins(:test_cases)
         .joins(run: :step)
         .where(steps: { kind: "grader" })
@@ -47,6 +49,8 @@ module TestInsights
         .distinct
         .order(:id)
         .includes(run: :step)
+
+      up_to_id.present? ? scope.where("test_insight_runs.id <= ?", up_to_id) : scope
     end
   end
 end
