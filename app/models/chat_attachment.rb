@@ -7,6 +7,7 @@ class ChatAttachment < ApplicationRecord
   belongs_to :attachable, polymorphic: true
 
   after_commit :broadcast_chat_session_header_update, on: [ :create, :destroy ]
+  after_commit :broadcast_chat_media_update, on: [ :create, :destroy ], if: :document_media_attachment?
 
   before_validation :set_attached_at
 
@@ -21,6 +22,22 @@ class ChatAttachment < ApplicationRecord
     return if suppress_header_broadcast
 
     chat_session.reload.broadcast_app_header_update unless chat_session.destroyed?
+  end
+
+  def broadcast_chat_media_update
+    return if chat_session.destroyed?
+
+    AppEvents.broadcast_chat_resource(
+      chat_session_id: chat_session_id,
+      type: "updated",
+      resource: "chat",
+      id: chat_session_id,
+      changed: [ "media" ]
+    )
+  end
+
+  def document_media_attachment?
+    attachable_type == "Document" && attachable&.content_type.to_s.start_with?("image/")
   end
 
   def set_attached_at

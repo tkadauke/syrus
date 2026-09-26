@@ -29,6 +29,10 @@ class ChatMediaLibrary
     new(chat_session).any_inline_images?
   end
 
+  def self.chat_image_count(chat_session)
+    new(chat_session).chat_image_count
+  end
+
   def initialize(chat_session)
     @chat_session = chat_session
     @user = chat_session.user
@@ -41,10 +45,14 @@ class ChatMediaLibrary
   end
 
   def any_inline_images?
-    chat_session.messages.where(role: "user").find_each(batch_size: 50) do |message|
-      return true if image_attachments_in(message).any?
-    end
-    false
+    chat_image_count.positive?
+  end
+
+  def chat_image_count
+    materialize_inline_images!
+    chat_session.attached_repository_documents
+                .where(kind: "file")
+                .count { |doc| doc.content_type.to_s.start_with?("image/") }
   end
 
   def materialize_captured_image!(bytes:, content_type:, title:, source_url: nil)

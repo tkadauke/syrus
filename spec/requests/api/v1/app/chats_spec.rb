@@ -2266,6 +2266,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body.dig("chat", "whiteboard_snapshot_count")).to eq(0)
       expect(parse_body.dig("chat", "typed_artifact_count")).to eq(0)
+      expect(parse_body.dig("chat", "chat_image_count")).to eq(0)
       expect(parse_body.dig("chat", "has_chat_images")).to eq(false)
     end
 
@@ -2312,6 +2313,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.dig("chat", "has_chat_images")).to eq(true)
+      expect(parse_body.dig("chat", "chat_image_count")).to eq(1)
     end
   end
 

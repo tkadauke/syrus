@@ -742,6 +742,7 @@ function ChatWorkspace({
   const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
   const [pendingJobsTabRequest, setPendingJobsTabRequest] = useState(false)
   const bookmarkRequestIdRef = useRef(0)
+  const previousMediaCountRef = useRef(mediaItemCount(payload))
   // Wider than AppChromeV2's own sidebar breakpoint — see CHAT_WORKSPACE_SPLIT_MIN_WIDTH.
   const isDesktop = useMediaQuery(`(min-width: ${CHAT_WORKSPACE_SPLIT_MIN_WIDTH}px)`, true)
   const { t } = useT("chat")
@@ -770,6 +771,17 @@ function ChatWorkspace({
     setActiveMobileTab("jobs")
     selectTab("jobs")
   }, [pendingJobsTabRequest, availableTabs])
+
+  useEffect(() => {
+    const previous = previousMediaCountRef.current
+    const current = mediaItemCount(payload)
+    previousMediaCountRef.current = current
+    if (current <= previous || !availableTabs.includes("media")) return
+
+    setPanelCollapsed(false)
+    setActiveMobileTab("media")
+    selectTab("media")
+  }, [availableTabs, payload])
 
   useEffect(() => {
     if (activeTab !== null) storeWorkspacePreference(CHAT_WORKSPACE_TAB_KEY, activeTab)
@@ -933,6 +945,13 @@ function ChatWorkspace({
       {bookmarkPickerOpen ? <BookmarkPickerModal payload={payload} queryKey={queryKey} onClose={() => setBookmarkPickerOpen(false)} onSelect={selectBookmark} /> : null}
     </div>
   )
+}
+
+function mediaItemCount(payload: ChatPayload) {
+  return (payload.chat.chat_image_count ?? (payload.chat.has_chat_images ? 1 : 0)) +
+    (payload.video_walkthroughs?.length ?? 0) +
+    (payload.chat.whiteboard_snapshot_count ?? 0) +
+    (payload.chat.typed_artifact_count ?? 0)
 }
 
 function BookmarkPickerModal({ payload, queryKey, onClose, onSelect }: { payload: ChatPayload; queryKey: ChatQueryKey; onClose: () => void; onSelect: (messageId: number) => void }) {

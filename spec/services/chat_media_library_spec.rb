@@ -34,6 +34,23 @@ RSpec.describe ChatMediaLibrary do
       expect(chat_session.chat_attachments.reload.map(&:attachable)).to include(document)
     end
 
+    it "broadcasts a media update for open chat views" do
+      expect(AppEvents).to receive(:broadcast_chat_resource).with(
+        chat_session_id: chat_session.id,
+        type: "updated",
+        resource: "chat",
+        id: chat_session.id,
+        changed: [ "media" ]
+      )
+
+      described_class.materialize_captured_image!(
+        chat_session,
+        bytes: png_bytes,
+        content_type: "image/png",
+        title: "Screenshot"
+      )
+    end
+
     it "gives the document a filename derived from the title" do
       document = described_class.materialize_captured_image!(
         chat_session,
