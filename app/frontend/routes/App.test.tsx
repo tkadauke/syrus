@@ -387,11 +387,14 @@ describe("App", () => {
     expect(mark).not.toBeNull()
     expect(mark?.tagName.toLowerCase()).toBe("svg")
     expect(mark).toHaveAttribute("aria-hidden", "true")
+    expect(mark).toHaveAttribute("viewBox", "0 0 512 512")
     // The actual theme-driven behavior: backdrop and glyph are painted from
     // the semantic color tokens, not literal colors, so switching themes
     // (built-in or custom) recolors the mark via these CSS custom properties.
-    expect(mark?.querySelector("rect")).toHaveAttribute("fill", "var(--color-brand)")
-    expect(mark?.querySelector("g")).toHaveAttribute("fill", "var(--color-on-brand)")
+    expect(mark?.querySelector('g > rect[width="512"]')).toHaveAttribute("fill", "var(--color-brand)")
+    const glyph = mark?.querySelector("path")
+    expect(glyph).toHaveAttribute("fill", "var(--color-on-brand)")
+    expect(glyph).toHaveAttribute("fill-rule", "evenodd")
     expect(screen.getByRole("link", { name: "Set up this Syrus instance" })).toHaveAttribute("href", "/users/new")
     expect(screen.getByText("No users exist yet. The first account becomes the administrator for this instance.")).toBeInTheDocument()
     // No "Sign in" when there are no users yet — there's nobody to sign in as.
@@ -17274,7 +17277,7 @@ function expectSyrusBrandLink(href: string) {
   expect(brandLink).toHaveAttribute("href", href)
   const mark = brandLink.querySelector('[data-testid="syrus-mark"]')
   expect(mark).not.toBeNull()
-  expect(mark?.querySelector("rect")).toHaveAttribute("fill", "var(--color-brand)")
+  expect(mark?.querySelector('g > rect[width="512"]')).toHaveAttribute("fill", "var(--color-brand)")
 }
 
 function stubChatStreamSize(metrics: { scrollHeight: number; clientHeight: number }) {
