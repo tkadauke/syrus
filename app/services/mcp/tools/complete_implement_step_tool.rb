@@ -1,8 +1,8 @@
 require "mcp"
 
 module Mcp::Tools
-  # Called by a Coding Mode or Local Mode chat agent after it has committed and
-  # pushed the implementation. Queues an operator confirmation before graders run.
+  # Called by a Coding Mode or Local Mode chat agent after it has committed the
+  # implementation. Queues an operator confirmation before graders run.
   class CompleteImplementStepTool < MCP::Tool
     extend JobLifecycleToolSupport
     extend ProposalToolSupport
@@ -10,12 +10,13 @@ module Mcp::Tools
     tool_name "complete_implement_step"
 
     description <<~DESC
-      Request operator confirmation that implementation is complete after the
-      chat coding checkout or local daemon has committed and pushed changes to
-      the branch. The handoff workflow for Syrus graders (and PR open if needed)
-      is not enqueued until the operator confirms the pending action. Call this
-      only after the operator explicitly instructs you to hand off, the working
-      tree is clean, and the branch has been pushed to the remote.
+      Request operator confirmation that implementation is complete. In Coding
+      Mode, call this after committing in the chat coding checkout; do not push
+      the Job branch to GitHub yourself. In Local Mode, the external daemon is
+      responsible for pushing the branch when that workflow requires it. The
+      handoff workflow for Syrus graders (and PR open if needed) is not enqueued
+      until the operator confirms the pending action. Call this only after the
+      operator explicitly instructs you to hand off and the working tree is clean.
     DESC
 
     input_schema(
@@ -23,7 +24,7 @@ module Mcp::Tools
         job_id: { type: "integer", description: "Syrus Job id to hand off." },
         branch_name: {
           type: "string",
-          description: "Branch name pushed to the remote. Required for Jobs without an existing PR; replaces the stored branch when supplied for a rerun."
+          description: "Branch name to hand off. Required for Jobs without an existing PR; replaces the stored branch when supplied for a rerun. In Coding Mode this names the local checkout branch, not a branch you pushed yourself."
         }
       },
       required: %w[job_id]

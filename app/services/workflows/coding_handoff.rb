@@ -2,7 +2,8 @@ module Workflows
   # Post-coding-mode handoff: reviews and grades the code the chat agent
   # wrote, repairs review/grader findings with fresh workflow-agent turns,
   # then opens the PR. Instantiated by the complete_implement_step MCP tool
-  # once the agent commits and pushes from the chat workspace.
+  # once the agent commits in the chat workspace and the operator confirms
+  # the handoff.
   #
   # There is no bare leading agentic step here — the chat coding session
   # already produced the diff before this workflow starts. `coding_handoff_fix`

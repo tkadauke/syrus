@@ -36,6 +36,16 @@ RSpec.describe Mcp::Tools::CompleteImplementStepTool do
     JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
   end
 
+  it "does not describe Coding Mode handoff as a GitHub push prerequisite" do
+    description = described_class.description_value
+
+    expect(description).to match(/In Coding\s+Mode/)
+    expect(description).to include("do not push")
+    expect(description).to include("In Local Mode")
+    expect(description).not_to include("chat coding checkout or local daemon has committed and pushed")
+    expect(description).not_to include("branch has been pushed to the remote")
+  end
+
   it "creates a pending handoff confirmation and leaves the coding Job locked" do
     job = Factories.job_record(repository: repository, state: "implemented", kind: "direct",
                                issue_number: nil, branch_name: "syrus/job-1", pr_number: 10)
