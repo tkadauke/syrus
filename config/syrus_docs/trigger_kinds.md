@@ -326,6 +326,18 @@ repair. Syrus may post a passive chat notification identifying the Job. On
 success it notifies the originating chat after the PR opens, schedules coding
 workspace reclaim, then clears the chat link.
 
+Each successful `coding_handoff_fix` records a `latest_coding_handoff_fix`
+artifact containing the repair Run, Step, base/head SHAs, and stable patch-id.
+`pr_open` and later `rebase → force_push` workflows compare the branch they are
+about to publish against that patch-id. If the latest repair is missing, Syrus
+fails before pushing so an older visually rejected iteration cannot become the
+final PR branch. The publication/rebase check records
+`coding_handoff_publication_provenance`, including final HEAD, latest-fix
+metadata, verification result, and whether visual review approved/skipped the
+revision after the latest fix. Treat earlier `visual_review_iterations` as
+historical findings unless this provenance links a visual verdict to the final
+published revision.
+
 ## local_mode_handoff
 
 **When it fires:** An operator confirms a handoff from a Local Mode chat session (labs feature `local_mode`).
