@@ -11992,7 +11992,12 @@ describe("App", () => {
       expect(mobileTabs).toHaveClass("min-h-[44px]", "px-[max(0.5rem,env(safe-area-inset-left))]")
       expect(screen.getByTestId("chat-message-stream")).toHaveClass("h-full", "min-h-0", "overflow-y-auto", "overscroll-contain", "p-2")
       expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("min-h-11", "text-base", "sm:min-h-9", "sm:text-sm")
-      expect(screen.getByRole("button", { name: "Add attachment" })).toHaveClass("h-6", "w-6", "min-h-11", "min-w-11", "sm:min-h-0", "sm:min-w-0")
+      const attachmentButton = screen.getByRole("button", { name: "Add attachment" })
+      expect(attachmentButton).toHaveClass("h-8", "w-8", "min-h-11", "min-w-11", "sm:min-h-0", "sm:min-w-0")
+      expect(attachmentButton.className).toContain("!border-transparent")
+      expect(attachmentButton.className).toContain("!bg-transparent")
+      expect(attachmentButton.className).toContain("hover:bg-gray-100")
+      expect(attachmentButton.className).toContain("focus-visible:ring-2")
       expect(screen.getByRole("button", { name: "Effort" })).toHaveClass("min-h-11", "sm:min-h-0")
       expect(screen.getByText("Discuss aqueducts.").parentElement?.parentElement).toHaveClass("px-0", "sm:rounded")
 
