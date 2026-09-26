@@ -106,7 +106,8 @@ The classifier currently emits these families:
 - `retryable_run_failure`
 - `repeated_failure_circuit_open` — pauses automatic retry/rebuild when the
   same failed-Run exception fingerprint recurs on the same app revision for
-  the configured streak threshold; opens an urgent operator Attention Item
+  the configured streak threshold; opens or refreshes one urgent operator
+  Attention Item for the affected Job's repeated-failure circuit
 - `nonretryable_semantic_git_failure`
 - `cleanup_blocked_by_active_descendants`
 - `workflow_workspace_prune_risk`
@@ -246,14 +247,19 @@ Planner examples:
   streak because the revision is part of the fingerprint; a different
   exception, message, or top stack frame also starts a new streak.
 
-  The circuit opens an urgent operator `AttentionItem` with the fingerprint,
-  app revision, streak count, threshold, error class/message, top stack frames,
-  and the affected Job/Workflow/Step/Run identifiers. Operators should inspect
-  the evidence, confirm whether a deploy or code fix exists for that exact
-  revision/fingerprint, and only retry manually after the underlying condition
-  has changed or they deliberately decide the evidence was a false positive.
-  The urgent Attention Item also appears through the admin system-alert banner
-  so it is visible outside the stuck-item detail view.
+  The circuit opens or refreshes a single urgent operator `AttentionItem` for
+  the affected Job's repeated-failure circuit. Its evidence carries the latest
+  fingerprint, app revision, streak count, threshold, error class/message, top
+  stack frames, and current Job/Workflow/Step/Run identifiers, but the open item
+  identity deliberately excludes the fingerprint and app revision. If the same
+  actionable circuit trips again after a retry workflow or deploy, the surviving
+  item is refreshed with the new evidence and older repeated-failure rows are
+  marked `superseded`, so the admin queue and system-alert count still represent
+  one operator decision. Operators should inspect the latest evidence and only
+  retry manually after the underlying condition has changed or they deliberately
+  decide the evidence was a false positive. The urgent Attention Item also
+  appears through the admin system-alert banner so it is visible outside the
+  stuck-item detail view.
 - Git publication, landing, and semantic failures return operator-review plans
   unless an existing safe rebuild path is declared, such as merge-train rebuild.
 - `branch_diverged_pr_open` is never planned while the same Workflow already
