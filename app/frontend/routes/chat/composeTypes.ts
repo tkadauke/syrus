@@ -38,7 +38,6 @@ export type ChatSystemAction =
   | { kind: "new" }
   | { kind: "branch" }
   | { kind: "share" }
-  | { kind: "attach"; slug: string }
   | { kind: "pin"; pinned: boolean }
 
 export type ChatSystemCommandAction =

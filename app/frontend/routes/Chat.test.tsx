@@ -487,14 +487,9 @@ describe("chat message tail refetch", () => {
   })
 })
 
-describe("chat compose with an omitted attachment_groups payload", () => {
-  it("renders the landing view instead of crashing when attachment_groups is absent from the response", async () => {
-    // Regression test for a production crash ("undefined is not an object (evaluating
-    // 'n.map')"): Compose read `payload.attachment_groups.repositories` unconditionally on
-    // every render. `attachment_groups` is normally always present, but ChatPayload types it
-    // as optional (it doubles as the shape of the lazy /context payload), so any response that
-    // omits the key — an older cached fetch, a future lazy-loading change — must not crash.
-    mockChatRouteFetch(chatPayload({ messages: [] }, { attachment_groups: undefined }))
+describe("chat compose attachment menu", () => {
+  it("renders the landing view without chat attachment context payloads", async () => {
+    mockChatRouteFetch(chatPayload({ messages: [] }))
 
     renderRoute()
 
@@ -1021,7 +1016,7 @@ describe("chat attachment popup", () => {
     mockDesktopViewport()
   })
 
-  it("renders compact attachment type tabs without the select or search submit button", async () => {
+  it("renders upload and scratch pad without manual context attachment controls", async () => {
     mockChatRouteFetch()
     renderRoute()
 
@@ -1029,68 +1024,11 @@ describe("chat attachment popup", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
 
     const dialog = screen.getByRole("dialog", { name: "Add attachment" })
-    expect(within(dialog).queryByRole("combobox")).not.toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "Upload file" })).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "Scratch pad" })).toBeInTheDocument()
     for (const label of ["Repo", "Epic", "Job", "Doc"]) {
-      expect(within(dialog).getByRole("button", { name: label })).toBeInTheDocument()
+      expect(within(dialog).queryByRole("button", { name: label })).not.toBeInTheDocument()
     }
-    expect(within(dialog).queryByRole("button", { name: "Search" })).not.toBeInTheDocument()
-    await waitFor(() => {
-      expect(within(dialog).getByPlaceholderText("Search by name or id...")).toHaveFocus()
-    })
-  })
-
-  it("updates the attachment search URL from tabs and debounced input", async () => {
-    mockChatRouteFetch()
-    renderRouteWithLocation()
-
-    await screen.findByPlaceholderText("Ask about this repository...")
-    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
-    fireEvent.click(screen.getByRole("button", { name: "Epic" }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/8?attachment_type=Epic")
-    })
-
-    fireEvent.change(screen.getByPlaceholderText("Search by name or id..."), { target: { value: "roadmap" } })
-
-    await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/8?attachment_type=Epic&attachment_query=roadmap")
-    })
-  })
-
-  it("keeps the attachment popup open while tab results load", async () => {
-    let resolveEpicSearch: () => void = () => {
-      throw new Error("Epic attachment search was not requested.")
-    }
-    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
-        return Promise.resolve(new Response(null, { status: 204 }))
-      }
-      if (path === "/api/v1/app/chats/8/context?attachment_type=Epic") {
-        return new Promise((resolve) => {
-          resolveEpicSearch = () => resolve(jsonResponse({
-            attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
-            documents_in_scope: [],
-            attachment_results: [{ type: "Epic", id: 2, label: "Release planning" }]
-          }))
-        })
-      }
-
-      return Promise.resolve(jsonResponse(chatPayload()))
-    })
-
-    renderRouteWithLocation()
-
-    await screen.findByPlaceholderText("Ask about this repository...")
-    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
-    fireEvent.click(screen.getByRole("button", { name: "Epic" }))
-
-    expect(screen.getByRole("dialog", { name: "Add attachment" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Job" })).toBeInTheDocument()
-
-    resolveEpicSearch()
-    expect(await screen.findByRole("button", { name: "Release planning" })).toBeInTheDocument()
   })
 
   it("keeps the upload file row wired to the hidden file picker", async () => {
@@ -1110,17 +1048,6 @@ describe("chat attachment popup", () => {
     }
   })
 
-  it("renders attachment results as plain buttons without card borders", async () => {
-    mockChatRouteFetch(chatPayload({
-      attachment_results: [{ type: "Repository", id: 4, label: "acme/tools" }]
-    }))
-    renderRoute()
-
-    await screen.findByPlaceholderText("Ask about this repository...")
-    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
-
-    expect(screen.getByRole("button", { name: "acme/tools" })).not.toHaveClass("border")
-  })
 })
 
 describe("chat slash commands", () => {
@@ -5995,10 +5922,6 @@ function mockChatPayload(payload: unknown) {
     if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
       return Promise.resolve(new Response(null, { status: 204 }))
     }
-    if (path.startsWith("/api/v1/app/chats/8/context")) {
-      return Promise.resolve(jsonResponse(emptyChatContextPayload()))
-    }
-
     return Promise.resolve(jsonResponse(payload))
   })
 }
@@ -6016,14 +5939,6 @@ function attachedCodingJob(overrides: Record<string, unknown> = {}) {
     can_cancel: true,
     app_path: "/jobs/42",
     ...overrides
-  }
-}
-
-function emptyChatContextPayload() {
-  return {
-    attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
-    documents_in_scope: [],
-    attachment_results: []
   }
 }
 
@@ -6189,7 +6104,7 @@ function chatGoal(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>>; attachment_results?: Array<Record<string, unknown>>; scratchpad_items?: Array<Record<string, unknown>>; queued_messages?: Array<Record<string, unknown>>; agent_questions?: Array<Record<string, unknown>> } = {}, rootOverrides: Record<string, unknown> = {}) {
+function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; scratchpad_items?: Array<Record<string, unknown>>; queued_messages?: Array<Record<string, unknown>>; agent_questions?: Array<Record<string, unknown>> } = {}, rootOverrides: Record<string, unknown> = {}) {
   return {
     chat: {
       id: 8,
@@ -6231,14 +6146,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     agent_questions: overrides.agent_questions || [],
     queued_messages: overrides.queued_messages || [],
     scratchpad_items: overrides.scratchpad_items || [],
-    attachment_groups: {
-      repositories: overrides.attachment_groups?.repositories || [],
-      epics: overrides.attachment_groups?.epics || [],
-      jobs: overrides.attachment_groups?.jobs || [],
-      documents: overrides.attachment_groups?.documents || []
-    },
     documents_in_scope: [],
-    attachment_results: overrides.attachment_results || [],
     preview_panels: [],
     workspace_tabs: [
       { id: "whiteboard.canvas", label: "Whiteboard", label_key: "whiteboard:tab_whiteboard", component: "whiteboard/WhiteboardTab", order: 0 }
@@ -6273,8 +6181,6 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
       app_cancel_coding_checkout_path: "/api/v1/app/chats/8/coding_checkout",
       app_bookmarks_path: "/api/v1/app/chats/8/bookmarks",
       app_bookmarks_index_path: "/api/v1/app/chats/8/bookmarks",
-      app_context_path: "/api/v1/app/chats/8/context",
-      app_attachments_path: "/api/v1/app/chats/8/attachments",
       app_whiteboard_path: "/api/v1/app/chats/8/whiteboard",
       app_scratchpad_reorder_path: "/api/v1/app/chats/8/scratchpad_items/reorder"
     },

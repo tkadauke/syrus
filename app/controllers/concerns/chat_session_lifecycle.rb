@@ -9,6 +9,23 @@ module ChatSessionLifecycle
   CHAT_TURN_ENQUEUE_RETRY_DELAYS = [ 0.05, 0.2 ].freeze
   BRANCH_TITLE_SUFFIX = " (branch)".freeze
 
+  def most_recent_chat_repository
+    recent_repo_id = Current.user.accessible_chat_sessions
+      .joins(:repository_attachments)
+      .order("chat_sessions.created_at DESC")
+      .limit(1)
+      .pick("chat_attachments.attachable_id")
+
+    Current.user.repositories.active.find_by(id: recent_repo_id) if recent_repo_id
+  end
+
+  def repository_from_params
+    id = params[:repository_id].presence
+    return unless id
+
+    Current.user.repositories.active.find(id)
+  end
+
   def create_chat_session
     text = message_text
     repository = repository_from_params

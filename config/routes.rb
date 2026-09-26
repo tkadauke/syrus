@@ -282,9 +282,6 @@ Rails.application.routes.draw do
         get "chats/:id/pins", to: "chats#pins", constraints: { id: /\d+/ }
         post "chats/:id/pins", to: "chats#create_pin", constraints: { id: /\d+/ }
         delete "chats/:id/pins/:message_id", to: "chats#destroy_pin", constraints: { id: /\d+/, message_id: /\d+/ }
-        get "chats/:id/context", to: "chats#context", constraints: { id: /\d+/ }
-        post "chats/:id/attachments", to: "chats#add_attachment", constraints: { id: /\d+/ }
-        delete "chats/:id/attachments/:attachment_id", to: "chats#destroy_attachment", constraints: { id: /\d+/, attachment_id: /\d+/ }
         get "chats/:id/media", to: "chats#media", constraints: { id: /\d+/ }
         get "chats/:id/media/chat_images/:document_id/file", to: "chats#media_chat_image", constraints: { id: /\d+/, document_id: /\d+/ }
         delete "chats/:id/preview_panels/:panel_id", to: "chats#close_preview_panel", constraints: { id: /\d+/, panel_id: /\d+/ }

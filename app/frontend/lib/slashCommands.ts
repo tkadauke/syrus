@@ -60,7 +60,6 @@ export const slashCommands = [
   { name: "/new", kind: "system", args: [], description: "Start a new chat." },
   { name: "/branch", kind: "system", args: [], description: "Start a new chat branched from this point" },
   { name: "/bookmarks", kind: "system", args: [], description: "Show saved bookmarks in this chat." },
-  { name: "/attach", kind: "system", args: [{ name: "owner/repo", required: false }], description: "Attach a repository or open attachment controls." },
   { name: "/settings", kind: "system", args: [], description: "Open chat settings." },
   { name: "/copy", kind: "system", args: [], description: "Copy last response to clipboard" },
   { name: "/search", kind: "system", args: [{ name: "query", required: false }], description: "Find and open another chat" },

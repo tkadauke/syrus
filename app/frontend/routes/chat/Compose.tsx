@@ -11,7 +11,7 @@ import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION
 import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { getAppConsumer } from "../../lib/actionCable"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { attachChatRepository, branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, switchChatProvider, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
+import { branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, switchChatProvider, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -32,7 +32,6 @@ import { syrusShellBridge } from "../../lib/desktopShell"
 import { type ChatDraftAttachmentsChangedDetail, CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
 import { appendSearch, chatDisplayTitle, contentRecord, currentRecentChat, isDesktopChatViewport, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
-import { AddAttachment } from "./Attachments"
 import { getDraftAttachments, readAttachmentFile, setDraftAttachments } from "./attachmentDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { PencilIcon, UploadIcon } from "./icons"
@@ -72,7 +71,7 @@ const COMPOSER_SELECTOR_TRIGGER_CLASS = "min-h-11 !border-transparent !bg-transp
 // textarea/enter/proposal helpers. Compose is the entry point ChatColumn renders.
 // Depends only on leaf modules and shared UI imports; unused header imports pruned.
 
-export function Compose({ autoFocus = false, canLoadEarlierMessages = false, chatId, commandHandlers, floating = true, onComposerHeightChange, onLoadEarlierMessages, payload, prefix, queryKey, showAttachedRepositories = false, onNotice, onMessageSent }: { autoFocus?: boolean; canLoadEarlierMessages?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; floating?: boolean; onComposerHeightChange?: (height: number | null) => void; onLoadEarlierMessages?: () => boolean; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showAttachedRepositories?: boolean; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
+export function Compose({ autoFocus = false, canLoadEarlierMessages = false, chatId, commandHandlers, floating = true, onComposerHeightChange, onLoadEarlierMessages, payload, prefix, queryKey, onNotice, onMessageSent }: { autoFocus?: boolean; canLoadEarlierMessages?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; floating?: boolean; onComposerHeightChange?: (height: number | null) => void; onLoadEarlierMessages?: () => boolean; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { t } = useT("chat")
@@ -184,7 +183,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const pendingProposalCount = payload.pending_proposal_count ?? pendingProposals.length
   const composerBannerStackVisible = pendingProposalCount > 0 || shellCommandRunning
   const [jumpIndex, setJumpIndex] = useState(0)
-  const attachedRepositories = payload.attachment_groups?.repositories ?? []
   const dictation = useChatDictation({
     chatId: payload.chat.id,
     capability: payload.speech_to_text ?? UNAVAILABLE_SPEECH_TO_TEXT,
@@ -313,7 +311,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       if (action.kind === "pin") return updateChatPinned(chatId, action.pinned)
       if (action.kind === "branch") return branchChat(appendSearch(payload.paths.app_branch_path, search))
       if (action.kind === "share") return shareChat(appendSearch(payload.paths.app_share_path, search))
-      return attachChatRepository(appendSearch(payload.paths.app_attachments_path, search), action.slug)
+      throw new Error("Unsupported system action")
     },
     onSuccess: async (updated, action) => {
       if (action.kind === "new") {
@@ -344,7 +342,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       setText("")
       setClearConfirmationOpen(false)
       onNotice(action.kind === "pin" ? (action.pinned ? "Chat pinned" : "Chat unpinned") : chatPayload.message || null)
-      if (action.kind === "attach") setAttachmentPopoverOpen(true)
     }
   })
   const systemCommandAction = useMutation<{ payload?: ChatPayload; notice: string; jobId?: string }, Error, ChatSystemCommandAction>({
@@ -445,13 +442,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     },
     onError: (error) => {
       onNotice(errorMessage(error, "Could not schedule message."))
-    }
-  })
-  const detachRepository = useMutation({
-    mutationFn: (path: string) => deleteChatAttachment(appendSearch(path, search)),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || null)
     }
   })
   const stash = useMutation({
@@ -657,17 +647,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       commandHandlers.openBookmarks()
       setText("")
       onNotice(null)
-      return
-    }
-
-    if (command.name === "/attach") {
-      if (argsText) {
-        systemAction.mutate({ kind: "attach", slug: argsText })
-      } else {
-        setAttachmentPopoverOpen(true)
-        setText("")
-        onNotice(null)
-      }
       return
     }
 
@@ -1852,25 +1831,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             ) : null}
           </div>
         ) : null}
-        {showAttachedRepositories && attachedRepositories.length > 0 ? (
-          <div className="mb-3 flex w-full flex-wrap gap-2">
-            {attachedRepositories.map((repository) => (
-              <span className="flex min-h-[44px] max-w-full items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 text-sm text-brand" key={repository.id}>
-                <span className="truncate" title={repository.label}>{repository.label}</span>
-                <button
-                  aria-label={`Detach repository ${repository.label}`}
-                  className="rounded-full p-2 text-brand hover:bg-brand/20 hover:text-brand-emphasis disabled:text-brand/40"
-                  disabled={detachRepository.isPending}
-                  onClick={() => detachRepository.mutate(repository.app_detach_path)}
-                  title={`Detach repository ${repository.label}`}
-                  type="button"
-                >
-                  <CloseIcon className="h-3.5 w-3.5" />
-                </button>
-              </span>
-            ))}
-          </div>
-        ) : null}
         <Input
           accept={walkthroughsEnabled ? "image/*,application/pdf,video/webm,video/mp4,video/quicktime" : "image/*,application/pdf"}
           aria-label={t("chat_attachments")}
@@ -2038,8 +1998,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
                 </svg>
                 {t("scratchpad_title")}
               </button>
-              <div className="border-t border-gray-100 dark:border-gray-800" />
-              <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
             </div>
           ) : null}
         </div>
