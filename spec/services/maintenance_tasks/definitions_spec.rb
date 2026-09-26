@@ -239,9 +239,10 @@ RSpec.describe "maintenance task definitions" do
     before do
       result_struct = Struct.new(:done, :processed, :next_after_id, keyword_init: true)
       stub_const("TestInsights::WipRepairFailureBackfill", Class.new do
-        define_singleton_method(:pending_count) { |after_id: 0| [ 5 - after_id, 0 ].max }
+        define_singleton_method(:pending_count) { |after_id: 0, up_to_id: nil| [ (up_to_id || 5) - after_id, 0 ].max }
+        define_singleton_method(:max_test_run_id) { 5 }
 
-        define_method(:call) do |after_id: 0, limit:|
+        define_method(:call) do |after_id: 0, up_to_id: nil, limit:|
           result_struct.new(done: true, processed: 5, next_after_id: after_id + 5)
         end
       end)
@@ -256,6 +257,7 @@ RSpec.describe "maintenance task definitions" do
       expect(result.done).to be(true)
       expect(result.processed).to eq(5)
       expect(task.checkpoint["after_id"]).to eq(5)
+      expect(task.checkpoint["upper_bound_test_run_id"]).to eq(5)
     end
 
     it "reports not installed when Test Insights is unavailable" do
