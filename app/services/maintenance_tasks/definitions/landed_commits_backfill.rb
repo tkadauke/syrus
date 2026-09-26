@@ -1,6 +1,11 @@
 module MaintenanceTasks
   module Definitions
     class LandedCommitsBackfill < Base
+      UnresolvedLandingsError = Class.new(StandardError)
+      PROCESSED_REPOSITORY_IDS = "processed_repository_ids".freeze
+      RETRY_UNRESOLVED_REPOSITORY_IDS = "retry_unresolved_repository_ids".freeze
+      UNRESOLVED_REPOSITORIES = "unresolved_repositories".freeze
+
       key "landed_commits_backfill"
       title "Backfill landed commit records"
       summary "Records historical landed commits so repository history can attribute old Syrus landings accurately."
@@ -24,16 +29,21 @@ module MaintenanceTasks
 
       def perform_batch(task)
         repository = next_repository(task)
-        return Result.new(done: true, processed: 0, failed: 0, message: "Landed commit backfill is complete.", level: "info") unless repository
+        return complete_or_fail_unresolved!(task) unless repository
 
         task.current_step_key = "repository"
         task.current_step_title = "Backfill #{repository.slug}"
 
         result = Jobs::LandedCommitsBackfill.new(repository: repository).call
         mark_repository_processed(task, repository)
+        if result.errors.to_i.positive?
+          mark_repository_unresolved(task, repository, result.errors.to_i)
+        else
+          clear_repository_unresolved(task, repository)
+        end
 
         message = "Checked #{result.checked} landing(s) in #{repository.slug}; recorded #{result.commits_recorded} commit(s)."
-        message += " #{result.errors} item(s) could not be backfilled and were left for a future run." if result.errors.to_i.positive?
+        message += " #{result.errors} item(s) could not be backfilled; this task will fail after the current pass unless they are resolved." if result.errors.to_i.positive?
 
         Result.new(
           done: false,
@@ -47,13 +57,72 @@ module MaintenanceTasks
       private
 
       def next_repository(task)
-        processed_ids = Array(task.checkpoint["processed_repository_ids"]).map(&:to_i)
+        processed_ids = Array(task.checkpoint[PROCESSED_REPOSITORY_IDS]).map(&:to_i) - retry_unresolved_repository_ids(task)
         candidate_repository_scope.where.not(id: processed_ids).order(:id).first
       end
 
       def mark_repository_processed(task, repository)
         task.checkpoint_will_change!
-        task.checkpoint["processed_repository_ids"] = (Array(task.checkpoint["processed_repository_ids"]) + [ repository.id ]).uniq
+        task.checkpoint[PROCESSED_REPOSITORY_IDS] = (Array(task.checkpoint[PROCESSED_REPOSITORY_IDS]) + [ repository.id ]).uniq
+        task.checkpoint[RETRY_UNRESOLVED_REPOSITORY_IDS] = retry_unresolved_repository_ids(task) - [ repository.id ]
+      end
+
+      def mark_repository_unresolved(task, repository, errors)
+        task.checkpoint_will_change!
+        unresolved = unresolved_repositories(task).reject { |entry| entry["id"].to_i == repository.id }
+        unresolved << { "id" => repository.id, "slug" => repository.slug, "errors" => errors }
+        task.checkpoint[UNRESOLVED_REPOSITORIES] = unresolved
+      end
+
+      def clear_repository_unresolved(task, repository)
+        unresolved = unresolved_repositories(task)
+        return if unresolved.empty?
+
+        task.checkpoint_will_change!
+        task.checkpoint[UNRESOLVED_REPOSITORIES] = unresolved.reject { |entry| entry["id"].to_i == repository.id }
+      end
+
+      def complete_or_fail_unresolved!(task)
+        unresolved = pending_unresolved_repositories(task)
+        if unresolved.empty?
+          task.checkpoint_will_change!
+          task.checkpoint[UNRESOLVED_REPOSITORIES] = []
+          task.checkpoint.delete(RETRY_UNRESOLVED_REPOSITORY_IDS)
+          return Result.new(done: true, processed: 0, failed: 0, message: "Landed commit backfill is complete.", level: "info")
+        end
+
+        task.checkpoint_will_change!
+        task.checkpoint[RETRY_UNRESOLVED_REPOSITORY_IDS] = unresolved.map { |entry| entry["id"].to_i }.uniq
+        task.save! if task.persisted?
+        slugs = unresolved.map { |entry| entry["slug"].presence || "repository ##{entry["id"]}" }
+        raise UnresolvedLandingsError,
+              "Landed commit backfill left unresolved historical landings in #{slugs.to_sentence}; " \
+              "see checkpoint.unresolved_repositories for per-repository error counts."
+      end
+
+      def unresolved_repositories(task)
+        Array(task.checkpoint[UNRESOLVED_REPOSITORIES]).filter_map do |entry|
+          next unless entry.respond_to?(:to_h)
+
+          entry.to_h.stringify_keys.slice("id", "slug", "errors")
+        end
+      end
+
+      def pending_unresolved_repositories(task)
+        unresolved = unresolved_repositories(task)
+        return [] if unresolved.empty?
+
+        pending_ids = candidate_repository_scope.where(id: unresolved.map { |entry| entry["id"].to_i }).pluck(:id).map(&:to_i)
+        pending = unresolved.select { |entry| pending_ids.include?(entry["id"].to_i) }
+        if pending.size != unresolved.size
+          task.checkpoint_will_change!
+          task.checkpoint[UNRESOLVED_REPOSITORIES] = pending
+        end
+        pending
+      end
+
+      def retry_unresolved_repository_ids(task)
+        Array(task.checkpoint[RETRY_UNRESOLVED_REPOSITORY_IDS]).map(&:to_i)
       end
 
       def candidate_repository_scope

@@ -192,4 +192,59 @@ RSpec.describe MaintenanceTasks::Runner do
     described_class.new(task).call
     expect(task.reload.checkpoint["processed_repository_ids"]).to match_array(ordered_repository_ids)
   end
+
+  it "fails Definitions::LandedCommitsBackfill after a pass with unresolved repository errors" do
+    definition = MaintenanceTasks::Definitions::LandedCommitsBackfill.new
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    Factories.job_record(user: user, repository: repository, state: "closed", issue_number: 304, pr_number: 305, landed_sha: "sha3")
+
+    task = MaintenanceTask.create!(
+      definition_key: definition.key,
+      task_key: "spec:landed-commits-backfill-unresolved",
+      state: "running",
+      recurrence: definition.recurrence,
+      category: definition.category,
+      title: definition.title,
+      summary: definition.summary,
+      trigger_kind: "spec",
+      trigger_key: definition.key,
+      required_role: definition.required_role,
+      total_units: definition.estimate_total_units,
+      batch_size: definition.batch_size,
+      max_parallelism: definition.max_parallelism
+    )
+
+    allow(MaintenanceTasks::Registry).to receive(:fetch).with(definition.key).and_return(definition)
+
+    service_result = Jobs::LandedCommitsBackfill::Result.new(checked: 1, recorded: 0, commits_recorded: 0, skipped: 0, errors: 1)
+    retry_result = Jobs::LandedCommitsBackfill::Result.new(checked: 1, recorded: 1, commits_recorded: 1, skipped: 0, errors: 0)
+    service = instance_double(Jobs::LandedCommitsBackfill, call: service_result)
+    retry_service = instance_double(Jobs::LandedCommitsBackfill, call: retry_result)
+    allow(Jobs::LandedCommitsBackfill).to receive(:new).and_return(service, retry_service)
+
+    described_class.new(task).call
+    expect(task.reload).to have_attributes(state: "running", completed_units: 1, failed_units: 1)
+    expect(task.checkpoint["unresolved_repositories"]).to contain_exactly(
+      hash_including("id" => repository.id, "slug" => repository.slug, "errors" => 1)
+    )
+
+    expect { described_class.new(task).call }
+      .to raise_error(MaintenanceTasks::Definitions::LandedCommitsBackfill::UnresolvedLandingsError)
+
+    expect(task.reload).to have_attributes(
+      state: "failed",
+      completed_units: 1,
+      failed_units: 1
+    )
+    expect(task.last_error).to include(repository.slug)
+    expect(task.checkpoint["retry_unresolved_repository_ids"]).to eq([ repository.id ])
+
+    task.update!(state: "running", last_error: nil)
+    described_class.new(task).call
+
+    expect(task.reload).to have_attributes(state: "running", completed_units: 2, failed_units: 1)
+    expect(task.checkpoint["retry_unresolved_repository_ids"]).to be_empty
+    expect(task.checkpoint["unresolved_repositories"]).to be_empty
+  end
 end
