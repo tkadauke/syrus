@@ -127,6 +127,11 @@ export function humanMessageBubbleClass(item: Extract<ChatRenderItem, { type: "m
   const base = "whitespace-pre-wrap break-words rounded px-4 py-2 text-sm leading-normal"
   const currentUserId = payload.chat.current_user_id
   const isOtherGroupParticipant = payload.chat.conversation_kind === "group" && item.sender_user && currentUserId !== undefined && item.sender_user.id !== currentUserId
+  const isInboundCrossChatBridge = item.cross_chat_bridge?.direction === "inbound"
+
+  if (isInboundCrossChatBridge) {
+    return `${base} border border-cyan-200 bg-cyan-50 text-cyan-950 dark:border-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-100`
+  }
 
   if (isOtherGroupParticipant) {
     return `${base} border border-gray-200 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100`
