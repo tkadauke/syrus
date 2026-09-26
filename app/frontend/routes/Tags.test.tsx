@@ -19,7 +19,7 @@ function tagsPayload(overrides: Record<string, unknown> = {}) {
       { key: "red", label: "Red", bg: "bg-red-100", text: "text-red-800" }
     ],
     tags: [
-      { id: 4, name: "urgent", color: "gray", jobs_count: 2 }
+      { id: 4, name: "urgent", color: "gray", jobs_count: 2, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-02T00:00:00Z" }
     ],
     ...overrides
   }
@@ -94,8 +94,8 @@ describe("Tags", () => {
   it("filters tags through the shared FilterBar", async () => {
     renderRouteAt("/tags", tagsPayload({
       tags: [
-        { id: 4, name: "urgent", color: "gray", jobs_count: 2 },
-        { id: 5, name: "frontend", color: "red", jobs_count: 7 }
+        { id: 4, name: "urgent", color: "gray", jobs_count: 2, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-02T00:00:00Z" },
+        { id: 5, name: "frontend", color: "red", jobs_count: 7, created_at: "2026-02-01T00:00:00Z", updated_at: "2026-02-02T00:00:00Z" }
       ]
     }))
 
@@ -123,9 +123,9 @@ describe("Tags", () => {
     })
     renderRouteAt(`/tags?q=${q}`, tagsPayload({
       tags: [
-        { id: 4, name: "urgent", color: "gray", jobs_count: 2 },
-        { id: 5, name: "frontend", color: "red", jobs_count: 7 },
-        { id: 6, name: "backend", color: "gray", jobs_count: 1 }
+        { id: 4, name: "urgent", color: "gray", jobs_count: 2, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-02T00:00:00Z" },
+        { id: 5, name: "frontend", color: "red", jobs_count: 7, created_at: "2026-02-01T00:00:00Z", updated_at: "2026-02-02T00:00:00Z" },
+        { id: 6, name: "backend", color: "gray", jobs_count: 1, created_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-02T00:00:00Z" }
       ]
     }))
 
@@ -136,11 +136,29 @@ describe("Tags", () => {
     expect(tagRows().join(" ")).not.toContain("backend")
   })
 
+  it("filters tags by explicit name and timestamp fields", async () => {
+    const q = encodeFilterTree({
+      and: [
+        { field: "name", op: "contains", value: "front" },
+        { field: "created_at", op: "after", value: "2026-01-15" }
+      ]
+    })
+    renderRouteAt(`/tags?q=${q}`, tagsPayload({
+      tags: [
+        { id: 4, name: "urgent", color: "gray", jobs_count: 2, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-02T00:00:00Z" },
+        { id: 5, name: "frontend", color: "red", jobs_count: 7, created_at: "2026-02-01T00:00:00Z", updated_at: "2026-02-02T00:00:00Z" }
+      ]
+    }))
+
+    expect(await screen.findByText("frontend")).toBeInTheDocument()
+    expect(screen.queryByText("urgent")).not.toBeInTheDocument()
+  })
+
   it("sorts tags by jobs count", async () => {
     renderRouteAt("/tags", tagsPayload({
       tags: [
-        { id: 4, name: "urgent", color: "gray", jobs_count: 2 },
-        { id: 5, name: "frontend", color: "red", jobs_count: 7 }
+        { id: 4, name: "urgent", color: "gray", jobs_count: 2, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-02T00:00:00Z" },
+        { id: 5, name: "frontend", color: "red", jobs_count: 7, created_at: "2026-02-01T00:00:00Z", updated_at: "2026-02-02T00:00:00Z" }
       ]
     }))
 
@@ -158,8 +176,8 @@ describe("Tags", () => {
   it("hides columns from the selector and reorders visible headers by drag", async () => {
     renderRouteAt("/tags", tagsPayload({
       tags: [
-        { id: 4, name: "urgent", color: "gray", jobs_count: 2 },
-        { id: 5, name: "frontend", color: "red", jobs_count: 7 }
+        { id: 4, name: "urgent", color: "gray", jobs_count: 2, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-02T00:00:00Z" },
+        { id: 5, name: "frontend", color: "red", jobs_count: 7, created_at: "2026-02-01T00:00:00Z", updated_at: "2026-02-02T00:00:00Z" }
       ]
     }))
 
