@@ -227,6 +227,19 @@ RSpec.describe WorkIntents::Scheduler do
     expect(intent.reload).to have_attributes(state: "waiting", wait_reason: "dependency")
   end
 
+  it "records runaway-protection waits from default intent gates" do
+    job.update!(runaway_protection: "too_many_failed_workflows")
+
+    expect {
+      result = described_class.start_ready!(intent)
+      expect(result).to be_waiting
+      expect(result.reason).to eq("runaway_protection_active")
+    }.not_to change { WorkUnit.count }
+
+    expect(intent.reload).to have_attributes(state: "waiting", wait_reason: "runaway_protection_active")
+    expect(intent.wait_details).to include("protected_job_ids" => [ job.id ])
+  end
+
   it "marks merge-train intents waiting until every open epic child is approved or landing" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     Factories.job_record(user: user, repository: repository, epic: epic, state: "approved", issue_number: 201)

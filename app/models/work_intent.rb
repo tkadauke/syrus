@@ -1,6 +1,12 @@
 class WorkIntent < ApplicationRecord
   STATES = %w[requested waiting satisfied failed cancelled].freeze
-  WAIT_REASONS = %w[dependency approval epic_not_ready policy_not_eligible].freeze
+  WAIT_REASONS = %w[
+    dependency
+    approval
+    epic_not_ready
+    policy_not_eligible
+    runaway_protection_active
+  ].freeze
 
   belongs_to :repository, optional: true
   belongs_to :source_repository, class_name: "Repository", optional: true

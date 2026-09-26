@@ -8,6 +8,17 @@ import { Modal } from "../../components/Modal"
 import { Select } from "../../components/Select"
 import { useT } from "../../hooks/useT"
 
+const REVIEW_SETTINGS_MODAL_CLASS = [
+  "max-h-[calc(100dvh-2rem)]",
+  "w-full",
+  "max-w-3xl",
+  "overflow-y-auto",
+  "rounded-[var(--radius-panel)]",
+  "bg-surface",
+  "p-5",
+  "shadow-[var(--shadow-panel)]"
+].join(" ")
+
 export function ReviewDiffSettingsModal({ initialSettings, onClose }: { initialSettings: ReviewDiffSettings; onClose: () => void }) {
   const queryClient = useQueryClient()
   const { t } = useT("jobs")
@@ -27,7 +38,7 @@ export function ReviewDiffSettingsModal({ initialSettings, onClose }: { initialS
   }
 
   return (
-    <Modal className="w-full max-w-3xl rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]" label={t("review_settings_title")} onClose={onClose} open>
+    <Modal className={REVIEW_SETTINGS_MODAL_CLASS} label={t("review_settings_title")} onClose={onClose} open>
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-text-primary">{t("review_settings_title")}</h2>
         <Button onClick={onClose} size="sm" variant="secondary">{t("review_settings_close")}</Button>
