@@ -808,7 +808,7 @@ function SummaryTab({
               <KeyValue label={t("detail_source")}>
                 <JobSourceLink payload={payload} prefix={prefix} />
               </KeyValue>
-              {!payload.job.created_by_current_user ? (
+              {!payload.job.created_by_current_user && payload.job.creator_user ? (
                 <KeyValue label={t("detail_creator")}>{payload.job.creator_user.display_name || payload.job.creator_user.email_address}</KeyValue>
               ) : null}
               <KeyValue label={t("detail_priority")}>
