@@ -43,7 +43,7 @@ const REVIEW_COMMENTS_RAIL_WIDTH = 48
 const REVIEW_COMMENTS_PEEK_OPEN_DELAY_MS = 350
 const REVIEW_COMMENTS_PEEK_CLOSE_DELAY_MS = 150
 const REVIEW_COMMENTS_SPLITTER_CLASS =
-  "group relative z-10 hidden w-4 shrink-0 cursor-col-resize outline-none transition-colors hover:bg-brand/5 focus-visible:bg-brand/10 lg:block"
+  "group relative z-10 hidden h-screen w-4 shrink-0 cursor-col-resize outline-none transition-colors hover:bg-brand/5 focus-visible:bg-brand/10 lg:sticky lg:top-0 lg:block"
 const REVIEW_COMMENTS_SPLITTER_GRIP_CLASS =
   "absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-text-muted transition-opacity"
 const REVIEW_COMMENTS_RAIL_CLASS =
