@@ -40,6 +40,12 @@ export type McpToolUsageRecentCall = {
   run_path: string | null
   chat_session_id: number | null
   chat_path: string | null
+  repository_id: number | null
+  user_id: number | null
+  input_bytes: number | null
+  result_bytes: number | null
+  started_at: string | null
+  completed_at: string | null
 }
 
 export type McpToolCardGapRow = {
@@ -92,6 +98,16 @@ export type McpToolUsagePayload = {
   filters: {
     tool_name: string | null
     server_name: string | null
+    provider?: string | null
+    sidecar_mode?: string | null
+    status?: string | null
+    error?: string | null
+    repository_id?: number | null
+    user_id?: number | null
+    job_id?: number | null
+    workflow_id?: number | null
+    run_id?: number | null
+    chat_session_id?: number | null
   }
   totals: { calls: number; errors: number }
   top_tools: McpToolUsageToolRow[]

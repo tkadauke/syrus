@@ -1,4 +1,5 @@
 import { getJson, postJson } from "@app/api/client"
+import type { FilterSchemaField, FilterTree } from "@app/components/FilterBar"
 
 export type BuildCacheObjectSummary = {
   key: string
@@ -23,14 +24,18 @@ export type BuildCacheClearRequest = {
   reason: string
   state: "pending" | "confirmed" | "cancelled"
   result: { deleted_count: number; bytes_freed: number; truncated: boolean } | null
+  result_status: "present" | "empty" | "truncated"
   requested_by: string | null
   created_at: string
   confirmed_at: string | null
   cancelled_at: string | null
+  updated_at: string
 }
 
 export type AdminBuildCachePayload = {
   configured: boolean
+  filter: FilterTree
+  filter_schema: FilterSchemaField[]
   stats: BuildCacheStats | null
   stats_error: string | null
   pending_request: BuildCacheClearRequest | null
@@ -39,8 +44,8 @@ export type AdminBuildCachePayload = {
 
 export type AdminBuildCacheStatsPayload = Pick<AdminBuildCachePayload, "configured" | "stats" | "stats_error">
 
-export function fetchAdminBuildCache(options: { includeStats?: boolean } = {}) {
-  const params = new URLSearchParams()
+export function fetchAdminBuildCache(search = "", options: { includeStats?: boolean } = {}) {
+  const params = new URLSearchParams(search)
   if (options.includeStats) params.set("include_stats", "true")
   const query = params.toString()
   return getJson<AdminBuildCachePayload>(`/api/v1/app/admin/build_cache${query ? `?${query}` : ""}`)

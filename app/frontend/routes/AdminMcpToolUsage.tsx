@@ -34,6 +34,28 @@ const WINDOW_PRESETS = [
 ] as const
 
 const SURFACES = ["all", "workflow", "chat"] as const
+const MCP_FILTER_FIELDS = [
+  "window_preset",
+  "surface",
+  "tool_name",
+  "server_name",
+  "provider",
+  "sidecar_mode",
+  "status",
+  "error",
+  "repository_id",
+  "user_id",
+  "job_id",
+  "workflow_id",
+  "run_id",
+  "chat_session_id",
+  "input_min",
+  "input_max",
+  "result_min",
+  "result_max",
+  "started_since",
+  "completed_since"
+] as const
 
 export function AdminMcpToolUsage() {
   const { t } = useT("admin")
@@ -78,10 +100,12 @@ function McpToolUsageFilters({ search }: { search: string }) {
       { field: "window_preset", op: "is", value: params.get("window_preset") || "7d" },
       ...(params.get("surface") ? [{ field: "surface", op: "is", value: params.get("surface") || "all" }] : []),
       ...(params.get("tool_name") ? [{ field: "tool_name", op: "is", value: params.get("tool_name") || "" }] : []),
-      ...(params.get("server_name") ? [{ field: "server_name", op: "is", value: params.get("server_name") || "" }] : [])
+      ...(params.get("server_name") ? [{ field: "server_name", op: "is", value: params.get("server_name") || "" }] : []),
+      ...MCP_FILTER_FIELDS.filter((field) => !["window_preset", "surface", "tool_name", "server_name"].includes(field))
+        .flatMap((field) => params.get(field) ? [{ field, op: "is", value: params.get(field) || "" }] : [])
     ]
   }
-  const filterLink = buildFlatFilterLink(["window_preset", "surface", "tool_name", "server_name"], (next) => {
+  const filterLink = buildFlatFilterLink(MCP_FILTER_FIELDS, (next) => {
     const preset = WINDOW_PRESETS.find((entry) => entry.value === next.get("window_preset"))
     if (preset) {
       next.set("since", new Date(Date.now() - preset.hours * 60 * 60 * 1000).toISOString())
@@ -100,7 +124,23 @@ function McpToolUsageFilters({ search }: { search: string }) {
         { name: "window_preset", label: t("mcp_tool_usage.window_label"), options: WINDOW_PRESETS.map((preset) => ({ label: t(`mcp_tool_usage.window_${preset.value}`), value: preset.value })) },
         { name: "surface", label: t("mcp_tool_usage.surface_label"), options: SURFACES.map((value) => ({ label: t(`mcp_tool_usage.surface_${value}`), value })) },
         { name: "tool_name", label: t("mcp_tool_usage.tool_label"), placeholder: t("mcp_tool_usage.tool_placeholder") },
-        { name: "server_name", label: t("mcp_tool_usage.server_label"), placeholder: t("mcp_tool_usage.server_placeholder") }
+        { name: "server_name", label: t("mcp_tool_usage.server_label"), placeholder: t("mcp_tool_usage.server_placeholder") },
+        { name: "provider", label: t("mcp_tool_usage.provider_label"), placeholder: "codex" },
+        { name: "sidecar_mode", label: t("mcp_tool_usage.sidecar_mode_label"), options: ["stdio", "persistent"].map((value) => ({ label: value, value })) },
+        { name: "status", label: t("mcp_tool_usage.status_label"), options: ["started", "completed", "failed"].map((value) => ({ label: value, value })) },
+        { name: "error", label: t("mcp_tool_usage.error_label"), options: [{ label: t("mcp_tool_usage.errors_only"), value: "true" }] },
+        { name: "repository_id", label: t("mcp_tool_usage.repository_label"), inputMode: "numeric" },
+        { name: "user_id", label: t("mcp_tool_usage.user_label"), inputMode: "numeric" },
+        { name: "job_id", label: t("mcp_tool_usage.job_label"), inputMode: "numeric" },
+        { name: "workflow_id", label: t("mcp_tool_usage.workflow_label"), inputMode: "numeric" },
+        { name: "run_id", label: t("mcp_tool_usage.run_label"), inputMode: "numeric" },
+        { name: "chat_session_id", label: t("mcp_tool_usage.chat_label"), inputMode: "numeric" },
+        { name: "input_min", label: t("mcp_tool_usage.input_min_label"), inputMode: "numeric" },
+        { name: "input_max", label: t("mcp_tool_usage.input_max_label"), inputMode: "numeric" },
+        { name: "result_min", label: t("mcp_tool_usage.result_min_label"), inputMode: "numeric" },
+        { name: "result_max", label: t("mcp_tool_usage.result_max_label"), inputMode: "numeric" },
+        { name: "started_since", label: t("mcp_tool_usage.started_since_label"), placeholder: "2026-09-25T00:00:00Z" },
+        { name: "completed_since", label: t("mcp_tool_usage.completed_since_label"), placeholder: "2026-09-25T00:00:00Z" }
       ]}
       filter={filter}
       search={search}
@@ -392,6 +432,8 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
         </>
       )
     },
+    { className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_provider"), key: "provider", defaultVisible: false, sort: "provider", sortValue: (row) => row.provider || "", render: (row) => row.provider || "-" },
+    { className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_sidecar_mode"), key: "sidecar_mode", defaultVisible: false, sort: "sidecar_mode", sortValue: (row) => row.sidecar_mode || "", render: (row) => row.sidecar_mode || "-" },
     {
       className: "px-4 py-3 align-top text-xs",
       headerClassName: "px-4 py-2",
@@ -406,6 +448,8 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
         </>
       )
     },
+    { className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_input_bytes"), key: "input_bytes", defaultVisible: false, sort: "input_bytes", sortValue: (row) => row.input_bytes ?? 0, render: (row) => formatBytes(row.input_bytes ?? undefined) },
+    { className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_result_bytes"), key: "result_bytes", defaultVisible: false, sort: "result_bytes", sortValue: (row) => row.result_bytes ?? 0, render: (row) => formatBytes(row.result_bytes ?? undefined) },
     {
       className: "px-4 py-3 align-top text-xs",
       headerClassName: "px-4 py-2",
@@ -419,7 +463,10 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
           {row.chat_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.chat_path}>{t("mcp_tool_usage.link_chat")}</Link> : null}
         </div>
       )
-    }
+    },
+    { className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_context_ids"), key: "context_ids", defaultVisible: false, render: (row) => contextIds(row) },
+    { className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_started"), key: "started_at", defaultVisible: false, sort: "started_at", sortValue: (row) => row.started_at || "", render: (row) => row.started_at ? formatEventDate(row.started_at) : "-" },
+    { className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_completed"), key: "completed_at", defaultVisible: false, sort: "completed_at", sortValue: (row) => row.completed_at || "", render: (row) => row.completed_at ? formatEventDate(row.completed_at) : "-" }
   ]
 
   return (
@@ -435,6 +482,18 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       />
     )
   )
+}
+
+function contextIds(row: McpToolUsageRecentCall) {
+  const ids = [
+    row.repository_id ? `repo:${row.repository_id}` : null,
+    row.user_id ? `user:${row.user_id}` : null,
+    row.job_id ? `job:${row.job_id}` : null,
+    row.workflow_id ? `workflow:${row.workflow_id}` : null,
+    row.run_id ? `run:${row.run_id}` : null,
+    row.chat_session_id ? `chat:${row.chat_session_id}` : null
+  ].filter(Boolean)
+  return ids.length ? ids.join(" ") : "-"
 }
 
 export default AdminMcpToolUsage

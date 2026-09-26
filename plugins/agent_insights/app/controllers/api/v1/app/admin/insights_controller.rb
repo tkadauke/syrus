@@ -14,10 +14,16 @@ module Api
             "title" => [ "agent_insight_suggestions.title" ],
             "repository" => [ "repositories.owner", "repositories.name" ],
             "user" => [ "users.display_name" ],
+            "job" => [ "jobs.id" ],
+            "category" => [ "agent_insight_suggestions.category" ],
+            "proposal_type" => [ "agent_insight_suggestions.proposal_type" ],
             "severity" => [ "CASE agent_insight_suggestions.severity WHEN 'high' THEN 2 WHEN 'medium' THEN 1 ELSE 0 END" ],
             "confidence" => [ "agent_insight_suggestions.confidence" ],
             "state" => [ "agent_insight_suggestions.state" ],
-            "created" => [ "agent_insight_suggestions.created_at" ]
+            "created" => [ "agent_insight_suggestions.created_at" ],
+            "accepted_at" => [ "agent_insight_suggestions.accepted_at" ],
+            "dismissed_at" => [ "agent_insight_suggestions.dismissed_at" ],
+            "retired_at" => [ "agent_insight_suggestions.retired_at" ]
           }.freeze
 
           def index
