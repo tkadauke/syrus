@@ -499,6 +499,11 @@ describe("chat compose with an omitted attachment_groups payload", () => {
     renderRoute()
 
     expect(await screen.findByText("What would you like to build?")).toBeInTheDocument()
+    const textarea = screen.getByPlaceholderText("Ask about this repository...")
+    const form = textarea.closest("form") as HTMLFormElement
+    expect(form.className).toContain("rounded-3xl")
+    expect(form.className).toContain("border-gray-200")
+    expect(form.className).toContain("shadow-lg")
   })
 })
 
@@ -4195,25 +4200,41 @@ describe("floating composer control order", () => {
     expect(wrapper.className).toContain("sm:block")
   })
 
-  it("renders the effort selector's trigger through the shared Button component, matching its mode/model siblings", async () => {
+  it("renders selector triggers with the shared quiet composer treatment", async () => {
     mockDesktopViewport()
     mockChatRouteFetch(fullControlsPayload())
     renderRoute()
 
     const mode = await screen.findByRole("button", { name: "Change mode" })
+    const model = screen.getByRole("button", { name: "Chat model" })
     const effort = screen.getByRole("button", { name: "Effort" })
 
-    // Button's semantic-token secondary-variant + font-medium classes:
-    // regression guard for the raw gray-scale/lighter-weight styling that
-    // made the effort selector visibly mismatch "Planning"/"Default".
-    for (const token of ["border-border", "bg-surface", "text-text-primary", "font-medium"]) {
-      expect(effort.className).toContain(token)
+    for (const button of [mode, model, effort]) {
+      expect(button.className).toContain("!border-transparent")
+      expect(button.className).toContain("!bg-transparent")
+      expect(button.className).toContain("hover:!border-border")
+      expect(button.className).toContain("focus-visible:!border-brand")
+      expect(button.className).toContain("data-[open=true]:!border-border")
+      expect(button).toHaveAttribute("data-open", "false")
     }
     expect(effort.className).not.toMatch(/\btext-gray-600\b/)
     expect(effort.className).not.toContain("py-1 ")
 
     // Same trigger shape (label span + trailing chevron svg) as the sibling selectors.
     expect(effort.children).toHaveLength(mode.children.length)
+  })
+
+  it("marks selector triggers open so the quiet border can appear with the menu", async () => {
+    mockDesktopViewport()
+    mockChatRouteFetch(fullControlsPayload())
+    renderRoute()
+
+    const mode = await screen.findByRole("button", { name: "Change mode" })
+    fireEvent.click(mode)
+
+    expect(mode).toHaveAttribute("aria-expanded", "true")
+    expect(mode).toHaveAttribute("data-open", "true")
+    expect(screen.getByRole("listbox")).toHaveClass("border-gray-200")
   })
 
   it("sizes the dictation and attachment icon buttons without the text-oriented padding that squeezed their icons", async () => {
@@ -4227,6 +4248,12 @@ describe("floating composer control order", () => {
     for (const button of [attachment, dictation]) {
       expect(button.className).not.toContain("px-2.5")
       expect(button.className).not.toContain("py-1.5")
+      expect(button.className).toContain("!border-transparent")
+      expect(button.className).toContain("!bg-transparent")
+      expect(button.className).toContain("hover:bg-gray-100")
+      expect(button.className).toContain("focus-visible:ring-2")
+      expect(button.className).toContain("min-h-11")
+      expect(button.className).toContain("min-w-11")
     }
 
     const micIcon = dictation.querySelector("svg")
@@ -6600,15 +6627,24 @@ describe("chat provider selector in toolbar", () => {
 
     const button = await screen.findByRole("button", { name: "Change provider" })
     expect(button).toHaveTextContent("Claude")
+    expect(button.className).toContain("!border-transparent")
+    expect(button.className).toContain("!bg-transparent")
+    expect(button.className).toContain("hover:!border-border")
+    expect(button.className).toContain("focus-visible:!border-brand")
+    expect(button.className).toContain("data-[open=true]:!border-border")
+    expect(button).toHaveAttribute("data-open", "false")
   })
 
   it("opens a listbox with only the configured provider options on click", async () => {
     mockChatRouteFetch(landingPayload())
     renderRoute()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Change provider" }))
+    const button = await screen.findByRole("button", { name: "Change provider" })
+    fireEvent.click(button)
 
     const listbox = screen.getByRole("listbox")
+    expect(button).toHaveAttribute("data-open", "true")
+    expect(listbox).toHaveClass("border-gray-200")
     expect(within(listbox).getByRole("option", { name: "Claude" })).toBeInTheDocument()
     expect(within(listbox).getByRole("option", { name: "Codex" })).toBeInTheDocument()
   })
