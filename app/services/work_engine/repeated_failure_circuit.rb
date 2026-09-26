@@ -5,6 +5,7 @@ module WorkEngine
     THRESHOLD = 3
     TOP_STACK_FRAMES = 5
     PROBLEM_CODE = "application_error".freeze
+    CIRCUIT = "repeated_failure_circuit".freeze
 
     Result = Data.define(:open, :fingerprint, :streak_count, :app_revision, :error_class, :error_message, :top_stack_frames) do
       def open? = open
@@ -35,7 +36,7 @@ module WorkEngine
     def open_attention_item!(result = call)
       return unless result.open?
 
-      AttentionItems::Opener.call(
+      result = AttentionItems::Opener.call(
         problem: Problem[PROBLEM_CODE, evidence: evidence_for(result)],
         title: "Repeated automatic repair failure on #{job.slug}",
         summary: "Automatic retries are paused after #{result.streak_count} identical failures on #{result.app_revision}.",
@@ -43,8 +44,11 @@ module WorkEngine
         actions: actions,
         job: job,
         workflow: run.workflow,
-        step: run.step
+        step: run.step,
+        signature: attention_signature
       )
+      supersede_stale_attention_items!(survivor: result.decision || result.prior)
+      result
     rescue StandardError => e
       Rails.logger.warn("[WorkEngine::RepeatedFailureCircuit] failed to open attention item for Run ##{run.id}: #{e.class}: #{e.message}")
       nil
@@ -133,6 +137,8 @@ module WorkEngine
         top_stack_frames: result.top_stack_frames,
         streak_count: result.streak_count,
         threshold: threshold,
+        circuit: CIRCUIT,
+        actionable_scope: "job:#{job.id}:#{CIRCUIT}",
         job_id: job.id,
         workflow_id: run.workflow_id,
         step_id: run.step_id,
@@ -154,6 +160,30 @@ module WorkEngine
       true
     rescue PendingActions::UnknownAction
       false
+    end
+
+    def attention_signature
+      "#{PROBLEM_CODE}:#{CIRCUIT}:job:#{job.id}"
+    end
+
+    def supersede_stale_attention_items!(survivor:)
+      stale_repeated_failure_items(survivor: survivor).each do |item|
+        item.update!(state: "superseded")
+      end
+    end
+
+    def stale_repeated_failure_items(survivor:)
+      scope = AttentionItem
+        .open_decisions
+        .where(problem_code: PROBLEM_CODE, job_id: job.id, repository_id: job.repository_id)
+      scope = scope.where.not(id: survivor.id) if survivor
+      scope.select { |item| repeated_failure_attention_item?(item) }
+    end
+
+    def repeated_failure_attention_item?(item)
+      evidence = item.evidence.to_h
+      evidence["circuit"] == CIRCUIT ||
+        (evidence.key?("threshold") && evidence.key?("fingerprint") && evidence.key?("streak_count"))
     end
 
     def job

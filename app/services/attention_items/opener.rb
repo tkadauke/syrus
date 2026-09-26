@@ -23,7 +23,8 @@ module AttentionItems
 
     def initialize(problem:, title:, queue: "operator", urgency: "normal", summary: nil,
                    adjudication: nil, actions: [], repository: nil, job: nil,
-                   workflow: nil, step: nil, user: nil, expires_at: nil)
+                   workflow: nil, step: nil, user: nil, expires_at: nil,
+                   signature: nil)
       @problem = problem
       @title = title
       @queue = queue.to_s
@@ -37,6 +38,7 @@ module AttentionItems
       @step = step
       @user = user || job&.user
       @expires_at = expires_at
+      @signature = signature
     end
 
     def call
@@ -44,7 +46,7 @@ module AttentionItems
       return Result.new(decision: nil, prior: prior, created: false) if prior
 
       existing = open_duplicate
-      return Result.new(decision: existing, prior: nil, created: false) if existing
+      return Result.new(decision: refresh!(existing), prior: nil, created: false) if existing
 
       Result.new(decision: create!, prior: nil, created: true)
     end
@@ -53,7 +55,7 @@ module AttentionItems
 
     attr_reader :problem, :repository, :job, :workflow, :step, :user
 
-    def signature = @signature ||= AttentionItems::Signature.for(problem)
+    def signature = @resolved_signature ||= @signature.presence || AttentionItems::Signature.for(problem)
 
     # A decision already made about this exact problem, in this repository,
     # that has not expired.
@@ -67,6 +69,25 @@ module AttentionItems
 
     def open_duplicate
       AttentionItem.open_decisions.where(signature: signature, repository_id: repository&.id).first
+    end
+
+    def refresh!(item)
+      item.update!(
+        evidence: problem.evidence,
+        adjudication: @adjudication&.to_h,
+        title: @title,
+        summary: @summary,
+        queue: @queue,
+        urgency: @urgency,
+        actions: @actions,
+        repository: repository,
+        job: job,
+        workflow: workflow,
+        step: step,
+        user: user,
+        expires_at: @expires_at
+      )
+      item
     end
 
     def create!
