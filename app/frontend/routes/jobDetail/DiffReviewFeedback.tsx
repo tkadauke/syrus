@@ -98,6 +98,7 @@ export function useDiffReviewFeedback({
     return groupCommentsByVersion(commentList, versions).map((group) => ({
       count: group.comments.length,
       label: collapsedLabel(t, group.version, duplicateRunIds(versions || [])),
+      marker: t("review_version_prefix", { version: group.version.version_index }),
       version: group.version,
       versionId: group.versionId
     }))

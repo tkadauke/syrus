@@ -422,7 +422,7 @@ function ReviewCommentsCollapsedRail({
   label: string
   onMouseEnter: () => void
   onMouseLeave: () => void
-  summaries: { count: number; label: string; versionId: number }[]
+  summaries: { count: number; label: string; marker: string; versionId: number }[]
 }) {
   return (
     <aside
@@ -437,7 +437,7 @@ function ReviewCommentsCollapsedRail({
         <div className="flex w-full flex-col items-center gap-2">
           {summaries.map((summary) => (
             <div className="flex w-full flex-col items-center gap-1" data-testid="review-comments-rail-version" key={summary.versionId} title={`${summary.label}: ${summary.count}`}>
-              <span className="max-w-full truncate text-[11px] font-semibold text-gray-700 dark:text-gray-300">{summary.label}</span>
+              <span className="max-w-full truncate text-[11px] font-semibold text-gray-700 dark:text-gray-300">{summary.marker}</span>
               <span className="min-w-5 rounded-full bg-brand px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-white">{summary.count}</span>
             </div>
           ))}
