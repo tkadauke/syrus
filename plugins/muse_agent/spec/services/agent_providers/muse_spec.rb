@@ -40,6 +40,18 @@ RSpec.describe AgentProviders::Muse do
   let(:run) { Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "muse") }
   let(:workspace) { instance_double(WorkflowWorkspace, path: "/tmp/worktree") }
 
+  def result_fixture(**overrides)
+    AgentInvocation::Result.new(**{
+      turns: 1,
+      exit_status: 0,
+      timed_out: false,
+      is_error: false,
+      outcome: "success",
+      final_text: nil,
+      session_id: "muse-session"
+    }.merge(overrides))
+  end
+
   around do |ex|
     old_runner = RunJob.agent_runner
     old_data_root = ENV["SYRUS_DATA_ROOT"]
@@ -62,12 +74,7 @@ RSpec.describe AgentProviders::Muse do
 
   it "invokes MuseInvocation with a per-workflow home and sidecar config" do
     received = nil
-    invocation = instance_double(
-      MuseInvocation,
-      run: AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
-                                       is_error: false, outcome: "success",
-                                       final_text: nil, session_id: "muse-session")
-    )
+    invocation = instance_double(MuseInvocation, run: result_fixture)
     allow(MuseInvocation).to receive(:new) do |workspace_path, **kwargs|
       received = kwargs.merge(workspace_path: workspace_path)
       invocation
@@ -93,5 +100,47 @@ RSpec.describe AgentProviders::Muse do
         env: include("SYRUS_DATA_ROOT" => ENV.fetch("SYRUS_DATA_ROOT"))
       )
     )
+  end
+
+  it "retries a context-exhausted resumed workflow as a fresh Muse session" do
+    calls = []
+    results = [
+      result_fixture(
+        turns: 0,
+        exit_status: 1,
+        is_error: true,
+        outcome: "context_length_exceeded",
+        final_text: "The maximum context length was exceeded",
+        session_id: "muse-parent"
+      ),
+      result_fixture(session_id: "muse-fresh")
+    ]
+    allow(MuseInvocation).to receive(:new) do |workspace_path, **kwargs|
+      calls << [ workspace_path, kwargs ]
+      instance_double(MuseInvocation, run: results.shift)
+    end
+    logs = []
+
+    result = described_class.new(run: run, workspace: workspace, parent_session_id: "muse-parent")
+      .run(prompt: "repair the failing graders", log_sink: ->(message, **) { logs << message })
+
+    expect(result).to be_success
+    expect(calls.map { |_path, kwargs| kwargs[:session_id] }).to eq([ "muse-parent", nil ])
+    expect(calls.map { |_path, kwargs| kwargs[:prompt] }).to eq([ "repair the failing graders", "repair the failing graders" ])
+    expect(logs).to include(a_string_including("exhausted its context window", "fresh session"))
+  end
+
+  it "does not retry a non-context Muse workflow failure" do
+    invocation = instance_double(
+      MuseInvocation,
+      run: result_fixture(exit_status: 1, is_error: true, outcome: "tool_failed", final_text: "A tool failed")
+    )
+    expect(MuseInvocation).to receive(:new).once.and_return(invocation)
+
+    result = described_class.new(run: run, workspace: workspace, parent_session_id: "muse-parent")
+      .run(prompt: "repair", log_sink: ->(*, **) { })
+
+    expect(result.is_error).to be true
+    expect(result.outcome).to eq("tool_failed")
   end
 end
