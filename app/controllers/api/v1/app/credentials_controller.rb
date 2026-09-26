@@ -331,7 +331,11 @@ module Api
             filename: document.filename,
             content_type: document.content_type,
             byte_size: document.byte_size,
+            source_url: document.source_url,
+            content_cache_state: document.content_cache.present? ? "cached" : "empty",
+            content_cached_at: document.content_cached_at&.iso8601,
             created_at: document.created_at.iso8601,
+            updated_at: document.updated_at.iso8601,
             file_path: document.file.attached? ? "/api/v1/app/credentials/documents/#{document.id}/file" : nil
           }
         end

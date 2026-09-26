@@ -4,10 +4,11 @@ module Admin
     MAX_WINDOW = 90.days
     DEFAULT_CARD_GAP_LIMIT = 20
 
-    def initialize(params: {}, chat_session: nil, repository: nil)
+    def initialize(params: {}, chat_session: nil, repository: nil, include_empty_filters: false)
       @params = params
       @chat_session = chat_session
       @repository = repository
+      @include_empty_filters = include_empty_filters
     end
 
     def as_json
@@ -26,10 +27,7 @@ module Admin
           end: window_end.iso8601
         },
         surface: surface.presence || "all",
-        filters: {
-          tool_name: tool_name,
-          server_name: server_name
-        },
+        filters: filters_payload,
         totals: {
           calls: totals.fetch(:calls),
           errors: totals.fetch(:errors)
@@ -56,7 +54,47 @@ module Admin
       scope = scope.where(surface: surface) if surface.present?
       scope = scope.where(normalized_tool_name: tool_name) if tool_name.present?
       scope = scope.where(server_name: server_name) if server_name.present?
+      scope = scope.where(provider: provider) if provider.present?
+      scope = scope.where(sidecar_mode: sidecar_mode) if sidecar_mode.present?
+      scope = scope.where(status: status) if status.present?
+      scope = scope.where(error: true) if error_param == "true"
+      scope = scope.where(repository_id: integer_param(:repository_id)) if integer_param(:repository_id)
+      scope = scope.where(user_id: integer_param(:user_id)) if integer_param(:user_id)
+      scope = scope.where(job_id: integer_param(:job_id)) if integer_param(:job_id)
+      scope = scope.where(workflow_id: integer_param(:workflow_id)) if integer_param(:workflow_id)
+      scope = scope.where(run_id: integer_param(:run_id)) if integer_param(:run_id)
+      scope = scope.where(chat_session_id: integer_param(:chat_session_id)) if integer_param(:chat_session_id)
+      scope = scope.where("input_bytes >= ?", integer_param(:input_min)) if integer_param(:input_min)
+      scope = scope.where("input_bytes <= ?", integer_param(:input_max)) if integer_param(:input_max)
+      scope = scope.where("result_bytes >= ?", integer_param(:result_min)) if integer_param(:result_min)
+      scope = scope.where("result_bytes <= ?", integer_param(:result_max)) if integer_param(:result_max)
+      scope = scope.where(started_at: parse_time(params[:started_since])..) if parse_time(params[:started_since])
+      scope = scope.where(completed_at: parse_time(params[:completed_since])..) if parse_time(params[:completed_since])
       scope
+    end
+
+    def filters_payload
+      filters = {
+        tool_name: tool_name,
+        server_name: server_name,
+        provider: provider,
+        sidecar_mode: sidecar_mode,
+        status: status,
+        error: error_param,
+        repository_id: integer_param(:repository_id),
+        user_id: integer_param(:user_id),
+        job_id: integer_param(:job_id),
+        workflow_id: integer_param(:workflow_id),
+        run_id: integer_param(:run_id),
+        chat_session_id: integer_param(:chat_session_id)
+      }
+      return filters if include_empty_filters?
+
+      filters.compact
+    end
+
+    def include_empty_filters?
+      @include_empty_filters
     end
 
     def totals_for(usages)
@@ -86,6 +124,28 @@ module Admin
 
     def server_name
       @server_name ||= normalized_filter_value(params[:server_name] || params[:server])
+    end
+
+    def provider
+      @provider ||= normalized_filter_value(params[:provider])
+    end
+
+    def sidecar_mode
+      value = normalized_filter_value(params[:sidecar_mode])
+      McpToolUsage::SIDECAR_MODES.include?(value) ? value : nil
+    end
+
+    def status
+      value = normalized_filter_value(params[:status])
+      McpToolUsage::STATUSES.include?(value) ? value : nil
+    end
+
+    def error_param
+      params[:error].to_s.presence
+    end
+
+    def integer_param(key)
+      Integer(params[key], exception: false)
     end
 
     def normalized_filter_value(value)
@@ -311,7 +371,13 @@ module Admin
         run_id: usage.run_id,
         run_path: usage.run_id ? "/admin/runs/#{usage.run_id}/transcript" : nil,
         chat_session_id: usage.chat_session_id,
-        chat_path: usage.chat_session_id ? "/chats/#{usage.chat_session_id}" : nil
+        chat_path: usage.chat_session_id ? "/chats/#{usage.chat_session_id}" : nil,
+        repository_id: usage.repository_id,
+        user_id: usage.user_id,
+        input_bytes: usage.input_bytes,
+        result_bytes: usage.result_bytes,
+        started_at: usage.started_at&.iso8601,
+        completed_at: usage.completed_at&.iso8601
       }
     end
 

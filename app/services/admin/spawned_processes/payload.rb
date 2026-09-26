@@ -6,11 +6,17 @@ module Admin
       SORTS = {
         "kind" => { kind: :asc },
         "command" => { command: :asc },
+        "chat_session_id" => { chat_session_id: :asc },
+        "workdir" => { workdir: :asc },
         "hostname" => { hostname: :asc },
         "started_at" => { started_at: :asc },
         "last_chunk_at" => { last_chunk_at: :asc },
         "duration" => { duration_s: :asc },
-        "outcome" => { outcome: :asc }
+        "exit_status" => { exit_status: :asc },
+        "outcome" => { outcome: :asc },
+        "kill_requested_at" => { kill_requested_at: :asc },
+        "wall_timeout_s" => { wall_timeout_s: :asc },
+        "silent_timeout_s" => { silent_timeout_s: :asc }
       }.freeze
       DEFAULT_SORT = "started_at"
 
@@ -224,6 +230,7 @@ module Admin
           silent_timeout_s: process.silent_timeout_s,
           run_id: process.run_id,
           workflow_id: process.workflow_id,
+          chat_session_id: process.chat_session_id,
           workflow_slug: process.workflow&.slug,
           workflow_path: process.workflow ? App::WorkflowNavigation.path(process.workflow) : nil,
           stale: process.stale?,

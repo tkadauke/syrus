@@ -8,21 +8,29 @@ export type GithubApiUsageTotals = {
 
 export type GithubApiUsageOperationRow = {
   auth_source: string
+  credential_key?: string | null
   operation: string
   resource: string
   requests: number
   rate_limited: number
   min_remaining: number | null
   last_limit?: number | null
+  last_status?: number | null
+  last_reset_at?: string | null
+  bucket_started_at?: string | null
   last_seen_at: string | null
 }
 
 export type GithubApiUsageRepositoryRow = {
   auth_source: string
+  credential_key?: string | null
   repo_slug: string
   requests: number
   rate_limited: number
   min_remaining: number | null
+  last_limit?: number | null
+  last_status?: number | null
+  last_reset_at?: string | null
   last_seen_at: string | null
 }
 

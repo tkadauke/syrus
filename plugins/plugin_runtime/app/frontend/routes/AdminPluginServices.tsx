@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
+import { useLocation } from "react-router-dom"
 import { Button, Checkbox, CodeSurface, DataTable, Notice, Page, PageHeading, Pill, Section, SectionHeading, Select, Text, Toolbar } from "@app/components/ui"
-import { AdminEventLogTable, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventLogTable, type AdminEventFilterField, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
 import type { SemanticTone } from "@app/components/ui"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
+import { buildFlatFilterLink } from "@app/lib/flatFilterLink"
 import {
   deletePluginServiceVolume,
   fetchPluginServiceDetails,
@@ -19,6 +21,7 @@ import {
 
 const QUERY_KEY = ["admin", "plugin_services"]
 const LOG_TAILS = [100, 200, 500, 1000, 2000]
+const FILTER_FIELDS = ["service", "plugin", "state", "image", "endpoint", "volume", "volume_plugin", "volume_state", "min_size"] as const
 
 const STATE_TONES: Record<string, SemanticTone> = {
   running: "success",
@@ -35,6 +38,7 @@ const STATE_TONES: Record<string, SemanticTone> = {
 
 export function AdminPluginServices() {
   const { t } = useT("plugin_runtime")
+  const location = useLocation()
   usePageTitle(t("heading"))
   const [logsFor, setLogsFor] = useState<string | null>(null)
   const [detailsFor, setDetailsFor] = useState<string | null>(null)
@@ -68,19 +72,67 @@ export function AdminPluginServices() {
           {!payload.manageable ? <Notice tone="info">{t("external_notice")}</Notice> : null}
           {payload.manager_error ? <Notice tone="warning">{t("manager_unreachable", { error: payload.manager_error })}</Notice> : null}
 
-          {payload.services.length === 0 ? (
+          <AdminEventFilterBar
+            buildLink={buildFlatFilterLink(FILTER_FIELDS)}
+            clearLabel={t("clear_filters")}
+            fields={pluginServiceFilterFields(t)}
+            search={location.search}
+            searchLabel={t("search")}
+          />
+
+          {filterServices(payload.services, location.search).length === 0 ? (
             <Text tone="muted">{t("empty")}</Text>
           ) : (
-            <ServicesTable services={payload.services} onShowLogs={setLogsFor} logsFor={logsFor} onShowDetails={setDetailsFor} detailsFor={detailsFor} />
+            <ServicesTable services={filterServices(payload.services, location.search)} onShowLogs={setLogsFor} logsFor={logsFor} onShowDetails={setDetailsFor} detailsFor={detailsFor} />
           )}
 
           {detailsFor ? <DetailsPanel name={detailsFor} onClose={() => setDetailsFor(null)} /> : null}
           {logsFor ? <LogsPanel name={logsFor} onClose={() => setLogsFor(null)} /> : null}
 
-          {payload.volumes.length > 0 ? <VolumesSection volumes={payload.volumes} /> : null}
+          {filterVolumes(payload.volumes, location.search).length > 0 ? <VolumesSection volumes={filterVolumes(payload.volumes, location.search)} /> : null}
         </>
       ) : null}
     </Page.Root>
+  )
+}
+
+function pluginServiceFilterFields(t: (key: string) => string): AdminEventFilterField[] {
+  return [
+    { name: "service", label: t("filter_service") },
+    { name: "plugin", label: t("filter_plugin") },
+    { name: "state", label: t("filter_state") },
+    { name: "image", label: t("filter_image") },
+    { name: "endpoint", label: t("filter_endpoint") },
+    { name: "volume", label: t("filter_volume") },
+    { name: "volume_plugin", label: t("filter_volume_plugin") },
+    { name: "volume_state", label: t("filter_volume_state"), options: [{ label: t("volume_in_use"), value: "in_use" }, { label: t("volume_unused"), value: "unused" }] },
+    { name: "min_size", label: t("filter_min_size"), inputMode: "numeric" }
+  ]
+}
+
+function includesText(value: string | null | undefined, query: string | null) {
+  return !query || (value ?? "").toLowerCase().includes(query.toLowerCase())
+}
+
+function filterServices(services: PluginService[], search: string) {
+  const params = new URLSearchParams(search)
+  return services.filter((service) =>
+    includesText(service.service, params.get("service")) &&
+    includesText(service.plugin, params.get("plugin")) &&
+    includesText(service.state, params.get("state")) &&
+    includesText(service.image, params.get("image")) &&
+    includesText(service.endpoint, params.get("endpoint"))
+  )
+}
+
+function filterVolumes(volumes: PluginServiceVolume[], search: string) {
+  const params = new URLSearchParams(search)
+  const minSize = Number(params.get("min_size") || "")
+  return volumes.filter((volume) =>
+    includesText(volume.name, params.get("volume")) &&
+    includesText(volume.plugin, params.get("volume_plugin")) &&
+    (!params.get("volume_state") || (params.get("volume_state") === "in_use" ? volume.in_use : !volume.in_use)) &&
+    (!Number.isFinite(minSize) || minSize <= 0 || (volume.size_bytes ?? 0) >= minSize)
   )
 }
 

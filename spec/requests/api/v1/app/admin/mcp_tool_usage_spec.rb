@@ -110,7 +110,9 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       "run_id" => run.id,
       "run_path" => "/admin/runs/#{run.id}/transcript",
       "chat_session_id" => nil,
-      "chat_path" => nil
+      "chat_path" => nil,
+      "repository_id" => repository.id,
+      "user_id" => admin.id
     )
 
     chat_call = recent_calls.find { |row| row["tool_name"] == "repo_info" }
@@ -164,13 +166,92 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["filters"]).to eq(
+    expect(body["filters"]).to include(
       "tool_name" => "browser_navigate",
-      "server_name" => "syrus-mcp-sidecar"
+      "server_name" => "syrus-mcp-sidecar",
+      "provider" => nil,
+      "sidecar_mode" => nil,
+      "status" => nil,
+      "error" => nil
     )
     expect(body["totals"]).to include("calls" => 1, "errors" => 1)
     expect(body["recent_calls"].map { |call| [ call["tool_name"], call["server_name"] ] }).to eq(
       [ [ "browser_navigate", "syrus-mcp-sidecar" ] ]
+    )
+  end
+
+  it "filters recent calls by provider, status, linked context, bytes, and timing" do
+    repository = Factories.repository(user: admin)
+    job = Factories.job(user: admin, repository: repository)
+    run = job.initial_run
+    started_at = 10.minutes.ago
+    completed_at = 9.minutes.ago
+    wanted = McpToolUsage.create!(
+      surface: "workflow",
+      raw_tool_name: "syrus-mcp-sidecar.submit_summary",
+      server_name: "syrus-mcp-sidecar",
+      tool_name: "submit_summary",
+      normalized_tool_name: "submit_summary",
+      status: "completed",
+      error: false,
+      provider: "codex",
+      sidecar_mode: "persistent",
+      repository: repository,
+      user: admin,
+      job: job,
+      workflow: run.workflow,
+      run: run,
+      input_bytes: 512,
+      result_bytes: 2048,
+      started_at: started_at,
+      completed_at: completed_at,
+      created_at: started_at,
+      updated_at: completed_at
+    )
+    McpToolUsage.create!(
+      surface: "workflow",
+      raw_tool_name: "syrus-mcp-sidecar.submit_summary",
+      server_name: "syrus-mcp-sidecar",
+      tool_name: "submit_summary",
+      normalized_tool_name: "submit_summary",
+      status: "failed",
+      error: true,
+      provider: "claude",
+      repository: repository,
+      user: admin,
+      input_bytes: 12,
+      result_bytes: 24,
+      created_at: 30.minutes.ago,
+      updated_at: 30.minutes.ago
+    )
+
+    sign_in_as(admin)
+    get "/api/v1/app/admin/mcp_tool_usage", params: {
+      provider: "codex",
+      sidecar_mode: "persistent",
+      status: "completed",
+      repository_id: repository.id,
+      user_id: admin.id,
+      job_id: job.id,
+      workflow_id: run.workflow.id,
+      run_id: run.id,
+      input_min: 100,
+      result_min: 1000,
+      started_since: 15.minutes.ago.iso8601,
+      completed_since: 15.minutes.ago.iso8601
+    }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["totals"]).to eq("calls" => 1, "errors" => 0)
+    expect(body["recent_calls"].map { |row| row["id"] }).to eq([ wanted.id ])
+    expect(body["recent_calls"].first).to include(
+      "provider" => "codex",
+      "sidecar_mode" => "persistent",
+      "input_bytes" => 512,
+      "result_bytes" => 2048,
+      "repository_id" => repository.id,
+      "user_id" => admin.id
     )
   end
 

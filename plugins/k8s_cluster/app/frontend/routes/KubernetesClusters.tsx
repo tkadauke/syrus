@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type FormEvent } from "react"
 import { useLocation } from "react-router-dom"
-import { FilterBar, filterTreeFromPayload, type FilterSchemaField } from "@app/components/FilterBar"
+import { FilterBar, filterTreeFromPayload, type FilterChip, type FilterNode, type FilterSchemaField, type FilterTree } from "@app/components/FilterBar"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useConfirm } from "@app/hooks/useConfirm"
@@ -10,7 +10,6 @@ import { PanelMessage } from "@app/components/PanelMessage"
 import { AdminEventLogTable, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
 import { Button, Form, Modal, Page } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
-import { buildFlatFilterLink } from "@app/lib/flatFilterLink"
 import {
   createKubernetesCluster,
   deleteKubernetesCluster,
@@ -207,13 +206,13 @@ function ClustersTable({
   const { t } = useT("k8s_cluster")
   const location = useLocation()
   const query = new URLSearchParams(location.search).get(CLUSTER_SEARCH_FIELD)?.trim().toLowerCase() || ""
-  const filteredClusters = query ? clusters.filter((cluster) => clusterSearchText(cluster, t).includes(query)) : clusters
+  const filterTree = clusterFilterTreeFromSearch(location.search, query)
+  const filteredClusters = clusters.filter((cluster) => clusterMatchesFilterTree(cluster, filterTree, t))
 
   return (
     <div className="space-y-3">
       <FilterBar
-        buildLink={buildFlatFilterLink([CLUSTER_SEARCH_FIELD])}
-        filter={filterTreeFromPayload(query ? { and: [{ field: CLUSTER_SEARCH_FIELD, op: "contains", value: query }] } : null)}
+        filter={filterTree}
         filterSchema={clusterFilterSchema(t)}
         legacyFilterKeys={[CLUSTER_SEARCH_FIELD]}
         pathname={location.pathname}
@@ -249,8 +248,64 @@ function clusterFilterSchema(t: ReturnType<typeof useT>["t"]): FilterSchemaField
       free_text_search: true,
       label: t("cluster_filter_query"),
       operators: ["contains"]
-    }
+    },
+    { field: "label", label: t("col_label"), bucket: "text", operators: ["contains", "is", "is_not"] },
+    { field: "api_server_url", label: t("col_api_server_url"), bucket: "text", operators: ["contains", "is", "is_not"] },
+    {
+      field: "credential_kind",
+      label: t("col_credential_kind"),
+      bucket: "text",
+      operators: ["is", "is_not"],
+      values: [
+        { value: "token", label: t("credential_kind_token") },
+        { value: "client_cert", label: t("credential_kind_client_cert") },
+        { value: "none", label: t("credential_kind_none") }
+      ]
+    },
+    { field: "agentic_access_enabled", label: t("col_agentic_access"), bucket: "text", operators: ["is"], values: [{ value: "true", label: t("agentic_enabled") }, { value: "false", label: t("agentic_disabled") }] },
+    { field: "allow_writes", label: t("col_allow_writes"), bucket: "text", operators: ["is"], values: [{ value: "true", label: t("allow_writes_enabled") }, { value: "false", label: t("allow_writes_disabled") }] },
+    { field: "insecure_skip_tls_verify", label: t("col_insecure_skip_tls_verify"), bucket: "text", operators: ["is"], values: [{ value: "true", label: t("insecure_enabled") }, { value: "false", label: t("insecure_disabled") }] },
+    { field: "created_at", label: t("col_created_at"), bucket: "date", operators: ["before", "after", "between"] },
+    { field: "updated_at", label: t("col_updated_at"), bucket: "date", operators: ["before", "after", "between"] }
   ]
+}
+
+function clusterFilterTreeFromSearch(search: string, legacyQuery: string): FilterTree {
+  const encoded = new URLSearchParams(search).get("q")
+  if (!encoded) return filterTreeFromPayload(legacyQuery ? { and: [{ field: CLUSTER_SEARCH_FIELD, op: "contains", value: legacyQuery }] } : null)
+  try {
+    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - encoded.length % 4) % 4)}`
+    const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as FilterTree
+    return { and: topLevelNodes(parsed) }
+  } catch {
+    return { and: [] }
+  }
+}
+
+function clusterMatchesFilterTree(cluster: KubernetesClusterRow, tree: FilterTree, t: ReturnType<typeof useT>["t"]): boolean {
+  return topLevelNodes(tree).every((node) => clusterMatchesFilterNode(cluster, node, t))
+}
+
+function clusterMatchesFilterNode(cluster: KubernetesClusterRow, node: FilterNode, t: ReturnType<typeof useT>["t"]): boolean {
+  if ("field" in node) return clusterMatchesFilter(cluster, node, t)
+  if ("and" in node && Array.isArray(node.and)) return node.and.every((child) => clusterMatchesFilterNode(cluster, child, t))
+  if ("or" in node && Array.isArray(node.or)) return node.or.some((child) => clusterMatchesFilterNode(cluster, child, t))
+  if ("not" in node && node.not) return !clusterMatchesFilterNode(cluster, node.not, t)
+  return true
+}
+
+function clusterMatchesFilter(cluster: KubernetesClusterRow, chip: FilterChip, t: ReturnType<typeof useT>["t"]) {
+  if (chip.field === CLUSTER_SEARCH_FIELD) return clusterSearchText(cluster, t).includes(String(chip.value || "").toLowerCase())
+  if (chip.field === "label") return matchesTextFilter(cluster.label, chip)
+  if (chip.field === "api_server_url") return matchesTextFilter(cluster.api_server_url, chip)
+  if (chip.field === "credential_kind") return matchesTextFilter(cluster.credential_kind || "none", chip)
+  if (chip.field === "agentic_access_enabled") return matchesBooleanFilter(cluster.agentic_access_enabled, chip)
+  if (chip.field === "allow_writes") return matchesBooleanFilter(cluster.allow_writes, chip)
+  if (chip.field === "insecure_skip_tls_verify") return matchesBooleanFilter(cluster.insecure_skip_tls_verify, chip)
+  if (chip.field === "created_at") return matchesDateFilter(cluster.created_at, chip)
+  if (chip.field === "updated_at") return matchesDateFilter(cluster.updated_at, chip)
+  return true
 }
 
 function clusterSearchText(cluster: KubernetesClusterRow, t: ReturnType<typeof useT>["t"]) {
@@ -264,6 +319,34 @@ function clusterSearchText(cluster: KubernetesClusterRow, t: ReturnType<typeof u
   ]
     .join(" ")
     .toLowerCase()
+}
+
+function matchesTextFilter(value: string, chip: FilterChip) {
+  const target = value.toLowerCase()
+  const expected = String(chip.value || "").toLowerCase()
+  if (chip.op === "is") return target === expected
+  if (chip.op === "is_not") return target !== expected
+  return target.includes(expected)
+}
+
+function matchesBooleanFilter(value: boolean, chip: FilterChip) {
+  return value === (chip.value === true || chip.value === "true")
+}
+
+function matchesDateFilter(value: string, chip: FilterChip) {
+  const time = Date.parse(value)
+  if (Number.isNaN(time)) return false
+  if (chip.op === "before") return time < Date.parse(String(chip.value || ""))
+  if (chip.op === "after") return time > Date.parse(String(chip.value || ""))
+  if (chip.op === "between" && Array.isArray(chip.value)) {
+    const [start, end] = chip.value.map((part) => Date.parse(String(part || "")))
+    return (Number.isNaN(start) || time >= start) && (Number.isNaN(end) || time <= end)
+  }
+  return true
+}
+
+function topLevelNodes(tree: FilterTree): FilterNode[] {
+  return tree && Array.isArray(tree.and) ? tree.and : []
 }
 
 function clusterColumns({
@@ -334,6 +417,22 @@ function clusterColumns({
       ),
       sort: "insecure_skip_tls_verify",
       sortValue: (cluster) => Number(cluster.insecure_skip_tls_verify)
+    },
+    {
+      key: "created_at",
+      header: t("col_created_at"),
+      defaultVisible: false,
+      render: (cluster) => new Date(cluster.created_at).toLocaleString(),
+      sort: "created_at",
+      sortValue: (cluster) => cluster.created_at
+    },
+    {
+      key: "updated_at",
+      header: t("col_updated_at"),
+      defaultVisible: false,
+      render: (cluster) => new Date(cluster.updated_at).toLocaleString(),
+      sort: "updated_at",
+      sortValue: (cluster) => cluster.updated_at
     },
     {
       key: "actions",

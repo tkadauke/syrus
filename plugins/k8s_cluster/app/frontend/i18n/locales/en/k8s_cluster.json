@@ -47,6 +47,8 @@
   "col_agentic_access": "Agentic access",
   "col_allow_writes": "Writes",
   "col_insecure_skip_tls_verify": "TLS verify",
+  "col_created_at": "Created",
+  "col_updated_at": "Updated",
   "col_actions": "Actions",
   "agentic_enabled": "Enabled",
   "agentic_disabled": "Disabled",

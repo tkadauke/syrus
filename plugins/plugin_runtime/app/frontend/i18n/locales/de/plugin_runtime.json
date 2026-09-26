@@ -54,5 +54,16 @@
     "error": "Fehler",
     "unavailable": "Nicht erreichbar",
     "unconfigured": "Nicht konfiguriert"
-  }
+  },
+  "search": "Search",
+  "clear_filters": "Clear filters",
+  "filter_service": "Service",
+  "filter_plugin": "Plugin",
+  "filter_state": "State",
+  "filter_image": "Image",
+  "filter_endpoint": "Endpoint",
+  "filter_volume": "Volume",
+  "filter_volume_plugin": "Volume plugin",
+  "filter_volume_state": "Volume state",
+  "filter_min_size": "Minimum size"
 }

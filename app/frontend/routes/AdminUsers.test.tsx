@@ -29,6 +29,7 @@ function userRow(overrides: Record<string, unknown> = {}) {
     has_codex_token: false,
     has_codex_api_key: false,
     has_codex_auth_json: false,
+    has_muse_token: false,
     has_api_token: false,
     agent_max_turns: 200,
     github_api_blocked: false,
@@ -97,9 +98,13 @@ describe("AdminUsers configurable columns", () => {
     expect(screen.getByRole("columnheader", { name: "Admin" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Role" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Agent" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Chat provider" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Auth mode" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Scheduling" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Tokens" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "API token" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "GH API" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "GH blocked at" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "GH rate" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Ada Lovelace" })).toBeInTheDocument()
     expect(screen.getByText("Showing 1-1 of 1 users")).toBeInTheDocument()
@@ -125,9 +130,20 @@ describe("AdminUsers configurable columns", () => {
       "admin",
       "role",
       "agent",
+      "chat_provider",
+      "auth_mode",
       "scheduling",
       "tokens",
-      "gh_api"
+      "api_token",
+      "gh_token",
+      "claude_token",
+      "codex_token",
+      "muse_token",
+      "gh_api",
+      "gh_api_blocked_at",
+      "gh_api_blocked_reason",
+      "created_at",
+      "updated_at"
     ])
   })
 })

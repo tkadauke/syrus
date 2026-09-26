@@ -54,7 +54,11 @@ export type PersonalDocument = {
   filename: string | null
   content_type: string | null
   byte_size: number | null
+  source_url: string | null
+  content_cache_state: string
+  content_cached_at: string | null
   created_at: string
+  updated_at: string
   file_path: string | null
 }
 
