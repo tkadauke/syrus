@@ -1318,7 +1318,9 @@ describe("changed files menu placement", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
 
     const dialog = screen.getByRole("dialog")
-    expect(dialog).toHaveClass("fixed", "inset-0")
+    expect(dialog).toHaveClass("fixed", "inset-0", "z-50", "h-[100dvh]", "w-[100dvw]")
+    expect(screen.getByTestId("agent-diff-viewer")).not.toContainElement(dialog)
+    expect(dialog.parentElement).toBe(document.body)
     expect(screen.getByRole("button", { name: "Close changed files" })).toBeInTheDocument()
   })
 })
