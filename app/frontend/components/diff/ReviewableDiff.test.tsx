@@ -119,6 +119,31 @@ describe("ReviewableDiff", () => {
     expect(screen.getAllByTestId("diff-file-scroll")[0]).toHaveClass("overflow-x-scroll")
   })
 
+  it("keeps compact density visibly denser than comfortable across diff rows, headers, and file lists", () => {
+    const compactSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, density: "compact" as const }
+    const comfortableSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, density: "comfortable" as const }
+    const { rerender } = render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" onCommentLine={vi.fn()} reviewSettings={compactSettings} showFileHeaders />)
+
+    expect(screen.getAllByRole("table")[0]).toHaveClass("text-2xs")
+    expect(getCodeCellText("new")).toHaveClass("py-0", "leading-[14px]")
+    expect(getCodeCellText("new")).not.toHaveClass("py-0.5")
+    expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).toHaveClass("h-3", "w-3", "text-[9px]")
+    expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).not.toHaveClass("h-4", "w-4")
+    expect(screen.getByTitle("app/models/job.rb")).toHaveClass("py-1", "text-2xs")
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+    expect(screen.getByTitle("app/models/run.rb (+1 -0)")).toHaveClass("py-1")
+
+    rerender(<ReviewableDiff changedFilesPopup files={files} mode="continuous" onCommentLine={vi.fn()} reviewSettings={comfortableSettings} showFileHeaders />)
+
+    expect(screen.getAllByRole("table")[0]).toHaveClass("text-xs")
+    expect(getCodeCellText("new")).toHaveClass("py-0.5")
+    expect(getCodeCellText("new")).not.toHaveClass("py-0")
+    expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).toHaveClass("h-4", "w-4", "text-2xs")
+    expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).not.toHaveClass("h-3", "w-3")
+    expect(screen.getByTitle("app/models/job.rb")).toHaveClass("py-2", "text-xs")
+  })
+
   it("keeps mobile scroll-mode diffs in touch-friendly horizontal scrollers", () => {
     const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
     Object.defineProperty(window, "matchMedia", {
@@ -610,26 +635,81 @@ describe("ReviewableDiff", () => {
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
   })
 
-  it("sorts and indents the changed-files popup from persisted file-list settings", () => {
+  it("closes the changed-files popup when clicking outside the file list", () => {
+    render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" showFileHeaders />)
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+    expect(screen.getByText("Changed files")).toBeInTheDocument()
+
+    fireEvent.pointerDown(document.body)
+
+    expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
+  })
+
+  it("closes the changed-files popup with Escape", () => {
+    render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" showFileHeaders />)
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+    expect(screen.getByText("Changed files")).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: "Escape" })
+
+    expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
+  })
+
+  it("renders nested changed-files as an expanded collapsible folder tree", () => {
+    const onSelectFile = vi.fn()
     render(
       <ReviewableDiff
         changedFilesPopup
+        fileCommentCounts={{ "app/models/deep.rb": 3 }}
         files={[
           { additions: 1, deletions: 0, patch: files[0].patch, path: "z.rb", status: "modified" },
           { additions: 5, deletions: 4, patch: files[1].patch, path: "app/models/deep.rb", status: "modified" },
           { additions: 2, deletions: 0, patch: files[1].patch, path: "a.rb", status: "modified" }
         ]}
         mode="continuous"
-        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, file_list_layout: "nested", file_sort: "change_size" }}
+        onSelectFile={onSelectFile}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, density: "compact", file_list_layout: "nested", file_sort: "change_size" }}
+        selectedPath="app/models/deep.rb"
         showFileHeaders
       />
     )
 
     fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
 
+    const dialog = screen.getByRole("dialog")
+    const appFolder = within(dialog).getByRole("button", { name: "app" })
+    const modelsFolder = within(dialog).getByRole("button", { name: "models" })
+    expect(appFolder).toHaveAttribute("aria-expanded", "true")
+    expect(modelsFolder).toHaveAttribute("aria-expanded", "true")
+    expect(appFolder).toHaveClass("py-1")
+    expect(appFolder.querySelector("span")).toHaveClass("rotate-90")
+
     const changedFiles = screen.getAllByTitle(/ \(\+/)
-    expect(changedFiles.map((button) => button.textContent)).toEqual(["app/models/deep.rb+5-4", "a.rb+2-0", "z.rb+1-0"])
-    expect(screen.getByTitle("app/models/deep.rb (+5 -4)")).toHaveStyle({ paddingLeft: "2.25rem" })
+    expect(changedFiles.map((button) => button.textContent)).toEqual(["deep.rb+5-43", "a.rb+2-0", "z.rb+1-0"])
+    expect(within(dialog).queryByText("app/models/deep.rb")).not.toBeInTheDocument()
+
+    const popupText = dialog.textContent || ""
+    expect(popupText.indexOf("app")).toBeLessThan(popupText.indexOf("models"))
+    expect(popupText.indexOf("models")).toBeLessThan(popupText.indexOf("deep.rb"))
+    expect(changedFiles.map((button) => button.getAttribute("title"))).toEqual([
+      "app/models/deep.rb (+5 -4)",
+      "a.rb (+2 -0)",
+      "z.rb (+1 -0)"
+    ])
+
+    fireEvent.click(appFolder)
+    expect(appFolder).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByTitle("app/models/deep.rb (+5 -4)")).not.toBeInTheDocument()
+    expect(screen.getByTitle("a.rb (+2 -0)")).toBeInTheDocument()
+
+    fireEvent.click(appFolder)
+    const deepFile = screen.getByTitle("app/models/deep.rb (+5 -4)")
+    expect(deepFile).toHaveClass("bg-brand/10", "py-1")
+
+    fireEvent.click(deepFile)
+    expect(onSelectFile).toHaveBeenCalledWith("app/models/deep.rb")
   })
 
   it("scrolls each file's table horizontally on its own instead of sharing one scroll region", () => {
@@ -1296,8 +1376,12 @@ describe("changed files menu placement", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
 
     const dialog = screen.getByRole("dialog")
-    expect(dialog).toHaveClass("fixed", "inset-0")
+    expect(dialog).toHaveClass("fixed", "inset-0", "z-[60]", "h-[100dvh]", "w-[100dvw]")
+    expect(screen.getByTestId("agent-diff-viewer")).not.toContainElement(dialog)
+    expect(dialog.parentElement).toBe(document.body)
     expect(screen.getByRole("button", { name: "Close changed files" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close changed files" }))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 })
 

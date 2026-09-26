@@ -27,6 +27,24 @@ RSpec.describe AttentionItems::Opener do
     expect(AttentionItem.count).to eq(1)
   end
 
+  it "refreshes an open duplicate with the latest occurrence evidence" do
+    first = open(summary: "first failure").decision
+    latest_workflow = Workflow.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: "retry",
+      agent_provider: job.agent_provider,
+      state: "failed"
+    )
+
+    result = open(summary: "latest failure", workflow: latest_workflow)
+
+    expect(result).not_to be_created
+    expect(result.decision).to eq(first)
+    expect(first.reload.summary).to eq("latest failure")
+    expect(first.workflow).to eq(latest_workflow)
+  end
+
   # This is what makes attention compound rather than merely reformat.
   it "does not ask again once the same problem has been decided" do
     open.decision.decide!(resolution: "dismissed", user: repo.user, reason: "known upstream issue")
