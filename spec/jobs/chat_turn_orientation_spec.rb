@@ -53,4 +53,44 @@ RSpec.describe "ChatTurnJob plugin turn orientation" do
 
     expect(orientation).to eq("claimed")
   end
+
+  it "includes cross-chat provenance in the built prompt for a bridged turn" do
+    origin_chat = ChatSession.create!(user: user, title: "Release planning")
+    thread = ChatBridgeThread.create!(origin_chat_session: origin_chat, target_chat_session: chat, opened_by_user: user)
+    bridged_message = ChatMessage.create!(
+      chat_session: chat,
+      role: "user",
+      content: {
+        "text" => "Can you check the deploy blocker?",
+        "requested_by" => "cross_chat",
+        "origin_chat_session_id" => origin_chat.id,
+        "thread_id" => thread.id
+      }
+    )
+    job = build_job_for_prompt(bridged_message)
+
+    prompt = job.send(:prompt_for, nil, user_text: "Can you check the deploy blocker?")
+
+    expect(prompt).to include("Cross-chat bridge message")
+    expect(prompt).to include("Origin chat: ##{origin_chat.id} (Release planning)")
+    expect(prompt).to include("Bridge thread: ##{thread.id}")
+    expect(prompt).to include("not typed directly by the human operator")
+    expect(prompt).to include("Message:\nCan you check the deploy blocker?")
+  end
+
+  it "does not include cross-chat provenance in the built prompt for a normal user turn" do
+    job = build_job_for_prompt(message)
+
+    prompt = job.send(:prompt_for, nil, user_text: "hi")
+
+    expect(prompt).not_to include("Cross-chat bridge message")
+    expect(prompt).not_to include("not typed directly by the human operator")
+  end
+
+  def build_job_for_prompt(prompt_message)
+    job = ChatTurnJob.new
+    job.instance_variable_set(:@chat, chat)
+    job.instance_variable_set(:@user_message, prompt_message)
+    job
+  end
 end
