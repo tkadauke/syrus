@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import type { ThemedToken } from "@shikijs/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Button } from "../Button"
@@ -136,6 +137,7 @@ const DIFF_DENSITY_CLASSES: Record<ReviewDiffSettings["density"], {
   changedFilesHeader: string
   changedFilesRow: string
   codeCell: string
+  commentButton: string
   fileHeader: string
   fileHeaderControl: string
   filePathCopy: string
@@ -148,20 +150,22 @@ const DIFF_DENSITY_CLASSES: Record<ReviewDiffSettings["density"], {
   compact: {
     changedFilesHeader: "px-2 py-1",
     changedFilesRow: "gap-1.5 px-2 py-1",
-    codeCell: "px-2 py-0 leading-4",
+    codeCell: "px-2 py-0 leading-[14px]",
+    commentButton: "h-3 w-3 text-[9px]",
     fileHeader: "gap-2 px-3 py-1 text-2xs",
     fileHeaderControl: "px-1.5 py-0 text-[10px]",
     filePathCopy: "gap-1 px-1 py-0",
-    gutter: "px-1.5 py-0 leading-4",
-    hunkCodeCell: "px-2 py-0 leading-4",
+    gutter: "px-1.5 py-0 leading-[14px]",
+    hunkCodeCell: "px-2 py-0 leading-[14px]",
     inlineReviewCell: "px-2 py-1",
-    marker: "px-1.5 py-0 leading-4",
+    marker: "px-1.5 py-0 leading-[14px]",
     tableText: "text-2xs"
   },
   comfortable: {
     changedFilesHeader: "px-3 py-2",
     changedFilesRow: "gap-2 px-3 py-2",
     codeCell: "px-3 py-0.5",
+    commentButton: "h-4 w-4 text-2xs",
     fileHeader: "gap-3 px-4 py-2 text-xs",
     fileHeaderControl: "px-2 py-0.5 text-2xs",
     filePathCopy: "gap-1 px-1 py-0.5",
@@ -175,6 +179,7 @@ const DIFF_DENSITY_CLASSES: Record<ReviewDiffSettings["density"], {
     changedFilesHeader: "px-4 py-3",
     changedFilesRow: "gap-2.5 px-4 py-3",
     codeCell: "px-4 py-1 leading-6",
+    commentButton: "h-5 w-5 text-xs",
     fileHeader: "gap-3 px-5 py-3 text-sm",
     fileHeaderControl: "px-2.5 py-1 text-xs",
     filePathCopy: "gap-1.5 px-1.5 py-1",
@@ -475,28 +480,30 @@ export function ReviewableDiff({
         ) : null}
       </div>
       {changedFilesPopup && filesPopupOpen ? (
-        isMobileFilesMenu ? (
-          <MobileChangedFilesModal
-            commentCounts={fileCommentCounts}
-            files={sortedFiles}
-            density={effectiveReviewSettings.density}
-            layout={effectiveReviewSettings.file_list_layout}
-            onClose={() => setFilesPopupOpen(false)}
-            onSelectFile={selectFileFromPopup}
-            selectedPath={selectedPath}
-          />
-        ) : (
-          <ChangedFilesPopup
-            commentCounts={fileCommentCounts}
-            files={sortedFiles}
-            density={effectiveReviewSettings.density}
-            layout={effectiveReviewSettings.file_list_layout}
-            onClose={() => setFilesPopupOpen(false)}
-            onSelectFile={selectFileFromPopup}
-            placement={filesPopupPlacement}
-            selectedPath={selectedPath}
-          />
-        )
+        <FilesPopupPortal>
+          {isMobileFilesMenu ? (
+            <MobileChangedFilesModal
+              commentCounts={fileCommentCounts}
+              files={sortedFiles}
+              density={effectiveReviewSettings.density}
+              layout={effectiveReviewSettings.file_list_layout}
+              onClose={() => setFilesPopupOpen(false)}
+              onSelectFile={selectFileFromPopup}
+              selectedPath={selectedPath}
+            />
+          ) : (
+            <ChangedFilesPopup
+              commentCounts={fileCommentCounts}
+              files={sortedFiles}
+              density={effectiveReviewSettings.density}
+              layout={effectiveReviewSettings.file_list_layout}
+              onClose={() => setFilesPopupOpen(false)}
+              onSelectFile={selectFileFromPopup}
+              placement={filesPopupPlacement}
+              selectedPath={selectedPath}
+            />
+          )}
+        </FilesPopupPortal>
       ) : null}
     </div>
   )
@@ -550,6 +557,11 @@ function virtualFileSectionStyle(offsetTop: number) {
   // moved with translateY(), which makes diff file headers drift away from
   // the code rows as the review view scrolls.
   return { left: 0, position: "absolute" as const, top: offsetTop, width: "100%" }
+}
+
+function FilesPopupPortal({ children }: { children: ReactNode }) {
+  if (typeof document === "undefined") return <>{children}</>
+  return createPortal(children, document.body)
 }
 
 function stickyFileHeaderBoundaryStyle(showHeader: boolean, density: ReviewDiffSettings["density"]) {
@@ -673,7 +685,7 @@ function MobileChangedFilesModal({
   const { t } = useT("common")
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white font-mono text-xs dark:bg-gray-950" role="dialog">
+    <div className="fixed inset-0 z-[60] flex flex-col bg-white font-mono text-xs dark:bg-gray-950" role="dialog">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <p className="font-sans text-sm font-semibold text-gray-700 dark:text-gray-200">{t("diff_review.changed_files")}</p>
         <button aria-label={t("diff_review.close_changed_files")} className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
@@ -1252,14 +1264,14 @@ export function UnifiedDiffTable({
                 {hideOldLineGutter || !showLineNumbers ? null : (
                   <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
                     {commentSide === "old" && canComment ? (
-                      <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" />
+                      <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="old" />
                     ) : null}
                     {line.oldLine ?? ""}
                   </td>
                 )}
                 {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
                   {commentSide === "new" && canComment ? (
-                    <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="new" />
+                    <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="new" />
                   ) : null}
                   {line.newLine ?? ""}
                 </td> : null}
@@ -1529,7 +1541,7 @@ function SplitDiffRow({
       data-diff-split-row="true"
     >
       {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
-        {line.kind === "delete" && canComment ? <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" /> : null}
+        {line.kind === "delete" && canComment ? <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="old" /> : null}
         {line.oldLine ?? ""}
       </td> : null}
       <td className={`${codeCellClass} ${line.kind === "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="old">
@@ -1545,7 +1557,7 @@ function SplitDiffRow({
         ) : null}
       </td>
       {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
-        {line.kind === "add" && canComment ? <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="new" /> : null}
+        {line.kind === "add" && canComment ? <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="new" /> : null}
         {line.newLine ?? ""}
       </td> : null}
       <td className={`${codeCellClass} ${line.kind !== "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="new">
@@ -1633,17 +1645,19 @@ function GutterCommentButton({
   file,
   line,
   onCommentLine,
+  reviewSettings,
   side
 }: {
   file: ReviewableDiffFile
   line: DiffLine
   onCommentLine?: (selection: DiffLineSelection) => void
+  reviewSettings: ReviewDiffSettings
   side: "old" | "new"
 }) {
   return (
     <button
       aria-label={`Comment on ${file.path}:${side}:${line.newLine ?? line.oldLine}`}
-      className="absolute left-0.5 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full bg-brand text-2xs leading-none text-on-brand opacity-0 transition-opacity hover:opacity-100 group-hover:opacity-100"
+      className={`absolute left-0.5 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full bg-brand leading-none text-on-brand opacity-0 transition-opacity hover:opacity-100 group-hover:opacity-100 ${diffDensityClasses(reviewSettings).commentButton}`}
       onClick={() => onCommentLine?.({ file, line, side })}
       type="button"
     >
