@@ -133,7 +133,6 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(body.dig("preferences", "sort")).to include("column" => "title", "direction" => "asc")
       expect(body["controls"]).to include(
         "views" => %w[list kanban dependencies],
-        "sort_columns" => %w[title state repository landing_queue_position created_at started_at priority commits_behind_base],
         "sort_directions" => %w[asc desc],
         "columns" => {
           "required" => [
@@ -156,6 +155,12 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
           { "key" => "landing", "title" => "Landing" },
           { "key" => "failed", "title" => "Failed" }
         ]
+      )
+      expect(body.dig("controls", "sort_columns")).to include(
+        "title", "state", "repository", "landing_queue_position", "created_at", "started_at",
+        "priority", "commits_behind_base", "kind", "agent_provider", "closure_reason",
+        "pr_number", "issue_number", "branch_name", "claimed_by", "claimed_at",
+        "manual_pause_state", "needs_attention_reason", "workflows_count"
       )
       expect(body.dig("controls", "filter_schema")).to include(
         include("field" => "state", "label" => "State", "values" => include(include("value" => "open", "label" => "Any open"), include("value" => "backlog", "label" => "Backlog"))),
@@ -2008,14 +2013,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       finish_initial_work(first, provider: "claude")
       finish_initial_work(second, provider: "codex")
 
-      expect(AppEvents).to receive(:broadcast).with(
-        user: user,
-        type: "updated",
-        resource: "job",
-        id: nil,
-        changed: [ "bulk" ],
-        payload: { "action" => "retry", "affected_job_ids" => contain_exactly(first.id, second.id) }
-      )
+      allow(AppEvents).to receive(:broadcast).and_call_original
 
       expect {
         post "/api/v1/app/dashboard/jobs/bulk",
@@ -2023,6 +2021,14 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
              as: :json
       }.to change { Workflow.where(trigger_kind: "retry").count }.by(2)
 
+      expect(AppEvents).to have_received(:broadcast).with(
+        user: user,
+        type: "updated",
+        resource: "job",
+        id: nil,
+        changed: [ "bulk" ],
+        payload: { "action" => "retry", "affected_job_ids" => contain_exactly(first.id, second.id) }
+      )
       expect(response).to have_http_status(:ok)
       expect(parse_body["message"]).to eq("Retry enqueued for 2 jobs.")
       expect(parse_body["affected_job_ids"]).to contain_exactly(first.id, second.id)
