@@ -1,6 +1,6 @@
 import { useMediaQuery } from "./dashboard/components"
 import { DashboardKanban } from "./dashboard/KanbanBoard"
-import { JobsDashboardTable } from "./dashboard/JobsTable"
+import { JobDashboardNoticePanels, JobsDashboardTable } from "./dashboard/JobsTable"
 import { EpicsTable, WorkflowsTable } from "./dashboard/EpicWorkflowTables"
 import {
   dashboardColumnDefs,
@@ -944,24 +944,34 @@ export function DashboardTable({
     return <DashboardKanban payload={payload} prefix={prefix} rowsSearch={dashboardApiSearch(pathname, search)} setupStatus={setupStatus} />
 
   if ((payload.items ?? []).length === 0) {
+    const noticePanels = payload.subject === "job"
+      ? <JobDashboardNoticePanels panels={payload.ui_panels} prefix={prefix} t={t} />
+      : null
+
     if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
       const emptyState = dashboardEmptyState(payload, t)
       return (
-        <OnboardingEmptyState
-          fallbackActionPath={emptyState.actionPath}
-          fallbackActionText={emptyState.actionText}
-          fallbackDescription={emptyState.description}
-          fallbackTitle={emptyState.title}
-          prefix={prefix}
-          setupStatus={setupStatus}
-        />
+        <div className="space-y-3">
+          {noticePanels}
+          <OnboardingEmptyState
+            fallbackActionPath={emptyState.actionPath}
+            fallbackActionText={emptyState.actionText}
+            fallbackDescription={emptyState.description}
+            fallbackTitle={emptyState.title}
+            prefix={prefix}
+            setupStatus={setupStatus}
+          />
+        </div>
       )
     }
 
     return (
-      <Surface className={marginGutterRestore} padding="lg">
-        <Text muted>{t("no_match", { subject: subjectLabel(payload.subject, 2) })}</Text>
-      </Surface>
+      <div className="space-y-3">
+        {noticePanels}
+        <Surface className={marginGutterRestore} padding="lg">
+          <Text muted>{t("no_match", { subject: subjectLabel(payload.subject, 2) })}</Text>
+        </Surface>
+      </div>
     )
   }
 

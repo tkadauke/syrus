@@ -6,6 +6,24 @@ import { jsonResponse } from "../testSupport"
 import type { DashboardPayload } from "../api/dashboard"
 import { DashboardTable } from "./Dashboard"
 
+vi.mock("../pluginUiSlots", () => ({
+  PluginUiSlotCarousel: ({ labels, panels }: {
+    labels: { region: string; position: (index: number, count: number) => string; previous: string; next: string }
+    panels?: Array<{ id: string; order: number }>
+  }) => {
+    const visiblePanels = (panels || []).sort((left, right) => left.order - right.order)
+    const activePanel = visiblePanels[0]
+    if (!activePanel) return null
+
+    return (
+      <section aria-label={labels.region}>
+        {visiblePanels.length > 1 ? <span role="status">{labels.position(1, visiblePanels.length)}</span> : null}
+        <div role="status">plugin notice {activePanel.id}</div>
+      </section>
+    )
+  }
+}))
+
 // Simulates the stale-chrome / fresh-rows race that corrupts the landing queue
 // sort preference. Chrome still reports landing_queue as the active smart folder,
 // but the rows response (for the newly-selected folder) returns
@@ -184,5 +202,30 @@ describe("DashboardTable landing queue sort race condition", () => {
 
     expect(screen.getByText("Loading...")).toBeInTheDocument()
     expect(screen.queryByText("No Jobs match this view.")).not.toBeInTheDocument()
+  })
+
+  it("shows job notice panels when the job dashboard is otherwise empty", () => {
+    renderTable(buildPayload({
+      ui_panels: [{ id: "github_source.untagged_issues", component: "github_source/UntaggedIssuesBanner", order: 10 }],
+      total: 0,
+      counts: { jobs: 0, epics: 0, workflows: 0 },
+      items: []
+    }))
+
+    expect(screen.getByRole("region", { name: "Dashboard notices" })).toBeInTheDocument()
+    expect(screen.getByText("plugin notice github_source.untagged_issues")).toBeInTheDocument()
+  })
+
+  it("shows job notice panels when filters leave no matching job rows", () => {
+    renderTable(buildPayload({
+      ui_panels: [{ id: "github_source.untagged_issues", component: "github_source/UntaggedIssuesBanner", order: 10 }],
+      total: 3,
+      counts: { jobs: 3, epics: 0, workflows: 0 },
+      items: []
+    }))
+
+    expect(screen.getByRole("region", { name: "Dashboard notices" })).toBeInTheDocument()
+    expect(screen.getByText("plugin notice github_source.untagged_issues")).toBeInTheDocument()
+    expect(screen.getByText("No jobs match this view.")).toBeInTheDocument()
   })
 })

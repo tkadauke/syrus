@@ -31,7 +31,7 @@ RSpec.describe SystemAlerts do
       alert = described_class.active_for(user: user).find { |candidate| candidate.id == "urgent_attention_items" }
 
       expect(alert).to have_attributes(
-        severity: :alarm,
+        severity: :warn,
         title: "1 urgent operator attention item open.",
         cta: { text: "Open Attention Items", path: "/admin/attention_items" }
       )
