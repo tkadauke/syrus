@@ -6,7 +6,7 @@ module Admin
       SORT_DIRECTIONS = %w[asc desc].freeze
       DEFAULT_SORTS = {
         active: [ "claimed_at", "desc" ],
-        pending: [ "created_at", "asc" ],
+        pending: [ "ready_at", "asc" ],
         failed: [ "created_at", "desc" ],
         recurring: [ "key", "asc" ],
         workers: [ "host", "asc" ],
@@ -14,21 +14,31 @@ module Admin
       }.freeze
       SQL_SORTS = {
         active: {
+          "job_id" => "solid_queue_jobs.id",
           "class" => "solid_queue_jobs.class_name",
           "queue" => "solid_queue_jobs.queue_name",
+          "priority" => "solid_queue_jobs.priority",
           "arguments" => "solid_queue_jobs.arguments",
           "created_at" => "solid_queue_jobs.created_at",
+          "scheduled_at" => "solid_queue_jobs.scheduled_at",
           "claimed_at" => "solid_queue_claimed_executions.created_at"
         },
         pending: {
+          "job_id" => "solid_queue_jobs.id",
           "class" => "solid_queue_jobs.class_name",
           "queue" => "solid_queue_jobs.queue_name",
+          "priority" => "solid_queue_jobs.priority",
           "arguments" => "solid_queue_jobs.arguments",
-          "created_at" => "solid_queue_ready_executions.created_at"
+          "created_at" => "solid_queue_jobs.created_at",
+          "scheduled_at" => "solid_queue_jobs.scheduled_at",
+          "ready_at" => "solid_queue_ready_executions.created_at"
         },
         failed: {
+          "job_id" => "solid_queue_failed_executions.job_id",
           "created_at" => "solid_queue_failed_executions.created_at",
           "class" => "solid_queue_jobs.class_name",
+          "priority" => "solid_queue_jobs.priority",
+          "scheduled_at" => "solid_queue_jobs.scheduled_at",
           "arguments" => "solid_queue_jobs.arguments"
         }
       }.freeze
@@ -74,7 +84,7 @@ module Admin
           jobs = PerformanceLogging.phase("admin_queue.pending.query") { apply_sql_sort(filtered, :pending).offset(offset).limit(@per_page).to_a }
 
           smart_folder_payload(:pending, base, active_folder, filter: filter).merge(
-            jobs: PerformanceLogging.phase("admin_queue.pending.serialize", count: jobs.size) { jobs.map { |job| serialize_job(job) } },
+            jobs: PerformanceLogging.phase("admin_queue.pending.serialize", count: jobs.size) { jobs.map { |job| serialize_job(job, ready_at: job.ready_execution&.created_at) } },
             total: total,
             pagination: pagination_payload(total),
             sort: sort_payload(:pending)
@@ -362,14 +372,17 @@ module Admin
         nil
       end
 
-      def serialize_job(job, claimed_at: nil)
+      def serialize_job(job, claimed_at: nil, ready_at: nil)
         {
           id: job.id,
           class_name: job.class_name,
           queue_name: job.queue_name,
+          priority: job.priority,
           arguments: job.arguments&.dig("arguments"),
           created_at: job.created_at,
-          claimed_at: claimed_at
+          scheduled_at: job.scheduled_at,
+          claimed_at: claimed_at,
+          ready_at: ready_at
         }
       end
 
@@ -377,8 +390,11 @@ module Admin
         error = failure.error || {}
         {
           id: failure.id,
+          job_id: failure.job_id,
           created_at: failure.created_at,
           class_name: failure.job&.class_name,
+          priority: failure.job&.priority,
+          scheduled_at: failure.job&.scheduled_at,
           arguments: failure.job&.arguments&.dig("arguments"),
           exception_class: error["exception_class"],
           message: error["message"]

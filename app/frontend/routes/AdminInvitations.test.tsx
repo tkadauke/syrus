@@ -45,6 +45,15 @@ describe("AdminInvitations", () => {
     expect(shareUrl.closest("button")).toHaveClass("whitespace-nowrap")
     expect(shareUrl.closest("table")).toHaveClass("min-w-[72rem]")
   })
+
+  it("exposes inviter and created as sortable table columns", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(invitationsPayload())))
+
+    renderRoute(<AdminInvitations />)
+
+    expect(await screen.findByRole("button", { name: "Invited by" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Created" })).toBeInTheDocument()
+  })
 })
 
 function renderRoute(children: ReactNode) {
@@ -60,7 +69,12 @@ function renderRoute(children: ReactNode) {
 function invitationsPayload() {
   return {
     filter: { and: [] },
-    filter_schema: [{ bucket: "text", field: "email", label: "Email", operators: ["contains"] }],
+    filter_schema: [
+      { bucket: "text", field: "email", label: "Email", operators: ["contains"] },
+      { bucket: "text", field: "inviter", label: "Inviter", operators: ["contains"] },
+      { bucket: "date", field: "expires_at", label: "Expires", operators: ["before", "after"] },
+      { bucket: "date", field: "created_at", label: "Created", operators: ["before", "after"] }
+    ],
     filters: {},
     invitations: [
       {

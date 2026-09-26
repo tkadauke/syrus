@@ -276,8 +276,10 @@ function PendingTable({ onNavigate, payload, search }: { onNavigate: (params: UR
 
 function jobsTableColumns(t: (key: string) => string, showClaimed: boolean): Array<AdminEventLogTableColumn<QueueJob>> {
   const columns: Array<AdminEventLogTableColumn<QueueJob>> = [
+    { key: "job_id", header: t("queue.col_job_id"), sort: "job_id", className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (job) => `#${job.id}` },
     { key: "class", header: t("queue.col_class"), required: true, sort: "class", className: "font-medium text-gray-900 dark:text-gray-100", render: (job) => job.class_name },
     { key: "queue", header: t("queue.col_queue"), sort: "queue", className: "text-gray-700 dark:text-gray-200", render: (job) => job.queue_name },
+    { key: "priority", header: t("queue.col_priority"), sort: "priority", className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (job) => job.priority },
     {
       key: "arguments",
       header: t("queue.col_arguments"),
@@ -291,8 +293,24 @@ function jobsTableColumns(t: (key: string) => string, showClaimed: boolean): Arr
       sort: "created_at",
       className: "text-gray-600 dark:text-gray-300",
       render: (job) => <RelativeTimestamp value={job.created_at} />
+    },
+    {
+      key: "scheduled",
+      header: t("queue.col_scheduled"),
+      sort: "scheduled_at",
+      className: "text-gray-600 dark:text-gray-300",
+      render: (job) => <RelativeTimestamp value={job.scheduled_at} />
     }
   ]
+  if (!showClaimed) {
+    columns.push({
+      key: "ready",
+      header: t("queue.col_ready"),
+      sort: "ready_at",
+      className: "text-gray-600 dark:text-gray-300",
+      render: (job) => <RelativeTimestamp value={job.ready_at} />
+    })
+  }
   if (showClaimed) {
     columns.push({
       key: "claimed",
@@ -353,6 +371,13 @@ function FailuresTable({ onNavigate, payload, search }: { onNavigate: (params: U
 
   const columns: Array<AdminEventLogTableColumn<QueueFailure>> = [
     {
+      key: "job_id",
+      header: t("queue.col_job_id"),
+      sort: "job_id",
+      className: "font-mono text-xs text-gray-600 dark:text-gray-300",
+      render: (failure) => `#${failure.job_id}`
+    },
+    {
       key: "created",
       header: t("queue.col_created"),
       required: true,
@@ -361,6 +386,14 @@ function FailuresTable({ onNavigate, payload, search }: { onNavigate: (params: U
       render: (failure) => <RelativeTimestamp value={failure.created_at} />
     },
     { key: "class", header: t("queue.col_class"), sort: "class", className: "font-medium text-gray-900 dark:text-gray-100", render: (failure) => failure.class_name || "-" },
+    { key: "priority", header: t("queue.col_priority"), sort: "priority", className: "font-mono text-xs text-gray-600 dark:text-gray-300", render: (failure) => failure.priority ?? "-" },
+    {
+      key: "scheduled",
+      header: t("queue.col_scheduled"),
+      sort: "scheduled_at",
+      className: "text-gray-600 dark:text-gray-300",
+      render: (failure) => <RelativeTimestamp value={failure.scheduled_at} />
+    },
     // Solid Queue stores failure details as one serialized error blob. The
     // displayed fields are extracted client payload values, so SQL sorting
     // would not reliably match the visible Exception/Message text.
