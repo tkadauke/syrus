@@ -260,7 +260,7 @@ module SystemAlerts
     Alert.new(
       id: "urgent_attention_items",
       dismissal_key: "urgent_attention_items:#{count}:#{AttentionItem.operator_queue.open_decisions.unexpired.where(urgency: "urgent").maximum(:updated_at)&.to_i}",
-      severity: :alarm,
+      severity: :warn,
       title: "#{count} urgent operator attention #{'item'.pluralize(count)} open.",
       message: "Syrus has paused automatic remediation for #{count} urgent #{'problem'.pluralize(count)} that need an operator decision.",
       action_steps: [

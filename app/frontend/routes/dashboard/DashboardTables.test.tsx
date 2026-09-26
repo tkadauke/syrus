@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -8,9 +8,42 @@ import { JobsDashboardTable } from "./JobsTable"
 import type { DashboardEpicItem, DashboardJobItem, DashboardPayload, DashboardRepository, DashboardWorkflowItem } from "../../api/dashboard"
 import type { DashboardSortState } from "./helpers"
 
-vi.mock("../../pluginUiSlots", () => ({
-  PluginUiSlot: ({ panels }: { panels?: Array<{ id: string }> }) => panels && panels.length > 0 ? <div role="status">plugin notice {panels.map((panel) => panel.id).join(", ")}</div> : null
-}))
+vi.mock("../../pluginUiSlots", async () => {
+  const React = await import("react")
+
+  return {
+    PluginUiSlotCarousel: ({ labels, panels }: {
+      labels: {
+        region: string
+        position: (index: number, count: number) => string
+        previous: string
+        next: string
+      }
+      panels?: Array<{ id: string; order: number }>
+    }) => {
+      const visiblePanels = (panels || [])
+        .filter((panel) => panel.id !== "test.hidden")
+        .sort((left, right) => left.order - right.order)
+      const [index, setIndex] = React.useState(0)
+      const activeIndex = Math.min(index, Math.max(visiblePanels.length - 1, 0))
+      const activePanel = visiblePanels[activeIndex]
+      if (!activePanel) return null
+
+      return (
+        <section aria-label={labels.region}>
+          {visiblePanels.length > 1 ? (
+            <div>
+              <span role="status">{labels.position(activeIndex + 1, visiblePanels.length)}</span>
+              <button aria-label={labels.previous} onClick={() => setIndex((activeIndex - 1 + visiblePanels.length) % visiblePanels.length)} type="button">previous</button>
+              <button aria-label={labels.next} onClick={() => setIndex((activeIndex + 1) % visiblePanels.length)} type="button">next</button>
+            </div>
+          ) : null}
+          <div role="status">plugin notice {activePanel.id}</div>
+        </section>
+      )
+    }
+  }
+})
 
 const repository: DashboardRepository = {
   id: 1,
@@ -276,6 +309,44 @@ describe("dashboard DataTable migrations", () => {
     const banner = screen.getByRole("status")
     expect(banner).toHaveTextContent("plugin notice test.notice")
     expect(banner.compareDocumentPosition(screen.getByRole("table"))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it("cycles multiple dashboard plugin panels in panel order and ignores empty panels", () => {
+    setDesktop(true)
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["issue"]}
+        controls={controls}
+        items={[job()]}
+        landingQueueEntries={[]}
+        prefix=""
+        sortState={sortState()}
+        t={(key, opts) => key === "notice_position" ? `Notice ${opts?.index} of ${opts?.count}` : key}
+        uiPanels={[
+          { id: "test.second", component: "test/Notice", order: 20 },
+          { id: "test.hidden", component: "test/HiddenNotice", order: 30 },
+          { id: "test.first", component: "test/Notice", order: 10 }
+        ]}
+      />
+    )
+
+    const notices = screen.getByRole("region", { name: "notice_panels" })
+    expect(within(notices).getByText("Notice 1 of 2")).toBeInTheDocument()
+    expect(within(notices).getByText("plugin notice test.first")).toBeInTheDocument()
+    expect(screen.queryByText("plugin notice test.second")).not.toBeInTheDocument()
+    expect(screen.queryByText("plugin notice test.hidden")).not.toBeInTheDocument()
+
+    fireEvent.click(within(notices).getByRole("button", { name: "next_notice" }))
+
+    expect(within(notices).getByText("Notice 2 of 2")).toBeInTheDocument()
+    expect(within(notices).getByText("plugin notice test.second")).toBeInTheDocument()
+    expect(screen.queryByText("plugin notice test.first")).not.toBeInTheDocument()
+
+    fireEvent.click(within(notices).getByRole("button", { name: "previous_notice" }))
+
+    expect(within(notices).getByText("Notice 1 of 2")).toBeInTheDocument()
+    expect(within(notices).getByText("plugin notice test.first")).toBeInTheDocument()
   })
 
   it("omits dashboard plugin panels when none are resolved", () => {

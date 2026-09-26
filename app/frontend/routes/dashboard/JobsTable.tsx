@@ -25,7 +25,7 @@ import { type LandingQueueBlockerJob } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
 import { createDashboardJobNavigationContext, jobNavigationHref, storeJobNavigationContext } from "../../lib/jobNavigationContext"
-import { PluginUiSlot, type UiSlotPanel } from "../../pluginUiSlots"
+import { PluginUiSlotCarousel, type UiSlotPanel } from "../../pluginUiSlots"
 
 
 // Dashboard jobs table extracted from Dashboard.tsx: JobsDashboardTable and its
@@ -67,7 +67,16 @@ export function JobsDashboardTable({ items, columns, controls, landingQueueEntri
     <div className="space-y-3">
       <BulkJobActions controls={controls} items={items} selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
       {landingQueueStatus ? <LandingQueueSummary status={landingQueueStatus} prefix={prefix} /> : null}
-      <PluginUiSlot panels={uiPanels} props={{ prefix }} />
+      <PluginUiSlotCarousel
+        labels={{
+          region: t("notice_panels"),
+          position: (index, count) => t("notice_position", { index, count }),
+          previous: t("previous_notice"),
+          next: t("next_notice")
+        }}
+        panels={uiPanels}
+        props={{ prefix }}
+      />
       <JobsTable
         allSelected={allSelected}
         columns={columns}
