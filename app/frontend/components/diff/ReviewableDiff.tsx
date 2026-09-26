@@ -1647,7 +1647,7 @@ function SplitDiffRow({
       </td>
       <td className="w-4 select-none px-1 text-center">
         {annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
-          : annotation === "uncovered" ? <span className="text-red-600 dark:text-red-400">✗</span>
+          : annotation === "uncovered" ? <span className="text-danger-text">✗</span>
           : null}
       </td>
     </tr>
@@ -1662,7 +1662,7 @@ function diffTableClass(settings: ReviewDiffSettings) {
 function diffCodeCellClass(settings: ReviewDiffSettings, lineWrapping: ReviewDiffSettings["line_wrapping"]) {
   const densityClass = settings.density === "compact" ? "px-2 py-0" : settings.density === "spacious" ? "px-4 py-1" : "px-3 py-0.5"
   const wrapClass = lineWrapping === "wrap" ? "min-w-0 whitespace-pre-wrap break-words" : "min-w-[40rem] whitespace-pre"
-  return `${wrapClass} ${densityClass} text-gray-900 dark:text-gray-200`
+  return `${wrapClass} ${densityClass} text-text-primary`
 }
 
 function reviewDisplayCode(code: string, settings: ReviewDiffSettings) {
@@ -1687,7 +1687,7 @@ function HunkRow({ controls, hideOldLineGutter, line, showLineNumbers = true }: 
         {controls?.down ? <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
       </td> : null}
       <td className={diffMarkerClass("hunk")}>{line.marker}</td>
-      <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200">{line.code}</td>
+      <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 text-text-primary">{line.code}</td>
       <td className="w-4 select-none px-1 text-center" />
     </tr>
   )
@@ -1774,7 +1774,7 @@ function DiffFileHeader({
         <button
           aria-expanded={!collapsed}
           aria-label={collapsed ? t("diff_review.expand_file") : t("diff_review.collapse_file")}
-          className="flex h-4 w-4 shrink-0 items-center justify-center text-gray-500 hover:text-gray-700 max-md:hidden dark:text-gray-400 dark:hover:text-gray-200"
+          className="flex h-4 w-4 shrink-0 items-center justify-center text-text-muted hover:text-text-primary max-md:hidden"
           onClick={onToggleCollapsed}
           type="button"
         >
