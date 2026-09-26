@@ -202,7 +202,7 @@ describe("RecentChatsSidebar settings", () => {
       expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("per_group=5"), expect.anything())
     })
 
-    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Show more" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("/api/v1/app/chats/more?"), expect.anything())

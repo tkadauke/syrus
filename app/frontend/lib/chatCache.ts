@@ -1,5 +1,5 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
-import type { ChatGroupRecord, ChatNavRecord, ChatPayload, ChatPayloadUpdate, ChatRecord, ChatsIndexPayload } from "../api/chats"
+import { DEFAULT_CHAT_SIDEBAR_SETTINGS, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatPayloadUpdate, type ChatRecord, type ChatSidebarSettings, type ChatsIndexPayload } from "../api/chats"
 
 export function mergeChatPayloadUpdate(queryClient: QueryClient, queryKey: QueryKey, update: ChatPayloadUpdate) {
   let merged: ChatPayload | undefined
@@ -33,8 +33,34 @@ function isFullChatPayload(update: ChatPayloadUpdate): update is ChatPayload {
   return "messages" in update
 }
 
+export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {}): QueryKey {
+  const normalized = {
+    ...DEFAULT_CHAT_SIDEBAR_SETTINGS,
+    ...settings
+  }
+  if (
+    normalized.status === DEFAULT_CHAT_SIDEBAR_SETTINGS.status &&
+    normalized.group_by === DEFAULT_CHAT_SIDEBAR_SETTINGS.group_by &&
+    normalized.sort_by === DEFAULT_CHAT_SIDEBAR_SETTINGS.sort_by &&
+    normalized.show_empty_groups === DEFAULT_CHAT_SIDEBAR_SETTINGS.show_empty_groups &&
+    normalized.per_group === DEFAULT_CHAT_SIDEBAR_SETTINGS.per_group
+  ) {
+    return ["chats", "recent"]
+  }
+
+  return [
+    "chats",
+    "recent",
+    normalized.status,
+    normalized.group_by,
+    normalized.sort_by,
+    normalized.show_empty_groups,
+    normalized.per_group
+  ]
+}
+
 export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
-  queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
+  queryClient.setQueryData<ChatsIndexPayload>(recentChatsQueryKey(), (current) => {
     if (!current || !Array.isArray(current.groups)) return current
 
     const existing = current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
@@ -60,7 +86,7 @@ export function refreshRecentChats(queryClient: QueryClient) {
 }
 
 export function updateChatUnread(queryClient: QueryClient, id: number, unread: boolean) {
-  queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
+  queryClient.setQueriesData<ChatsIndexPayload>({ queryKey: ["chats", "recent"] }, (current) => {
     if (!current) return current
     return {
       ...current,
