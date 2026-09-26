@@ -1350,8 +1350,8 @@ export function UnifiedDiffTable({
   const hideOldLineGutter = isAddedFileDiff(file)
   const showLineNumbers = reviewSettings.line_numbers
   const gutterColSpan = showLineNumbers ? (hideOldLineGutter ? 1 : 2) : 1
-  const codeCellClass = diffCodeCellClass(reviewSettings, lineWrapping)
   const splitView = !isMobileViewport && reviewSettings.desktop_view === "split" && !hideOldLineGutter
+  const codeCellClass = diffCodeCellClass(reviewSettings, lineWrapping, splitView)
 
   let hunkIndex = -1
 
@@ -1381,14 +1381,15 @@ export function UnifiedDiffTable({
 
   return (
     <div className={`${scrollClass} [container-type:inline-size]`} data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
-      <table className={diffTableClass(reviewSettings)} data-review-diff-view={isMobileViewport ? "unified" : reviewSettings.desktop_view} style={{ tabSize: reviewSettings.tab_width }} data-testid={testId}>
+      <table className={diffTableClass(reviewSettings, splitView)} data-review-diff-view={isMobileViewport ? "unified" : reviewSettings.desktop_view} style={{ tabSize: reviewSettings.tab_width }} data-testid={testId}>
+        {splitView ? <SplitDiffColGroup showLineNumbers={showLineNumbers} /> : null}
         <tbody>
           {lines.map((line, index) => {
             if (line.kind === "hunk") {
               hunkIndex += 1
               const controls = hunkControls?.[hunkIndex]
               if (controls && !controls.up && !controls.down) return null
-              return <HunkRow controls={controls} hideOldLineGutter={hideOldLineGutter} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} reviewSettings={reviewSettings} showLineNumbers={showLineNumbers} />
+              return <HunkRow controls={controls} hideOldLineGutter={hideOldLineGutter} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} reviewSettings={reviewSettings} showLineNumbers={showLineNumbers} splitView={splitView} />
             }
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
@@ -1747,12 +1748,15 @@ function SplitDiffRow({
   )
 }
 
-function diffTableClass(settings: ReviewDiffSettings) {
-  return `min-w-full border-separate border-spacing-0 font-mono ${diffDensityClasses(settings).tableText}`
+function diffTableClass(settings: ReviewDiffSettings, splitView = false) {
+  const layoutClass = splitView ? "w-full table-fixed" : "min-w-full"
+  return `${layoutClass} border-separate border-spacing-0 font-mono ${diffDensityClasses(settings).tableText}`
 }
 
-function diffCodeCellClass(settings: ReviewDiffSettings, lineWrapping: ReviewDiffSettings["line_wrapping"]) {
-  const wrapClass = lineWrapping === "wrap" ? "min-w-0 whitespace-pre-wrap break-words" : "min-w-[40rem] whitespace-pre"
+function diffCodeCellClass(settings: ReviewDiffSettings, lineWrapping: ReviewDiffSettings["line_wrapping"], splitView = false) {
+  const wrapClass = lineWrapping === "wrap"
+    ? "min-w-0 whitespace-pre-wrap break-words"
+    : splitView ? "min-w-0 overflow-hidden whitespace-pre" : "min-w-[40rem] whitespace-pre"
   return `${wrapClass} ${diffDensityClasses(settings).codeCell} text-text-primary`
 }
 
@@ -1774,7 +1778,46 @@ function reviewDisplayCode(code: string, settings: ReviewDiffSettings) {
 }
 
 /* eslint-disable design-system/no-raw-table-classes */
-function HunkRow({ controls, hideOldLineGutter, line, reviewSettings, showLineNumbers = true }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine; reviewSettings: ReviewDiffSettings; showLineNumbers?: boolean }) {
+function SplitDiffColGroup({ showLineNumbers }: { showLineNumbers: boolean }) {
+  if (!showLineNumbers) {
+    return (
+      <colgroup>
+        <col style={{ width: "calc(0.5 * (100% - 1.5rem))" }} />
+        <col style={{ width: "calc(0.5 * (100% - 1.5rem))" }} />
+        <col style={{ width: "1.5rem" }} />
+      </colgroup>
+    )
+  }
+
+  return (
+    <colgroup>
+      <col style={{ width: "3rem" }} />
+      <col style={{ width: "calc(0.5 * (100% - 7.5rem))" }} />
+      <col style={{ width: "3rem" }} />
+      <col style={{ width: "calc(0.5 * (100% - 7.5rem))" }} />
+      <col style={{ width: "1.5rem" }} />
+    </colgroup>
+  )
+}
+
+function HunkRow({ controls, hideOldLineGutter, line, reviewSettings, showLineNumbers = true, splitView = false }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine; reviewSettings: ReviewDiffSettings; showLineNumbers?: boolean; splitView?: boolean }) {
+  if (splitView) {
+    const codeColSpan = showLineNumbers ? 3 : 2
+    return (
+      <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk">
+        {showLineNumbers ? (
+          <td className={`${diffGutterClass("hunk")} ${diffDensityClasses(reviewSettings).gutter}`}>
+            {controls?.up ? <HunkContextButton direction="up" lineCount={controls.up.lineCount} loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
+          </td>
+        ) : null}
+        <td className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).hunkCodeCell}`} colSpan={codeColSpan}>{line.code}</td>
+        <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
+          {showLineNumbers && controls?.down ? <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
+        </td>
+      </tr>
+    )
+  }
+
   return (
     <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk">
       {hideOldLineGutter || !showLineNumbers ? null : (
