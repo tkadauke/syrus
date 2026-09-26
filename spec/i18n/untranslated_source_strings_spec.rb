@@ -82,6 +82,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|offset || highlight.end
       plugins/git_history/app/frontend/repo_tabs/GitHistory.tsx|jsx_text|, not a fresh
       plugins/git_history/app/frontend/repo_tabs/GitHistory.tsx|jsx_text|-- the Epic's
+      plugins/k8s_cluster/app/frontend/components/KubernetesResourceTable.tsx|jsx_text|(column: KubernetesResourceTableColumn
+      plugins/k8s_cluster/app/frontend/components/KubernetesResourceTable.tsx|jsx_text|(row: TRow, column: KubernetesResourceTableColumn
       plugins/k8s_cluster/app/frontend/components/tabs/EventsTab.tsx|jsx_text|( )
       plugins/mockups/app/frontend/routes/MockupPreviewPanel.tsx|jsx_text|postJson
       plugins/mysql_db_browser/app/frontend/mysqlToolCard.tsx|jsx_text|T | null): MysqlSection

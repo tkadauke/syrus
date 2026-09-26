@@ -65,7 +65,7 @@ module Mcp::Tools
         return Mcp::Tools.invalid("surface must be one of #{SURFACES.join(', ')}") unless surface
 
         chat_session = server_context.fetch(:chat_session)
-        Mcp::Tools.success(::Admin::McpToolUsagePayload.new(params: {
+        payload = ::Admin::McpToolUsagePayload.new(params: {
           surface: surface == "all" ? nil : surface,
           window: params[:window],
           since: params[:since],
@@ -77,7 +77,10 @@ module Mcp::Tools
           server: params[:server],
           limit: params[:limit],
           recent_limit: params[:recent_limit]
-        }.compact, chat_session: chat_session, repository: chat_session.repository).as_json)
+        }.compact, chat_session: chat_session, repository: chat_session.repository).as_json
+        payload[:filters] = payload.fetch(:filters).compact
+
+        Mcp::Tools.success(payload)
       end
 
       private
