@@ -651,6 +651,14 @@ export type ChatSidebarSettings = {
   per_group: ChatSidebarPerGroup
 }
 
+export const DEFAULT_CHAT_SIDEBAR_SETTINGS: ChatSidebarSettings = {
+  status: "active",
+  group_by: "repository",
+  sort_by: "last_activity",
+  show_empty_groups: false,
+  per_group: 10
+}
+
 export type ChatsIndexPayload = {
   groups: ChatGroupRecord[]
   repositories: ChatRepository[]

@@ -42,7 +42,7 @@ import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
 import { TaskActions, TaskDocumentationModal, TaskProgress } from "./AdminMaintenanceTasks"
 import { LinkText, Surface } from "../components/ui"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { updateRecentChatCache } from "../lib/chatCache"
+import { recentChatsQueryKey, updateRecentChatCache } from "../lib/chatCache"
 import { ParticipantPickerModal } from "./chat/ParticipantPicker"
 import { firstUnstartedChat } from "../lib/unstartedChat"
 import { useResizableSplitter } from "./chat/useResizableSplitter"
@@ -196,7 +196,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     setStartingChat(true)
     setDrawerOpen(false)
     try {
-      const unstartedChat = repositoryId == null ? firstUnstartedChat(queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])) : null
+      const unstartedChat = repositoryId == null ? firstUnstartedChat(queryClient.getQueryData<ChatsIndexPayload>(recentChatsQueryKey())) : null
       if (unstartedChat) {
         navigate(withRoutePrefix(unstartedChat.chat_path, prefix))
         return
