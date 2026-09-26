@@ -349,7 +349,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           aria-valuemax={SIDEBAR_MAX_WIDTH}
           aria-valuemin={SIDEBAR_COLLAPSED_WIDTH}
           aria-valuenow={sidebarSplitter.collapsed ? SIDEBAR_COLLAPSED_WIDTH : Math.round(sidebarSplitter.width)}
-          className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize rounded-sm outline-none transition-colors hover:bg-brand/30 focus-visible:bg-brand/40"
+          className="absolute inset-y-0 -right-1 z-40 w-2 cursor-col-resize rounded-sm outline-none transition-colors hover:bg-brand/30 focus-visible:bg-brand/40"
           onClick={sidebarSplitter.toggleCollapsed}
           onKeyDown={sidebarSplitter.resizeWithKeyboard}
           onMouseDown={sidebarSplitter.beginResize}

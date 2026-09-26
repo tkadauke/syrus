@@ -1591,6 +1591,30 @@ describe("AppChromeV2 desktop sidebar collapse", () => {
     expect(peek).toHaveAttribute("inert")
   })
 
+  it("keeps the collapsed hover rail full-height above sticky top controls and the peek", async () => {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true")
+    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar")
+      .mockResolvedValue({ tasks: [maintenanceTask({ title: "Repair stale indexes" })] })
+
+    renderAppChrome(<div>Dashboard</div>, { bootstrap: bootstrapPayload({ team_user_count: 3 }) })
+
+    const sidebar = screen.getByTestId("desktop-sidebar")
+    const peek = screen.getByTestId("sidebar-peek")
+    const separator = screen.getByRole("separator", { name: "Resize sidebar" })
+    const newChatButton = within(sidebar).getByRole("button", { name: "New Chat" })
+    const topActionBlock = newChatButton.parentElement
+
+    expect(within(sidebar).getByRole("button", { name: "New group chat" })).toBeInTheDocument()
+    expect(await within(peek).findByText("Repair stale indexes")).toBeInTheDocument()
+    expect(topActionBlock?.className).toContain("sticky")
+    expect(topActionBlock?.className).toContain("z-20")
+    expect(peek.className).toContain("z-30")
+    expect(separator.className).toContain("absolute")
+    expect(separator.className).toContain("inset-y-0")
+    expect(separator.className).toContain("z-40")
+    expect(separator.className).toContain("hover:bg-brand/30")
+  })
+
   it("does not focus the closed peek search input from the global search shortcut", () => {
     vi.useFakeTimers()
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true")
