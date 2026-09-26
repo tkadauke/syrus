@@ -1339,7 +1339,7 @@ const SPLITTER_HANDLE_CLASS =
   "absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gray-400 opacity-0 transition-opacity group-hover:opacity-70 group-focus-visible:opacity-80 dark:bg-gray-500"
 
 const CODING_DIFF_HEADER_CLASS =
-  "sticky top-0 flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 font-mono text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400"
+  "sticky top-0 z-20 flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 font-mono text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400"
 
 // Shared markup for a draggable/clickable/keyboard-accessible pane splitter
 // (Files tree and Diff file list use identical behavior via useResizableSplitter).
@@ -1662,15 +1662,17 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
                   {diffFileButtons}
                 </div>
               )}
-              <div className="min-w-0 flex-1 overflow-auto">
+              <div className="relative isolate min-w-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="coding-diff-content">
                 {selectedDiff ? (
                   <>
-                    <div className={CODING_DIFF_HEADER_CLASS}>
+                    <div className={CODING_DIFF_HEADER_CLASS} data-testid="coding-diff-selected-file-header">
                       <span className="min-w-0 flex-1 truncate">{selectedDiff.path}</span>
                       <span>+{selectedDiff.additions}</span>
                       <span>-{selectedDiff.deletions}</span>
                     </div>
-                    <UnifiedDiffViewer diff={selectedDiff.patch} path={selectedDiff.path} testId="coding-diff-viewer" />
+                    <div className="relative z-0 overflow-hidden" data-testid="coding-diff-table-body">
+                      <UnifiedDiffViewer diff={selectedDiff.patch} path={selectedDiff.path} testId="coding-diff-viewer" />
+                    </div>
                   </>
                 ) : (
                   <div className="flex h-full min-h-[16rem] items-center justify-center p-4 text-sm text-text-secondary">{t("source_select_diff_file")}</div>
