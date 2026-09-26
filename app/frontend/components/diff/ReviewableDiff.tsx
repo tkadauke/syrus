@@ -1350,7 +1350,7 @@ export function UnifiedDiffTable({
   const hideOldLineGutter = isAddedFileDiff(file)
   const showLineNumbers = reviewSettings.line_numbers
   const gutterColSpan = showLineNumbers ? (hideOldLineGutter ? 1 : 2) : 1
-  const splitView = !isMobileViewport && reviewSettings.desktop_view === "split" && !hideOldLineGutter
+  const splitView = !isMobileViewport && reviewSettings.desktop_view === "split"
   const codeCellClass = diffCodeCellClass(reviewSettings, lineWrapping, splitView)
 
   let hunkIndex = -1

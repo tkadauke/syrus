@@ -218,6 +218,49 @@ describe("ReviewableDiff", () => {
     expect(newCell).not.toHaveClass("min-w-[40rem]")
   })
 
+  it("keeps added files in desktop split view on the fixed split table layout", () => {
+    render(
+      <ReviewableDiff
+        files={[{
+          additions: 2,
+          deletions: 0,
+          patch: [
+            "diff --git a/app/models/new_job.rb b/app/models/new_job.rb",
+            "new file mode 100644",
+            "--- /dev/null",
+            "+++ b/app/models/new_job.rb",
+            "@@ -0,0 +1,2 @@",
+            "+short_new_value",
+            `+${"new_value_".repeat(40)}`
+          ].join("\n"),
+          path: "app/models/new_job.rb",
+          status: "added"
+        }]}
+        mode="continuous"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "wrap", line_numbers: true }}
+        showFileHeaders
+      />
+    )
+
+    const table = screen.getByRole("table")
+    const cols = Array.from(table.querySelectorAll("col"))
+    const oldCell = table.querySelector('[data-diff-split-row="true"] [data-diff-split-side="old"]') as HTMLElement
+    const newCell = getCodeCellText("new_value_".repeat(40))
+
+    expect(table).toHaveAttribute("data-review-diff-view", "split")
+    expect(table).toHaveClass("w-full", "table-fixed")
+    expect(cols.map((col) => col.getAttribute("style"))).toEqual([
+      "width: 3rem;",
+      "width: calc(0.5 * (100% - 7.5rem));",
+      "width: 3rem;",
+      "width: calc(0.5 * (100% - 7.5rem));",
+      "width: 1.5rem;"
+    ])
+    expect(getCodeCellText("diff --git a/app/models/new_job.rb b/app/models/new_job.rb")).toHaveAttribute("colspan", "5")
+    expect(oldCell).toHaveClass("min-w-0", "max-w-0", "overflow-hidden", "whitespace-pre-wrap", "break-words")
+    expect(newCell).toHaveClass("min-w-0", "max-w-0", "overflow-hidden", "whitespace-pre-wrap", "break-words")
+  })
+
   it("keeps commented desktop split lines on the split column grid", () => {
     render(
       <ReviewableDiff
