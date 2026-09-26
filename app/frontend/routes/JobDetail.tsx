@@ -394,7 +394,7 @@ export function JobDetailView({
               </button>
             ) : null}
           </HeaderMetadataList>
-          <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center justify-start gap-3 sm:w-auto sm:justify-end" data-testid="job-header-actions">
+          <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center justify-end gap-3 sm:w-auto" data-testid="job-header-actions">
             <HeaderActions
               command={command}
               onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
@@ -576,7 +576,7 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
 
   return (
     <div
-      className="relative inline-flex max-w-full shrink-0 items-center gap-1 rounded border border-gray-200 bg-white p-1 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+      className="relative hidden max-w-full shrink-0 items-center gap-1 rounded border border-gray-200 bg-white p-1 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 sm:inline-flex"
       aria-label={t("navigation_label")}
       ref={wrapperRef}
     >
