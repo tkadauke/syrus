@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react"
+import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react"
 import type { ThemedToken } from "@shikijs/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Button } from "../Button"
@@ -9,6 +9,7 @@ import { CopyIcon } from "../CopyableSlug"
 import { DEFAULT_REVIEW_DIFF_SETTINGS, type ReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
+import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
 import { endMarker, measureSync, recordCount, startMarker, type PerformanceMarkerHandle } from "../../lib/performanceMarkers"
 import {
@@ -222,6 +223,7 @@ export function ReviewableDiff({
 }: ReviewableDiffProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const filesPopupTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [filesPopupOpen, setFilesPopupOpen] = useState(false)
   const [filesPopupPlacement, setFilesPopupPlacement] = useState<FilesPopupPlacement | null>(null)
   // Started when the Files menu opens, ended once its popup has actually
@@ -353,6 +355,7 @@ export function ReviewableDiff({
   if (renderFiles.length === 0) return <>{emptyState}</>
 
   function toggleFilesPopup(event: MouseEvent<HTMLButtonElement>) {
+    filesPopupTriggerRef.current = event.currentTarget
     const buttonRect = event.currentTarget.getBoundingClientRect()
     const containerRect = containerRef.current?.getBoundingClientRect() ?? buttonRect
     setFilesPopupPlacement(computeFilesPopupPlacement(buttonRect, containerRect))
@@ -429,6 +432,7 @@ export function ReviewableDiff({
           <ChangedFilesPopup
             commentCounts={fileCommentCounts}
             files={sortedFiles}
+            filesPopupTriggerRef={filesPopupTriggerRef}
             layout={effectiveReviewSettings.file_list_layout}
             onClose={() => setFilesPopupOpen(false)}
             onSelectFile={selectFileFromPopup}
@@ -550,6 +554,7 @@ function computeFilesPopupPlacement(buttonRect: DOMRect, containerRect: DOMRect)
 function ChangedFilesPopup({
   commentCounts,
   files,
+  filesPopupTriggerRef,
   layout,
   onClose,
   onSelectFile,
@@ -558,6 +563,7 @@ function ChangedFilesPopup({
 }: {
   commentCounts?: Record<string, number>
   files: ReviewableDiffFile[]
+  filesPopupTriggerRef: RefObject<HTMLButtonElement | null>
   layout: ChangedFilesListLayout
   onClose: () => void
   onSelectFile: (path: string) => void
@@ -565,12 +571,14 @@ function ChangedFilesPopup({
   selectedPath?: string | null
 }) {
   const { t } = useT("common")
+  const popupRef = useDismissiblePopup<HTMLDivElement>(true, onClose, [filesPopupTriggerRef])
 
   return (
     <div className="fixed inset-0 z-30" onClick={onClose}>
       <div
         className="fixed z-30 flex flex-col overflow-hidden rounded border border-gray-200 bg-white font-mono text-xs shadow-lg dark:border-gray-700 dark:bg-gray-900"
         onClick={(event) => event.stopPropagation()}
+        ref={popupRef}
         role="dialog"
         style={placement ? {
           bottom: placement.bottom,
@@ -605,9 +613,10 @@ function MobileChangedFilesModal({
   selectedPath?: string | null
 }) {
   const { t } = useT("common")
+  const modalRef = useDismissiblePopup<HTMLDivElement>(true, onClose)
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white font-mono text-xs dark:bg-gray-950" role="dialog">
+    <div className="fixed inset-0 z-50 flex flex-col bg-white font-mono text-xs dark:bg-gray-950" ref={modalRef} role="dialog">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <p className="font-sans text-sm font-semibold text-gray-700 dark:text-gray-200">{t("diff_review.changed_files")}</p>
         <button aria-label={t("diff_review.close_changed_files")} className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
