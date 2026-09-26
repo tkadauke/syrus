@@ -7,18 +7,11 @@ module Api
           MAX_PER_PAGE = 200
           SORTS = {
             "email" => { email_address: :asc },
+            "inviter" => {},
             "expires_at" => { expires_at: :asc },
             "created_at" => { created_at: :asc }
           }.freeze
           DEFAULT_SORT = "created_at"
-          FILTER_SCHEMA = [
-            {
-              bucket: "text",
-              field: "email",
-              label: "Email",
-              operators: [ "contains" ]
-            }
-          ].freeze
 
           def index
             render json: invitations_payload
@@ -49,12 +42,12 @@ module Api
 
           def invitations_payload
             filter = filter_tree
-            scope = apply_filter(Invitation.pending.includes(:invited_by), filter)
+            scope = apply_filter(Invitation.pending.joins(:invited_by).includes(:invited_by), filter)
             total = scope.count
             {
               invitations: apply_sort(scope).offset(offset).limit(per_page).map { |invitation| invitation_json(invitation) },
               filter: filter,
-              filter_schema: FILTER_SCHEMA,
+              filter_schema: ::Filters::Schema.for(subject: :admin_invitation, user: Current.user),
               filters: flat_filters(filter),
               total: total,
               pagination: pagination_payload(total),
@@ -75,11 +68,7 @@ module Api
           end
 
           def apply_filter(scope, tree)
-            email = flat_filters(tree)["email"]
-            return scope if email.blank?
-
-            pattern = "%#{ActiveRecord::Base.sanitize_sql_like(email.to_s)}%"
-            scope.where("email_address LIKE ?", pattern)
+            ::Filters::Compiler.call(::Filters::Ast.parse(tree), scope: scope, user: Current.user, subject: :admin_invitation)
           end
 
           def flat_filters(tree)
@@ -124,6 +113,10 @@ module Api
 
           def apply_sort(scope)
             direction = sort_direction.to_sym
+            if sort_column == "inviter"
+              return scope.order(Arel.sql("users.email_address #{sort_direction.upcase}")).order(id: direction)
+            end
+
             scope.order(SORTS.fetch(sort_column).transform_values { direction }).order(id: direction)
           end
 

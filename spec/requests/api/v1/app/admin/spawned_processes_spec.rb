@@ -91,7 +91,21 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     expect(body["filter"]).to eq(running_folder.filter)
     expect(body["processes"].map { |process| process["id"] }).to eq([ running.id ])
     expect(body["running_total"]).to eq(SpawnedProcess.running.count)
-    expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("state", "kind", "user_id", "hostname")
+    expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include(
+      "state",
+      "kind",
+      "user_id",
+      "hostname",
+      "chat_session_id",
+      "command",
+      "workdir",
+      "exit_status",
+      "kill_requested_at",
+      "kill_requested_by_user_id",
+      "wall_timeout_s",
+      "silent_timeout_s",
+      "last_chunk_at"
+    )
     user_field = body.dig("controls", "filter_schema").find { |field| field["field"] == "user_id" }
     expect(user_field).to include("bucket" => "fk", "typeahead" => true)
     hostname_field = body.dig("controls", "filter_schema").find { |field| field["field"] == "hostname" }
@@ -171,6 +185,45 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
         { "field" => "kind", "op" => "is", "value" => "grader" }
       ]
     )
+  end
+
+  it "filters and sorts by operational process fields" do
+    sign_in_as(admin)
+    chat = ChatSession.create!(user: admin, title: "Ops")
+    matching = fixture(kind: "chat_prepare",
+                       chat_session: chat,
+                       command: "bundle exec rails runner",
+                       workdir: "/srv/syrus",
+                       finished_at: 1.minute.ago,
+                       outcome: "failed",
+                       exit_status: 17,
+                       wall_timeout_s: 900,
+                       silent_timeout_s: 120,
+                       kill_requested_at: 30.seconds.ago,
+                       kill_requested_by_user: admin)
+    fixture(command: "npm test", workdir: "/tmp", finished_at: 1.minute.ago, outcome: "succeeded", exit_status: 0)
+    tree = {
+      "and" => [
+        { "field" => "chat_session_id", "op" => "is", "value" => chat.id.to_s },
+        { "field" => "command", "op" => "contains", "value" => "rails" },
+        { "field" => "exit_status", "op" => "equals", "value" => 17 }
+      ]
+    }
+
+    get "/api/v1/app/admin/processes", params: { q: Filters::QueryParam.encode(tree), sort: "exit_status", direction: "desc", smart_folder_id: "" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["processes"].map { |process| process["id"] }).to eq([ matching.id ])
+    expect(body["processes"].first).to include(
+      "chat_session_id" => chat.id,
+      "workdir" => "/srv/syrus",
+      "exit_status" => 17,
+      "wall_timeout_s" => 900,
+      "silent_timeout_s" => 120,
+      "kill_requested_by_user_id" => admin.id
+    )
+    expect(body["sort"]).to eq("column" => "exit_status", "direction" => "desc")
   end
 
   it "applies spawned process smart folders" do

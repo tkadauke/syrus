@@ -157,8 +157,16 @@ function InvitationsTable({
     {
       key: "invited_by",
       header: t("invitations.col_invited_by"),
+      sort: "inviter",
       className: "whitespace-nowrap text-gray-600 dark:text-gray-300",
       render: (invitation) => invitation.invited_by_email_address
+    },
+    {
+      key: "created",
+      header: t("invitations.col_created"),
+      sort: "created_at",
+      className: "whitespace-nowrap text-gray-600 dark:text-gray-300",
+      render: (invitation) => <RelativeTimestamp value={invitation.created_at} />
     },
     {
       key: "actions",
