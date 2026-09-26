@@ -6171,7 +6171,8 @@ describe("attached coding Job strip", () => {
     mockDesktopViewport()
   })
 
-  it("renders the attached Job identity, state, checkout branch, and actions", async () => {
+  it("renders the attached Job as a copyable slug without state or checkout branch clutter", async () => {
+    const clipboard = mockClipboardWrite()
     mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }, {
       coding_mode_enabled: true,
       attached_coding_job: attachedCodingJob()
@@ -6181,10 +6182,11 @@ describe("attached coding Job strip", () => {
     const strip = await screen.findByTestId("attached-coding-job-strip")
 
     expect(within(strip).getByText("Attached Job")).toBeInTheDocument()
-    expect(within(strip).getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/app-shell/jobs/42")
+    fireEvent.click(within(strip).getByRole("button", { name: "Copy JOB-42 to clipboard" }))
+    await waitFor(() => expect(clipboard).toHaveBeenCalledWith("JOB-42"))
     expect(within(strip).getByText("Repair aqueduct flow")).toBeInTheDocument()
-    expect(within(strip).getByText("coding")).toBeInTheDocument()
-    expect(within(strip).getByText("syrus/job-42")).toBeInTheDocument()
+    expect(within(strip).queryByText("coding")).not.toBeInTheDocument()
+    expect(within(strip).queryByText("syrus/job-42")).not.toBeInTheDocument()
     expect(within(strip).getByRole("button", { name: "Submit" })).toBeEnabled()
     expect(within(strip).getByRole("button", { name: "Detach" })).toBeEnabled()
   })
@@ -6262,7 +6264,7 @@ describe("attached coding Job strip", () => {
     )
 
     const strip = await screen.findByTestId("attached-coding-job-strip")
-    expect(within(strip).getByText("coding")).toBeInTheDocument()
+    expect(within(strip).getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument()
 
     act(() => {
       queryClient.setQueryData(chatQueryKey("8", ""), chatPayload({ chat: { mode: "coding" } }, {
