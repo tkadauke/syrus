@@ -111,6 +111,43 @@ RSpec.describe CodingHandoffCapture, :ci_only do
     )
   end
 
+  it "updates an existing handoff branch only when explicitly allowed" do
+    git!(@checkout, "checkout", "-b", "syrus/job-branch")
+    git!(@checkout, "push", "origin", "syrus/job-branch")
+
+    write_file(@checkout, "app/models/widget.rb", "class Widget\nend\n")
+    git!(@checkout, "add", "app/models/widget.rb")
+    git!(@checkout, "commit", "-m", "Add widget")
+    head_sha = git!(@checkout, "rev-parse", "HEAD").strip
+
+    expect {
+      described_class.capture!(
+        chat_session: chat_session,
+        repository: repository,
+        user: user,
+        source_branch: "syrus/job-branch",
+        handoff_branch: "syrus/job-branch"
+      )
+    }.to raise_error(described_class::CaptureError, /already exists/)
+
+    snapshot = described_class.capture!(
+      chat_session: chat_session,
+      repository: repository,
+      user: user,
+      source_branch: "syrus/job-branch",
+      handoff_branch: "syrus/job-branch",
+      allow_existing_branch_update: true
+    )
+
+    remote_sha = git!(@remote, "rev-parse", "refs/heads/syrus/job-branch").strip
+    expect(remote_sha).to eq(head_sha)
+    expect(snapshot).to include(
+      "source_branch" => "syrus/job-branch",
+      "handoff_branch" => "syrus/job-branch",
+      "head_sha" => head_sha
+    )
+  end
+
   it "refuses to capture a branch with no committed changes against the default branch" do
     expect {
       described_class.capture!(

@@ -41,9 +41,13 @@ RSpec.describe Prompts::ChatCodingMode do
     job.update_columns(linked_chat_id: chat_session.id)
 
     expect(prompt).to include("Attached existing Job: call `complete_implement_step")
-    expect(prompt).to include("after pushing the Job branch")
-    expect(prompt).to match(/Do not use\s+`submit_coding_changes` for a Job already/)
+    expect(prompt).to include("after committing locally")
+    expect(prompt).to include("verifying the working tree is")
+    expect(prompt).to include("captures and publishes the active checkout branch")
+    expect(prompt).to match(/Do not use\s+`submit_coding_changes`\s+for a\s+Job already/)
     expect(prompt).to include("Job ID: #{job.id} (pass to `complete_implement_step`)")
+    expect(prompt).not_to include("git push origin HEAD:<job-branch>")
+    expect(prompt).not_to include("after pushing the Job branch")
   end
 
   it "directs new chat-authored work with no attached Job to submit_coding_changes" do

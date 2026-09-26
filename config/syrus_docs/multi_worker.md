@@ -77,10 +77,11 @@ the compute DaemonSet, and never scale the home worker past one replica. (If the
 chat tier ever needs to scale, chat first needs its own storage-affinity queue
 keyed off `chat_sessions.workspace_path` or equivalent durable workspace owner.)
 Coding-mode **handoff** is exempt: `submit_coding_changes` captures the current
-HEAD to an immutable handoff branch after confirmation, and
-`complete_implement_step` uses the pushed Job branch, so the resulting
-`coding_handoff` Workflow clones fresh from GitHub and runs safely on any
-compute pod.
+HEAD to an immutable handoff branch after confirmation, and attached-Job
+`complete_implement_step` captures the current checkout HEAD to the appropriate
+handoff branch after confirmation before handing work to the `coding_handoff`
+workflow. Once the workflow starts, it owns any further repair and publication
+work from a normal workflow checkout, so it runs safely on any compute pod.
 
 ### Bounding background I/O on the home worker
 
