@@ -69,7 +69,7 @@ module BuildCache
     end
 
     def filtered_requests
-      scope = BuildCache::ClearRequest.all
+      scope = BuildCache::ClearRequest.where.not(state: "pending")
       scope = scope.where(state: state) if state.present?
       scope = scope.where(scope: request_scope) if request_scope.present?
       scope = scope.where(older_than_days: older_than_days) if older_than_days
