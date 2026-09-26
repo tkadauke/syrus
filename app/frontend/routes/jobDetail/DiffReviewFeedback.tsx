@@ -94,6 +94,14 @@ export function useDiffReviewFeedback({
   const selectedVersionComments = commentList.filter((comment) => comment.diff_review_version_id === diffReviewVersionId)
   const counts = useMemo(() => commentCountsByPath(selectedVersionComments), [selectedVersionComments])
   const diffThreads = useMemo(() => diffThreadsByPath(selectedVersionComments), [selectedVersionComments])
+  const versionSummaries = useMemo(() => {
+    return groupCommentsByVersion(commentList, versions).map((group) => ({
+      count: group.comments.length,
+      label: collapsedLabel(t, group.version, duplicateRunIds(versions || [])),
+      version: group.version,
+      versionId: group.versionId
+    }))
+  }, [commentList, t, versions])
   const actionableComments = selectedVersionComments.filter(isSubmittableDiffComment)
   const submittedComments = selectedVersionComments.filter((comment) => comment.state === "submitted")
   const handledComments = selectedVersionComments.filter((comment) => comment.state === "resolved" || comment.workflow?.state === "succeeded")
@@ -353,6 +361,7 @@ export function useDiffReviewFeedback({
     onSaveEditThread: saveEditThread,
     onStartEditThread: startEditThread,
     panel,
+    versionSummaries,
     selectedCommentPath: selection?.file.path || editing?.path || null
   }
 }
