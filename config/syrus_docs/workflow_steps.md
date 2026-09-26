@@ -428,6 +428,16 @@ workflow for that signal.
 
 Agentic. Used inside `coding_handoff`'s `adversarial_review`/`visual_review` loops and its grader retry loop, before any PR exists — plays the same repair role `implement`/`respond` plays for `initial`/`retry`, since coding_handoff has no bare leading agentic step of its own (the diff was already committed by the chat coding session). Repairs a review's `needs_work` verdict and/or required grader failures on the captured handoff branch with a fresh workflow-agent turn. The prompt includes original Job context, committed handoff branch metadata, recent branch commits, `Prompts::ReviewFeedback`, and `Prompts::GradeFailureFeedback`.
 
+After a successful repair, Syrus records
+`workflow.artifacts["latest_coding_handoff_fix"]` with the repair Run, Step,
+base/head SHAs, and a stable Git patch-id for that step's diff. This artifact is
+the publication guard's source of truth for "the latest repair that must survive"
+when the handoff branch is later published or rebased. It also records whether a
+later `visual_review` verdict verified that repaired revision; if the latest fix
+has no later approved/skipped visual review, the artifact marks it as not
+reviewed after the latest fix rather than treating older visual-review failures
+as evidence for the final revision.
+
 ### landing_fix
 
 Agentic. A focused repair step inside `auto_merge` and `merge_train` workflows. Runs only after final graders fail on the exact PR branch being landed; successful repairs are pushed before the merge API call.
@@ -886,6 +896,18 @@ the step that actually publishes the branch as the one step that could not
 recover. The restore is opportunistic: if it cannot run, the step behaves as it
 did before and `close_empty_new_publication_branch!` still refuses to publish an
 empty branch or file the Job as `no_changes`.
+
+For `coding_handoff` workflows, `pr_open` also verifies that the branch about to
+be pushed still contains the latest recorded `coding_handoff_fix` patch-id. A
+missing latest fix is a hard failure before any push or PR creation, because
+publishing that branch would present an older repair iteration as implemented.
+The check writes `workflow.artifacts["coding_handoff_publication_provenance"]`
+with the final HEAD, base ref, latest-fix metadata, verification result, and
+post-fix visual-review status. Operators should read that artifact as the final
+publication evidence; older `visual_review_iterations` entries are historical
+findings unless this provenance says a visual review approved or skipped the
+revision after the latest fix.
+
 Non-agentic. Pushes the branch and opens the PR using the title/body from workflow artifacts. Falls back to `PrSummarizer`, then to a templated default if no agent-authored copy is available.
 
 When a duplicate retry workflow reaches `pr_open` after a newer workflow has
@@ -990,6 +1012,15 @@ rebase lifts it. See `RebaseAttemptGuard.permanently_blocked_by?`.
 ### force_push
 
 Non-agentic. Force-pushes with `--force-with-lease=<branch>:<observed_sha>` to prevent clobbering concurrent pushes. Skips the push entirely when `auto_rebase` reported a no-op or `already_landed`.
+
+When rebasing a Job that came from a `coding_handoff` workflow with a recorded
+`latest_coding_handoff_fix`, `force_push` runs the same patch-id guard as
+`pr_open` before updating the remote branch. If the conflict resolution or clean
+rebase result no longer contains the latest handoff-fix patch, the step fails
+before the force-push and records
+`workflow.artifacts["coding_handoff_publication_provenance"]` with
+`"verified" => false`. This prevents a rebase from silently resurrecting an
+implementation a prior visual review rejected.
 
 ### stack_auto_rebase / stack_agent_rebase / stack_force_push
 

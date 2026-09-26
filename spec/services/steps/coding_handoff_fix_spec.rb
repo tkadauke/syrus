@@ -100,6 +100,15 @@ RSpec.describe Steps::CodingHandoffFix do
   end
 
   it "commits through the shared agentic change path and captures the diff" do
+    diff = <<~DIFF
+      diff --git a/app/models/job.rb b/app/models/job.rb
+      index e69de29..7898192 100644
+      --- a/app/models/job.rb
+      +++ b/app/models/job.rb
+      @@ -0,0 +1 @@
+      +ok
+    DIFF
+    allow(handler).to receive(:diff_against_sha).and_return(diff)
     expect(handler).to receive(:commit_agent_changes).with("Syrus coding handoff grader fix")
     expect(handler).to receive(:assert_branch_history_intact!)
 
@@ -107,6 +116,13 @@ RSpec.describe Steps::CodingHandoffFix do
 
     expect(run.reload.agent_diff).to eq("diff --git a/app/models/job.rb b/app/models/job.rb\n+ok")
     expect(run.head_sha).to eq("fed789")
+    expect(workflow.reload.artifact("latest_coding_handoff_fix")).to include(
+      "run_id" => run.id,
+      "step_id" => step.id,
+      "head_sha" => "fed789",
+      "visual_review" => include("status" => "not_reviewed_after_latest_fix")
+    )
+    expect(workflow.artifact("latest_coding_handoff_fix")["patch_id"]).to be_present
   end
 
   def coding_handoff_fix_step
