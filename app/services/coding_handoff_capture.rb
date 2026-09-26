@@ -3,13 +3,14 @@ class CodingHandoffCapture
 
   def self.capture!(...) = new(...).capture!
 
-  def initialize(chat_session:, repository:, user:, source_branch:, handoff_branch:, base_ref: nil, git: GitRunner.new(env: { "GIT_TERMINAL_PROMPT" => "0" }))
+  def initialize(chat_session:, repository:, user:, source_branch:, handoff_branch:, base_ref: nil, allow_existing_branch_update: false, git: GitRunner.new(env: { "GIT_TERMINAL_PROMPT" => "0" }))
     @chat_session = chat_session
     @repository = repository
     @user = user
     @source_branch = source_branch.to_s
     @handoff_branch = handoff_branch.to_s
     @base_ref = base_ref.to_s.presence
+    @allow_existing_branch_update = allow_existing_branch_update
     @git = git
   end
 
@@ -105,9 +106,8 @@ class CodingHandoffCapture
   def publish_snapshot!(head_sha)
     remote_sha = remote_branch_sha
     if remote_sha.present?
-      raise CaptureError, "coding handoff branch #{handoff_branch} already exists at #{remote_sha}, expected #{head_sha}" unless remote_sha == head_sha
-
-      return
+      return if remote_sha == head_sha
+      raise CaptureError, "coding handoff branch #{handoff_branch} already exists at #{remote_sha}, expected #{head_sha}" unless allow_existing_branch_update?
     end
 
     authenticated_git("git_coding_handoff_push") do |url|
@@ -123,6 +123,10 @@ class CodingHandoffCapture
       git.run("ls-remote", "--heads", url, "refs/heads/#{handoff_branch}", chdir: checkout_path.to_s)
     end.strip
     output.split(/\s+/).first.presence
+  end
+
+  def allow_existing_branch_update?
+    @allow_existing_branch_update == true
   end
 
   def authenticated_url
