@@ -116,7 +116,28 @@ describe("ReviewableDiff", () => {
     expect(table).toHaveStyle({ tabSize: "4" })
     expect(table.querySelector('[data-diff-split-row="true"] [data-diff-split-side="old"]')).toHaveTextContent("old")
     expect(table.querySelector('[data-diff-split-row="true"] [data-diff-split-side="new"]')).toHaveTextContent("")
-    expect(screen.getAllByTestId("diff-file-scroll")[0]).toHaveClass("overflow-x-auto")
+    expect(screen.getAllByTestId("diff-file-scroll")[0]).toHaveClass("overflow-x-scroll")
+  })
+
+  it("keeps mobile scroll-mode diffs in touch-friendly horizontal scrollers", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      render(<ReviewableDiff files={[wideLineFile()]} mode="continuous" reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, line_wrapping: "scroll" }} />)
+
+      const scroller = screen.getByTestId("diff-file-scroll")
+      expect(scroller).toHaveClass("w-full", "min-w-0", "max-w-full", "overflow-x-scroll", "overscroll-x-contain", "[-webkit-overflow-scrolling:touch]")
+      expect(scroller).not.toHaveClass("overflow-x-hidden")
+      expect(screen.getByRole("table")).toHaveAttribute("data-review-diff-view", "unified")
+      expect(getCodeCellText("x".repeat(240))).toHaveClass("min-w-[40rem]", "whitespace-pre")
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
   })
 
   it("renders visible whitespace when enabled", () => {
@@ -434,7 +455,7 @@ describe("ReviewableDiff", () => {
     const viewer = screen.getByTestId("agent-diff-viewer")
     expect(viewer).toHaveClass("min-w-0", "max-w-full", "[contain:inline-size]")
     expect(viewer.querySelector("[data-total-file-count]")).toHaveClass("min-w-0", "max-w-full")
-    expect(viewer.querySelector(".overflow-x-auto")).toHaveClass("[container-type:inline-size]")
+    expect(viewer.querySelector(".overflow-x-scroll")).toHaveClass("w-full", "min-w-0", "max-w-full", "[container-type:inline-size]")
   })
 
   it("keeps wide-line comment composers anchored to the visible horizontal scroll area", () => {
@@ -622,8 +643,8 @@ describe("ReviewableDiff", () => {
     const jobScroller = jobTable.parentElement
     const runScroller = runTable.parentElement
 
-    expect(jobScroller).toHaveClass("overflow-x-auto")
-    expect(runScroller).toHaveClass("overflow-x-auto")
+    expect(jobScroller).toHaveClass("overflow-x-scroll")
+    expect(runScroller).toHaveClass("overflow-x-scroll")
     expect(jobScroller).not.toBe(runScroller)
   })
 
