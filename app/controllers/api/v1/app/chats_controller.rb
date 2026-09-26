@@ -5,8 +5,6 @@ module Api
   module V1
     module App
       class ChatsController < BaseController
-        include ChatAttachmentSearch
-        include ChatAttachableResolution
         include ChatIndexPayload
         include ChatMessagePagination
         include ChatPendingActions
@@ -695,29 +693,6 @@ module Api
           end
         end
 
-        def add_attachment
-          chat_session = find_chat_session
-          attachable = attachable_from_params(chat_session)
-          unless attachable
-            render_error("validation_failed", "Choose an attachment to add.", status: :unprocessable_content)
-            return
-          end
-
-          chat_session.chat_attachments.find_or_create_by!(attachable: attachable)
-          render json: chat_payload(chat_session.reload, message: "#{attachment_label(attachable)} attached.")
-        rescue ActiveRecord::RecordInvalid => e
-          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
-        end
-
-        def destroy_attachment
-          chat_session = find_chat_session
-          attachment = chat_session.chat_attachments.find(params[:attachment_id])
-          label = attachment_label(attachment.attachable)
-          attachment.destroy!
-
-          render json: chat_payload(chat_session.reload, message: "#{label} detached.")
-        end
-
         def close_preview_panel
           chat_session = find_chat_session
           panel = chat_session.preview_panels.find(params[:panel_id])
@@ -852,16 +827,6 @@ module Api
           chat_session = find_chat_session
           render json: {
             pins: PerformanceLogging.phase("chat_pins_payload", chat_id: chat_session.id) { pins_json(chat_session) }
-          }
-        end
-
-        def context
-          chat_session = find_chat_session
-          attachment_groups = PerformanceLogging.phase("chat_context.attachment_groups", chat_id: chat_session.id) { attachment_groups_for_payload(chat_session) }
-          render json: {
-            attachment_groups: PerformanceLogging.phase("chat_context.attachment_groups_json", chat_id: chat_session.id) { attachment_groups_json(attachment_groups) },
-            documents_in_scope: PerformanceLogging.phase("chat_context.documents_in_scope", chat_id: chat_session.id) { chat_session.attached_documents_in_scope.includes(:attachable).order(:title, :id).map { |document| document_json(document) } },
-            attachment_results: PerformanceLogging.phase("chat_context.attachment_results", chat_id: chat_session.id) { attachment_search_results(chat_session).map { |record| attachable_result_json(record) } }
           }
         end
 
@@ -1661,13 +1626,6 @@ module Api
           )
         end
 
-        ATTACHMENT_LABEL_FORMATTERS = {
-          Repository => ->(r) { r.slug },
-          Epic       => ->(r) { [ r.slug, r.title.presence ].compact.join(": ") },
-          Job        => ->(r) { "#{r.slug}: #{r.issue_title.presence || r.issue_number || r.kind}" },
-          Document   => ->(r) { "#{r.title} (#{r.repository&.slug})" }
-        }.freeze
-
         def promote_queued_message(chat_session, queued_message, trigger_turn: true)
           user_message = nil
           ApplicationRecord.transaction do
@@ -1897,11 +1855,6 @@ module Api
             id: repository.id,
             slug: repository.slug
           }
-        end
-
-        def attachment_label(record)
-          formatter = ATTACHMENT_LABEL_FORMATTERS[record.class]
-          formatter ? formatter.call(record) : record.try(:name).presence || record.try(:title).presence || "#{record.class.name} ##{record.id}"
         end
 
         def available_chat_models_for(chat_session)

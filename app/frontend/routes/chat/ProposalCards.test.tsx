@@ -244,7 +244,6 @@ function payloadFor(queryKey: ChatQueryKey, p: ChatProposal): ChatPayload {
       app_daemon_connection_path: "/api/v1/app/chats/122/daemon_connection",
       app_switch_provider_path: "/api/v1/app/chats/122/provider",
       app_bookmarks_path: "/api/v1/app/chats/122/bookmarks",
-      app_attachments_path: "/api/v1/app/chats/122/attachments",
       app_video_walkthroughs_path: "/api/v1/app/chats/122/video_walkthroughs",
       app_whiteboard_path: "/api/v1/app/chats/122/whiteboard",
       app_scratchpad_reorder_path: "/api/v1/app/chats/122/scratchpad/reorder"
