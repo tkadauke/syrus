@@ -487,7 +487,7 @@ describe("ChatWorkspacePanel coding files", () => {
     renderWorkspacePanel(makePlanningFilesPayload())
     fireEvent.click(await screen.findByRole("button", { name: "README.md" }))
 
-    expect(await screen.findByTestId("coding-source-viewer")).toBeInTheDocument()
+    await waitFor(() => expect(fetchCodingFileContent).toHaveBeenCalledWith("/api/v1/app/chats/1/coding_file", "README.md", null))
     expect(screen.queryByRole("button", { name: "Diff" })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Commit")).not.toBeInTheDocument()
     expect(fetchCodingCommits).not.toHaveBeenCalled()
