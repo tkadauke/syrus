@@ -1750,8 +1750,8 @@ describe("App", () => {
       sidebarChat({ id: 20, title: "Roads latest", repository: { id: 4, slug: "acme/roads", repository_path: "/repositories/4" }, last_message_at: "2026-06-21T12:00:00Z" })
     ]
     const recentGroups = [
-      { key: "general", label: "General", repository_id: null, chats: recentChats.slice(0, 2), has_more: false },
       { key: "repository-4", label: "acme/roads", repository_id: 4, chats: [recentChats[8]], has_more: false },
+      { key: "general", label: "General", repository_id: null, chats: recentChats.slice(0, 2), has_more: false },
       { key: "repository-3", label: "acme/widgets", repository_id: 3, chats: recentChats.slice(2, 7), has_more: true }
     ]
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
