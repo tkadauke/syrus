@@ -1435,8 +1435,8 @@ export function UnifiedDiffTable({
 
     if (splitRow) {
       return (
-        <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
-          <td className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-amber-950 dark:text-amber-100`} colSpan={splitInlineColSpan}>
+        <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread" style={splitRowStyle(showLineNumbers)}>
+          <td className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-amber-950 dark:text-amber-100`} colSpan={splitInlineColSpan} style={splitInlineCellStyle}>
             {panel}
           </td>
         </tr>
@@ -1490,8 +1490,8 @@ export function UnifiedDiffTable({
 
     if (splitRow) {
       return (
-        <tr className="font-sans" data-testid="diff-review-composer">
-          <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={splitInlineColSpan}>
+        <tr className="font-sans" data-testid="diff-review-composer" style={splitRowStyle(showLineNumbers)}>
+          <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={splitInlineColSpan} style={splitInlineCellStyle}>
             {panel}
           </td>
         </tr>
@@ -1743,7 +1743,6 @@ function SplitDiffRow({
 }) {
   const oldCode = line.kind === "delete" || line.kind === "context" ? reviewDisplayCode(line.code, reviewSettings) : ""
   const newCode = line.kind === "add" || line.kind === "context" ? reviewDisplayCode(line.code, reviewSettings) : ""
-  const codeCellStyle = splitCodeCellStyle(showLineNumbers)
 
   return (
     <tr
@@ -1752,12 +1751,13 @@ function SplitDiffRow({
       data-diff-anchor={lineAnchorKey || undefined}
       data-diff-kind={line.kind}
       data-diff-split-row="true"
+      style={splitRowStyle(showLineNumbers)}
     >
       {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
         {line.kind === "delete" && canComment ? <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="old" /> : null}
         {line.oldLine ?? ""}
       </td> : null}
-      <td className={`${codeCellClass} ${line.kind === "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="old" style={codeCellStyle}>
+      <td className={`${codeCellClass} ${line.kind === "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="old">
         {oldCode ? (
           <DiffCode
             code={oldCode}
@@ -1773,7 +1773,7 @@ function SplitDiffRow({
         {line.kind === "add" && canComment ? <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="new" /> : null}
         {line.newLine ?? ""}
       </td> : null}
-      <td className={`${codeCellClass} ${line.kind !== "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="new" style={codeCellStyle}>
+      <td className={`${codeCellClass} ${line.kind !== "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="new">
         {newCode ? (
           <DiffCode
             code={newCode}
@@ -1845,24 +1845,27 @@ function SplitDiffColGroup({ showLineNumbers }: { showLineNumbers: boolean }) {
   )
 }
 
-function splitCodeCellStyle(showLineNumbers: boolean): CSSProperties {
+function splitRowStyle(showLineNumbers: boolean): CSSProperties {
   return {
-    maxWidth: 0,
-    width: showLineNumbers ? "calc((100% - 7.5rem) / 2)" : "calc((100% - 1.5rem) / 2)"
+    display: "grid",
+    gridTemplateColumns: showLineNumbers ? "3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem" : "minmax(0, 1fr) minmax(0, 1fr) 1.5rem"
   }
 }
+
+const splitInlineCellStyle: CSSProperties = { gridColumn: "1 / -1" }
 
 function HunkRow({ controls, hideOldLineGutter, line, reviewSettings, showLineNumbers = true, splitView = false }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine; reviewSettings: ReviewDiffSettings; showLineNumbers?: boolean; splitView?: boolean }) {
   if (splitView) {
     const codeColSpan = showLineNumbers ? 3 : 2
+    const codeCellStyle = showLineNumbers ? { gridColumn: "2 / 5" } : { gridColumn: "1 / 3" }
     return (
-      <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk">
+      <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk" style={splitRowStyle(showLineNumbers)}>
         {showLineNumbers ? (
           <td className={`${diffGutterClass("hunk")} ${diffDensityClasses(reviewSettings).gutter}`}>
             {controls?.up ? <HunkContextButton direction="up" lineCount={controls.up.lineCount} loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
           </td>
         ) : null}
-        <td className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).hunkCodeCell}`} colSpan={codeColSpan}>{line.code}</td>
+        <td className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).hunkCodeCell}`} colSpan={codeColSpan} style={codeCellStyle}>{line.code}</td>
         <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
           {showLineNumbers && controls?.down ? <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
         </td>

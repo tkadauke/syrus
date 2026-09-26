@@ -169,6 +169,8 @@ describe("ReviewableDiff", () => {
     const cols = Array.from(table.querySelectorAll("col"))
     const oldCell = table.querySelector('[data-diff-split-row="true"] [data-diff-split-side="old"]') as HTMLElement
     const newCell = getCodeCellText("new_value_".repeat(40))
+    const oldRow = oldCell.closest("tr") as HTMLElement
+    const newRow = newCell.closest("tr") as HTMLElement
 
     expect(table).toHaveClass("w-full", "table-fixed")
     expect(table).not.toHaveClass("min-w-full")
@@ -179,12 +181,12 @@ describe("ReviewableDiff", () => {
       "width: calc(0.5 * (100% - 7.5rem));",
       "width: 1.5rem;"
     ])
+    expect(oldRow.getAttribute("style")).toContain("display: grid")
+    expect(oldRow.getAttribute("style")).toContain("grid-template-columns: 3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem")
+    expect(newRow.getAttribute("style")).toContain("display: grid")
+    expect(newRow.getAttribute("style")).toContain("grid-template-columns: 3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem")
     expect(oldCell).toHaveClass("min-w-0", "whitespace-pre-wrap", "break-words")
     expect(newCell).toHaveClass("min-w-0", "whitespace-pre-wrap", "break-words")
-    expect(oldCell.getAttribute("style")).toContain("max-width: 0px")
-    expect(oldCell.getAttribute("style")).toContain("width: calc(0.5 * (100% - 7.5rem))")
-    expect(newCell.getAttribute("style")).toContain("max-width: 0px")
-    expect(newCell.getAttribute("style")).toContain("width: calc(0.5 * (100% - 7.5rem))")
   })
 
   it("clips desktop split panes instead of letting horizontal-scroll long lines move the center boundary", () => {
@@ -194,6 +196,8 @@ describe("ReviewableDiff", () => {
     const cols = Array.from(table.querySelectorAll("col"))
     const oldCell = table.querySelector('[data-diff-split-row="true"] [data-diff-split-side="old"]') as HTMLElement
     const newCell = getCodeCellText("new_value_".repeat(40))
+    const oldRow = oldCell.closest("tr") as HTMLElement
+    const newRow = newCell.closest("tr") as HTMLElement
 
     expect(screen.getByTestId("diff-file-scroll")).toHaveClass("overflow-x-scroll")
     expect(table).toHaveClass("w-full", "table-fixed")
@@ -202,14 +206,14 @@ describe("ReviewableDiff", () => {
       "width: calc(0.5 * (100% - 1.5rem));",
       "width: 1.5rem;"
     ])
+    expect(oldRow.getAttribute("style")).toContain("display: grid")
+    expect(oldRow.getAttribute("style")).toContain("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.5rem")
+    expect(newRow.getAttribute("style")).toContain("display: grid")
+    expect(newRow.getAttribute("style")).toContain("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.5rem")
     expect(oldCell).toHaveClass("min-w-0", "overflow-hidden", "whitespace-pre")
     expect(oldCell).not.toHaveClass("min-w-[40rem]")
-    expect(oldCell.getAttribute("style")).toContain("max-width: 0px")
-    expect(oldCell.getAttribute("style")).toContain("width: calc(0.5 * (100% - 1.5rem))")
     expect(newCell).toHaveClass("min-w-0", "overflow-hidden", "whitespace-pre")
     expect(newCell).not.toHaveClass("min-w-[40rem]")
-    expect(newCell.getAttribute("style")).toContain("max-width: 0px")
-    expect(newCell.getAttribute("style")).toContain("width: calc(0.5 * (100% - 1.5rem))")
   })
 
   it("keeps commented desktop split lines on the split column grid", () => {
