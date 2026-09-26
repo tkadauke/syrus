@@ -157,8 +157,10 @@ describe("ReviewableDiff", () => {
       "width: 1.5rem;"
     ])
     expect(oldRow.getAttribute("style")).toContain("display: grid")
+    expect(oldRow.getAttribute("style")).toContain("width: 100%")
     expect(oldRow.getAttribute("style")).toContain("grid-template-columns: 3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem")
     expect(newRow.getAttribute("style")).toContain("display: grid")
+    expect(newRow.getAttribute("style")).toContain("width: 100%")
     expect(newRow.getAttribute("style")).toContain("grid-template-columns: 3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem")
     expect(oldCell).toHaveClass("min-w-0", "whitespace-pre-wrap", "break-words")
     expect(newCell).toHaveClass("min-w-0", "whitespace-pre-wrap", "break-words")
@@ -182,8 +184,10 @@ describe("ReviewableDiff", () => {
       "width: 1.5rem;"
     ])
     expect(oldRow.getAttribute("style")).toContain("display: grid")
+    expect(oldRow.getAttribute("style")).toContain("width: 100%")
     expect(oldRow.getAttribute("style")).toContain("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.5rem")
     expect(newRow.getAttribute("style")).toContain("display: grid")
+    expect(newRow.getAttribute("style")).toContain("width: 100%")
     expect(newRow.getAttribute("style")).toContain("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.5rem")
     expect(oldCell).toHaveClass("min-w-0", "overflow-hidden", "whitespace-pre")
     expect(oldCell).not.toHaveClass("min-w-[40rem]")

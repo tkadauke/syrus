@@ -1593,7 +1593,8 @@ function SplitDiffColGroup({ showLineNumbers }: { showLineNumbers: boolean }) {
 function splitRowStyle(showLineNumbers: boolean): CSSProperties {
   return {
     display: "grid",
-    gridTemplateColumns: showLineNumbers ? "3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem" : "minmax(0, 1fr) minmax(0, 1fr) 1.5rem"
+    gridTemplateColumns: showLineNumbers ? "3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem" : "minmax(0, 1fr) minmax(0, 1fr) 1.5rem",
+    width: "100%"
   }
 }
 
