@@ -6,6 +6,8 @@ This task records `LandedCommit` rows for historical job and merge-train landing
 
 The task runs one repository at a time. For each repository, Syrus synchronizes the repository's bare clone, checks historical landed jobs and succeeded merge trains, and writes only missing landed commit rows. Existing rows are skipped, so the task is safe to resume.
 
+If a repository still has landings that cannot be backfilled after its pass, the task records that repository under `checkpoint.unresolved_repositories`. Once the pass is exhausted, the task fails instead of reporting a clean success, so discovery leaves the failed task visible for operator follow-up instead of reviving the same work as a new pending task. When the failed task is resumed, those unresolved repositories are retried once; any repositories that still cannot be backfilled are reported again for the next operator pass.
+
 Why you might run it:
 
 - Repository history shows Syrus-authored commits as unattributed direct pushes.
