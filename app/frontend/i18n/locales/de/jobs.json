@@ -211,6 +211,8 @@
   "priority_cancel": "Abbrechen",
   "priority_update_error": "Priorität konnte nicht aktualisiert werden.",
   "detail_validity": "Gültigkeit",
+  "detail_source": "Quelle",
+  "detail_creator": "Erstellt von",
   "detail_epic": "Epic",
   "detail_branch": "Branch",
   "detail_stack_base": "Stack-Basis",
