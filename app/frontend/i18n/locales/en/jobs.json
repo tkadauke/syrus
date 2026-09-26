@@ -218,6 +218,8 @@
   "priority_cancel": "Cancel",
   "priority_update_error": "Failed to update priority.",
   "detail_validity": "Validity",
+  "detail_source": "Source",
+  "detail_creator": "Created by",
   "detail_epic": "Epic",
   "detail_branch": "Branch",
   "detail_stack_base": "Stack base",

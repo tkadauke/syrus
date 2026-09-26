@@ -332,107 +332,77 @@ export function JobDetailView({
     return () => window.cancelAnimationFrame(frame)
   }, [activeTab, workflowAnchor, renderedWorkflowIds])
 
+  const providerLabel = payload.job.agent_provider ? agentProviderLabel(payload, payload.job.agent_provider) : null
+
   return (
     <>
       <SyrusTour onEvent={(data) => handleJoyrideCallback(data)} run={tourRun} steps={tourSteps} />
-      <Page.Header className="items-start gap-x-6 gap-y-3">
-        <div className="min-w-0 flex-1">
-          <PageHeading className="break-words">
-            <CopyableSlug slug={jobSlug(payload.job.id)} />
-            <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
-            <PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} />
-          </PageHeading>
-          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2">
+      <Page.Header className="gap-3" layout="stacked">
+        <PageHeading className="break-words" data-testid="job-header-title">
+          <CopyableSlug slug={jobSlug(payload.job.id)} />
+          <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
+          <PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} />
+        </PageHeading>
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <HeaderMetadataList>
             <JobStateBadge state={payload.job.summary_state} />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">
+            <span className="min-w-0 break-words">
               <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
                 {payload.repository.slug}
               </Link>
-              <span className="px-2 text-gray-300 dark:text-gray-600">/</span>
-              <JobSourceLink payload={payload} prefix={prefix} />
-            </p>
-            {payload.job.agent_provider ? (
-              <SmallPill title={providerFailoverTooltip(payload.job.provider_failover)}>{payload.job.agent_provider}</SmallPill>
-            ) : null}
-            <ProviderAvailabilityWarning availability={payload.job.provider_availability} />
-            {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
-            <span>
-              {t("workflow_count", { count: payload.job.workflows_count })} · {t("run_count", { count: payload.job.runs_count })}
             </span>
-            {!payload.job.created_by_current_user ? (
-              <span>· {t("created_by", { user: payload.job.creator_user.display_name || payload.job.creator_user.email_address })}</span>
-            ) : null}
-            {payload.job.total_cost_usd == null ? null : (
-              <span>
-                · <JobCostLink prefix={prefix} value={payload.job.total_cost_usd} />
-              </span>
-            )}
-            {payload.job.prepare_skipped ? <span className="font-medium text-amber-700">· {t("prepare_skipped")}</span> : null}
-            {payload.job.source_chat ? (
+            {providerLabel ? (
               <span className="inline-flex items-center gap-1">
-                ·{" "}
+                <span title={providerFailoverTooltip(payload.job.provider_failover)}>{providerLabel}</span>
+                <ProviderAvailabilityWarning availability={payload.job.provider_availability} />
+              </span>
+            ) : null}
+            {payload.job.source_chat ? (
+              <span className="inline-flex min-w-0 items-center gap-1">
                 <SlugHoverCard id={payload.job.source_chat.chat_id} kind="chat">
                   <CopyableSlug className="text-xs" slug={`CHAT-${payload.job.source_chat.chat_id}`} />
                 </SlugHoverCard>
-                <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>
+                <Link className="min-w-0 break-words font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>
                   {payload.job.source_chat.chat_title || t("chat:new_title")}
                 </Link>
               </span>
-            ) : null}
-            {payload.job.goal_provenance ? (
-              <span title={payload.job.goal_provenance.prompt_snapshot.prompt || undefined}>· Goal #{payload.job.goal_provenance.chat_goal_id}</span>
-            ) : null}
-            {payload.origin_chat ? (
-              <span>
-                ·{" "}
-                <Link
-                  className="inline-flex items-center gap-1 font-medium text-brand hover:underline"
-                  to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}
-                >
-                  <ChatBubbleIcon />
-                  <span>{t("view_in_chat")}</span>
-                </Link>
-              </span>
-            ) : null}
-            {payload.job.discussion_chat ? (
-              <span>
-                ·{" "}
-                <Link
-                  className="inline-flex items-center gap-1 font-medium text-brand hover:underline"
-                  to={withRoutePrefix(payload.job.discussion_chat.path, prefix)}
-                >
-                  <ChatBubbleIcon />
-                  <span>{payload.job.discussion_chat.chat_title || t("chat_about_this")}</span>
-                </Link>
-              </span>
+            ) : payload.origin_chat ? (
+              <Link
+                className="inline-flex min-w-0 items-center gap-1 font-medium text-brand hover:underline"
+                to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}
+              >
+                <ChatBubbleIcon />
+                <span>{t("view_in_chat")}</span>
+              </Link>
+            ) : payload.job.discussion_chat ? (
+              <Link
+                className="inline-flex min-w-0 items-center gap-1 font-medium text-brand hover:underline"
+                to={withRoutePrefix(payload.job.discussion_chat.path, prefix)}
+              >
+                <ChatBubbleIcon />
+                <span className="min-w-0 break-words">{payload.job.discussion_chat.chat_title || t("chat_about_this")}</span>
+              </Link>
             ) : payload.actions.can_start_chat ? (
-              <span>
-                ·{" "}
-                <button
-                  className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={command.isPending}
-                  onClick={() => command.mutate({ method: "post", path: payload.paths.app_start_chat_path })}
-                  type="button"
-                >
-                  <ChatBubbleIcon />
-                  <span>{t("chat_about_this")}</span>
-                </button>
-              </span>
+              <button
+                className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={command.isPending}
+                onClick={() => command.mutate({ method: "post", path: payload.paths.app_start_chat_path })}
+                type="button"
+              >
+                <ChatBubbleIcon />
+                <span>{t("chat_about_this")}</span>
+              </button>
             ) : null}
+          </HeaderMetadataList>
+          <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-start gap-3 sm:justify-end" data-testid="job-header-actions">
+            <HeaderActions
+              command={command}
+              onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
+              onToggleFeedbackPanel={() => withPreviewStop(() => setFeedbackPanelOpen((current) => !current))}
+              payload={payload}
+            />
+            <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
           </div>
-        </div>
-        <div className="flex w-full shrink-0 flex-wrap items-center justify-start gap-3 sm:w-auto sm:justify-end" data-testid="job-header-actions">
-          <HeaderActions
-            command={command}
-            onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
-            onToggleFeedbackPanel={() => withPreviewStop(() => setFeedbackPanelOpen((current) => !current))}
-            payload={payload}
-          />
-          <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
         </div>
       </Page.Header>
 
@@ -516,6 +486,21 @@ export function JobDetailView({
       ) : null}
       <PluginUiSlot panels={(payload.ui_tabs ?? []).filter((tab) => tab.key === activeTab)} props={{ job: payload.job }} />
     </>
+  )
+}
+
+function HeaderMetadataList({ children }: { children: ReactNode }) {
+  const items = Array.isArray(children) ? children.filter(Boolean) : [children].filter(Boolean)
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 dark:text-gray-300" data-testid="job-header-metadata">
+      {items.map((item, index) => (
+        <span key={index} className="inline-flex min-w-0 items-center gap-2">
+          {index > 0 ? <span className="shrink-0 text-gray-300 dark:text-gray-600">·</span> : null}
+          {item}
+        </span>
+      ))}
+    </div>
   )
 }
 
@@ -820,6 +805,12 @@ function SummaryTab({
               <KeyValue label={t("detail_work_claim")}>
                 <JobOwnerLabel command={command} payload={payload} prefix={prefix} />
               </KeyValue>
+              <KeyValue label={t("detail_source")}>
+                <JobSourceLink payload={payload} prefix={prefix} />
+              </KeyValue>
+              {!payload.job.created_by_current_user ? (
+                <KeyValue label={t("detail_creator")}>{payload.job.creator_user.display_name || payload.job.creator_user.email_address}</KeyValue>
+              ) : null}
               <KeyValue label={t("detail_priority")}>
                 <PrioritySelector currentPriority={payload.job.priority} priorityPath={payload.paths.app_priority_path} queryKey={queryKey} />
               </KeyValue>

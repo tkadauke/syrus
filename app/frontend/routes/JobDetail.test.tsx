@@ -105,7 +105,7 @@ describe("JobDetailView", () => {
     expect(screen.getByLabelText("Priority")).toHaveClass("bg-surface", "text-text-primary")
     const header = container.querySelector("header")
     expect(header).not.toBeNull()
-    expect(within(header!).getByRole("link", { name: "$0.1234" })).toHaveAttribute("href", "/app-shell/insights/spending")
+    expect(within(header!).queryByRole("link", { name: "$0.1234" })).not.toBeInTheDocument()
     expect(within(detailsSection!).getByRole("link", { name: "$0.1234" })).toHaveAttribute("href", "/app-shell/insights/spending")
     expect(container.querySelectorAll("section.bg-surface").length).toBeGreaterThanOrEqual(2)
   })
@@ -2338,7 +2338,8 @@ describe("JobDetailRoute", () => {
     expect(main).not.toHaveClass("px-[var(--space-page-x)]")
 
     const header = main.querySelector("header")
-    expect(header).toHaveClass("px-4", "sm:px-0", "flex", "flex-wrap", "items-start", "justify-between", "gap-x-6", "gap-y-3")
+    expect(header).toHaveClass("px-4", "sm:px-0", "block", "space-y-3")
+    expect(screen.getByTestId("job-header-actions").parentElement).toHaveClass("flex", "flex-wrap", "items-center", "justify-between", "gap-x-6", "gap-y-3")
 
     const tabChrome = screen.getByRole("navigation", { name: "Job sections" }).parentElement
     expect(tabChrome).toHaveClass("px-4", "sm:px-0")
@@ -3449,15 +3450,56 @@ describe("Job detail tour", () => {
 
     const actionSlot = screen.getByTestId("job-header-actions")
     const header = screen.getByText("Add origin chat link").closest("header")
-    const titleBlock = screen.getByText("Add origin chat link").closest("div")
+    const titleLine = screen.getByTestId("job-header-title")
+    const secondLine = actionSlot.parentElement
+    const metadata = screen.getByTestId("job-header-metadata")
 
     expect(header).toContainElement(actionSlot)
-    expect(actionSlot.parentElement).toBe(header)
-    expect(actionSlot.previousElementSibling).toBe(titleBlock)
-    expect(actionSlot).toHaveClass("w-full")
-    expect(actionSlot).toHaveClass("sm:w-auto", "sm:justify-end", "shrink-0")
+    expect(header?.firstElementChild).toBe(titleLine)
+    expect(secondLine?.parentElement).toBe(header)
+    expect(secondLine?.firstElementChild).toBe(metadata)
+    expect(secondLine?.lastElementChild).toBe(actionSlot)
+    expect(actionSlot).toHaveClass("sm:justify-end", "shrink-0")
     expect(actionSlot).toContainElement(screen.getByRole("button", { name: "More actions" }))
     expect(actionSlot).toContainElement(screen.getByLabelText("Job navigation"))
+  })
+
+  it("renders the compact second-line metadata in the requested order", () => {
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          state: "implemented",
+          summary_state: "implemented",
+          credential_mode: "pat",
+          workflows_count: 1,
+          runs_count: 23,
+          total_cost_usd: 0.5,
+          source_chat: {
+            chat_id: 435,
+            chat_title: "Recurring Tasks Investigation",
+            proposal_id: 9,
+            proposal_kind: "syrus_issue",
+            message_id: 12,
+            path: "/chats/435#message-12",
+            label: "Job proposal in Recurring Tasks Investigation"
+          }
+        }
+      })
+    )
+
+    const titleLine = screen.getByTestId("job-header-title")
+    const metadata = screen.getByTestId("job-header-metadata")
+    const header = titleLine.closest("header")
+
+    expect(titleLine.textContent).toMatch(/JOB-1\s*·\s*Add origin chat link/)
+    expect(metadata.textContent).toMatch(/implemented\s*·\s*acme\/widgets\s*·\s*codex\s*·\s*CHAT-435\s*Recurring Tasks Investigation/i)
+    expect(within(metadata).getByRole("link", { name: "Recurring Tasks Investigation" })).toHaveAttribute("href", "/app-shell/chats/435#message-12")
+    expect(within(header!).queryByText("Direct Job")).not.toBeInTheDocument()
+    expect(within(header!).queryByText("pat")).not.toBeInTheDocument()
+    expect(within(header!).queryByText(/1 workflow/)).not.toBeInTheDocument()
+    expect(within(header!).queryByText(/23 runs/)).not.toBeInTheDocument()
+    expect(within(header!).queryByRole("link", { name: "$0.5000" })).not.toBeInTheDocument()
   })
 
   it("renders the details section tour target", () => {
@@ -3588,15 +3630,19 @@ describe("Job detail navigation", () => {
   })
 
   it("identifies a job created by another user", async () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        creator_user: { id: 2, display_name: "Julia", email_address: "julia@example.com" },
-        created_by_current_user: false
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          creator_user: { id: 2, display_name: "Julia", email_address: "julia@example.com" },
+          created_by_current_user: false
+        }
+      })
+    )
 
-    expect(await screen.findByText(/Created by Julia/)).toBeInTheDocument()
+    const detailsSection = screen.getByRole("heading", { name: "Details" }).closest("section")
+    expect(within(detailsSection!).getByText("Created by")).toBeInTheDocument()
+    expect(within(detailsSection!).getByText("Julia")).toBeInTheDocument()
   })
 
   it("adds horizontal and vertical gaps between metadata chips so separators don't glue to text", () => {
