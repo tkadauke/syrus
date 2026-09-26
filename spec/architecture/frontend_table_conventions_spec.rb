@@ -49,6 +49,24 @@ RSpec.describe "frontend table conventions" do
     "plugins/theming_tools/app/frontend/themeToolCard.tsx" => "compact chat tool-card result summary"
   }.freeze
 
+  # Direct DataTable users should normally opt into the shared column
+  # primitives (DataTableColumnHeaderRow + DataTableColumnMenu) or the
+  # AdminEventLogTable/AdminDataTablePanel wrappers, which provide sortable
+  # headers, visible-column selection, header drag reorder, and selector
+  # reorder. These exceptions are deliberately narrower: compact embedded
+  # summaries, fixed diagnostic matrices, detail-only subtables, or dashboard
+  # tables whose equivalent controls are driven by persisted dashboard
+  # preferences instead of local column preferences.
+  DIRECT_DATA_TABLE_CONTROL_EXCEPTIONS = {
+    "app/frontend/routes/AdminPlugins.tsx" => "plugin detail metric and extension-point subtables with fixed schemas",
+    "app/frontend/routes/RepositoryForm.tsx" => "credential-mode comparison matrix, not a record list",
+    "app/frontend/routes/chat/adminToolCard.tsx" => "compact chat tool-card result summary",
+    "app/frontend/routes/chat/jobsTableCard.tsx" => "compact chat tool-card result summary",
+    "app/frontend/routes/dashboard/EpicWorkflowTables.tsx" => "dashboard tables use dashboard preference controls for sort and column reorder",
+    "app/frontend/routes/dashboard/JobsTable.tsx" => "dashboard tables use dashboard preference controls for sort and column reorder",
+    "plugins/agent_insights/app/frontend/agentInsightToolCard.tsx" => "compact chat tool-card result summary"
+  }.freeze
+
   it "keeps raw table usage explicitly audited" do
     raw_table_paths = frontend_sources.filter_map do |path|
       next if path == "app/frontend/components/ui/DataTable.tsx"
@@ -68,6 +86,23 @@ RSpec.describe "frontend table conventions" do
     end
 
     expect(offenders).to be_empty
+  end
+
+  it "keeps direct DataTable control omissions explicitly audited" do
+    direct_table_paths = frontend_sources.filter_map do |path|
+      next if path == "app/frontend/components/ui/DataTable.tsx"
+
+      source = Rails.root.join(path).read
+      next unless source.include?("<DataTable.Root")
+      next if source.include?("DataTableColumnHeaderRow") && source.include?("DataTableColumnMenu")
+      next if source.include?("AdminEventLogTable")
+      next if source.include?("AdminDataTablePanel")
+      next if path == "app/frontend/components/AdminEventLogPanel.tsx"
+
+      path
+    end
+
+    expect(direct_table_paths).to match_array(DIRECT_DATA_TABLE_CONTROL_EXCEPTIONS.keys)
   end
 
   def frontend_sources
