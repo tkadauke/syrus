@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react"
+import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react"
 import type { ThemedToken } from "@shikijs/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Button } from "../Button"
@@ -1186,8 +1186,8 @@ export function UnifiedDiffTable({
 
     if (splitRow) {
       return (
-        <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread" style={splitRowStyle(showLineNumbers)}>
-          <td className={`${DIFF_INLINE_REVIEW_CELL_CLASS} text-xs text-amber-950 dark:text-amber-100`} colSpan={splitInlineColSpan} style={splitInlineCellStyle}>
+        <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
+          <td className={`${DIFF_INLINE_REVIEW_CELL_CLASS} text-xs text-amber-950 dark:text-amber-100`} colSpan={splitInlineColSpan}>
             {panel}
           </td>
         </tr>
@@ -1241,8 +1241,8 @@ export function UnifiedDiffTable({
 
     if (splitRow) {
       return (
-        <tr className="font-sans" data-testid="diff-review-composer" style={splitRowStyle(showLineNumbers)}>
-          <td className={DIFF_INLINE_REVIEW_CELL_CLASS} colSpan={splitInlineColSpan} style={splitInlineCellStyle}>
+        <tr className="font-sans" data-testid="diff-review-composer">
+          <td className={DIFF_INLINE_REVIEW_CELL_CLASS} colSpan={splitInlineColSpan}>
             {panel}
           </td>
         </tr>
@@ -1502,7 +1502,6 @@ function SplitDiffRow({
       data-diff-anchor={lineAnchorKey || undefined}
       data-diff-kind={line.kind}
       data-diff-split-row="true"
-      style={splitRowStyle(showLineNumbers)}
     >
       {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)}`}>
         {line.kind === "delete" && canComment ? <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" /> : null}
@@ -1590,28 +1589,17 @@ function SplitDiffColGroup({ showLineNumbers }: { showLineNumbers: boolean }) {
   )
 }
 
-function splitRowStyle(showLineNumbers: boolean): CSSProperties {
-  return {
-    display: "grid",
-    gridTemplateColumns: showLineNumbers ? "3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem" : "minmax(0, 1fr) minmax(0, 1fr) 1.5rem",
-    width: "100%"
-  }
-}
-
-const splitInlineCellStyle: CSSProperties = { gridColumn: "1 / -1" }
-
 function HunkRow({ controls, hideOldLineGutter, line, showLineNumbers = true, splitView = false }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine; showLineNumbers?: boolean; splitView?: boolean }) {
   if (splitView) {
     const codeColSpan = showLineNumbers ? 3 : 2
-    const codeCellStyle = showLineNumbers ? { gridColumn: "2 / 5" } : { gridColumn: "1 / 3" }
     return (
-      <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk" style={splitRowStyle(showLineNumbers)}>
+      <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk">
         {showLineNumbers ? (
           <td className={diffGutterClass("hunk")}>
             {controls?.up ? <HunkContextButton direction="up" lineCount={controls.up.lineCount} loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
           </td>
         ) : null}
-        <td className="overflow-hidden whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200" colSpan={codeColSpan} style={codeCellStyle}>{line.code}</td>
+        <td className="overflow-hidden whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200" colSpan={codeColSpan}>{line.code}</td>
         <td className="w-4 select-none px-1 text-center">
           {showLineNumbers && controls?.down ? <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
         </td>

@@ -156,12 +156,8 @@ describe("ReviewableDiff", () => {
       "width: calc(0.5 * (100% - 7.5rem));",
       "width: 1.5rem;"
     ])
-    expect(oldRow.getAttribute("style")).toContain("display: grid")
-    expect(oldRow.getAttribute("style")).toContain("width: 100%")
-    expect(oldRow.getAttribute("style")).toContain("grid-template-columns: 3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem")
-    expect(newRow.getAttribute("style")).toContain("display: grid")
-    expect(newRow.getAttribute("style")).toContain("width: 100%")
-    expect(newRow.getAttribute("style")).toContain("grid-template-columns: 3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem")
+    expect(oldRow).not.toHaveAttribute("style")
+    expect(newRow).not.toHaveAttribute("style")
     expect(oldCell).toHaveClass("min-w-0", "whitespace-pre-wrap", "break-words")
     expect(newCell).toHaveClass("min-w-0", "whitespace-pre-wrap", "break-words")
   })
@@ -183,19 +179,15 @@ describe("ReviewableDiff", () => {
       "width: calc(0.5 * (100% - 1.5rem));",
       "width: 1.5rem;"
     ])
-    expect(oldRow.getAttribute("style")).toContain("display: grid")
-    expect(oldRow.getAttribute("style")).toContain("width: 100%")
-    expect(oldRow.getAttribute("style")).toContain("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.5rem")
-    expect(newRow.getAttribute("style")).toContain("display: grid")
-    expect(newRow.getAttribute("style")).toContain("width: 100%")
-    expect(newRow.getAttribute("style")).toContain("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.5rem")
+    expect(oldRow).not.toHaveAttribute("style")
+    expect(newRow).not.toHaveAttribute("style")
     expect(oldCell).toHaveClass("min-w-0", "overflow-hidden", "whitespace-pre")
     expect(oldCell).not.toHaveClass("min-w-[40rem]")
     expect(newCell).toHaveClass("min-w-0", "overflow-hidden", "whitespace-pre")
     expect(newCell).not.toHaveClass("min-w-[40rem]")
   })
 
-  it("keeps commented desktop split lines on the split column grid", () => {
+  it("keeps commented desktop split lines on the fixed split columns", () => {
     render(
       <ReviewableDiff
         comments={{
@@ -215,7 +207,7 @@ describe("ReviewableDiff", () => {
     expect(screen.getByTestId("diff-review-thread").querySelector("td")).toHaveAttribute("colspan", "5")
   })
 
-  it("keeps desktop split composer rows aligned to the split column grid", () => {
+  it("keeps desktop split composer rows aligned to the fixed split columns", () => {
     render(
       <ReviewableDiff
         composingBody="Please keep this visible."
