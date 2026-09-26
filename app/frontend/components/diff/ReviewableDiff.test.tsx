@@ -610,6 +610,28 @@ describe("ReviewableDiff", () => {
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
   })
 
+  it("closes the changed-files popup when clicking outside the file list", () => {
+    render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" showFileHeaders />)
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+    expect(screen.getByText("Changed files")).toBeInTheDocument()
+
+    fireEvent.pointerDown(document.body)
+
+    expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
+  })
+
+  it("closes the changed-files popup with Escape", () => {
+    render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" showFileHeaders />)
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+    expect(screen.getByText("Changed files")).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: "Escape" })
+
+    expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
+  })
+
   it("sorts and indents the changed-files popup from persisted file-list settings", () => {
     render(
       <ReviewableDiff
