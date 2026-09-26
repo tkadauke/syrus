@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from "react"
+import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react"
 import { createPortal } from "react-dom"
 import type { ThemedToken } from "@shikijs/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
@@ -1435,8 +1435,8 @@ export function UnifiedDiffTable({
 
     if (splitRow) {
       return (
-        <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread" style={splitRowStyle(showLineNumbers)}>
-          <td className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-amber-950 dark:text-amber-100`} colSpan={splitInlineColSpan} style={splitInlineCellStyle}>
+        <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
+          <td className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-amber-950 dark:text-amber-100`} colSpan={splitInlineColSpan}>
             {panel}
           </td>
         </tr>
@@ -1490,8 +1490,8 @@ export function UnifiedDiffTable({
 
     if (splitRow) {
       return (
-        <tr className="font-sans" data-testid="diff-review-composer" style={splitRowStyle(showLineNumbers)}>
-          <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={splitInlineColSpan} style={splitInlineCellStyle}>
+        <tr className="font-sans" data-testid="diff-review-composer">
+          <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={splitInlineColSpan}>
             {panel}
           </td>
         </tr>
@@ -1751,7 +1751,6 @@ function SplitDiffRow({
       data-diff-anchor={lineAnchorKey || undefined}
       data-diff-kind={line.kind}
       data-diff-split-row="true"
-      style={splitRowStyle(showLineNumbers)}
     >
       {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
         {line.kind === "delete" && canComment ? <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="old" /> : null}
@@ -1801,7 +1800,7 @@ function diffTableClass(settings: ReviewDiffSettings, splitView = false) {
 
 function diffCodeCellClass(settings: ReviewDiffSettings, lineWrapping: ReviewDiffSettings["line_wrapping"], splitView = false) {
   const wrapClass = lineWrapping === "wrap"
-    ? "min-w-0 whitespace-pre-wrap break-words"
+    ? `${splitView ? "max-w-0 overflow-hidden" : ""} min-w-0 whitespace-pre-wrap break-words`
     : splitView ? "min-w-0 overflow-hidden whitespace-pre" : "min-w-[40rem] whitespace-pre"
   return `${wrapClass} ${diffDensityClasses(settings).codeCell} text-text-primary`
 }
@@ -1845,27 +1844,17 @@ function SplitDiffColGroup({ showLineNumbers }: { showLineNumbers: boolean }) {
   )
 }
 
-function splitRowStyle(showLineNumbers: boolean): CSSProperties {
-  return {
-    display: "grid",
-    gridTemplateColumns: showLineNumbers ? "3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem" : "minmax(0, 1fr) minmax(0, 1fr) 1.5rem"
-  }
-}
-
-const splitInlineCellStyle: CSSProperties = { gridColumn: "1 / -1" }
-
 function HunkRow({ controls, hideOldLineGutter, line, reviewSettings, showLineNumbers = true, splitView = false }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine; reviewSettings: ReviewDiffSettings; showLineNumbers?: boolean; splitView?: boolean }) {
   if (splitView) {
     const codeColSpan = showLineNumbers ? 3 : 2
-    const codeCellStyle = showLineNumbers ? { gridColumn: "2 / 5" } : { gridColumn: "1 / 3" }
     return (
-      <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk" style={splitRowStyle(showLineNumbers)}>
+      <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk">
         {showLineNumbers ? (
           <td className={`${diffGutterClass("hunk")} ${diffDensityClasses(reviewSettings).gutter}`}>
             {controls?.up ? <HunkContextButton direction="up" lineCount={controls.up.lineCount} loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
           </td>
         ) : null}
-        <td className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).hunkCodeCell}`} colSpan={codeColSpan} style={codeCellStyle}>{line.code}</td>
+        <td className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).hunkCodeCell}`} colSpan={codeColSpan}>{line.code}</td>
         <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
           {showLineNumbers && controls?.down ? <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
         </td>
