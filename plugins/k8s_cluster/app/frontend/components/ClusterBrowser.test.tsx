@@ -183,6 +183,10 @@ function dataTransfer() {
   return { dropEffect: "", effectAllowed: "", getData: vi.fn(), setData: vi.fn() }
 }
 
+function encodeFilterTree(tree: Record<string, unknown>) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(tree)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+}
+
 function setupFetchMock(overrides: Partial<Record<ResourceKey, unknown>> = {}, errors: Partial<Record<ResourceKey, number>> = {}) {
   const calls: string[] = []
 
@@ -371,6 +375,33 @@ describe("ClusterBrowser", () => {
       expect(headers[0]).toHaveTextContent("Name")
       expect(headers[1]).toHaveTextContent("Status")
       expect(headers[2]).toHaveTextContent("Namespace")
+    })
+
+    it("derives structured filters from pod resource columns", async () => {
+      const q = encodeFilterTree({
+        and: [
+          { field: "status", op: "is", value: "Pending" },
+          { field: "restart_count", op: "gte", value: 2 }
+        ]
+      })
+      setupFetchMock({
+        pods: {
+          available: true,
+          generated_at: GENERATED_AT,
+          truncated: false,
+          pods: [
+            DEFAULT_PODS.pods[0],
+            { ...MULTI_CONTAINER_POD, name: "api-1", status: "Pending", restart_count: 2 }
+          ]
+        }
+      })
+      renderBrowser(`/k8s_clusters/1?q=${q}`)
+      await switchTab("Workloads")
+
+      const table = await screen.findByRole("table")
+      expect(within(table).queryByText("web-1")).not.toBeInTheDocument()
+      expect(within(table).getByText("api-1")).toBeInTheDocument()
+      expect(screen.getByText("1 of 2 resources")).toBeInTheDocument()
     })
 
     it("switches to deployments and cronjobs via the workload kind dropdown", async () => {

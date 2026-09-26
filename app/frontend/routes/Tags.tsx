@@ -33,7 +33,7 @@ import type { FilterChip, FilterNode, FilterTree } from "../components/filterBar
 const queryKey = ["tags"] as const
 const TAGS_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.settings.tags.visible_columns"
 
-type TagSortColumn = "name" | "jobs_count" | "color"
+type TagSortColumn = "name" | "jobs_count" | "color" | "created_at" | "updated_at"
 type SortDirection = "ascending" | "descending"
 type TagSortState = { column: TagSortColumn; direction: SortDirection }
 type SortValue = number | string | null
@@ -42,7 +42,9 @@ const DEFAULT_TAG_SORT: TagSortState = { column: "name", direction: "ascending" 
 const TAG_SORT_ACCESSORS: Record<TagSortColumn, (tag: TagRow) => SortValue> = {
   name: (tag) => tag.name,
   jobs_count: (tag) => tag.jobs_count,
-  color: (tag) => tag.color
+  color: (tag) => tag.color,
+  created_at: (tag) => tag.created_at,
+  updated_at: (tag) => tag.updated_at
 }
 
 export function Tags() {
@@ -216,8 +218,11 @@ function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPa
 function buildTagFilterSchema(t: (key: string, options?: Record<string, unknown>) => string): FilterSchemaField[] {
   return [
     { field: "query", label: t("tags.col_tag"), bucket: "text", operators: ["contains"], free_text_search: true },
+    { field: "name", label: t("tags.col_tag"), bucket: "text", operators: ["contains", "is", "is_not"] },
     { field: "color", label: t("tags.col_color"), bucket: "text", operators: ["is", "is_not", "contains"] },
-    { field: "jobs_count", label: t("tags.col_jobs"), bucket: "number", operators: ["is", "gt", "lt", "gte", "lte"] }
+    { field: "jobs_count", label: t("tags.col_jobs"), bucket: "number", operators: ["is", "gt", "lt", "gte", "lte"] },
+    { field: "created_at", label: t("tags.col_created"), bucket: "date", operators: ["before", "after", "between"] },
+    { field: "updated_at", label: t("tags.col_updated"), bucket: "date", operators: ["before", "after", "between"] }
   ]
 }
 
@@ -251,6 +256,20 @@ function buildTagColumns({
       sortKey: "color",
       defaultVisible: false,
       renderCell: (tag) => palette.find((option) => option.key === tag.color)?.label || tag.color
+    },
+    {
+      key: "created_at",
+      label: t("tags.col_created"),
+      sortKey: "created_at",
+      defaultVisible: false,
+      renderCell: (tag) => new Date(tag.created_at).toLocaleString()
+    },
+    {
+      key: "updated_at",
+      label: t("tags.col_updated"),
+      sortKey: "updated_at",
+      defaultVisible: false,
+      renderCell: (tag) => new Date(tag.updated_at).toLocaleString()
     },
     {
       key: "rename",
@@ -421,8 +440,11 @@ function tagMatchesFilterNode(tag: TagRow, node: FilterNode): boolean {
 
 function tagMatchesFilter(tag: TagRow, chip: FilterChip) {
   if (chip.field === "query") return tag.name.toLowerCase().includes(String(chip.value || "").toLowerCase())
+  if (chip.field === "name") return matchesTextFilter(tag.name, chip)
   if (chip.field === "color") return matchesTextFilter(tag.color, chip)
   if (chip.field === "jobs_count") return matchesNumberFilter(tag.jobs_count, chip)
+  if (chip.field === "created_at") return matchesDateFilter(tag.created_at, chip)
+  if (chip.field === "updated_at") return matchesDateFilter(tag.updated_at, chip)
   return true
 }
 
@@ -465,6 +487,18 @@ function matchesNumberFilter(value: number, chip: FilterChip) {
   if (chip.op === "gte") return value >= expected
   if (chip.op === "lte") return value <= expected
   return value === expected
+}
+
+function matchesDateFilter(value: string, chip: FilterChip) {
+  const time = Date.parse(value)
+  if (Number.isNaN(time)) return false
+  if (chip.op === "before") return time < Date.parse(String(chip.value || ""))
+  if (chip.op === "after") return time > Date.parse(String(chip.value || ""))
+  if (chip.op === "between" && Array.isArray(chip.value)) {
+    const [start, end] = chip.value.map((part) => Date.parse(String(part || "")))
+    return (Number.isNaN(start) || time >= start) && (Number.isNaN(end) || time <= end)
+  }
+  return true
 }
 
 function filterTreeFromSearch(search: string): FilterTree {

@@ -12,6 +12,8 @@ export type TagRow = {
   name: string
   color: string
   jobs_count: number
+  created_at: string
+  updated_at: string
 }
 
 export type TagsPayload = {
