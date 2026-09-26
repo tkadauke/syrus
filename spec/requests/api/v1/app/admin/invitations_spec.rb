@@ -87,6 +87,66 @@ RSpec.describe "API: /api/v1/app/admin/invitations", type: :request do
     expect(body.fetch("sort")).to eq("column" => "email", "direction" => "desc")
   end
 
+  it "filters by inviter and sorts by created or inviter fields" do
+    sign_in_as(admin)
+    ada = Factories.user(email_address: "ada-admin@example.com")
+    bob = Factories.user(email_address: "bob-admin@example.com")
+    selected = Invitation.create!(invited_by: ada, email_address: "guest-a@example.com", created_at: 2.hours.ago)
+    Invitation.create!(invited_by: bob, email_address: "guest-b@example.com", created_at: 1.hour.ago)
+    tree = {
+      "and" => [
+        { "field" => "inviter", "op" => "contains", "value" => "ada-admin" },
+        { "field" => "created_at", "op" => "more_than_ago", "value" => { "n" => 30, "unit" => "minutes" } }
+      ]
+    }
+
+    get "/api/v1/app/admin/invitations", params: { q: Filters::QueryParam.encode(tree), sort: "inviter", direction: "asc" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.fetch("invitations").map { |invitation| invitation.fetch("id") }).to eq([ selected.id ])
+    expect(body.fetch("filter_schema").map { |field| field.fetch("field") }).to include("email", "inviter", "expires_at", "created_at")
+    expect(body.fetch("sort")).to eq("column" => "inviter", "direction" => "asc")
+  end
+
+  it "preserves shared FilterBar OR semantics for invitation filters" do
+    sign_in_as(admin)
+    ada = Factories.user(email_address: "ada-admin@example.com")
+    bob = Factories.user(email_address: "bob-admin@example.com")
+    email_match = Invitation.create!(invited_by: bob, email_address: "guest-or@example.com")
+    inviter_match = Invitation.create!(invited_by: ada, email_address: "other@example.net")
+    Invitation.create!(invited_by: bob, email_address: "other@example.org")
+    tree = {
+      "or" => [
+        { "field" => "email", "op" => "contains", "value" => "guest-or" },
+        { "field" => "inviter", "op" => "contains", "value" => "ada-admin" }
+      ]
+    }
+
+    get "/api/v1/app/admin/invitations", params: { q: Filters::QueryParam.encode(tree), sort: "email", direction: "asc" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("invitations").map { |invitation| invitation.fetch("id") }).to eq([ email_match.id, inviter_match.id ])
+  end
+
+  it "preserves shared FilterBar NOT semantics for invitation filters" do
+    sign_in_as(admin)
+    keep = Invitation.create!(invited_by: admin, email_address: "keep@example.com")
+    Invitation.create!(invited_by: admin, email_address: "blocked@example.com")
+    tree = {
+      "and" => [
+        { "not" => { "field" => "email", "op" => "contains", "value" => "blocked" } }
+      ]
+    }
+
+    get "/api/v1/app/admin/invitations", params: { q: Filters::QueryParam.encode(tree) }
+
+    expect(response).to have_http_status(:ok)
+    ids = parse_body.fetch("invitations").map { |invitation| invitation.fetch("id") }
+    expect(ids).to include(keep.id)
+    expect(ids).not_to include(Invitation.find_by!(email_address: "blocked@example.com").id)
+  end
+
   it "preloads inviters when listing pending invitations" do
     sign_in_as(admin)
     inviters = Array.new(4) { |index| Factories.user(email_address: "inviter-#{index}@example.com") }

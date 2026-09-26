@@ -143,6 +143,8 @@ function buildUsersColumns({ basePath, t }: { basePath: string; t: (key: string)
     { key: "admin", header: t("users.col_admin"), sort: "admin", render: (user) => (user.admin ? t("users.yes") : "-") },
     { key: "role", header: t("users.col_role"), sort: "role", render: (user) => roleLabel(user.role) },
     { key: "agent", header: t("users.col_agent"), sort: "agent", render: (user) => user.agent_provider },
+    { key: "chat_provider", header: t("users.col_chat_provider"), render: (user) => user.chat_provider || "-" },
+    { key: "auth_mode", header: t("users.col_auth_mode"), render: (user) => user.codex_auth_mode },
     {
       key: "scheduling",
       header: t("users.col_scheduling"),
@@ -150,8 +152,26 @@ function buildUsersColumns({ basePath, t }: { basePath: string; t: (key: string)
       render: (user) => (user.scheduling_paused ? t("users.scheduling_paused") : t("users.scheduling_active"))
     },
     { key: "tokens", header: t("users.col_tokens"), className: "font-mono text-xs", render: (user) => tokenSummary(user) },
+    { key: "api_token", header: t("users.col_api_token"), render: (user) => (user.has_api_token ? t("users.yes") : "-") },
+    { key: "gh_token", header: t("users.col_github_token"), render: (user) => (user.has_github_token ? t("users.yes") : "-") },
+    { key: "claude_token", header: t("users.col_claude_token"), render: (user) => (user.has_claude_token ? t("users.yes") : "-") },
+    { key: "codex_token", header: t("users.col_codex_token"), render: (user) => (user.has_codex_token ? t("users.yes") : "-") },
+    { key: "muse_token", header: t("users.col_muse_token"), render: (user) => (user.has_muse_token ? t("users.yes") : "-") },
     { key: "gh_api", header: t("users.col_gh_api"), render: (user) => (user.github_api_blocked ? t("users.blocked") : t("users.ok")) },
-    { key: "gh_rate", header: t("users.col_gh_rate"), render: (user) => rateLimitLabel(user) }
+    {
+      key: "gh_api_blocked_at",
+      header: t("users.col_gh_api_blocked_at"),
+      render: (user) => <RelativeTimestamp value={user.github_api_blocked_at} />
+    },
+    {
+      key: "gh_api_blocked_reason",
+      header: t("users.col_gh_api_blocked_reason"),
+      className: "max-w-sm truncate",
+      render: (user) => <span title={user.github_api_blocked_reason || undefined}>{user.github_api_blocked_reason || "-"}</span>
+    },
+    { key: "gh_rate", header: t("users.col_gh_rate"), render: (user) => rateLimitLabel(user) },
+    { key: "created_at", header: t("users.col_created_at"), sort: "created_at", render: (user) => <RelativeTimestamp value={user.created_at} /> },
+    { key: "updated_at", header: t("users.col_updated_at"), sort: "updated_at", render: (user) => <RelativeTimestamp value={user.updated_at} /> }
   ]
 }
 

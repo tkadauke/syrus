@@ -46,7 +46,24 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
         { "field" => "gh_rate", "op" => "is", "value" => "low" }
       ]
     )
-    expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("email", "gh_rate")
+    expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include(
+      "email",
+      "role",
+      "scheduling_paused",
+      "agent_provider",
+      "chat_provider",
+      "codex_auth_mode",
+      "has_api_token",
+      "has_claude_token",
+      "has_codex_token",
+      "has_muse_token",
+      "github_api_blocked",
+      "github_api_blocked_at",
+      "github_api_blocked_reason",
+      "created_at",
+      "updated_at",
+      "gh_rate"
+    )
     rate_folder = body["smart_folders"].find { |folder| folder["name"] == "Rate limit low" }
     expect(rate_folder).to include(
       "subject_type" => "admin_user",
@@ -60,6 +77,31 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
       "path" => a_string_matching(%r{\A/admin/users\?smart_folder_id=})
     )
     expect(response.body).not_to include("ghp_secret")
+  end
+
+  it "filters and sorts by newly exposed admin user fields" do
+    sign_in_as(admin)
+    blocked = Factories.user(email_address: "blocked@example.com",
+                             role: "product_owner",
+                             scheduling_paused: true,
+                             gh_api_blocked_at: 5.minutes.ago,
+                             gh_api_blocked_reason: "rate limited")
+    Factories.user(email_address: "plain@example.com", role: "developer")
+    tree = {
+      "and" => [
+        { "field" => "role", "op" => "is", "value" => "product_owner" },
+        { "field" => "scheduling_paused", "op" => "is", "value" => "true" },
+        { "field" => "github_api_blocked", "op" => "is", "value" => "true" }
+      ]
+    }
+
+    get "/api/v1/app/admin/users", params: { q: Filters::QueryParam.encode(tree), sort: "updated_at", direction: "desc" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["users"].map { |user| user["id"] }).to include(blocked.id)
+    expect(body["users"].map { |user| user["github_api_blocked_reason"] }).to include("rate limited")
+    expect(body["sort"]).to eq("column" => "updated_at", "direction" => "desc")
   end
 
   it "marks the Rate limit low SmartFolder's count as capped once the true count meets the configured cap" do
