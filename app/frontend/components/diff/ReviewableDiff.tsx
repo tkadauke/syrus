@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react"
+import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from "react"
 import { createPortal } from "react-dom"
 import type { ThemedToken } from "@shikijs/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
@@ -1743,6 +1743,7 @@ function SplitDiffRow({
 }) {
   const oldCode = line.kind === "delete" || line.kind === "context" ? reviewDisplayCode(line.code, reviewSettings) : ""
   const newCode = line.kind === "add" || line.kind === "context" ? reviewDisplayCode(line.code, reviewSettings) : ""
+  const codeCellStyle = splitCodeCellStyle(showLineNumbers)
 
   return (
     <tr
@@ -1756,7 +1757,7 @@ function SplitDiffRow({
         {line.kind === "delete" && canComment ? <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="old" /> : null}
         {line.oldLine ?? ""}
       </td> : null}
-      <td className={`${codeCellClass} ${line.kind === "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="old">
+      <td className={`${codeCellClass} ${line.kind === "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="old" style={codeCellStyle}>
         {oldCode ? (
           <DiffCode
             code={oldCode}
@@ -1772,7 +1773,7 @@ function SplitDiffRow({
         {line.kind === "add" && canComment ? <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="new" /> : null}
         {line.newLine ?? ""}
       </td> : null}
-      <td className={`${codeCellClass} ${line.kind !== "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="new">
+      <td className={`${codeCellClass} ${line.kind !== "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="new" style={codeCellStyle}>
         {newCode ? (
           <DiffCode
             code={newCode}
@@ -1842,6 +1843,13 @@ function SplitDiffColGroup({ showLineNumbers }: { showLineNumbers: boolean }) {
       <col style={{ width: "1.5rem" }} />
     </colgroup>
   )
+}
+
+function splitCodeCellStyle(showLineNumbers: boolean): CSSProperties {
+  return {
+    maxWidth: 0,
+    width: showLineNumbers ? "calc((100% - 7.5rem) / 2)" : "calc((100% - 1.5rem) / 2)"
+  }
 }
 
 function HunkRow({ controls, hideOldLineGutter, line, reviewSettings, showLineNumbers = true, splitView = false }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine; reviewSettings: ReviewDiffSettings; showLineNumbers?: boolean; splitView?: boolean }) {
