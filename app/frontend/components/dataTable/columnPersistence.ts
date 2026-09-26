@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { visibleOptionalColumnKeys } from "./columnOrder"
 import type { DataTableColumnDef, DataTableColumnPreferences } from "./types"
 
@@ -42,7 +42,17 @@ export function useLocalStorageColumnPreferences<TRow>({
   columns: DataTableColumnDef<TRow>[]
   storageKey: string
 }): DataTableColumnPreferences {
+  const columnSignature = useMemo(
+    () => columns.map((column) => [column.key, column.required ? "required" : "optional", column.defaultVisible === false ? "hidden" : "visible"].join(":")).join("|"),
+    [columns]
+  )
+  const columnsRef = useRef(columns)
+  columnsRef.current = columns
   const [ order, setOrder ] = useState<string[]>(() => readLocalStorageColumnOrder(storageKey, columns))
+
+  useEffect(() => {
+    setOrder(readLocalStorageColumnOrder(storageKey, columnsRef.current))
+  }, [columnSignature, storageKey])
 
   function onChange(next: string[]) {
     setOrder(next)

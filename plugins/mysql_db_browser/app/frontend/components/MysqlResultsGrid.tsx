@@ -1,84 +1,104 @@
+import { useMemo } from "react"
 import { useT } from "@app/hooks/useT"
+import {
+  DataTableColumnCells,
+  DataTableColumnHeaderRow,
+  DataTableColumnMenu,
+  useLocalStorageColumnPreferences,
+  visibleColumns,
+  type DataTableColumnDef
+} from "@app/components/dataTable"
+import { DataTable, type DataTableSortDirection } from "@app/components/ui"
 
 export type MysqlGridSort = { column: string; direction: "asc" | "desc" }
 
-// Grid-first results table shared by the Content, Query, and Live tabs.
-// Sortable headers follow JobsTable.tsx's SortableColumnHeader pattern (a
-// button with an aria-sort th and an arrow indicator) rather than importing
-// the Dashboard-specific component, since that one is wired to URL-driven
-// DashboardSortState.
+// Grid-first results table shared by the Content, Query Builder, Query, and
+// Live tabs. It only owns presentation preferences (visibility + order);
+// filtering, sorting, limits, and SQL safety still flow through the existing
+// query endpoints.
 export function MysqlResultsGrid({
   columns,
   rows,
   sort,
-  onSort
+  onSort,
+  storageKey
 }: {
   columns: string[]
   rows: Array<Record<string, unknown>>
   sort?: MysqlGridSort | null
   onSort?: (column: string) => void
+  storageKey: string
 }) {
   const { t } = useT("mysql_db_browser")
+  const { t: adminT } = useT("admin")
+
+  const dataTableColumns = useMemo<DataTableColumnDef<Record<string, unknown>>[]>(
+    () =>
+      columns.map((column) => ({
+        key: column,
+        label: column,
+        sortKey: column,
+        cellClassName: "max-w-xs truncate font-mono text-gray-700 dark:text-gray-300",
+        renderCell: (row) => {
+          const value = row[column]
+          const formatted = formatMysqlCellValue(value)
+          return value === null || value === undefined ? (
+            <span className="italic text-gray-400 dark:text-gray-600">NULL</span>
+          ) : (
+            <span title={formatted}>{formatted}</span>
+          )
+        }
+      })),
+    [columns]
+  )
+  const preferences = useLocalStorageColumnPreferences({ columns: dataTableColumns, storageKey })
+  const sortDirection: DataTableSortDirection = sort?.direction === "asc" ? "ascending" : sort?.direction === "desc" ? "descending" : "none"
+  const colSpan = Math.max(1, visibleColumns({ columns: dataTableColumns, order: preferences.order }).length)
 
   if (columns.length === 0) {
     return <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{t("grid_no_columns")}</p>
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-xs">
-        <thead className="sticky top-0 bg-gray-50 dark:bg-gray-900 text-left uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            {columns.map((column) => (
-              <th aria-sort={sort?.column === column ? (sort.direction === "asc" ? "ascending" : "descending") : undefined} className="whitespace-nowrap px-3 py-2 font-semibold" key={column}>
-                <MysqlSortableHeader column={column} onSort={onSort} sort={sort ?? null} />
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="flex shrink-0 justify-end">
+        <DataTableColumnMenu
+          columns={dataTableColumns}
+          downLabel={adminT("event_log_table.column_down")}
+          menuId={`${storageKey}-columns-menu`}
+          moveDownLabel={(title) => adminT("event_log_table.column_move_down", { title })}
+          moveUpLabel={(title) => adminT("event_log_table.column_move_up", { title })}
+          onChange={preferences.onChange}
+          order={preferences.order}
+          triggerAriaLabel={adminT("event_log_table.columns")}
+          upLabel={adminT("event_log_table.column_up")}
+          visibleLabel={adminT("event_log_table.visible_columns")}
+        />
+      </div>
+      <DataTable.Root className="table-fixed text-xs" density="compact" wrapperClassName="min-h-0 flex-1 overflow-auto rounded-none border-0">
+        <DataTable.Header className="sticky top-0 z-10">
+          <DataTableColumnHeaderRow
+            columns={dataTableColumns}
+            onReorder={preferences.onChange}
+            onSort={onSort}
+            order={preferences.order}
+            sortColumn={sort?.column}
+            sortDirection={sortDirection}
+          />
+        </DataTable.Header>
+        <DataTable.Body>
           {rows.length === 0 ? (
-            <tr>
-              <td className="px-3 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={columns.length}>{t("grid_no_rows")}</td>
-            </tr>
+            <DataTable.Empty colSpan={colSpan}>{t("grid_no_rows")}</DataTable.Empty>
           ) : (
             rows.map((row, index) => (
-              <tr key={index}>
-                {columns.map((column) => {
-                  const value = row[column]
-                  const formatted = formatMysqlCellValue(value)
-                  return (
-                    <td className="max-w-xs truncate px-3 py-1.5 font-mono text-gray-700 dark:text-gray-300" key={column} title={formatted}>
-                      {value === null || value === undefined ? <span className="italic text-gray-400 dark:text-gray-600">NULL</span> : formatted}
-                    </td>
-                  )
-                })}
-              </tr>
+              <DataTable.Row key={index}>
+                <DataTableColumnCells columns={dataTableColumns} order={preferences.order} row={row} />
+              </DataTable.Row>
             ))
           )}
-        </tbody>
-      </table>
+        </DataTable.Body>
+      </DataTable.Root>
     </div>
-  )
-}
-
-function MysqlSortableHeader({ column, onSort, sort }: { column: string; onSort?: (column: string) => void; sort: MysqlGridSort | null }) {
-  const { t } = useT("mysql_db_browser")
-  if (!onSort) return <span>{column}</span>
-
-  const active = sort?.column === column
-  const nextDirection = active && sort?.direction === "asc" ? "desc" : "asc"
-
-  return (
-    <button
-      aria-label={t("grid_sort_by", { column, direction: nextDirection })}
-      className="inline-flex items-center gap-1 text-left font-semibold uppercase text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-      onClick={() => onSort(column)}
-      type="button"
-    >
-      <span>{column}</span>
-      {active ? <span aria-hidden="true" className="text-[10px] leading-none text-gray-700 dark:text-gray-300">{sort.direction === "asc" ? "↑" : "↓"}</span> : null}
-    </button>
   )
 }
 

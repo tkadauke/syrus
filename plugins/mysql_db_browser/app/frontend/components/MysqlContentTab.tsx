@@ -54,7 +54,13 @@ export function MysqlContentTab({ connectionId, database, table }: { connectionI
       {content.data && !content.data.available ? <MysqlQueryErrorPanel error={content.data.error} /> : null}
       {content.data?.available ? (
         <>
-          <MysqlResultsGrid columns={content.data.columns} onSort={onSort} rows={content.data.rows} sort={sort} />
+          <MysqlResultsGrid
+            columns={content.data.columns}
+            onSort={onSort}
+            rows={content.data.rows}
+            sort={sort}
+            storageKey={`syrus.mysql_db_browser.content.${connectionId}.${database}.${table}.columns`}
+          />
           <div className="flex shrink-0 items-center justify-between text-sm text-gray-600 dark:text-gray-400">
             <span>{t("content_page", { page })}</span>
             <div className="flex gap-2">
