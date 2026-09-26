@@ -122,21 +122,25 @@ describe("ReviewableDiff", () => {
   it("keeps compact density visibly denser than comfortable across diff rows, headers, and file lists", () => {
     const compactSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, density: "compact" as const }
     const comfortableSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, density: "comfortable" as const }
-    const { rerender } = render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" reviewSettings={compactSettings} showFileHeaders />)
+    const { rerender } = render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" onCommentLine={vi.fn()} reviewSettings={compactSettings} showFileHeaders />)
 
     expect(screen.getAllByRole("table")[0]).toHaveClass("text-2xs")
-    expect(getCodeCellText("new")).toHaveClass("py-0", "leading-4")
+    expect(getCodeCellText("new")).toHaveClass("py-0", "leading-[14px]")
     expect(getCodeCellText("new")).not.toHaveClass("py-0.5")
+    expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).toHaveClass("h-3", "w-3", "text-[9px]")
+    expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).not.toHaveClass("h-4", "w-4")
     expect(screen.getByTitle("app/models/job.rb")).toHaveClass("py-1", "text-2xs")
 
     fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
     expect(screen.getByTitle("app/models/run.rb (+1 -0)")).toHaveClass("py-1")
 
-    rerender(<ReviewableDiff changedFilesPopup files={files} mode="continuous" reviewSettings={comfortableSettings} showFileHeaders />)
+    rerender(<ReviewableDiff changedFilesPopup files={files} mode="continuous" onCommentLine={vi.fn()} reviewSettings={comfortableSettings} showFileHeaders />)
 
     expect(screen.getAllByRole("table")[0]).toHaveClass("text-xs")
     expect(getCodeCellText("new")).toHaveClass("py-0.5")
     expect(getCodeCellText("new")).not.toHaveClass("py-0")
+    expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).toHaveClass("h-4", "w-4", "text-2xs")
+    expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).not.toHaveClass("h-3", "w-3")
     expect(screen.getByTitle("app/models/job.rb")).toHaveClass("py-2", "text-xs")
   })
 
@@ -1317,8 +1321,9 @@ describe("changed files menu placement", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
 
     const dialog = screen.getByRole("dialog")
-    expect(dialog).toHaveClass("fixed", "inset-0")
-    expect(screen.getByRole("button", { name: "Close changed files" })).toBeInTheDocument()
+    expect(dialog).toHaveClass("fixed", "inset-0", "z-[60]")
+    fireEvent.click(screen.getByRole("button", { name: "Close changed files" }))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 })
 
