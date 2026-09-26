@@ -250,6 +250,66 @@ describe("ChatWorkspace split breakpoint", () => {
     window.localStorage.clear()
   })
 
+  it("hides the mobile tab strip before a chat has started", async () => {
+    mockMobileViewport()
+    mockChatRouteFetch(chatPayload({ messages: [] }))
+
+    renderRoute()
+
+    expect(await screen.findByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Chat mobile tabs" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Whiteboard" })).not.toBeInTheDocument()
+  })
+
+  it("shows the mobile tab strip after the first message is sent", async () => {
+    mockMobileViewport()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(chatPayload({
+          messages: [
+            {
+              type: "message",
+              id: 10,
+              role: "user",
+              tool_name: null,
+              content: { text: "Start planning." },
+              text: "Start planning.",
+              bookmarkable: true
+            }
+          ]
+        })))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({ messages: [] })))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("navigation", { name: "Chat mobile tabs" })).not.toBeInTheDocument()
+
+    fireEvent.change(textarea, { target: { value: "Start planning." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+    const tabs = await screen.findByRole("navigation", { name: "Chat mobile tabs" })
+    expect(within(tabs).getByRole("button", { name: "Chat" })).toHaveClass("text-brand")
+    expect(within(tabs).getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
+  })
+
+  it("shows the mobile tab strip for an established paginated chat whose loaded tail is empty", async () => {
+    mockMobileViewport()
+    mockChatRouteFetch(chatPayload({ messages: [] }, { has_more_older: true }))
+
+    renderRoute()
+
+    expect(await screen.findByRole("navigation", { name: "Chat mobile tabs" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
+  })
+
   it("renders the mobile tab-strip layout between the 1024px app breakpoint and its own wider split breakpoint", async () => {
     mockViewportWidth(CHAT_WORKSPACE_SPLIT_MIN_WIDTH - 1)
     mockChatRouteFetch()
