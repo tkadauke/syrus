@@ -33,6 +33,7 @@ module Steps
       workspace.setup
       verify_coding_handoff_snapshot!
       restore_validated_implementation_if_missing!
+      verify_latest_coding_handoff_fix!
       workflow.set_artifact!("publication_branch", workspace.branch_name)
       log("pr_open: checking PR open preconditions (#{workflow.slug})")
 
@@ -345,7 +346,7 @@ module Steps
     end
 
     def expected_publication_head_sha
-      latest_succeeded_run_for(%w[implement run_skill])&.head_sha.to_s.presence
+      latest_succeeded_run_for(validated_implementation_step_kinds)&.head_sha.to_s.presence
     end
 
     # A Job's work branch lives only in the workspace until this step pushes
@@ -367,7 +368,7 @@ module Steps
     # Restoring is safe and cheap: it no-ops when the workspace already
     # contains the validated head, which is the overwhelmingly common case.
     def restore_validated_implementation_if_missing!
-      source_run = latest_succeeded_run_for(%w[implement run_skill])
+      source_run = latest_succeeded_run_for(validated_implementation_step_kinds)
       return if source_run.nil?
       # The validated SHA being absent does NOT mean the work is gone -- and
       # unlike summarize/summarize_amend, this step runs *after* the steps that
@@ -387,6 +388,26 @@ module Steps
       # publish or to file the Job as "no_changes". A failed rescue attempt
       # must not become a worse failure than the one it was trying to repair.
       log("pr_open: could not restore the validated implementation checkpoint: #{e.class}: #{e.message}", kind: "system")
+    end
+
+    def validated_implementation_step_kinds
+      %w[implement run_skill coding_handoff_fix]
+    end
+
+    def verify_latest_coding_handoff_fix!
+      return unless workflow.trigger_kind == "coding_handoff"
+
+      CodingHandoffRevisionGuard.verify_latest_fix!(
+        workflow: workflow,
+        job: job,
+        git: streaming_git,
+        workspace_path: workspace.path,
+        base_ref: workspace.base_ref,
+        log: method(:log)
+      )
+    rescue CodingHandoffRevisionGuard::MissingLatestFix => e
+      log("pr_open: #{e.message}", kind: "system")
+      raise StepFailed, "pr_open refused to publish a branch missing the latest coding_handoff_fix: #{e.message}"
     end
 
     def verify_existing_pr_branch_not_diverged!(git, push_url)

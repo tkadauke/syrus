@@ -1,10 +1,50 @@
 require "rails_helper"
+require "open3"
 
 RSpec.describe Steps::ForcePush do
   let(:job) { Factories.job }
   let(:workflow) { Workflows::Rebase.instantiate(job: job) }
   let(:step) { workflow.steps.find_by!(kind: "force_push") }
   let(:run) { Run.create!(job: job, step: step, trigger_kind: "rebase") }
+
+  def patch_id_for(diff)
+    output, status = Open3.capture2e("git", "patch-id", "--stable", stdin_data: diff)
+    raise output unless status.success?
+
+    output.split(/\s+/).first
+  end
+
+  def patch_diff(line)
+    <<~DIFF
+      diff --git a/app/frontend/SplitDiff.tsx b/app/frontend/SplitDiff.tsx
+      index e69de29..7898192 100644
+      --- a/app/frontend/SplitDiff.tsx
+      +++ b/app/frontend/SplitDiff.tsx
+      @@ -0,0 +1 @@
+      +#{line}
+    DIFF
+  end
+
+  def record_latest_coding_handoff_fix!(patch_id:, run_id: 200, head_sha: "latest-fix")
+    Workflow.create!(
+      job: job,
+      trigger_kind: "coding_handoff",
+      artifacts: {
+        "latest_coding_handoff_fix" => {
+          "workflow_id" => 123,
+          "step_id" => 456,
+          "run_id" => run_id,
+          "head_sha" => head_sha,
+          "patch_id" => patch_id,
+          "recorded_at" => Time.current.iso8601,
+          "visual_review" => {
+            "status" => "not_reviewed_after_latest_fix",
+            "checked_after_fix" => false
+          }
+        }
+      }
+    )
+  end
 
   it "skips pushing when deterministic auto-rebase already proved the branch was unchanged" do
     workflow.set_artifact!("auto_rebase_result", {
@@ -88,6 +128,84 @@ RSpec.describe Steps::ForcePush do
       trigger_kind: "rebase",
       label: "Rebase",
       reason: "rebase"
+    )
+  end
+
+  it "records provenance and force-pushes when the latest coding handoff fix patch survived rebase" do
+    latest_patch = patch_diff("fixed table rows")
+    record_latest_coding_handoff_fix!(patch_id: patch_id_for(latest_patch), run_id: 347, head_sha: "fix347")
+    workflow.set_artifact!("auto_rebase_result", {
+      "reason" => "conflict",
+      "pre_sha" => "abc123",
+      "base_sha" => "base123"
+    })
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace,
+                                setup: nil,
+                                branch_name: "syrus/issue-42",
+                                path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "token"))
+    allow(job.repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
+    allow(git).to receive(:run)
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/workspace").and_return("rebased-head\n")
+    allow(git).to receive(:run).with("log", "--format=email", "--patch", "base123..HEAD", chdir: "/tmp/workspace").and_return(latest_patch)
+    allow(handler).to receive(:diff_against_sha).with("base123").and_return(latest_patch)
+
+    handler.call
+
+    expect(git).to have_received(:run).with(
+      "push",
+      "--force-with-lease=refs/heads/syrus/issue-42:abc123",
+      "https://push.example/repo.git",
+      "HEAD:refs/heads/syrus/issue-42",
+      chdir: "/tmp/workspace"
+    )
+    expect(workflow.reload.artifact("coding_handoff_publication_provenance")).to include(
+      "branch_head_sha" => "rebased-head",
+      "verified" => true,
+      "visual_review" => include("status" => "not_reviewed_after_latest_fix")
+    )
+  end
+
+  it "refuses to force-push when rebase resurrected an older visual-review-failed handoff fix instead of the latest fix" do
+    rejected_patch = patch_diff("display grid rows")
+    latest_patch = patch_diff("fixed table rows")
+    record_latest_coding_handoff_fix!(patch_id: patch_id_for(latest_patch), run_id: 347, head_sha: "fix347")
+    workflow.set_artifact!("auto_rebase_result", {
+      "reason" => "conflict",
+      "pre_sha" => "abc123",
+      "base_sha" => "base123"
+    })
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace,
+                                setup: nil,
+                                branch_name: "syrus/issue-42",
+                                path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "token"))
+    allow(job.repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
+    allow(git).to receive(:run)
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/workspace").and_return("rebased-head\n")
+    allow(git).to receive(:run).with("log", "--format=email", "--patch", "base123..HEAD", chdir: "/tmp/workspace").and_return(rejected_patch)
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /missing the latest coding_handoff_fix/)
+    expect(git).not_to have_received(:run).with(
+      "push",
+      anything,
+      "https://push.example/repo.git",
+      "HEAD:refs/heads/syrus/issue-42",
+      chdir: "/tmp/workspace"
+    )
+    expect(workflow.reload.artifact("coding_handoff_publication_provenance")).to include(
+      "branch_head_sha" => "rebased-head",
+      "verified" => false
     )
   end
 

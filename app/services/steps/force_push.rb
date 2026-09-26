@@ -19,6 +19,7 @@ module Steps
 
       workspace.setup
       log("force_push: pushing rebased #{workspace.branch_name} (#{workflow.slug})")
+      verify_latest_coding_handoff_fix!
 
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_force_push", log: method(:log)) do |push_url|
@@ -39,6 +40,20 @@ module Steps
     end
 
     private
+
+    def verify_latest_coding_handoff_fix!
+      CodingHandoffRevisionGuard.verify_latest_fix!(
+        workflow: workflow,
+        job: job,
+        git: streaming_git,
+        workspace_path: workspace.path,
+        base_ref: rebase_base_sha,
+        log: method(:log)
+      )
+    rescue CodingHandoffRevisionGuard::MissingLatestFix => e
+      log("force_push: #{e.message}", kind: "system")
+      raise StepFailed, "force_push refused to publish a rebased branch missing the latest coding_handoff_fix: #{e.message}"
+    end
 
     def persist_rebase_diff_review_version!
       base_sha = rebase_base_sha
