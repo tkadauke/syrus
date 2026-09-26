@@ -102,6 +102,15 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     expect(link.className).not.toMatch(/\b(?:bg|text)-blue-\d{2,3}\b/)
   })
 
+  it("truncates recent chat titles and exposes the full title as a tooltip", () => {
+    const title = "Coding: Fix split review diff panes to divide the viewport evenly across a long recent-chat row"
+    renderSidebar([chatNav({ id: 1, title })])
+
+    const link = screen.getByRole("link", { name: title })
+    expect(link).toHaveAttribute("title", title)
+    expect(within(link).getByText(title)).toHaveClass("truncate")
+  })
+
   it("highlights a chat as active when the URL matches /chats/:id", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({

@@ -1308,6 +1308,30 @@ describe("chat slash commands", () => {
   })
 })
 
+describe("chat title layout", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("keeps the desktop chat title to one truncating line with the full title available as a tooltip", async () => {
+    const title = "Coding: Fix split review diff panes to divide the viewport evenly across a very long chat header"
+    mockChatPayload(chatPayload({ chat: { title } }))
+
+    renderRoute()
+
+    const heading = await screen.findByRole("heading", { name: title })
+    expect(heading).not.toHaveClass("break-words")
+    const titleText = screen.getByTitle(title)
+    expect(titleText).toHaveClass("truncate")
+    expect(titleText).toHaveClass("flex-1")
+  })
+})
+
 describe("chat temporal markers", () => {
   beforeEach(() => {
     window.localStorage.clear()
