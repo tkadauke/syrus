@@ -119,6 +119,27 @@ describe("ReviewableDiff", () => {
     expect(screen.getAllByTestId("diff-file-scroll")[0]).toHaveClass("overflow-x-scroll")
   })
 
+  it("keeps compact density visibly denser than comfortable across diff rows, headers, and file lists", () => {
+    const compactSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, density: "compact" as const }
+    const comfortableSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, density: "comfortable" as const }
+    const { rerender } = render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" reviewSettings={compactSettings} showFileHeaders />)
+
+    expect(screen.getAllByRole("table")[0]).toHaveClass("text-2xs")
+    expect(getCodeCellText("new")).toHaveClass("py-0", "leading-4")
+    expect(getCodeCellText("new")).not.toHaveClass("py-0.5")
+    expect(screen.getByTitle("app/models/job.rb")).toHaveClass("py-1", "text-2xs")
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+    expect(screen.getByTitle("app/models/run.rb (+1 -0)")).toHaveClass("py-1")
+
+    rerender(<ReviewableDiff changedFilesPopup files={files} mode="continuous" reviewSettings={comfortableSettings} showFileHeaders />)
+
+    expect(screen.getAllByRole("table")[0]).toHaveClass("text-xs")
+    expect(getCodeCellText("new")).toHaveClass("py-0.5")
+    expect(getCodeCellText("new")).not.toHaveClass("py-0")
+    expect(screen.getByTitle("app/models/job.rb")).toHaveClass("py-2", "text-xs")
+  })
+
   it("keeps mobile scroll-mode diffs in touch-friendly horizontal scrollers", () => {
     const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
     Object.defineProperty(window, "matchMedia", {
