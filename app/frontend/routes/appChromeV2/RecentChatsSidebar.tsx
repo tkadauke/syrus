@@ -1,6 +1,6 @@
 import { ChevronDownIcon, HideIcon, PlusIcon, TargetIcon, TeamIcon } from "./icons"
 import { type ChatSection, activeChatIdFromPath, chatSectionsFromPayload, recentChatLinkClass, sidebarChatTitle, withRoutePrefix } from "./helpers"
-import { FloatingPortal, flip, offset, shift, useFloating, useMergeRefs } from "@floating-ui/react"
+import { FloatingPortal, autoUpdate, flip, offset, shift, useFloating, useMergeRefs } from "@floating-ui/react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -464,10 +464,21 @@ function RecentChatsSettingsMenu({ settings, setSettings }: {
 }) {
   const [open, setOpen] = useState(false)
   const [submenu, setSubmenu] = useState<"root" | "status" | "group_by" | "sort_by" | "per_group">("root")
+  const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const { floatingStyles, refs: floatingRefs } = useFloating({
+    middleware: [
+      offset(8),
+      flip({ fallbackPlacements: ["right-end", "left-start", "left-end"] }),
+      shift({ padding: 8 })
+    ],
+    placement: "right-start",
+    whileElementsMounted: autoUpdate
+  })
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => {
     setOpen(false)
     setSubmenu("root")
-  })
+  }, [floatingRefs.floating])
+  const referenceRef = useMergeRefs([menuRef, floatingRefs.setReference])
   const statusLabel = optionLabel(STATUS_OPTIONS, settings.status)
   const groupByLabel = optionLabel(GROUP_BY_OPTIONS, settings.group_by)
   const sortByLabel = optionLabel(SORT_BY_OPTIONS, settings.sort_by)
@@ -476,8 +487,13 @@ function RecentChatsSettingsMenu({ settings, setSettings }: {
     setSettings((current) => updateSidebarSettings(current, patch))
   }
 
+  function closeMenu() {
+    setOpen(false)
+    setSubmenu("root")
+  }
+
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative" ref={referenceRef}>
       <button
         aria-expanded={open}
         aria-label="Recent chats settings"
@@ -489,66 +505,88 @@ function RecentChatsSettingsMenu({ settings, setSettings }: {
         <SettingsSlidersIcon />
       </button>
       {open ? (
-        <Surface className="absolute right-0 z-40 mt-1 w-64 py-1 text-sm shadow-lg" padding="none" variant="raised">
-          {submenu === "root" ? (
-            <>
-              <SettingsParentRow current={statusLabel} label="Status" onClick={() => setSubmenu("status")} />
-              <SettingsParentRow current={groupByLabel} label="Group by" onClick={() => setSubmenu("group_by")} />
-              <SettingsParentRow current={sortByLabel} label="Sort by" onClick={() => setSubmenu("sort_by")} />
-              {settings.group_by !== "date" ? (
+        <FloatingPortal>
+          <div
+            className={surfaceClasses("raised", "none", isDesktop ? "z-40 w-64 py-1 text-sm shadow-lg" : "fixed inset-0 z-50 h-dvh w-screen overflow-y-auto !rounded-none !border-0 py-3 text-sm shadow-lg")}
+            data-testid="recent-chats-settings-menu"
+            ref={floatingRefs.setFloating}
+            style={isDesktop ? floatingStyles : undefined}
+          >
+            {isDesktop ? null : (
+              <div className="mb-2 flex items-center justify-between border-b border-border px-4 pb-3">
+                <div className="font-semibold text-text-primary">Recent chats settings</div>
                 <button
-                  className={`${SIDEBAR_MENU_ROW_CLASS} justify-between`}
-                  onClick={() => apply({ show_empty_groups: !settings.show_empty_groups })}
-                  role="switch"
-                  aria-checked={settings.show_empty_groups}
+                  aria-label="Close recent chats settings"
+                  className={SIDEBAR_DIALOG_CLOSE_CLASS}
+                  onClick={closeMenu}
                   type="button"
                 >
-                  <span>Show empty groups</span>
-                  <span className={`h-5 w-9 rounded-full p-0.5 ${settings.show_empty_groups ? "bg-brand" : "bg-border"}`}>
-                    <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${settings.show_empty_groups ? "translate-x-4" : ""}`} />
-                  </span>
+                  <CloseIcon />
                 </button>
+              </div>
+            )}
+            <div className={isDesktop ? undefined : "mx-auto w-full max-w-md"}>
+              {submenu === "root" ? (
+                <>
+                  <SettingsParentRow current={statusLabel} label="Status" onClick={() => setSubmenu("status")} />
+                  <SettingsParentRow current={groupByLabel} label="Group by" onClick={() => setSubmenu("group_by")} />
+                  <SettingsParentRow current={sortByLabel} label="Sort by" onClick={() => setSubmenu("sort_by")} />
+                  {settings.group_by !== "date" ? (
+                    <button
+                      className={`${SIDEBAR_MENU_ROW_CLASS} justify-between`}
+                      onClick={() => apply({ show_empty_groups: !settings.show_empty_groups })}
+                      role="switch"
+                      aria-checked={settings.show_empty_groups}
+                      type="button"
+                    >
+                      <span>Show empty groups</span>
+                      <span className={`h-5 w-9 rounded-full p-0.5 ${settings.show_empty_groups ? "bg-brand" : "bg-border"}`}>
+                        <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${settings.show_empty_groups ? "translate-x-4" : ""}`} />
+                      </span>
+                    </button>
+                  ) : null}
+                  <SettingsParentRow current={String(settings.per_group)} label="Chats per group" onClick={() => setSubmenu("per_group")} />
+                </>
               ) : null}
-              <SettingsParentRow current={String(settings.per_group)} label="Chats per group" onClick={() => setSubmenu("per_group")} />
-            </>
-          ) : null}
-          {submenu === "status" ? (
-            <SettingsOptionList
-              label="Status"
-              onBack={() => setSubmenu("root")}
-              onSelect={(value) => apply({ status: value as ChatSidebarStatus })}
-              options={STATUS_OPTIONS}
-              value={settings.status}
-            />
-          ) : null}
-          {submenu === "group_by" ? (
-            <SettingsOptionList
-              label="Group by"
-              onBack={() => setSubmenu("root")}
-              onSelect={(value) => apply({ group_by: value as ChatSidebarGroupBy })}
-              options={GROUP_BY_OPTIONS}
-              value={settings.group_by}
-            />
-          ) : null}
-          {submenu === "sort_by" ? (
-            <SettingsOptionList
-              label="Sort by"
-              onBack={() => setSubmenu("root")}
-              onSelect={(value) => apply({ sort_by: value as ChatSidebarSortBy })}
-              options={SORT_BY_OPTIONS}
-              value={settings.sort_by}
-            />
-          ) : null}
-          {submenu === "per_group" ? (
-            <SettingsOptionList
-              label="Chats per group"
-              onBack={() => setSubmenu("root")}
-              onSelect={(value) => apply({ per_group: Number(value) as ChatSidebarPerGroup })}
-              options={PER_GROUP_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))}
-              value={String(settings.per_group)}
-            />
-          ) : null}
-        </Surface>
+              {submenu === "status" ? (
+                <SettingsOptionList
+                  label="Status"
+                  onBack={() => setSubmenu("root")}
+                  onSelect={(value) => apply({ status: value as ChatSidebarStatus })}
+                  options={STATUS_OPTIONS}
+                  value={settings.status}
+                />
+              ) : null}
+              {submenu === "group_by" ? (
+                <SettingsOptionList
+                  label="Group by"
+                  onBack={() => setSubmenu("root")}
+                  onSelect={(value) => apply({ group_by: value as ChatSidebarGroupBy })}
+                  options={GROUP_BY_OPTIONS}
+                  value={settings.group_by}
+                />
+              ) : null}
+              {submenu === "sort_by" ? (
+                <SettingsOptionList
+                  label="Sort by"
+                  onBack={() => setSubmenu("root")}
+                  onSelect={(value) => apply({ sort_by: value as ChatSidebarSortBy })}
+                  options={SORT_BY_OPTIONS}
+                  value={settings.sort_by}
+                />
+              ) : null}
+              {submenu === "per_group" ? (
+                <SettingsOptionList
+                  label="Chats per group"
+                  onBack={() => setSubmenu("root")}
+                  onSelect={(value) => apply({ per_group: Number(value) as ChatSidebarPerGroup })}
+                  options={PER_GROUP_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))}
+                  value={String(settings.per_group)}
+                />
+              ) : null}
+            </div>
+          </div>
+        </FloatingPortal>
       ) : null}
     </div>
   )
@@ -589,6 +627,32 @@ function SettingsOptionList<T extends string>({ label, onBack, onSelect, options
 
 function optionLabel<T extends string>(options: Array<{ value: T; label: string }>, value: T) {
   return options.find((option) => option.value === value)?.label || value
+}
+
+function useMediaQuery(query: string, defaultMatches: boolean) {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return defaultMatches
+
+    return window.matchMedia(query).matches
+  })
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return
+
+    const media = window.matchMedia(query)
+    const updateMatches = () => setMatches(media.matches)
+    updateMatches()
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", updateMatches)
+      return () => media.removeEventListener("change", updateMatches)
+    }
+
+    media.addListener(updateMatches)
+    return () => media.removeListener(updateMatches)
+  }, [query])
+
+  return matches
 }
 
 function SettingsSlidersIcon() {

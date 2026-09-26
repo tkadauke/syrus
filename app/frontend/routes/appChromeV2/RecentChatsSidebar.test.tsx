@@ -38,6 +38,28 @@ function renderSidebar(
   )
 }
 
+function withMatchMedia(matches: boolean) {
+  const original = Object.getOwnPropertyDescriptor(window, "matchMedia")
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  })
+
+  return () => {
+    if (original) Object.defineProperty(window, "matchMedia", original)
+    else Reflect.deleteProperty(window, "matchMedia")
+  }
+}
+
 describe("RecentChatsSidebar active chat highlighting", () => {
   it("shows a red usage-limit warning for affected chats", () => {
     renderSidebar([
@@ -223,6 +245,39 @@ describe("RecentChatsSidebar settings", () => {
     await waitFor(() => {
       expect(screen.queryByRole("switch", { name: /Show empty groups/ })).not.toBeInTheDocument()
     })
+  })
+
+  it("renders the desktop settings menu through a right-opening floating portal", () => {
+    const restoreMatchMedia = withMatchMedia(true)
+    try {
+      renderSidebar([])
+
+      fireEvent.click(screen.getByRole("button", { name: "Recent chats settings" }))
+
+      const nav = screen.getByRole("navigation", { name: "Recent chats" })
+      const menu = screen.getByTestId("recent-chats-settings-menu")
+      expect(within(nav).queryByText("Status")).not.toBeInTheDocument()
+      expect(menu).toHaveClass("w-64")
+      expect(menu).not.toHaveClass("fixed")
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
+  it("opens the settings menu full screen on mobile", () => {
+    const restoreMatchMedia = withMatchMedia(false)
+    try {
+      renderSidebar([])
+
+      fireEvent.click(screen.getByRole("button", { name: "Recent chats settings" }))
+
+      const menu = screen.getByTestId("recent-chats-settings-menu")
+      expect(menu).toHaveClass("fixed", "inset-0", "h-dvh", "w-screen")
+      fireEvent.click(screen.getByRole("button", { name: "Close recent chats settings" }))
+      expect(screen.queryByTestId("recent-chats-settings-menu")).not.toBeInTheDocument()
+    } finally {
+      restoreMatchMedia()
+    }
   })
 })
 
