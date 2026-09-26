@@ -36,6 +36,16 @@ RSpec.describe Mcp::Tools::CompleteImplementStepTool do
     JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
   end
 
+  it "does not describe Coding Mode handoff as a GitHub push prerequisite" do
+    description = described_class.description_value
+
+    expect(description).to match(/In Coding\s+Mode/)
+    expect(description).to include("do not push")
+    expect(description).to include("In Local Mode")
+    expect(description).not_to include("chat coding checkout or local daemon has committed and pushed")
+    expect(description).not_to include("branch has been pushed to the remote")
+  end
+
   it "creates a pending handoff confirmation and leaves the coding Job locked" do
     job = Factories.job_record(repository: repository, state: "implemented", kind: "direct",
                                issue_number: nil, branch_name: "syrus/job-1", pr_number: 10)
@@ -150,7 +160,25 @@ RSpec.describe Mcp::Tools::CompleteImplementStepTool do
     expect(response.dig(:result, :content, 0, :text)).to include("not linked to this chat session")
   end
 
-  it "requires branch_name for new jobs without a PR" do
+  it "allows Coding Mode new jobs without a branch_name so confirmation can capture the active checkout branch" do
+    job = Factories.job_record(repository: repository, state: "running", kind: "direct", issue_number: nil)
+    job.update_columns(linked_chat_id: chat_session.id, state: "coding", pr_number: nil, branch_name: nil)
+
+    response = call_tool(job_id: job.id)
+    result = payload(response)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(result[:message]).to include("requires operator confirmation")
+    pending_action = ChatPendingAction.find(result[:pending_action_id])
+    expect(pending_action.payload).to eq("job_id" => job.id)
+  end
+
+  it "requires branch_name for Local Mode new jobs without a PR" do
+    chat_session.update!(mode: "local")
+    Feature.find_or_create_by!(slug: "local_mode") do |record|
+      record.category = "Labs"
+      record.name = "Local Mode"
+    end.update!(enabled: true)
     job = Factories.job_record(repository: repository, state: "running", kind: "direct", issue_number: nil)
     job.update_columns(linked_chat_id: chat_session.id, state: "coding", pr_number: nil, branch_name: nil)
 

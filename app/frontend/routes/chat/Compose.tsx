@@ -60,6 +60,10 @@ type ComposerHistoryMode = {
 const CHAT_HISTORY_LIMIT = 50
 const CHAT_HISTORY_KEY_PREFIX = "syrus.chat.history."
 const STOP_BUTTON_CLASS = "inline-flex h-11 items-center justify-center rounded border border-danger-border bg-surface px-3 text-sm font-medium text-danger-text hover:bg-danger-surface disabled:text-text-muted"
+const COMPOSER_SHELL_CLASS = "relative w-full rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:p-3 dark:border-gray-700 dark:bg-gray-950/95"
+const COMPOSER_ICON_BUTTON_CLASS = "flex h-8 min-h-11 w-8 min-w-11 shrink-0 items-center justify-center rounded border border-transparent bg-transparent p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:focus-visible:ring-offset-gray-950"
+const COMPOSER_BUTTON_HOVER_CLASS = "hover:bg-gray-100 dark:hover:bg-gray-800"
+const COMPOSER_SELECTOR_TRIGGER_CLASS = "min-h-11 !border-transparent !bg-transparent !gap-1 !px-1.5 hover:!border-border hover:!bg-surface-raised focus-visible:!border-brand data-[open=true]:!border-border data-[open=true]:!bg-surface sm:min-h-0 sm:!px-2.5"
 
 
 // Chat composer extracted from Chat.tsx: the Compose input component and its whole
@@ -1683,9 +1687,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           </div>
         ) : null}
         <form
-          className={floating
-            ? `relative w-full rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
-            : `relative transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
+          className={`${COMPOSER_SHELL_CLASS} ${isDragOver ? "ring-2 ring-brand" : ""}`}
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
@@ -1927,7 +1929,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             aria-expanded={attachmentPopoverOpen}
             aria-label={t("add_attachment")}
             aria-haspopup="dialog"
-            className="h-6 min-h-11 w-6 min-w-11 shrink-0 !text-lg leading-none sm:min-h-0 sm:min-w-0 sm:text-sm"
+            className={`${COMPOSER_ICON_BUTTON_CLASS} ${COMPOSER_BUTTON_HOVER_CLASS} !border-transparent !bg-transparent !text-lg leading-none text-text-primary sm:text-sm`}
             disabled={send.isPending || systemAction.isPending}
             onClick={() => setAttachmentPopoverOpen((open) => !open)}
             ref={addAttachmentButtonRef}
@@ -1957,7 +1959,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           <div className="ml-auto flex items-center gap-1">
             <button
               aria-label={agentActive ? t("enqueue_message") : t("send_message")}
-              className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-brand hover:bg-gray-100 disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:hover:bg-gray-800"
+              className={`${COMPOSER_ICON_BUTTON_CLASS} ${COMPOSER_BUTTON_HOVER_CLASS} text-brand`}
               disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || scheduleMessage.isPending || runShellCommand.isPending || (bangCommandModeActive && shellCommandRunning) || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
               type="submit"
             >
@@ -1966,7 +1968,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             {canStashDraft ? (
               <button
                 aria-label={t("scratchpad_stash")}
-                className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-gray-400 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+                className={`${COMPOSER_ICON_BUTTON_CLASS} ${COMPOSER_BUTTON_HOVER_CLASS} text-gray-500 disabled:text-gray-300 dark:text-gray-400 dark:disabled:text-gray-600`}
                 disabled={stash.isPending || attachmentError != null}
                 onClick={() => stash.mutate(undefined)}
                 title={agentActive ? t("scratchpad_stash") : t("scratchpad_stash_tab")}
@@ -1981,7 +1983,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             ) : null}
             {agentActive && !payload.switching_provider ? (
               <StopButton
-                className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
+                className={`${COMPOSER_ICON_BUTTON_CLASS} text-red-600 hover:bg-red-50 disabled:text-gray-300 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600`}
                 payload={payload}
                 queryKey={queryKey}
               />
@@ -2391,7 +2393,7 @@ function DictationButton({
     <Button
       aria-label={label}
       aria-pressed={phase === "recording"}
-      className={`h-6 min-h-11 w-6 min-w-11 shrink-0 sm:min-h-0 sm:min-w-0 ${
+      className={`${COMPOSER_ICON_BUTTON_CLASS} ${COMPOSER_BUTTON_HOVER_CLASS} !border-transparent !bg-transparent text-text-primary ${
         active
           ? "!border-red-300 !bg-red-50 !text-red-700 hover:!bg-red-100 dark:!border-red-800 dark:!bg-red-950 dark:!text-red-300"
           : ""
@@ -2523,7 +2525,8 @@ function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; que
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("provider_selector_label")}
-        className="min-h-11 max-w-[6rem] !gap-1 !px-1.5 sm:min-h-0 sm:max-w-none sm:!px-2.5"
+        className={`${COMPOSER_SELECTOR_TRIGGER_CLASS} max-w-[6rem] sm:max-w-none`}
+        data-open={dropdownOpen ? "true" : "false"}
         disabled={switchProvider.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
@@ -2615,7 +2618,8 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("mode_selector_label")}
-        className="min-h-11 max-w-[4.5rem] !gap-1 !px-1.5 sm:min-h-0 sm:max-w-none sm:!px-2.5"
+        className={`${COMPOSER_SELECTOR_TRIGGER_CLASS} max-w-[4.5rem] sm:max-w-none`}
+        data-open={dropdownOpen ? "true" : "false"}
         disabled={mode.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
@@ -2629,7 +2633,7 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
       </Button>
       {dropdownOpen ? (
         <div
-          className="absolute bottom-full left-0 z-20 mb-1 min-w-[7rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+          className={TOOLBAR_DROPDOWN_PANEL_CLASS}
           ref={dropdownRef}
           role="listbox"
         >
@@ -2654,7 +2658,7 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
           ))}
         </div>
       ) : mode.isError ? (
-        <div className="absolute bottom-full left-0 z-20 mb-1 whitespace-nowrap rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:bg-gray-950 dark:text-red-300">
+        <div className={TOOLBAR_DROPDOWN_ERROR_CLASS}>
           {t("mode_update_error")}
         </div>
       ) : null}
@@ -2702,7 +2706,8 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("aria_chat_model")}
-        className="min-h-11 max-w-[4.5rem] !gap-1 !px-1.5 sm:min-h-0 sm:max-w-none sm:!px-2.5"
+        className={`${COMPOSER_SELECTOR_TRIGGER_CLASS} max-w-[4.5rem] sm:max-w-none`}
+        data-open={dropdownOpen ? "true" : "false"}
         disabled={updateModel.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
@@ -2716,7 +2721,7 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
       </Button>
       {dropdownOpen ? (
         <div
-          className="absolute bottom-full left-0 z-20 mb-1 min-w-[7rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+          className={TOOLBAR_DROPDOWN_PANEL_CLASS}
           ref={dropdownRef}
           role="listbox"
         >
@@ -2794,7 +2799,8 @@ function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: s
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("effort_label")}
-        className="min-h-11 max-w-[5.5rem] !gap-1 !px-1.5 sm:min-h-0 sm:max-w-none sm:!px-2.5"
+        className={`${COMPOSER_SELECTOR_TRIGGER_CLASS} max-w-[5.5rem] sm:max-w-none`}
+        data-open={dropdownOpen ? "true" : "false"}
         disabled={updateEffort.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}

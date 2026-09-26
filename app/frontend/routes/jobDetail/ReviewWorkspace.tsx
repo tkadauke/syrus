@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useState } from "react"
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "../../components/Button"
 import { SectionHeading } from "../../components/Heading"
 import { ArtifactBody } from "../../components/artifacts/TypedArtifactPanel"
@@ -21,6 +22,8 @@ import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings, patchReviewDiffS
 import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
 import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { useOptionalShortcut } from "../../contexts/ShortcutsContext"
+import { useResizableSplitter } from "../chat/useResizableSplitter"
+import { useMediaQuery } from "../dashboard/components"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { DiffReviewVersionSelector, canonicalReviewVersions, type DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
 import { ReviewDiffSettingsModal } from "./ReviewDiffSettingsModal"
@@ -29,6 +32,22 @@ import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisual
 import { Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
 
 const SURFACE = "job_review_workspace"
+const REVIEW_COMMENTS_WIDTH_KEY = "syrus.review.comments.width"
+const REVIEW_COMMENTS_COLLAPSED_KEY = "syrus.review.comments.collapsed"
+const REVIEW_COMMENTS_DEFAULT_WIDTH = 384
+const REVIEW_COMMENTS_MIN_WIDTH = 288
+const REVIEW_COMMENTS_MAX_WIDTH = 640
+const REVIEW_COMMENTS_SNAP_CLOSED_WIDTH = 224
+const REVIEW_COMMENTS_REOPEN_WIDTH = 256
+const REVIEW_COMMENTS_RAIL_WIDTH = 48
+const REVIEW_COMMENTS_PEEK_OPEN_DELAY_MS = 350
+const REVIEW_COMMENTS_PEEK_CLOSE_DELAY_MS = 150
+const REVIEW_COMMENTS_SPLITTER_CLASS =
+  "group relative z-10 hidden h-screen w-4 shrink-0 cursor-col-resize outline-none transition-colors hover:bg-brand/5 focus-visible:bg-brand/10 lg:sticky lg:top-0 lg:block"
+const REVIEW_COMMENTS_SPLITTER_GRIP_CLASS =
+  "absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-text-muted transition-opacity"
+const REVIEW_COMMENTS_RAIL_CLASS =
+  "hidden h-screen w-12 shrink-0 border-l border-border bg-surface px-1.5 py-3 lg:block"
 
 export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const { t } = useT("jobs")
@@ -59,6 +78,21 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const [selectedRange, setSelectedRange] = useState<{ baseSha: string; headSha: string } | null>(null)
   const [pendingCommentFocus, setPendingCommentFocus] = useState<DiffReviewComment | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [commentsPeekOpen, setCommentsPeekOpen] = useState(false)
+  const commentsPeekOpenTimerRef = useRef<number | null>(null)
+  const commentsPeekCloseTimerRef = useRef<number | null>(null)
+  const isDesktopSplit = useMediaQuery("(min-width: 1024px)", true)
+  const commentsSplitter = useResizableSplitter({
+    widthKey: REVIEW_COMMENTS_WIDTH_KEY,
+    collapsedKey: REVIEW_COMMENTS_COLLAPSED_KEY,
+    initialWidth: storedReviewCommentsWidth,
+    initialCollapsed: storedReviewCommentsCollapsed,
+    defaultWidth: REVIEW_COMMENTS_DEFAULT_WIDTH,
+    snapClosedWidth: REVIEW_COMMENTS_SNAP_CLOSED_WIDTH,
+    reopenWidth: REVIEW_COMMENTS_REOPEN_WIDTH,
+    resizeEdge: "start",
+    clampWidth: clampReviewCommentsWidth
+  })
   const versions = sourceDiff.data?.versions || []
   const payloadVersionId = sourceDiff.data?.version?.id ?? null
   const defaultVersionId = preferredReviewVersionId(sourceDiff.data?.version ?? null, versions)
@@ -112,6 +146,12 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   useEffect(() => {
     if (defaultVersionId && selectedVersionId == null) setSelectedVersionId(defaultVersionId)
   }, [defaultVersionId, selectedVersionId])
+
+  useEffect(() => {
+    return () => {
+      clearReviewCommentsPeekTimers(commentsPeekOpenTimerRef, commentsPeekCloseTimerRef)
+    }
+  }, [])
 
   useEffect(() => {
     if (!pendingCommentFocus || activeVersionId !== pendingCommentFocus.diff_review_version_id) return
@@ -182,6 +222,20 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     setSelectedVersionId(range.versionId)
   }
 
+  function openCommentsPeek() {
+    clearTimer(commentsPeekCloseTimerRef)
+    if (!commentsSplitter.collapsed || commentsPeekOpen) return
+    clearTimer(commentsPeekOpenTimerRef)
+    commentsPeekOpenTimerRef.current = window.setTimeout(() => setCommentsPeekOpen(true), REVIEW_COMMENTS_PEEK_OPEN_DELAY_MS)
+  }
+
+  function closeCommentsPeek() {
+    clearTimer(commentsPeekOpenTimerRef)
+    if (!commentsPeekOpen) return
+    clearTimer(commentsPeekCloseTimerRef)
+    commentsPeekCloseTimerRef.current = window.setTimeout(() => setCommentsPeekOpen(false), REVIEW_COMMENTS_PEEK_CLOSE_DELAY_MS)
+  }
+
   if (sourceDiff.isPending) return <PanelMessage>{t("review_loading")}</PanelMessage>
   if (sourceDiff.isError) return <PanelMessage tone="error">{errorMessage(sourceDiff.error, t("review_load_error"))}</PanelMessage>
   if (sourceDiff.data.diff_error) return <PanelMessage tone="error">{sourceDiff.data.diff_error}</PanelMessage>
@@ -193,8 +247,8 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   if (activeDiff.diff_error) return <PanelMessage tone="error">{activeDiff.diff_error}</PanelMessage>
 
   return (
-    <div className="grid min-w-0 max-w-full gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start">
-      <div className="min-w-0 space-y-4">
+    <div className="relative grid min-w-0 max-w-full gap-4 lg:flex lg:items-start lg:gap-0">
+      <div className="min-w-0 space-y-4 lg:flex-1">
         <Section.Root>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -273,12 +327,163 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
           />
         </Section.Root>
       </div>
-      <div className="min-w-0 max-w-full lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
-        {feedback.panel}
+      {isDesktopSplit ? (
+        <ReviewCommentsSplitterHandle
+          collapsed={commentsSplitter.collapsed}
+          label={t("review_comments_splitter_label")}
+          maxWidth={REVIEW_COMMENTS_MAX_WIDTH}
+          onClick={() => {
+            commentsSplitter.toggleCollapsed()
+            setCommentsPeekOpen(false)
+          }}
+          onKeyDown={(event) => {
+            commentsSplitter.resizeWithKeyboard(event)
+            setCommentsPeekOpen(false)
+          }}
+          onMouseDown={commentsSplitter.beginResize}
+          valueNow={commentsSplitter.collapsed ? 0 : commentsSplitter.width}
+        />
+      ) : null}
+      <div
+        className={`${isDesktopSplit && commentsSplitter.collapsed ? "hidden" : ""} min-w-0 max-w-full lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:overflow-y-auto`}
+        data-testid="review-comments-panel"
+        style={isDesktopSplit ? { width: `${commentsSplitter.width}px` } : undefined}
+      >
+        {isDesktopSplit && commentsSplitter.collapsed ? null : feedback.panel}
       </div>
+      {isDesktopSplit && commentsSplitter.collapsed ? (
+        <ReviewCommentsCollapsedRail
+          label={t("review_comments_collapsed_aria")}
+          onMouseEnter={openCommentsPeek}
+          onMouseLeave={closeCommentsPeek}
+          summaries={feedback.versionSummaries}
+        />
+      ) : null}
+      {isDesktopSplit && commentsSplitter.collapsed && commentsPeekOpen ? (
+        <div
+          className="absolute top-0 z-30 h-screen min-w-0 overflow-y-auto shadow-2xl"
+          data-testid="review-comments-peek"
+          onMouseEnter={openCommentsPeek}
+          onMouseLeave={closeCommentsPeek}
+          style={{ right: `${REVIEW_COMMENTS_RAIL_WIDTH}px`, width: `${commentsSplitter.width}px` }}
+        >
+          {feedback.panel}
+        </div>
+      ) : null}
       {settingsOpen ? <ReviewDiffSettingsModal initialSettings={reviewSettings} onClose={() => setSettingsOpen(false)} /> : null}
     </div>
   )
+}
+
+function ReviewCommentsSplitterHandle({
+  collapsed,
+  label,
+  maxWidth,
+  valueNow,
+  onClick,
+  onKeyDown,
+  onMouseDown
+}: {
+  collapsed: boolean
+  label: string
+  maxWidth: number
+  valueNow: number
+  onClick: () => void
+  onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void
+  onMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void
+}) {
+  return (
+    <div
+      aria-label={label}
+      aria-orientation="vertical"
+      aria-valuemax={maxWidth}
+      aria-valuemin={0}
+      aria-valuenow={valueNow}
+      className={REVIEW_COMMENTS_SPLITTER_CLASS}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+      onMouseDown={onMouseDown}
+      role="separator"
+      tabIndex={0}
+      title={label}
+    >
+      <span className="absolute left-1/2 top-0 h-full -translate-x-1/2 border-l border-border" />
+      <span className={`${REVIEW_COMMENTS_SPLITTER_GRIP_CLASS} ${collapsed ? "opacity-70" : "opacity-0 group-hover:opacity-70 group-focus-visible:opacity-80"}`} />
+    </div>
+  )
+}
+
+function ReviewCommentsCollapsedRail({
+  label,
+  onMouseEnter,
+  onMouseLeave,
+  summaries
+}: {
+  label: string
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+  summaries: { count: number; label: string; marker: string; versionId: number }[]
+}) {
+  return (
+    <aside
+      aria-label={label}
+      className={REVIEW_COMMENTS_RAIL_CLASS}
+      data-testid="review-comments-rail"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      <div className="flex flex-col items-center gap-3">
+        <CommentIcon />
+        <div className="flex w-full flex-col items-center gap-2">
+          {summaries.map((summary) => (
+            <div className="flex w-full flex-col items-center gap-1" data-testid="review-comments-rail-version" key={summary.versionId} title={`${summary.label}: ${summary.count}`}>
+              <span className="max-w-full truncate text-[11px] font-semibold text-gray-700 dark:text-gray-300">{summary.marker}</span>
+              <span className="min-w-5 rounded-full bg-brand px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-white">{summary.count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+function CommentIcon() {
+  return (
+    <svg aria-hidden="true" className="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+    </svg>
+  )
+}
+
+function storedReviewCommentsCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(REVIEW_COMMENTS_COLLAPSED_KEY) === "true"
+  } catch (_error) {
+    return false
+  }
+}
+
+function storedReviewCommentsWidth() {
+  try {
+    return clampReviewCommentsWidth(Number.parseInt(window.localStorage.getItem(REVIEW_COMMENTS_WIDTH_KEY) || "", 10) || REVIEW_COMMENTS_DEFAULT_WIDTH)
+  } catch (_error) {
+    return REVIEW_COMMENTS_DEFAULT_WIDTH
+  }
+}
+
+function clampReviewCommentsWidth(width: number) {
+  return Math.min(Math.max(width, REVIEW_COMMENTS_MIN_WIDTH), REVIEW_COMMENTS_MAX_WIDTH)
+}
+
+function clearReviewCommentsPeekTimers(openTimerRef: { current: number | null }, closeTimerRef: { current: number | null }) {
+  clearTimer(openTimerRef)
+  clearTimer(closeTimerRef)
+}
+
+function clearTimer(timerRef: { current: number | null }) {
+  if (timerRef.current == null) return
+  window.clearTimeout(timerRef.current)
+  timerRef.current = null
 }
 
 const REVIEW_SHORTCUT_GROUP_ORDER = 2
@@ -458,17 +663,17 @@ function VersionedArtifactsList({
   }
   const displayed = [ ...matching, ...unversioned ]
 
-  if (displayed.length === 0) return <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_artifacts_no_version_match")}</p>
+  if (displayed.length === 0) return <p className="text-sm text-text-muted">{t("review_artifacts_no_version_match")}</p>
 
   return (
     <div className="min-w-0 space-y-4">
       {displayed.map((artifact, index) => (
         <div className="min-w-0 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" key={artifactKey(artifact, index)}>
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-gray-100 px-4 py-2 dark:border-gray-800">
-            <span className="min-w-0 break-words font-semibold text-gray-800 dark:text-gray-100">{artifact.title}</span>
-            <span className="min-w-0 break-all text-xs text-gray-400">{artifact.type}</span>
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-border px-4 py-2">
+            <span className="min-w-0 break-words font-semibold text-text-primary">{artifact.title}</span>
+            <span className="min-w-0 break-all text-xs text-text-muted">{artifact.type}</span>
           </div>
-          <div className="border-b border-gray-100 px-4 py-1.5 dark:border-gray-800">
+          <div className="border-b border-border px-4 py-1.5">
             <ArtifactProvenance artifact={artifact} versions={versions} />
           </div>
           <div className="overflow-x-auto p-4">
@@ -488,7 +693,7 @@ function ArtifactProvenance({ artifact, versions }: { artifact: TypedArtifact; v
   const { t } = useT("jobs")
 
   if (!hasArtifactProvenance(artifact)) {
-    return <span className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">{t("review_artifacts_unversioned")}</span>
+    return <span className="text-xs font-medium uppercase tracking-wide text-text-muted">{t("review_artifacts_unversioned")}</span>
   }
 
   const version = artifact.diff_review_version_id != null ? versions.find((candidate) => candidate.id === artifact.diff_review_version_id) : null
@@ -502,7 +707,7 @@ function ArtifactProvenance({ artifact, versions }: { artifact: TypedArtifact; v
     artifact.base_sha && artifact.head_sha ? `${shortSha(artifact.base_sha)} → ${shortSha(artifact.head_sha)}` : null
   ].filter((part): part is string => Boolean(part))
 
-  return <span className="text-xs text-gray-500 dark:text-gray-400">{parts.join(" · ")}</span>
+  return <span className="text-xs text-text-muted">{parts.join(" · ")}</span>
 }
 
 function artifactIteration(artifact: TypedArtifact) {

@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ChatBookmark, ChatGoal, ChatGroupRecord, ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../../api/chats"
+import { jsonResponse } from "../../testSupport"
 import { RecentChatsSidebar } from "./RecentChatsSidebar"
 
 function LocationProbe() {
@@ -12,11 +13,11 @@ function LocationProbe() {
 
 function renderSidebar(
   chats: ChatNavRecord[],
-  options: { featureFlags?: Record<string, boolean>; prefix?: string; onCloseDrawer?: () => void; renderOptions?: Parameters<typeof render>[1] } = {}
+  options: { featureFlags?: Record<string, boolean>; groups?: ChatGroupRecord[]; onCloseDrawer?: () => void; onStartChat?: (repositoryId?: number | null) => void; prefix?: string; renderOptions?: Parameters<typeof render>[1] } = {}
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-    groups: [chatGroup({ chats })]
+    groups: options.groups ?? [chatGroup({ chats })]
   }))
 
   return render(
@@ -26,6 +27,7 @@ function renderSidebar(
           featureFlags={options.featureFlags ?? {}}
           onCloseDrawer={options.onCloseDrawer ?? (() => {})}
           onNotice={() => {}}
+          onStartChat={options.onStartChat}
           prefix={options.prefix ?? ""}
           userPresent
         />
@@ -34,6 +36,28 @@ function renderSidebar(
     </QueryClientProvider>,
     options.renderOptions
   )
+}
+
+function withMatchMedia(matches: boolean) {
+  const original = Object.getOwnPropertyDescriptor(window, "matchMedia")
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  })
+
+  return () => {
+    if (original) Object.defineProperty(window, "matchMedia", original)
+    else Reflect.deleteProperty(window, "matchMedia")
+  }
 }
 
 describe("RecentChatsSidebar active chat highlighting", () => {
@@ -102,6 +126,15 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     expect(link.className).not.toMatch(/\b(?:bg|text)-blue-\d{2,3}\b/)
   })
 
+  it("truncates recent chat titles and exposes the full title as a tooltip", () => {
+    const title = "Coding: Fix split review diff panes to divide the viewport evenly across a long recent-chat row"
+    renderSidebar([chatNav({ id: 1, title })])
+
+    const link = screen.getByRole("link", { name: title })
+    expect(link).toHaveAttribute("title", title)
+    expect(within(link).getByText(title)).toHaveClass("truncate")
+  })
+
   it("highlights a chat as active when the URL matches /chats/:id", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
@@ -125,6 +158,135 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     const link = screen.getByRole("link", { name: "Active Chat" })
     expect(link).toHaveClass("bg-brand/10", "text-brand")
     expect(link.className).not.toMatch(/\b(?:bg|text)-blue-\d{2,3}\b/)
+  })
+})
+
+describe("RecentChatsSidebar repository quick-start", () => {
+  it("starts a new chat attached to the repository group", () => {
+    const startChat = vi.fn()
+    renderSidebar([], {
+      groups: [
+        chatGroup({
+          key: "repository-7",
+          label: "acme/widgets",
+          repository_id: 7,
+          group_by: "repository",
+          group_value: "7",
+          chats: [chatNav({ id: 1, title: "Repo chat" })]
+        })
+      ],
+      onStartChat: startChat
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "New chat in acme/widgets" }))
+
+    expect(startChat).toHaveBeenCalledWith(7)
+  })
+})
+
+describe("RecentChatsSidebar settings", () => {
+  afterEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("refetches with selected settings and uses the same page size for show more", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.startsWith("/api/v1/app/chats/more")) {
+        return Promise.resolve(jsonResponse({ chats: [], has_more: false }))
+      }
+      if (path.startsWith("/api/v1/app/chats")) {
+        return Promise.resolve(jsonResponse(chatsIndexPayload({
+          groups: [
+            chatGroup({
+              chats: [chatNav({ id: 10, title: "First" })],
+              has_more: true
+            })
+          ]
+        })))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/"]}>
+          <RecentChatsSidebar
+            featureFlags={{}}
+            onCloseDrawer={() => {}}
+            onNotice={() => {}}
+            prefix=""
+            userPresent
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("First")
+    fireEvent.click(screen.getByRole("button", { name: "Recent chats settings" }))
+    fireEvent.click(screen.getByRole("button", { name: /Chats per group/ }))
+    fireEvent.click(screen.getByRole("button", { name: "5" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("per_group=5"), expect.anything())
+    })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Show more" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("/api/v1/app/chats/more?"), expect.anything())
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("per_group=5"), expect.anything())
+    })
+  })
+
+  it("hides the empty-group toggle when grouping by date", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload()))
+
+    renderSidebar([])
+
+    fireEvent.click(screen.getByRole("button", { name: "Recent chats settings" }))
+    expect(screen.getByRole("switch", { name: /Show empty groups/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /Group by/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Date" }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole("switch", { name: /Show empty groups/ })).not.toBeInTheDocument()
+    })
+  })
+
+  it("renders the desktop settings menu through a right-opening floating portal", () => {
+    const restoreMatchMedia = withMatchMedia(true)
+    try {
+      renderSidebar([])
+
+      fireEvent.click(screen.getByRole("button", { name: "Recent chats settings" }))
+
+      const nav = screen.getByRole("navigation", { name: "Recent chats" })
+      const menu = screen.getByTestId("recent-chats-settings-menu")
+      expect(within(nav).queryByText("Status")).not.toBeInTheDocument()
+      expect(menu).toHaveClass("w-64")
+      expect(menu).not.toHaveClass("fixed")
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
+  it("opens the settings menu full screen on mobile", () => {
+    const restoreMatchMedia = withMatchMedia(false)
+    try {
+      renderSidebar([])
+
+      fireEvent.click(screen.getByRole("button", { name: "Recent chats settings" }))
+
+      const menu = screen.getByTestId("recent-chats-settings-menu")
+      expect(menu).toHaveClass("fixed", "inset-0", "h-dvh", "w-screen")
+      fireEvent.click(screen.getByRole("button", { name: "Close recent chats settings" }))
+      expect(screen.queryByTestId("recent-chats-settings-menu")).not.toBeInTheDocument()
+    } finally {
+      restoreMatchMedia()
+    }
   })
 })
 

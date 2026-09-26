@@ -1750,8 +1750,8 @@ describe("App", () => {
       sidebarChat({ id: 20, title: "Roads latest", repository: { id: 4, slug: "acme/roads", repository_path: "/repositories/4" }, last_message_at: "2026-06-21T12:00:00Z" })
     ]
     const recentGroups = [
-      { key: "general", label: "General", repository_id: null, chats: recentChats.slice(0, 2), has_more: false },
       { key: "repository-4", label: "acme/roads", repository_id: 4, chats: [recentChats[8]], has_more: false },
+      { key: "general", label: "General", repository_id: null, chats: recentChats.slice(0, 2), has_more: false },
       { key: "repository-3", label: "acme/widgets", repository_id: 3, chats: recentChats.slice(2, 7), has_more: true }
     ]
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -1759,7 +1759,7 @@ describe("App", () => {
       if (path === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ groups: recentGroups, repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path === "/api/v1/app/chats/more?repository_id=3&before_id=14") {
+      if (path === "/api/v1/app/chats/more?group_by=repository&group_key=3&before_id=14") {
         return Promise.resolve(new Response(JSON.stringify({ chats: [recentChats[7]], has_more: false }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/chats/10") {
@@ -11992,7 +11992,12 @@ describe("App", () => {
       expect(mobileTabs).toHaveClass("min-h-[44px]", "px-[max(0.5rem,env(safe-area-inset-left))]")
       expect(screen.getByTestId("chat-message-stream")).toHaveClass("h-full", "min-h-0", "overflow-y-auto", "overscroll-contain", "p-2")
       expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("min-h-11", "text-base", "sm:min-h-9", "sm:text-sm")
-      expect(screen.getByRole("button", { name: "Add attachment" })).toHaveClass("h-6", "w-6", "min-h-11", "min-w-11", "sm:min-h-0", "sm:min-w-0")
+      const attachmentButton = screen.getByRole("button", { name: "Add attachment" })
+      expect(attachmentButton).toHaveClass("h-8", "w-8", "min-h-11", "min-w-11", "sm:min-h-0", "sm:min-w-0")
+      expect(attachmentButton.className).toContain("!border-transparent")
+      expect(attachmentButton.className).toContain("!bg-transparent")
+      expect(attachmentButton.className).toContain("hover:bg-gray-100")
+      expect(attachmentButton.className).toContain("focus-visible:ring-2")
       expect(screen.getByRole("button", { name: "Effort" })).toHaveClass("min-h-11", "sm:min-h-0")
       expect(screen.getByText("Discuss aqueducts.").parentElement?.parentElement).toHaveClass("px-0", "sm:rounded")
 

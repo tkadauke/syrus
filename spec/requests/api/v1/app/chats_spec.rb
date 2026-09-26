@@ -539,6 +539,74 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["chats"].map { |chat| chat["id"] }).to eq([ chats.last.id ])
   end
 
+  it "filters recent sidebar chats by requested visibility status" do
+    sign_in_as(user)
+    active_chat = ChatSession.create!(user: user, repository: repository, title: "Active chat", last_message_at: 1.hour.ago)
+    hidden_chat = ChatSession.create!(user: user, repository: repository, title: "Hidden chat", hidden_at: Time.current, last_message_at: 2.hours.ago)
+
+    get "/api/v1/app/chats", params: { status: "hidden" }
+
+    expect(response).to have_http_status(:ok)
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    expect(group["chats"].map { |chat| chat["id"] }).to eq([ hidden_chat.id ])
+
+    get "/api/v1/app/chats", params: { status: "all" }
+
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    expect(group["chats"].map { |chat| chat["id"] }).to contain_exactly(active_chat.id, hidden_chat.id)
+  end
+
+  it "groups recent sidebar chats by status and includes empty status groups when requested" do
+    sign_in_as(user)
+    ChatSession.create!(user: user, title: "Only hidden", hidden_at: Time.current, last_message_at: 1.hour.ago)
+
+    get "/api/v1/app/chats", params: { status: "all", group_by: "status", show_empty_groups: "1" }
+
+    expect(response).to have_http_status(:ok)
+    groups = parse_body["groups"].index_by { |group| group["key"] }
+    expect(groups.keys).to include("status-active", "status-hidden")
+    expect(groups.fetch("status-active")["chats"]).to eq([])
+    expect(groups.fetch("status-hidden")["chats"].map { |chat| chat["title"] }).to eq([ "Only hidden" ])
+  end
+
+  it "sorts sidebar chats by name within pinned bands" do
+    sign_in_as(user)
+    beta = ChatSession.create!(user: user, repository: repository, title: "Beta", last_message_at: 1.minute.ago)
+    alpha = ChatSession.create!(user: user, repository: repository, title: "Alpha", last_message_at: 2.minutes.ago)
+    pinned_zeta = ChatSession.create!(user: user, repository: repository, title: "Zeta", pinned: true, last_message_at: 3.minutes.ago)
+
+    get "/api/v1/app/chats", params: { sort_by: "name" }
+
+    expect(response).to have_http_status(:ok)
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    expect(group["chats"].map { |chat| chat["id"] }).to eq([ pinned_zeta.id, alpha.id, beta.id ])
+  end
+
+  it "uses requested chats per group for initial and additional sidebar pages" do
+    sign_in_as(user)
+    chats = 7.times.map do |index|
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        title: "Chat #{index}",
+        last_message_at: (index + 1).hours.ago
+      )
+      chat.update_columns(created_at: chat.last_message_at, updated_at: chat.last_message_at)
+      chat
+    end
+
+    get "/api/v1/app/chats", params: { per_group: "5" }
+
+    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
+    expect(group["chats"].map { |chat| chat["id"] }).to eq(chats.first(5).map(&:id))
+    expect(group["has_more"]).to eq(true)
+
+    get "/api/v1/app/chats/more", params: { group_by: "repository", group_key: repository.id, before_id: group["chats"].last["id"], per_group: "5" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["chats"].map { |chat| chat["id"] }).to eq(chats.last(2).map(&:id))
+  end
+
   describe "chat search" do
     before do
       allow(AppEvents).to receive(:broadcast)

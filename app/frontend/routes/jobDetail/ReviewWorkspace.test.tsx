@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
@@ -51,6 +51,8 @@ vi.mock("../../api/reviewDiffSettings", async (importOriginal) => {
 })
 
 beforeEach(() => {
+  window.localStorage.clear()
+  vi.useRealTimers()
   vi.mocked(createDiffReviewComment).mockReset()
   vi.mocked(deleteDiffReviewComment).mockReset()
   vi.mocked(fetchDiffReviewComments).mockReset()
@@ -67,6 +69,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 function renderWorkspace(payload = jobPayload()) {
@@ -509,6 +512,118 @@ describe("ReviewWorkspace", () => {
     const sidebarSection = await screen.findByText("Diff comments")
     const stickyWrapper = sidebarSection.closest("section")?.parentElement
     expect(stickyWrapper).toHaveClass("lg:sticky", "lg:top-0", "lg:h-screen", "lg:overflow-y-auto")
+  })
+
+  it("renders the comments splitter expanded at the previous default width", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Diff comments")
+    const separator = screen.getByRole("separator", { name: "Resize diff comments" })
+    expect(separator).toHaveAttribute("aria-valuenow", "384")
+    expect(separator).toHaveClass("h-screen", "lg:sticky", "lg:top-0")
+    expect(screen.getByTestId("review-comments-panel")).toHaveStyle({ width: "384px" })
+    expect(screen.queryByTestId("review-comments-rail")).not.toBeInTheDocument()
+  })
+
+  it("collapses and reopens the comments panel with a splitter click and remembers the preference", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Diff comments")
+    const separator = screen.getByRole("separator", { name: "Resize diff comments" })
+
+    fireEvent.click(separator)
+
+    expect(screen.getByTestId("review-comments-panel")).toHaveClass("hidden")
+    expect(screen.getByTestId("review-comments-rail")).toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.review.comments.collapsed")).toBe("true")
+
+    fireEvent.click(separator)
+
+    expect(screen.getByTestId("review-comments-panel")).not.toHaveClass("hidden")
+    expect(screen.queryByTestId("review-comments-rail")).not.toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.review.comments.collapsed")).toBe("false")
+  })
+
+  it("restores a persisted custom comments width", async () => {
+    window.localStorage.setItem("syrus.review.comments.width", "512")
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Diff comments")
+    expect(screen.getByTestId("review-comments-panel")).toHaveStyle({ width: "512px" })
+    expect(screen.getByRole("separator", { name: "Resize diff comments" })).toHaveAttribute("aria-valuenow", "512")
+  })
+
+  it("resizes from the splitter and snaps the comments panel collapsed below the threshold", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Diff comments")
+    const separator = screen.getByRole("separator", { name: "Resize diff comments" })
+
+    fireEvent.mouseDown(separator, { clientX: 1000 })
+    fireEvent.mouseMove(window, { clientX: 900 })
+    fireEvent.mouseUp(window, { clientX: 900 })
+
+    expect(screen.getByTestId("review-comments-panel")).toHaveStyle({ width: "484px" })
+    expect(window.localStorage.getItem("syrus.review.comments.width")).toBe("484")
+
+    fireEvent.mouseDown(separator, { clientX: 900 })
+    fireEvent.mouseMove(window, { clientX: 1200 })
+    fireEvent.mouseUp(window, { clientX: 1200 })
+
+    expect(screen.getByTestId("review-comments-panel")).toHaveClass("hidden")
+    expect(window.localStorage.getItem("syrus.review.comments.collapsed")).toBe("true")
+  })
+
+  it("shows collapsed rail badges only for versions with comments and peeks the panel on hover", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
+      version: version({ id: 300, version_index: 3, label: "Preview fixture without comments" }),
+      versions: [
+        version({ id: 100, version_index: 1, label: "Preview fixture" }),
+        version({ id: 200, version_index: 2, label: "Long repair label" }),
+        version({ id: 300, version_index: 3, label: "Preview fixture without comments" })
+      ]
+    }))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([
+      comment({ id: 1, diff_review_version_id: 100, diff_review_version: version({ id: 100, version_index: 1, label: "Preview fixture" }) }),
+      comment({ id: 2, diff_review_version_id: 200, diff_review_version: version({ id: 200, version_index: 2, label: "Long repair label" }), body: "Comment on v2." }),
+      comment({ id: 3, diff_review_version_id: 200, diff_review_version: version({ id: 200, version_index: 2, label: "Long repair label" }), body: "Another comment on v2." })
+    ], 300))
+
+    renderWorkspace()
+
+    await screen.findByText("Diff comments")
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole("separator", { name: "Resize diff comments" }))
+
+    const rail = screen.getByTestId("review-comments-rail")
+    expect(within(rail).getByText("v1")).toBeInTheDocument()
+    expect(within(rail).getByText("1")).toBeInTheDocument()
+    expect(within(rail).getByText("v2")).toBeInTheDocument()
+    expect(within(rail).getByText("2")).toBeInTheDocument()
+    expect(within(rail).queryByText("Preview fixture")).not.toBeInTheDocument()
+    expect(within(rail).queryByText("Long repair label")).not.toBeInTheDocument()
+    expect(within(rail).queryByText("v3")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("review-comments-peek")).not.toBeInTheDocument()
+
+    fireEvent.mouseEnter(rail)
+    act(() => vi.advanceTimersByTime(349))
+    expect(screen.queryByTestId("review-comments-peek")).not.toBeInTheDocument()
+
+    act(() => vi.advanceTimersByTime(1))
+    expect(screen.getByTestId("review-comments-peek")).toBeInTheDocument()
+    expect(within(screen.getByTestId("review-comments-peek")).getByText("Comment on v2.")).toBeInTheDocument()
   })
 
   it("keeps the sidebar column from stretching the mobile grid track past the viewport", async () => {

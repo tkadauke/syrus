@@ -1,12 +1,12 @@
-import { ChevronDownIcon, HideIcon, TargetIcon, TeamIcon } from "./icons"
+import { ChevronDownIcon, HideIcon, PlusIcon, TargetIcon, TeamIcon } from "./icons"
 import { type ChatSection, activeChatIdFromPath, chatSectionsFromPayload, recentChatLinkClass, sidebarChatTitle, withRoutePrefix } from "./helpers"
-import { FloatingPortal, flip, offset, shift, useFloating, useMergeRefs } from "@floating-ui/react"
+import { FloatingPortal, autoUpdate, flip, offset, shift, useFloating, useMergeRefs } from "@floating-ui/react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../../api/chats"
+import { DEFAULT_CHAT_SIDEBAR_SETTINGS, cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatSidebarGroupBy, type ChatSidebarPerGroup, type ChatSidebarSettings, type ChatSidebarSortBy, type ChatSidebarStatus, type ChatsIndexPayload } from "../../api/chats"
 import { ApiError } from "../../api/client"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -14,10 +14,35 @@ import { CopyableSlug } from "../../components/CopyableSlug"
 import { Input } from "../../components/Input"
 import { PinIcon } from "../../components/PinIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
+import { Surface, surfaceClasses } from "../../components/ui"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
+import { recentChatsQueryKey, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
 import { chatQueryKey } from "../Chat"
 
+const SIDEBAR_SETTINGS_KEY = "syrus.recent_chats_sidebar.settings"
+const DEFAULT_SIDEBAR_SETTINGS = DEFAULT_CHAT_SIDEBAR_SETTINGS
+const STATUS_OPTIONS: Array<{ value: ChatSidebarStatus; label: string }> = [
+  { value: "active", label: "Active" },
+  { value: "hidden", label: "Hidden" },
+  { value: "all", label: "All" }
+]
+const GROUP_BY_OPTIONS: Array<{ value: ChatSidebarGroupBy; label: string }> = [
+  { value: "date", label: "Date" },
+  { value: "repository", label: "Repository" },
+  { value: "status", label: "Status" },
+  { value: "mode", label: "Mode" }
+]
+const SORT_BY_OPTIONS: Array<{ value: ChatSidebarSortBy; label: string }> = [
+  { value: "name", label: "Name" },
+  { value: "date_created", label: "Date created" },
+  { value: "last_activity", label: "Last activity" }
+]
+const PER_GROUP_OPTIONS: ChatSidebarPerGroup[] = [5, 10, 15, 20]
+const SIDEBAR_MENU_ROW_CLASS = "flex w-full items-center gap-3 px-3 py-2 text-left text-text-primary hover:bg-surface-subtle"
+const SIDEBAR_ACTION_BUTTON_CLASS = "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-text-primary hover:bg-surface-subtle"
+const SIDEBAR_DANGER_BUTTON_CLASS = "flex w-full items-center gap-2 px-3 py-2 text-left text-danger-text hover:bg-danger-surface disabled:cursor-not-allowed disabled:opacity-60"
+const SIDEBAR_DIVIDER_CLASS = "my-1 border-t border-border"
+const SIDEBAR_DIALOG_CLOSE_CLASS = "rounded p-1 text-text-secondary hover:bg-surface-subtle hover:text-text-primary"
 
 // Recent-chats sidebar extracted from AppChromeV2.tsx: the recent-chats list
 // (RecentChatsSidebar) with its activity marker and per-chat actions menu.
@@ -33,7 +58,56 @@ function findScrollParent(el: HTMLElement): HTMLElement | null {
   return null
 }
 
-export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, prefix, userPresent }: { featureFlags: Record<string, boolean>; onCloseDrawer: () => void; onNotice: (message: string | null) => void; prefix: string; userPresent: boolean }) {
+function readSidebarSettings(): ChatSidebarSettings {
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_SETTINGS_KEY)
+    if (!raw) return DEFAULT_SIDEBAR_SETTINGS
+
+    const parsed = JSON.parse(raw) as Partial<ChatSidebarSettings> | null
+    if (!parsed || typeof parsed !== "object") return DEFAULT_SIDEBAR_SETTINGS
+
+    return normalizeSidebarSettings(parsed)
+  } catch {
+    return DEFAULT_SIDEBAR_SETTINGS
+  }
+}
+
+function writeSidebarSettings(settings: ChatSidebarSettings) {
+  try {
+    window.localStorage.setItem(SIDEBAR_SETTINGS_KEY, JSON.stringify(settings))
+  } catch {
+    // Sidebar settings are a convenience preference; the default view still works.
+  }
+}
+
+function normalizeSidebarSettings(settings: Partial<ChatSidebarSettings>): ChatSidebarSettings {
+  const status = STATUS_OPTIONS.some((option) => option.value === settings.status) ? settings.status as ChatSidebarStatus : DEFAULT_SIDEBAR_SETTINGS.status
+  const groupBy = GROUP_BY_OPTIONS.some((option) => option.value === settings.group_by) ? settings.group_by as ChatSidebarGroupBy : DEFAULT_SIDEBAR_SETTINGS.group_by
+  const sortBy = SORT_BY_OPTIONS.some((option) => option.value === settings.sort_by) ? settings.sort_by as ChatSidebarSortBy : DEFAULT_SIDEBAR_SETTINGS.sort_by
+  const perGroup = PER_GROUP_OPTIONS.includes(settings.per_group as ChatSidebarPerGroup) ? settings.per_group as ChatSidebarPerGroup : DEFAULT_SIDEBAR_SETTINGS.per_group
+
+  return {
+    status,
+    group_by: groupBy,
+    sort_by: sortBy,
+    show_empty_groups: groupBy === "date" ? false : settings.show_empty_groups === true,
+    per_group: perGroup
+  }
+}
+
+function updateSidebarSettings(current: ChatSidebarSettings, patch: Partial<ChatSidebarSettings>) {
+  return normalizeSidebarSettings({ ...current, ...patch })
+}
+
+export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onStartChat, prefix, startingChat = false, userPresent }: {
+  featureFlags: Record<string, boolean>
+  onCloseDrawer: () => void
+  onNotice: (message: string | null) => void
+  onStartChat?: (repositoryId?: number | null) => void
+  prefix: string
+  startingChat?: boolean
+  userPresent: boolean
+}) {
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -45,18 +119,27 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
   const [loadingSections, setLoadingSections] = useState<Set<string>>(() => new Set())
   const [hidingChatIds, setHidingChatIds] = useState<Set<number>>(() => new Set())
   const [deletingChatIds, setDeletingChatIds] = useState<Set<number>>(() => new Set())
+  const [sidebarSettings, setSidebarSettings] = useState<ChatSidebarSettings>(readSidebarSettings)
   const [draggingOverChatId, setDraggingOverChatId] = useState<number | null>(null)
   const navigateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sidebarRootRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
   const activeChatId = activeChatIdFromPath(location.pathname)
+  const sidebarQueryKey = useMemo(() => recentChatsQueryKey(sidebarSettings), [sidebarSettings])
   const chats = useQuery({
-    queryKey: ["chats", "recent"],
-    queryFn: fetchChats,
+    queryKey: sidebarQueryKey,
+    queryFn: () => fetchChats(sidebarSettings),
     enabled: userPresent,
     staleTime: 30_000
   })
+  const settingsKey = useMemo(() => JSON.stringify(sidebarSettings), [sidebarSettings])
   const sections = useMemo(() => chatSectionsFromPayload(chats.data?.groups || [], loadedSections), [chats.data?.groups, loadedSections])
+
+  useEffect(() => {
+    writeSidebarSettings(sidebarSettings)
+    setLoadedSections({})
+    setLoadingSections(new Set())
+  }, [settingsKey])
 
   function showLess(key: string) {
     setLoadedSections((current) => {
@@ -83,7 +166,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
     if (!beforeChat || loadingSections.has(section.key)) return
 
     setLoadingSections((current) => new Set(current).add(section.key))
-    void fetchMoreChatsForGroup(section.repository_id, beforeChat.id).then((payload) => {
+    void fetchMoreChatsForGroup(section, beforeChat.id, sidebarSettings).then((payload) => {
       setLoadedSections((current) => {
         const existing = current[section.key]
         const existingIds = new Set([
@@ -162,7 +245,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
   }
 
   function removeChatFromRecentLists(chatId: number) {
-    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
+    queryClient.setQueryData<ChatsIndexPayload>(sidebarQueryKey, (current) => {
       if (!current) return current
 
       return {
@@ -228,6 +311,10 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
       }}
       ref={sidebarRootRef}
     >
+      <div className="mb-2 flex items-center justify-between gap-2 px-2">
+        <div className="min-w-0 text-2xs font-semibold uppercase tracking-normal text-gray-500 dark:text-gray-400">{t("nav:recent_chats_aria")}</div>
+        <RecentChatsSettingsMenu settings={sidebarSettings} setSettings={setSidebarSettings} />
+      </div>
       <nav aria-label={t("nav:recent_chats_aria")} className="space-y-4">
         {sections.map((section) => {
           const collapsed = collapsedSections.has(section.key)
@@ -239,21 +326,34 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
 
           return (
             <section className="space-y-1" key={section.key}>
-              <h2>
+              <h2 className="flex min-w-0 items-center gap-1">
                 <button
                   aria-expanded={!collapsed}
-                  className="flex w-full min-w-0 items-center gap-1 rounded px-2 py-1 text-left text-2xs font-semibold uppercase tracking-normal text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800"
+                  className="flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-1 text-left text-2xs font-semibold uppercase tracking-normal text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800"
                   onClick={() => toggleCollapsedSection(section.key)}
                   type="button"
                 >
                   <ChevronDownIcon className={collapsed ? "-rotate-90" : ""} />
                   <span className="min-w-0 flex-1 truncate">{section.label}</span>
                 </button>
+                {section.group_by === "repository" && section.repository_id != null && onStartChat ? (
+                  <button
+                    aria-label={`New chat in ${section.label}`}
+                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-400 dark:hover:bg-gray-800"
+                    disabled={startingChat}
+                    onClick={() => onStartChat(section.repository_id)}
+                    title={`New chat in ${section.label}`}
+                    type="button"
+                  >
+                    <PlusIcon />
+                  </button>
+                ) : null}
               </h2>
               <div className="space-y-0.5">
                 {visibleChats.map((chat) => {
                   const active = chat.id === activeChatId
                   const unread = chat.unread && !active
+                  const title = sidebarChatTitle(chat, t("chat:new_title"))
                   return (
                     <div
                       className={`group relative flex min-w-0 items-center rounded${draggingOverChatId === chat.id ? " animate-drag-blink dark:animate-drag-blink-dark" : ""}`}
@@ -279,6 +379,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
                       <Link
                         className={`${recentChatLinkClass(active)} pr-9`}
                         onClick={onCloseDrawer}
+                        title={title}
                         to={withRoutePrefix(chat.chat_path, prefix)}
                       >
                         <ChatModeIcon codingModeEnabled={codingModeEnabled} localModeEnabled={localModeEnabled} mode={chat.mode} />
@@ -291,7 +392,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
                           <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
                         ) : null}
                         <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
-                        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat, t("chat:new_title"))}</span>
+                        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{title}</span>
                         <span className="flex shrink-0 items-start gap-1 group-hover:hidden">
                           <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />
                           {chat.active_goal && (chat.active_goal.status === "active" || chat.active_goal.status === "paused") ? (
@@ -356,6 +457,231 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
         })}
       </nav>
     </div>
+  )
+}
+
+function RecentChatsSettingsMenu({ settings, setSettings }: {
+  settings: ChatSidebarSettings
+  setSettings: (updater: (current: ChatSidebarSettings) => ChatSidebarSettings) => void
+}) {
+  const { t } = useTranslation("nav")
+  const [open, setOpen] = useState(false)
+  const [submenu, setSubmenu] = useState<"root" | "status" | "group_by" | "sort_by" | "per_group">("root")
+  const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const { floatingStyles, refs: floatingRefs } = useFloating({
+    middleware: [
+      offset(8),
+      flip({ fallbackPlacements: ["right-end", "left-start", "left-end"] }),
+      shift({ padding: 8 })
+    ],
+    placement: "right-start",
+    whileElementsMounted: autoUpdate
+  })
+  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => {
+    setOpen(false)
+    setSubmenu("root")
+  }, [floatingRefs.floating])
+  const referenceRef = useMergeRefs([menuRef, floatingRefs.setReference])
+  const statusLabel = optionLabel(STATUS_OPTIONS, settings.status)
+  const groupByLabel = optionLabel(GROUP_BY_OPTIONS, settings.group_by)
+  const sortByLabel = optionLabel(SORT_BY_OPTIONS, settings.sort_by)
+
+  function apply(patch: Partial<ChatSidebarSettings>) {
+    setSettings((current) => updateSidebarSettings(current, patch))
+  }
+
+  function closeMenu() {
+    setOpen(false)
+    setSubmenu("root")
+  }
+
+  return (
+    <div className="relative" ref={referenceRef}>
+      <button
+        aria-expanded={open}
+        aria-label={t("recent_chats_settings")}
+        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-400 dark:hover:bg-gray-800"
+        onClick={() => setOpen((value) => !value)}
+        title={t("recent_chats_settings")}
+        type="button"
+      >
+        <SettingsSlidersIcon />
+      </button>
+      {open ? (
+        <FloatingPortal>
+          <div
+            className={surfaceClasses("raised", "none", isDesktop ? "z-40 w-64 py-1 text-sm shadow-lg" : "fixed inset-0 z-50 h-dvh w-screen overflow-y-auto !rounded-none !border-0 py-3 text-sm shadow-lg")}
+            data-testid="recent-chats-settings-menu"
+            ref={floatingRefs.setFloating}
+            style={isDesktop ? floatingStyles : undefined}
+          >
+            {isDesktop ? null : (
+              <div className="mb-2 flex items-center justify-between border-b border-border px-4 pb-3">
+                <div className="font-semibold text-text-primary">{t("recent_chats_settings")}</div>
+                <button
+                  aria-label={t("recent_chats_settings_close")}
+                  className={SIDEBAR_DIALOG_CLOSE_CLASS}
+                  onClick={closeMenu}
+                  type="button"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+            )}
+            <div className={isDesktop ? undefined : "mx-auto w-full max-w-md"}>
+              {submenu === "root" ? (
+                <>
+                  <SettingsParentRow current={statusLabel} label="Status" onClick={() => setSubmenu("status")} />
+                  <SettingsParentRow current={groupByLabel} label="Group by" onClick={() => setSubmenu("group_by")} />
+                  <SettingsParentRow current={sortByLabel} label="Sort by" onClick={() => setSubmenu("sort_by")} />
+                  {settings.group_by !== "date" ? (
+                    <button
+                      className={`${SIDEBAR_MENU_ROW_CLASS} justify-between`}
+                      onClick={() => apply({ show_empty_groups: !settings.show_empty_groups })}
+                      role="switch"
+                      aria-checked={settings.show_empty_groups}
+                      type="button"
+                    >
+                      <span>{t("recent_chats_show_empty_groups")}</span>
+                      <span className={`h-5 w-9 rounded-full p-0.5 ${settings.show_empty_groups ? "bg-brand" : "bg-border"}`}>
+                        <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${settings.show_empty_groups ? "translate-x-4" : ""}`} />
+                      </span>
+                    </button>
+                  ) : null}
+                  <SettingsParentRow current={String(settings.per_group)} label="Chats per group" onClick={() => setSubmenu("per_group")} />
+                </>
+              ) : null}
+              {submenu === "status" ? (
+                <SettingsOptionList
+                  label="Status"
+                  onBack={() => setSubmenu("root")}
+                  onSelect={(value) => apply({ status: value as ChatSidebarStatus })}
+                  options={STATUS_OPTIONS}
+                  value={settings.status}
+                />
+              ) : null}
+              {submenu === "group_by" ? (
+                <SettingsOptionList
+                  label="Group by"
+                  onBack={() => setSubmenu("root")}
+                  onSelect={(value) => apply({ group_by: value as ChatSidebarGroupBy })}
+                  options={GROUP_BY_OPTIONS}
+                  value={settings.group_by}
+                />
+              ) : null}
+              {submenu === "sort_by" ? (
+                <SettingsOptionList
+                  label="Sort by"
+                  onBack={() => setSubmenu("root")}
+                  onSelect={(value) => apply({ sort_by: value as ChatSidebarSortBy })}
+                  options={SORT_BY_OPTIONS}
+                  value={settings.sort_by}
+                />
+              ) : null}
+              {submenu === "per_group" ? (
+                <SettingsOptionList
+                  label="Chats per group"
+                  onBack={() => setSubmenu("root")}
+                  onSelect={(value) => apply({ per_group: Number(value) as ChatSidebarPerGroup })}
+                  options={PER_GROUP_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))}
+                  value={String(settings.per_group)}
+                />
+              ) : null}
+            </div>
+          </div>
+        </FloatingPortal>
+      ) : null}
+    </div>
+  )
+}
+
+function SettingsParentRow({ current, label, onClick }: { current: string; label: string; onClick: () => void }) {
+  return (
+    <button className={SIDEBAR_MENU_ROW_CLASS} onClick={onClick} type="button">
+      <span className="min-w-0 flex-1">{label}</span>
+      <span className="truncate text-xs text-text-secondary">{current}</span>
+      <ChevronRightIcon />
+    </button>
+  )
+}
+
+function SettingsOptionList<T extends string>({ label, onBack, onSelect, options, value }: { label: string; onBack: () => void; onSelect: (value: T) => void; options: Array<{ value: T; label: string }>; value: T }) {
+  return (
+    <>
+      <button className={`${SIDEBAR_MENU_ROW_CLASS} font-semibold`} onClick={onBack} type="button">
+        <ChevronRightIcon className="rotate-180" />
+        {label}
+      </button>
+      <div className={SIDEBAR_DIVIDER_CLASS} />
+      {options.map((option) => (
+        <button
+          className={SIDEBAR_MENU_ROW_CLASS}
+          key={option.value}
+          onClick={() => onSelect(option.value)}
+          type="button"
+        >
+          <CheckIcon visible={option.value === value} />
+          <span>{option.label}</span>
+        </button>
+      ))}
+    </>
+  )
+}
+
+function optionLabel<T extends string>(options: Array<{ value: T; label: string }>, value: T) {
+  return options.find((option) => option.value === value)?.label || value
+}
+
+function useMediaQuery(query: string, defaultMatches: boolean) {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return defaultMatches
+
+    return window.matchMedia(query).matches
+  })
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return
+
+    const media = window.matchMedia(query)
+    const updateMatches = () => setMatches(media.matches)
+    updateMatches()
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", updateMatches)
+      return () => media.removeEventListener("change", updateMatches)
+    }
+
+    media.addListener(updateMatches)
+    return () => media.removeListener(updateMatches)
+  }, [query])
+
+  return matches
+}
+
+function SettingsSlidersIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <path d="M5 7h9m3 0h2M5 12h2m3 0h9M5 17h7m3 0h4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      <circle cx="16" cy="7" r="1.75" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="9" cy="12" r="1.75" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="14" cy="17" r="1.75" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  )
+}
+
+function ChevronRightIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={`h-4 w-4 shrink-0 ${className}`} fill="none" viewBox="0 0 24 24">
+      <path d="m9 6 6 6-6 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  )
+}
+
+function CheckIcon({ visible }: { visible: boolean }) {
+  return (
+    <svg aria-hidden="true" className={`h-4 w-4 shrink-0 ${visible ? "text-brand" : "text-transparent"}`} fill="none" viewBox="0 0 24 24">
+      <path d="m5 12 4 4 10-10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
   )
 }
 
@@ -512,7 +838,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
       {open ? (
         <FloatingPortal>
           <div
-            className="z-50 w-48 rounded border border-gray-200 bg-white py-1 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-950"
+            className={surfaceClasses("raised", "none", "z-50 w-48 py-1 text-xs")}
             ref={floatingRefs.setFloating}
             style={floatingStyles}
           >
@@ -541,9 +867,9 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
           ) : (
             <div className="px-3 py-2 text-gray-400 dark:text-gray-500">{t("chat:no_bookmarks")}</div>
           )}
-          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+          <div className={SIDEBAR_DIVIDER_CLASS} />
           <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            className={SIDEBAR_ACTION_BUTTON_CLASS}
             onClick={() => {
               onTogglePin()
               setOpen(false)
@@ -554,7 +880,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
             {chat.pinned ? t("chat:unpin") : t("chat:pin")}
           </button>
           <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            className={SIDEBAR_ACTION_BUTTON_CLASS}
             disabled={markRead.isPending || markUnread.isPending}
             onClick={() => chat.unread ? markRead.mutate() : markUnread.mutate()}
             type="button"
@@ -562,7 +888,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
             {chat.unread ? t("chat:mark_as_read") : t("chat:mark_as_unread")}
           </button>
           <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            className={SIDEBAR_ACTION_BUTTON_CLASS}
             onClick={() => {
               setOpen(false)
               setRenameOpen(true)
@@ -573,7 +899,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
           </button>
           {chat.coding_checkout_uncommitted ? (
             <button
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-amber-300 dark:hover:bg-amber-950/40"
+              className={`${SIDEBAR_ACTION_BUTTON_CLASS} text-warning-text hover:bg-warning-surface disabled:cursor-not-allowed disabled:opacity-60`}
               disabled={discardCodingChanges.isPending}
               onClick={() => discardCodingChanges.mutate()}
               type="button"
@@ -581,13 +907,13 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
               {t("chat:discard_coding_changes")}
             </button>
           ) : null}
-          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+          <div className={SIDEBAR_DIVIDER_CLASS} />
           <div className="px-3 py-1.5">
             <CopyableSlug slug={`CHAT-${chat.id}`} />
           </div>
-          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+          <div className={SIDEBAR_DIVIDER_CLASS} />
           <button
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"
+            className={SIDEBAR_DANGER_BUTTON_CLASS}
             disabled={disabled}
             onClick={() => {
               setOpen(false)
@@ -599,7 +925,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
             <span>{t("chat:hide")}</span>
           </button>
           <button
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"
+            className={SIDEBAR_DANGER_BUTTON_CLASS}
             disabled={deleteDisabled}
             onClick={() => {
               setOpen(false)
@@ -620,14 +946,14 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
           instead of the viewport. */}
       {renameOpen ? createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
-          <form aria-modal="true" className="w-full max-w-sm rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-950" onSubmit={submitRename} role="dialog">
+          <form aria-modal="true" className={surfaceClasses("panel", "md", "w-full max-w-sm shadow-xl")} onSubmit={submitRename} role="dialog">
             <div className="flex items-start justify-between gap-3">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("chat:rename_chat_title")}</h2>
-              <button aria-label={t("chat:cancel")} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" disabled={rename.isPending} onClick={() => setRenameOpen(false)} type="button">
+              <h2 className="text-base font-semibold text-text-primary">{t("chat:rename_chat_title")}</h2>
+              <button aria-label={t("chat:cancel")} className={SIDEBAR_DIALOG_CLOSE_CLASS} disabled={rename.isPending} onClick={() => setRenameOpen(false)} type="button">
                 <CloseIcon className="h-4 w-4" />
               </button>
             </div>
-            <label className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor={`rename-chat-${chat.id}`}>{t("chat:rename_chat_label")}</label>
+            <label className="mt-4 block text-sm font-medium text-text-primary" htmlFor={`rename-chat-${chat.id}`}>{t("chat:rename_chat_label")}</label>
             <Input
               autoFocus
               className="mt-1"
@@ -649,14 +975,14 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
       ) : null}
       {deleteConfirmOpen ? createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
-          <div aria-modal="true" className="w-full max-w-sm rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-950" role="dialog">
+          <Surface aria-modal="true" className="w-full max-w-sm shadow-xl" role="dialog">
             <div className="flex items-start justify-between gap-3">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("chat:delete_chat_title")}</h2>
-              <button aria-label={t("chat:cancel")} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={() => setDeleteConfirmOpen(false)} type="button">
+              <h2 className="text-base font-semibold text-text-primary">{t("chat:delete_chat_title")}</h2>
+              <button aria-label={t("chat:cancel")} className={SIDEBAR_DIALOG_CLOSE_CLASS} onClick={() => setDeleteConfirmOpen(false)} type="button">
                 <CloseIcon className="h-4 w-4" />
               </button>
             </div>
-            <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">{t("chat:delete_confirm_body")}</p>
+            <p className="mt-3 text-sm text-text-secondary">{t("chat:delete_confirm_body")}</p>
             <div className="mt-4 flex justify-end gap-2">
               <Button onClick={() => setDeleteConfirmOpen(false)} variant="secondary">{t("chat:cancel")}</Button>
               <Button
@@ -670,7 +996,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
                 {t("chat:delete_confirm")}
               </Button>
             </div>
-          </div>
+          </Surface>
         </div>,
         document.body
       ) : null}

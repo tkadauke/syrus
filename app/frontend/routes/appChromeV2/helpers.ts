@@ -109,6 +109,8 @@ export type ChatSection = {
   key: string
   label: string
   repository_id: number | null
+  group_by?: ChatGroupRecord["group_by"]
+  group_value?: string | null
   chats: ChatNavRecord[]
   has_more: boolean
 }
@@ -124,18 +126,16 @@ export function chatSectionsFromPayload(groups: ChatGroupRecord[], loadedSection
         seen.add(chat.id)
         return true
       })
-      .sort(compareChatsByLastMessage)
     return {
       key: group.key,
       label: group.label,
       repository_id: group.repository_id,
+      group_by: group.group_by,
+      group_value: group.group_value,
       chats,
-      has_more: loaded?.has_more ?? group.has_more,
-      activeAt: Math.max(...chats.map(chatActivityTime))
+      has_more: loaded?.has_more ?? group.has_more
     }
   })
-    .sort((left, right) => right.activeAt - left.activeAt)
-    .map(({ activeAt: _activeAt, ...group }) => group)
 }
 
 export function compareChatsByLastMessage(left: ChatNavRecord, right: ChatNavRecord) {

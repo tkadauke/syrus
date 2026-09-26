@@ -29,6 +29,8 @@ module Api
           "claim the Epic as a developer to elaborate it.".freeze
 
         def index
+          return unless validate_chat_index_settings
+
           render json: PerformanceLogging.phase("chats_index_payload") {
             {
               groups: PerformanceLogging.phase("chats_index.groups") { recent_chats_index_json },
@@ -44,17 +46,26 @@ module Api
             return
           end
 
-          repository_id = chat_index_repository_id
-          return if performed?
+          return unless validate_chat_index_settings
 
-          scope = chat_index_group_scope(repository_id)
+          group_by = chat_index_settings.fetch(:group_by)
+          group_key = params[:group_key].to_s.presence
+          if group_key.blank? && group_by == "repository" && params[:repository_id].present?
+            group_key = params[:repository_id].to_s == "general" ? "general" : params[:repository_id].to_s
+          end
+          if group_key.blank?
+            render_error("validation_failed", "group_key is required.", status: :unprocessable_content)
+            return
+          end
+
+          scope = chat_index_group_scope(group_by: group_by, group_key: group_key)
           cursor = scope.find_by(id: before_id)
           unless cursor
             render_error("not_found", "Chat cursor was not found.", status: :not_found)
             return
           end
 
-          render json: PerformanceLogging.phase("chats_more_payload", before_id: before_id, repository_id: repository_id) {
+          render json: PerformanceLogging.phase("chats_more_payload", before_id: before_id, group_by: group_by, group_key: group_key) {
             chats, has_more = paginated_chat_index_group(scope, before_chat: cursor)
             context = PerformanceLogging.phase("chats_more.context", count: chats.size) { chat_index_context_for(chats) }
             {

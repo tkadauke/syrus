@@ -9,6 +9,7 @@ import * as chatsApi from "../api/chats"
 import * as maintenanceApi from "../api/maintenanceTasks"
 import type { ChatGroupRecord, ChatNavRecord, ChatsIndexPayload, MoreChatsPayload } from "../api/chats"
 import type { MaintenanceTask } from "../api/maintenanceTasks"
+import { recentChatsQueryKey } from "../lib/chatCache"
 import { AppChromeV2 } from "./AppChromeV2"
 import { SIDEBAR_COLLAPSED_KEY, SIDEBAR_WIDTH_KEY, adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
 import { buildAdminNavItems, filterAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
@@ -832,6 +833,49 @@ describe("AppChromeV2", () => {
     expect(fetchNewChat).not.toHaveBeenCalled()
   })
 
+  it("does not reuse an unstarted chat from a filtered recent-chat cache", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(recentChatsQueryKey({ status: "hidden" }), {
+      groups: [
+        chatGroup({
+          chats: [
+            chatNav({
+              id: 12,
+              title: null,
+              title_pending: true,
+              chat_path: "/chats/12",
+              current: false,
+              last_message_at: null,
+              created_at: "2026-06-01T00:00:00Z",
+              updated_at: "2026-06-01T00:00:00Z"
+            })
+          ]
+        })
+      ],
+      repositories: []
+    })
+    vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({ default_repository_id: 7 })
+    vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
+      message: "Chat created.",
+      redirect_to: "/chats/14",
+      chat: chatNav({ id: 14, title: null, title_pending: false, chat_path: "/chats/14", last_message_at: null }) as chatsApi.ChatRecord
+    })
+
+    renderAppChrome(<LocationProbe />, {
+      initialEntries: ["/app-shell/dashboard/jobs"],
+      queryClient,
+      routeWrapper: true
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14")
+    })
+    expect(chatsApi.fetchNewChat).toHaveBeenCalledTimes(1)
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7)
+  })
+
   it("creates an empty chat with the default repository and navigates to the returned chat path", async () => {
     vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({ default_repository_id: 7 })
     vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
@@ -1547,6 +1591,30 @@ describe("AppChromeV2 desktop sidebar collapse", () => {
     expect(peek).toHaveAttribute("inert")
   })
 
+  it("keeps the collapsed hover rail full-height above sticky top controls and the peek", async () => {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true")
+    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar")
+      .mockResolvedValue({ tasks: [maintenanceTask({ title: "Repair stale indexes" })] })
+
+    renderAppChrome(<div>Dashboard</div>, { bootstrap: bootstrapPayload({ team_user_count: 3 }) })
+
+    const sidebar = screen.getByTestId("desktop-sidebar")
+    const peek = screen.getByTestId("sidebar-peek")
+    const separator = screen.getByRole("separator", { name: "Resize sidebar" })
+    const newChatButton = within(sidebar).getByRole("button", { name: "New Chat" })
+    const topActionBlock = newChatButton.parentElement
+
+    expect(within(sidebar).getByRole("button", { name: "New group chat" })).toBeInTheDocument()
+    expect(await within(peek).findByText("Repair stale indexes")).toBeInTheDocument()
+    expect(topActionBlock?.className).toContain("sticky")
+    expect(topActionBlock?.className).toContain("z-20")
+    expect(peek.className).toContain("z-30")
+    expect(separator.className).toContain("absolute")
+    expect(separator.className).toContain("inset-y-0")
+    expect(separator.className).toContain("z-40")
+    expect(separator.className).toContain("hover:bg-brand/30")
+  })
+
   it("does not focus the closed peek search input from the global search shortcut", () => {
     vi.useFakeTimers()
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true")
@@ -1604,7 +1672,7 @@ describe("AppChromeV2 recent chats", () => {
         })))
       }
 
-      if (path === "/api/v1/app/chats/more?repository_id=general&before_id=2") {
+      if (path === "/api/v1/app/chats/more?group_by=repository&group_key=general&before_id=2") {
         return Promise.resolve(jsonResponse(moreChatsPayload({
           chats: [
             chatNav({ id: 2, title: "Main query overlap", last_message_at: "2026-06-27T12:01:00Z" }),
@@ -1634,8 +1702,8 @@ describe("AppChromeV2 recent chats", () => {
           groups: [
             chatGroup({
               chats: [
-                chatNav({ id: 1, title: "Recent unpinned", pinned: false, last_message_at: "2026-06-27T12:02:00Z" }),
-                chatNav({ id: 2, title: "Older pinned", pinned: true, last_message_at: "2026-06-27T12:00:00Z" })
+                chatNav({ id: 2, title: "Older pinned", pinned: true, last_message_at: "2026-06-27T12:00:00Z" }),
+                chatNav({ id: 1, title: "Recent unpinned", pinned: false, last_message_at: "2026-06-27T12:02:00Z" })
               ]
             })
           ]
@@ -2518,7 +2586,7 @@ describe("chatSectionsFromPayload", () => {
       }
     )
 
-    expect(sections[0].chats.map((chat) => chat.id)).toEqual([3, 2, 1])
+    expect(sections[0].chats.map((chat) => chat.id)).toEqual([2, 1, 3])
     expect(sections[0].chats.filter((chat) => chat.id === 2)).toHaveLength(1)
     expect(sections[0].has_more).toBe(false)
   })

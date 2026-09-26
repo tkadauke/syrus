@@ -487,7 +487,7 @@ describe("ChatWorkspacePanel coding files", () => {
     renderWorkspacePanel(makePlanningFilesPayload())
     fireEvent.click(await screen.findByRole("button", { name: "README.md" }))
 
-    expect(await screen.findByTestId("coding-source-viewer")).toBeInTheDocument()
+    await waitFor(() => expect(fetchCodingFileContent).toHaveBeenCalledWith("/api/v1/app/chats/1/coding_file", "README.md", null))
     expect(screen.queryByRole("button", { name: "Diff" })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Commit")).not.toBeInTheDocument()
     expect(fetchCodingCommits).not.toHaveBeenCalled()
@@ -575,6 +575,21 @@ describe("ChatWorkspacePanel coding files", () => {
     fireEvent.click(screen.getByRole("button", { name: "Diff" }))
 
     expect(await screen.findByRole("separator", { name: "Resize diff file list" })).toBeInTheDocument()
+  })
+
+  it("keeps the selected-file diff header above clipped line-number gutters", async () => {
+    mockTwoFileDiff()
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+    fireEvent.click(await screen.findByRole("button", { name: /app\/a\.ts/ }))
+
+    expect(await screen.findByTestId("coding-diff-viewer")).toBeInTheDocument()
+
+    expect(screen.getByTestId("coding-diff-content")).toHaveClass("relative", "isolate", "overflow-x-hidden", "overflow-y-auto")
+    expect(screen.getByTestId("coding-diff-selected-file-header")).toHaveClass("sticky", "top-0", "z-20", "bg-gray-50", "dark:bg-gray-950")
+    expect(screen.getByTestId("coding-diff-table-body")).toHaveClass("relative", "z-0", "overflow-hidden")
+    expect(screen.getByTestId("coding-diff-viewer-scroll")).toHaveClass("overflow-x-scroll")
   })
 
   it("resizes the Diff file list when dragging the divider", async () => {

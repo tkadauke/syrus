@@ -499,6 +499,11 @@ describe("chat compose with an omitted attachment_groups payload", () => {
     renderRoute()
 
     expect(await screen.findByText("What would you like to build?")).toBeInTheDocument()
+    const textarea = screen.getByPlaceholderText("Ask about this repository...")
+    const form = textarea.closest("form") as HTMLFormElement
+    expect(form.className).toContain("rounded-3xl")
+    expect(form.className).toContain("border-gray-200")
+    expect(form.className).toContain("shadow-lg")
   })
 })
 
@@ -1305,6 +1310,30 @@ describe("chat slash commands", () => {
     })
     const messageCall = fetchMock.mock.calls.find(([input]) => String(input) === "/api/v1/app/chats/8/message")
     expect(JSON.parse(messageCall?.[1]?.body as string).chat_message.text).toContain("get_job_diff MCP tool for job 2204")
+  })
+})
+
+describe("chat title layout", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("keeps the desktop chat title to one truncating line with the full title available as a tooltip", async () => {
+    const title = "Coding: Fix split review diff panes to divide the viewport evenly across a very long chat header"
+    mockChatPayload(chatPayload({ chat: { title } }))
+
+    renderRoute()
+
+    const heading = await screen.findByRole("heading", { name: title })
+    expect(heading).not.toHaveClass("break-words")
+    const titleText = screen.getByTitle(title)
+    expect(titleText).toHaveClass("truncate")
+    expect(titleText).toHaveClass("flex-1")
   })
 })
 
@@ -4195,25 +4224,41 @@ describe("floating composer control order", () => {
     expect(wrapper.className).toContain("sm:block")
   })
 
-  it("renders the effort selector's trigger through the shared Button component, matching its mode/model siblings", async () => {
+  it("renders selector triggers with the shared quiet composer treatment", async () => {
     mockDesktopViewport()
     mockChatRouteFetch(fullControlsPayload())
     renderRoute()
 
     const mode = await screen.findByRole("button", { name: "Change mode" })
+    const model = screen.getByRole("button", { name: "Chat model" })
     const effort = screen.getByRole("button", { name: "Effort" })
 
-    // Button's semantic-token secondary-variant + font-medium classes:
-    // regression guard for the raw gray-scale/lighter-weight styling that
-    // made the effort selector visibly mismatch "Planning"/"Default".
-    for (const token of ["border-border", "bg-surface", "text-text-primary", "font-medium"]) {
-      expect(effort.className).toContain(token)
+    for (const button of [mode, model, effort]) {
+      expect(button.className).toContain("!border-transparent")
+      expect(button.className).toContain("!bg-transparent")
+      expect(button.className).toContain("hover:!border-border")
+      expect(button.className).toContain("focus-visible:!border-brand")
+      expect(button.className).toContain("data-[open=true]:!border-border")
+      expect(button).toHaveAttribute("data-open", "false")
     }
     expect(effort.className).not.toMatch(/\btext-gray-600\b/)
     expect(effort.className).not.toContain("py-1 ")
 
     // Same trigger shape (label span + trailing chevron svg) as the sibling selectors.
     expect(effort.children).toHaveLength(mode.children.length)
+  })
+
+  it("marks selector triggers open so the quiet border can appear with the menu", async () => {
+    mockDesktopViewport()
+    mockChatRouteFetch(fullControlsPayload())
+    renderRoute()
+
+    const mode = await screen.findByRole("button", { name: "Change mode" })
+    fireEvent.click(mode)
+
+    expect(mode).toHaveAttribute("aria-expanded", "true")
+    expect(mode).toHaveAttribute("data-open", "true")
+    expect(screen.getByRole("listbox")).toHaveClass("border-gray-200")
   })
 
   it("sizes the dictation and attachment icon buttons without the text-oriented padding that squeezed their icons", async () => {
@@ -4227,6 +4272,12 @@ describe("floating composer control order", () => {
     for (const button of [attachment, dictation]) {
       expect(button.className).not.toContain("px-2.5")
       expect(button.className).not.toContain("py-1.5")
+      expect(button.className).toContain("!border-transparent")
+      expect(button.className).toContain("!bg-transparent")
+      expect(button.className).toContain("hover:bg-gray-100")
+      expect(button.className).toContain("focus-visible:ring-2")
+      expect(button.className).toContain("min-h-11")
+      expect(button.className).toContain("min-w-11")
     }
 
     const micIcon = dictation.querySelector("svg")
@@ -6144,7 +6195,8 @@ describe("attached coding Job strip", () => {
     mockDesktopViewport()
   })
 
-  it("renders the attached Job identity, state, checkout branch, and actions", async () => {
+  it("renders the attached Job as a copyable slug without state or checkout branch clutter", async () => {
+    const clipboard = mockClipboardWrite()
     mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }, {
       coding_mode_enabled: true,
       attached_coding_job: attachedCodingJob()
@@ -6154,10 +6206,11 @@ describe("attached coding Job strip", () => {
     const strip = await screen.findByTestId("attached-coding-job-strip")
 
     expect(within(strip).getByText("Attached Job")).toBeInTheDocument()
-    expect(within(strip).getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/app-shell/jobs/42")
+    fireEvent.click(within(strip).getByRole("button", { name: "Copy JOB-42 to clipboard" }))
+    await waitFor(() => expect(clipboard).toHaveBeenCalledWith("JOB-42"))
     expect(within(strip).getByText("Repair aqueduct flow")).toBeInTheDocument()
-    expect(within(strip).getByText("coding")).toBeInTheDocument()
-    expect(within(strip).getByText("syrus/job-42")).toBeInTheDocument()
+    expect(within(strip).queryByText("coding")).not.toBeInTheDocument()
+    expect(within(strip).queryByText("syrus/job-42")).not.toBeInTheDocument()
     expect(within(strip).getByRole("button", { name: "Submit" })).toBeEnabled()
     expect(within(strip).getByRole("button", { name: "Detach" })).toBeEnabled()
   })
@@ -6235,7 +6288,7 @@ describe("attached coding Job strip", () => {
     )
 
     const strip = await screen.findByTestId("attached-coding-job-strip")
-    expect(within(strip).getByText("coding")).toBeInTheDocument()
+    expect(within(strip).getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument()
 
     act(() => {
       queryClient.setQueryData(chatQueryKey("8", ""), chatPayload({ chat: { mode: "coding" } }, {
@@ -6600,15 +6653,24 @@ describe("chat provider selector in toolbar", () => {
 
     const button = await screen.findByRole("button", { name: "Change provider" })
     expect(button).toHaveTextContent("Claude")
+    expect(button.className).toContain("!border-transparent")
+    expect(button.className).toContain("!bg-transparent")
+    expect(button.className).toContain("hover:!border-border")
+    expect(button.className).toContain("focus-visible:!border-brand")
+    expect(button.className).toContain("data-[open=true]:!border-border")
+    expect(button).toHaveAttribute("data-open", "false")
   })
 
   it("opens a listbox with only the configured provider options on click", async () => {
     mockChatRouteFetch(landingPayload())
     renderRoute()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Change provider" }))
+    const button = await screen.findByRole("button", { name: "Change provider" })
+    fireEvent.click(button)
 
     const listbox = screen.getByRole("listbox")
+    expect(button).toHaveAttribute("data-open", "true")
+    expect(listbox).toHaveClass("border-gray-200")
     expect(within(listbox).getByRole("option", { name: "Claude" })).toBeInTheDocument()
     expect(within(listbox).getByRole("option", { name: "Codex" })).toBeInTheDocument()
   })
