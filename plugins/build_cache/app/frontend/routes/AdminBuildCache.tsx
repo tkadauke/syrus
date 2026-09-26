@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react"
+import { useLocation } from "react-router-dom"
 import { Button, DataTable, Notice, Page, Section, SectionHeading, Text } from "@app/components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "@app/api/client"
@@ -28,14 +29,18 @@ import {
 } from "@app/components/dataTable"
 import type { DataTableSortDirection } from "@app/components/ui/DataTable"
 import { AdminDataTablePanel } from "@app/components/AdminEventLogPanel"
+import { AdminEventFilterBar, type AdminEventFilterField } from "@app/components/AdminEventLogPanel"
+import { buildFlatFilterLink } from "@app/lib/flatFilterLink"
 
 const QUERY_KEY = ["admin", "build_cache"]
 const STATS_QUERY_KEY = ["admin", "build_cache", "stats"]
+const FILTER_FIELDS = ["state", "scope", "older_than_days", "reason", "user_id", "confirmed_since", "cancelled_since", "created_since", "updated_since", "result_status"] as const
 
 export function AdminBuildCache() {
   const { t } = useT("build_cache")
+  const location = useLocation()
   usePageTitle(t("page_title_build_cache"))
-  const query = useQuery({ queryKey: QUERY_KEY, queryFn: () => fetchAdminBuildCache() })
+  const query = useQuery({ queryKey: [...QUERY_KEY, location.search], queryFn: () => fetchAdminBuildCache(location.search) })
 
   return (
     <Page.Root aria-label={t("build_cache.aria_main")} gutter="responsive" size="wide">
@@ -51,12 +56,12 @@ export function AdminBuildCache() {
 
       {query.isPending ? <Notice>{t("build_cache.loading")}</Notice> : null}
       {query.isError ? <Notice tone="danger">{query.error instanceof ApiError ? query.error.message : t("build_cache.error_load")}</Notice> : null}
-      {query.isSuccess ? <BuildCacheContent payload={query.data} /> : null}
+      {query.isSuccess ? <BuildCacheContent payload={query.data} search={location.search} /> : null}
     </Page.Root>
   )
 }
 
-function BuildCacheContent({ payload }: { payload: AdminBuildCachePayload }) {
+function BuildCacheContent({ payload, search }: { payload: AdminBuildCachePayload; search: string }) {
   const { t } = useT("build_cache")
 
   if (!payload.configured) {
@@ -67,9 +72,33 @@ function BuildCacheContent({ payload }: { payload: AdminBuildCachePayload }) {
     <>
       <StatsCard configured={payload.configured} initial={payload} />
       {payload.pending_request ? <PendingRequestCard request={payload.pending_request} /> : <ClearRequestForm />}
+      <AdminEventFilterBar
+        buildLink={buildFlatFilterLink(FILTER_FIELDS)}
+        clearLabel={t("build_cache.clear_filters")}
+        fields={buildCacheFilterFields(t)}
+        filter={payload.filter}
+        filterSchema={payload.filter_schema}
+        search={search}
+        searchLabel={t("build_cache.search")}
+      />
       <RecentRequestsCard requests={payload.recent_requests} />
     </>
   )
+}
+
+function buildCacheFilterFields(t: (key: string) => string): AdminEventFilterField[] {
+  return [
+    { name: "state", label: t("build_cache.filter_state"), options: ["pending", "confirmed", "cancelled"].map((value) => ({ label: t(`build_cache.state_${value}`), value })) },
+    { name: "scope", label: t("build_cache.filter_scope"), options: ["full", "partial"].map((value) => ({ label: t(`build_cache.scope_${value}`), value })) },
+    { name: "older_than_days", label: t("build_cache.filter_older_than_days"), inputMode: "numeric" },
+    { name: "reason", label: t("build_cache.filter_reason") },
+    { name: "user_id", label: t("build_cache.filter_user"), inputMode: "numeric" },
+    { name: "confirmed_since", label: t("build_cache.filter_confirmed_since"), placeholder: "1h" },
+    { name: "cancelled_since", label: t("build_cache.filter_cancelled_since"), placeholder: "1h" },
+    { name: "created_since", label: t("build_cache.filter_created_since"), placeholder: "1h" },
+    { name: "updated_since", label: t("build_cache.filter_updated_since"), placeholder: "1h" },
+    { name: "result_status", label: t("build_cache.filter_result"), options: ["present", "empty", "truncated"].map((value) => ({ label: t(`build_cache.result_${value}`), value })) }
+  ]
 }
 
 function StatsCard({ configured, initial }: { configured: boolean; initial?: AdminBuildCacheStatsPayload }) {
@@ -159,7 +188,7 @@ function ClearRequestForm() {
         reason
       }),
     onSuccess: (updated) => {
-      queryClient.setQueryData(QUERY_KEY, updated)
+      queryClient.setQueriesData({ queryKey: QUERY_KEY }, updated)
       setReason("")
     }
   })
@@ -240,11 +269,11 @@ function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
 
   const confirmMutation = useMutation({
     mutationFn: () => confirmBuildCacheClearRequest(request.id),
-    onSuccess: (updated) => queryClient.setQueryData(QUERY_KEY, updated)
+    onSuccess: (updated) => queryClient.setQueriesData({ queryKey: QUERY_KEY }, updated)
   })
   const cancelMutation = useMutation({
     mutationFn: () => cancelBuildCacheClearRequest(request.id),
-    onSuccess: (updated) => queryClient.setQueryData(QUERY_KEY, updated)
+    onSuccess: (updated) => queryClient.setQueriesData({ queryKey: QUERY_KEY }, updated)
   })
 
   async function onConfirmClick() {
@@ -354,6 +383,11 @@ function requestSortValue(request: BuildCacheClearRequest, column: string) {
   if (column === "reason") return request.reason
   if (column === "requested_by") return request.requested_by ?? ""
   if (column === "created_at") return request.created_at
+  if (column === "older_than_days") return request.older_than_days ?? 0
+  if (column === "confirmed_at") return request.confirmed_at ?? ""
+  if (column === "cancelled_at") return request.cancelled_at ?? ""
+  if (column === "updated_at") return request.updated_at
+  if (column === "result_status") return request.result_status
   return request.id
 }
 
@@ -380,6 +414,14 @@ function recentRequestColumns(t: (key: string, options?: Record<string, unknown>
       renderCell: (request) => <RequestStateBadge state={request.state} />
     },
     {
+      key: "older_than_days",
+      label: t("build_cache.col_older_than_days"),
+      cellClassName: "whitespace-nowrap align-top text-gray-600 dark:text-gray-300",
+      defaultVisible: false,
+      sortKey: "older_than_days",
+      renderCell: (request) => request.older_than_days ?? "—"
+    },
+    {
       key: "reason",
       label: t("build_cache.col_reason"),
       cellClassName: "max-w-xl align-top text-gray-600 dark:text-gray-300",
@@ -391,6 +433,14 @@ function recentRequestColumns(t: (key: string, options?: Record<string, unknown>
       label: t("build_cache.col_result"),
       cellClassName: "align-top text-gray-600 dark:text-gray-300",
       renderCell: (request) => request.result ? t("build_cache.result_summary", { count: request.result.deleted_count, size: formatBytes(request.result.bytes_freed) }) : "—"
+    },
+    {
+      key: "result_status",
+      label: t("build_cache.col_result_status"),
+      cellClassName: "whitespace-nowrap align-top text-gray-600 dark:text-gray-300",
+      defaultVisible: false,
+      sortKey: "result_status",
+      renderCell: (request) => t(`build_cache.result_${request.result_status}`)
     },
     {
       key: "requested_by",
@@ -405,6 +455,30 @@ function recentRequestColumns(t: (key: string, options?: Record<string, unknown>
       cellClassName: "whitespace-nowrap align-top text-gray-600 dark:text-gray-300",
       sortKey: "created_at",
       renderCell: (request) => <RelativeTimestamp value={request.created_at} />
+    },
+    {
+      key: "confirmed_at",
+      label: t("build_cache.col_confirmed"),
+      cellClassName: "whitespace-nowrap align-top text-gray-600 dark:text-gray-300",
+      defaultVisible: false,
+      sortKey: "confirmed_at",
+      renderCell: (request) => request.confirmed_at ? <RelativeTimestamp value={request.confirmed_at} /> : "—"
+    },
+    {
+      key: "cancelled_at",
+      label: t("build_cache.col_cancelled"),
+      cellClassName: "whitespace-nowrap align-top text-gray-600 dark:text-gray-300",
+      defaultVisible: false,
+      sortKey: "cancelled_at",
+      renderCell: (request) => request.cancelled_at ? <RelativeTimestamp value={request.cancelled_at} /> : "—"
+    },
+    {
+      key: "updated_at",
+      label: t("build_cache.col_updated"),
+      cellClassName: "whitespace-nowrap align-top text-gray-600 dark:text-gray-300",
+      defaultVisible: false,
+      sortKey: "updated_at",
+      renderCell: (request) => <RelativeTimestamp value={request.updated_at} />
     }
   ]
 }

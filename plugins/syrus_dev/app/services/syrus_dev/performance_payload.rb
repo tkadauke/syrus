@@ -56,6 +56,10 @@ module SyrusDev
       chips << { field: "since", op: "is", value: since_param } if since_param.present?
       chips << { field: "until", op: "is", value: until_param } if until_param.present?
       chips << { field: "revision_scope", op: "is", value: revision_scope }
+      %i[event_name request_id trace_id job_class path controller action sql_fingerprint].each do |field|
+        value = params[field]
+        chips << { field: field.to_s, op: "is", value: value.to_s } if value.present?
+      end
       { and: chips }
     end
 
@@ -67,7 +71,15 @@ module SyrusDev
         { field: "revision_scope", label: "Revision scope", bucket: "enum", operators: [ "is" ], values: [
           { value: "current", label: "Current SHA" },
           { value: "all", label: "All SHAs" }
-        ] }
+        ] },
+        { field: "event_name", label: "Event", bucket: "text", operators: [ "is" ], expansions: { placeholder: PerformanceLogging::SLOW_REQUEST_EVENT } },
+        { field: "request_id", label: "Request ID", bucket: "text", operators: [ "is" ] },
+        { field: "trace_id", label: "Trace ID", bucket: "text", operators: [ "is" ] },
+        { field: "job_class", label: "Job class", bucket: "text", operators: [ "is" ] },
+        { field: "path", label: "Path", bucket: "text", operators: [ "is" ], expansions: { placeholder: "/api/v1/app/..." } },
+        { field: "controller", label: "Controller", bucket: "text", operators: [ "is" ] },
+        { field: "action", label: "Action", bucket: "text", operators: [ "is" ] },
+        { field: "sql_fingerprint", label: "SQL fingerprint", bucket: "text", operators: [ "is" ] }
       ]
     end
 
@@ -77,7 +89,17 @@ module SyrusDev
 
     def filtered_events(events)
       events.select do |event|
-        matches_app_revision?(event) && matches_since?(event) && matches_until?(event)
+        matches_app_revision?(event) &&
+          matches_since?(event) &&
+          matches_until?(event) &&
+          matches_text_filter?(event, :event_name, event_type(event)) &&
+          matches_text_filter?(event, :request_id, event["request_id"]) &&
+          matches_text_filter?(event, :trace_id, event["trace_id"]) &&
+          matches_text_filter?(event, :job_class, event["job_class"]) &&
+          matches_text_filter?(event, :path, event["path"]) &&
+          matches_text_filter?(event, :controller, event["controller"]) &&
+          matches_text_filter?(event, :action, event["action"]) &&
+          matches_sql_fingerprint?(event)
       end
     end
 
@@ -111,6 +133,19 @@ module SyrusDev
 
     def matches_until?(event)
       until_time.blank? || event_time(event) <= until_time
+    end
+
+    def matches_text_filter?(event, key, value)
+      filter = params[key].to_s.strip
+      filter.blank? || value.to_s.include?(filter)
+    end
+
+    def matches_sql_fingerprint?(event)
+      filter = params[:sql_fingerprint].to_s.strip
+      return true if filter.blank?
+
+      event["fingerprint"].to_s.include?(filter) ||
+        Array(event["top_sql_fingerprints"]).any? { |entry| entry["fingerprint"].to_s.include?(filter) }
     end
 
     def event_time(event)

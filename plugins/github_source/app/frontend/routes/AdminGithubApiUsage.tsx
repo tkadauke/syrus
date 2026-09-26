@@ -11,6 +11,22 @@ import { fetchGithubApiUsage, type GithubApiUsageOperationRow, type GithubApiUsa
 import { Button } from "@app/components/Button"
 import { buildFlatFilterLink } from "@app/lib/flatFilterLink"
 
+const FILTER_FIELDS = [
+  "hours",
+  "operation",
+  "resource",
+  "auth_source",
+  "credential_key",
+  "repository_id",
+  "repo_slug",
+  "user_id",
+  "installation_id",
+  "status",
+  "rate_limited",
+  "bucket_since",
+  "last_seen_since"
+] as const
+
 function number(value: number | null | undefined) {
   return typeof value === "number" ? value.toLocaleString() : "-"
 }
@@ -45,7 +61,7 @@ export default function AdminGithubApiUsage() {
       title="GitHub API Usage"
     >
       <AdminEventFilterBar
-        buildLink={buildFlatFilterLink(["hours"])}
+        buildLink={buildFlatFilterLink(FILTER_FIELDS)}
         filter={payload?.filter}
         filterSchema={payload?.filter_schema}
         fields={[
@@ -60,7 +76,19 @@ export default function AdminGithubApiUsage() {
               { label: "3 days", value: "72" },
               { label: "7 days", value: "168" }
             ]
-          }
+          },
+          { name: "operation", label: "Operation", placeholder: "pull_request" },
+          { name: "resource", label: "Resource", placeholder: "core" },
+          { name: "auth_source", label: "Auth source", placeholder: "pat" },
+          { name: "credential_key", label: "Credential key", placeholder: "user:1" },
+          { name: "repository_id", label: "Repository ID", inputMode: "numeric" },
+          { name: "repo_slug", label: "Repository slug", placeholder: "owner/name" },
+          { name: "user_id", label: "User ID", inputMode: "numeric" },
+          { name: "installation_id", label: "Installation ID", inputMode: "numeric" },
+          { name: "status", label: "Last status", inputMode: "numeric" },
+          { name: "rate_limited", label: "Rate limited", options: [{ label: "Yes", value: "true" }] },
+          { name: "bucket_since", label: "Bucket since", placeholder: "1h" },
+          { name: "last_seen_since", label: "Last seen since", placeholder: "1h" }
         ]}
         search={search}
         searchLabel="Search"
@@ -101,12 +129,17 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 function UsageTable({ rows, showRepo = false, storageKey, summary }: { rows: (GithubApiUsageOperationRow & { repo_slug?: string | null })[]; showRepo?: boolean; storageKey: string; summary: string }) {
   const columns: Array<AdminEventLogTableColumn<GithubApiUsageOperationRow & { repo_slug?: string | null }>> = [
     { key: "auth_source", header: "Credential", required: true, sort: "auth_source", sortValue: (row) => row.auth_source, className: "font-mono text-xs", render: (row) => row.auth_source },
+    { key: "credential_key", header: "Credential key", defaultVisible: false, sort: "credential_key", sortValue: (row) => row.credential_key || "", className: "font-mono text-xs", render: (row) => row.credential_key || "-" },
     ...(showRepo ? [{ key: "repo_slug", header: "Repository", sort: "repo_slug", sortValue: (row) => row.repo_slug || "", className: "font-mono text-xs", render: (row) => row.repo_slug || "-" } satisfies AdminEventLogTableColumn<GithubApiUsageOperationRow & { repo_slug?: string | null }>] : []),
     { key: "operation", header: "Operation", sort: "operation", sortValue: (row) => row.operation, render: (row) => row.operation },
     { key: "resource", header: "Resource", sort: "resource", sortValue: (row) => row.resource, render: (row) => row.resource },
     { key: "requests", header: "Requests", sort: "requests", sortValue: (row) => row.requests, render: (row) => number(row.requests) },
     { key: "rate_limited", header: "Limited", sort: "rate_limited", sortValue: (row) => row.rate_limited, render: (row) => number(row.rate_limited) },
+    { key: "last_status", header: "Last status", defaultVisible: false, sort: "last_status", sortValue: (row) => row.last_status ?? 0, render: (row) => number(row.last_status) },
+    { key: "last_limit", header: "Limit", defaultVisible: false, sort: "last_limit", sortValue: (row) => row.last_limit ?? 0, render: (row) => number(row.last_limit) },
     { key: "min_remaining", header: "Min remaining", sort: "min_remaining", sortValue: (row) => row.min_remaining, render: (row) => number(row.min_remaining) },
+    { key: "last_reset_at", header: "Reset", defaultVisible: false, sort: "last_reset_at", sortValue: (row) => row.last_reset_at || "", render: (row) => time(row.last_reset_at) },
+    { key: "bucket_started_at", header: "Bucket", defaultVisible: false, sort: "bucket_started_at", sortValue: (row) => row.bucket_started_at || "", render: (row) => time(row.bucket_started_at) },
     { key: "last_seen_at", header: "Last seen", sort: "last_seen_at", sortValue: (row) => row.last_seen_at || "", render: (row) => time(row.last_seen_at) }
   ]
 
@@ -117,9 +150,13 @@ function RepositoryTable({ rows }: { rows: GithubApiUsageRepositoryRow[] }) {
   const columns: Array<AdminEventLogTableColumn<GithubApiUsageRepositoryRow>> = [
     { key: "repo_slug", header: "Repository", required: true, sort: "repo_slug", sortValue: (row) => row.repo_slug, render: (row) => row.repo_slug },
     { key: "auth_source", header: "Credential", sort: "auth_source", sortValue: (row) => row.auth_source, className: "font-mono text-xs", render: (row) => row.auth_source },
+    { key: "credential_key", header: "Credential key", defaultVisible: false, sort: "credential_key", sortValue: (row) => row.credential_key || "", className: "font-mono text-xs", render: (row) => row.credential_key || "-" },
     { key: "requests", header: "Requests", sort: "requests", sortValue: (row) => row.requests, render: (row) => number(row.requests) },
     { key: "rate_limited", header: "Limited", sort: "rate_limited", sortValue: (row) => row.rate_limited, render: (row) => number(row.rate_limited) },
+    { key: "last_status", header: "Last status", defaultVisible: false, sort: "last_status", sortValue: (row) => row.last_status ?? 0, render: (row) => number(row.last_status) },
+    { key: "last_limit", header: "Limit", defaultVisible: false, sort: "last_limit", sortValue: (row) => row.last_limit ?? 0, render: (row) => number(row.last_limit) },
     { key: "min_remaining", header: "Min remaining", sort: "min_remaining", sortValue: (row) => row.min_remaining, render: (row) => number(row.min_remaining) },
+    { key: "last_reset_at", header: "Reset", defaultVisible: false, sort: "last_reset_at", sortValue: (row) => row.last_reset_at || "", render: (row) => time(row.last_reset_at) },
     { key: "last_seen_at", header: "Last seen", sort: "last_seen_at", sortValue: (row) => row.last_seen_at || "", render: (row) => time(row.last_seen_at) }
   ]
 

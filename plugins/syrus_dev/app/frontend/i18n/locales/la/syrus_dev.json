@@ -258,6 +258,14 @@
     "col_context": "Contextus",
     "col_actions": "Actiones",
     "aria": "Acta celeritatis administrativa",
-    "aria_summary": "Summarium celeritatis"
+    "aria_summary": "Summarium celeritatis",
+    "filter_event": "Event",
+    "filter_request_id": "Request ID",
+    "filter_trace_id": "Trace ID",
+    "filter_job_class": "Job class",
+    "filter_path": "Path",
+    "filter_controller": "Controller",
+    "filter_action": "Action",
+    "filter_sql_fingerprint": "SQL fingerprint"
   }
 }
