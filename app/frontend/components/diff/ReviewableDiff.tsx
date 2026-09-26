@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import type { ThemedToken } from "@shikijs/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Button } from "../Button"
@@ -423,14 +424,17 @@ export function ReviewableDiff({
       </div>
       {changedFilesPopup && filesPopupOpen ? (
         isMobileFilesMenu ? (
-          <MobileChangedFilesModal
-            commentCounts={fileCommentCounts}
-            files={sortedFiles}
-            layout={effectiveReviewSettings.file_list_layout}
-            onClose={() => setFilesPopupOpen(false)}
-            onSelectFile={selectFileFromPopup}
-            selectedPath={selectedPath}
-          />
+          createPortal(
+            <MobileChangedFilesModal
+              commentCounts={fileCommentCounts}
+              files={sortedFiles}
+              layout={effectiveReviewSettings.file_list_layout}
+              onClose={() => setFilesPopupOpen(false)}
+              onSelectFile={selectFileFromPopup}
+              selectedPath={selectedPath}
+            />,
+            document.body
+          )
         ) : (
           <ChangedFilesPopup
             commentCounts={fileCommentCounts}
@@ -613,7 +617,7 @@ function MobileChangedFilesModal({
   const { t } = useT("common")
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white font-mono text-xs dark:bg-gray-950" role="dialog">
+    <div className="fixed inset-0 z-50 flex h-[100dvh] w-[100dvw] flex-col bg-white font-mono text-xs dark:bg-gray-950" role="dialog">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <p className="font-sans text-sm font-semibold text-gray-700 dark:text-gray-200">{t("diff_review.changed_files")}</p>
         <button aria-label={t("diff_review.close_changed_files")} className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
