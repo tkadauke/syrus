@@ -1759,7 +1759,7 @@ describe("App", () => {
       if (path === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ groups: recentGroups, repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path === "/api/v1/app/chats/more?repository_id=3&before_id=14") {
+      if (path === "/api/v1/app/chats/more?group_by=repository&group_key=3&before_id=14") {
         return Promise.resolve(new Response(JSON.stringify({ chats: [recentChats[7]], has_more: false }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/chats/10") {

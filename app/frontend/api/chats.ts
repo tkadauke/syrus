@@ -632,8 +632,23 @@ export type ChatGroupRecord = {
   key: string
   label: string
   repository_id: number | null
+  group_by?: ChatSidebarGroupBy
+  group_value?: string | null
   chats: ChatNavRecord[]
   has_more: boolean
+}
+
+export type ChatSidebarStatus = "active" | "hidden" | "all"
+export type ChatSidebarGroupBy = "date" | "repository" | "status" | "mode"
+export type ChatSidebarSortBy = "name" | "date_created" | "last_activity"
+export type ChatSidebarPerGroup = 5 | 10 | 15 | 20
+
+export type ChatSidebarSettings = {
+  status: ChatSidebarStatus
+  group_by: ChatSidebarGroupBy
+  sort_by: ChatSidebarSortBy
+  show_empty_groups: boolean
+  per_group: ChatSidebarPerGroup
 }
 
 export type ChatsIndexPayload = {
@@ -992,8 +1007,21 @@ export function unhideChat(path: string) {
   return patchJson<{ message: string; chat: ChatNavRecord }>(path)
 }
 
-export function fetchChats() {
-  return getJson<ChatsIndexPayload>("/api/v1/app/chats")
+function chatSidebarSearchParams(settings?: Partial<ChatSidebarSettings>) {
+  const search = new URLSearchParams()
+  if (!settings) return search
+
+  if (settings.status && settings.status !== "active") search.set("status", settings.status)
+  if (settings.group_by && settings.group_by !== "repository") search.set("group_by", settings.group_by)
+  if (settings.sort_by && settings.sort_by !== "last_activity") search.set("sort_by", settings.sort_by)
+  if (settings.show_empty_groups === true) search.set("show_empty_groups", "1")
+  if (settings.per_group && settings.per_group !== 10) search.set("per_group", String(settings.per_group))
+  return search
+}
+
+export function fetchChats(settings?: Partial<ChatSidebarSettings>) {
+  const search = chatSidebarSearchParams(settings).toString()
+  return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`)
 }
 
 export function fetchNewChat() {
@@ -1004,9 +1032,14 @@ export function fetchHiddenChats(page = 1) {
   return getJson<HiddenChatsPayload>(`/api/v1/app/settings/hidden_chats?page=${encodeURIComponent(String(page))}`)
 }
 
-export function fetchMoreChatsForGroup(repositoryId: number | null, beforeChatId: number) {
-  const repositoryParam = repositoryId == null ? "general" : String(repositoryId)
-  return getJson<MoreChatsPayload>(`/api/v1/app/chats/more?repository_id=${encodeURIComponent(repositoryParam)}&before_id=${encodeURIComponent(String(beforeChatId))}`)
+export function fetchMoreChatsForGroup(group: Pick<ChatGroupRecord, "group_by" | "group_value" | "repository_id">, beforeChatId: number, settings?: Partial<ChatSidebarSettings>) {
+  const search = chatSidebarSearchParams(settings)
+  const groupBy = group.group_by || "repository"
+  const groupValue = group.group_value ?? (group.repository_id == null ? "general" : String(group.repository_id))
+  search.set("group_by", groupBy)
+  search.set("group_key", groupValue)
+  search.set("before_id", String(beforeChatId))
+  return getJson<MoreChatsPayload>(`/api/v1/app/chats/more?${search.toString()}`)
 }
 
 export function fetchChatSearch(search = "", options: { signal?: AbortSignal } = {}) {
