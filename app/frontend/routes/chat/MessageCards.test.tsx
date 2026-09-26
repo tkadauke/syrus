@@ -230,6 +230,25 @@ describe("cross-chat bridge rendering", () => {
     expect(within(chip).getByRole("link", { name: "via Chat #42: Debugging session" })).toHaveAttribute("href", "/chats/42")
   })
 
+  it("uses a distinct inbound bridge bubble style outside group chats", () => {
+    const payload = makePayload()
+    payload.chat.conversation_kind = "direct"
+
+    const className = humanMessageBubbleClass(userMessage("check on JOB-1", {
+      cross_chat_bridge: {
+        thread_id: 7,
+        direction: "inbound",
+        counterpart_chat_session_id: 42,
+        counterpart_chat_title: "Debugging session"
+      }
+    }), payload)
+
+    expect(className).toContain("bg-cyan-50")
+    expect(className).toContain("dark:bg-cyan-950/50")
+    expect(className).not.toContain("bg-brand")
+    expect(className).not.toContain("bg-gray-100")
+  })
+
   it("falls back to the new-chat label when the origin chat has no title", () => {
     renderChatMessageItem(userMessage("check on JOB-1", {
       cross_chat_bridge: {
