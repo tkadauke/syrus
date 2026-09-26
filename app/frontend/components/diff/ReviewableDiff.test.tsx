@@ -632,26 +632,58 @@ describe("ReviewableDiff", () => {
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
   })
 
-  it("sorts and indents the changed-files popup from persisted file-list settings", () => {
+  it("renders nested changed-files as an expanded collapsible folder tree", () => {
+    const onSelectFile = vi.fn()
     render(
       <ReviewableDiff
         changedFilesPopup
+        fileCommentCounts={{ "app/models/deep.rb": 3 }}
         files={[
           { additions: 1, deletions: 0, patch: files[0].patch, path: "z.rb", status: "modified" },
           { additions: 5, deletions: 4, patch: files[1].patch, path: "app/models/deep.rb", status: "modified" },
           { additions: 2, deletions: 0, patch: files[1].patch, path: "a.rb", status: "modified" }
         ]}
         mode="continuous"
+        onSelectFile={onSelectFile}
         reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, file_list_layout: "nested", file_sort: "change_size" }}
+        selectedPath="app/models/deep.rb"
         showFileHeaders
       />
     )
 
     fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
 
+    const dialog = screen.getByRole("dialog")
+    const appFolder = within(dialog).getByRole("button", { name: "app" })
+    const modelsFolder = within(dialog).getByRole("button", { name: "models" })
+    expect(appFolder).toHaveAttribute("aria-expanded", "true")
+    expect(modelsFolder).toHaveAttribute("aria-expanded", "true")
+    expect(appFolder.querySelector("span")).toHaveClass("rotate-90")
+
     const changedFiles = screen.getAllByTitle(/ \(\+/)
-    expect(changedFiles.map((button) => button.textContent)).toEqual(["app/models/deep.rb+5-4", "a.rb+2-0", "z.rb+1-0"])
-    expect(screen.getByTitle("app/models/deep.rb (+5 -4)")).toHaveStyle({ paddingLeft: "2.25rem" })
+    expect(changedFiles.map((button) => button.textContent)).toEqual(["deep.rb+5-43", "a.rb+2-0", "z.rb+1-0"])
+    expect(within(dialog).queryByText("app/models/deep.rb")).not.toBeInTheDocument()
+
+    const popupText = dialog.textContent || ""
+    expect(popupText.indexOf("app")).toBeLessThan(popupText.indexOf("models"))
+    expect(popupText.indexOf("models")).toBeLessThan(popupText.indexOf("deep.rb"))
+    expect(changedFiles.map((button) => button.getAttribute("title"))).toEqual([
+      "app/models/deep.rb (+5 -4)",
+      "a.rb (+2 -0)",
+      "z.rb (+1 -0)"
+    ])
+
+    fireEvent.click(appFolder)
+    expect(appFolder).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByTitle("app/models/deep.rb (+5 -4)")).not.toBeInTheDocument()
+    expect(screen.getByTitle("a.rb (+2 -0)")).toBeInTheDocument()
+
+    fireEvent.click(appFolder)
+    const deepFile = screen.getByTitle("app/models/deep.rb (+5 -4)")
+    expect(deepFile).toHaveClass("bg-brand/10")
+
+    fireEvent.click(deepFile)
+    expect(onSelectFile).toHaveBeenCalledWith("app/models/deep.rb")
   })
 
   it("scrolls each file's table horizontally on its own instead of sharing one scroll region", () => {

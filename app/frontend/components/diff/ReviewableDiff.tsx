@@ -152,6 +152,12 @@ type FileCacheEntry = {
 }
 
 type ChangedFilesListLayout = ReviewDiffSettings["file_list_layout"]
+type ChangedFileTreeNode = {
+  children: ChangedFileTreeNode[]
+  file: ReviewableDiffFile | null
+  name: string
+  path: string
+}
 
 function createFileCacheEntry(): FileCacheEntry {
   return { collapsed: false, contextState: { fullyExpanded: false, gaps: [], lines: null, status: "idle" }, forceLoaded: false, tokensByHunk: new Map() }
@@ -650,16 +656,16 @@ function ChangedFilesList({
   onSelectFile: (path: string) => void
   selectedPath?: string | null
 }) {
+  if (layout === "nested") return <NestedChangedFilesList commentCounts={commentCounts} files={files} onSelectFile={onSelectFile} selectedPath={selectedPath} />
+
   return (
     <>
       {files.map((file) => {
-        const depth = layout === "nested" ? Math.max(0, file.path.split("/").length - 1) : 0
         return (
           <button
             className={`flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-brand/10 ${selectedPath === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
             key={file.path}
             onClick={() => onSelectFile(file.path)}
-            style={{ paddingLeft: `${0.75 + Math.min(depth, 6) * 0.75}rem` }}
             title={`${file.path} (+${file.additions ?? 0} -${file.deletions ?? 0})`}
             type="button"
           >
@@ -672,6 +678,152 @@ function ChangedFilesList({
       })}
     </>
   )
+}
+
+function NestedChangedFilesList({
+  commentCounts,
+  files,
+  onSelectFile,
+  selectedPath
+}: {
+  commentCounts?: Record<string, number>
+  files: ReviewableDiffFile[]
+  onSelectFile: (path: string) => void
+  selectedPath?: string | null
+}) {
+  const tree = useMemo(() => buildChangedFileTree(files), [files])
+  const directorySignature = useMemo(() => changedFileDirectoryPaths(tree).join("\n"), [tree])
+  const [expandedState, setExpandedState] = useState(() => ({ paths: new Set(changedFileDirectoryPaths(tree)), signature: directorySignature }))
+  let expandedPaths = expandedState.paths
+  if (expandedState.signature !== directorySignature) {
+    expandedPaths = new Set(changedFileDirectoryPaths(tree))
+    setExpandedState({ paths: expandedPaths, signature: directorySignature })
+  }
+
+  function toggleDirectory(path: string) {
+    setExpandedState((current) => {
+      const paths = new Set(current.paths)
+      if (paths.has(path)) paths.delete(path)
+      else paths.add(path)
+      return { paths, signature: current.signature }
+    })
+  }
+
+  return (
+    <>
+      {tree.map((node) => (
+        <ChangedFileTreeRow
+          commentCounts={commentCounts}
+          expandedPaths={expandedPaths}
+          key={node.path}
+          node={node}
+          onSelectFile={onSelectFile}
+          onToggleDirectory={toggleDirectory}
+          selectedPath={selectedPath}
+        />
+      ))}
+    </>
+  )
+}
+
+function ChangedFileTreeRow({
+  commentCounts,
+  expandedPaths,
+  node,
+  onSelectFile,
+  onToggleDirectory,
+  selectedPath
+}: {
+  commentCounts?: Record<string, number>
+  expandedPaths: Set<string>
+  node: ChangedFileTreeNode
+  onSelectFile: (path: string) => void
+  onToggleDirectory: (path: string) => void
+  selectedPath?: string | null
+}) {
+  if (node.file) {
+    const file = node.file
+    return (
+      <button
+        className={`flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-brand/10 ${selectedPath === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
+        onClick={() => onSelectFile(file.path)}
+        style={{ paddingLeft: `${0.75 + Math.min(file.path.split("/").length - 1, 6) * 0.75}rem` }}
+        title={`${file.path} (+${file.additions ?? 0} -${file.deletions ?? 0})`}
+        type="button"
+      >
+        <span className="min-w-0 flex-1 truncate">{node.name}</span>
+        {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
+        {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions}</span> : null}
+        {commentCounts?.[file.path] ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{commentCounts[file.path]}</span> : null}
+      </button>
+    )
+  }
+
+  return (
+    <>
+      <button
+        aria-expanded={expandedPaths.has(node.path)}
+        aria-label={node.name}
+        className="block w-full truncate py-1.5 pr-3 text-left font-mono text-xs font-semibold text-gray-500 hover:bg-brand/10 dark:text-gray-400"
+        onClick={() => onToggleDirectory(node.path)}
+        style={{ paddingLeft: `${0.75 + Math.min(Math.max(node.path.split("/").length - 1, 0), 6) * 0.75}rem` }}
+        title={node.path}
+        type="button"
+      >
+        <span aria-hidden="true" className={`mr-1 inline-block w-3 text-gray-400 transition-transform dark:text-gray-500 ${expandedPaths.has(node.path) ? "rotate-90" : ""}`}>{">"}</span>
+        {node.name}
+      </button>
+      {expandedPaths.has(node.path) ? node.children.map((child) => (
+        <ChangedFileTreeRow
+          commentCounts={commentCounts}
+          expandedPaths={expandedPaths}
+          key={child.path}
+          node={child}
+          onSelectFile={onSelectFile}
+          onToggleDirectory={onToggleDirectory}
+          selectedPath={selectedPath}
+        />
+      )) : null}
+    </>
+  )
+}
+
+function buildChangedFileTree(files: ReviewableDiffFile[]) {
+  const root: ChangedFileTreeNode = { children: [], file: null, name: "", path: "" }
+  const directories = new Map<string, ChangedFileTreeNode>([["", root]])
+
+  for (const file of files) {
+    const parts = file.path.split("/").filter(Boolean)
+    let parent = root
+    let currentPath = ""
+
+    parts.forEach((part, index) => {
+      currentPath = currentPath ? `${currentPath}/${part}` : part
+      let node = index === parts.length - 1 ? undefined : directories.get(currentPath)
+
+      if (!node) {
+        node = { children: [], file: null, name: part, path: currentPath }
+        if (index < parts.length - 1) directories.set(currentPath, node)
+        parent.children.push(node)
+      }
+
+      if (index === parts.length - 1) node.file = file
+      parent = node
+    })
+  }
+
+  return root.children
+}
+
+function changedFileDirectoryPaths(nodes: ChangedFileTreeNode[]) {
+  const paths: string[] = []
+  for (const node of nodes) {
+    if (!node.file) {
+      paths.push(node.path)
+      paths.push(...changedFileDirectoryPaths(node.children))
+    }
+  }
+  return paths
 }
 
 type HunkContextControl = { lineCount: number; loading: boolean; onClick: () => void }
