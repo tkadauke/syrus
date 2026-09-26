@@ -127,6 +127,33 @@ RSpec.describe "maintenance task definitions" do
       expect(result.failed).to eq(0)
       expect(task.checkpoint["processed_repository_ids"]).to include(repository.id)
     end
+
+    it "records errored repositories as unresolved and fails completion instead of reporting success" do
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        state: "closed",
+        issue_number: 106,
+        pr_number: 107,
+        landed_sha: "ghi789"
+      )
+      task = maintenance_task_for(definition)
+      service_result = Jobs::LandedCommitsBackfill::Result.new(checked: 1, recorded: 0, commits_recorded: 0, skipped: 0, errors: 1)
+      service = instance_double(Jobs::LandedCommitsBackfill, call: service_result)
+      allow(Jobs::LandedCommitsBackfill).to receive(:new).with(repository: repository).and_return(service)
+
+      result = definition.perform_batch(task)
+
+      expect(result.failed).to eq(1)
+      expect(result.level).to eq("warning")
+      expect(task.checkpoint["processed_repository_ids"]).to include(repository.id)
+      expect(task.checkpoint["unresolved_repositories"]).to contain_exactly(
+        hash_including("id" => repository.id, "slug" => repository.slug, "errors" => 1)
+      )
+
+      expect { definition.perform_batch(task) }
+        .to raise_error(MaintenanceTasks::Definitions::LandedCommitsBackfill::UnresolvedLandingsError, /#{Regexp.escape(repository.slug)}/)
+    end
   end
 
   describe MaintenanceTasks::Definitions::PreemptedExternalPrBackfill do
