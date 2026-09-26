@@ -353,6 +353,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                 {visibleChats.map((chat) => {
                   const active = chat.id === activeChatId
                   const unread = chat.unread && !active
+                  const title = sidebarChatTitle(chat, t("chat:new_title"))
                   return (
                     <div
                       className={`group relative flex min-w-0 items-center rounded${draggingOverChatId === chat.id ? " animate-drag-blink dark:animate-drag-blink-dark" : ""}`}
@@ -378,6 +379,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                       <Link
                         className={`${recentChatLinkClass(active)} pr-9`}
                         onClick={onCloseDrawer}
+                        title={title}
                         to={withRoutePrefix(chat.chat_path, prefix)}
                       >
                         <ChatModeIcon codingModeEnabled={codingModeEnabled} localModeEnabled={localModeEnabled} mode={chat.mode} />
@@ -390,7 +392,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                           <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
                         ) : null}
                         <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
-                        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat, t("chat:new_title"))}</span>
+                        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{title}</span>
                         <span className="flex shrink-0 items-start gap-1 group-hover:hidden">
                           <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />
                           {chat.active_goal && (chat.active_goal.status === "active" || chat.active_goal.status === "paused") ? (

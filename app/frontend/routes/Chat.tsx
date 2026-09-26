@@ -240,7 +240,7 @@ function SharedChatView({ payload }: { payload: SharedChatPayload }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-3 dark:border-gray-700">
-        <PageHeading className="break-words">{payload.chat.title || t("shared_chat_fallback_title")}</PageHeading>
+        <PageHeading className="max-w-full truncate" title={payload.chat.title || t("shared_chat_fallback_title")}>{payload.chat.title || t("shared_chat_fallback_title")}</PageHeading>
         <span className="rounded border border-brand/30 bg-brand/10 px-3 py-1 text-sm font-medium text-brand">{t("view_only")}</span>
       </header>
       <section className="min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
@@ -1128,7 +1128,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
     >
       <ChatTour />
       {!landing && isDesktop ? (
-        <header className="flex shrink-0 items-center gap-2 pl-1">
+        <header className="flex min-w-0 shrink-0 items-center gap-2 pl-1">
           <button
             aria-label={t("chat_settings")}
             className="shrink-0 rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
@@ -1138,9 +1138,9 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
           >
             <GearIcon className="h-5 w-5" />
           </button>
-          <div className="min-w-0">
-            <h1 className={`flex min-w-0 items-center gap-2 break-words text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>
-              <span className="min-w-0 break-words">{title}</span>
+          <div className="min-w-0 flex-1">
+            <h1 className={`flex min-w-0 items-center gap-2 text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>
+              <span className="min-w-0 flex-1 truncate" title={title}>{title}</span>
               <ProviderAvailabilityWarning availability={payload.chat.provider_availability} className="mt-1" />
             </h1>
             {showsLocalConnection ? (
