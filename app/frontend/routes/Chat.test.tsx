@@ -3066,6 +3066,99 @@ describe("chat message image attachments", () => {
     expect(screen.getByRole("dialog", { name: "mockup.jpg" })).toBeInTheDocument()
   })
 
+  it("opens the media tab when a user-uploaded screenshot first appears", async () => {
+    let chatFetches = 0
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/media") {
+        return Promise.resolve(jsonResponse({
+          snapshots: [],
+          chat_images: [
+            { id: 1, title: "uploaded.png", filename: "uploaded.png", content_type: "image/png", image_url: "/api/v1/app/chats/8/media/chat_images/1/file" }
+          ],
+          typed_artifacts: [],
+          whiteboard_has_unsaved_content: false
+        }))
+      }
+      if (path === "/api/v1/app/chats/8") {
+        chatFetches += 1
+        return Promise.resolve(jsonResponse(chatPayload({
+          chat: chatFetches > 1 ? { chat_image_count: 1, has_chat_images: true } : { chat_image_count: 0, has_chat_images: false }
+        })))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Discuss aqueducts.")
+    expect(screen.getByRole("button", { name: "Open workspace panel" })).toBeInTheDocument()
+
+    act(() => {
+      actionCableSubscriptions.find((subscription) => subscription.params.channel === "ChatChannel")?.mixin.received({
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        changed: ["media"]
+      })
+    })
+
+    const workspace = await screen.findByRole("complementary", { name: "Chat workspace" })
+    expect(await within(workspace).findByText("uploaded.png")).toBeInTheDocument()
+  })
+
+  it("switches back to media when a runtime screenshot adds another chat image", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    window.localStorage.setItem("syrus.chat.workspace.tab", "plugin:whiteboard.canvas")
+    let chatFetches = 0
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/media") {
+        return Promise.resolve(jsonResponse({
+          snapshots: [],
+          chat_images: [
+            { id: 1, title: "uploaded.png", filename: "uploaded.png", content_type: "image/png", image_url: "/api/v1/app/chats/8/media/chat_images/1/file" },
+            { id: 2, title: "runtime-capture.png", filename: "runtime-capture.png", content_type: "image/png", image_url: "/api/v1/app/chats/8/media/chat_images/2/file" }
+          ],
+          typed_artifacts: [],
+          whiteboard_has_unsaved_content: false
+        }))
+      }
+      if (path === "/api/v1/app/chats/8") {
+        chatFetches += 1
+        return Promise.resolve(jsonResponse(chatPayload({
+          chat: { chat_image_count: chatFetches > 1 ? 2 : 1, has_chat_images: true }
+        })))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Discuss aqueducts.")
+    expect(screen.getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
+
+    act(() => {
+      actionCableSubscriptions.find((subscription) => subscription.params.channel === "ChatChannel")?.mixin.received({
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        changed: ["media"]
+      })
+    })
+
+    const workspace = await screen.findByRole("complementary", { name: "Chat workspace" })
+    expect(await within(workspace).findByText("runtime-capture.png")).toBeInTheDocument()
+  })
+
   it("hides the media tab and falls back to another tab when no media has been shared", async () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
     window.localStorage.setItem("syrus.chat.workspace.tab", "media")

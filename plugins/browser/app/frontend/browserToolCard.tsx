@@ -157,7 +157,7 @@ export function browserCardRenderer(action: BrowserAction) {
 
 function BrowserPreviewPanel({ preview }: { preview: BrowserPreview }) {
   if (!preview.src || preview.large) {
-    return <BrowserPreviewFallback detail={preview.large ? "Image payload is too large to preview inline." : "No image preview is available."} />
+    return <BrowserPreviewFallback detail={preview.large ? "Image payload is too large to preview inline." : undefined} />
   }
 
   return (
@@ -199,7 +199,7 @@ function BrowserResultPanel({ summary, details }: { summary: string; details: st
   )
 }
 
-function BrowserPreviewFallback({ detail = "No image preview is available." }: { detail?: string }) {
+function BrowserPreviewFallback({ detail = "Captured screenshots are available from the Media tab when the browser returns a stored media link." }: { detail?: string }) {
   return (
     <div className="rounded border border-dashed border-gray-300 bg-white px-3 py-4 text-center text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-400">
       {detail}
@@ -323,12 +323,14 @@ function imagePreviewFromContent(value: unknown): BrowserPreview | null {
 }
 
 function imagePreviewFromObject(value: Record<string, unknown>): BrowserPreview | null {
-  const imageUrl = displayValue(value.image_url) || displayValue(value.file_path) || displayValue(value.artifact_url) || displayValue(value.src)
+  const rawImageUrl = displayValue(value.image_url) || displayValue(value.file_path) || displayValue(value.artifact_url) || displayValue(value.src)
+  const imageUrl = displayMediaUrl(rawImageUrl)
   const mimeType = displayValue(value.mimeType) || displayValue(value.mime_type) || displayValue(value.content_type)
   const title = displayValue(value.title) || displayValue(value.filename) || "Browser screenshot"
   const byteSize = numberValue(value.byte_size) || numberValue(value.bytes)
 
   if (imageUrl) return { src: imageUrl, label: title, mimeType, byteSize, large: false }
+  if (rawImageUrl) return { src: null, label: title, mimeType, byteSize, large: false }
 
   const data = displayValue(value.data) || displayValue(value.image_base64) || displayValue(value.base64)
   if (!data) return null
@@ -341,6 +343,14 @@ function imagePreviewFromObject(value: Record<string, unknown>): BrowserPreview 
     byteSize: byteSize || estimatedBase64Bytes(data),
     large
   }
+}
+
+function displayMediaUrl(value: unknown) {
+  const candidate = displayValue(value)
+  if (!candidate) return null
+  if (/^(?:https?:|data:|blob:)/i.test(candidate)) return candidate
+  if (candidate.startsWith("/api/")) return candidate
+  return null
 }
 
 function imageDataUrl(data: string, mimeType: string | null) {
