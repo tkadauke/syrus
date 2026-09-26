@@ -501,6 +501,8 @@
   "review_handled_state_other": "{{count}} acta",
   "review_artifacts_title": "Artificia recensionis",
   "review_feedback_title": "Commentarii diff",
+  "review_comments_splitter_label": "Commentarios diff redimensiona",
+  "review_comments_collapsed_aria": "Commentarii diff contracti",
   "review_no_comments": "Nulli commentarii diff.",
   "review_comment_body": "Commentarius",
   "review_create_comment": "Commentarium crea",
