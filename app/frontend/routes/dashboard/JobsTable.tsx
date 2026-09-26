@@ -855,8 +855,45 @@ function JobCell({ job, column, navigationItems, selected, onToggleOne, prefix }
   if (column === "workflows_count") return <DataTable.Cell className="text-gray-700 dark:text-gray-200">{job.workflows_count}</DataTable.Cell>
   if (column === "priority") return <PriorityPillCell priority={job.priority} />
   if (column === "commits_behind_base") return <DataTable.Cell><CommitsBehindBadge count={job.commits_behind_base} /></DataTable.Cell>
+  if (column === "kind" || column === "job_type") return <TextCell value={humanizeOption(job.kind)} />
+  if (column === "agent_provider") return <TextCell value={job.agent_provider ? humanizeOption(job.agent_provider) : null} />
+  if (column === "closure_reason") return <TextCell value={job.closure_reason ? humanizeOption(job.closure_reason) : null} />
+  if (column === "triaging_reason") return <TextCell value={job.triaging_reason ? humanizeOption(job.triaging_reason) : null} />
+  if (column === "validity") return <TextCell value={job.validity ? humanizeOption(job.validity) : null} />
+  if (column === "pr_number") return <ExternalNumberCell href={job.pr_url ?? null} label={job.pr_number ? `#${job.pr_number}` : null} />
+  if (column === "issue_number") return <ExternalNumberCell href={job.issue_url ?? null} label={job.issue_number ? `#${job.issue_number}` : null} />
+  if (column === "branch_name") return <TextCell mono value={job.branch_name} />
+  if (column === "claimed_by") return <ClaimedByCell job={job} prefix={prefix} />
+  if (column === "manual_pause_state") return <TextCell value={job.manual_paused ? t("manual_pause_state_paused") : "-"} />
+  if (column === "needs_attention_reason") return <TextCell value={job.needs_attention_reason ? humanizeOption(job.needs_attention_reason) : null} />
 
   return <TimestampCell value={jobDateValue(job, column)} />
+}
+
+function TextCell({ value, mono = false }: { value: string | null | undefined; mono?: boolean }) {
+  return <DataTable.Cell className={`max-w-56 truncate text-xs text-gray-700 dark:text-gray-200 ${mono ? "font-mono" : ""}`} title={value || undefined}>{value || "-"}</DataTable.Cell>
+}
+
+function ExternalNumberCell({ href, label }: { href: string | null | undefined; label: string | null }) {
+  if (!label) return <TextCell value={null} />
+
+  return (
+    <DataTable.Cell className="text-xs">
+      <ExternalMetadataLink href={href ?? null}>{label}</ExternalMetadataLink>
+    </DataTable.Cell>
+  )
+}
+
+function ClaimedByCell({ job, prefix }: { job: DashboardJobItem; prefix: string }) {
+  if (!job.claimed_by_user) return <TextCell value={null} />
+
+  return (
+    <DataTable.Cell className="text-xs">
+      <Link className="font-medium text-brand hover:underline dark:text-brand-emphasis" to={withRoutePrefix(job.claimed_by_user.profile_path, prefix)}>
+        {job.claimed_by_user.display_name}
+      </Link>
+    </DataTable.Cell>
+  )
 }
 
 // Second, exceptional line under a job's issue/title metadata: only the

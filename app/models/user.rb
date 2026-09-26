@@ -104,15 +104,22 @@ class User < ApplicationRecord
     "design_docs" => %w[title]
   }.freeze
   DASHBOARD_OPTIONAL_COLUMNS = {
-    "epics" => %w[state owner repository updated created_at updated_at done_at archived_at],
+    "epics" => %w[
+      state owner repository updated number auto_approve_mode child_job_count
+      open_child_count blocked_child_count child_progress_percent dependency_count
+      created_at updated_at done_at archived_at
+    ],
     "jobs" => %w[
       state repository owner latest deployment workflows_count started priority commits_behind_base
+      kind job_type agent_provider closure_reason triaging_reason validity pr_number issue_number
+      branch_name claimed_by claimed_at manual_pause_state needs_attention_reason
       created_at updated_at started_at finished_at approved_at
       dependencies_overridden_at last_feedback_addressed_at
       last_seen_comment_at pr_mergeable_checked_at
     ],
     "workflows" => %w[
-      trigger state started finished agent
+      trigger trigger_kind state started finished agent agent_provider failure_reason run_count
+      worker_hostname worker_storage_key
       created_at updated_at started_at finished_at cleaned_up_at
     ],
     "design_docs" => %w[
@@ -120,9 +127,20 @@ class User < ApplicationRecord
     ]
   }.freeze
   DASHBOARD_SORT_COLUMNS = {
-    "epic" => %w[title state repository updated_at],
-    "job" => %w[title state repository landing_queue_position created_at started_at priority commits_behind_base],
-    "workflow" => %w[title state started_at finished_at]
+    "epic" => %w[
+      title state repository updated_at number auto_approve_mode child_job_count
+      open_child_count blocked_child_count child_progress_percent dependency_count
+    ],
+    "job" => %w[
+      title state repository landing_queue_position created_at updated_at started_at finished_at approved_at
+      priority commits_behind_base kind job_type agent_provider closure_reason triaging_reason validity
+      pr_number issue_number branch_name claimed_by claimed_at manual_pause_state needs_attention_reason
+      workflows_count
+    ],
+    "workflow" => %w[
+      title state started_at finished_at trigger_kind agent_provider failure_reason run_count
+      worker_hostname worker_storage_key created_at updated_at cleaned_up_at
+    ]
   }.freeze
   DASHBOARD_SORT_DEFAULTS = {
     "epic" => { "column" => "updated_at", "direction" => "desc" },
