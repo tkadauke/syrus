@@ -121,6 +121,29 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(job.reload.state).to eq("implemented")
   end
 
+  it "treats a successful coding_handoff_fix run as the validated publication head" do
+    workflow.update!(trigger_kind: "coding_handoff")
+    fix_step = Step.create!(workflow: workflow, kind: "coding_handoff_fix", position: 2, state: "succeeded")
+    Run.create!(
+      job: job,
+      step: fix_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "succeeded",
+      head_sha: "latest-fix-head"
+    )
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+
+    handler = described_class.new(pr_open_run)
+
+    expect(handler.send(:expected_publication_head_sha)).to eq("latest-fix-head")
+  end
+
   it "continues when stack footer refresh gets a transient GitHub 502 after opening the PR" do
     parent = Factories.job_record(
       user: user,

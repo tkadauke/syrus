@@ -345,3 +345,13 @@ Because the chain has no `implement`/`respond` step at all,
 against the default branch — the same fallback path used by the standalone
 `manual_visual_review` workflow. A `needs_work` verdict is repaired by
 `coding_handoff_fix`, which also handles the workflow's grader retry loop.
+
+For coding handoffs, visual-review history is deliberately separated from final
+publication provenance. A `needs_work` visual review remains in
+`visual_review_iterations` as historical evidence, but a later
+`coding_handoff_fix` records `latest_coding_handoff_fix` and resets the final
+visual-verification status until another `visual_review` approves or skips that
+fixed revision. `pr_open` and rebase `force_push` then write
+`coding_handoff_publication_provenance`; operators should use that artifact to
+tell whether the pushed HEAD contains the latest fix and whether visual review
+verified that final revision.

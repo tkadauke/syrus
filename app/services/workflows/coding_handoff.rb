@@ -22,6 +22,14 @@ module Workflows
   class CodingHandoff < Base
     def self.trigger_kind = "coding_handoff"
 
+    def self.revision_guard_applies?(workflow)
+      workflow&.trigger_kind == trigger_kind
+    end
+
+    def self.revision_guard_workflows_for(job)
+      job.workflows.where(trigger_kind: trigger_kind).order(created_at: :desc, id: :desc).to_a
+    end
+
     def self.steps_for(job)
       syrus_yml = resolve_default_branch_syrus_yml(job)
       prepare_then(
