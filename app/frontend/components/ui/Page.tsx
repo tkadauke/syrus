@@ -6,6 +6,7 @@ import type { TextProps } from "./Text"
 
 export type PageSize = "form" | "narrow" | "medium" | "default" | "large" | "wide" | "extra-wide" | "full"
 export type PageGutter = "always" | "responsive"
+export type PageHeaderLayout = "split" | "stacked"
 
 export interface PageRootProps extends HTMLAttributes<HTMLElement> {
   size?: PageSize
@@ -19,6 +20,10 @@ export interface PageRootProps extends HTMLAttributes<HTMLElement> {
    * edges.
    */
   gutter?: PageGutter
+}
+
+export interface PageHeaderProps extends HTMLAttributes<HTMLElement> {
+  layout?: PageHeaderLayout
 }
 
 const PAGE_SIZE_CLASSES: Record<PageSize, string> = {
@@ -35,6 +40,11 @@ const PAGE_SIZE_CLASSES: Record<PageSize, string> = {
 const PAGE_GUTTER_CLASSES: Record<PageGutter, string> = {
   always: "px-[var(--space-page-x)] py-[var(--space-page-y)]",
   responsive: "px-0 py-4 sm:px-[var(--space-page-x)] sm:py-[var(--space-page-y)]"
+}
+
+const PAGE_HEADER_LAYOUT_CLASSES: Record<PageHeaderLayout, string> = {
+  split: "flex flex-wrap items-start justify-between gap-4",
+  stacked: "block space-y-3"
 }
 
 /**
@@ -77,9 +87,9 @@ function Root({ size = "default", gutter = "always", className = "", ...props }:
   )
 }
 
-function Header({ className = "", ...props }: HTMLAttributes<HTMLElement>) {
+function Header({ className = "", layout = "split", ...props }: PageHeaderProps) {
   const restore = usePageGutterRestoreClassName("padding")
-  return <header className={classes("flex flex-wrap items-start justify-between gap-4", restore, className)} {...props} />
+  return <header className={classes(PAGE_HEADER_LAYOUT_CLASSES[layout], restore, className)} data-page-header-layout={layout} {...props} />
 }
 
 /**
