@@ -90,6 +90,24 @@ function wideLineFile() {
   }
 }
 
+function splitWideLineFile() {
+  const wideToken = "new_value_".repeat(40)
+  return {
+    additions: 1,
+    deletions: 1,
+    patch: [
+      "diff --git a/app/models/split.rb b/app/models/split.rb",
+      "--- a/app/models/split.rb",
+      "+++ b/app/models/split.rb",
+      "@@ -1,2 +1,2 @@",
+      "-short_old_value",
+      `+${wideToken}`
+    ].join("\n"),
+    path: "app/models/split.rb",
+    status: "modified"
+  }
+}
+
 describe("ReviewableDiff", () => {
   it("renders only the selected file in single-file mode", () => {
     render(<ReviewableDiff files={files} mode="single-file" selectedPath="app/models/run.rb" showFileHeaders />)
@@ -142,6 +160,48 @@ describe("ReviewableDiff", () => {
     expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).toHaveClass("h-4", "w-4", "text-2xs")
     expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).not.toHaveClass("h-3", "w-3")
     expect(screen.getByTitle("app/models/job.rb")).toHaveClass("py-2", "text-xs")
+  })
+
+  it("gives desktop split panes equal fixed-width columns when wrapping long one-sided lines", () => {
+    render(<ReviewableDiff files={[splitWideLineFile()]} mode="continuous" reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "wrap", line_numbers: true }} showFileHeaders />)
+
+    const table = screen.getByRole("table")
+    const cols = Array.from(table.querySelectorAll("col"))
+    const oldCell = table.querySelector('[data-diff-split-row="true"] [data-diff-split-side="old"]') as HTMLElement
+    const newCell = getCodeCellText("new_value_".repeat(40))
+
+    expect(table).toHaveClass("w-full", "table-fixed")
+    expect(table).not.toHaveClass("min-w-full")
+    expect(cols.map((col) => col.getAttribute("style"))).toEqual([
+      "width: 3rem;",
+      "width: calc(0.5 * (100% - 7.5rem));",
+      "width: 3rem;",
+      "width: calc(0.5 * (100% - 7.5rem));",
+      "width: 1.5rem;"
+    ])
+    expect(oldCell).toHaveClass("min-w-0", "whitespace-pre-wrap", "break-words")
+    expect(newCell).toHaveClass("min-w-0", "whitespace-pre-wrap", "break-words")
+  })
+
+  it("clips desktop split panes instead of letting horizontal-scroll long lines move the center boundary", () => {
+    render(<ReviewableDiff files={[splitWideLineFile()]} mode="continuous" reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "scroll", line_numbers: false }} showFileHeaders />)
+
+    const table = screen.getByRole("table")
+    const cols = Array.from(table.querySelectorAll("col"))
+    const oldCell = table.querySelector('[data-diff-split-row="true"] [data-diff-split-side="old"]') as HTMLElement
+    const newCell = getCodeCellText("new_value_".repeat(40))
+
+    expect(screen.getByTestId("diff-file-scroll")).toHaveClass("overflow-x-scroll")
+    expect(table).toHaveClass("w-full", "table-fixed")
+    expect(cols.map((col) => col.getAttribute("style"))).toEqual([
+      "width: calc(0.5 * (100% - 1.5rem));",
+      "width: calc(0.5 * (100% - 1.5rem));",
+      "width: 1.5rem;"
+    ])
+    expect(oldCell).toHaveClass("min-w-0", "overflow-hidden", "whitespace-pre")
+    expect(oldCell).not.toHaveClass("min-w-[40rem]")
+    expect(newCell).toHaveClass("min-w-0", "overflow-hidden", "whitespace-pre")
+    expect(newCell).not.toHaveClass("min-w-[40rem]")
   })
 
   it("keeps mobile scroll-mode diffs in touch-friendly horizontal scrollers", () => {
