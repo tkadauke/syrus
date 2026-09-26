@@ -152,7 +152,9 @@ module BuildCache
     def filter_by_result_status(scope)
       case result_status_filter
       when "present"
-        scope.where.not(result: [ nil, {} ])
+        scope
+          .where.not(result: [ nil, {} ])
+          .where.not("json_extract(result, '$.truncated') = ?", true)
       when "empty"
         scope.where(result: [ nil, {} ])
       when "truncated"
