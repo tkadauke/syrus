@@ -1,5 +1,5 @@
 import { type BootstrapPayload } from "../../api/bootstrap"
-import { type ChatGroupRecord, type ChatNavRecord, type ChatSidebarSortBy } from "../../api/chats"
+import { type ChatGroupRecord, type ChatNavRecord } from "../../api/chats"
 import { type ColorTheme } from "../../api/themes"
 
 
@@ -115,7 +115,7 @@ export type ChatSection = {
   has_more: boolean
 }
 
-export function chatSectionsFromPayload(groups: ChatGroupRecord[], loadedSections: Record<string, { chats: ChatNavRecord[]; has_more: boolean }>, sortBy: ChatSidebarSortBy = "last_activity") {
+export function chatSectionsFromPayload(groups: ChatGroupRecord[], loadedSections: Record<string, { chats: ChatNavRecord[]; has_more: boolean }>) {
   return groups.map((group) => {
     const loaded = loadedSections[group.key]
     const seen = new Set<number>()
@@ -126,7 +126,6 @@ export function chatSectionsFromPayload(groups: ChatGroupRecord[], loadedSection
         seen.add(chat.id)
         return true
       })
-      .sort((left, right) => compareSidebarChats(left, right, sortBy))
     return {
       key: group.key,
       label: group.label,
@@ -134,34 +133,15 @@ export function chatSectionsFromPayload(groups: ChatGroupRecord[], loadedSection
       group_by: group.group_by,
       group_value: group.group_value,
       chats,
-      has_more: loaded?.has_more ?? group.has_more,
-      activeAt: Math.max(...chats.map(chatActivityTime))
+      has_more: loaded?.has_more ?? group.has_more
     }
   })
-    .sort((left, right) => right.activeAt - left.activeAt)
-    .map(({ activeAt: _activeAt, ...group }) => group)
 }
 
 export function compareChatsByLastMessage(left: ChatNavRecord, right: ChatNavRecord) {
-  return compareSidebarChats(left, right, "last_activity")
-}
-
-export function compareSidebarChats(left: ChatNavRecord, right: ChatNavRecord, sortBy: ChatSidebarSortBy) {
   if (left.pinned !== right.pinned) return left.pinned ? -1 : 1
 
-  if (sortBy === "name") {
-    return chatTitleSortValue(left).localeCompare(chatTitleSortValue(right)) || right.id - left.id
-  }
-
-  if (sortBy === "date_created") {
-    return timestampValue(right.created_at) - timestampValue(left.created_at) || right.id - left.id
-  }
-
   return chatActivityTime(right) - chatActivityTime(left) || right.id - left.id
-}
-
-function chatTitleSortValue(chat: ChatNavRecord) {
-  return (chat.title || "").trim().toLocaleLowerCase()
 }
 
 export function chatLastMessageTime(chat: ChatNavRecord) {

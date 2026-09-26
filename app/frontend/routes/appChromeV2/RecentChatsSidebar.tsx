@@ -6,7 +6,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatSidebarGroupBy, type ChatSidebarPerGroup, type ChatSidebarSettings, type ChatSidebarSortBy, type ChatSidebarStatus, type ChatsIndexPayload } from "../../api/chats"
+import { DEFAULT_CHAT_SIDEBAR_SETTINGS, cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatSidebarGroupBy, type ChatSidebarPerGroup, type ChatSidebarSettings, type ChatSidebarSortBy, type ChatSidebarStatus, type ChatsIndexPayload } from "../../api/chats"
 import { ApiError } from "../../api/client"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -16,17 +16,11 @@ import { PinIcon } from "../../components/PinIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { Surface, surfaceClasses } from "../../components/ui"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
+import { recentChatsQueryKey, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
 import { chatQueryKey } from "../Chat"
 
 const SIDEBAR_SETTINGS_KEY = "syrus.recent_chats_sidebar.settings"
-const DEFAULT_SIDEBAR_SETTINGS: ChatSidebarSettings = {
-  status: "active",
-  group_by: "repository",
-  sort_by: "last_activity",
-  show_empty_groups: false,
-  per_group: 10
-}
+const DEFAULT_SIDEBAR_SETTINGS = DEFAULT_CHAT_SIDEBAR_SETTINGS
 const STATUS_OPTIONS: Array<{ value: ChatSidebarStatus; label: string }> = [
   { value: "active", label: "Active" },
   { value: "hidden", label: "Hidden" },
@@ -130,27 +124,21 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
   const navigateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sidebarRootRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
-  const settingsMountedRef = useRef(false)
   const activeChatId = activeChatIdFromPath(location.pathname)
+  const sidebarQueryKey = useMemo(() => recentChatsQueryKey(sidebarSettings), [sidebarSettings])
   const chats = useQuery({
-    queryKey: ["chats", "recent"],
+    queryKey: sidebarQueryKey,
     queryFn: () => fetchChats(sidebarSettings),
     enabled: userPresent,
     staleTime: 30_000
   })
   const settingsKey = useMemo(() => JSON.stringify(sidebarSettings), [sidebarSettings])
-  const sections = useMemo(() => chatSectionsFromPayload(chats.data?.groups || [], loadedSections, sidebarSettings.sort_by), [chats.data?.groups, loadedSections, sidebarSettings.sort_by])
+  const sections = useMemo(() => chatSectionsFromPayload(chats.data?.groups || [], loadedSections), [chats.data?.groups, loadedSections])
 
   useEffect(() => {
     writeSidebarSettings(sidebarSettings)
-    if (!settingsMountedRef.current) {
-      settingsMountedRef.current = true
-      return
-    }
-
     setLoadedSections({})
     setLoadingSections(new Set())
-    void chats.refetch()
   }, [settingsKey])
 
   function showLess(key: string) {
@@ -257,7 +245,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
   }
 
   function removeChatFromRecentLists(chatId: number) {
-    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
+    queryClient.setQueryData<ChatsIndexPayload>(sidebarQueryKey, (current) => {
       if (!current) return current
 
       return {
