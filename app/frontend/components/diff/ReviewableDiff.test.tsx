@@ -181,12 +181,12 @@ describe("ReviewableDiff", () => {
       "width: calc(0.5 * (100% - 7.5rem));",
       "width: 1.5rem;"
     ])
-    expect(oldRow.getAttribute("style")).toContain("display: grid")
-    expect(oldRow.getAttribute("style")).toContain("grid-template-columns: 3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem")
-    expect(newRow.getAttribute("style")).toContain("display: grid")
-    expect(newRow.getAttribute("style")).toContain("grid-template-columns: 3rem minmax(0, 1fr) 3rem minmax(0, 1fr) 1.5rem")
-    expect(oldCell).toHaveClass("min-w-0", "whitespace-pre-wrap", "break-words")
-    expect(newCell).toHaveClass("min-w-0", "whitespace-pre-wrap", "break-words")
+    expect(oldRow).not.toHaveStyle({ display: "grid" })
+    expect(oldRow.getAttribute("style") || "").not.toContain("grid-template-columns")
+    expect(newRow).not.toHaveStyle({ display: "grid" })
+    expect(newRow.getAttribute("style") || "").not.toContain("grid-template-columns")
+    expect(oldCell).toHaveClass("min-w-0", "max-w-0", "overflow-hidden", "whitespace-pre-wrap", "break-words")
+    expect(newCell).toHaveClass("min-w-0", "max-w-0", "overflow-hidden", "whitespace-pre-wrap", "break-words")
   })
 
   it("clips desktop split panes instead of letting horizontal-scroll long lines move the center boundary", () => {
@@ -206,10 +206,10 @@ describe("ReviewableDiff", () => {
       "width: calc(0.5 * (100% - 1.5rem));",
       "width: 1.5rem;"
     ])
-    expect(oldRow.getAttribute("style")).toContain("display: grid")
-    expect(oldRow.getAttribute("style")).toContain("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.5rem")
-    expect(newRow.getAttribute("style")).toContain("display: grid")
-    expect(newRow.getAttribute("style")).toContain("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.5rem")
+    expect(oldRow).not.toHaveStyle({ display: "grid" })
+    expect(oldRow.getAttribute("style") || "").not.toContain("grid-template-columns")
+    expect(newRow).not.toHaveStyle({ display: "grid" })
+    expect(newRow.getAttribute("style") || "").not.toContain("grid-template-columns")
     expect(oldCell).toHaveClass("min-w-0", "overflow-hidden", "whitespace-pre")
     expect(oldCell).not.toHaveClass("min-w-[40rem]")
     expect(newCell).toHaveClass("min-w-0", "overflow-hidden", "whitespace-pre")
