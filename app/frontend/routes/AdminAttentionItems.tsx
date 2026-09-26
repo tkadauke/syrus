@@ -13,7 +13,6 @@ import {
 } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
 import { Input } from "../components/Input"
-import { Select } from "../components/Select"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import {
   actOnAdminAttentionItem,
@@ -28,7 +27,37 @@ import { useT } from "../hooks/useT"
 import { withRoutePrefix, routePrefix } from "../lib/routing"
 
 const POLL_INTERVAL_MS = 30_000
-const RESOLUTIONS = [ "upheld", "dismissed", "deferred" ]
+const RESOLUTIONS = ["upheld", "dismissed", "deferred"]
+const EVIDENCE_LABELS: Record<string, string> = {
+  app_revision: "App revision",
+  classifier_attempts: "Classifier attempts",
+  error_class: "Error class",
+  error_message: "Error message",
+  fingerprint: "Fingerprint",
+  repository: "Repository",
+  source_ref: "Source",
+  step_kind: "Step",
+  streak_count: "Failure streak",
+  threshold: "Threshold",
+  triaging_reason: "Triage reason",
+  trigger_kind: "Workflow trigger",
+  uncertainty_reason: "Detail"
+}
+const EVIDENCE_KEY_ORDER = [
+  "repository",
+  "source_ref",
+  "triaging_reason",
+  "uncertainty_reason",
+  "classifier_attempts",
+  "error_class",
+  "error_message",
+  "step_kind",
+  "trigger_kind",
+  "streak_count",
+  "threshold",
+  "app_revision",
+  "fingerprint"
+]
 
 export function AdminAttentionItems() {
   const { t } = useT("admin")
@@ -37,7 +66,7 @@ export function AdminAttentionItems() {
   const navigate = useNavigate()
   const prefix = routePrefix(location.pathname)
   const items = useQuery({
-    queryKey: [ "admin", "attention_items", location.search ],
+    queryKey: ["admin", "attention_items", location.search],
     queryFn: ({ signal }) => fetchAdminAttentionItems(location.search, signal),
     refetchInterval: POLL_INTERVAL_MS
   })
@@ -50,7 +79,12 @@ export function AdminAttentionItems() {
   return (
     <AdminEventPageShell
       actions={
-        <Button className="shrink-0 disabled:text-gray-400 dark:disabled:text-gray-500" disabled={items.isFetching} onClick={() => void items.refetch()} variant="secondary">
+        <Button
+          className="shrink-0 disabled:text-gray-400 dark:disabled:text-gray-500"
+          disabled={items.isFetching}
+          onClick={() => void items.refetch()}
+          variant="secondary"
+        >
           {items.isFetching ? t("attention_items.refreshing") : t("attention_items.refresh")}
         </Button>
       }
@@ -59,12 +93,19 @@ export function AdminAttentionItems() {
       eyebrow={t("section_label")}
       title={t("attention_items.heading")}
     >
-      <AdminEventFilterBar clearLabel={t("attention_items.clear_filters")} filter={items.data?.filter} filterSchema={items.data?.filter_schema} fields={[
-        { name: "state", label: t("attention_items.filter_state") },
-        { name: "queue", label: t("attention_items.filter_queue") },
-        { name: "urgency", label: t("attention_items.filter_urgency") },
-        { name: "repository_id", label: t("attention_items.filter_repository"), inputMode: "numeric" }
-      ]} search={location.search} searchLabel={t("attention_items.apply_filters")} />
+      <AdminEventFilterBar
+        clearLabel={t("attention_items.clear_filters")}
+        filter={items.data?.filter}
+        filterSchema={items.data?.filter_schema}
+        fields={[
+          { name: "state", label: t("attention_items.filter_state") },
+          { name: "queue", label: t("attention_items.filter_queue") },
+          { name: "urgency", label: t("attention_items.filter_urgency") },
+          { name: "repository_id", label: t("attention_items.filter_repository"), inputMode: "numeric" }
+        ]}
+        search={location.search}
+        searchLabel={t("attention_items.apply_filters")}
+      />
 
       {items.isPending ? <AdminEventPanelMessage>{t("attention_items.loading")}</AdminEventPanelMessage> : null}
       {items.isError ? <AdminEventPanelMessage tone="error">{t("attention_items.error_load")}</AdminEventPanelMessage> : null}
@@ -73,7 +114,17 @@ export function AdminAttentionItems() {
   )
 }
 
-function ItemsTable({ onNavigate, payload, prefix, search }: { onNavigate: (params: URLSearchParams) => void; payload: AdminAttentionItemsPayload; prefix: string; search: string }) {
+function ItemsTable({
+  onNavigate,
+  payload,
+  prefix,
+  search
+}: {
+  onNavigate: (params: URLSearchParams) => void
+  payload: AdminAttentionItemsPayload
+  prefix: string
+  search: string
+}) {
   const { t } = useT("admin")
   if (payload.items.length === 0) return <AdminEventPanelMessage>{t("attention_items.empty")}</AdminEventPanelMessage>
 
@@ -161,7 +212,9 @@ function ItemSummary({ item, expanded, onToggle }: { item: AttentionItemSummary;
         <UrgencyPill urgency={item.urgency} />
         <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{item.queue}</span>
       </div>
-      <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{item.problem_label} ({item.problem_code})</div>
+      <div className="font-mono text-xs text-gray-500 dark:text-gray-400">
+        {item.problem_label} ({item.problem_code})
+      </div>
       {item.summary ? <div className="text-xs text-gray-600 dark:text-gray-300">{item.summary}</div> : null}
       <button className="text-xs text-brand underline hover:no-underline" onClick={onToggle} type="button">
         {expanded ? t("attention_items.hide_detail") : t("attention_items.show_detail")}
@@ -173,9 +226,25 @@ function ItemSummary({ item, expanded, onToggle }: { item: AttentionItemSummary;
 function ScopeSummary({ item, prefix }: { item: AttentionItemSummary; prefix: string }) {
   return (
     <div className="space-y-1">
-      {item.repository ? <Link className={adminEventLinkClass()} to={withRoutePrefix(item.repository.path, prefix)}>{item.repository.slug}</Link> : null}
-      {item.job ? <div><Link className={adminEventLinkClass()} to={withRoutePrefix(item.job.path, prefix)}>{item.job.slug}</Link></div> : null}
-      {item.workflow ? <div><Link className={adminEventLinkClass()} to={withRoutePrefix(item.workflow.path, prefix)}>{item.workflow.trigger_kind}</Link></div> : null}
+      {item.repository ? (
+        <Link className={adminEventLinkClass()} to={withRoutePrefix(item.repository.path, prefix)}>
+          {item.repository.slug}
+        </Link>
+      ) : null}
+      {item.job ? (
+        <div>
+          <Link className={adminEventLinkClass()} to={withRoutePrefix(item.job.path, prefix)}>
+            {item.job.slug}
+          </Link>
+        </div>
+      ) : null}
+      {item.workflow ? (
+        <div>
+          <Link className={adminEventLinkClass()} to={withRoutePrefix(item.workflow.path, prefix)}>
+            {item.workflow.trigger_kind}
+          </Link>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -192,15 +261,81 @@ function UrgencyPill({ urgency }: { urgency: string }) {
 }
 
 function ItemDetail({ item, prefix }: { item: AttentionItemSummary; prefix: string }) {
-  const { t } = useT("admin")
   return (
     <div className="space-y-4">
-      <JsonBlock title={t("attention_items.evidence")} value={item.evidence} />
+      <EvidenceBlock evidence={item.evidence} />
       {item.adjudication ? <AdjudicationBlock adjudication={item.adjudication} /> : null}
-      {item.actions.length > 0 ? <ActionsBlock item={item} /> : null}
       {item.state === "open" ? <DecideForm item={item} /> : <DecidedSummary item={item} prefix={prefix} />}
+      {item.actions.length > 0 ? <ActionsBlock item={item} /> : null}
     </div>
   )
+}
+
+function EvidenceBlock({ evidence }: { evidence: AttentionItemSummary["evidence"] }) {
+  const { t } = useT("admin")
+  const entries = evidenceEntries(evidence)
+
+  return (
+    <section>
+      <h3 className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("attention_items.evidence")}</h3>
+      {entries.length > 0 ? (
+        <dl className="mt-2 grid gap-2 rounded border border-border bg-surface p-3 text-xs sm:grid-cols-[minmax(8rem,14rem)_minmax(0,1fr)]">
+          {entries.map(([key, value]) => (
+            <div className="contents" key={key}>
+              <dt className="font-medium text-text-secondary">{evidenceLabel(key)}</dt>
+              <dd className="min-w-0 break-words text-text-primary">{formatEvidenceValue(key, value)}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <div className="mt-2 rounded border border-border bg-surface p-3 text-xs text-text-muted">-</div>
+      )}
+      <details className="mt-2 rounded border border-border bg-surface p-3 text-xs">
+        <summary className="cursor-pointer font-medium text-text-secondary">{t("attention_items.show_raw_evidence")}</summary>
+        <div className="mt-3">
+          <JsonBlock title={t("attention_items.raw_evidence")} value={evidence} />
+        </div>
+      </details>
+    </section>
+  )
+}
+
+function evidenceEntries(evidence: AttentionItemSummary["evidence"]) {
+  const keys = Object.keys(evidence)
+  const ordered = [...EVIDENCE_KEY_ORDER.filter((key) => keys.includes(key)), ...keys.filter((key) => !EVIDENCE_KEY_ORDER.includes(key)).sort()]
+  return ordered.map((key) => [key, evidence[key]] as const).filter(([, value]) => value !== null && value !== undefined && value !== "")
+}
+
+function evidenceLabel(key: string) {
+  return EVIDENCE_LABELS[key] || humanize(key)
+}
+
+function formatEvidenceValue(key: string, value: unknown) {
+  if (key === "source_ref" && typeof value === "string") return formatSourceRef(value)
+  if (["triaging_reason", "step_kind", "trigger_kind"].includes(key) && typeof value === "string") return humanize(value)
+  if (typeof value === "boolean") return value ? "Yes" : "No"
+  if (typeof value === "number") return value.toLocaleString()
+  if (typeof value === "string") return value
+  if (Array.isArray(value)) return value.map((entry) => formatCompactValue(entry)).join(", ")
+  return formatCompactValue(value)
+}
+
+function formatSourceRef(value: string) {
+  const githubIssue = value.match(/^github:[^#]+#(\d+)$/)
+  if (githubIssue) return `GitHub issue #${githubIssue[1]}`
+  return value
+}
+
+function formatCompactValue(value: unknown) {
+  if (value === null || value === undefined) return "-"
+  if (typeof value === "string") return value
+  if (typeof value === "number") return value.toLocaleString()
+  if (typeof value === "boolean") return value ? "Yes" : "No"
+  return JSON.stringify(value)
+}
+
+function humanize(value: string) {
+  return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
 function AdjudicationBlock({ adjudication }: { adjudication: NonNullable<AttentionItemSummary["adjudication"]> }) {
@@ -208,11 +343,25 @@ function AdjudicationBlock({ adjudication }: { adjudication: NonNullable<Attenti
   return (
     <section>
       <h3 className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("attention_items.adjudication")}</h3>
-      <div className="mt-2 rounded border border-gray-200 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900">
-        <div><span className="font-medium">{t("attention_items.verdict")}:</span> {adjudication.verdict}</div>
-        {adjudication.reason ? <div><span className="font-medium">{t("attention_items.reason")}:</span> {adjudication.reason}</div> : null}
-        {adjudication.adjudicator ? <div><span className="font-medium">{t("attention_items.adjudicator")}:</span> {adjudication.adjudicator}</div> : null}
-        {adjudication.confidence != null ? <div><span className="font-medium">{t("attention_items.confidence")}:</span> {adjudication.confidence}</div> : null}
+      <div className="mt-2 rounded border border-border bg-surface p-3 text-xs text-text-primary">
+        <div>
+          <span className="font-medium">{t("attention_items.verdict")}:</span> {adjudication.verdict}
+        </div>
+        {adjudication.reason ? (
+          <div>
+            <span className="font-medium">{t("attention_items.reason")}:</span> {adjudication.reason}
+          </div>
+        ) : null}
+        {adjudication.adjudicator ? (
+          <div>
+            <span className="font-medium">{t("attention_items.adjudicator")}:</span> {adjudication.adjudicator}
+          </div>
+        ) : null}
+        {adjudication.confidence != null ? (
+          <div>
+            <span className="font-medium">{t("attention_items.confidence")}:</span> {adjudication.confidence}
+          </div>
+        ) : null}
       </div>
     </section>
   )
@@ -221,66 +370,97 @@ function AdjudicationBlock({ adjudication }: { adjudication: NonNullable<Attenti
 function ActionsBlock({ item }: { item: AttentionItemSummary }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
-  const [ reason, setReason ] = useState("")
+  const [reasons, setReasons] = useState<Record<string, string>>({})
+  const actions = item.actions.filter((action) => actionAppliesToItem(action.action_key, item))
   const act = useMutation({
-    mutationFn: (actionKey: string) => actOnAdminAttentionItem(item.id, actionKey, reason.trim() || undefined),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: [ "admin", "attention_items" ] })
+    mutationFn: (actionKey: string) => actOnAdminAttentionItem(item.id, actionKey, reasons[actionKey]?.trim() || undefined),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin", "attention_items"] })
   })
+
+  if (actions.length === 0) return null
 
   return (
     <section>
       <h3 className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("attention_items.actions")}</h3>
       <div className="mt-2 space-y-2">
-        {item.actions.map((action) => (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900" key={action.action_key}>
-            <div>
-              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{action.label || action.action_key}</div>
-              {action.detail ? <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{action.detail}</div> : null}
+        {actions.map((action) => (
+          <div className="rounded border border-border bg-surface p-2" key={action.action_key}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-text-primary">{action.label || action.action_key}</div>
+                {action.detail ? <div className="break-words font-mono text-xs text-text-muted">{action.detail}</div> : null}
+              </div>
+              <Button disabled={act.isPending} onClick={() => act.mutate(action.action_key)} size="sm" variant="secondary">
+                {act.isPending && act.variables === action.action_key ? t("attention_items.running") : t("attention_items.run_action")}
+              </Button>
             </div>
-            <Button disabled={act.isPending} onClick={() => act.mutate(action.action_key)} size="sm" variant="secondary">
-              {act.isPending && act.variables === action.action_key ? t("attention_items.running") : t("attention_items.run_action")}
-            </Button>
+            <details className="mt-2 text-xs text-text-muted">
+              <summary className="cursor-pointer font-medium">{t("attention_items.add_action_reason")}</summary>
+              <label className="mt-2 block" htmlFor={`attention-action-reason-${item.id}-${action.action_key}`}>
+                {t("attention_items.action_reason_label")}
+              </label>
+              <Input
+                className="mt-1"
+                id={`attention-action-reason-${item.id}-${action.action_key}`}
+                onChange={(event) => setReasons((current) => ({ ...current, [action.action_key]: event.target.value }))}
+                type="text"
+                value={reasons[action.action_key] || ""}
+              />
+            </details>
           </div>
         ))}
       </div>
-      <label className="mt-2 block text-xs text-gray-500 dark:text-gray-400">
-        {t("attention_items.action_reason_label")}
-        <Input className="mt-1" onChange={(e) => setReason(e.target.value)} type="text" value={reason} />
-      </label>
-      {act.isError ? <AdminEventPanelMessage tone="error">{act.error instanceof ApiError ? act.error.message : t("attention_items.action_failed")}</AdminEventPanelMessage> : null}
+      {act.isError ? (
+        <AdminEventPanelMessage tone="error">{act.error instanceof ApiError ? act.error.message : t("attention_items.action_failed")}</AdminEventPanelMessage>
+      ) : null}
     </section>
   )
+}
+
+function actionAppliesToItem(actionKey: string, item: AttentionItemSummary) {
+  if (!actionKey.includes("cancel")) return true
+  return item.job?.state !== "closed"
 }
 
 function DecideForm({ item }: { item: AttentionItemSummary }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
-  const [ resolution, setResolution ] = useState(RESOLUTIONS[0])
-  const [ reason, setReason ] = useState("")
+  const [reason, setReason] = useState("")
   const decide = useMutation({
-    mutationFn: () => decideAdminAttentionItem(item.id, resolution, reason.trim() || undefined),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: [ "admin", "attention_items" ] })
+    mutationFn: (resolution: string) => decideAdminAttentionItem(item.id, resolution, reason.trim() || undefined),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin", "attention_items"] })
   })
 
   return (
     <section>
       <h3 className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("attention_items.decide")}</h3>
-      <div className="mt-2 flex flex-wrap items-end gap-2">
-        <label className="text-xs text-gray-500 dark:text-gray-400">
-          {t("attention_items.resolution_label")}
-          <Select className="mt-1" fullWidth={false} onChange={(e) => setResolution(e.target.value)} value={resolution}>
-            {RESOLUTIONS.map((value) => <option key={value} value={value}>{t(`attention_items.resolution_${value}`)}</option>)}
-          </Select>
-        </label>
-        <label className="flex-1 text-xs text-gray-500 dark:text-gray-400">
-          {t("attention_items.reason_label")}
-          <Input className="mt-1" onChange={(e) => setReason(e.target.value)} type="text" value={reason} />
-        </label>
-        <Button disabled={decide.isPending} onClick={() => decide.mutate()} size="sm" variant="primary">
-          {decide.isPending ? t("attention_items.deciding") : t("attention_items.decide")}
-        </Button>
+      <div className="mt-2 rounded border border-border bg-surface p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          {RESOLUTIONS.map((value) => (
+            <Button
+              disabled={decide.isPending}
+              key={value}
+              onClick={() => decide.mutate(value)}
+              size="sm"
+              variant={value === "upheld" ? "primary" : "secondary"}
+            >
+              {decide.isPending && decide.variables === value ? t("attention_items.deciding") : t(`attention_items.resolution_${value}`)}
+            </Button>
+          ))}
+        </div>
+        <details className="mt-3 text-xs text-text-muted">
+          <summary className="cursor-pointer font-medium">{t("attention_items.add_note")}</summary>
+          <label className="mt-2 block" htmlFor={`attention-decision-reason-${item.id}`}>
+            {t("attention_items.note_label")}
+          </label>
+          <Input className="mt-1" id={`attention-decision-reason-${item.id}`} onChange={(e) => setReason(e.target.value)} type="text" value={reason} />
+        </details>
       </div>
-      {decide.isError ? <AdminEventPanelMessage tone="error">{decide.error instanceof ApiError ? decide.error.message : t("attention_items.decide_failed")}</AdminEventPanelMessage> : null}
+      {decide.isError ? (
+        <AdminEventPanelMessage tone="error">
+          {decide.error instanceof ApiError ? decide.error.message : t("attention_items.decide_failed")}
+        </AdminEventPanelMessage>
+      ) : null}
     </section>
   )
 }
@@ -288,12 +468,23 @@ function DecideForm({ item }: { item: AttentionItemSummary }) {
 function DecidedSummary({ item, prefix }: { item: AttentionItemSummary; prefix: string }) {
   const { t } = useT("admin")
   return (
-    <section className="text-xs text-gray-600 dark:text-gray-300">
+    <section className="text-xs text-text-secondary">
       <span className="font-medium">{t(`attention_items.resolution_${item.resolution}`, { defaultValue: item.resolution || item.state })}</span>
       {item.decided_by ? <span> · {item.decided_by.display_name}</span> : null}
-      {item.decided_at ? <span> · <RelativeTimestamp value={item.decided_at} /></span> : null}
+      {item.decided_at ? (
+        <span>
+          {" "}
+          · <RelativeTimestamp value={item.decided_at} />
+        </span>
+      ) : null}
       {item.reason ? <div className="mt-1">{item.reason}</div> : null}
-      {item.job ? <div className="mt-1"><Link className={adminEventLinkClass()} to={withRoutePrefix(item.job.path, prefix)}>{item.job.slug}</Link></div> : null}
+      {item.job ? (
+        <div className="mt-1">
+          <Link className={adminEventLinkClass()} to={withRoutePrefix(item.job.path, prefix)}>
+            {item.job.slug}
+          </Link>
+        </div>
+      ) : null}
     </section>
   )
 }
