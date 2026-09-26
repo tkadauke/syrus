@@ -163,7 +163,9 @@ describe("ReviewWorkspace", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Review settings" }))
 
-    expect(screen.getByRole("dialog", { name: "Review settings" })).toBeInTheDocument()
+    const dialog = screen.getByRole("dialog", { name: "Review settings" })
+    expect(dialog).toBeInTheDocument()
+    expect(dialog).toHaveClass("max-h-[calc(100dvh-2rem)]", "overflow-y-auto")
     expect(screen.getByLabelText("Line wrapping")).toBeInTheDocument()
   })
 
