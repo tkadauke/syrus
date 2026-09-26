@@ -1798,6 +1798,9 @@ module Api
           counts ||= PerformanceLogging.phase("chat_json.counts", chat_id: chat_session.id) do
             chat_session_payload_counts(chat_session.id)
           end
+          chat_image_count = PerformanceLogging.phase("chat_json.chat_image_count", chat_id: chat_session.id) do
+            ChatMediaLibrary.chat_image_count(chat_session)
+          end
 
           {
             id: chat_session.id,
@@ -1838,7 +1841,8 @@ module Api
             scratchpad_items_count: counts.fetch(:scratchpad_items),
             runtime_session_count: counts.fetch(:runtime_sessions),
             typed_artifact_count: PerformanceLogging.phase("chat_json.typed_artifact_count", chat_id: chat_session.id) { Array(chat_session.artifact("typed_artifacts")).size },
-            has_chat_images: PerformanceLogging.phase("chat_json.has_chat_images", chat_id: chat_session.id) { ChatMediaLibrary.any_inline_images?(chat_session) },
+            chat_image_count: chat_image_count,
+            has_chat_images: chat_image_count.positive?,
             coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
             coding_checkout_branch: chat_session.coding_checkout_branch,
             coding_relay_ready: chat_session.coding_relay_address.present? && chat_session.coding_relay_token.present?,
