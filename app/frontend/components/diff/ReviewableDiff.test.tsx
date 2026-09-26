@@ -1434,10 +1434,10 @@ describe("word-occurrence highlighting", () => {
     expect(occurrences).toHaveLength(2)
 
     fireEvent.click(occurrences[0])
-    occurrences.forEach((el) => expect(el).toHaveClass("bg-amber-200"))
+    occurrences.forEach((el) => expect(el).toHaveClass("bg-warning-surface"))
 
     fireEvent.click(occurrences[0])
-    occurrences.forEach((el) => expect(el).not.toHaveClass("bg-amber-200"))
+    occurrences.forEach((el) => expect(el).not.toHaveClass("bg-warning-surface"))
   })
 
   it("never turns punctuation into a clickable highlight target", () => {
@@ -1464,11 +1464,11 @@ describe("word-occurrence highlighting", () => {
 
     fireEvent.click(screen.getByText("shared_token"))
     expect(screen.queryByText(/Highlighting/)).not.toBeInTheDocument()
-    expect(screen.getByText("shared_token")).toHaveClass("bg-amber-200")
+    expect(screen.getByText("shared_token")).toHaveClass("bg-warning-surface")
 
     fireEvent.click(screen.getByText("("))
 
-    expect(screen.getByText("shared_token")).not.toHaveClass("bg-amber-200")
+    expect(screen.getByText("shared_token")).not.toHaveClass("bg-warning-surface")
   })
 })
 
