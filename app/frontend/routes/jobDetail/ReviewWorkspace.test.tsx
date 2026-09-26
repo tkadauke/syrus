@@ -588,17 +588,17 @@ describe("ReviewWorkspace", () => {
 
   it("shows collapsed rail badges only for versions with comments and peeks the panel on hover", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
-      version: version({ id: 300, version_index: 3, label: null }),
+      version: version({ id: 300, version_index: 3, label: "Preview fixture without comments" }),
       versions: [
-        version({ id: 100, version_index: 1, label: null }),
-        version({ id: 200, version_index: 2, label: null }),
-        version({ id: 300, version_index: 3, label: null })
+        version({ id: 100, version_index: 1, label: "Preview fixture" }),
+        version({ id: 200, version_index: 2, label: "Long repair label" }),
+        version({ id: 300, version_index: 3, label: "Preview fixture without comments" })
       ]
     }))
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([
-      comment({ id: 1, diff_review_version_id: 100, diff_review_version: version({ id: 100, version_index: 1, label: null }) }),
-      comment({ id: 2, diff_review_version_id: 200, diff_review_version: version({ id: 200, version_index: 2, label: null }), body: "Comment on v2." }),
-      comment({ id: 3, diff_review_version_id: 200, diff_review_version: version({ id: 200, version_index: 2, label: null }), body: "Another comment on v2." })
+      comment({ id: 1, diff_review_version_id: 100, diff_review_version: version({ id: 100, version_index: 1, label: "Preview fixture" }) }),
+      comment({ id: 2, diff_review_version_id: 200, diff_review_version: version({ id: 200, version_index: 2, label: "Long repair label" }), body: "Comment on v2." }),
+      comment({ id: 3, diff_review_version_id: 200, diff_review_version: version({ id: 200, version_index: 2, label: "Long repair label" }), body: "Another comment on v2." })
     ], 300))
 
     renderWorkspace()
@@ -612,6 +612,8 @@ describe("ReviewWorkspace", () => {
     expect(within(rail).getByText("1")).toBeInTheDocument()
     expect(within(rail).getByText("v2")).toBeInTheDocument()
     expect(within(rail).getByText("2")).toBeInTheDocument()
+    expect(within(rail).queryByText("Preview fixture")).not.toBeInTheDocument()
+    expect(within(rail).queryByText("Long repair label")).not.toBeInTheDocument()
     expect(within(rail).queryByText("v3")).not.toBeInTheDocument()
     expect(screen.queryByTestId("review-comments-peek")).not.toBeInTheDocument()
 
