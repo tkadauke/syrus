@@ -726,6 +726,71 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
   end
 
+  describe "dashboard parity columns" do
+    it "exposes requested job fields as column options and sortable columns alongside matching filters" do
+      result = call(subject: "job", section: "chrome")
+
+      optional_columns = result.dig(:controls, :columns, :optional).map { |column| column.fetch(:key) }
+      filter_fields = result.dig(:controls, :filter_schema).map { |field| field[:field] || field.fetch("field") }
+
+      expect(optional_columns).to include(
+        "kind", "job_type", "agent_provider", "closure_reason", "triaging_reason", "validity",
+        "pr_number", "issue_number", "branch_name", "claimed_by", "claimed_at",
+        "manual_pause_state", "needs_attention_reason"
+      )
+      expect(result.dig(:controls, :sort_columns)).to include(
+        "kind", "job_type", "agent_provider", "closure_reason", "triaging_reason", "validity",
+        "pr_number", "issue_number", "branch_name", "claimed_by", "claimed_at",
+        "manual_pause_state", "needs_attention_reason", "workflows_count"
+      )
+      expect(filter_fields).to include(
+        "kind", "job_type", "agent_provider", "closure_reason", "triaging_reason", "validity",
+        "pr_number", "issue_number", "branch_name"
+      )
+    end
+
+    it "serializes and sorts epic dependency and child progress metrics" do
+      blocked_dependency = Factories.job_record(user: user, repository: repo, state: "running")
+      slow_epic = Factories.epic(user: user, repository: repo, title: "Slow road")
+      fast_epic = Factories.epic(user: user, repository: repo, title: "Fast road")
+      blocked_child = Factories.job_record(user: user, repository: repo, epic: slow_epic, state: "queued")
+      JobDependency.create!(job: blocked_child, depends_on_job: blocked_dependency, source: "manual")
+      EpicDependency.create!(epic: slow_epic, depends_on_job: blocked_dependency)
+      Factories.job_record(user: user, repository: repo, epic: slow_epic, state: "running")
+      Factories.job_record(user: user, repository: repo, epic: fast_epic, state: "closed", closure_reason: "pr_merged")
+
+      rows = call(subject: "epic", section: "rows", sort_column: "child_progress_percent", sort_direction: "desc")
+      fast_item = rows[:items].find { |item| item[:id] == fast_epic.id }
+      slow_item = rows[:items].find { |item| item[:id] == slow_epic.id }
+
+      expect(rows[:items].map { |item| item[:id] }.first).to eq(fast_epic.id)
+      expect(fast_item).to include(child_progress_percent: 100, open_child_count: 0, blocked_child_count: 0, dependency_count: 0)
+      expect(slow_item).to include(child_progress_percent: 0, open_child_count: 2, blocked_child_count: 1, dependency_count: 1, has_epic_dependency: true)
+    end
+
+    it "serializes and sorts workflow run and worker fields" do
+      low_job = Factories.job_record(user: user, repository: repo, issue_title: "Few runs")
+      high_job = Factories.job_record(user: user, repository: repo, issue_title: "Many runs")
+      low = Workflow.create!(job: low_job, trigger_kind: "initial", state: "failed", failure_reason: "one failed", worker_hostname: "worker-a", worker_storage_key: "store-a")
+      high = Workflow.create!(job: high_job, trigger_kind: "retry", state: "failed", failure_reason: "two failed", worker_hostname: "worker-b", worker_storage_key: "store-b")
+      low_step = Step.create!(workflow: low, kind: "implement", position: 1, state: "failed")
+      high_step = Step.create!(workflow: high, kind: "implement", position: 1, state: "failed")
+      Run.create!(job: low_job, user: user, step: low_step, trigger_kind: "initial", state: "failed")
+      2.times { Run.create!(job: high_job, user: user, step: high_step, trigger_kind: "retry", state: "failed") }
+
+      rows = call(subject: "workflow", section: "rows", sort_column: "run_count", sort_direction: "desc")
+      high_item = rows[:items].find { |item| item[:id] == high.id }
+
+      expect(rows[:items].map { |item| item[:id] }.first).to eq(high.id)
+      expect(high_item).to include(
+        run_count: 2,
+        failure_reason: "two failed",
+        worker_hostname: "worker-b",
+        worker_storage_key: "store-b"
+      )
+    end
+  end
+
   describe "deployment column" do
     let(:staging) { SyrusYml::DeploymentStage.new(name: "staging", label: "On Staging", tag: "staging", tag_pattern: nil) }
     let(:production) { SyrusYml::DeploymentStage.new(name: "production", label: "In Production", tag: "production", tag_pattern: nil) }

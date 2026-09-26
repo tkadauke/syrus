@@ -636,16 +636,47 @@ RSpec.describe User do
       expect(user.dashboard_visible_columns("jobs")).to include("checkbox", "issue", "state")
     end
 
-    it "allows timestamp columns for Epics, Jobs, and Workflows" do
+    it "allows dashboard parity columns for Epics, Jobs, and Workflows" do
       user = User.create!(attrs)
 
-      user.update_dashboard_columns!(subject: "epics", columns: %w[created_at updated_at done_at archived_at])
-      user.update_dashboard_columns!(subject: "jobs", columns: %w[created_at updated_at started_at finished_at approved_at dependencies_overridden_at last_feedback_addressed_at last_seen_comment_at pr_mergeable_checked_at])
-      user.update_dashboard_columns!(subject: "workflows", columns: %w[created_at updated_at started_at finished_at cleaned_up_at])
+      epic_columns = %w[
+        number auto_approve_mode child_job_count open_child_count blocked_child_count
+        child_progress_percent dependency_count created_at updated_at done_at archived_at
+      ]
+      job_columns = %w[
+        kind job_type agent_provider closure_reason triaging_reason validity pr_number issue_number
+        branch_name claimed_by claimed_at manual_pause_state needs_attention_reason
+        created_at updated_at started_at finished_at approved_at dependencies_overridden_at
+        last_feedback_addressed_at last_seen_comment_at pr_mergeable_checked_at
+      ]
+      workflow_columns = %w[
+        trigger_kind agent_provider failure_reason run_count worker_hostname worker_storage_key
+        created_at updated_at started_at finished_at cleaned_up_at
+      ]
 
-      expect(user.dashboard_visible_columns("epics")).to include("created_at", "updated_at", "done_at", "archived_at")
-      expect(user.dashboard_visible_columns("jobs")).to include("created_at", "updated_at", "started_at", "finished_at", "approved_at", "dependencies_overridden_at", "last_feedback_addressed_at", "last_seen_comment_at", "pr_mergeable_checked_at")
-      expect(user.dashboard_visible_columns("workflows")).to include("created_at", "updated_at", "started_at", "finished_at", "cleaned_up_at")
+      user.update_dashboard_columns!(subject: "epics", columns: epic_columns)
+      user.update_dashboard_columns!(subject: "jobs", columns: job_columns)
+      user.update_dashboard_columns!(subject: "workflows", columns: workflow_columns)
+
+      expect(user.dashboard_visible_columns("epics")).to include(*epic_columns)
+      expect(user.dashboard_visible_columns("jobs")).to include(*job_columns)
+      expect(user.dashboard_visible_columns("workflows")).to include(*workflow_columns)
+    end
+
+    it "allows dashboard parity sort columns for Epics, Jobs, and Workflows" do
+      user = User.create!(attrs)
+
+      {
+        epics: %w[number auto_approve_mode child_job_count open_child_count blocked_child_count child_progress_percent dependency_count],
+        jobs: %w[kind job_type agent_provider closure_reason triaging_reason validity pr_number issue_number branch_name claimed_by claimed_at manual_pause_state needs_attention_reason workflows_count],
+        workflows: %w[trigger_kind agent_provider failure_reason run_count worker_hostname worker_storage_key]
+      }.each do |subject, columns|
+        columns.each do |column|
+          expect {
+            user.update_dashboard_sort!(subject: subject, column: column, direction: "asc")
+          }.not_to raise_error
+        end
+      end
     end
 
     it "preserves the requested optional column order, not just membership, after the required-column prefix" do

@@ -44,6 +44,13 @@ module App
         "owner" => "Owner",
         "repository" => "Repository",
         "updated" => "Updated",
+        "number" => "Number",
+        "auto_approve_mode" => "Auto-approve mode",
+        "child_job_count" => "Child jobs",
+        "open_child_count" => "Open children",
+        "blocked_child_count" => "Blocked children",
+        "child_progress_percent" => "Progress",
+        "dependency_count" => "Dependencies",
         "created_at" => "Created at",
         "updated_at" => "Updated at",
         "done_at" => "Done at",
@@ -64,6 +71,19 @@ module App
         "workflows_count" => "Workflows count",
         "started" => "Started",
         "commits_behind_base" => "Behind",
+        "kind" => "Kind",
+        "job_type" => "Job type",
+        "agent_provider" => "Agent",
+        "closure_reason" => "Closure reason",
+        "triaging_reason" => "Triaging reason",
+        "validity" => "Validity",
+        "pr_number" => "PR #",
+        "issue_number" => "Issue #",
+        "branch_name" => "Branch",
+        "claimed_by" => "Claimed by",
+        "claimed_at" => "Claimed at",
+        "manual_pause_state" => "Manual pause",
+        "needs_attention_reason" => "Needs attention reason",
         "created_at" => "Created at",
         "updated_at" => "Updated at",
         "started_at" => "Started at",
@@ -78,10 +98,16 @@ module App
         "workflow" => "Workflow",
         "job" => "Job",
         "trigger" => "Trigger",
+        "trigger_kind" => "Trigger kind",
         "state" => "State",
         "started" => "Started",
         "finished" => "Finished",
         "agent" => "Agent",
+        "agent_provider" => "Agent provider",
+        "failure_reason" => "Failure reason",
+        "run_count" => "Runs",
+        "worker_hostname" => "Worker host",
+        "worker_storage_key" => "Worker storage",
         "created_at" => "Created at",
         "updated_at" => "Updated at",
         "started_at" => "Started at",
@@ -534,6 +560,15 @@ module App
         scope.reorder(Arel.sql("COALESCE(jobs.approved_at, jobs.updated_at) #{direction.to_s.upcase}"), Job.arel_table[:id].public_send(direction))
       when [ "job", "started_at" ]
         scope.reorder(Job.arel_table[:started_at].public_send(direction), Job.arel_table[:id].public_send(direction))
+      when [ "job", "updated_at" ], [ "job", "created_at" ], [ "job", "finished_at" ], [ "job", "approved_at" ],
+           [ "job", "claimed_at" ], [ "job", "pr_number" ], [ "job", "issue_number" ], [ "job", "workflows_count" ],
+           [ "job", "kind" ], [ "job", "job_type" ], [ "job", "agent_provider" ], [ "job", "closure_reason" ],
+           [ "job", "triaging_reason" ], [ "job", "validity" ], [ "job", "branch_name" ], [ "job", "needs_attention_reason" ]
+        job_sort(scope, column, direction)
+      when [ "job", "claimed_by" ]
+        scope.reorder(Job.arel_table[:claimed_by_user_id].public_send(direction), Job.arel_table[:id].public_send(direction))
+      when [ "job", "manual_pause_state" ]
+        scope.reorder(Job.arel_table[:manual_paused_at].public_send(direction), Job.arel_table[:id].public_send(direction))
       when [ "job", "priority" ]
         scope.reorder(
           Arel.sql("CASE jobs.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END #{direction.to_s.upcase}"),
@@ -551,15 +586,111 @@ module App
         scope.reorder(Epic.arel_table[:state].public_send(direction), Epic.arel_table[:id].public_send(direction))
       when [ "epic", "repository" ]
         scope.joins(:repository).reorder(Repository.arel_table[:name].public_send(direction), Epic.arel_table[:id].public_send(direction))
+      when [ "epic", "number" ], [ "epic", "updated_at" ], [ "epic", "auto_approve_mode" ]
+        scope.reorder(Epic.arel_table[column].public_send(direction), Epic.arel_table[:id].public_send(direction))
+      when [ "epic", "child_job_count" ], [ "epic", "open_child_count" ], [ "epic", "blocked_child_count" ],
+           [ "epic", "child_progress_percent" ], [ "epic", "dependency_count" ]
+        epic_metric_sort(scope, column, direction)
       when [ "workflow", "title" ]
         scope.reorder(Workflow.arel_table[:id].public_send(direction))
       when [ "workflow", "state" ]
         scope.reorder(Workflow.arel_table[:state].public_send(direction), Workflow.arel_table[:id].public_send(direction))
       when [ "workflow", "finished_at" ]
         scope.reorder(Workflow.arel_table[:finished_at].public_send(direction), Workflow.arel_table[:id].public_send(direction))
+      when [ "workflow", "trigger_kind" ], [ "workflow", "agent_provider" ], [ "workflow", "failure_reason" ],
+           [ "workflow", "worker_hostname" ], [ "workflow", "worker_storage_key" ],
+           [ "workflow", "created_at" ], [ "workflow", "updated_at" ], [ "workflow", "started_at" ],
+           [ "workflow", "cleaned_up_at" ]
+        scope.reorder(Workflow.arel_table[column].public_send(direction), Workflow.arel_table[:id].public_send(direction))
+      when [ "workflow", "run_count" ]
+        scope.reorder(Arel.sql("#{workflow_run_count_sql} #{direction.to_s.upcase}"), Workflow.arel_table[:id].public_send(direction))
       else
         default_sort(scope, subject_name, direction)
       end
+    end
+
+    def job_sort(scope, column, direction)
+      sort_column = column == "job_type" ? "kind" : column
+      return scope.reorder(Arel.sql("#{workflow_count_sql} #{direction.to_s.upcase}"), Job.arel_table[:id].public_send(direction)) if sort_column == "workflows_count"
+
+      scope.reorder(Job.arel_table[sort_column].public_send(direction), Job.arel_table[:id].public_send(direction))
+    end
+
+    def epic_metric_sort(scope, column, direction)
+      sql = case column
+      when "child_job_count"
+        "(SELECT COUNT(*) FROM jobs WHERE jobs.epic_id = epics.id)"
+      when "open_child_count"
+        "(SELECT COUNT(*) FROM jobs WHERE jobs.epic_id = epics.id AND jobs.state != 'closed')"
+      when "blocked_child_count"
+        epic_blocked_child_count_sql
+      when "child_progress_percent"
+        epic_child_progress_percent_sql
+      else
+        "(SELECT COUNT(*) FROM epic_dependencies WHERE epic_dependencies.epic_id = epics.id)"
+      end
+
+      scope.reorder(Arel.sql("#{sql} #{direction.to_s.upcase}"), Epic.arel_table[:id].public_send(direction))
+    end
+
+    def workflow_count_sql
+      "(SELECT COUNT(*) FROM workflows WHERE workflows.job_id = jobs.id)"
+    end
+
+    def workflow_run_count_sql
+      <<~SQL.squish
+        (
+          SELECT COUNT(*)
+          FROM runs
+          INNER JOIN steps ON steps.id = runs.step_id
+          WHERE steps.workflow_id = workflows.id
+        )
+      SQL
+    end
+
+    def epic_child_progress_percent_sql
+      <<~SQL.squish
+        (
+          SELECT CASE
+            WHEN COUNT(*) = 0 THEN 0
+            ELSE (100.0 * SUM(CASE WHEN jobs.closure_reason IN ('pr_merged', 'external_pr_merged') THEN 1 ELSE 0 END) / COUNT(*))
+          END
+          FROM jobs
+          WHERE jobs.epic_id = epics.id
+        )
+      SQL
+    end
+
+    def epic_blocked_child_count_sql
+      sanitized_success_reasons = Job::SUCCESSFUL_CLOSURE_REASONS.map { |reason| ActiveRecord::Base.connection.quote(reason) }.join(", ")
+      <<~SQL.squish
+        (
+          SELECT COUNT(DISTINCT child_jobs.id)
+          FROM jobs child_jobs
+          INNER JOIN job_dependencies ON job_dependencies.job_id = child_jobs.id
+          LEFT JOIN jobs dependency_jobs ON dependency_jobs.id = job_dependencies.depends_on_job_id
+          LEFT JOIN epics dependency_epics ON dependency_epics.id = job_dependencies.depends_on_epic_id
+          WHERE child_jobs.epic_id = epics.id
+            AND (
+              (job_dependencies.depends_on_job_id IS NULL AND job_dependencies.depends_on_epic_id IS NULL)
+              OR (
+                job_dependencies.depends_on_job_id IS NOT NULL
+                AND (
+                  dependency_jobs.id IS NULL
+                  OR dependency_jobs.state != 'closed'
+                  OR dependency_jobs.closure_reason NOT IN (#{sanitized_success_reasons})
+                )
+              )
+              OR (
+                job_dependencies.depends_on_epic_id IS NOT NULL
+                AND (
+                  dependency_epics.id IS NULL
+                  OR dependency_epics.state != 'done'
+                )
+              )
+            )
+        )
+      SQL
     end
 
     def sorted_jobs(scope, limit_extra: false)
@@ -978,6 +1109,8 @@ module App
       total_counts = Job.where(epic_id: epic_ids).group(:epic_id).count
       max_commits_behind = Job.where(epic_id: epic_ids, parent_job_id: nil).group(:epic_id).maximum(:commits_behind_base)
       grouped_counts = Job.where(epic_id: epic_ids).group(:epic_id, :state, :closure_reason).count
+      blocked_counts = blocked_epic_child_counts(epic_ids)
+      @epic_dependency_counts_by_epic_id = EpicDependency.where(epic_id: epic_ids).group(:epic_id).count
 
       epic_ids.each do |epic_id|
         @epic_dashboard_job_stats_by_epic_id[epic_id] = {
@@ -986,6 +1119,7 @@ module App
           successful_closed_jobs_count: 0,
           bad_closed_jobs_count: 0,
           open_jobs_count: 0,
+          blocked_child_count: blocked_counts.fetch(epic_id, 0),
           job_state_counts: Hash.new(0),
           max_commits_behind_base: max_commits_behind[epic_id]
         }
@@ -1013,9 +1147,45 @@ module App
     def preload_workflow_step_counts(workflows)
       workflow_ids = workflows.map(&:id)
       @workflow_step_counts_by_workflow_id = {}
+      @workflow_run_counts_by_workflow_id = {}
       return if workflow_ids.empty?
 
       @workflow_step_counts_by_workflow_id = Step.where(workflow_id: workflow_ids).group(:workflow_id).count
+      @workflow_run_counts_by_workflow_id = Run.joins(:step).where(steps: { workflow_id: workflow_ids }).group("steps.workflow_id").count
+    end
+
+    def blocked_epic_child_counts(epic_ids)
+      Job
+        .joins("INNER JOIN job_dependencies ON job_dependencies.job_id = jobs.id")
+        .joins("LEFT JOIN jobs dependency_jobs ON dependency_jobs.id = job_dependencies.depends_on_job_id")
+        .joins("LEFT JOIN epics dependency_epics ON dependency_epics.id = job_dependencies.depends_on_epic_id")
+        .where(epic_id: epic_ids)
+        .where(
+          <<~SQL.squish,
+            (
+              (job_dependencies.depends_on_job_id IS NULL AND job_dependencies.depends_on_epic_id IS NULL)
+              OR (
+                job_dependencies.depends_on_job_id IS NOT NULL
+                AND (
+                  dependency_jobs.id IS NULL
+                  OR dependency_jobs.state != 'closed'
+                  OR dependency_jobs.closure_reason NOT IN (?)
+                )
+              )
+              OR (
+                job_dependencies.depends_on_epic_id IS NOT NULL
+                AND (
+                  dependency_epics.id IS NULL
+                  OR dependency_epics.state != 'done'
+                )
+              )
+            )
+          SQL
+          Job::SUCCESSFUL_CLOSURE_REASONS
+        )
+        .group(:epic_id)
+        .distinct
+        .count(:id)
     end
   end
 end

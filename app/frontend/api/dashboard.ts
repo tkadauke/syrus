@@ -157,6 +157,7 @@ export type DashboardJobItem = {
   state: string
   summary_state: string
   closure_reason: string | null
+  triaging_reason?: string | null
   validity: string
   priority: string
   agent_provider: string | null
@@ -259,6 +260,11 @@ export type DashboardEpicItem = {
   owner_status: "mine" | "other_owned" | "unclaimed"
   jobs_count: number
   landed_jobs_count: number
+  open_child_count?: number
+  blocked_child_count?: number
+  child_progress_percent?: number
+  dependency_count?: number
+  has_epic_dependency?: boolean
   job_state_counts: Record<string, number>
   max_commits_behind_base: number | null
   created_at: string | null
@@ -290,6 +296,10 @@ export type DashboardWorkflowItem = {
   finished_at: string | null
   cleaned_up_at: string | null
   steps_count: number
+  run_count?: number
+  failure_reason?: string | null
+  worker_hostname?: string | null
+  worker_storage_key?: string | null
   job: {
     id: number
     title: string

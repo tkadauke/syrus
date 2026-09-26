@@ -41,6 +41,7 @@ module App
           state: job.state,
           summary_state: summary_state(job),
           closure_reason: job.closure_reason,
+          triaging_reason: job.triaging_reason,
           validity: job.validity,
           priority: job.priority,
           agent_provider: workflow_agent_provider,
@@ -401,6 +402,11 @@ module App
           owner_user: owner_user_json(owner_user),
           jobs_count: epic_jobs_count(child_jobs, stats),
           landed_jobs_count: epic_landed_jobs_count(child_jobs, stats),
+          open_child_count: epic_open_child_count(child_jobs, stats),
+          blocked_child_count: epic_blocked_child_count(child_jobs, stats),
+          child_progress_percent: epic_child_progress_percent(child_jobs, stats),
+          dependency_count: epic_dependency_count(epic),
+          has_epic_dependency: epic_dependency_count(epic).positive?,
           job_state_counts: epic_job_state_counts(child_jobs, stats),
           max_commits_behind_base: epic_max_commits_behind_base(child_jobs, stats),
           created_at: epic.created_at&.iso8601,
@@ -435,6 +441,31 @@ module App
         return stats.fetch(:landed_jobs_count) if stats
 
         child_jobs.count { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+      end
+
+      def epic_open_child_count(child_jobs, stats = nil)
+        return stats.fetch(:open_jobs_count) if stats
+
+        child_jobs.count { |job| !job.closed? }
+      end
+
+      def epic_blocked_child_count(child_jobs, stats = nil)
+        return stats.fetch(:blocked_child_count) if stats
+
+        child_jobs.count { |job| job.unsatisfied_dependencies.any? }
+      end
+
+      def epic_child_progress_percent(child_jobs, stats = nil)
+        total = epic_jobs_count(child_jobs, stats)
+        return 0 if total.zero?
+
+        ((epic_landed_jobs_count(child_jobs, stats).to_f / total) * 100).round
+      end
+
+      def epic_dependency_count(epic)
+        return @epic_dependency_counts_by_epic_id.fetch(epic.id, 0) if defined?(@epic_dependency_counts_by_epic_id)
+
+        epic.dependencies.size
       end
 
       def epic_job_state_counts(child_jobs, stats = nil)
@@ -517,6 +548,10 @@ module App
           finished_at: workflow.finished_at&.iso8601,
           cleaned_up_at: workflow.cleaned_up_at&.iso8601,
           steps_count: workflow_steps_count(workflow),
+          run_count: workflow_run_count(workflow),
+          failure_reason: workflow.failure_reason,
+          worker_hostname: workflow.worker_hostname,
+          worker_storage_key: workflow.worker_storage_key,
           job: {
             id: job.id,
             title: job.issue_title.presence || job.kind.humanize,
@@ -536,6 +571,14 @@ module App
         end
 
         workflow.steps.size
+      end
+
+      def workflow_run_count(workflow)
+        if defined?(@workflow_run_counts_by_workflow_id) && @workflow_run_counts_by_workflow_id
+          return @workflow_run_counts_by_workflow_id.fetch(workflow.id, 0)
+        end
+
+        workflow.steps.sum { |step| step.runs.size }
       end
 
       def epic_owner_status(epic)
