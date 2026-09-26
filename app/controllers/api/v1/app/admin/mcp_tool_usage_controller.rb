@@ -6,7 +6,8 @@ module Api
           def show
             render json: ::Admin::McpToolUsagePayload.new(
               params: params,
-              chat_session: ChatSession.new(user: Current.user, mode: "planning")
+              chat_session: ChatSession.new(user: Current.user, mode: "planning"),
+              include_empty_filters: true
             ).as_json
           end
         end

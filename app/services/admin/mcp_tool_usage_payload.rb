@@ -4,10 +4,11 @@ module Admin
     MAX_WINDOW = 90.days
     DEFAULT_CARD_GAP_LIMIT = 20
 
-    def initialize(params: {}, chat_session: nil, repository: nil)
+    def initialize(params: {}, chat_session: nil, repository: nil, include_empty_filters: false)
       @params = params
       @chat_session = chat_session
       @repository = repository
+      @include_empty_filters = include_empty_filters
     end
 
     def as_json
@@ -26,20 +27,7 @@ module Admin
           end: window_end.iso8601
         },
         surface: surface.presence || "all",
-        filters: {
-          tool_name: tool_name,
-          server_name: server_name,
-          provider: provider,
-          sidecar_mode: sidecar_mode,
-          status: status,
-          error: error_param,
-          repository_id: integer_param(:repository_id),
-          user_id: integer_param(:user_id),
-          job_id: integer_param(:job_id),
-          workflow_id: integer_param(:workflow_id),
-          run_id: integer_param(:run_id),
-          chat_session_id: integer_param(:chat_session_id)
-        },
+        filters: filters_payload,
         totals: {
           calls: totals.fetch(:calls),
           errors: totals.fetch(:errors)
@@ -83,6 +71,30 @@ module Admin
       scope = scope.where(started_at: parse_time(params[:started_since])..) if parse_time(params[:started_since])
       scope = scope.where(completed_at: parse_time(params[:completed_since])..) if parse_time(params[:completed_since])
       scope
+    end
+
+    def filters_payload
+      filters = {
+        tool_name: tool_name,
+        server_name: server_name,
+        provider: provider,
+        sidecar_mode: sidecar_mode,
+        status: status,
+        error: error_param,
+        repository_id: integer_param(:repository_id),
+        user_id: integer_param(:user_id),
+        job_id: integer_param(:job_id),
+        workflow_id: integer_param(:workflow_id),
+        run_id: integer_param(:run_id),
+        chat_session_id: integer_param(:chat_session_id)
+      }
+      return filters if include_empty_filters?
+
+      filters.compact
+    end
+
+    def include_empty_filters?
+      @include_empty_filters
     end
 
     def totals_for(usages)

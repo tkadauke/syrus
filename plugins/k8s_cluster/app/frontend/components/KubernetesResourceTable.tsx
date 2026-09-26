@@ -124,7 +124,10 @@ function decodeFilterTree(encoded: string) {
   }
 }
 
-function resourceColumnBucket<TRow>(column: KubernetesResourceTableColumn<TRow>, rows: TRow[]) {
+function resourceColumnBucket<TRow>(
+  column: KubernetesResourceTableColumn<TRow>,
+  rows: TRow[]
+) {
   const firstValues = rows.flatMap((row) => valuesForColumn(row, column)).filter((value) => value !== null && value !== undefined)
   if (column.key.endsWith("_at") || firstValues.some((value) => typeof value === "string" && !Number.isNaN(Date.parse(value)) && /\d{4}-\d{2}-\d{2}/.test(value))) return "date"
   if (firstValues.some((value) => typeof value === "number")) return "number"
@@ -144,13 +147,18 @@ function resourceFilterOperators(bucket: string) {
   return ["contains", "is", "is_not", "is_set", "is_unset"]
 }
 
-function columnLabel<TRow>(column: KubernetesResourceTableColumn<TRow>) {
+function columnLabel<TRow>(
+  column: KubernetesResourceTableColumn<TRow>
+) {
   if (typeof column.label === "string") return column.label
   if (typeof column.header === "string") return column.header
   return humanizeField(column.key)
 }
 
-function valuesForColumn<TRow>(row: TRow, column: KubernetesResourceTableColumn<TRow>) {
+function valuesForColumn<TRow>(
+  row: TRow,
+  column: KubernetesResourceTableColumn<TRow>
+) {
   const value = column.filterValue ? column.filterValue(row) : (row as Record<string, unknown>)[column.key]
   return (Array.isArray(value) ? value : [value]) as Array<number | string | null | undefined>
 }
