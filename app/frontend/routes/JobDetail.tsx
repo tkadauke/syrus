@@ -1420,9 +1420,9 @@ function JobSummaryNotices({
 
   return (
     <section aria-label={t("summary_notices")} className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-secondary">
-        <span className="font-medium">{t("summary_notice_position", { index: activeIndex + 1, count: notices.length })}</span>
-        {hasMultiple ? (
+      {hasMultiple ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-secondary">
+          <span className="font-medium">{t("summary_notice_position", { index: activeIndex + 1, count: notices.length })}</span>
           <div className="flex items-center gap-1">
             <button
               aria-label={t("previous_notice")}
@@ -1441,8 +1441,8 @@ function JobSummaryNotices({
               <ChevronIcon className="h-4 w-4" />
             </button>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <div key={notice.id}>{notice.node}</div>
     </section>
   )

@@ -318,7 +318,7 @@ describe("JobDetailView", () => {
 
     expect(screen.getByText("PR checks are failing for 3bf7b45.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "View GitHub checks." })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/2796/checks")
-    expect(screen.getByText("Notice 1 of 1")).toBeInTheDocument()
+    expect(screen.queryByText("Notice 1 of 1")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Previous notice" })).not.toBeInTheDocument()
   })
 
