@@ -32,7 +32,7 @@ import { DocumentPreviewModal, isPreviewableContentType } from "../components/Do
 const queryKey = ["personal-documents"] as const
 const DOCUMENTS_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.settings.personal_documents.visible_columns"
 
-type DocumentSortColumn = "title" | "kind" | "content_type" | "byte_size" | "created_at"
+type DocumentSortColumn = "title" | "filename" | "kind" | "content_type" | "byte_size" | "source_url" | "content_cache_state" | "content_cached_at" | "created_at" | "updated_at"
 type SortDirection = "ascending" | "descending"
 type DocumentSortState = { column: DocumentSortColumn; direction: SortDirection }
 type SortValue = number | string | null
@@ -40,10 +40,15 @@ type SortValue = number | string | null
 const DEFAULT_DOCUMENT_SORT: DocumentSortState = { column: "created_at", direction: "descending" }
 const DOCUMENT_SORT_ACCESSORS: Record<DocumentSortColumn, (document: PersonalDocument) => SortValue> = {
   title: (document) => documentTitle(document),
+  filename: (document) => document.filename || "",
   kind: (document) => document.kind,
   content_type: (document) => document.content_type,
   byte_size: (document) => document.byte_size,
-  created_at: (document) => document.created_at
+  source_url: (document) => document.source_url || document.google_doc_url || "",
+  content_cache_state: (document) => document.content_cache_state,
+  content_cached_at: (document) => document.content_cached_at,
+  created_at: (document) => document.created_at,
+  updated_at: (document) => document.updated_at
 }
 
 export function PersonalDocumentsRoute() {
@@ -253,6 +258,8 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
 function buildDocumentFilterSchema(t: (key: string, options?: Record<string, unknown>) => string): FilterSchemaField[] {
   return [
     { field: "query", label: t("personal_documents.col_document"), bucket: "text", operators: ["contains"], free_text_search: true },
+    { field: "title", label: t("personal_documents.col_document"), bucket: "text", operators: ["contains", "is", "is_not"] },
+    { field: "filename", label: t("personal_documents.col_filename"), bucket: "text", operators: ["contains", "is", "is_not", "is_set", "is_unset"] },
     {
       field: "kind",
       label: t("personal_documents.col_kind"),
@@ -263,7 +270,22 @@ function buildDocumentFilterSchema(t: (key: string, options?: Record<string, unk
         { value: "google_doc", label: t("personal_documents.google_doc") }
       ]
     },
-    { field: "content_type", label: t("personal_documents.col_content_type"), bucket: "text", operators: ["contains", "is", "is_set", "is_unset"] }
+    { field: "content_type", label: t("personal_documents.col_content_type"), bucket: "text", operators: ["contains", "is", "is_set", "is_unset"] },
+    { field: "byte_size", label: t("personal_documents.col_size"), bucket: "number", operators: ["is", "gt", "lt", "gte", "lte"] },
+    { field: "source_url", label: t("personal_documents.col_source_url"), bucket: "text", operators: ["contains", "is", "is_set", "is_unset"] },
+    {
+      field: "content_cache_state",
+      label: t("personal_documents.col_content_cache_state"),
+      bucket: "text",
+      operators: ["is", "is_not"],
+      values: [
+        { value: "cached", label: t("personal_documents.cache_cached") },
+        { value: "empty", label: t("personal_documents.cache_empty") }
+      ]
+    },
+    { field: "content_cached_at", label: t("personal_documents.col_content_cached_at"), bucket: "date", operators: ["before", "after", "between", "is_set", "is_unset"] },
+    { field: "created_at", label: t("personal_documents.col_created"), bucket: "date", operators: ["before", "after", "between"] },
+    { field: "updated_at", label: t("personal_documents.col_updated"), bucket: "date", operators: ["before", "after", "between"] }
   ]
 }
 
@@ -291,6 +313,13 @@ function buildDocumentColumns({
       )
     },
     {
+      key: "filename",
+      label: t("personal_documents.col_filename"),
+      sortKey: "filename",
+      defaultVisible: false,
+      renderCell: (document) => document.filename || "-"
+    },
+    {
       key: "kind",
       label: t("personal_documents.col_kind"),
       sortKey: "kind",
@@ -312,10 +341,39 @@ function buildDocumentColumns({
       renderCell: (document) => document.byte_size == null ? "-" : formatBytes(document.byte_size)
     },
     {
+      key: "source_url",
+      label: t("personal_documents.col_source_url"),
+      sortKey: "source_url",
+      defaultVisible: false,
+      cellClassName: "max-w-xs truncate text-xs text-gray-500 dark:text-gray-400",
+      renderCell: (document) => document.source_url || document.google_doc_url || "-"
+    },
+    {
+      key: "content_cache_state",
+      label: t("personal_documents.col_content_cache_state"),
+      sortKey: "content_cache_state",
+      defaultVisible: false,
+      renderCell: (document) => document.content_cache_state === "cached" ? t("personal_documents.cache_cached") : t("personal_documents.cache_empty")
+    },
+    {
+      key: "content_cached_at",
+      label: t("personal_documents.col_content_cached_at"),
+      sortKey: "content_cached_at",
+      defaultVisible: false,
+      renderCell: (document) => document.content_cached_at ? new Date(document.content_cached_at).toLocaleString() : "-"
+    },
+    {
       key: "created",
       label: t("personal_documents.col_created"),
       sortKey: "created_at",
       renderCell: (document) => new Date(document.created_at).toLocaleString()
+    },
+    {
+      key: "updated",
+      label: t("personal_documents.col_updated"),
+      sortKey: "updated_at",
+      defaultVisible: false,
+      renderCell: (document) => new Date(document.updated_at).toLocaleString()
     },
     {
       key: "actions",
@@ -389,13 +447,29 @@ function documentMatchesFilter(document: PersonalDocument, chip: FilterChip) {
     const query = String(chip.value || "").toLowerCase()
     return documentSearchText(document).includes(query)
   }
+  if (chip.field === "title") return matchesTextFilter(documentTitle(document), chip)
+  if (chip.field === "filename") return matchesTextFilter(document.filename || "", chip)
   if (chip.field === "kind") return matchesTextFilter(document.kind, chip)
   if (chip.field === "content_type") return matchesTextFilter(document.content_type || "", chip)
+  if (chip.field === "byte_size") return matchesNumberFilter(document.byte_size, chip)
+  if (chip.field === "source_url") return matchesTextFilter(document.source_url || document.google_doc_url || "", chip)
+  if (chip.field === "content_cache_state") return matchesTextFilter(document.content_cache_state, chip)
+  if (chip.field === "content_cached_at") return matchesDateFilter(document.content_cached_at, chip)
+  if (chip.field === "created_at") return matchesDateFilter(document.created_at, chip)
+  if (chip.field === "updated_at") return matchesDateFilter(document.updated_at, chip)
   return true
 }
 
 function documentSearchText(document: PersonalDocument) {
-  return [documentTitle(document), document.kind, document.content_type].filter(Boolean).join(" ").toLowerCase()
+  return [
+    documentTitle(document),
+    document.filename,
+    document.kind,
+    document.content_type,
+    document.source_url,
+    document.google_doc_url,
+    document.content_cache_state
+  ].filter(Boolean).join(" ").toLowerCase()
 }
 
 function sortedDocuments(documents: PersonalDocument[], sortState: DocumentSortState) {
@@ -429,6 +503,34 @@ function matchesTextFilter(value: string, chip: FilterChip) {
   if (chip.op === "is_set") return value.trim().length > 0
   if (chip.op === "is_unset") return value.trim().length === 0
   return target.includes(expected)
+}
+
+function matchesNumberFilter(value: number | null, chip: FilterChip) {
+  if (chip.op === "is_set") return value != null
+  if (chip.op === "is_unset") return value == null
+  if (value == null) return false
+  const expected = Number(chip.value)
+  if (Number.isNaN(expected)) return true
+  if (chip.op === "gt") return value > expected
+  if (chip.op === "lt") return value < expected
+  if (chip.op === "gte") return value >= expected
+  if (chip.op === "lte") return value <= expected
+  return value === expected
+}
+
+function matchesDateFilter(value: string | null, chip: FilterChip) {
+  if (chip.op === "is_set") return Boolean(value)
+  if (chip.op === "is_unset") return !value
+  if (!value) return false
+  const time = Date.parse(value)
+  if (Number.isNaN(time)) return false
+  if (chip.op === "before") return time < Date.parse(String(chip.value || ""))
+  if (chip.op === "after") return time > Date.parse(String(chip.value || ""))
+  if (chip.op === "between" && Array.isArray(chip.value)) {
+    const [start, end] = chip.value.map((part) => Date.parse(String(part || "")))
+    return (Number.isNaN(start) || time >= start) && (Number.isNaN(end) || time <= end)
+  }
+  return true
 }
 
 function filterTreeFromSearch(search: string): FilterTree {

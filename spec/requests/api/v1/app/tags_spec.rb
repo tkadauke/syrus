@@ -41,7 +41,14 @@ RSpec.describe "API: /api/v1/app/tags", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["tags"]).to contain_exactly(
-      include("id" => tag.id, "name" => "mine", "color" => "blue", "jobs_count" => 1)
+      include(
+        "id" => tag.id,
+        "name" => "mine",
+        "color" => "blue",
+        "jobs_count" => 1,
+        "created_at" => tag.created_at.iso8601,
+        "updated_at" => tag.updated_at.iso8601
+      )
     )
     expect(body["palette"].first).to include("key" => "gray", "label" => "Gray", "bg" => "#f3f4f6")
     expect(response.body).not_to include("theirs")

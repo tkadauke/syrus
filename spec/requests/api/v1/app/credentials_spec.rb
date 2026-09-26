@@ -78,16 +78,27 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "lists personal documents separately from credentials" do
     sign_in_as(user)
-    user.documents.create!(
+    document = user.documents.create!(
       kind: "google_doc",
       google_doc_url: "https://docs.google.com/document/d/user/edit",
+      source_url: "https://docs.google.com/document/d/user/edit",
+      content_cache: "cached body",
+      content_cached_at: Time.zone.parse("2026-01-01 12:00:00"),
       user: user
     )
 
     get "/api/v1/app/credentials/documents"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.dig("documents", 0, "google_doc_url")).to eq("https://docs.google.com/document/d/user/edit")
+    expect(parse_body.dig("documents", 0)).to include(
+      "id" => document.id,
+      "google_doc_url" => "https://docs.google.com/document/d/user/edit",
+      "source_url" => "https://docs.google.com/document/d/user/edit",
+      "content_cache_state" => "cached",
+      "content_cached_at" => "2026-01-01T12:00:00Z",
+      "created_at" => document.created_at.iso8601,
+      "updated_at" => document.updated_at.iso8601
+    )
   end
 
   it "updates write-only credentials while preserving blank secrets and false booleans" do
@@ -644,6 +655,12 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
     file_document = body["documents"].find { |document| document["kind"] == "file" }
     expect(file_document["file_path"]).to eq("/api/v1/app/credentials/documents/#{file_document['id']}/file")
+    expect(file_document).to include(
+      "source_url" => nil,
+      "content_cache_state" => "empty",
+      "content_cached_at" => nil,
+      "updated_at" => be_present
+    )
     google_doc_document = body["documents"].find { |document| document["kind"] == "google_doc" }
     expect(google_doc_document["file_path"]).to be_nil
 

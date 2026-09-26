@@ -47,6 +47,8 @@
   "col_agentic_access": "Agentenzugriff",
   "col_allow_writes": "Schreiben",
   "col_insecure_skip_tls_verify": "TLS-Prüfung",
+  "col_created_at": "Erstellt",
+  "col_updated_at": "Aktualisiert",
   "col_actions": "Aktionen",
   "agentic_enabled": "Aktiviert",
   "agentic_disabled": "Deaktiviert",
