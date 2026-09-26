@@ -33,11 +33,40 @@ RSpec.describe PendingActions::CompleteImplementStep do
     )
   end
 
+  let(:snapshot) do
+    {
+      "source_branch" => "syrus/job-1",
+      "handoff_branch" => nil,
+      "head_sha" => "abc123",
+      "base_sha" => "def456",
+      "base_ref" => nil,
+      "base_label" => repository.default_branch,
+      "default_branch" => repository.default_branch,
+      "changed_files" => [ "app/services/widget.rb" ],
+      "captured_at" => Time.current.iso8601,
+      "chat_session_id" => chat_session.id
+    }
+  end
+
   before { enable_coding_mode! }
 
-  it "dispatches a coding_handoff workflow and stores it as the result" do
+  before do
+    allow(ChatWorkspace).to receive(:coding_checkout_snapshot).and_return(
+      current_branch: "syrus/job-1"
+    )
+    allow(CodingHandoffCapture).to receive(:capture!) do |chat_session:, repository:, user:, source_branch:, handoff_branch:, allow_existing_branch_update: false|
+      snapshot.merge(
+        "source_branch" => source_branch,
+        "handoff_branch" => handoff_branch,
+        "allow_existing_branch_update" => allow_existing_branch_update
+      )
+    end
+  end
+
+  it "captures the attached Coding Mode checkout, dispatches coding_handoff, and stores it as the result" do
     job = Factories.job_record(user: user, repository: repository, state: "coding",
-                               linked_chat_id: chat_session.id, branch_name: "syrus/job-1", pr_number: 10)
+                               linked_chat_id: chat_session.id, branch_name: "syrus/job-1", pr_number: 10,
+                               issue_title: "Repair widget handoff")
     action = pending_action(job)
 
     allow(WorkUnits::Launcher).to receive(:start!).and_call_original
@@ -47,10 +76,26 @@ RSpec.describe PendingActions::CompleteImplementStep do
     expect(action.result).to be_a(Workflow)
     expect(action.result.trigger_kind).to eq("coding_handoff")
     expect(action.result.work_unit).to be_present
+    expect(action.result.artifact("coding_handoff")).to include(
+      "source_branch" => "syrus/job-1",
+      "handoff_branch" => "syrus/job-1",
+      "head_sha" => "abc123"
+    )
+    expect(action.result.artifact("pr_title")).to eq(job.issue_title)
+    expect(action.result.artifact("pr_body")).to include("Captured attached Coding Mode commits `def456..abc123`")
+    expect(action.result.artifact("test_plan")).to include("steps" => [])
+    expect(CodingHandoffCapture).to have_received(:capture!).with(
+      chat_session: chat_session,
+      repository: repository,
+      user: user,
+      source_branch: "syrus/job-1",
+      handoff_branch: "syrus/job-1",
+      allow_existing_branch_update: true
+    )
     expect(WorkUnits::Launcher).to have_received(:start!).with(action.result)
   end
 
-  it "transitions the coding mode job out of coding state while keeping the chat link for grader feedback" do
+  it "transitions the coding mode job out of coding state, points it at the captured branch, and keeps the chat link for grader feedback" do
     job = Factories.job_record(user: user, repository: repository, state: "coding",
                                linked_chat_id: chat_session.id, branch_name: "syrus/job-1", pr_number: 10)
     action = pending_action(job)
@@ -59,6 +104,7 @@ RSpec.describe PendingActions::CompleteImplementStep do
     action.confirm!(user: user)
 
     expect(job.reload).not_to be_coding
+    expect(job.branch_name).to eq("syrus/job-1")
     expect(job.linked_chat_id).to eq(chat_session.id)
   end
 
@@ -77,13 +123,35 @@ RSpec.describe PendingActions::CompleteImplementStep do
     expect(action.result.trigger_kind).to eq("local_mode_handoff")
     expect(job.reload).not_to be_coding
     expect(job.branch_name).to eq("syrus/local-fix")
+    expect(CodingHandoffCapture).not_to have_received(:capture!)
     expect(WorkUnits::Launcher).to have_received(:start!).with(action.result)
   end
 
-  it "raises ArgumentError when branch_name is missing for a new job without a PR" do
+  it "uses the current Coding Mode checkout branch when branch_name is missing for a new job without a PR" do
     job = Factories.job_record(user: user, repository: repository, state: "coding",
                                linked_chat_id: chat_session.id, branch_name: nil, pr_number: nil)
     action = pending_action(job)
+
+    allow(WorkUnits::Launcher).to receive(:start!).and_call_original
+    action.confirm!(user: user)
+
+    expect(action.reload).to be_confirmed
+    expect(CodingHandoffCapture).to have_received(:capture!).with(
+      chat_session: chat_session,
+      repository: repository,
+      user: user,
+      source_branch: "syrus/job-1",
+      handoff_branch: "syrus/chat-#{chat_session.id}-job-#{job.id}-handoff-#{action.id}",
+      allow_existing_branch_update: false
+    )
+  end
+
+  it "raises ArgumentError when Coding Mode has no source branch to capture" do
+    job = Factories.job_record(user: user, repository: repository, state: "coding",
+                               linked_chat_id: chat_session.id, branch_name: nil, pr_number: nil)
+    action = pending_action(job)
+    allow(ChatWorkspace).to receive(:coding_checkout_snapshot).and_return(current_branch: nil)
+    chat_session.update!(coding_checkout_branch: nil)
 
     expect { action.confirm!(user: user) }.to raise_error(ArgumentError, /branch_name is required/)
   end
