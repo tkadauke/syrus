@@ -189,14 +189,14 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     ] : []
   ), [user, inOnboarding, tabsHidden, primaryNavItems, prefix, normalizedPath, t])
 
-  async function startChat() {
+  async function startChat(repositoryId?: number | null) {
     if (normalizedPath === "/chats/new") return
     if (startingChat) return
 
     setStartingChat(true)
     setDrawerOpen(false)
     try {
-      const unstartedChat = firstUnstartedChat(queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"]))
+      const unstartedChat = repositoryId == null ? firstUnstartedChat(queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])) : null
       if (unstartedChat) {
         navigate(withRoutePrefix(unstartedChat.chat_path, prefix))
         return
@@ -205,9 +205,10 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       const newChat = await fetchNewChat()
       const configuredProviders = configuredChatProviderOptions(newChat.chat_provider_options)
       const defaultProvider = defaultNewChatProvider(newChat, configuredProviders)
+      const selectedRepositoryId = repositoryId ?? newChat.default_repository_id
       const created = defaultProvider
-        ? await createEmptyChat(newChat.default_repository_id, defaultProvider)
-        : await createEmptyChat(newChat.default_repository_id)
+        ? await createEmptyChat(selectedRepositoryId, defaultProvider)
+        : await createEmptyChat(selectedRepositoryId)
       updateRecentChatCache(queryClient, created.chat, { prepend: true })
       navigate(withRoutePrefix(created.redirect_to, prefix))
     } catch (_error) {
@@ -953,7 +954,7 @@ function SidebarContent({
   onNotice: (message: string | null) => void
   onOpenBugReport: () => void
   onReorderNavItems: (order: string[]) => void
-  onStartChat: () => void
+  onStartChat: (repositoryId?: number | null) => void
   onStartGroupChat: () => void
   prefix: string
   searchShortcutsEnabled?: boolean
@@ -1081,7 +1082,7 @@ function SidebarContent({
             aria-label={collapsed ? t("nav:new_chat") : undefined}
             className={collapsed ? "h-9 w-9 px-0" : "w-full"}
             disabled={!user || startingChat}
-            onClick={onStartChat}
+            onClick={() => onStartChat()}
             size={collapsed ? "icon" : undefined}
             title={collapsed ? t("nav:new_chat") : undefined}
           >
@@ -1143,7 +1144,7 @@ function SidebarContent({
             ))}
           </nav>
         </div>
-        {collapsed ? null : <RecentChatsSidebar featureFlags={featureFlags} onCloseDrawer={onCloseDrawer} onNotice={onNotice} prefix={prefix} userPresent={Boolean(user)} />}
+        {collapsed ? null : <RecentChatsSidebar featureFlags={featureFlags} onCloseDrawer={onCloseDrawer} onNotice={onNotice} onStartChat={onStartChat} prefix={prefix} startingChat={startingChat} userPresent={Boolean(user)} />}
       </div>
       {collapsed ? null : <ShellNotices />}
       <div className={`shrink-0 border-t border-gray-200 dark:border-gray-800 ${collapsed ? "p-2" : "p-3"}`}>

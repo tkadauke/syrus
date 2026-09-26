@@ -1604,7 +1604,7 @@ describe("AppChromeV2 recent chats", () => {
         })))
       }
 
-      if (path === "/api/v1/app/chats/more?repository_id=general&before_id=2") {
+      if (path === "/api/v1/app/chats/more?group_by=repository&group_key=general&before_id=2") {
         return Promise.resolve(jsonResponse(moreChatsPayload({
           chats: [
             chatNav({ id: 2, title: "Main query overlap", last_message_at: "2026-06-27T12:01:00Z" }),

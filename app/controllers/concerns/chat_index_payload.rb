@@ -8,10 +8,57 @@
 # the controller's own helpers), so they
 # mix straight back in with no behavior change. Kept private on include.
 module ChatIndexPayload
+  CHAT_INDEX_STATUS_OPTIONS = %w[active hidden all].freeze
+  CHAT_INDEX_GROUP_BY_OPTIONS = %w[date repository status mode].freeze
+  CHAT_INDEX_SORT_BY_OPTIONS = %w[name date_created last_activity].freeze
+  CHAT_INDEX_PER_GROUP_OPTIONS = [ 5, 10, 15, 20 ].freeze
+  CHAT_INDEX_MODE_LABELS = {
+    "planning" => "Planning",
+    "coding" => "Coding",
+    "local" => "Local"
+  }.freeze
+
   private
 
+  def validate_chat_index_settings
+    chat_index_settings
+    return true unless @chat_index_param_error
+
+    render_error("validation_failed", @chat_index_param_error, status: :unprocessable_content)
+    false
+  end
+
+  def chat_index_settings
+    @chat_index_settings ||= begin
+      status = chat_index_param(:status, CHAT_INDEX_STATUS_OPTIONS, "active")
+      group_by = chat_index_param(:group_by, CHAT_INDEX_GROUP_BY_OPTIONS, "repository")
+      sort_by = chat_index_param(:sort_by, CHAT_INDEX_SORT_BY_OPTIONS, "last_activity")
+      per_group = Integer(params[:per_group], exception: false)
+      if params.key?(:per_group) && !CHAT_INDEX_PER_GROUP_OPTIONS.include?(per_group)
+        @chat_index_param_error ||= "per_group must be one of: #{CHAT_INDEX_PER_GROUP_OPTIONS.join(", ")}."
+      end
+      per_group = Current.user.recent_chats_group_size unless CHAT_INDEX_PER_GROUP_OPTIONS.include?(per_group)
+
+      {
+        status: status,
+        group_by: group_by,
+        sort_by: sort_by,
+        per_group: per_group,
+        show_empty_groups: group_by != "date" && ActiveModel::Type::Boolean.new.cast(params[:show_empty_groups])
+      }
+    end
+  end
+
+  def chat_index_param(name, allowed, fallback)
+    value = params[name].to_s.presence || fallback
+    return value if allowed.include?(value)
+
+    @chat_index_param_error ||= "#{name} must be one of: #{allowed.join(", ")}."
+    fallback
+  end
+
   def chat_index_group_size
-    Current.user.recent_chats_group_size
+    chat_index_settings.fetch(:per_group)
   end
 
   def recent_chats_index_json
@@ -23,17 +70,19 @@ module ChatIndexPayload
       end
       groups = group_specs.map { |group| chat_index_group_json(**group, context: context) }
 
-      groups.sort_by { |group| group.delete(:active_at) || Time.at(0) }.reverse
+      sort_chat_index_groups(groups)
     end
   end
 
-  def chat_index_group_json(key:, label:, repository_id:, chats:, has_more:, context: nil)
+  def chat_index_group_json(key:, label:, repository_id:, chats:, has_more:, group_by: nil, group_value: nil, context: nil)
     PerformanceLogging.phase("chat_index.group.serialize", repository_id: repository_id, count: chats.size) do
       context ||= PerformanceLogging.phase("chat_index.group.context", repository_id: repository_id, count: chats.size) { chat_index_context_for(chats) }
       {
         key: key,
         label: label,
         repository_id: repository_id,
+        group_by: group_by || chat_index_settings.fetch(:group_by),
+        group_value: group_value,
         chats: PerformanceLogging.phase("chat_index.group.chats", repository_id: repository_id, count: chats.size) do
           chats.map { |chat_session| chat_index_json(chat_session, context: context) }
         end,
@@ -164,115 +213,216 @@ module ChatIndexPayload
 
   def initial_chat_index_group_specs
     rows = chat_index_initial_group_rows
-    return [] if rows.empty?
-
     chat_ids = rows.map { |row| row.fetch("chat_session_id").to_i }.uniq
     repository_ids = rows.filter_map { |row| row.fetch("repository_id")&.to_i }.uniq
     chats_by_id = ChatSession.where(id: chat_ids)
       .preload(:chat_participants, repository_attachments: :attachable)
       .index_by(&:id)
     repositories_by_id = Current.user.repositories.where(id: repository_ids).index_by(&:id)
-
-    rows.group_by { |row| row.fetch("repository_id")&.to_i }.filter_map do |repository_id, group_rows|
+    grouped_rows = rows.group_by { |row| row.fetch("group_key").to_s }
+    specs = grouped_rows.filter_map do |group_key, group_rows|
       ordered_rows = group_rows.sort_by { |row| row.fetch("group_position").to_i }
       chats = ordered_rows.first(chat_index_group_size).filter_map { |row| chats_by_id[row.fetch("chat_session_id").to_i] }
-      next if chats.empty?
+      spec = chat_index_group_spec_for(group_key, repository_id: group_rows.first["repository_id"]&.to_i, repositories_by_id: repositories_by_id)
+      next unless spec
 
-      if repository_id
-        repository = repositories_by_id[repository_id]
-        next unless repository
-
-        {
-          key: "repository-#{repository.id}",
-          label: repository.slug,
-          repository_id: repository.id,
-          chats: chats,
-          has_more: ordered_rows.size > chat_index_group_size
-        }
-      else
-        {
-          key: "general",
-          label: "General",
-          repository_id: nil,
-          chats: chats,
-          has_more: ordered_rows.size > chat_index_group_size
-        }
-      end
+      spec.merge(
+        chats: chats,
+        has_more: ordered_rows.size > chat_index_group_size
+      )
     end
+
+    return specs unless chat_index_settings.fetch(:show_empty_groups)
+
+    merge_empty_chat_index_group_specs(specs, repositories_by_id: repositories_by_id)
   end
 
   def chat_index_initial_group_rows
-    ranked_scope = Current.user.accessible_chat_sessions
-      .visible
+    ranked_scope = chat_index_base_scope
       .active
       .ordinary_chats
-      .left_outer_joins(:repository_attachments)
+    ranked_scope = ranked_scope.left_outer_joins(:repository_attachments) if chat_index_settings.fetch(:group_by) == "repository"
+    repository_id_sql = chat_index_settings.fetch(:group_by) == "repository" ? "chat_attachments.attachable_id" : "NULL"
+    ranked_scope = ranked_scope
       .reselect(Arel.sql(<<~SQL.squish))
         chat_sessions.id AS chat_session_id,
-        chat_attachments.attachable_id AS repository_id,
+        #{repository_id_sql} AS repository_id,
+        #{chat_index_group_key_sql} AS group_key,
         ROW_NUMBER() OVER (
-          PARTITION BY chat_attachments.attachable_id
-          ORDER BY chat_sessions.pinned DESC, #{chat_activity_order_sql} DESC, chat_sessions.id DESC
+          PARTITION BY #{chat_index_group_key_sql}
+          ORDER BY #{chat_index_order_sql}
         ) AS group_position
       SQL
 
     quoted_limit = ActiveRecord::Base.connection.quote(chat_index_group_size + 1)
     ActiveRecord::Base.connection.select_all(<<~SQL.squish).to_a
-      SELECT chat_session_id, repository_id, group_position
+      SELECT chat_session_id, repository_id, group_key, group_position
       FROM (#{ranked_scope.to_sql}) chat_index_ranked
       WHERE group_position <= #{quoted_limit}
     SQL
   end
 
   def chat_index_before(scope, before_chat)
-    timestamp = chat_activity_timestamp(before_chat)
+    pinned_value = before_chat.pinned? ? 1 : 0
     scope.where(
-      "chat_sessions.pinned < ? OR (chat_sessions.pinned = ? AND ((#{chat_activity_order_sql}) < ? OR ((#{chat_activity_order_sql}) = ? AND chat_sessions.id < ?)))",
-      before_chat.pinned? ? 1 : 0,
-      before_chat.pinned? ? 1 : 0,
-      timestamp,
-      timestamp,
+      chat_index_cursor_predicate_sql,
+      pinned_value,
+      pinned_value,
+      chat_index_cursor_value(before_chat),
+      chat_index_cursor_value(before_chat),
       before_chat.id
     )
   end
 
-  def chat_index_group_scope(repository_id)
-    scope = Current.user.accessible_chat_sessions
-      .visible
+  def chat_index_group_scope(group_by:, group_key:)
+    scope = chat_index_base_scope
       .active
       .ordinary_chats
-      .left_outer_joins(:repository_attachments)
-      .order(Arel.sql("chat_sessions.pinned DESC, #{chat_activity_order_sql} DESC, chat_sessions.id DESC"))
+      .order(Arel.sql(chat_index_order_sql))
+    scope = scope.left_outer_joins(:repository_attachments) if group_by == "repository"
 
-    if repository_id.present?
-      scope.where(chat_attachments: { attachable_type: "Repository", attachable_id: repository_id })
+    scope.where(chat_index_group_match_sql(group_by), group_key)
+  end
+
+  def chat_index_base_scope
+    scope = Current.user.accessible_chat_sessions
+    scope = case chat_index_settings.fetch(:status)
+    when "hidden"
+      scope.hidden
+    when "all"
+      scope
     else
-      scope.where(chat_attachments: { id: nil })
+      scope.visible
+    end
+
+    scope
+  end
+
+  def chat_index_group_spec_for(group_key, repository_id:, repositories_by_id:)
+    group_by = chat_index_settings.fetch(:group_by)
+    if group_by == "repository"
+      if repository_id
+        repository = repositories_by_id[repository_id]
+        return unless repository
+
+        return { key: "repository-#{repository.id}", label: repository.slug, repository_id: repository.id, group_by: group_by, group_value: repository.id.to_s }
+      end
+
+      return { key: "general", label: "General", repository_id: nil, group_by: group_by, group_value: "general" }
+    end
+
+    { key: "#{group_by}-#{group_key}", label: chat_index_group_label(group_by, group_key), repository_id: nil, group_by: group_by, group_value: group_key }
+  end
+
+  def merge_empty_chat_index_group_specs(specs, repositories_by_id:)
+    existing_keys = specs.map { |spec| spec.fetch(:key) }.to_set
+    empty_specs = chat_index_empty_group_specs(repositories_by_id: repositories_by_id).reject { |spec| existing_keys.include?(spec.fetch(:key)) }
+    specs + empty_specs
+  end
+
+  def chat_index_empty_group_specs(repositories_by_id:)
+    case chat_index_settings.fetch(:group_by)
+    when "repository"
+      repositories = Current.user.repositories.active.order(:owner, :name).to_a
+      repository_specs = repositories.map do |repository|
+        repositories_by_id[repository.id] ||= repository
+        { key: "repository-#{repository.id}", label: repository.slug, repository_id: repository.id, group_by: "repository", group_value: repository.id.to_s, chats: [], has_more: false }
+      end
+      [ { key: "general", label: "General", repository_id: nil, group_by: "repository", group_value: "general", chats: [], has_more: false }, *repository_specs ]
+    when "status"
+      statuses = chat_index_settings.fetch(:status) == "all" ? %w[active hidden] : [ chat_index_settings.fetch(:status) ]
+      statuses.map { |status| { key: "status-#{status}", label: chat_index_group_label("status", status), repository_id: nil, group_by: "status", group_value: status, chats: [], has_more: false } }
+    when "mode"
+      ChatSession::MODES.map { |mode| { key: "mode-#{mode}", label: chat_index_group_label("mode", mode), repository_id: nil, group_by: "mode", group_value: mode, chats: [], has_more: false } }
+    else
+      []
     end
   end
 
-  def chat_index_repositories
-    repository_ids = Current.user.accessible_chat_sessions
-      .visible
-      .active
-      .ordinary_chats
-      .joins(:repository_attachments)
-      .where(chat_attachments: { attachable_type: "Repository" })
-      .distinct
-      .pluck("chat_attachments.attachable_id")
-
-    Current.user.repositories.where(id: repository_ids).order(:owner, :name)
+  def chat_index_group_label(group_by, group_key)
+    case group_by
+    when "date"
+      chat_index_date_label(group_key)
+    when "status"
+      group_key == "hidden" ? "Hidden" : "Active"
+    when "mode"
+      CHAT_INDEX_MODE_LABELS.fetch(group_key, group_key.to_s.titleize)
+    else
+      group_key
+    end
   end
 
-  def chat_index_repository_id
-    repository_id = params[:repository_id].to_s
-    return nil if repository_id == "general"
+  def chat_index_date_label(group_key)
+    date = Date.iso8601(group_key)
+    today = Time.zone.today
+    return "Today" if date == today
+    return "Yesterday" if date == today - 1
 
-    parsed = Integer(repository_id, exception: false)
-    return parsed if parsed
+    date.strftime("%b %-d, %Y")
+  rescue ArgumentError
+    group_key
+  end
 
-    render_error("validation_failed", "repository_id is required.", status: :unprocessable_content)
-    nil
+  def sort_chat_index_groups(groups)
+    sorted = case chat_index_settings.fetch(:group_by)
+    when "repository"
+      groups.sort_by { |group| [ group.fetch(:chats).empty? ? 1 : 0, -(group.delete(:active_at)&.to_i || 0), group.fetch(:label).downcase ] }
+    when "status"
+      order = { "status-active" => 0, "status-hidden" => 1 }
+      groups.sort_by { |group| [ order.fetch(group.fetch(:key), 9), group.fetch(:chats).empty? ? 1 : 0 ] }
+    when "mode"
+      order = ChatSession::MODES.each_with_index.to_h { |mode, index| [ "mode-#{mode}", index ] }
+      groups.sort_by { |group| [ order.fetch(group.fetch(:key), 9), group.fetch(:chats).empty? ? 1 : 0 ] }
+    else
+      groups.sort_by { |group| group.fetch(:key) }.reverse
+    end
+    sorted.each { |group| group.delete(:active_at) }
+  end
+
+  def chat_index_group_key_sql
+    {
+      "date" => "DATE(#{chat_activity_order_sql})",
+      "repository" => "COALESCE(CAST(chat_attachments.attachable_id AS CHAR), 'general')",
+      "status" => "CASE WHEN chat_sessions.hidden_at IS NULL THEN 'active' ELSE 'hidden' END",
+      "mode" => "COALESCE(chat_sessions.mode, 'planning')"
+    }.fetch(chat_index_settings.fetch(:group_by))
+  end
+
+  def chat_index_group_match_sql(group_by)
+    {
+      "date" => "DATE(#{chat_activity_order_sql}) = ?",
+      "repository" => "COALESCE(CAST(chat_attachments.attachable_id AS CHAR), 'general') = ?",
+      "status" => "CASE WHEN chat_sessions.hidden_at IS NULL THEN 'active' ELSE 'hidden' END = ?",
+      "mode" => "COALESCE(chat_sessions.mode, 'planning') = ?"
+    }.fetch(group_by)
+  end
+
+  def chat_index_order_sql
+    "chat_sessions.pinned DESC, #{chat_index_sort_sql}, chat_sessions.id DESC"
+  end
+
+  def chat_index_sort_sql
+    {
+      "last_activity" => "#{chat_activity_order_sql} DESC",
+      "date_created" => "chat_sessions.created_at DESC",
+      "name" => "LOWER(COALESCE(NULLIF(chat_sessions.title, ''), '')) ASC"
+    }.fetch(chat_index_settings.fetch(:sort_by))
+  end
+
+  def chat_index_cursor_predicate_sql
+    {
+      "last_activity" => "chat_sessions.pinned < ? OR (chat_sessions.pinned = ? AND ((#{chat_activity_order_sql}) < ? OR ((#{chat_activity_order_sql}) = ? AND chat_sessions.id < ?)))",
+      "date_created" => "chat_sessions.pinned < ? OR (chat_sessions.pinned = ? AND (chat_sessions.created_at < ? OR (chat_sessions.created_at = ? AND chat_sessions.id < ?)))",
+      "name" => "chat_sessions.pinned < ? OR (chat_sessions.pinned = ? AND (LOWER(COALESCE(NULLIF(chat_sessions.title, ''), '')) > ? OR (LOWER(COALESCE(NULLIF(chat_sessions.title, ''), '')) = ? AND chat_sessions.id < ?)))"
+    }.fetch(chat_index_settings.fetch(:sort_by))
+  end
+
+  def chat_index_cursor_value(chat_session)
+    {
+      "last_activity" => chat_activity_timestamp(chat_session),
+      "date_created" => chat_session.created_at,
+      "name" => chat_session.title.to_s.downcase
+    }.fetch(chat_index_settings.fetch(:sort_by))
   end
 
   def chat_activity_timestamp(chat_session)
