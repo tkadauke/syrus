@@ -207,6 +207,8 @@
   "priority_cancel": "Cancellare",
   "priority_update_error": "Prioritas mutari non potuit.",
   "detail_validity": "Validitas",
+  "detail_source": "Fons",
+  "detail_creator": "Auctore",
   "detail_epic": "Epicum",
   "detail_branch": "Ramus",
   "detail_stack_base": "Basis struis",

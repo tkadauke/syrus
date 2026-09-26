@@ -9884,7 +9884,7 @@ describe("App", () => {
     expect(screen.getByText("Direct Job")).toBeInTheDocument()
     expect(screen.getAllByText("implemented").length).toBeGreaterThan(0)
     expect(screen.getByText("codex")).toBeInTheDocument()
-    expect(screen.getByText("pat")).toBeInTheDocument()
+    expect(screen.queryByText("pat")).not.toBeInTheDocument()
   })
 
   it("links to the Epic from the Job detail summary when the Job belongs to one", async () => {

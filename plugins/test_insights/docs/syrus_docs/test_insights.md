@@ -163,16 +163,19 @@ millions of rows (production: 4,000+ calls/day averaging ~10M rows examined,
 up to 67s). `TestInsights::WipRepairFailureBackfill`, wrapped by the
 `test_insights_wip_repair_failure_backfill` maintenance task
 (`MaintenanceTasks::Definitions::TestInsightsWipRepairFailureBackfill`), replays
-the same classifier over historical `test_insight_runs` for rows ingested
-before the column existed. The backfill only treats grader-loop runs with
-durable `test_insight_cases` as pending work, skips zero-case runs, and uses the
-completed maintenance task checkpoint as the detector high-water mark so
-negative/no-op classifications do not resurrect the one-off task. It's
-idempotent (only ever flips `false` -> `true`) and safe to run repeatedly or
-resume after a pause. `MaintenanceTasks::Discovery` surfaces it as a pending
-admin task automatically once there is backfill work to do -- start it from the
-Maintenance Tasks admin page (or the `admin_maintenance_tasks` MCP tool) if
-older history's flakiness/failure-rate numbers need to reflect it.
+the same classifier over a bounded historical set of `test_insight_runs` for
+rows ingested before the column existed. The backfill only treats grader-loop
+runs with durable `test_insight_cases` as pending work, skips zero-case runs,
+and records an `upper_bound_test_run_id` checkpoint when discovery creates or
+revives the task. Completed backfills do not tail newer live rows; normal
+ingestion handles those by calling the same classifier as each grader run
+arrives. It's idempotent (only ever flips `false` -> `true`) and safe to resume
+after a pause, cancellation, or retry because it keeps walking from `after_id`
+up to the original upper bound. `MaintenanceTasks::Discovery` surfaces it as a
+pending admin task automatically once there is bounded historical work to do --
+start it from the Maintenance Tasks admin page (or the
+`admin_maintenance_tasks` MCP tool) if older history's
+flakiness/failure-rate numbers need to reflect it.
 
 Every `TestCase`/`TestIdentity`/`RecentStats` query built on `.scored` is
 wrapped in `PerformanceLogging.phase("test_insights.<name>", ...)`

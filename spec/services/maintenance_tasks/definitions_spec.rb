@@ -127,6 +127,69 @@ RSpec.describe "maintenance task definitions" do
       expect(result.failed).to eq(0)
       expect(task.checkpoint["processed_repository_ids"]).to include(repository.id)
     end
+
+    it "records errored repositories as unresolved and fails completion instead of reporting success" do
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        state: "closed",
+        issue_number: 106,
+        pr_number: 107,
+        landed_sha: "ghi789"
+      )
+      task = maintenance_task_for(definition)
+      service_result = Jobs::LandedCommitsBackfill::Result.new(checked: 1, recorded: 0, commits_recorded: 0, skipped: 0, errors: 1)
+      service_retry_result = Jobs::LandedCommitsBackfill::Result.new(checked: 1, recorded: 1, commits_recorded: 1, skipped: 0, errors: 0)
+      service = instance_double(Jobs::LandedCommitsBackfill, call: service_result)
+      retry_service = instance_double(Jobs::LandedCommitsBackfill, call: service_retry_result)
+      allow(Jobs::LandedCommitsBackfill).to receive(:new).with(repository: repository).and_return(service, retry_service)
+
+      result = definition.perform_batch(task)
+
+      expect(result.failed).to eq(1)
+      expect(result.level).to eq("warning")
+      expect(task.checkpoint["processed_repository_ids"]).to include(repository.id)
+      expect(task.checkpoint["unresolved_repositories"]).to contain_exactly(
+        hash_including("id" => repository.id, "slug" => repository.slug, "errors" => 1)
+      )
+
+      expect { definition.perform_batch(task) }
+        .to raise_error(MaintenanceTasks::Definitions::LandedCommitsBackfill::UnresolvedLandingsError, /#{Regexp.escape(repository.slug)}/)
+      expect(task.checkpoint["retry_unresolved_repository_ids"]).to eq([ repository.id ])
+
+      retry_result = definition.perform_batch(task)
+
+      expect(retry_result.failed).to eq(0)
+      expect(task.checkpoint["retry_unresolved_repository_ids"]).to be_empty
+      expect(task.checkpoint["unresolved_repositories"]).to be_empty
+    end
+
+    it "clears stale unresolved entries when the missing landed commits were repaired externally" do
+      job = Factories.job_record(
+        user: user,
+        repository: repository,
+        state: "closed",
+        issue_number: 108,
+        pr_number: 109,
+        landed_sha: "jkl012"
+      )
+      task = maintenance_task_for(definition)
+      service_result = Jobs::LandedCommitsBackfill::Result.new(checked: 1, recorded: 0, commits_recorded: 0, skipped: 0, errors: 1)
+      service = instance_double(Jobs::LandedCommitsBackfill, call: service_result)
+      allow(Jobs::LandedCommitsBackfill).to receive(:new).with(repository: repository).and_return(service)
+
+      definition.perform_batch(task)
+      expect { definition.perform_batch(task) }
+        .to raise_error(MaintenanceTasks::Definitions::LandedCommitsBackfill::UnresolvedLandingsError)
+
+      LandedCommit.create!(landable: job, sha: job.landed_sha, kind: "implementation", position: 0)
+
+      result = definition.perform_batch(task)
+
+      expect(result.done).to be(true)
+      expect(task.checkpoint["retry_unresolved_repository_ids"]).to be_nil
+      expect(task.checkpoint["unresolved_repositories"]).to be_empty
+    end
   end
 
   describe MaintenanceTasks::Definitions::PreemptedExternalPrBackfill do
@@ -176,9 +239,10 @@ RSpec.describe "maintenance task definitions" do
     before do
       result_struct = Struct.new(:done, :processed, :next_after_id, keyword_init: true)
       stub_const("TestInsights::WipRepairFailureBackfill", Class.new do
-        define_singleton_method(:pending_count) { |after_id: 0| [ 5 - after_id, 0 ].max }
+        define_singleton_method(:pending_count) { |after_id: 0, up_to_id: nil| [ (up_to_id || 5) - after_id, 0 ].max }
+        define_singleton_method(:max_test_run_id) { 5 }
 
-        define_method(:call) do |after_id: 0, limit:|
+        define_method(:call) do |after_id: 0, up_to_id: nil, limit:|
           result_struct.new(done: true, processed: 5, next_after_id: after_id + 5)
         end
       end)
@@ -193,6 +257,7 @@ RSpec.describe "maintenance task definitions" do
       expect(result.done).to be(true)
       expect(result.processed).to eq(5)
       expect(task.checkpoint["after_id"]).to eq(5)
+      expect(task.checkpoint["upper_bound_test_run_id"]).to eq(5)
     end
 
     it "reports not installed when Test Insights is unavailable" do
