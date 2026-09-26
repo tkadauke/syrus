@@ -3,7 +3,10 @@ module Api
     module Admin
       class McpToolUsageController < BaseController
         def show
-          render json: ::Admin::McpToolUsagePayload.new(params: params).as_json
+          payload = ::Admin::McpToolUsagePayload.new(params: params).as_json
+          payload[:filters] = payload.fetch(:filters).compact
+
+          render json: payload
         end
       end
     end
