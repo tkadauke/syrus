@@ -25,7 +25,6 @@ import {
 import { refreshRecentChats, updateRecentChatCache } from "../lib/chatCache"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
-  attachChatRepository,
   branchChat,
   clearChatHistory,
   confirmChatProposal,
@@ -308,9 +307,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
     video_walkthroughs: [],
     preview_panels: [],
     workspace_tabs: [],
-    attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
     documents_in_scope: [],
-    attachment_results: [],
     whiteboard: { version: 1, elements: [], appState: {}, files: {} },
     paths: {
       credentials_path: "/credentials",
@@ -328,7 +325,6 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       app_create_coding_handoff_path: "",
       app_switch_provider_path: "",
       app_bookmarks_path: "",
-      app_attachments_path: "",
       app_video_walkthroughs_path: "",
       app_whiteboard_path: "",
       app_scratchpad_reorder_path: ""
@@ -1191,7 +1187,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       </div>
       {landing ? (
         <div className="w-full max-w-sm sm:max-w-2xl">
-          <Compose key={chatId} autoFocus canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={false} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
+          <Compose key={chatId} autoFocus canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={false} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
         </div>
       ) : null}
     </section>

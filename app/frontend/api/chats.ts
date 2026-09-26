@@ -548,22 +548,10 @@ type ChatDraftMessageInput = {
   attachments?: Array<ChatMessageAttachmentInput | ChatDraftAttachment>
 }
 
-export type ChatAttachmentRow = {
-  id: number
-  label: string
-  app_detach_path: string
-}
-
 export type ChatDocumentScope = {
   id: number
   title: string
   repository_slug: string | null
-}
-
-export type ChatAttachmentResult = {
-  type: string
-  id: number
-  label: string
 }
 
 export type ChatWhiteboardElement = Record<string, unknown>
@@ -832,14 +820,7 @@ export type ChatPayload = {
   video_walkthroughs?: ChatWalkthroughMedia[]
   preview_panels: ChatPreviewPanel[]
   workspace_tabs: ChatWorkspaceTab[]
-  attachment_groups?: {
-    repositories: ChatAttachmentRow[]
-    epics: ChatAttachmentRow[]
-    jobs: ChatAttachmentRow[]
-    documents: ChatAttachmentRow[]
-  }
   documents_in_scope?: ChatDocumentScope[]
-  attachment_results?: ChatAttachmentResult[]
   whiteboard: {
     version: number
     elements: ChatWhiteboardElement[]
@@ -865,8 +846,6 @@ export type ChatPayload = {
     app_switch_provider_path: string
     app_bookmarks_path: string
     app_bookmarks_index_path?: string
-    app_context_path?: string
-    app_attachments_path: string
     app_video_walkthroughs_path?: string
     app_video_walkthrough_retry_path?: string
     app_speech_to_text_batch_path?: string
@@ -906,8 +885,6 @@ export type ChatProposalMutationPayload = {
 // freshly serialized proposal, unlike confirm/reject's compact mutation
 // payload above.
 export type ChatProposalUpdatePayload = ChatPayload & { proposal?: ChatProposal | null }
-
-export type ChatContextPayload = Pick<ChatPayload, "attachment_groups" | "documents_in_scope" | "attachment_results">
 
 export type ChatSpeechToTextCapability = {
   enabled: boolean
@@ -990,10 +967,6 @@ export function fetchChatPreview(id: string, options: { signal?: AbortSignal } =
 
 export function fetchChatBookmarks(path: string, options: { signal?: AbortSignal } = {}) {
   return getJson<{ bookmarks: ChatBookmark[] }>(path, options)
-}
-
-export function fetchChatContext(path: string, options: { signal?: AbortSignal } = {}) {
-  return getJson<ChatContextPayload>(path, options)
 }
 
 export function fetchSharedChat(token: string) {
@@ -1370,24 +1343,6 @@ export function createChatMessagePin(path: string, messageId: number) {
 
 export function deleteChatMessagePin(path: string, messageId: number) {
   return deleteJson<ChatPayload & { pins: ChatMessagePin[] }>(`${path}/${messageId}`)
-}
-
-export function addChatAttachment(path: string, record: ChatAttachmentResult) {
-  return postJson<ChatPayload>(path, {
-    attachable_type: record.type,
-    attachable_id: record.id
-  })
-}
-
-export function attachChatRepository(path: string, slug: string) {
-  return postJson<ChatPayload>(path, {
-    attachable_type: "Repository",
-    repository_slug: slug
-  })
-}
-
-export function deleteChatAttachment(path: string) {
-  return deleteJson<ChatPayload>(path)
 }
 
 export function closeChatPreviewPanel(path: string) {
