@@ -728,7 +728,7 @@ function ChangedFilesList({
   onSelectFile: (path: string) => void
   selectedPath?: string | null
 }) {
-  if (layout === "nested") return <NestedChangedFilesList commentCounts={commentCounts} files={files} onSelectFile={onSelectFile} selectedPath={selectedPath} />
+  if (layout === "nested") return <NestedChangedFilesList commentCounts={commentCounts} density={density} files={files} onSelectFile={onSelectFile} selectedPath={selectedPath} />
 
   return (
     <>
@@ -754,11 +754,13 @@ function ChangedFilesList({
 
 function NestedChangedFilesList({
   commentCounts,
+  density,
   files,
   onSelectFile,
   selectedPath
 }: {
   commentCounts?: Record<string, number>
+  density: ReviewDiffSettings["density"]
   files: ReviewableDiffFile[]
   onSelectFile: (path: string) => void
   selectedPath?: string | null
@@ -786,6 +788,7 @@ function NestedChangedFilesList({
       {tree.map((node) => (
         <ChangedFileTreeRow
           commentCounts={commentCounts}
+          density={density}
           expandedPaths={expandedPaths}
           key={node.path}
           node={node}
@@ -800,6 +803,7 @@ function NestedChangedFilesList({
 
 function ChangedFileTreeRow({
   commentCounts,
+  density,
   expandedPaths,
   node,
   onSelectFile,
@@ -807,6 +811,7 @@ function ChangedFileTreeRow({
   selectedPath
 }: {
   commentCounts?: Record<string, number>
+  density: ReviewDiffSettings["density"]
   expandedPaths: Set<string>
   node: ChangedFileTreeNode
   onSelectFile: (path: string) => void
@@ -817,7 +822,7 @@ function ChangedFileTreeRow({
     const file = node.file
     return (
       <button
-        className={`flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-brand/10 ${selectedPath === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
+        className={`flex w-full items-center text-left hover:bg-brand/10 ${DIFF_DENSITY_CLASSES[density].changedFilesRow} ${selectedPath === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
         onClick={() => onSelectFile(file.path)}
         style={{ paddingLeft: `${0.75 + Math.min(file.path.split("/").length - 1, 6) * 0.75}rem` }}
         title={`${file.path} (+${file.additions ?? 0} -${file.deletions ?? 0})`}
@@ -836,7 +841,7 @@ function ChangedFileTreeRow({
       <button
         aria-expanded={expandedPaths.has(node.path)}
         aria-label={node.name}
-        className="block w-full truncate py-1.5 pr-3 text-left font-mono text-xs font-semibold text-gray-500 hover:bg-brand/10 dark:text-gray-400"
+        className={`block w-full truncate text-left font-mono text-xs font-semibold text-gray-500 hover:bg-brand/10 dark:text-gray-400 ${DIFF_DENSITY_CLASSES[density].changedFilesRow}`}
         onClick={() => onToggleDirectory(node.path)}
         style={{ paddingLeft: `${0.75 + Math.min(Math.max(node.path.split("/").length - 1, 0), 6) * 0.75}rem` }}
         title={node.path}
@@ -848,6 +853,7 @@ function ChangedFileTreeRow({
       {expandedPaths.has(node.path) ? node.children.map((child) => (
         <ChangedFileTreeRow
           commentCounts={commentCounts}
+          density={density}
           expandedPaths={expandedPaths}
           key={child.path}
           node={child}

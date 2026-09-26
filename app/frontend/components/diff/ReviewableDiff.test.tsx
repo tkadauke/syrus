@@ -670,7 +670,7 @@ describe("ReviewableDiff", () => {
         ]}
         mode="continuous"
         onSelectFile={onSelectFile}
-        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, file_list_layout: "nested", file_sort: "change_size" }}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, density: "compact", file_list_layout: "nested", file_sort: "change_size" }}
         selectedPath="app/models/deep.rb"
         showFileHeaders
       />
@@ -683,6 +683,7 @@ describe("ReviewableDiff", () => {
     const modelsFolder = within(dialog).getByRole("button", { name: "models" })
     expect(appFolder).toHaveAttribute("aria-expanded", "true")
     expect(modelsFolder).toHaveAttribute("aria-expanded", "true")
+    expect(appFolder).toHaveClass("py-1")
     expect(appFolder.querySelector("span")).toHaveClass("rotate-90")
 
     const changedFiles = screen.getAllByTitle(/ \(\+/)
@@ -705,7 +706,7 @@ describe("ReviewableDiff", () => {
 
     fireEvent.click(appFolder)
     const deepFile = screen.getByTitle("app/models/deep.rb (+5 -4)")
-    expect(deepFile).toHaveClass("bg-brand/10")
+    expect(deepFile).toHaveClass("bg-brand/10", "py-1")
 
     fireEvent.click(deepFile)
     expect(onSelectFile).toHaveBeenCalledWith("app/models/deep.rb")
