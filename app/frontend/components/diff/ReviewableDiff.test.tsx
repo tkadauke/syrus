@@ -181,6 +181,7 @@ describe("ReviewableDiff", () => {
       "width: calc(0.5 * (100% - 7.5rem));",
       "width: 1.5rem;"
     ])
+    expect(getCodeCellText("diff --git a/app/models/split.rb b/app/models/split.rb")).toHaveAttribute("colspan", "5")
     expect(oldRow).not.toHaveStyle({ display: "grid" })
     expect(oldRow.getAttribute("style") || "").not.toContain("grid-template-columns")
     expect(newRow).not.toHaveStyle({ display: "grid" })
@@ -206,6 +207,7 @@ describe("ReviewableDiff", () => {
       "width: calc(0.5 * (100% - 1.5rem));",
       "width: 1.5rem;"
     ])
+    expect(getCodeCellText("diff --git a/app/models/split.rb b/app/models/split.rb")).toHaveAttribute("colspan", "3")
     expect(oldRow).not.toHaveStyle({ display: "grid" })
     expect(oldRow.getAttribute("style") || "").not.toContain("grid-template-columns")
     expect(newRow).not.toHaveStyle({ display: "grid" })

@@ -1552,6 +1552,28 @@ export function UnifiedDiffTable({
                 </Fragment>
               )
             }
+            if (splitView) {
+              return (
+                <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
+                  <tr
+                    className={`group ${diffLineClass(line.kind)}`}
+                    data-diff-kind={line.kind}
+                  >
+                    <td className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).codeCell}`} colSpan={splitInlineColSpan}>
+                      <DiffCode
+                        code={reviewDisplayCode(line.code, reviewSettings)}
+                        highlightedToken={activeHighlight}
+                        kind={line.kind}
+                        onToggleHighlightToken={toggleHighlight}
+                        tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
+                      />
+                    </td>
+                  </tr>
+                  {renderThreadRow(threads, true)}
+                  {renderComposerRow(isComposingHere, true)}
+                </Fragment>
+              )
+            }
             return (
               <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
               <tr
@@ -1826,8 +1848,8 @@ function SplitDiffColGroup({ showLineNumbers }: { showLineNumbers: boolean }) {
   if (!showLineNumbers) {
     return (
       <colgroup>
-        <col style={{ width: "calc(0.5 * (100% - 1.5rem))" }} />
-        <col style={{ width: "calc(0.5 * (100% - 1.5rem))" }} />
+        <col style={{ width: "calc((100% - 1.5rem) / 2)" }} />
+        <col style={{ width: "calc((100% - 1.5rem) / 2)" }} />
         <col style={{ width: "1.5rem" }} />
       </colgroup>
     )
@@ -1836,9 +1858,9 @@ function SplitDiffColGroup({ showLineNumbers }: { showLineNumbers: boolean }) {
   return (
     <colgroup>
       <col style={{ width: "3rem" }} />
-      <col style={{ width: "calc(0.5 * (100% - 7.5rem))" }} />
+      <col style={{ width: "calc((100% - 7.5rem) / 2)" }} />
       <col style={{ width: "3rem" }} />
-      <col style={{ width: "calc(0.5 * (100% - 7.5rem))" }} />
+      <col style={{ width: "calc((100% - 7.5rem) / 2)" }} />
       <col style={{ width: "1.5rem" }} />
     </colgroup>
   )
