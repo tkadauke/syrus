@@ -49,7 +49,14 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
       "arguments" => [ 7 ]
     )
     expect(body["filter"]).to eq("and" => [])
-    expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("queue_name", "job_class")
+    expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include(
+      "queue_name",
+      "job_class",
+      "job_id",
+      "priority",
+      "created_at",
+      "scheduled_at"
+    )
     expect(body["smart_folders"].find { |folder| folder["name"] == "Runs" }).to include(
       "count" => 1,
       "i18n_key" => "admin_queue_runs",
@@ -72,6 +79,23 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     body = parse_body
     expect(body["jobs"].map { |job| job["queue_name"] }).to eq([ "runs", "chat" ])
     expect(body["sort"]).to eq("column" => "queue", "direction" => "desc")
+  end
+
+  it "serializes and sorts core queue timing and priority fields" do
+    sign_in_as(admin)
+    process = solid_queue_process(hostname: "worker-a", pid: 101)
+    low = solid_queue_job(class_name: "LowPriorityJob", queue_name: "runs", priority: 10, scheduled_at: 5.minutes.from_now)
+    high = solid_queue_job(class_name: "HighPriorityJob", queue_name: "runs", priority: 1, scheduled_at: 1.minute.from_now)
+    SolidQueue::ClaimedExecution.create!(job: low, process: process, created_at: 2.minutes.ago)
+    SolidQueue::ClaimedExecution.create!(job: high, process: process, created_at: 1.minute.ago)
+
+    get "/api/v1/app/admin/queue/active", params: { sort: "priority", direction: "asc" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["jobs"].map { |job| job["id"] }).to eq([ high.id, low.id ])
+    expect(body["jobs"].first).to include("priority" => 1, "scheduled_at" => high.scheduled_at.iso8601(3))
+    expect(body["sort"]).to eq("column" => "priority", "direction" => "asc")
   end
 
   it "applies queue smart folders to filter jobs" do
@@ -481,15 +505,16 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     )
   end
 
-  def solid_queue_job(class_name:, queue_name:, arguments: { "arguments" => [] }, finished_at: nil)
+  def solid_queue_job(class_name:, queue_name:, arguments: { "arguments" => [] }, finished_at: nil, priority: 0, scheduled_at: nil)
     SolidQueue::Job.create!(
       class_name: class_name,
       queue_name: queue_name,
-      priority: 0,
+      priority: priority,
       arguments: arguments,
       created_at: Time.current,
       updated_at: Time.current,
-      finished_at: finished_at
+      finished_at: finished_at,
+      scheduled_at: scheduled_at
     )
   end
 

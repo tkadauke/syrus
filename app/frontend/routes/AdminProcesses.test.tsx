@@ -24,6 +24,7 @@ function processRow(overrides: Record<string, unknown> = {}) {
     silent_timeout_s: 1200,
     run_id: 12,
     workflow_id: 3,
+    chat_session_id: null,
     workflow_slug: "WF-3",
     workflow_path: "/admin/workflows/3",
     stale: false,
@@ -88,7 +89,10 @@ describe("AdminProcesses configurable columns", () => {
 
     expect(await screen.findByRole("columnheader", { name: "Kind" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Command" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Chat" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Workdir" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Host / PID" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Exit" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument()
     expect(screen.getByText("claude --print")).toBeInTheDocument()
     expect(screen.getByText("Showing 1-1 of 1 processes")).toBeInTheDocument()
@@ -111,13 +115,18 @@ describe("AdminProcesses configurable columns", () => {
 
     // Actions is required (pinned to the end) and never appears in the persisted order.
     expect(JSON.parse(window.localStorage.getItem("syrus.admin.processes.visible_columns") ?? "[]")).toEqual([
+      "chat_session_id",
+      "workdir",
       "user",
       "owner",
       "host_pid",
       "started",
       "last_chunk",
       "duration",
-      "outcome"
+      "timeouts",
+      "exit_status",
+      "outcome",
+      "kill_requested"
     ])
   })
 })

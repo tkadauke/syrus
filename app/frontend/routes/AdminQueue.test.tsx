@@ -38,6 +38,8 @@ describe("AdminQueue worker health charts", () => {
           class_name: "RunJob",
           created_at: "2026-05-30T11:59:00Z",
           id: 1,
+          priority: 0,
+          scheduled_at: "2026-05-30T11:59:00Z",
           queue_name: "runs"
         }
       ]
@@ -60,6 +62,8 @@ describe("AdminQueue worker health charts", () => {
           class_name: "RunJob",
           created_at: "2026-05-30T11:59:00Z",
           id: 1,
+          priority: 0,
+          scheduled_at: "2026-05-30T11:59:00Z",
           queue_name: "runs"
         }
       ]
@@ -82,7 +86,10 @@ describe("AdminQueue worker health charts", () => {
           created_at: "2026-05-30T11:59:00Z",
           exception_class: "RuntimeError",
           id: 1,
-          message: "boom"
+          job_id: 1,
+          message: "boom",
+          priority: 0,
+          scheduled_at: "2026-05-30T11:59:00Z"
         }
       ]
     })))
@@ -217,6 +224,8 @@ describe("AdminQueue configurable columns", () => {
           class_name: "RunJob",
           created_at: "2026-05-30T11:59:00Z",
           id: 1,
+          priority: 0,
+          scheduled_at: "2026-05-30T11:59:00Z",
           queue_name: "runs"
         }
       ]
@@ -237,8 +246,11 @@ describe("AdminQueue configurable columns", () => {
     expect(screen.getByRole("columnheader", { name: "Class" })).toBeInTheDocument()
 
     expect(JSON.parse(window.localStorage.getItem("syrus.admin.queue.active_jobs.visible_columns") ?? "[]")).toEqual([
+      "job_id",
+      "priority",
       "arguments",
       "created",
+      "scheduled",
       "claimed"
     ])
   })
