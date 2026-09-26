@@ -21,7 +21,9 @@ type KubernetesResourceTableProps<TRow> = {
 
 const SEARCH_FIELD = "resource_query"
 
-export function KubernetesResourceTable<TRow>({ columns, defaultSort, empty, getRowKey, rows, storageKey, summary }: KubernetesResourceTableProps<TRow>) {
+export function KubernetesResourceTable<TRow>(
+  { columns, defaultSort, empty, getRowKey, rows, storageKey, summary }: KubernetesResourceTableProps<TRow>
+) {
   const { t } = useT("k8s_cluster")
   const location = useLocation()
   const filterSchema = useMemo(() => resourceFilterSchema(t), [t])

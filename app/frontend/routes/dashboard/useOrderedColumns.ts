@@ -26,9 +26,9 @@ export function useOrderedColumns({
     onReorder: (nextOrder) => onReorderColumns?.(nextOrder)
   })
   const orderedColumns = useMemo(() => [
-    ...columns.filter((column) => requiredColumnSet.has(column)),
+    ...requiredColumns.filter((column) => columns.includes(column)),
     ...liveOptionalOrder
-  ], [columns, requiredColumnSet, liveOptionalOrder])
+  ], [columns, liveOptionalOrder, requiredColumns])
 
   function draggable(column: string) {
     return !requiredColumnSet.has(column) && Boolean(onReorderColumns) && !reorderPending
