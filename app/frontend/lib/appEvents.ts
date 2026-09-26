@@ -414,8 +414,8 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
     case "chat":
       return event.id == null
         ? [["chats"]]
-        : event.changed?.includes("whiteboard_snapshots")
-          ? [["chats"], ["chats", String(event.id)], ["whiteboard_snapshots", String(event.id)]]
+        : chatMediaChanged(event)
+          ? [["chats"], ["chats", String(event.id)], ["chat_media", String(event.id)], ["whiteboard_snapshots", String(event.id)]]
           : [["chats"], ["chats", String(event.id)]]
     case "provider_availability":
       return [["bootstrap"], ["dashboard"], ["chats"]]
@@ -424,6 +424,11 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
     default:
       return []
   }
+}
+
+function chatMediaChanged(event: AppEvent) {
+  const changed = event.changed || []
+  return changed.includes("media") || changed.includes("chat_images") || changed.includes("whiteboard_snapshots")
 }
 
 function jobQueryKeysFor(event: AppEvent): QueryKey[] {
