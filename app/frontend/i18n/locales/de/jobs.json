@@ -505,6 +505,8 @@
   "review_handled_state_other": "{{count}} erledigt",
   "review_artifacts_title": "Review-Artefakte",
   "review_feedback_title": "Diff-Kommentare",
+  "review_comments_splitter_label": "Diff-Kommentare skalieren",
+  "review_comments_collapsed_aria": "Eingeklappte Diff-Kommentare",
   "review_no_comments": "Keine Diff-Kommentare.",
   "review_comment_body": "Kommentar",
   "review_create_comment": "Kommentar erstellen",

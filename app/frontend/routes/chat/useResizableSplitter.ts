@@ -23,6 +23,7 @@ export function useResizableSplitter({
   defaultWidth,
   snapClosedWidth,
   reopenWidth,
+  resizeEdge = "end",
   clampWidth
 }: {
   widthKey: string
@@ -32,6 +33,7 @@ export function useResizableSplitter({
   defaultWidth: number
   snapClosedWidth: number
   reopenWidth: number
+  resizeEdge?: "start" | "end"
   clampWidth: (width: number) => number
 }): ResizableSplitter {
   const [width, setWidth] = useState(initialWidth)
@@ -54,7 +56,8 @@ export function useResizableSplitter({
     draggedRef.current = false
 
     function resize(moveEvent: MouseEvent) {
-      const nextWidth = startWidth + (moveEvent.clientX - startX)
+      const pointerDelta = resizeEdge === "start" ? startX - moveEvent.clientX : moveEvent.clientX - startX
+      const nextWidth = startWidth + pointerDelta
       if (Math.abs(moveEvent.clientX - startX) > 2) draggedRef.current = true
 
       if (snappedClosedDuringGesture && nextWidth < reopenWidth) {
@@ -110,8 +113,9 @@ export function useResizableSplitter({
 
     event.preventDefault()
     setWidth((current) => {
-      const nextWidth = clampWidth(current + (event.key === "ArrowRight" ? 16 : -16))
-      if (event.key === "ArrowLeft" && nextWidth === current) {
+      const shouldGrow = resizeEdge === "start" ? event.key === "ArrowLeft" : event.key === "ArrowRight"
+      const nextWidth = clampWidth(current + (shouldGrow ? 16 : -16))
+      if (!shouldGrow && nextWidth === current) {
         setCollapsed(true)
       } else {
         setCollapsed(false)

@@ -511,6 +511,8 @@
   "review_handled_state_other": "{{count}} handled",
   "review_artifacts_title": "Review artifacts",
   "review_feedback_title": "Diff comments",
+  "review_comments_splitter_label": "Resize diff comments",
+  "review_comments_collapsed_aria": "Collapsed diff comments",
   "review_no_comments": "No diff comments.",
   "review_comment_body": "Comment",
   "review_create_comment": "Create comment",
