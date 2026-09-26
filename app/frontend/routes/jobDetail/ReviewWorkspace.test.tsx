@@ -184,7 +184,7 @@ describe("ReviewWorkspace", () => {
     const { client } = renderWorkspace()
 
     await screen.findByText("Implementation review")
-    expect(screen.getAllByTestId("diff-file-scroll")[0]).toHaveClass("overflow-x-auto")
+    expect(screen.getAllByTestId("diff-file-scroll")[0]).toHaveClass("overflow-x-scroll")
 
     fireEvent.keyDown(window, { altKey: true, shiftKey: true, key: "W" })
 

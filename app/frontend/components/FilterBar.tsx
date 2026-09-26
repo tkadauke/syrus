@@ -50,7 +50,8 @@ export function FilterBar({
   const addMenuRef = useRef<HTMLDivElement | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const params = new URLSearchParams(search)
-  const appliedTree = useMemo(() => filterTreeFromPayload(filter), [filter])
+  const filterPayloadKey = stableFilterPayloadKey(filter)
+  const appliedTree = useMemo(() => filterTreeFromPayload(JSON.parse(filterPayloadKey) as Record<string, unknown> | null), [filterPayloadKey])
   const draftChildren = topFilterChildren(draftTree)
   const activeSuggestionQ = useMemo(() => topFilterChildren(appliedTree).length > 0 ? encodeFilterTree(appliedTree) : "", [appliedTree])
   const [searchedSuggestions, setSearchedSuggestions] = useState<FilterSuggestion[]>([])
@@ -398,6 +399,10 @@ export function FilterBar({
       </div>
     </div>
   )
+}
+
+function stableFilterPayloadKey(filter: Record<string, unknown> | null | undefined) {
+  return JSON.stringify(filter ?? null)
 }
 
 function FilterNodeChip({

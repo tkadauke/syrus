@@ -380,9 +380,21 @@ describe("App", () => {
 
     const welcome = await screen.findByRole("main", { name: "Syrus first-run welcome" })
     expect(screen.getByRole("heading", { name: "Welcome to Syrus!" })).toBeInTheDocument()
-    // Versioned icon URL: public/ files are cached for a year, so an
-    // unversioned /icon.png would show a previous backend's stale artwork.
-    expect(welcome.querySelector("img")?.getAttribute("src")).toMatch(/^\/icon\.png\?v=\d+$/)
+    // Theme-aware mark: an inline SVG painted from semantic color tokens
+    // rather than the static /icon.png artwork, so it follows the active
+    // color theme instead of needing its own cache-busted asset URL.
+    const mark = welcome.querySelector('[data-testid="syrus-mark"]')
+    expect(mark).not.toBeNull()
+    expect(mark?.tagName.toLowerCase()).toBe("svg")
+    expect(mark).toHaveAttribute("aria-hidden", "true")
+    expect(mark).toHaveAttribute("viewBox", "0 0 512 512")
+    // The actual theme-driven behavior: backdrop and glyph are painted from
+    // the semantic color tokens, not literal colors, so switching themes
+    // (built-in or custom) recolors the mark via these CSS custom properties.
+    expect(mark?.querySelector('g > rect[width="512"]')).toHaveAttribute("fill", "var(--color-brand)")
+    const glyph = mark?.querySelector("path")
+    expect(glyph).toHaveAttribute("fill", "var(--color-on-brand)")
+    expect(glyph).toHaveAttribute("fill-rule", "evenodd")
     expect(screen.getByRole("link", { name: "Set up this Syrus instance" })).toHaveAttribute("href", "/users/new")
     expect(screen.getByText("No users exist yet. The first account becomes the administrator for this instance.")).toBeInTheDocument()
     // No "Sign in" when there are no users yet — there's nobody to sign in as.
@@ -1405,7 +1417,7 @@ describe("App", () => {
       expect(mobileTopBar).toHaveClass("w-full")
       expect(anchoredTrigger).not.toHaveClass("fixed")
       expect(within(anchoredTrigger).getByText("Syrus")).toBeInTheDocument()
-      expect(anchoredTrigger.querySelector('img[alt=""][src^="/icon.png?v="]')).not.toBeNull()
+      expect(anchoredTrigger.querySelector('[data-testid="syrus-mark"]')).not.toBeNull()
       expect(within(mobileTopBar).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications")
       expect(screen.queryByRole("button", { name: "Open settings" })).not.toBeInTheDocument()
 
@@ -17263,7 +17275,9 @@ function setScrollMetrics(element: HTMLElement, metrics: { scrollHeight: number;
 function expectSyrusBrandLink(href: string) {
   const brandLink = screen.getByRole("link", { name: "Syrus" })
   expect(brandLink).toHaveAttribute("href", href)
-  expect(brandLink.querySelector('img[alt=""][src^="/icon.png?v="]')).not.toBeNull()
+  const mark = brandLink.querySelector('[data-testid="syrus-mark"]')
+  expect(mark).not.toBeNull()
+  expect(mark?.querySelector('g > rect[width="512"]')).toHaveAttribute("fill", "var(--color-brand)")
 }
 
 function stubChatStreamSize(metrics: { scrollHeight: number; clientHeight: number }) {

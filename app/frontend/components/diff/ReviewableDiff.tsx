@@ -1088,7 +1088,7 @@ export function UnifiedDiffTable({
   const lines = useMemo(() => linesProp ?? parseUnifiedDiff(file.patch || ""), [linesProp, file.patch])
   const { t } = useT("common")
   const isMobileViewport = useIsMobileViewport()
-  const lineWrapping = isMobileViewport ? "wrap" : reviewSettings.line_wrapping
+  const lineWrapping = reviewSettings.line_wrapping
   const lang = reviewSettings.syntax_highlighting ? detectHighlighterLanguage(file.path) : null
   const localTokenCache = useRef<{ patch: string | null; tokens: Map<number, ThemedToken[][]> }>({ patch: file.patch, tokens: new Map() })
   if (localTokenCache.current.patch !== file.patch) localTokenCache.current = { patch: file.patch, tokens: new Map() }
@@ -1126,8 +1126,12 @@ export function UnifiedDiffTable({
     return true
   }
 
+  const scrollClass = lineWrapping === "scroll"
+    ? "w-full min-w-0 max-w-full overflow-x-scroll overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+    : "w-full min-w-0 max-w-full overflow-x-hidden"
+
   return (
-    <div className={`${lineWrapping === "scroll" ? "overflow-x-auto" : "overflow-x-hidden"} [container-type:inline-size]`} data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
+    <div className={`${scrollClass} [container-type:inline-size]`} data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
       <table className={diffTableClass(reviewSettings)} data-review-diff-view={isMobileViewport ? "unified" : reviewSettings.desktop_view} style={{ tabSize: reviewSettings.tab_width }} data-testid={testId}>
         <tbody>
           {lines.map((line, index) => {
