@@ -8,6 +8,8 @@ import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { GeminiSetupSheet } from "../components/GeminiSetupSheet"
+import { CopyableSlug } from "../components/CopyableSlug"
+import { SlugHoverCard } from "../components/SlugHoverCard"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { Button } from "../components/Button"
 import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationShortcutLabel, formatClock, RECORDER_WARNING_SECONDS, shouldShowAnnotationSurfaceNote, useNativeRecorderHud, useWalkthroughRecorder, WalkthroughRecorderHUD } from "../components/WalkthroughRecorder"
@@ -988,7 +990,7 @@ function BookmarkPickerModal({ payload, queryKey, onClose, onSelect }: { payload
   )
 }
 
-function AttachedCodingJobStrip({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function AttachedCodingJobStrip({ payload, queryKey, onNotice }: { payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const cancelPath = payload.paths.app_cancel_coding_checkout_path
@@ -1019,19 +1021,16 @@ function AttachedCodingJobStrip({ payload, prefix, queryKey, onNotice }: { paylo
 
   const submitDisabled = !attachedJob.can_submit || !submitPath || submit.isPending || cancel.isPending
   const cancelDisabled = !attachedJob.can_cancel || !cancelPath || submit.isPending || cancel.isPending
-  const branch = attachedJob.checkout_branch || attachedJob.branch_name || t("attached_job_branch_unknown")
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" data-testid="attached-coding-job-strip">
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span aria-hidden="true" className={`h-2 w-2 rounded-full ${attachedJob.checkout_uncommitted ? "bg-amber-500" : "bg-emerald-500"}`} />
         <span className="font-medium text-gray-900 dark:text-gray-100">{t("attached_job_label")}</span>
-        <Link className="min-w-0 max-w-full truncate text-brand underline-offset-2 hover:underline" to={withRoutePrefix(attachedJob.app_path, prefix)}>
-          {attachedJob.slug}
-        </Link>
+        <SlugHoverCard id={attachedJob.id} kind="job">
+          <CopyableSlug className="text-xs normal-case" slug={attachedJob.slug} />
+        </SlugHoverCard>
         <span className="min-w-0 max-w-[28rem] truncate text-gray-600 dark:text-gray-300">{attachedJob.title}</span>
-        <span className="rounded border border-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:border-gray-700 dark:text-gray-300">{attachedJob.state}</span>
-        <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{branch}</span>
         {attachedJob.checkout_uncommitted ? <span className="text-xs font-medium text-amber-700 dark:text-amber-300">{t("attached_job_uncommitted")}</span> : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
@@ -1164,7 +1163,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
         <LocalDaemonBanner payload={payload} />
       ) : null}
       {!landing ? <PinnedMessagesBar payload={payload} queryKey={queryKey} onSelectMessage={onSelectMessage} onViewAll={onOpenPinnedMessages} /> : null}
-      {!landing ? <AttachedCodingJobStrip payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
+      {!landing ? <AttachedCodingJobStrip payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
       <div className={`relative min-h-0 overflow-hidden rounded-t border border-b-0 border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
         <MessageStream bookmarkTarget={bookmarkTarget} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
