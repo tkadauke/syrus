@@ -187,7 +187,29 @@ describe("browser tool cards", () => {
     render(<>{browserScreenshotToolCard.renderExpanded(toolContext)}</>)
 
     expect(screen.queryByRole("img")).not.toBeInTheDocument()
-    expect(screen.getByText("No image preview is available.")).toBeInTheDocument()
+    expect(screen.getByText("Captured screenshots are available from the Media tab when the browser returns a stored media link.")).toBeInTheDocument()
+  })
+
+  it("does not render internal Playwright filesystem paths as screenshot links", () => {
+    const toolContext = context({
+      toolName: "browser_screenshot",
+      parsedResult: {
+        content: [
+          {
+            type: "image",
+            file_path: "/tmp/.playwright-mcp/output/screenshot.png",
+            title: "Browser screenshot",
+            content_type: "image/png"
+          }
+        ]
+      }
+    })
+
+    render(<>{browserScreenshotToolCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Open" })).not.toBeInTheDocument()
+    expect(screen.getByText("Captured screenshots are available from the Media tab when the browser returns a stored media link.")).toBeInTheDocument()
   })
 
   it("does not inline very large screenshot payloads", () => {
