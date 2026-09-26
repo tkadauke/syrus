@@ -6,7 +6,7 @@ problem, its structured evidence, an adjudicator's verdict if one exists
 `PendingActions` registry. It replaces reconstructing "what needs a decision"
 from Job/Workflow state and logs.
 
-Two backend producers open items today, each into its own queue
+Backend producers open items into one of the queues
 (`AttentionItem::QUEUES`):
 
 - **`AttentionItems::Escalator`** — opens an `operator` queue item when a
@@ -23,14 +23,16 @@ Two backend producers open items today, each into its own queue
   item when the reconciler sees the same failed-workflow exception fingerprint
   three attempts in a row on the same app revision. The item is deliberately
   distinct from an ordinary failed-Run notification: automatic retry/rebuild is
-  paused, the evidence includes the fingerprint, revision, streak count,
-  exception class/message, and top stack frames, and the admin system-alert
-  banner links operators back to this queue. Operators should treat the
-  fingerprint plus app revision as the exact failure identity: deploy or
-  otherwise change the underlying code/runtime before retrying, unless the
-  evidence is intentionally dismissed as a false positive. Deciding or
-  dismissing the item clears it from the urgent queue; the automatic circuit is
-  still reset by a different failure fingerprint or a new app revision.
+  paused, the evidence includes the latest fingerprint, revision, streak count,
+  exception class/message, top stack frames, and current Workflow/Step/Run
+  identifiers, and the admin system-alert banner links operators back to this
+  queue. The open queue item is keyed to the actionable Job plus repeated-failure
+  circuit, not to the volatile fingerprint or app revision, so a later trip for
+  the same Job refreshes the existing row with current evidence and supersedes
+  older repeated-failure rows. Operators should still inspect the latest
+  fingerprint and app revision before retrying, but the queue represents one
+  decision: fix or deploy the underlying condition, manually retry after that
+  change, or deliberately dismiss the evidence as a false positive.
 
 ## Operator surface
 
