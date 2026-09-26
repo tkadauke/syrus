@@ -59,7 +59,9 @@ module Api
             id: tag.id,
             name: tag.name,
             color: tag.color,
-            jobs_count: jobs_count
+            jobs_count: jobs_count,
+            created_at: tag.created_at.iso8601,
+            updated_at: tag.updated_at.iso8601
           }
         end
 

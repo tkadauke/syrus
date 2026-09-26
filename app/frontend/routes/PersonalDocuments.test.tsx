@@ -16,7 +16,11 @@ function documentsPayload(overrides: Record<string, unknown> = {}) {
         filename: "notes.pdf",
         content_type: "application/pdf",
         byte_size: 2048,
+        source_url: null,
+        content_cache_state: "empty",
+        content_cached_at: null,
         created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
         file_path: "/api/v1/app/credentials/documents/30/file"
       }
     ],
@@ -89,7 +93,11 @@ const TABLE_DOCUMENTS = [
     filename: "z-notes.md",
     content_type: "text/markdown",
     byte_size: 1024,
+    source_url: null,
+    content_cache_state: "empty",
+    content_cached_at: null,
     created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
     file_path: "/api/v1/app/credentials/documents/41/file"
   },
   {
@@ -99,7 +107,11 @@ const TABLE_DOCUMENTS = [
     filename: "screenshot.png",
     content_type: "image/png",
     byte_size: 512,
+    source_url: "https://example.test/screenshot.png",
+    content_cache_state: "empty",
+    content_cached_at: null,
     created_at: "2026-01-02T00:00:00Z",
+    updated_at: "2026-01-03T00:00:00Z",
     file_path: "/api/v1/app/credentials/documents/42/file"
   },
   {
@@ -109,7 +121,11 @@ const TABLE_DOCUMENTS = [
     filename: null,
     content_type: null,
     byte_size: null,
+    source_url: "https://docs.google.com/document/d/a-plan/edit",
+    content_cache_state: "cached",
+    content_cached_at: "2026-01-04T00:00:00Z",
     created_at: "2025-12-31T00:00:00Z",
+    updated_at: "2026-01-04T00:00:00Z",
     file_path: null
   }
 ]
@@ -205,6 +221,21 @@ describe("PersonalDocumentsRoute table controls", () => {
     expect(screen.queryByRole("button", { name: /screenshot\.png/ })).not.toBeInTheDocument()
   })
 
+  it("filters documents by cache state, source URL, and created date fields", async () => {
+    const q = encodeFilterTree({
+      and: [
+        { field: "content_cache_state", op: "is", value: "cached" },
+        { field: "source_url", op: "contains", value: "docs.google.com" },
+        { field: "created_at", op: "before", value: "2026-01-01" }
+      ]
+    })
+    renderRouteWithDocumentsAt(TABLE_DOCUMENTS, `/documents?q=${q}`)
+
+    expect(await screen.findByRole("button", { name: /Google Doc/ })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /z-notes\.md/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /screenshot\.png/ })).not.toBeInTheDocument()
+  })
+
   it("sorts documents by an eligible column", async () => {
     renderRouteWithDocumentsAt(TABLE_DOCUMENTS)
 
@@ -256,7 +287,11 @@ describe("PersonalDocumentsRoute preview", () => {
         filename: "notes.md",
         content_type: "text/markdown",
         byte_size: 12,
+        source_url: null,
+        content_cache_state: "empty",
+        content_cached_at: null,
         created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
         file_path: "/api/v1/app/credentials/documents/31/file"
       }
     ], { "31": "# Hello there" })
@@ -276,7 +311,11 @@ describe("PersonalDocumentsRoute preview", () => {
         filename: "screenshot.png",
         content_type: "image/png",
         byte_size: 512,
+        source_url: null,
+        content_cache_state: "empty",
+        content_cached_at: null,
         created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
         file_path: "/api/v1/app/credentials/documents/32/file"
       }
     ])
@@ -298,7 +337,11 @@ describe("PersonalDocumentsRoute preview", () => {
         filename: "notes.pdf",
         content_type: "application/pdf",
         byte_size: 2048,
+        source_url: null,
+        content_cache_state: "empty",
+        content_cached_at: null,
         created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
         file_path: "/api/v1/app/credentials/documents/33/file"
       }
     ])
@@ -321,7 +364,11 @@ describe("PersonalDocumentsRoute preview", () => {
         filename: null,
         content_type: null,
         byte_size: null,
+        source_url: "https://docs.google.com/document/d/personal/edit",
+        content_cache_state: "cached",
+        content_cached_at: "2026-01-01T00:00:00Z",
         created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
         file_path: null
       }
     ])

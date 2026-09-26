@@ -12,6 +12,10 @@ function dataTransfer() {
   return { dropEffect: "", effectAllowed: "", getData: vi.fn(), setData: vi.fn() }
 }
 
+function encodeFilterTree(tree: Record<string, unknown>) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(tree)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+}
+
 function mockUseConfirm(confirmed: boolean) {
   const mockConfirm = vi.fn<ReturnType<typeof useConfirmModule.useConfirm>["confirm"]>().mockResolvedValue(confirmed)
   vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm, dialog: <></> })
@@ -468,7 +472,29 @@ describe("MysqlConnections", () => {
 
     fireEvent.click(within(tablePanel).getByRole("button", { name: "Columns" }))
     expect(within(tablePanel).getByLabelText("Host")).toBeChecked()
+    expect(within(tablePanel).getByLabelText("Created")).not.toBeChecked()
+    expect(within(tablePanel).getByLabelText("Updated")).not.toBeChecked()
     expect(within(tablePanel).getByRole("button", { name: "Move Host down" })).toBeInTheDocument()
+  })
+
+  it("filters connections through structured FilterBar fields", async () => {
+    const q = encodeFilterTree({
+      and: [
+        { field: "host", op: "contains", value: "production" },
+        { field: "allow_writes", op: "is", value: "true" },
+        { field: "created_at", op: "after", value: "2026-01-15" }
+      ]
+    })
+    setupFetchMock([
+      stagingConnection({ id: 1, label: "Staging", host: "db.staging.internal", allow_writes: false, created_at: "2026-01-01T00:00:00Z" }),
+      stagingConnection({ id: 2, label: "Production", host: "db.production.internal", allow_writes: true, created_at: "2026-02-01T00:00:00Z" })
+    ])
+    renderConnections(`/db_browser?q=${q}`)
+
+    const table = await screen.findByRole("table")
+    expect(within(table).getByText("Production")).toBeInTheDocument()
+    expect(within(table).queryByText("Staging")).not.toBeInTheDocument()
+    expect(screen.getByText("1 of 2 connections")).toBeInTheDocument()
   })
 
   it("creates a connection from the add modal", async () => {

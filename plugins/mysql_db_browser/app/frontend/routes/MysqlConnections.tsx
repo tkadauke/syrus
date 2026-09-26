@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react"
+import { useLocation } from "react-router-dom"
+import { FilterBar, type FilterChip, type FilterNode, type FilterSchemaField, type FilterTree } from "@app/components/FilterBar"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useConfirm } from "@app/hooks/useConfirm"
@@ -202,16 +204,36 @@ function ConnectionsTable({
   onNotice: (message: string | null) => void
 }) {
   const { t } = useT("mysql_db_browser")
+  const location = useLocation()
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const filterSchema = connectionFilterSchema(t)
+  const filterTree = filterTreeFromSearch(location.search)
+  const filteredConnections = useMemo(
+    () => connections.filter((connection) => connectionMatchesFilterTree(connection, filterTree, t)),
+    [connections, filterTree, t]
+  )
+  const countMeta =
+    connections.length === 0
+      ? t("empty")
+      : connections.length === filteredConnections.length
+        ? t("table_count", { count: connections.length })
+        : t("table_filtered_count", { shown: filteredConnections.length, total: connections.length })
 
   if (!isDesktop) {
     return (
-      <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-        {connections.length === 0 ? (
+      <div className="space-y-3">
+        <FilterBar
+          filter={filterTree}
+          filterSchema={filterSchema}
+          pathname={location.pathname}
+          search={location.search}
+        />
+        <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+        {filteredConnections.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t("empty")}</p>
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-900">
-            {connections.map((connection) => (
+            {filteredConnections.map((connection) => (
               <MobileConnectionCard
                 connection={connection}
                 key={connection.id}
@@ -222,21 +244,86 @@ function ConnectionsTable({
             ))}
           </div>
         )}
-      </section>
+        </section>
+      </div>
     )
   }
 
   return (
-    <AdminEventLogTable
-      columns={connectionColumns({ onBrowse, onEdit, onNotice, t })}
-      defaultSort={{ column: "label", direction: "asc" }}
-      getRowKey={(connection) => connection.id}
-      localSort
-      panel={{ summary: t("heading"), meta: connections.length === 0 ? t("empty") : t("table_count", { count: connections.length }) }}
-      rows={connections}
-      storageKey="syrus.admin.mysql_connections.columns"
-    />
+    <div className="space-y-3">
+      <FilterBar
+        filter={filterTree}
+        filterSchema={filterSchema}
+        pathname={location.pathname}
+        search={location.search}
+      />
+      <AdminEventLogTable
+        columns={connectionColumns({ onBrowse, onEdit, onNotice, t })}
+        defaultSort={{ column: "label", direction: "asc" }}
+        getRowKey={(connection) => connection.id}
+        localSort
+        panel={{ summary: t("heading"), meta: countMeta }}
+        rows={filteredConnections}
+        storageKey="syrus.admin.mysql_connections.columns"
+      />
+    </div>
   )
+}
+
+function connectionFilterSchema(t: ReturnType<typeof useT>["t"]): FilterSchemaField[] {
+  return [
+    { field: "query", label: t("connection_filter_query"), bucket: "text", operators: ["contains"], free_text_search: true, expansions: { placeholder: t("connection_filter_placeholder") } },
+    { field: "label", label: t("col_label"), bucket: "text", operators: ["contains", "is", "is_not"] },
+    { field: "host", label: t("col_host"), bucket: "text", operators: ["contains", "is", "is_not"] },
+    { field: "port", label: t("field_port"), bucket: "number", operators: ["is", "gt", "lt", "gte", "lte"] },
+    { field: "username", label: t("col_username"), bucket: "text", operators: ["contains", "is", "is_not"] },
+    { field: "default_database", label: t("col_default_database"), bucket: "text", operators: ["contains", "is", "is_not", "is_set", "is_unset"] },
+    { field: "agentic_access_enabled", label: t("col_agentic_access"), bucket: "text", operators: ["is"], values: [{ value: "true", label: t("agentic_enabled") }, { value: "false", label: t("agentic_disabled") }] },
+    { field: "allow_writes", label: t("col_allow_writes"), bucket: "text", operators: ["is"], values: [{ value: "true", label: t("allow_writes_enabled") }, { value: "false", label: t("allow_writes_disabled") }] },
+    { field: "has_password", label: t("col_password"), bucket: "text", operators: ["is"], values: [{ value: "true", label: t("has_password_yes") }, { value: "false", label: t("has_password_no") }] },
+    { field: "created_at", label: t("col_created_at"), bucket: "date", operators: ["before", "after", "between"] },
+    { field: "updated_at", label: t("col_updated_at"), bucket: "date", operators: ["before", "after", "between"] }
+  ]
+}
+
+function connectionMatchesFilterTree(connection: MysqlConnectionRow, tree: FilterTree, t: ReturnType<typeof useT>["t"]): boolean {
+  return topLevelNodes(tree).every((node) => connectionMatchesFilterNode(connection, node, t))
+}
+
+function connectionMatchesFilterNode(connection: MysqlConnectionRow, node: FilterNode, t: ReturnType<typeof useT>["t"]): boolean {
+  if ("field" in node) return connectionMatchesFilter(connection, node, t)
+  if ("and" in node && Array.isArray(node.and)) return node.and.every((child) => connectionMatchesFilterNode(connection, child, t))
+  if ("or" in node && Array.isArray(node.or)) return node.or.some((child) => connectionMatchesFilterNode(connection, child, t))
+  if ("not" in node && node.not) return !connectionMatchesFilterNode(connection, node.not, t)
+  return true
+}
+
+function connectionMatchesFilter(connection: MysqlConnectionRow, chip: FilterChip, t: ReturnType<typeof useT>["t"]) {
+  if (chip.field === "query") return connectionSearchText(connection, t).includes(String(chip.value || "").toLowerCase())
+  if (chip.field === "label") return matchesTextFilter(connection.label, chip)
+  if (chip.field === "host") return matchesTextFilter(connection.host, chip)
+  if (chip.field === "port") return matchesNumberFilter(connection.port, chip)
+  if (chip.field === "username") return matchesTextFilter(connection.username, chip)
+  if (chip.field === "default_database") return matchesTextFilter(connection.default_database || "", chip)
+  if (chip.field === "agentic_access_enabled") return matchesBooleanFilter(connection.agentic_access_enabled, chip)
+  if (chip.field === "allow_writes") return matchesBooleanFilter(connection.allow_writes, chip)
+  if (chip.field === "has_password") return matchesBooleanFilter(connection.has_password, chip)
+  if (chip.field === "created_at") return matchesDateFilter(connection.created_at, chip)
+  if (chip.field === "updated_at") return matchesDateFilter(connection.updated_at, chip)
+  return true
+}
+
+function connectionSearchText(connection: MysqlConnectionRow, t: ReturnType<typeof useT>["t"]) {
+  return [
+    connection.label,
+    connection.host,
+    String(connection.port),
+    connection.username,
+    connection.default_database,
+    connection.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled"),
+    connection.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled"),
+    connection.has_password ? t("has_password_yes") : t("has_password_no")
+  ].filter(Boolean).join(" ").toLowerCase()
 }
 
 function connectionColumns({
@@ -277,6 +364,22 @@ function connectionColumns({
       sortValue: (connection) => Number(connection.allow_writes)
     },
     {
+      key: "created_at",
+      header: t("col_created_at"),
+      defaultVisible: false,
+      render: (connection) => new Date(connection.created_at).toLocaleString(),
+      sort: "created_at",
+      sortValue: (connection) => connection.created_at
+    },
+    {
+      key: "updated_at",
+      header: t("col_updated_at"),
+      defaultVisible: false,
+      render: (connection) => new Date(connection.updated_at).toLocaleString(),
+      sort: "updated_at",
+      sortValue: (connection) => connection.updated_at
+    },
+    {
       key: "actions",
       header: <span className="sr-only">{t("col_actions")}</span>,
       label: t("col_actions"),
@@ -285,6 +388,59 @@ function connectionColumns({
       required: true
     }
   ]
+}
+
+function matchesTextFilter(value: string, chip: FilterChip) {
+  const target = value.toLowerCase()
+  const expected = String(chip.value || "").toLowerCase()
+  if (chip.op === "is") return target === expected
+  if (chip.op === "is_not") return target !== expected
+  if (chip.op === "is_set") return value.trim().length > 0
+  if (chip.op === "is_unset") return value.trim().length === 0
+  return target.includes(expected)
+}
+
+function matchesNumberFilter(value: number, chip: FilterChip) {
+  const expected = Number(chip.value)
+  if (Number.isNaN(expected)) return true
+  if (chip.op === "gt") return value > expected
+  if (chip.op === "lt") return value < expected
+  if (chip.op === "gte") return value >= expected
+  if (chip.op === "lte") return value <= expected
+  return value === expected
+}
+
+function matchesBooleanFilter(value: boolean, chip: FilterChip) {
+  return value === (chip.value === true || chip.value === "true")
+}
+
+function matchesDateFilter(value: string, chip: FilterChip) {
+  const time = Date.parse(value)
+  if (Number.isNaN(time)) return false
+  if (chip.op === "before") return time < Date.parse(String(chip.value || ""))
+  if (chip.op === "after") return time > Date.parse(String(chip.value || ""))
+  if (chip.op === "between" && Array.isArray(chip.value)) {
+    const [start, end] = chip.value.map((part) => Date.parse(String(part || "")))
+    return (Number.isNaN(start) || time >= start) && (Number.isNaN(end) || time <= end)
+  }
+  return true
+}
+
+function filterTreeFromSearch(search: string): FilterTree {
+  const encoded = new URLSearchParams(search).get("q")
+  if (!encoded) return { and: [] }
+  try {
+    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - encoded.length % 4) % 4)}`
+    const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as FilterTree
+    return { and: topLevelNodes(parsed) }
+  } catch {
+    return { and: [] }
+  }
+}
+
+function topLevelNodes(tree: FilterTree): FilterNode[] {
+  return tree && Array.isArray(tree.and) ? tree.and : []
 }
 
 function MobileConnectionCard({
