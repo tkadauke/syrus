@@ -396,11 +396,11 @@ RSpec.describe PollRepositoryJob, :ci_only do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **_kwargs|
         state == "closed" ? [] : issues
       end
-      allow_any_instance_of(described_class).to receive(:ingest_with_quarantine).and_wrap_original do |original, github_issue, repo, client:|
+      allow_any_instance_of(described_class).to receive(:ingest_with_quarantine).and_wrap_original do |original, github_issue, repo, **kwargs|
         poll_attempts += 1
         raise Interrupt, "worker shutdown" if poll_attempts == 2
 
-        original.call(github_issue, repo, client: client)
+        original.call(github_issue, repo, **kwargs)
       end
 
       expect {
@@ -418,17 +418,15 @@ RSpec.describe PollRepositoryJob, :ci_only do
       expect(repository.reload.last_poll_started_at).to be > previous_watermark
     end
 
-    it "backs off instead of quarantining when a per-issue linked-PR lookup is rate-limited" do
+    it "backs off instead of quarantining when a batched linked-PR lookup is rate-limited" do
       previous_watermark = 2.hours.ago
       repository.update_columns(last_poll_started_at: previous_watermark)
       allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **_kwargs|
         state == "closed" ? [] : [ issue(number: 42), issue(number: 43) ]
       end
-      allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue) do |_client, _slug, issue_number|
-        raise Octokit::TooManyRequests.new if issue_number == 43
-
-        nil
-      end
+      allow_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues)
+        .with(repository.slug, [ 42, 43 ])
+        .and_raise(Octokit::TooManyRequests.new)
 
       expect {
         described_class.perform_now(repository.id)
@@ -437,7 +435,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       repository.reload
       expect(repository.last_poll_started_at.to_i).to eq(previous_watermark.to_i)
       expect(repository.poll_issue_errors).to eq([])
-      expect(Job.where(repository: repository).pluck(:issue_number)).to contain_exactly(42)
+      expect(Job.where(repository: repository).pluck(:issue_number)).to be_empty
     end
 
     it "parses Depends-on from the ingested issue body and waits to dispatch" do
