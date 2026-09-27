@@ -231,4 +231,41 @@ describe("mobile jobs list row", () => {
     expect(rows[0]).not.toHaveTextContent("Manually paused")
     expect(rows[1]).toHaveTextContent("Manually paused")
   })
+
+  it("explains why an approved external PR job is actionable before retry metadata", () => {
+    mockMobileViewport()
+    renderTable([ mobileJobItem({
+      kind: "external_pr",
+      state: "approved",
+      summary_state: "succeeded",
+      needs_attention: true,
+      needs_attention_reason: "upstream_pr_changes_requested",
+      pr_number: 1685,
+      pr_url: "https://github.com/owner/repo/pull/1685",
+      pr_is_external: true,
+      retry_state: {
+        classification: "grader_failed",
+        classification_label: "Grader failed",
+        retryable: true,
+        next_auto_retry_at: null,
+        retry_attempt_count: 1,
+        retry_budget_remaining: 2,
+        retry_budget: 3,
+        auto_retry_exhausted: false,
+        provider_circuit_open: false,
+        retry_delayed_until: null,
+        retry_delay_reason: null,
+        state_label: "Retryable Failure"
+      }
+    }) ])
+
+    const article = screen.getByRole("article", { name: "Job 3" })
+    expect(article).toHaveTextContent("External")
+    expect(article).toHaveTextContent("Changes requested")
+    expect(article).toHaveTextContent("Retryable Failure")
+
+    const attentionLine = screen.getByText("Changes requested").closest('div[class*="gap-x-1.5"]')
+    expect(attentionLine).not.toBeNull()
+    expect(attentionLine?.textContent?.indexOf("Changes requested")).toBeLessThan(attentionLine?.textContent?.indexOf("Retryable Failure") ?? -1)
+  })
 })

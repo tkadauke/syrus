@@ -189,6 +189,12 @@
   "broken_main_repair_start_failed": "Repair could not be started.",
   "broken_main_dismiss": "Dismiss",
   "needs_attention_aria": "Needs attention",
+  "attention_reason": {
+    "fork_pr_closed": "Fork pull request closed",
+    "fork_pr_changes_requested": "Changes requested",
+    "upstream_pr_closed": "Pull request closed",
+    "upstream_pr_changes_requested": "Changes requested"
+  },
   "delivery_status": {
     "waiting_for_local_approval": "Waiting for local approval",
     "approved_for_local_landing": "Approved for local landing",
