@@ -2,11 +2,11 @@ import { ChevronDownIcon, HideIcon, PlusIcon, TargetIcon, TeamIcon } from "./ico
 import { type ChatSection, activeChatIdFromPath, chatSectionsFromPayload, recentChatLinkClass, sidebarChatTitle, withRoutePrefix } from "./helpers"
 import { FloatingPortal, autoUpdate, flip, offset, shift, useFloating, useMergeRefs } from "@floating-ui/react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { DEFAULT_CHAT_SIDEBAR_SETTINGS, cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatSidebarGroupBy, type ChatSidebarPerGroup, type ChatSidebarSettings, type ChatSidebarSortBy, type ChatSidebarStatus, type ChatsIndexPayload } from "../../api/chats"
+import { DEFAULT_CHAT_SIDEBAR_SETTINGS, cancelCodingCheckout, deleteChat, fetchChat, fetchChatGroupsPage, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatGroupRecord, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatSidebarGroupBy, type ChatSidebarPerGroup, type ChatSidebarSettings, type ChatSidebarSortBy, type ChatSidebarStatus, type ChatsIndexPayload } from "../../api/chats"
 import { ApiError } from "../../api/client"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -115,6 +115,9 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
   const codingModeEnabled = featureFlags.coding_mode === true
   const localModeEnabled = featureFlags.local_mode === true
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set())
+  const [loadedGroupPages, setLoadedGroupPages] = useState<ChatGroupRecord[]>([])
+  const [loadingMoreGroups, setLoadingMoreGroups] = useState(false)
+  const [failedGroupOffset, setFailedGroupOffset] = useState<number | null>(null)
   const [loadedSections, setLoadedSections] = useState<Record<string, { chats: ChatNavRecord[]; has_more: boolean }>>({})
   const [loadingSections, setLoadingSections] = useState<Set<string>>(() => new Set())
   const [hidingChatIds, setHidingChatIds] = useState<Set<number>>(() => new Set())
@@ -133,13 +136,75 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
     staleTime: 30_000
   })
   const settingsKey = useMemo(() => JSON.stringify(sidebarSettings), [sidebarSettings])
-  const sections = useMemo(() => chatSectionsFromPayload(chats.data?.groups || [], loadedSections), [chats.data?.groups, loadedSections])
+  const groupRows = useMemo(() => [...(chats.data?.groups || []), ...loadedGroupPages], [chats.data?.groups, loadedGroupPages])
+  const sections = useMemo(() => chatSectionsFromPayload(groupRows, loadedSections), [groupRows, loadedSections])
+  const canLoadMoreGroups = Boolean(chats.data?.groups_has_more && chats.data.groups_next_offset != null)
 
   useEffect(() => {
     writeSidebarSettings(sidebarSettings)
+    setLoadedGroupPages([])
     setLoadedSections({})
     setLoadingSections(new Set())
+    setLoadingMoreGroups(false)
+    setFailedGroupOffset(null)
   }, [settingsKey])
+
+  useEffect(() => {
+    setFailedGroupOffset(null)
+  }, [chats.dataUpdatedAt])
+
+  const loadMoreGroups = useCallback((force = false) => {
+    const nextOffset = chats.data?.groups_next_offset
+    if (!chats.data?.groups_has_more || nextOffset == null || loadingMoreGroups) return
+    if (!force && failedGroupOffset === nextOffset) return
+
+    setLoadingMoreGroups(true)
+    void fetchChatGroupsPage(sidebarSettings, nextOffset).then((payload) => {
+      setFailedGroupOffset(null)
+      setLoadedGroupPages((current) => {
+        const existingKeys = new Set([
+          ...(chats.data?.groups.map((group) => group.key) || []),
+          ...current.map((group) => group.key)
+        ])
+        return [
+          ...current,
+          ...payload.groups.filter((group) => !existingKeys.has(group.key))
+        ]
+      })
+      queryClient.setQueryData<ChatsIndexPayload>(sidebarQueryKey, (current) => current ? {
+        ...current,
+        groups_has_more: payload.groups_has_more,
+        groups_next_offset: payload.groups_next_offset
+      } : current)
+    }).catch(() => {
+      setFailedGroupOffset(nextOffset)
+    }).finally(() => {
+      setLoadingMoreGroups(false)
+    })
+  }, [chats.data, failedGroupOffset, loadingMoreGroups, queryClient, sidebarQueryKey, sidebarSettings])
+
+  useEffect(() => {
+    const root = sidebarRootRef.current
+    const container = root ? findScrollParent(root) : null
+    if (!container || !canLoadMoreGroups) return
+
+    let frame: number | null = null
+    const maybeLoadMoreGroups = (force = false) => {
+      if (frame !== null) return
+      frame = requestAnimationFrame(() => {
+        frame = null
+        if (container.scrollHeight - container.scrollTop - container.clientHeight <= 320) loadMoreGroups(force)
+      })
+    }
+
+    maybeLoadMoreGroups()
+    const handleScroll = () => maybeLoadMoreGroups(true)
+    container.addEventListener("scroll", handleScroll, { passive: true })
+    return () => {
+      container.removeEventListener("scroll", handleScroll)
+      if (frame !== null) cancelAnimationFrame(frame)
+    }
+  }, [canLoadMoreGroups, chats.data?.groups_next_offset, failedGroupOffset, loadMoreGroups, loadingMoreGroups, settingsKey])
 
   function showLess(key: string) {
     setLoadedSections((current) => {
@@ -262,6 +327,10 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
       })
       return next
     })
+    setLoadedGroupPages((current) => current
+      .map((group) => ({ ...group, chats: group.chats.filter((chat) => chat.id !== chatId) }))
+      .filter((group) => group.chats.length > 0)
+    )
   }
 
   useEffect(() => {

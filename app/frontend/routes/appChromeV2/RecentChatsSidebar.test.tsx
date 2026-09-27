@@ -188,6 +188,7 @@ describe("RecentChatsSidebar settings", () => {
   afterEach(() => {
     window.localStorage.clear()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it("refetches with selected settings and uses the same page size for show more", async () => {
@@ -286,6 +287,131 @@ describe("RecentChatsSidebar settings", () => {
       expect(screen.queryByTestId("recent-chats-settings-menu")).not.toBeInTheDocument()
     } finally {
       restoreMatchMedia()
+    }
+  })
+
+  it("loads more chat groups when the sidebar scrolls near the bottom", async () => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      window.setTimeout(() => callback(0), 0)
+      return 1
+    })
+    vi.stubGlobal("cancelAnimationFrame", vi.fn())
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({
+      groups: [
+        chatGroup({
+          key: "date-2026-06-26",
+          label: "Jun 26, 2026",
+          group_by: "date",
+          group_value: "2026-06-26",
+          chats: [chatNav({ id: 2, title: "Older chat" })]
+        })
+      ],
+      groups_has_more: false,
+      groups_next_offset: null
+    })))
+    const scrollContainer = document.createElement("div")
+    scrollContainer.style.overflowY = "auto"
+    Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, value: 1000 })
+    Object.defineProperty(scrollContainer, "clientHeight", { configurable: true, value: 700 })
+    Object.defineProperty(scrollContainer, "scrollTop", { configurable: true, writable: true, value: 10 })
+    document.body.appendChild(scrollContainer)
+
+    try {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
+        groups: [
+          chatGroup({
+            key: "date-2026-06-27",
+            label: "Today",
+            group_by: "date",
+            group_value: "2026-06-27",
+            chats: [chatNav({ id: 1, title: "Recent chat" })]
+          })
+        ],
+        groups_has_more: true,
+        groups_next_offset: 24
+      }))
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={["/"]}>
+            <RecentChatsSidebar
+              featureFlags={{}}
+              onCloseDrawer={() => {}}
+              onNotice={() => {}}
+              prefix=""
+              userPresent
+            />
+          </MemoryRouter>
+        </QueryClientProvider>,
+        { container: scrollContainer }
+      )
+
+      scrollContainer.dispatchEvent(new Event("scroll"))
+
+      await screen.findByText("Older chat")
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("group_offset=24"), expect.anything())
+    } finally {
+      scrollContainer.remove()
+    }
+  })
+
+  it("does not loop automatic group loading after a failed page request", async () => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      window.setTimeout(() => callback(0), 0)
+      return 1
+    })
+    vi.stubGlobal("cancelAnimationFrame", vi.fn())
+    const fetchSpy = vi.spyOn(window, "fetch").mockRejectedValue(new Error("Network failed"))
+    const scrollContainer = document.createElement("div")
+    scrollContainer.style.overflowY = "auto"
+    Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, value: 1000 })
+    Object.defineProperty(scrollContainer, "clientHeight", { configurable: true, value: 700 })
+    Object.defineProperty(scrollContainer, "scrollTop", { configurable: true, writable: true, value: 10 })
+    document.body.appendChild(scrollContainer)
+
+    try {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
+        groups: [
+          chatGroup({
+            key: "date-2026-06-27",
+            label: "Today",
+            group_by: "date",
+            group_value: "2026-06-27",
+            chats: [chatNav({ id: 1, title: "Recent chat" })]
+          })
+        ],
+        groups_has_more: true,
+        groups_next_offset: 24
+      }))
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={["/"]}>
+            <RecentChatsSidebar
+              featureFlags={{}}
+              onCloseDrawer={() => {}}
+              onNotice={() => {}}
+              prefix=""
+              userPresent
+            />
+          </MemoryRouter>
+        </QueryClientProvider>,
+        { container: scrollContainer }
+      )
+
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
+      await act(async () => {
+        await new Promise((resolve) => window.setTimeout(resolve, 20))
+      })
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+      scrollContainer.dispatchEvent(new Event("scroll"))
+
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2))
+    } finally {
+      scrollContainer.remove()
     }
   })
 })
