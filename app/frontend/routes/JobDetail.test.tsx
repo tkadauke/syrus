@@ -191,7 +191,7 @@ describe("JobDetailView", () => {
     expect(metadataItems[2]).toHaveClass("hidden", "sm:inline-flex")
     expect(within(metadataItems[2] as HTMLElement).getByText("codex")).toBeInTheDocument()
     expect(metadataItems[3]).not.toHaveClass("hidden")
-    expect(within(metadataItems[3] as HTMLElement).getByRole("link", { name: "Roadmap chat" })).toBeInTheDocument()
+    expect(within(metadataItems[3] as HTMLElement).getByRole("link", { name: "Chat" })).toBeInTheDocument()
   })
 
   it("does not render an empty chat metadata item when no chat affordance is available", () => {
@@ -590,7 +590,8 @@ describe("JobDetailView", () => {
     )
 
     expect(screen.getByRole("button", { name: "Copy CHAT-4 to clipboard" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Roadmap chat" })).toHaveAttribute("href", "/app-shell/chats/4#message-12")
+    expect(screen.getByRole("link", { name: "Chat" })).toHaveAttribute("href", "/app-shell/chats/4#message-12")
+    expect(screen.getByRole("link", { name: "Chat" })).toHaveAttribute("title", "Roadmap chat")
   })
 
   it("falls back to a generic title when the origin chat has no title", () => {
@@ -611,7 +612,8 @@ describe("JobDetailView", () => {
       })
     )
 
-    expect(screen.getByRole("link", { name: "New chat" })).toHaveAttribute("href", "/app-shell/chats/4#message-12")
+    expect(screen.getByRole("link", { name: "Chat" })).toHaveAttribute("href", "/app-shell/chats/4#message-12")
+    expect(screen.getByRole("link", { name: "Chat" })).toHaveAttribute("title", "New chat")
   })
 
   it("shows a chat preview card on hover for the origin chat slug", async () => {
@@ -647,10 +649,10 @@ describe("JobDetailView", () => {
       )
 
       const copyChatSlugButton = screen.getByRole("button", { name: "Copy CHAT-4 to clipboard" })
-      expect(screen.getAllByText("Roadmap chat")).toHaveLength(1)
+      expect(screen.queryByText("Roadmap chat")).not.toBeInTheDocument()
 
       fireEvent.mouseEnter(copyChatSlugButton.parentElement!)
-      await waitFor(() => expect(screen.getAllByText("Roadmap chat")).toHaveLength(2))
+      await waitFor(() => expect(screen.getAllByText("Roadmap chat")).toHaveLength(1))
     } finally {
       restoreMedia()
     }
@@ -3597,8 +3599,9 @@ describe("Job detail tour", () => {
     const header = titleLine.closest("header")
 
     expect(titleLine.textContent).toMatch(/JOB-1\s*·\s*Add origin chat link/)
-    expect(metadata.textContent).toMatch(/implemented\s*·\s*acme\/widgets\s*·\s*codex\s*·\s*CHAT-435\s*Recurring Tasks Investigation/i)
-    expect(within(metadata).getByRole("link", { name: "Recurring Tasks Investigation" })).toHaveAttribute("href", "/app-shell/chats/435#message-12")
+    expect(metadata.textContent).toMatch(/implemented\s*·\s*acme\/widgets\s*·\s*codex\s*·\s*CHAT-435\s*Chat/i)
+    expect(metadata).not.toHaveTextContent("Recurring Tasks Investigation")
+    expect(within(metadata).getByRole("link", { name: "Chat" })).toHaveAttribute("href", "/app-shell/chats/435#message-12")
     expect(within(header!).queryByText("Direct Job")).not.toBeInTheDocument()
     expect(within(header!).queryByText("pat")).not.toBeInTheDocument()
     expect(within(header!).queryByText(/1 workflow/)).not.toBeInTheDocument()
