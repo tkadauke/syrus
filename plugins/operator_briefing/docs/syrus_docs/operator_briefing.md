@@ -64,3 +64,8 @@ Completed dives use `OperatorBriefing::InterestSignal.record_dive_completed!`
 to write the same kind of global `user_pref` memory with higher confidence than
 explicit feedback. Dive workflows are introduced by a later phase; the shared
 hook exists here so personalization has one weighting path.
+
+Generation reads `OperatorBriefing::SourcePreference.effective_for_user` before
+building a revision prompt. Disabled sources are called out for the generation
+agent, and the user's Agent Memory prompt context is loaded into the same prompt
+so explicit feedback and future dive signals use the same personalization input.

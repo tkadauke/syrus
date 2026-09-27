@@ -9,6 +9,7 @@ RSpec.describe OperatorBriefing::GenerateRunStep do
   let(:run) { Run.create!(job: job, user: user, step: step, trigger_kind: "briefing_generate", agent_provider: user.agent_provider) }
 
   before do
+    PluginRecord.find_or_create_by!(name: "agent_memory").update!(enabled: true, disableable: true)
     PluginRecord.find_or_create_by!(name: "operator_briefing").update!(enabled: true, disableable: true)
     @briefing = OperatorBriefing::Briefing.create!(
       job: job,
@@ -31,5 +32,43 @@ RSpec.describe OperatorBriefing::GenerateRunStep do
     expect(revision.content_blocks).to eq([])
     expect(run.reload.prompt).to include("read_briefing_git_diff", "list_briefing_recent_workflows", "submit_briefing_block")
     expect(step_handler).to have_received(:run_agent).with(prompt: run.prompt, required_mcp_tools: %w[submit_briefing_block])
+  end
+
+  it "includes source preferences in the generation prompt" do
+    OperatorBriefing::SourcePreference.seed_for_user!(user)
+    OperatorBriefing::SourcePreference.create!(
+      user: user,
+      source_key: "jobs",
+      enabled: false,
+      weight: 1.0,
+      suggested_by: "user",
+      confirmed_at: Time.current
+    )
+    step_handler = described_class.new(run)
+    allow(step_handler).to receive(:run_agent)
+    allow(step_handler).to receive(:workspace).and_return(double(setup: true))
+
+    step_handler.call
+
+    revision = @briefing.revisions.sole
+    expect(revision.content_blocks).to eq([])
+    expect(run.reload.prompt).to include("Enabled sources:", "Disabled sources: jobs")
+  end
+
+  it "loads user preference memories into the generation prompt" do
+    AgentMemory::Entry.create!(
+      user: user,
+      kind: "user_pref",
+      scope: "global",
+      content: "Operator prefers fewer spend items.",
+      confidence: 0.9
+    )
+    step_handler = described_class.new(run)
+    allow(step_handler).to receive(:run_agent)
+    allow(step_handler).to receive(:workspace).and_return(double(setup: true))
+
+    step_handler.call
+
+    expect(run.reload.prompt).to include("Operator prefers fewer spend items.")
   end
 end
