@@ -25,7 +25,6 @@ import {
 import { refreshRecentChats, updateRecentChatCache } from "../lib/chatCache"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
-  attachChatRepository,
   branchChat,
   clearChatHistory,
   confirmChatProposal,
@@ -308,9 +307,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
     video_walkthroughs: [],
     preview_panels: [],
     workspace_tabs: [],
-    attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
     documents_in_scope: [],
-    attachment_results: [],
     whiteboard: { version: 1, elements: [], appState: {}, files: {} },
     paths: {
       credentials_path: "/credentials",
@@ -328,7 +325,6 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       app_create_coding_handoff_path: "",
       app_switch_provider_path: "",
       app_bookmarks_path: "",
-      app_attachments_path: "",
       app_video_walkthroughs_path: "",
       app_whiteboard_path: "",
       app_scratchpad_reorder_path: ""
@@ -717,6 +713,13 @@ function useMediaQuery(query: string, defaultMatches: boolean) {
   return matches
 }
 
+function mobileWorkspaceTabsVisible(payload: ChatPayload) {
+  return payload.messages.length > 0 ||
+    payload.has_more_older ||
+    payload.turn_in_flight ||
+    payload.agent_busy
+}
+
 function ChatWorkspace({
   chatId,
   payload,
@@ -748,11 +751,17 @@ function ChatWorkspace({
   const { t } = useT("chat")
   const hasPins = useHasPins(payload.chat.id, queryKey[2])
   const availableTabs = availableWorkspaceTabs(payload, hasPins)
+  const showMobileWorkspaceTabs = mobileWorkspaceTabsVisible(payload)
+  const showMobileChatColumn = activeMobileTab === "chat" || !showMobileWorkspaceTabs
 
   useEffect(() => {
     if (activeTab === null || !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload))
     if (activeMobileTab !== "chat" && !availableTabs.includes(activeMobileTab)) setActiveMobileTab("chat")
   }, [activeMobileTab, activeTab, availableTabs, payload])
+
+  useEffect(() => {
+    if (!showMobileWorkspaceTabs && activeMobileTab !== "chat") setActiveMobileTab("chat")
+  }, [activeMobileTab, showMobileWorkspaceTabs])
 
   // Confirming a job/epic proposal optimistically patches the chat query
   // cache so the "jobs" tab becomes available, but that cache update lands
@@ -850,19 +859,21 @@ function ChatWorkspace({
   if (!isDesktop) {
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
-        <UnderlineTabs
-          activeKey={activeMobileTab}
-          ariaLabel={t("aria_mobile_tabs")}
-          className="flex min-h-[44px] shrink-0 overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-2 text-sm font-medium dark:border-gray-700"
-          itemClassName="max-w-[33vw] truncate px-3 py-2"
-          items={(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => ({
-            key: tab,
-            label: mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs)
-          }))}
-          onSelect={selectMobileTab}
-        />
+        {showMobileWorkspaceTabs ? (
+          <UnderlineTabs
+            activeKey={activeMobileTab}
+            ariaLabel={t("aria_mobile_tabs")}
+            className="flex min-h-[44px] shrink-0 overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-2 text-sm font-medium dark:border-gray-700"
+            itemClassName="max-w-[33vw] truncate px-3 py-2"
+            items={(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => ({
+              key: tab,
+              label: mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs)
+            }))}
+            onSelect={selectMobileTab}
+          />
+        ) : null}
         <div className="flex min-h-0 w-full flex-1">
-          {activeMobileTab === "chat" ? (
+          {showMobileChatColumn ? (
             <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} />
           ) : (
             <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
@@ -1191,7 +1202,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       </div>
       {landing ? (
         <div className="w-full max-w-sm sm:max-w-2xl">
-          <Compose key={chatId} autoFocus canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={false} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
+          <Compose key={chatId} autoFocus canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={false} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
         </div>
       ) : null}
     </section>

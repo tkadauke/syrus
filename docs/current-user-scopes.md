@@ -130,8 +130,6 @@ per-user/private:
   - app/controllers/api/v1/app/chat_participants_controller.rb
   - app/controllers/api/v1/app/chat_shell_commands_controller.rb
   - app/controllers/api/v1/app/chats_controller.rb
-  - app/controllers/concerns/chat_attachable_resolution.rb
-  - app/controllers/concerns/chat_attachment_search.rb
   - app/controllers/concerns/chat_goal_actions.rb
   - app/controllers/concerns/chat_index_payload.rb
   - app/controllers/concerns/chat_proposal_outcome.rb

@@ -1,8 +1,8 @@
 # Chat JSON serializers extracted from Api::V1::App::ChatsController.
 #
 # Assemble the wire payloads for a chat and its parts: the full chat_payload
-# (messages, proposals, pending actions, attachments), the
-# bookmark / hidden-chat / pending-action / attachment-group / document JSON,
+# (messages, proposals, pending actions), the
+# bookmark / hidden-chat / pending-action / document JSON,
 # and the unread predicate. Pure controller helpers (reading `Current.user`
 # and delegating to sibling helpers like chat_json), so they mix straight
 # back in with no behavior change. Kept private on include.
@@ -19,7 +19,6 @@ module ChatSerialization
       messages, has_more_older = PerformanceLogging.phase("chat_payload.messages_page", chat_id: chat_session.id) { paginated_tail(chat_session) }
       repository = chat_session.repository
       visible_goal = PerformanceLogging.phase("chat_payload.visible_goal", chat_id: chat_session.id) { visible_chat_goal(chat_session) }
-      attachment_groups = PerformanceLogging.phase("chat_payload.attachment_groups", chat_id: chat_session.id) { attachment_groups_for_payload(chat_session) }
       counts = PerformanceLogging.phase("chat_payload.counts", chat_id: chat_session.id) do
         chat_session_payload_counts(chat_session.id)
       end
@@ -65,9 +64,7 @@ module ChatSerialization
         active_goal: PerformanceLogging.phase("chat_payload.active_goal", chat_id: chat_session.id) { chat_goal_json(visible_goal) },
         scratchpad_items: PerformanceLogging.phase("chat_payload.scratchpad_items", chat_id: chat_session.id) { chat_session.scratchpad_items_payload },
         workspace_tabs: PerformanceLogging.phase("chat_payload.workspace_tabs", chat_id: chat_session.id) { workspace_tabs_json(chat_session) },
-        attachment_groups: PerformanceLogging.phase("chat_payload.attachment_groups_json", chat_id: chat_session.id) { attachment_groups_json(attachment_groups) },
         documents_in_scope: PerformanceLogging.phase("chat_payload.documents_in_scope", chat_id: chat_session.id) { documents_in_scope_for_payload(chat_session).map { |document| document_json(document) } },
-        attachment_results: PerformanceLogging.phase("chat_payload.attachment_results", chat_id: chat_session.id) { attachment_results_for_payload(chat_session).map { |record| attachable_result_json(record) } },
         paths: {
           credentials_path: "/credentials",
           repositories_path: repositories_path,
@@ -85,8 +82,6 @@ module ChatSerialization
           app_switch_provider_path: "/api/v1/app/chats/#{chat_session.id}/switch_provider",
           app_bookmarks_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
           app_bookmarks_index_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
-          app_context_path: "/api/v1/app/chats/#{chat_session.id}/context",
-          app_attachments_path: "/api/v1/app/chats/#{chat_session.id}/attachments",
           app_scratchpad_reorder_path: "/api/v1/app/chats/#{chat_session.id}/scratchpad_items/reorder",
           app_speech_to_text_batch_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text",
           app_speech_to_text_stream_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text/stream",
@@ -196,28 +191,14 @@ module ChatSerialization
     Job.where(linked_chat_id: chat_session.id, state: "coding").order(:id).first
   end
 
-  def attachment_groups_for_payload(chat_session)
-    chat_session.chat_attachments.includes(:attachable).order(:attachable_type, :attached_at, :id).group_by(&:attachable_type)
-  end
-
   def documents_in_scope_for_payload(chat_session)
     return Document.none unless include_context_in_chat_payload?
 
     chat_session.attached_documents_in_scope.includes(:attachable).order(:title, :id)
   end
 
-  def attachment_results_for_payload(chat_session)
-    return [] unless attachment_search_requested?
-
-    attachment_search_results(chat_session)
-  end
-
   def include_context_in_chat_payload?
     params[:include_context].present?
-  end
-
-  def attachment_search_requested?
-    params[:attachment_type].present? || params[:attachable_type].present? || params[:attachment_query].present?
   end
 
   def bookmarks_json(chat_session)
@@ -463,25 +444,6 @@ module ChatSerialization
 
     scope = action.user.admin? ? Epic.all : action.user.epics
     scope.find_by(id: id)
-  end
-
-  def attachment_groups_json(groups)
-    {
-      repositories: attachment_group_json(groups["Repository"]),
-      epics: attachment_group_json(groups["Epic"]),
-      jobs: attachment_group_json(groups["Job"]),
-      documents: attachment_group_json(groups["Document"])
-    }
-  end
-
-  def attachment_group_json(attachments)
-    Array(attachments).map do |attachment|
-      {
-        id: attachment.id,
-        label: attachment_label(attachment.attachable),
-        app_detach_path: "/api/v1/app/chats/#{attachment.chat_session_id}/attachments/#{attachment.id}"
-      }
-    end
   end
 
   def document_json(document)

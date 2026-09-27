@@ -1770,7 +1770,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["messages"].first).not_to have_key("html")
     expect(body["messages"].first).not_to have_key("bookmark_path")
     expect(body["documents_in_scope"]).to eq([])
-    expect(body["attachment_results"]).to eq([])
+    expect(body).not_to have_key("attachment_results")
+    expect(body).not_to have_key("attachment_groups")
     expect(body.dig("whiteboard", "loaded")).to eq(false)
     expect(body.dig("whiteboard", "version")).to eq(0)
     expect(body.dig("whiteboard", "elements")).to eq([])
@@ -1780,8 +1781,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.dig("paths", "app_clear_path")).to eq("/api/v1/app/chats/#{chat.id}/messages")
     expect(body.dig("paths", "app_enqueue_message_path")).to eq("/api/v1/app/chats/#{chat.id}/queued_messages")
     expect(body.dig("paths", "app_rename_path")).to eq("/api/v1/app/chats/#{chat.id}/rename")
-    expect(body.dig("paths", "app_attachments_path")).to eq("/api/v1/app/chats/#{chat.id}/attachments")
-    expect(body.dig("paths", "app_context_path")).to eq("/api/v1/app/chats/#{chat.id}/context")
+    expect(body.dig("paths", "app_attachments_path")).to be_nil
+    expect(body.dig("paths", "app_context_path")).to be_nil
     expect(body.dig("paths", "app_whiteboard_path")).to eq("/api/v1/app/chats/#{chat.id}/whiteboard")
     expect(body.dig("paths", "app_scratchpad_reorder_path")).to eq("/api/v1/app/chats/#{chat.id}/scratchpad_items/reorder")
     expect(body.dig("paths", "app_speech_to_text_batch_path")).to eq("/api/v1/app/chats/#{chat.id}/speech_to_text")
@@ -1870,22 +1871,13 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["agent_questions"]).to eq([])
   end
 
-  it "loads chat context data on demand" do
+  it "does not expose the removed manual chat context endpoint" do
     sign_in_as(user)
-    document = repository.repository_documents.create!(
-      user: user,
-      kind: "google_doc",
-      title: "Launch notes",
-      google_docs_url: "https://docs.google.com/document/d/launch/edit"
-    )
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
 
     get "/api/v1/app/chats/#{chat.id}/context", params: { attachment_type: "Document", attachment_query: "Launch" }
 
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["documents_in_scope"]).to contain_exactly(include("title" => document.title, "repository_slug" => "acme/widgets"))
-    expect(parse_body.dig("attachment_groups", "repositories")).to contain_exactly(include("label" => "acme/widgets"))
-    expect(parse_body["attachment_results"]).to contain_exactly(include("type" => "Document", "id" => document.id, "label" => "Launch notes (acme/widgets)"))
+    expect(response).to have_http_status(:not_found)
   end
 
   it "reports speech-to-text disabled by default" do
@@ -4523,31 +4515,21 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["pins"]).to eq([])
   end
 
-  it "adds and removes attachments through the app API" do
+  it "does not expose manual chat attachment mutation endpoints" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, last_message_at: Time.current)
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/attachments", params: { attachable_type: "Repository", attachable_id: repository.id }
-    }.to change(ChatAttachment, :count).by(1)
+    }.not_to change(ChatAttachment, :count)
 
-    expect(response).to have_http_status(:ok)
-    attachment = chat.reload.chat_attachments.sole
-    expect(attachment.attachable).to eq(repository)
-    expect(parse_body["message"]).to eq("acme/widgets attached.")
-    expect(parse_body.dig("attachment_groups", "repositories")).to contain_exactly(include(
-      "label" => "acme/widgets",
-      "app_detach_path" => "/api/v1/app/chats/#{chat.id}/attachments/#{attachment.id}"
-    ))
-    expect(parse_body.dig("attachment_groups", "repositories").first).not_to have_key("detach_path")
-
+    expect(response).to have_http_status(:not_found)
+    attachment = chat.chat_attachments.create!(attachable: repository)
     expect {
       delete "/api/v1/app/chats/#{chat.id}/attachments/#{attachment.id}"
-    }.to change(ChatAttachment, :count).by(-1)
+    }.not_to change(ChatAttachment, :count)
 
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("acme/widgets detached.")
-    expect(parse_body.dig("attachment_groups", "repositories")).to eq([])
+    expect(response).to have_http_status(:not_found)
   end
 
   it "lists open preview panels and closes them through the app API" do
@@ -4817,55 +4799,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["preview_panels"].first["url"]).to eq("https://preview-panel-#{panel.id}.lvh.me")
   end
 
-  it "renders attached Epics with their titles" do
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user, last_message_at: Time.current)
-    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum")
-
-    expect {
-      post "/api/v1/app/chats/#{chat.id}/attachments", params: { attachable_type: "Epic", attachable_id: epic.id }
-    }.to change(ChatAttachment, :count).by(1)
-
-    expect(response).to have_http_status(:ok)
-    attachment = chat.reload.chat_attachments.sole
-    label = "#{epic.slug}: Raise the forum"
-    expect(parse_body["message"]).to eq("#{label} attached.")
-    expect(parse_body.dig("attachment_groups", "epics")).to contain_exactly(include(
-      "label" => label,
-      "app_detach_path" => "/api/v1/app/chats/#{chat.id}/attachments/#{attachment.id}"
-    ))
-  end
-
-  it "excludes infrastructure jobs from the job attachment search results" do
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user, last_message_at: Time.current)
-
-    visible_job = Factories.job_record(repository: repository, issue_number: 1, kind: "issue")
-    Factories.job_record(repository: repository, issue_number: nil, kind: "main_grader")
-    Factories.job_record(repository: repository, issue_number: nil, kind: "deploy")
-
-    get "/api/v1/app/chats/#{chat.id}", params: { attachment_type: "Job" }
-
-    expect(response).to have_http_status(:ok)
-    result_ids = parse_body["attachment_results"].map { |r| r["id"] }
-    expect(result_ids).to include(visible_job.id)
-    expect(result_ids).not_to include(*Job.where(kind: Job::Kind.infrastructure_values).pluck(:id))
-  end
-
-  it "attaches a repository by slug through the app API" do
-    sign_in_as(user)
-    repository
-    chat = ChatSession.create!(user: user, last_message_at: Time.current)
-
-    expect {
-      post "/api/v1/app/chats/#{chat.id}/attachments", params: { attachable_type: "Repository", repository_slug: "acme/widgets" }
-    }.to change(ChatAttachment, :count).by(1)
-
-    expect(response).to have_http_status(:ok)
-    expect(chat.reload.attached_repositories).to contain_exactly(repository)
-    expect(parse_body["message"]).to eq("acme/widgets attached.")
-  end
-
   it "renames a chat through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, title: "Old title", last_message_at: Time.current)
@@ -4957,30 +4890,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     messages = parse_body["messages"]
     expect(messages.map { |m| m.dig("content", "text") }).to eq([ "After clearing" ])
-  end
-
-  it "does not attach another user's repository through the app API" do
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user, last_message_at: Time.current)
-    foreign = Factories.repository(user: Factories.user)
-
-    expect {
-      post "/api/v1/app/chats/#{chat.id}/attachments", params: { attachable_type: "Repository", attachable_id: foreign.id }
-    }.not_to change(ChatAttachment, :count)
-
-    expect(response).to have_http_status(:not_found)
-  end
-
-  it "does not attach archived repositories through the app API" do
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user, last_message_at: Time.current)
-    repository.archive!
-
-    expect {
-      post "/api/v1/app/chats/#{chat.id}/attachments", params: { attachable_type: "Repository", attachable_id: repository.id }
-    }.not_to change(ChatAttachment, :count)
-
-    expect(response).to have_http_status(:not_found)
   end
 
   it "confirms and rejects proposals through the app API" do

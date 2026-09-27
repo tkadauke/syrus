@@ -163,9 +163,7 @@ function chatPayload(): ChatPayload {
     scratchpad_items: [],
     preview_panels: [],
     workspace_tabs: [],
-    attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
     documents_in_scope: [],
-    attachment_results: [],
     paths: {
       credentials_path: "/credentials",
       repositories_path: "/repositories",
@@ -182,7 +180,6 @@ function chatPayload(): ChatPayload {
       app_daemon_connection_path: "/api/v1/app/chats/8/daemon_connection",
       app_switch_provider_path: "/api/v1/app/chats/8/switch_provider",
       app_bookmarks_path: "/api/v1/app/chats/8/bookmarks",
-      app_attachments_path: "/api/v1/app/chats/8/attachments",
       app_whiteboard_path: "/api/v1/app/chats/8/whiteboard",
       app_scratchpad_reorder_path: "/api/v1/app/chats/8/scratchpad_items/reorder"
     },

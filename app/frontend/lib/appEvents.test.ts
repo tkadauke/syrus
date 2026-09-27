@@ -1421,9 +1421,7 @@ function chatPayload(messages: Array<ReturnType<typeof message>>): ChatPayload {
     scratchpad_items: [],
     preview_panels: [],
     workspace_tabs: [],
-    attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
     documents_in_scope: [],
-    attachment_results: [],
     whiteboard: { version: 0, elements: [], appState: {}, files: {} },
     coding_mode_enabled: false,
     local_mode_enabled: false,
@@ -1443,7 +1441,6 @@ function chatPayload(messages: Array<ReturnType<typeof message>>): ChatPayload {
       app_daemon_connection_path: "/api/v1/app/chats/9/daemon_connection",
       app_switch_provider_path: "/api/v1/app/chats/9/switch_provider",
       app_bookmarks_path: "/api/v1/app/chats/9/bookmarks",
-      app_attachments_path: "/api/v1/app/chats/9/attachments",
       app_whiteboard_path: "/api/v1/app/chats/9/whiteboard",
       app_scratchpad_reorder_path: "/api/v1/app/chats/9/scratchpad_items/reorder"
     }

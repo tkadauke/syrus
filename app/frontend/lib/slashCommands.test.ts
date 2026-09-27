@@ -145,11 +145,10 @@ describe("slashCommands", () => {
     expect(prompt).toContain("call the propose_job tool")
   })
 
-  it("keeps proposal and repository attachment commands for ordinary chats", () => {
+  it("keeps proposal commands for ordinary chats", () => {
     const context = { chat: {} }
 
     expect(filterSlashCommands("", context).map((command) => command.name)).toEqual(expect.arrayContaining([
-      "/attach",
       "/proposals",
       "/discard",
       "/feedback",

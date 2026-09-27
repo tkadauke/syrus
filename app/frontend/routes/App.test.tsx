@@ -11611,55 +11611,6 @@ describe("App", () => {
     expect(screen.getByPlaceholderText("Ask about this repository...").closest("form")?.parentElement?.parentElement).toHaveClass("max-w-sm", "sm:max-w-2xl")
   })
 
-  it("shows a removable attached repository chip in the empty chat landing compose area", async () => {
-    const initialPayload = chatPayload({ messages: [] })
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/chats/8/attachments/2" && init?.method === "DELETE") {
-        return Promise.resolve(new Response(JSON.stringify({
-          ...initialPayload,
-          message: "acme/widgets detached.",
-          attachment_groups: { ...initialPayload.attachment_groups, repositories: [] }
-        }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
-      return Promise.resolve(new Response(JSON.stringify(initialPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
-    })
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
-    const chip = screen.getByText("acme/widgets")
-    const textarea = screen.getByPlaceholderText("Ask about this repository...")
-    const composeForm = textarea.closest("form")
-    // The textarea sits inside its own relative wrapper; the canonical control
-    // row (attachment, dictation, mode/model/effort selectors, then the
-    // send/stash/stop cluster) is that wrapper's next sibling.
-    const textareaWrapper = textarea.parentElement
-    const toolbar = textareaWrapper?.nextElementSibling
-    expect(chip).toBeInTheDocument()
-    expect(chip.closest("div")).toHaveClass("w-full")
-    expect(chip.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(toolbar?.contains(screen.getByRole("button", { name: "Send message" }))).toBeTruthy()
-    expect(toolbar?.contains(screen.getByRole("button", { name: "Add attachment" }))).toBeTruthy()
-    expect(composeForm).not.toBeNull()
-    fireEvent.click(screen.getByRole("button", { name: "Detach repository acme/widgets" }))
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/chats/8/attachments/2",
-        expect.objectContaining({ method: "DELETE" })
-      )
-    })
-    expect(within(composeForm as HTMLElement).queryByText("acme/widgets")).not.toBeInTheDocument()
-  })
-
   it("moves the empty chat landing into the standard chat layout after the first send succeeds", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -11744,7 +11695,11 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
     expect(screen.getByRole("dialog", { name: "Add attachment" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Upload file" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Repo" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Scratch pad" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Repo" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Epic" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Job" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Doc" })).not.toBeInTheDocument()
 
     fireEvent.keyDown(screen.getByRole("dialog", { name: "Add attachment" }), { key: "Escape" })
     expect(screen.queryByRole("dialog", { name: "Add attachment" })).not.toBeInTheDocument()
@@ -11779,56 +11734,6 @@ describe("App", () => {
     } finally {
       inputClickSpy.mockRestore()
     }
-  })
-
-  it("adds a searched repository from the chat attachment popover", async () => {
-    const search = "?attachment_type=Repository&attachment_query=tools"
-    const initialPayload = {
-      ...chatPayload(),
-      attachment_results: [{ type: "Repository", id: 4, label: "acme/tools" }]
-    }
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === `/api/v1/app/chats/8/attachments${search}` && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({
-          ...initialPayload,
-          message: "acme/tools attached.",
-          attachment_groups: {
-            ...initialPayload.attachment_groups,
-            repositories: [
-              ...initialPayload.attachment_groups.repositories,
-              { id: 4, label: "acme/tools", app_detach_path: "/api/v1/app/chats/8/attachments/4" }
-            ]
-          },
-          attachment_results: []
-        }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
-      return Promise.resolve(new Response(JSON.stringify(initialPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
-    })
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={[`/app-shell/chats/8${search}`]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    await screen.findByPlaceholderText("Ask about this repository...")
-    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
-    fireEvent.click(await screen.findByRole("button", { name: "acme/tools" }))
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        `/api/v1/app/chats/8/attachments${search}`,
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ attachable_type: "Repository", attachable_id: 4 })
-        })
-      )
-    })
-    expect(screen.queryByRole("dialog", { name: "Add attachment" })).not.toBeInTheDocument()
   })
 
   it("adds a selected chat attachment chip with a remove button", async () => {
@@ -12706,15 +12611,10 @@ describe("App", () => {
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
   })
 
-  it("handles panel and attachment system slash commands in the app", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/chats/8/attachments" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify(chatPayload({ message: "acme/tools attached." })), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
-      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
-    })
+  it("handles panel system slash commands in the app", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    )
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -12729,15 +12629,6 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
     expect(await screen.findByRole("dialog", { name: "Chat settings" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Close chat settings" }))
-
-    fireEvent.change(input, { target: { value: "/attach acme/tools" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
-    expect(await screen.findByText("acme/tools attached.")).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/attachments", expect.objectContaining({
-      method: "POST",
-      body: JSON.stringify({ attachable_type: "Repository", repository_slug: "acme/tools" })
-    }))
-    expect(screen.getByRole("dialog", { name: "Add attachment" })).toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
   })
 
@@ -13776,7 +13667,7 @@ describe("App", () => {
   })
 
   it("runs chat commands through the app API", async () => {
-    const search = "?attachment_type=Repository&attachment_query=tools"
+    const search = "?view=thread"
     const proposalMessage = {
       type: "message",
       id: 10,
@@ -13819,7 +13710,6 @@ describe("App", () => {
     }
     const initialPayload = {
       ...chatPayload({ messages: [pendingActionMessage, proposalMessage] }),
-      attachment_results: [{ type: "Repository", id: 4, label: "acme/tools" }],
       pending_actions: []
     }
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
@@ -13829,21 +13719,6 @@ describe("App", () => {
           ...initialPayload,
           message: "Bookmarked Aqueduct marker.",
           bookmarks: [...initialPayload.bookmarks, { id: 2, label: "Aqueduct marker", chat_message_id: 9 }]
-        }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
-      if (path === `/api/v1/app/chats/8/attachments${search}` && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({
-          ...initialPayload,
-          message: "acme/tools attached.",
-          attachment_groups: {
-            ...initialPayload.attachment_groups,
-            repositories: [
-              ...initialPayload.attachment_groups.repositories,
-              { id: 4, label: "acme/tools", app_detach_path: "/api/v1/app/chats/8/attachments/4" }
-            ]
-          },
-          attachment_results: []
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
@@ -13926,18 +13801,6 @@ describe("App", () => {
       )
     })
     expect(screen.queryByText("Bookmarked Aqueduct marker.")).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
-    fireEvent.click(await screen.findByText("acme/tools"))
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        `/api/v1/app/chats/8/attachments${search}`,
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ attachable_type: "Repository", attachable_id: 4 })
-        })
-      )
-    })
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
     await waitFor(() => {
@@ -17081,18 +16944,9 @@ function chatPayload(overrides: {
     ],
     pending_actions: overrides.pendingActions || [],
     agent_questions: overrides.agentQuestions || [],
-    attachment_groups: {
-      repositories: [
-        { id: 2, label: "acme/widgets", app_detach_path: "/api/v1/app/chats/8/attachments/2" }
-      ],
-      epics: [],
-      jobs: [],
-      documents: []
-    },
     documents_in_scope: [
       { id: 5, title: "Launch notes", repository_slug: "acme/widgets" }
     ],
-    attachment_results: [],
     preview_panels: [],
     workspace_tabs: [
       { id: "whiteboard.canvas", label: "Whiteboard", label_key: "whiteboard:tab_whiteboard", component: "whiteboard/WhiteboardTab", order: 0 }
@@ -17116,7 +16970,6 @@ function chatPayload(overrides: {
       app_stop_path: "/api/v1/app/chats/8/stop",
       app_switch_provider_path: "/api/v1/app/chats/8/switch_provider",
       app_bookmarks_path: "/api/v1/app/chats/8/bookmarks",
-      app_attachments_path: "/api/v1/app/chats/8/attachments",
       app_whiteboard_path: "/api/v1/app/chats/8/whiteboard"
     }
   }

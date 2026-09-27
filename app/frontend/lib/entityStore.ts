@@ -173,10 +173,6 @@ export function normalizeChatPayload(payload: ChatPayload, source = "chat_detail
       updated_at: null
     } as Partial<JobRecord> & { id: number }, { completeness: "partial", source, extraFields: { app_path: payload.attached_coding_job.app_path } })
   }
-  payload.attachment_groups?.jobs.forEach((job) => {
-    normalizeJobRecord({ id: job.id, issue_title: job.label, updated_at: null } as Partial<JobRecord> & { id: number }, { completeness: "partial", source })
-  })
-
   return payload
 }
 
