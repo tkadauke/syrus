@@ -5,8 +5,8 @@ RSpec.describe WorkflowMcpTransportSelector do
   let(:port) { 48_105 }
   let(:health_url) { "http://#{host}:#{port}#{PersistentMcpDaemon::HEALTH_PATH}" }
 
-  def select
-    described_class.select(host: host, port: port)
+  def select(role: AgentRole::WORKFLOW_IMPLEMENT)
+    described_class.select(host: host, port: port, role: role)
   end
 
   def set_feature(enabled)
@@ -99,6 +99,19 @@ RSpec.describe WorkflowMcpTransportSelector do
         expect(decision.persistent?).to be true
         expect(decision.reason).to be_nil
         expect(decision.daemon_identity).to eq("worker_id" => "w1")
+        expect(decision.mcp_path).to eq("/mcp/workflow/workflow_implement")
+      end
+
+      it "selects the persistent path for the requested workflow role" do
+        stub_request(:get, health_url).to_return(
+          status: 200,
+          body: { status: "ok", identity: { worker_id: "w1" }, capabilities: [ "workflow_tools" ] }.to_json
+        )
+
+        decision = select(role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER)
+
+        expect(decision.persistent?).to be true
+        expect(decision.mcp_path).to eq("/mcp/workflow/workflow_adversarial_reviewer")
       end
     end
   end

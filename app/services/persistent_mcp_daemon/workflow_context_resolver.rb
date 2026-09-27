@@ -1,5 +1,5 @@
 class PersistentMcpDaemon::WorkflowContextResolver
-  Resolved = Struct.new(:server_context, :allowed_tools, :tool_context, keyword_init: true)
+  Resolved = Struct.new(:server_context, :allowed_tools, :allowed_tool_names, :tool_context, :provider, keyword_init: true)
 
   class << self
     def resolve(raw_server_context)
@@ -13,12 +13,26 @@ class PersistentMcpDaemon::WorkflowContextResolver
       end
 
       tool_context = invocation.tool_context
-      run = tool_context.run
+      server_context = {
+        run: tool_context.run,
+        run_id: tool_context.run.id,
+        _meta: meta
+      }.compact
+      allowed_tools = allowed_tools_for(tool_context)
+
       Resolved.new(
-        server_context: { run_id: run.id, run: run, _meta: meta },
-        allowed_tools: McpToolPolicy.for(tool_context) + Mcp::Sidecar.plugin_workflow_tools_for(tool_context),
-        tool_context: tool_context
+        server_context: server_context,
+        allowed_tools: allowed_tools,
+        allowed_tool_names: allowed_tools.map { |tool| McpToolRegistry.tool_name_for(tool) },
+        tool_context: tool_context,
+        provider: invocation.provider
       )
+    end
+
+    private
+
+    def allowed_tools_for(tool_context)
+      McpToolPolicy.for(tool_context) + Mcp::Sidecar.plugin_workflow_tools_for(tool_context)
     end
   end
 end

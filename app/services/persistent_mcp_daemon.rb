@@ -21,7 +21,9 @@ require "stringio"
 # a no-op MCP request (the protocol-level `ping` method). The real chat MCP
 # tool set (McpToolRegistry surface: :chat) is wired onto this daemon's
 # MCP::Server (see #chat_tools, PersistentMcpDaemon::ChatToolDispatch). The
-# workflow tool set is wired the same way: stdio-only CLIs spawn
+# Workflow tools are mounted as role-partitioned MCP servers under
+# `/mcp/workflow/<role-token>` so the persistent daemon does not advertise a
+# single workflow-role superset to every agent. Stdio-only CLIs spawn
 # bin/syrus-mcp-proxy, which forwards to this daemon with a short-lived signed
 # run token instead of booting Rails with worker secrets under the agent.
 #
@@ -35,6 +37,7 @@ class PersistentMcpDaemon
 
   HEALTH_PATH = "/healthz"
   MCP_PATH = "/mcp"
+  WORKFLOW_MCP_PATH_PREFIX = "#{MCP_PATH}/workflow"
 
   # Key callers set in an MCP request's `_meta` to carry a signed
   # McpInvocationContext token. `_meta` is per-request (MCP::Server merges it
@@ -55,15 +58,23 @@ class PersistentMcpDaemon
   INVOCATION_CONTEXT_HEADER = "X-Syrus-Invocation-Context"
   INVOCATION_CONTEXT_HEADER_ENV_KEY = "HTTP_X_SYRUS_INVOCATION_CONTEXT"
 
-  # Advertised in #health_check's `capabilities` array once a chat turn's
-  # real tool set (McpToolRegistry surface: :chat, the same tools the stdio
-  # chat sidecars serve) is wired onto this daemon's MCP::Server -- see
-  # #chat_tools and PersistentMcpDaemon::ChatToolDispatch. ChatMcpTransportSelector
-  # requires this before routing a chat turn's MCP traffic here.
+  # Advertised in #health_check's `capabilities` array once the real tool
+  # sets are wired onto this daemon's MCP::Server instances. Chat has one
+  # static server; workflow has one static server per agent role so tools/list
+  # stays scoped like stdio mode even though the daemon process is shared.
   CHAT_TOOLS_CAPABILITY = "chat_tools"
   WORKFLOW_TOOLS_CAPABILITY = "workflow_tools"
   CAPABILITIES = [ CHAT_TOOLS_CAPABILITY, WORKFLOW_TOOLS_CAPABILITY ].freeze
   @ensure_started_mutex = Mutex.new
+
+  WORKFLOW_TOOL_ROLES = (AgentRole::WORKFLOW_ROLES + [ AgentRole::AGENT_INSIGHT ]).freeze
+  WORKFLOW_ROLE_PATH_TOKENS = WORKFLOW_TOOL_ROLES.index_with { |role| role.to_s.tr(":", "_") }.freeze
+  WORKFLOW_ROLE_BY_PATH_TOKEN = WORKFLOW_ROLE_PATH_TOKENS.invert.freeze
+
+  WORKFLOW_CONTEXT_USER = Struct.new(:admin?)
+  WORKFLOW_CONTEXT_REPOSITORY = Struct.new(:id, :slug, :upstream_slug)
+  WORKFLOW_CONTEXT_STEP = Struct.new(:kind)
+  WORKFLOW_CONTEXT_RUN = Struct.new(:step)
 
   def self.port
     Integer(ENV.fetch("SYRUS_PERSISTENT_MCP_PORT", DEFAULT_PORT))
@@ -136,6 +147,13 @@ class PersistentMcpDaemon
 
     if request.path == HEALTH_PATH
       health_response
+    elsif workflow_mcp_path?(request.path)
+      workflow_role = workflow_role_for_path(request.path)
+      if workflow_role
+        workflow_mcp_transport_for(workflow_role).call(inject_invocation_context(env))
+      else
+        not_found
+      end
     elsif request.path == MCP_PATH || request.path.start_with?("#{MCP_PATH}/")
       mcp_transport.call(inject_invocation_context(env))
     else
@@ -164,7 +182,7 @@ class PersistentMcpDaemon
   def mcp_server
     @mcp_server ||= MCP::Server.new(
       name: "syrus-persistent-mcp-daemon",
-      tools: [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ] + routed_tools,
+      tools: [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ] + chat_tools,
       server_context: { identity: identity }
     )
   end
@@ -179,16 +197,37 @@ class PersistentMcpDaemon
   # tiering/role/feature-flag gate is still enforced per call.
   def chat_tools
     @chat_tools ||= unique_tools(McpToolRegistry.tools(surface: :chat))
+      .map { |tool| PersistentMcpDaemon::ChatToolDispatch.wrap(tool) }
   end
 
-  def workflow_tools
-    @workflow_tools ||= unique_tools(
-      McpToolRegistry.tools(surface: :workflow) + McpToolPolicy.ref_movement_tools
-    )
+  def workflow_mcp_server_for(role)
+    @workflow_mcp_servers ||= {}
+    @workflow_mcp_servers.fetch(role) do
+      @workflow_mcp_servers[role] = MCP::Server.new(
+        name: "syrus-persistent-mcp-daemon-#{self.class.workflow_role_path_token(role)}",
+        tools: [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ] + workflow_tools(role),
+        server_context: { identity: identity, workflow_role: role }
+      )
+    end
   end
 
-  def routed_tools
-    @routed_tools ||= unique_tools(chat_tools + workflow_tools).map { |tool| PersistentMcpDaemon::ToolDispatch.wrap(tool) }
+  def workflow_tools(role)
+    @workflow_tools ||= {}
+    @workflow_tools.fetch(role) do
+      tools = workflow_tool_contexts_for(role).flat_map do |context|
+        McpToolPolicy.for(context) + Mcp::Sidecar.plugin_workflow_tools_for(context)
+      end
+      @workflow_tools[role] = tools.uniq { |tool| McpToolRegistry.tool_name_for(tool) }
+        .map { |tool| PersistentMcpDaemon::WorkflowToolDispatch.wrap(tool) }
+    end
+  end
+
+  def self.workflow_role_path_token(role)
+    WORKFLOW_ROLE_PATH_TOKENS.fetch(role.to_s)
+  end
+
+  def self.workflow_role_path(role)
+    "#{WORKFLOW_MCP_PATH_PREFIX}/#{workflow_role_path_token(role)}"
   end
 
   # Boots (or reuses) the in-memory MCP::Server, lists its tools, and
@@ -198,6 +237,13 @@ class PersistentMcpDaemon
     tools_result = dispatch("healthz-tools", "tools/list")
     ping_result = dispatch("healthz-ping", "ping")
     ping_ok = ping_result["result"] == {}
+    workflow_tool_names = WORKFLOW_TOOL_ROLES.flat_map do |role|
+      dispatch(
+        "healthz-workflow-tools-#{self.class.workflow_role_path_token(role)}",
+        "tools/list",
+        server: workflow_mcp_server_for(role)
+      ).dig("result", "tools")
+    end.compact.map { |tool| tool["name"] }
 
     {
       status: ping_ok ? "ok" : "error",
@@ -205,6 +251,8 @@ class PersistentMcpDaemon
       started_at: @started_at&.utc&.iso8601,
       uptime_seconds: @started_at ? (Time.current - @started_at).round(1) : nil,
       tools: Array(tools_result.dig("result", "tools")).map { |tool| tool["name"] },
+      workflow_tools: workflow_tool_names.uniq.sort,
+      workflow_paths: WORKFLOW_ROLE_PATH_TOKENS.transform_values { |token| "#{WORKFLOW_MCP_PATH_PREFIX}/#{token}" },
       capabilities: self.class::CAPABILITIES,
       ping_ok: ping_ok
     }
@@ -249,12 +297,54 @@ class PersistentMcpDaemon
     env
   end
 
-  def dispatch(id, method)
-    JSON.parse(mcp_server.handle_json({ jsonrpc: "2.0", id: id, method: method }.to_json))
+  def dispatch(id, method, server: mcp_server)
+    JSON.parse(server.handle_json({ jsonrpc: "2.0", id: id, method: method }.to_json))
   end
 
   def mcp_transport
     @mcp_transport ||= MCP::Server::Transports::StreamableHTTPTransport.new(mcp_server, stateless: true)
+  end
+
+  def workflow_mcp_transport_for(role)
+    @workflow_mcp_transports ||= {}
+    @workflow_mcp_transports[role] ||= MCP::Server::Transports::StreamableHTTPTransport.new(workflow_mcp_server_for(role), stateless: true)
+  end
+
+  def workflow_role_for_path(path)
+    token = path.delete_prefix("#{WORKFLOW_MCP_PATH_PREFIX}/").split("/", 2).first
+    WORKFLOW_ROLE_BY_PATH_TOKEN[token]
+  end
+
+  def workflow_mcp_path?(path)
+    path.start_with?("#{WORKFLOW_MCP_PATH_PREFIX}/")
+  end
+
+  def workflow_tool_contexts_for(role)
+    repositories = [
+      WORKFLOW_CONTEXT_REPOSITORY.new(0, "example/widgets", nil),
+      WORKFLOW_CONTEXT_REPOSITORY.new(1, "tkadauke/syrus", nil)
+    ]
+
+    ([ nil ] + workflow_step_kinds_for_role(role).map { |kind| WORKFLOW_CONTEXT_RUN.new(WORKFLOW_CONTEXT_STEP.new(kind)) })
+      .product(repositories)
+      .map { |run, repository| workflow_tool_context_for(role, run: run, repository: repository) }
+  end
+
+  def workflow_step_kinds_for_role(role)
+    Step::Kind.entries
+      .select(&:agentic)
+      .map(&:kind)
+      .select { |kind| AgentRole.for_step_kind(kind) == role.to_s }
+  end
+
+  def workflow_tool_context_for(role, run:, repository:)
+    McpToolContext.new(
+      surface: :run,
+      role: role,
+      user: WORKFLOW_CONTEXT_USER.new(false),
+      repository: repository,
+      run: run
+    )
   end
 
   def health_response

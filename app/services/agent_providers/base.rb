@@ -231,7 +231,8 @@ module AgentProviders
     def mcp_transport_decision
       return @mcp_transport_decision if defined?(@mcp_transport_decision)
 
-      @mcp_transport_decision = Feature.persistent_mcp_sidecar_enabled? ? WorkflowMcpTransportSelector.select : nil
+      role = AgentRole.for_step_kind(@run.step.kind)
+      @mcp_transport_decision = Feature.persistent_mcp_sidecar_enabled? ? WorkflowMcpTransportSelector.select(role: role) : nil
     end
 
     # Records the transport decision where existing run/job diagnostics
@@ -260,10 +261,6 @@ module AgentProviders
       JobLog.append!(run: @run, kind: "system", chunk: message)
     rescue StandardError => e
       Rails.logger.warn("[#{self.class.name}] failed to record mcp transport decision: #{e.class}: #{e.message}")
-    end
-
-    def mint_invocation_context_token(decision)
-      McpInvocationContext.issue_for_run(@run, worker_id: decision.daemon_identity["worker_id"], provider: provider)
     end
   end
 end

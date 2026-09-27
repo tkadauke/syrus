@@ -1,3 +1,5 @@
+require "mcp"
+
 module PersistentMcpDaemon::WorkflowToolDispatch
   class << self
     def wrap(tool)
@@ -22,12 +24,13 @@ module PersistentMcpDaemon::WorkflowToolDispatch
       end
 
       run = resolved.tool_context.run
+
       McpToolUsageRecorder.record_dispatch(
         surface: "workflow", tool_name: name_value, tool_input: kwargs,
         sidecar_mode: "persistent", daemon_identity: daemon_identity,
-        run: run, provider: run.agent_provider
+        run: run, provider: resolved.provider
       ) do
-        next Mcp::Tools.not_authorized unless resolved.allowed_tools.include?(self)
+        next Mcp::Tools.not_authorized unless resolved.allowed_tool_names.include?(McpToolRegistry.tool_name_for(self))
 
         super(*args, server_context: resolved.server_context, **kwargs, &block)
       end
