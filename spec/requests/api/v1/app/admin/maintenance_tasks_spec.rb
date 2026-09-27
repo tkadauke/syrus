@@ -55,6 +55,55 @@ RSpec.describe "API: /api/v1/app/admin/maintenance_tasks", type: :request do
     )
   end
 
+  it "includes checkpointed unresolved landing details on the task detail payload" do
+    admin = Factories.user
+    task = maintenance_task(
+      definition_key: "landed_commits_backfill",
+      task_key: "spec:landed-commits",
+      title: "Backfill landed commit records",
+      summary: "Records historical landed commits.",
+      checkpoint: {
+        "unresolved_repositories" => [
+          {
+            "id" => 42,
+            "slug" => "acme/widgets",
+            "errors" => 1,
+            "failure_details" => [
+              {
+                "repository_slug" => "acme/widgets",
+                "landable_type" => "Job",
+                "landable_id" => 123,
+                "landable_slug" => "JOB-123",
+                "exception_class" => "ArgumentError",
+                "message" => "expected 1 commit"
+              }
+            ],
+            "failure_details_omitted" => 0
+          }
+        ]
+      }
+    )
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/maintenance_tasks/#{task.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("checkpoint", "unresolved_repositories")).to contain_exactly(
+      hash_including(
+        "slug" => "acme/widgets",
+        "errors" => 1,
+        "failure_details" => [
+          hash_including(
+            "landable_slug" => "JOB-123",
+            "exception_class" => "ArgumentError",
+            "message" => "expected 1 commit"
+          )
+        ]
+      )
+    )
+  end
+
   it "returns the index with shared table pagination and sorting metadata" do
     admin = Factories.user
     old_task = maintenance_task(title: "Old task", updated_at: 2.days.ago)

@@ -29,7 +29,38 @@ module Jobs
   # LandedCommit rows. A pr_commits/compare failure or a git-history mismatch
   # for one Job/landing is logged and skipped rather than aborting the run.
   class LandedCommitsBackfill
-    Result = Struct.new(:checked, :recorded, :commits_recorded, :skipped, :errors, keyword_init: true)
+    Failure = Data.define(:repository_slug, :landable_type, :landable_id, :landable_slug, :exception_class, :message) do
+      MAX_MESSAGE_LENGTH = 240
+
+      def self.build(repository:, landable:, exception:)
+        new(
+          repository_slug: repository.slug,
+          landable_type: landable.class.name,
+          landable_id: landable.id,
+          landable_slug: landable.respond_to?(:slug) ? landable.slug : nil,
+          exception_class: exception.class.name,
+          message: exception.message.to_s.truncate(MAX_MESSAGE_LENGTH, omission: "...")
+        )
+      end
+
+      def to_h
+        {
+          "repository_slug" => repository_slug,
+          "landable_type" => landable_type,
+          "landable_id" => landable_id,
+          "landable_slug" => landable_slug,
+          "exception_class" => exception_class,
+          "message" => message
+        }.compact
+      end
+    end
+
+    Result = Struct.new(:checked, :recorded, :commits_recorded, :skipped, :errors, :failures, keyword_init: true) do
+      def initialize(**)
+        super
+        self.failures ||= []
+      end
+    end
 
     SOFT_FAIL_ERRORS = [ Octokit::Error, GitRunner::GitError, ArgumentError ].freeze
 
@@ -82,6 +113,7 @@ module Jobs
           record_regular_job!(job, dry_run: dry_run, result: result)
         rescue *SOFT_FAIL_ERRORS => e
           result.errors += 1
+          result.failures << Failure.build(repository: repository, landable: job, exception: e)
           logger.warn("[LandedCommitsBackfill] failed #{job.slug}: #{e.class}: #{e.message}")
         end
       end
@@ -129,6 +161,7 @@ module Jobs
           record_merge_train!(train, dry_run: dry_run, result: result)
         rescue *SOFT_FAIL_ERRORS => e
           result.errors += 1
+          result.failures << Failure.build(repository: repository, landable: train, exception: e)
           logger.warn("[LandedCommitsBackfill] failed merge-train ##{train.id}: #{e.class}: #{e.message}")
         end
       end

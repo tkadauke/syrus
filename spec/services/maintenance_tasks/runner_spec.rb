@@ -217,7 +217,23 @@ RSpec.describe MaintenanceTasks::Runner do
 
     allow(MaintenanceTasks::Registry).to receive(:fetch).with(definition.key).and_return(definition)
 
-    service_result = Jobs::LandedCommitsBackfill::Result.new(checked: 1, recorded: 0, commits_recorded: 0, skipped: 0, errors: 1)
+    service_result = Jobs::LandedCommitsBackfill::Result.new(
+      checked: 1,
+      recorded: 0,
+      commits_recorded: 0,
+      skipped: 0,
+      errors: 1,
+      failures: [
+        {
+          "repository_slug" => repository.slug,
+          "landable_type" => "Job",
+          "landable_id" => 305,
+          "landable_slug" => "JOB-305",
+          "exception_class" => "ArgumentError",
+          "message" => "expected 1 commit"
+        }
+      ]
+    )
     retry_result = Jobs::LandedCommitsBackfill::Result.new(checked: 1, recorded: 1, commits_recorded: 1, skipped: 0, errors: 0)
     service = instance_double(Jobs::LandedCommitsBackfill, call: service_result)
     retry_service = instance_double(Jobs::LandedCommitsBackfill, call: retry_result)
@@ -226,8 +242,24 @@ RSpec.describe MaintenanceTasks::Runner do
     described_class.new(task).call
     expect(task.reload).to have_attributes(state: "running", completed_units: 1, failed_units: 1)
     expect(task.checkpoint["unresolved_repositories"]).to contain_exactly(
-      hash_including("id" => repository.id, "slug" => repository.slug, "errors" => 1)
+      hash_including(
+        "id" => repository.id,
+        "slug" => repository.slug,
+        "errors" => 1,
+        "failure_details" => [
+          hash_including("landable_slug" => "JOB-305", "exception_class" => "ArgumentError")
+        ]
+      )
     )
+    expect(task.events.last.metadata["unresolved_repositories"]).to contain_exactly(
+      hash_including(
+        "slug" => repository.slug,
+        "failure_details" => [
+          hash_including("landable_slug" => "JOB-305", "message" => "expected 1 commit")
+        ]
+      )
+    )
+    expect(task.events.last.metadata["elapsed_seconds"]).to be_present
 
     expect { described_class.new(task).call }
       .to raise_error(MaintenanceTasks::Definitions::LandedCommitsBackfill::UnresolvedLandingsError)
