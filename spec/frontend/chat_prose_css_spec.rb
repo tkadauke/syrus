@@ -16,4 +16,14 @@ RSpec.describe "chat prose CSS" do
     expect(css).to include("--color-surface-raised")
     expect(css).not_to include(".dark .chat-prose:not(.chat-prose-invert) pre")
   end
+
+  it "lets markdown tables fill prose width before horizontal scrolling" do
+    table_rule = css[/\.chat-prose table \{[^}]+\}/]
+    wrapper_rule = css[/\.chat-prose-table-wrap \{[^}]+\}/]
+
+    expect(table_rule).to include("width: 100%")
+    expect(table_rule).to include("max-width: 100%")
+    expect(table_rule).not_to include("width: max-content")
+    expect(wrapper_rule).to include("overflow-x: auto")
+  end
 end
