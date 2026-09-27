@@ -41,18 +41,18 @@ export function Dropdown<T extends string>({
   const currentLabel = options.find((option) => option.value === value)?.label ?? placeholder ?? value
 
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block min-w-0 max-w-full">
       <Button
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={ariaLabel}
-        className="!justify-start gap-1.5"
+        className="max-w-full !justify-start gap-1.5"
         onClick={() => setOpen((isOpen) => !isOpen)}
         ref={buttonRef}
         size="sm"
         variant="secondary"
       >
-        <span className="max-w-[12rem] truncate">{currentLabel}</span>
+        <span className="min-w-0 max-w-[12rem] truncate">{currentLabel}</span>
         <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M6 9l6 6 6-6" />
         </svg>
