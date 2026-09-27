@@ -92,12 +92,13 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(chat_names).to include(
       "list_design_docs",
       "read_design_doc",
+      "list_design_doc_sections",
       "propose_design_doc",
       "comment_on_design_doc",
       "suggest_design_doc_change",
       "delete_design_doc"
     )
-    expect(workflow_names).to contain_exactly("list_design_docs", "read_design_doc")
+    expect(workflow_names).to contain_exactly("list_design_docs", "read_design_doc", "list_design_doc_sections")
   end
 
   it "archives a fresh empty v1 design doc immediately without physical deletion" do
@@ -266,6 +267,90 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(suggest.dig(:input_schema, :properties, :occurrence_index, :description)).to include("1-based occurrence")
     expect(suggest.dig(:input_schema, :required)).to include("base_version_number")
     expect(suggest.dig(:input_schema, :required)).not_to include("start_offset", "end_offset")
+  end
+
+  it "returns a heading outline with offsets and nested section ranges" do
+    markdown = <<~MARKDOWN
+      # Overview
+
+      Intro text.
+
+      ## Goals
+
+      Goal text.
+
+      ### Details
+
+      Detail text.
+
+      ## Risks
+
+      Risk text.
+
+      # Appendix
+
+      Tail text.
+    MARKDOWN
+    doc = create_design_doc(markdown: markdown)
+
+    response = call_tool(chat_server, "list_design_doc_sections", doc_ref: doc.display_id)
+    payload = response_payload(response)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload).to include(read_only: false, reference_format: doc.display_id)
+    expect(payload.dig(:design_doc, :doc_ref)).to eq(doc.display_id)
+    expect(payload.fetch(:sections)).to eq([
+      { text: "Overview", level: 1, start_offset: markdown.index("# Overview"), end_offset: markdown.index("# Appendix") },
+      { text: "Goals", level: 2, start_offset: markdown.index("## Goals"), end_offset: markdown.index("## Risks") },
+      { text: "Details", level: 3, start_offset: markdown.index("### Details"), end_offset: markdown.index("## Risks") },
+      { text: "Risks", level: 2, start_offset: markdown.index("## Risks"), end_offset: markdown.index("# Appendix") },
+      { text: "Appendix", level: 1, start_offset: markdown.index("# Appendix"), end_offset: markdown.length }
+    ])
+  end
+
+  it "returns an empty heading outline for an empty document" do
+    doc = create_design_doc(markdown: "Temporary body")
+    doc.current_version.update_columns(markdown: "")
+    doc.update_columns(markdown: "")
+
+    response = call_tool(chat_server, "list_design_doc_sections", doc_ref: doc.display_id)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(response_payload(response).fetch(:sections)).to eq([])
+  end
+
+  it "ignores heading-like text inside fenced code blocks" do
+    markdown = <<~MARKDOWN
+      # Visible
+
+      ````markdown
+      ```ruby
+      # not a heading
+      ## also not a heading
+      ```
+      ## still not a heading
+      ````
+
+      ## Real section
+
+      Text.
+    MARKDOWN
+    doc = create_design_doc(markdown: markdown)
+
+    response = call_tool(chat_server, "list_design_doc_sections", doc_ref: doc.display_id)
+    sections = response_payload(response).fetch(:sections)
+
+    expect(sections.pluck(:text)).to eq([ "Visible", "Real section" ])
+    expect(sections.first).to include(
+      level: 1,
+      start_offset: markdown.index("# Visible"),
+      end_offset: markdown.length
+    )
+    expect(sections.second).to include(
+      level: 2,
+      start_offset: markdown.index("## Real section"),
+      end_offset: markdown.length
+    )
   end
 
   it "scopes workflow reads to design docs visible through the run repository" do
@@ -709,7 +794,7 @@ RSpec.describe "DesignDocs MCP tool sets" do
 
     run = workflow_run
     server = workflow_server(run)
-    expect(tool_names(server)).to contain_exactly("list_design_docs", "read_design_doc")
+    expect(tool_names(server)).to contain_exactly("list_design_docs", "read_design_doc", "list_design_doc_sections")
 
     read_response = call_tool(server, "read_design_doc", doc_ref: doc.display_id)
     expect(response_payload(read_response).dig(:design_doc, :rendered_markdown)).to eq("Alpha beta delta")
