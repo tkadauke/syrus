@@ -13,8 +13,7 @@ module OperatorBriefing
         {
           kind: "briefing_dive", template: "OperatorBriefing::DiveWorkflow",
           label: "Briefing dive", style: "bg-cyan-100 text-cyan-700",
-          retry_label: nil, feedback_kind: nil, runtime_role: "child",
-          owns_job_lifecycle: true
+          retry_label: nil, feedback_kind: nil, runtime_role: "child"
         }
       ]
     end
