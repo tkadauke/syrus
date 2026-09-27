@@ -1693,6 +1693,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           ) : null}
           {queuedMessages.length > 0 ? <QueuedMessages chatId={chatId} messages={queuedMessages} queryKey={queryKey} /> : null}
           <ScratchpadPanel
+            agentActive={agentActive}
             chatId={chatId}
             enqueuePath={payload.paths.app_enqueue_message_path}
             items={payload.scratchpad_items || []}
