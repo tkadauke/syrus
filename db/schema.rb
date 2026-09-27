@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_27_120950) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_130000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2011,6 +2011,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_120950) do
     t.index ["workflow_id"], name: "index_operational_log_events_on_workflow_id"
   end
 
+  create_table "operator_briefing_briefings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "job_id", null: false
+    t.integer "owner_user_id", null: false
+    t.integer "repository_id", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "window_end"
+    t.datetime "window_start"
+    t.index ["job_id"], name: "index_operator_briefing_briefings_on_job_id", unique: true
+    t.index ["owner_user_id", "repository_id", "created_at"], name: "idx_operator_briefings_owner_repo_created"
+    t.index ["owner_user_id"], name: "index_operator_briefing_briefings_on_owner_user_id"
+    t.index ["repository_id"], name: "index_operator_briefing_briefings_on_repository_id"
+  end
+
   create_table "operator_briefing_items", force: :cascade do |t|
     t.bigint "briefing_id"
     t.datetime "created_at", null: false
@@ -2045,6 +2059,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_120950) do
     t.index ["workflow_id", "review_kind", "iteration", "run_id"], name: "idx_operator_briefing_review_findings_identity", unique: true
     t.index ["workflow_id", "review_kind", "verdict", "overridden"], name: "idx_operator_briefing_review_findings_lookup"
     t.index ["workflow_id"], name: "index_operator_briefing_review_findings_on_workflow_id"
+  end
+
+  create_table "operator_briefing_revisions", force: :cascade do |t|
+    t.integer "briefing_id", null: false
+    t.json "content_blocks"
+    t.datetime "created_at", null: false
+    t.datetime "generated_at", null: false
+    t.integer "generation_run_id"
+    t.integer "revision_number", null: false
+    t.datetime "updated_at", null: false
+    t.index ["briefing_id", "revision_number"], name: "idx_operator_briefing_revisions_number", unique: true
+    t.index ["briefing_id"], name: "index_operator_briefing_revisions_on_briefing_id"
+    t.index ["generation_run_id"], name: "index_operator_briefing_revisions_on_generation_run_id"
+  end
+
+  create_table "operator_briefing_settings", force: :cascade do |t|
+    t.string "agent_provider"
+    t.boolean "budget_check_enabled", default: false, null: false
+    t.string "cadence_expression", null: false
+    t.datetime "created_at", null: false
+    t.datetime "last_scheduled_at"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["user_id"], name: "index_operator_briefing_settings_on_user_id", unique: true
+  end
+
+  create_table "operator_briefing_subscriptions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.integer "repository_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["repository_id"], name: "index_operator_briefing_subscriptions_on_repository_id"
+    t.index ["user_id", "repository_id"], name: "idx_operator_briefing_subscriptions_identity", unique: true
+    t.index ["user_id"], name: "index_operator_briefing_subscriptions_on_user_id"
   end
 
   create_table "operator_briefing_workflow_notable_changes", force: :cascade do |t|

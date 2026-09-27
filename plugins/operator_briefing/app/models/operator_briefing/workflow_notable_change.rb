@@ -4,9 +4,9 @@ module OperatorBriefing
 
     SEVERITIES = OperatorBriefing::SEVERITIES
 
-    belongs_to :workflow
-    belongs_to :job
-    belongs_to :repository
+    belongs_to :workflow, class_name: "::Workflow"
+    belongs_to :job, class_name: "::Job"
+    belongs_to :repository, class_name: "::Repository"
 
     validates :detector_key, :fact_key, :severity, :summary, presence: true
     validates :severity, inclusion: { in: SEVERITIES }

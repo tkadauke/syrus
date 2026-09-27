@@ -1,18 +1,46 @@
 # Operator Briefing
 
 Operator Briefing is bundled as a disabled-by-default observability plugin.
-This initial phase is data-layer only: it adds no `/briefing` page and no
-operator workflow yet.
+When enabled, it adds a top-level `/briefing` sidebar page and a
+per-repository `briefing_generate` infrastructure Job kind.
 
-When enabled, the plugin owns three queryable tables:
+The `/briefing` page is scoped to the signed-in operator. It seeds a
+`BriefingSubscription` row, enabled by default, for every repository visible to
+that operator through repository or team membership. The page renders one
+underline-tab per enabled repository, plus subscription toggles for opting
+repositories in or out.
+
+The generation pipeline creates one `Briefing` wrapper per
+`briefing_generate` Job and one `BriefingRevision` per generation Workflow.
+The current live/archived state is the Job state: live briefings are open
+Jobs, and archived briefings are closed Jobs. Creating a new briefing for the
+same operator and repository closes any previous live briefing with
+`briefing_superseded`, freezing its latest revision into history.
+
+Scheduled generation is activity-gated. A scheduled pass only creates a new
+briefing when Jobs, Workflows, notable changes, or promoted review findings
+exist for the repository after that repository's last closed briefing. Manual
+regeneration bypasses this activity gate. `BriefingSettings` stores each
+operator's cron-like cadence, budget-gating flag, and optional agent provider
+override. Budget-gating is best-effort for now: Syrus tracks spend, but it does
+not yet expose a remaining-budget allowance primitive for the plugin to compare
+against, so the gate currently records that no hard allowance is available and
+fails open.
+
+The plugin also owns these queryable data-layer tables:
 
 - `operator_briefing_review_findings` promotes adversarial and visual review
   verdicts out of Workflow artifact JSON while keeping the artifacts for
   existing Job detail rendering.
 - `operator_briefing_workflow_notable_changes` stores facts returned by the
   `:notable_change_detector` extension point.
-- `operator_briefing_items` is the future briefing item table. `briefing_id`
-  is intentionally nullable until the Briefing row ships.
+- `operator_briefing_briefings` wraps the per-repository `briefing_generate` Job.
+- `operator_briefing_revisions` stores typed content blocks. This phase
+  renders `narrative` and `link_card` blocks only.
+- `operator_briefing_items` stores notable items connected to a briefing.
+- `operator_briefing_subscriptions` stores per-operator repository opt-in.
+- `operator_briefing_settings` stores per-operator cadence and generation
+  settings.
 
 The deterministic detectors cover dependency lockfiles, schema and migration
 files, public API surfaces, deleted or weakened tests, overridden review

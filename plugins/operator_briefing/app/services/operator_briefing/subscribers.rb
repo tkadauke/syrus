@@ -10,7 +10,7 @@ module OperatorBriefing
     end
 
     def self.on_notable_changes_detected(event)
-      workflow = Workflow.find_by(id: event[:workflow_id])
+      workflow = ::Workflow.find_by(id: event[:workflow_id])
       return if workflow.nil?
 
       Array(event[:facts]).each do |fact|
@@ -19,7 +19,7 @@ module OperatorBriefing
     end
 
     def self.on_review_finding_recorded(event)
-      workflow = Workflow.find_by(id: event[:workflow_id])
+      workflow = ::Workflow.find_by(id: event[:workflow_id])
       return if workflow.nil?
 
       ReviewFinding.record!(

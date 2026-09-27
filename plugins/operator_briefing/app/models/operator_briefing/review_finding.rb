@@ -5,9 +5,9 @@ module OperatorBriefing
     REVIEW_KINDS = %w[adversarial visual].freeze
     VERDICTS = %w[needs_work approved skipped].freeze
 
-    belongs_to :workflow
-    belongs_to :step, optional: true
-    belongs_to :run, optional: true
+    belongs_to :workflow, class_name: "::Workflow"
+    belongs_to :step, class_name: "::Step", optional: true
+    belongs_to :run, class_name: "::Run", optional: true
 
     validates :review_kind, presence: true, inclusion: { in: REVIEW_KINDS }
     validates :verdict, presence: true, inclusion: { in: VERDICTS }
