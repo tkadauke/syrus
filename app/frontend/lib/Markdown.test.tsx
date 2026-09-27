@@ -66,7 +66,8 @@ describe("Markdown", () => {
     const table = wrapper?.querySelector("table")
 
     expect(wrapper).toBeInTheDocument()
-    expect(wrapper).toHaveClass("overflow-x-auto")
+    expect(wrapper).toHaveClass("chat-prose-table-wrap")
+    expect(wrapper).not.toHaveClass("overflow-x-auto")
     expect(table).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Surface" })).toBeInTheDocument()
     expect(screen.getByRole("cell", { name: "Dashboard Jobs" })).toBeInTheDocument()
