@@ -2,8 +2,8 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading } from "../components/Heading"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState, type ReactNode } from "react"
-import { Link, useLocation } from "react-router-dom"
+import { useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
@@ -287,6 +287,7 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
   // Agent Activity, and Design Docs use to keep smart folders reachable on
   // narrow viewports.
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const isMobile = useMediaQuery("(max-width: 767px)", false)
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT)
   const marginGutterRestore = usePageGutterRestoreClassName("margin")
@@ -385,33 +386,40 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
           ) : null}
           <div className={classes("flex flex-wrap items-start justify-between gap-3", marginGutterRestore)}>
             <RepositoryFilterBar payload={payload} pathname={pathname} search={search} />
-            <DataTableColumnMenu
-              columns={columns}
-              downLabel={t("repositories.column_down")}
-              menuId="repositories-columns-menu"
-              moveDownLabel={(title) => t("repositories.column_move_down", { title })}
-              moveUpLabel={(title) => t("repositories.column_move_up", { title })}
-              onChange={preferences.onChange}
-              order={preferences.order}
-              triggerAriaLabel={t("repositories.columns")}
-              triggerClassName="h-[var(--control-height-md)] w-[var(--control-height-md)]"
-              triggerSize="icon"
-              upLabel={t("repositories.column_up")}
-              visibleLabel={t("repositories.visible_columns")}
-            />
+            {!isMobile ? (
+              <DataTableColumnMenu
+                columns={columns}
+                downLabel={t("repositories.column_down")}
+                menuId="repositories-columns-menu"
+                moveDownLabel={(title) => t("repositories.column_move_down", { title })}
+                moveUpLabel={(title) => t("repositories.column_move_up", { title })}
+                onChange={preferences.onChange}
+                order={preferences.order}
+                triggerAriaLabel={t("repositories.columns")}
+                triggerClassName="h-[var(--control-height-md)] w-[var(--control-height-md)]"
+                triggerSize="icon"
+                upLabel={t("repositories.column_up")}
+                visibleLabel={t("repositories.visible_columns")}
+              />
+            ) : null}
           </div>
 
-          <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-            <RepositoryDataTable
-              columns={columns}
-              emptyMessage={emptyStateMessage(t, activeFolder)}
-              onReorder={preferences.onChange}
-              onSort={toggleSortColumn}
-              order={preferences.order}
-              repositories={combinedRepositories}
-              sortState={sortState}
-            />
-          </section>
+          {isMobile ? (
+            <RepositoryMobileList emptyMessage={emptyStateMessage(t, activeFolder)} prefix={prefix} repositories={combinedRepositories} />
+          ) : (
+            <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+              <RepositoryDataTable
+                columns={columns}
+                emptyMessage={emptyStateMessage(t, activeFolder)}
+                onReorder={preferences.onChange}
+                onSort={toggleSortColumn}
+                order={preferences.order}
+                prefix={prefix}
+                repositories={combinedRepositories}
+                sortState={sortState}
+              />
+            </section>
+          )}
         </div>
       )}
     </>
@@ -475,6 +483,7 @@ function RepositoryDataTable({
   onReorder,
   sortState,
   onSort,
+  prefix,
   emptyMessage
 }: {
   columns: DataTableColumnDef<RepositoryRow>[]
@@ -483,9 +492,32 @@ function RepositoryDataTable({
   onReorder: (nextOrder: string[]) => void
   sortState: SortState
   onSort: (column: SortColumn) => void
+  prefix: string
   emptyMessage: string
 }) {
+  const navigate = useNavigate()
   const colSpan = visibleDataTableColumns({ columns, order }).length
+
+  function openRepository(repository: RepositoryRow) {
+    navigate(withRoutePrefix(repository.repository_path, prefix))
+  }
+
+  function handleRowClick(event: MouseEvent<HTMLTableRowElement>, repository: RepositoryRow) {
+    const target = event.target
+    if (target instanceof HTMLElement && target.closest("a, button, input, select, textarea, [role='button']")) return
+
+    openRepository(repository)
+  }
+
+  function handleRowKeyDown(event: KeyboardEvent<HTMLTableRowElement>, repository: RepositoryRow) {
+    if (event.key !== "Enter" && event.key !== " ") return
+
+    const target = event.target
+    if (target instanceof HTMLElement && target.closest("a, button, input, select, textarea, [role='button']")) return
+
+    event.preventDefault()
+    openRepository(repository)
+  }
 
   return (
     <DataTable.Root>
@@ -504,13 +536,61 @@ function RepositoryDataTable({
           <DataTable.Empty colSpan={colSpan}>{emptyMessage}</DataTable.Empty>
         ) : (
           repositories.map((repository) => (
-            <DataTable.Row key={repository.id}>
+            <DataTable.Row
+              aria-label={repository.slug}
+              interactive
+              key={repository.id}
+              onClick={(event) => handleRowClick(event, repository)}
+              onKeyDown={(event) => handleRowKeyDown(event, repository)}
+              tabIndex={0}
+            >
               <DataTableColumnCells columns={columns} order={order} row={repository} />
             </DataTable.Row>
           ))
         )}
       </DataTable.Body>
     </DataTable.Root>
+  )
+}
+
+function RepositoryMobileList({ emptyMessage, prefix, repositories }: { emptyMessage: string; prefix: string; repositories: RepositoryRow[] }) {
+  const { t } = useT("settings")
+
+  if (repositories.length === 0) {
+    return (
+      <div className="md:hidden rounded border border-border bg-surface px-4 py-8 text-center text-[length:var(--text-body)] text-text-muted">
+        {emptyMessage}
+      </div>
+    )
+  }
+
+  return (
+    <div className="md:hidden divide-y divide-border rounded border border-border bg-surface">
+      {repositories.map((repository) => (
+        <Link
+          className={classes(
+            "block px-4 py-3 transition-colors hover:bg-surface-raised",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
+          )}
+          key={repository.id}
+          to={withRoutePrefix(repository.repository_path, prefix)}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <span className={classes("truncate font-mono text-[length:var(--text-body)] font-medium", "text-brand dark:text-brand-emphasis")}>
+              {repository.slug}
+            </span>
+            {repository.archived ? <TonePill tone="gray">{t("repositories.archived_badge")}</TonePill> : null}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[length:var(--text-caption)] text-text-muted">
+            <span>
+              <RelativeTimestamp value={repository.last_job_activity_at} />
+            </span>
+            <RepositoryHealthPill health={repository.main_health} />
+            <span className="truncate text-text-secondary">{repository.agent_provider_label}</span>
+          </div>
+        </Link>
+      ))}
+    </div>
   )
 }
 
