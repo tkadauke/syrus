@@ -8,7 +8,8 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 
 // Shared native <select> primitive, token-styled to match Input/Button.
 // Native <select> (rather than the toolbar button+listbox pattern) is the
-// right call here — see CLAUDE.md's "Toolbar dropdown controls" convention.
+// right call here — see the "Toolbar dropdown controls" convention in
+// docs/agent-guide/conventions.md.
 //
 // fullWidth defaults to true; pass fullWidth={false} for inline/compact
 // controls (e.g. a per-row role <select>) instead of appending "w-auto" at

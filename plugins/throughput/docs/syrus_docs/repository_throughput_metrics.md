@@ -344,7 +344,7 @@ Each bucket reports:
 
 All timestamps are UTC. Stored columns are UTC while MySQL's session
 `NOW()` is not, and conflating them has produced wrong readings before (see
-the repository-root `CLAUDE.md` "Things that bit us" notes) -- this endpoint
+the "Things that bit us" notes in `docs/agent-guide/gotchas-and-key-files.md`) -- this endpoint
 only ever emits `Time#iso8601` on UTC-stored `datetime` columns.
 
 Per-bucket resilience follows `Admin::JobStateSerializer`: a bucket that

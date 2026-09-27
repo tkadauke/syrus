@@ -11,8 +11,9 @@
 # Core-owned tables are declared inline below. A plugin that owns a prunable
 # table (e.g. metrics_dashboard) must NOT be hand-listed here — a core file
 # naming a plugin's model/job class would make that plugin undeletable in
-# practice (see CLAUDE.md's "core specs must not enumerate plugin-provided
-# things" rule and bin/plugin-boundary-audit). Instead the plugin implements
+# practice (see the "core specs must not enumerate plugin-provided things"
+# rule in docs/agent-guide/conventions.md and bin/plugin-boundary-audit).
+# Instead the plugin implements
 # the `:retention_policy` extension point (see Syrus::Plugin::RetentionPolicy)
 # and `.definitions` merges its contributions in on every read.
 class RetentionPolicyRegistry

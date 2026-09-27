@@ -50,7 +50,7 @@ RSpec.describe App::RepositoryFeatureRecommendations do
   it "does not recommend visual review when the repo explicitly enabled it" do
     # Regression: this must be resolved from the GitHub-fetched config, not
     # the repository's local bare clone (which the web tier can't see) — see
-    # "Deploy target" in CLAUDE.md ("Web pods don't need this volume").
+    # `docs/agent-guide/deployed-operations.md` "Deploy target" ("Web pods don't need this volume").
     stub_repo_files(%w[package.json])
     stub_syrus_yml("preview:\n  start: npm run dev\nvisual_review:\n  enabled: true\n")
 

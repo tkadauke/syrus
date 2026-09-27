@@ -23,7 +23,8 @@ module DesignTokens
 
     # Tailwind's default `blue` scale is remapped onto terracotta so legacy
     # `*-blue-*` utilities render the brand accent too (see
-    # config/tailwind.config.js and CLAUDE.md's "Brand palette" convention).
+    # config/tailwind.config.js and the "Brand palette" convention in
+    # docs/agent-guide/conventions.md).
     def self.desktop_css
       scale_values = scale
       lines = [

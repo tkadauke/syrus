@@ -6,7 +6,7 @@ RSpec.describe App::DeployAvailability do
 
   # `.syrus.yml` is read through RepositoryContent (RepoDefaultBranchSyrusYml),
   # never the repository's local bare clone -- web pods don't mount the
-  # worker's on-disk clones (see "Deploy target" in CLAUDE.md). The fake
+  # worker's on-disk clones (see `docs/agent-guide/deployed-operations.md` "Deploy target"). The fake
   # content provider stands in for whichever provider plugin serves the repo.
   def stub_syrus_yml(content)
     stub_repository_content(repo, files: content ? { SyrusYml::CONFIG_FILE => content } : {})

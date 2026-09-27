@@ -182,7 +182,7 @@ RSpec.describe AutoRetryAttempt, type: :model do
     # -- every skip categorized here into "failure_classification_changed"
     # rather than counting against the retry budget, producing ~460,000
     # attempts at two per second before anyone noticed (see
-    # CLAUDE.md "Failure resilience"). A rate spike on this exact category is
+    # docs/agent-guide/architecture-details.md "Failure resilience"). A rate spike on this exact category is
     # the direct instrument for that regression recurring.
     it "categorizes the historically-buggy 'failure classification changed' skip into its own budget-exempt category" do
       reason = "failure classification changed from turn_failed to worker_died before retry"

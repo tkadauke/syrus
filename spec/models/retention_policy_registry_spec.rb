@@ -5,7 +5,7 @@ RSpec.describe RetentionPolicyRegistry do
   # must not depend on which plugins happen to be installed, or a bundled
   # plugin that contributes a :retention_policy provider (see
   # plugins/metrics_dashboard) becomes undeletable in practice. See
-  # config/syrus_docs/plugins.md and CLAUDE.md's plugin-boundary rule.
+  # config/syrus_docs/plugins.md and docs/agent-guide/conventions.md plugin-boundary rule.
   it "resolves every core-declared model to a real, loadable class" do
     described_class::CORE_DEFINITIONS.each do |definition|
       expect(definition.model_class).to be_a(Class)

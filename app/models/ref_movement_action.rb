@@ -10,7 +10,8 @@
 #
 # `RefMovementActions::Base.for(action_name)` holds the actual per-action
 # dispatch logic (a class per action, not a `case action_name` chain — see
-# CLAUDE.md's enum-driven-behavior convention); this model is the record,
+# the enum-driven-behavior convention in docs/agent-guide/conventions.md);
+# this model is the record,
 # not the dispatcher.
 class RefMovementAction < ApplicationRecord
   STATES = %w[dispatched blocked].freeze

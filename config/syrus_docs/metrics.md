@@ -292,7 +292,7 @@ configured -- the same "publish a known key even when it has nothing to
 report" instinct as `Metrics::ProductUsage.preset_all!`, so a closed provider
 reads as an explicit `0` rather than an absent series. `ProviderCircuitBreaker`
 already suppresses automatic retries and CI repair during provider-wide
-transient outages (see `CLAUDE.md` "Failure resilience"). This gauge does not
+transient outages (see "Failure resilience" in `docs/agent-guide/architecture-details.md`). This gauge does not
 implement the classic three-state circuit breaker (closed/half-open/open):
 `ProviderCircuitBreaker` itself only distinguishes closed and open, and splits
 open into an ordinary transient-failure open and a longer-lived usage-limit
@@ -331,7 +331,7 @@ rate-limit banner.
 `Repository#main_health_broken?` is true. `StepDispatcher` pauses every
 workflow on the instance, including landing, while any repository's main
 branch health is broken (`StepDispatcher::MAIN_HEALTH_BLOCK_REASON`, see
-`CLAUDE.md` "Main-branch health & repair") -- this gauge is what makes that
+"Main-branch health & repair" in `docs/agent-guide/architecture-details.md`) -- this gauge is what makes that
 instance-wide stall condition visible on the dashboard instead of requiring
 someone to notice landing has gone quiet. It reports only a count, never
 repository names or ids, per the cardinality rule below.
@@ -378,7 +378,7 @@ pruning task.
 **`auto_retry_attempts_total`** counts every settled `AutoRetryAttempt` --
 performed (`skip_reason="none"`) or skipped -- the same cursor-over-`updated_at`,
 cache-mediated counter shape `Metrics::LandingSampler` uses for `runs_total`.
-`CLAUDE.md`'s "Failure resilience" section documents production hitting an
+The "Failure resilience" section in `docs/agent-guide/architecture-details.md` documents production hitting an
 unbounded auto-retry accumulation bug twice: a permanent skip condition
 (`"failure classification changed"`, written for a verdict that had not
 changed) sat in `AutoRetryAttempt::BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES`, so

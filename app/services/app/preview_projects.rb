@@ -7,7 +7,7 @@ module App
   # read through RepositoryContent rather than the local bare clone
   # (`RepositoryBareClone`): this is read from web-tier request paths
   # (JobPreviewController, TargetGraphsController), and web pods don't mount
-  # the worker's on-disk bare clone (see "Deploy target" in CLAUDE.md —
+  # the worker's on-disk bare clone (see `docs/agent-guide/deployed-operations.md` "Deploy target" —
   # "Web pods don't need this volume"). Reading local disk here always saw
   # an absent clone and degraded to "no preview projects configured" for
   # every repository. Mirrors the fix RepositoryFeatureRecommendations

@@ -213,7 +213,7 @@ RSpec.describe Metrics::MaintenanceSampler do
 
     # The regression class this counter exists to guard against: a permanent
     # skip condition wrongly treated as budget-exempt produced ~460,000
-    # attempts at two per second (see CLAUDE.md "Failure resilience"). A rate
+    # attempts at two per second (see docs/agent-guide/architecture-details.md "Failure resilience"). A rate
     # panel on this counter, split by category, is the direct instrument --
     # this asserts the not-retryable path is counted into its own distinct
     # category rather than folding into a budget-exempt bucket.

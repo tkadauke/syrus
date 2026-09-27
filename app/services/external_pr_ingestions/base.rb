@@ -3,7 +3,8 @@
 # classifies first, then dispatches to `.for(classification).ingest!` — a
 # class hierarchy instead of a `case classification` chain, so a new
 # classification only needs a new subclass, not a new branch scattered
-# through the poller (see CLAUDE.md's enum-driven-behavior convention).
+# through the poller (see the enum-driven-behavior convention in
+# docs/agent-guide/conventions.md).
 #
 # `#ingest!` returns the `Job` it created or attached to, or `nil` when the
 # classification deliberately creates no review Job

@@ -353,7 +353,7 @@ module App
     # than from the repository's local bare clone (`RepositoryBareClone`):
     # this service is called from a repository-detail page load, which runs
     # on the web tier, and the web tier does not mount the worker's on-disk
-    # bare clone (see "Deploy target" in CLAUDE.md — "Web pods don't need
+    # bare clone (see `docs/agent-guide/deployed-operations.md` "Deploy target" — "Web pods don't need
     # this volume"). Reading local disk here silently sees "no config" for
     # every repo and makes every "already configured" check below always
     # false, so already-onboarded repos keep recommending features they use.

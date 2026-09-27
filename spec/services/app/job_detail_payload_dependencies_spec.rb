@@ -156,7 +156,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     # `.syrus.yml` is read through RepositoryContent (RepoDefaultBranchSyrusYml) rather
     # than the local bare clone: job-detail payloads are built on the web
     # tier, and web pods don't mount the worker's on-disk bare clone (see
-    # "Deploy target" in CLAUDE.md — "Web pods don't need this volume"). No
+    # `docs/agent-guide/deployed-operations.md` "Deploy target" — "Web pods don't need this volume"). No
     # $SYRUS_DATA_ROOT clone is created anywhere in this describe block,
     # simulating that environment; `.syrus.yml` comes from the fake content
     # provider.
@@ -260,7 +260,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     # `.syrus.yml` is read through RepositoryContent (RepoDefaultBranchSyrusYml) rather
     # than the local bare clone: job-detail payloads are built on the web
     # tier, and web pods don't mount the worker's on-disk bare clone (see
-    # "Deploy target" in CLAUDE.md — "Web pods don't need this volume"). No
+    # `docs/agent-guide/deployed-operations.md` "Deploy target" — "Web pods don't need this volume"). No
     # $SYRUS_DATA_ROOT clone is created anywhere in this describe block,
     # simulating that environment; `.syrus.yml` comes from the fake content
     # provider.

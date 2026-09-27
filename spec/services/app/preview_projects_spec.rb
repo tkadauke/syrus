@@ -10,7 +10,7 @@ RSpec.describe App::PreviewProjects do
   # through RepositoryContent rather than the repository's local bare clone
   # (`RepositoryBareClone`): PreviewProjects is read from web-tier request
   # paths (JobPreviewController, TargetGraphsController), and web pods don't
-  # mount the worker's on-disk bare clone (see "Deploy target" in CLAUDE.md
+  # mount the worker's on-disk bare clone (see `docs/agent-guide/deployed-operations.md` "Deploy target"
   # — "Web pods don't need this volume"). No $SYRUS_DATA_ROOT clone is
   # created anywhere in this spec, simulating that environment.
   def described(job)

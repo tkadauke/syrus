@@ -356,7 +356,7 @@ record.dispatched?  # => true once a Workflow launched
 record.blocked?     # => true when config/eligibility blocked it; check record.blocked_reason
 ```
 
-`RefMovementActions::Base.for(action_name)` (`app/services/ref_movement_actions/`) is a class-per-action dispatch hierarchy — not a `case action_name` chain, per CLAUDE.md's enum-driven-behavior convention — mirroring `ExternalPrIngestions::Base.for(classification)`. `RefMovementActions::Unsupported` handles any action name outside the two built-ins (or one with no `.syrus.yml` config at all), always producing a `blocked` row rather than raising.
+`RefMovementActions::Base.for(action_name)` (`app/services/ref_movement_actions/`) is a class-per-action dispatch hierarchy — not a `case action_name` chain, per the enum-driven-behavior convention in `docs/agent-guide/conventions.md` — mirroring `ExternalPrIngestions::Base.for(classification)`. `RefMovementActions::Unsupported` handles any action name outside the two built-ins (or one with no `.syrus.yml` config at all), always producing a `blocked` row rather than raising.
 
 ### `send_job_upstream`
 

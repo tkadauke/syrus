@@ -5,7 +5,8 @@ module Syrus
     # RetentionPolicyRegistry::Definition entries — keeping core's
     # RetentionPolicyRegistry free of any plugin-specific class names, so a
     # plugin stays physically removable (see bin/plugin-boundary-audit and
-    # CLAUDE.md's "core specs must not enumerate plugin-provided things" rule)
+    # the "core specs must not enumerate plugin-provided things" rule in
+    # docs/agent-guide/conventions.md)
     # instead of an undeletable core registry entry.
     #
     # Implementations must define:

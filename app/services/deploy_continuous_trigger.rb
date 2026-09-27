@@ -5,7 +5,7 @@
 # `.syrus.yml` from its default branch through GitHub (the same
 # App::DeployAvailability the manual-deploy gate uses), since this can run
 # on the web tier and web pods don't mount the worker's on-disk bare clone
-# (see "Deploy target" in CLAUDE.md — "Web pods don't need this volume").
+# (see `docs/agent-guide/deployed-operations.md` "Deploy target" — "Web pods don't need this volume").
 #
 # All the actual debounce/concurrency/throttle decisions live in
 # MaybeDeployJob; this class only decides whether to enqueue one at all.

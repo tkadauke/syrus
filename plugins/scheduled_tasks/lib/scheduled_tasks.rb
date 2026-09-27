@@ -53,8 +53,8 @@ module ScheduledTasks
     route :post,   "/api/v1/app/scheduled_tasks/:id/fire_now", to: "api/v1/app/scheduled_tasks#fire_now"
 
     # Bearer-token admin API — instance-wide inspection/pause/unpause/fire,
-    # for operators without a browser session (see CLAUDE.md's admin API
-    # guidance). Authoring stays app-API/SPA-only.
+    # for operators without a browser session (see the admin API guidance in
+    # docs/agent-guide/deployed-operations.md). Authoring stays app-API/SPA-only.
     route :get,    "/api/v1/admin/scheduled_tasks", to: "api/v1/admin/scheduled_tasks#index"
     route :get,    "/api/v1/admin/scheduled_tasks/:id", to: "api/v1/admin/scheduled_tasks#show"
     route :post,   "/api/v1/admin/scheduled_tasks/:id/pause", to: "api/v1/admin/scheduled_tasks#pause"

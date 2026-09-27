@@ -51,8 +51,8 @@ module Metrics
 
     # Repositories whose default branch is currently graded broken --
     # StepDispatcher pauses every workflow on the instance, including
-    # landing, while any of these exist (see CLAUDE.md "Main-branch health &
-    # repair"). Reuses Repository#main_health_broken? itself, selecting only
+    # landing, while any of these exist (see "Main-branch health & repair" in
+    # docs/agent-guide/architecture-details.md). Reuses Repository#main_health_broken? itself, selecting only
     # the columns that predicate reads, rather than re-deriving the
     # ci_health/grader_health/enabled logic here where it could drift from
     # the real definition.

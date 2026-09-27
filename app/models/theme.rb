@@ -3,8 +3,9 @@ class Theme < ApplicationRecord
   # app/assets/tailwind/application.css. `on-brand` is the 13th token: text
   # painted on top of `brand` (e.g. Button's primary variant) needs its own
   # color because Ocean/Forest's dark-mode `brand` is light enough that
-  # hardcoded white text fails contrast (see CLAUDE.md Job history / the
-  # theme CSS generator for the resolved values).
+  # hardcoded white text fails contrast (see Job history in
+  # docs/agent-guide/conventions.md / the theme CSS generator for the
+  # resolved values).
   TOKEN_KEYS = %w[
     brand brand-emphasis surface surface-raised border text-primary
     text-secondary success warning danger info neutral on-brand
