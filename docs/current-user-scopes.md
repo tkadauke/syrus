@@ -210,6 +210,11 @@ per-user/private:
   - plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb
   - plugins/git_history/app/controllers/api/v1/app/git_history_controller.rb
   - plugins/github_source/app/controllers/api/v1/app/repository_issues_controller.rb
+  - plugins/operator_briefing/app/controllers/api/v1/app/operator_briefing/briefings_controller.rb
+  - plugins/operator_briefing/app/controllers/api/v1/app/operator_briefing/feedbacks_controller.rb
+  - plugins/operator_briefing/app/controllers/api/v1/app/operator_briefing/source_preferences_controller.rb
+  - plugins/operator_briefing/app/controllers/api/v1/app/operator_briefing/subscriptions_controller.rb
+  - plugins/operator_briefing/app/controllers/api/v1/app/operator_briefing/topics_controller.rb
   - plugins/spending_insights/app/controllers/api/v1/app/insights/spending_controller.rb
   - plugins/throughput/app/controllers/api/v1/app/repository_throughput_controller.rb
   - plugins/whiteboard/app/controllers/api/v1/app/chat_whiteboards_controller.rb
