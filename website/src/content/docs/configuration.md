@@ -400,13 +400,16 @@ use `mode: operator` copy instead of automatic-unavailability copy. Chat
 provider failover is out of scope: this policy does not rewrite
 `ChatSession#chat_provider` or enqueue chat-provider switch jobs.
 
-Budget *gating* is on the
-[roadmap](https://github.com/tkadauke/syrus/blob/main/ROADMAP.md#spend-budgets-and-thresholds):
-Syrus already records per-run cost and token metadata where the provider
-reports it and surfaces it in Spending Insights, but a new Run isn't yet
-held back when a per-repo/per-account dollar budget is exceeded. Until that
-ships, use provider-side limits and the per-user max-turns setting as the
-active safety rails.
+Syrus ships with spend protections enabled for fresh instances:
+`AppSetting.user_daily_spend_budget_usd` defaults to `10`, so a user's
+workflow Runs and chat turns are held once their daily USD total reaches
+that ceiling. The gate defers queued work until the next day instead of
+failing Jobs, and setting the value to `0` explicitly disables the cap.
+Run accounting uses provider-reported `Run#cost_usd` when available and
+falls back to Syrus-side token pricing when a supported provider/model
+reports token usage without a dollar cost. Repo-level and Epic-level dollar
+budgets are still roadmap work; use provider-side limits and the per-user
+max-turns setting as additional safety rails.
 
 ## Per-Repository Settings
 
