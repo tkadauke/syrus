@@ -180,5 +180,9 @@
   "tool_content": "Content",
   "tool_design_doc_count_one": "{{count}} design doc",
   "tool_design_doc_count_other": "{{count}} design docs",
+  "tool_section_count_one": "{{doc}}: {{count}} section",
+  "tool_section_count_other": "{{doc}}: {{count}} sections",
+  "tool_sections": "Sections",
+  "tool_no_sections": "No headings found.",
   "tool_untitled_design_doc": "Untitled design doc"
 }

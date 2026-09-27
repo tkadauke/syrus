@@ -30,12 +30,14 @@ describe("pluginToolCards", () => {
     // plugins/design_docs/app/frontend/tool_cards/ — this file (and the rest
     // of core) never names "design_docs" or imports that module directly.
     expect(pluginToolCardRendererKeys()).toContain("list_design_docs")
+    expect(pluginToolCardRendererKeys()).toContain("list_design_doc_sections")
     expect(pluginToolCardRendererKeys()).toEqual(expect.arrayContaining([
       "compare_test_runtime",
       "read_job_test_results",
       "read_test_insight"
     ]))
     expect(pluginToolCardRendererFor("list_design_docs")).not.toBeNull()
+    expect(pluginToolCardRendererFor("list_design_doc_sections")).not.toBeNull()
   })
 
   it("discovers Browser plugin cards by directory convention", () => {

@@ -3,6 +3,7 @@ module DesignDocs
     TOOL_CLASSES = [
       ListDesignDocsTool,
       ReadDesignDocTool,
+      ListDesignDocSectionsTool,
       ProposeDesignDocTool,
       CommentOnDesignDocTool,
       SuggestDesignDocChangeTool,

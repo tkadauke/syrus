@@ -180,5 +180,9 @@
   "tool_content": "Inhalt",
   "tool_design_doc_count_one": "{{count}} Design-Dokument",
   "tool_design_doc_count_other": "{{count}} Design-Dokumente",
+  "tool_section_count_one": "{{doc}}: {{count}} Abschnitt",
+  "tool_section_count_other": "{{doc}}: {{count}} Abschnitte",
+  "tool_sections": "Abschnitte",
+  "tool_no_sections": "Keine Ueberschriften gefunden.",
   "tool_untitled_design_doc": "Unbenanntes Design-Dokument"
 }
