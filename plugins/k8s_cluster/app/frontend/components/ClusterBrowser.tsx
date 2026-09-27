@@ -47,16 +47,14 @@ export function ClusterBrowser({ clusterId, label, onBack }: { clusterId: number
           <Page.Title>{t("browse_heading", { label })}</Page.Title>
           <Page.Description>{t("browse_description")}</Page.Description>
         </Page.HeadingGroup>
-        <Page.Actions>
-          <Button onClick={onBack} size="sm" variant="secondary">
-            {t("back_to_clusters")}
-          </Button>
-        </Page.Actions>
       </Page.Header>
 
-      <Page.Nav className="flex shrink-0 flex-wrap items-center gap-2">
+      <Page.Nav className="flex shrink-0 flex-nowrap items-center gap-2">
         <Dropdown ariaLabel={t("tab_switcher_label")} onChange={setTab} options={tabOptions} value={tab} />
         {NAMESPACE_SCOPED_TABS.includes(tab) ? <NamespacePicker clusterId={clusterId} namespace={namespace} onChange={setNamespace} /> : null}
+        <Button className="ml-auto shrink-0" onClick={onBack} size="sm" variant="secondary">
+          {t("back_to_clusters")}
+        </Button>
       </Page.Nav>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
