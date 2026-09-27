@@ -432,13 +432,13 @@ RSpec.describe "DesignDocs MCP tool sets" do
     markdown = <<~MARKDOWN
       # Visible
 
-      ````markdown
-      ```ruby
+      `````markdown
+      ````ruby
       # not a heading
       ## also not a heading
-      ```
-      ## still not a heading
       ````
+      ## still not a heading
+      `````
 
       ## Real section
 
