@@ -9,7 +9,7 @@ module OperatorBriefing
     end
 
     def activity?
-      job_activity? || workflow_activity? || notable_change_activity? || review_finding_activity?
+      job_activity? || workflow_activity?
     end
 
     private
@@ -28,16 +28,5 @@ module OperatorBriefing
       scope.exists?
     end
 
-    def notable_change_activity?
-      scope = WorkflowNotableChange.where(repository: repository)
-      scope = scope.where("created_at > ?", since) if since.present?
-      scope.exists?
-    end
-
-    def review_finding_activity?
-      scope = ReviewFinding.joins(workflow: :job).where(jobs: { repository_id: repository.id })
-      scope = scope.where("operator_briefing_review_findings.created_at > ?", since) if since.present?
-      scope.exists?
-    end
   end
 end

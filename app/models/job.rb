@@ -132,7 +132,7 @@ class Job < ApplicationRecord
   validates :system_kind, inclusion: { in: SYSTEM_KINDS }, allow_nil: true
   validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_nil: true
   validate  :skill_name_requires_direct_or_cron_kind, if: -> { skill_name.present? }
-  validate  :investigation_requires_direct_kind, if: :investigation?
+  validate  :investigation_requires_investigable_kind, if: :investigation?
   validate  :investigation_excludes_skill_name, if: -> { investigation? && skill_name.present? }
   validates :issue_number,
             presence: true,
@@ -2029,8 +2029,10 @@ class Job < ApplicationRecord
     errors.add(:skill_name, "requires kind=direct or kind=cron") unless direct? || cron?
   end
 
-  def investigation_requires_direct_kind
-    errors.add(:investigation, "requires kind=direct") unless direct?
+  def investigation_requires_investigable_kind
+    return if direct? || kind == "briefing_generate"
+
+    errors.add(:investigation, "requires kind=direct or kind=briefing_generate")
   end
 
   def investigation_excludes_skill_name

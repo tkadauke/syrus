@@ -7,8 +7,8 @@ per-repository `briefing_generate` infrastructure Job kind.
 The `/briefing` page is scoped to the signed-in operator. It seeds a
 `BriefingSubscription` row, enabled by default, for every repository visible to
 that operator through repository or team membership. The page renders one
-underline-tab per enabled repository, plus subscription toggles for opting
-repositories in or out.
+underline-tab per enabled repository. Subscription and source preferences live
+behind the Settings modal, and archived briefings live at `/briefing/history`.
 
 The generation pipeline creates one `Briefing` wrapper per
 `briefing_generate` Job and one `BriefingRevision` per generation Workflow.
@@ -18,22 +18,27 @@ same operator and repository closes any previous live briefing with
 `briefing_superseded`, freezing its latest revision into history.
 
 Scheduled generation is activity-gated. A scheduled pass only creates a new
-briefing when Jobs, Workflows, notable changes, or promoted review findings
-exist for the repository after that repository's last closed briefing. Manual
-regeneration bypasses this activity gate. `BriefingSettings` stores each
+briefing when Jobs or Workflows exist for the repository after that repository's
+last closed briefing. Manual regeneration bypasses this activity gate.
+`BriefingSettings` stores each
 operator's cron-like cadence, budget-gating flag, and optional agent provider
 override. Budget-gating is best-effort for now: Syrus tracks spend, but it does
 not yet expose a remaining-budget allowance primitive for the plugin to compare
 against, so the gate currently records that no hard allowance is available and
 fails open.
 
-The plugin also owns these queryable data-layer tables:
+The `briefing_generate` Workflow runs `prepare -> briefing_generate_run`. The
+generation step is agentic and read-only: the agent uses `read_briefing_git_diff`
+for repository changes, `list_briefing_recent_workflows` for completed Workflows in the
+briefing window, artifact/transcript tools for evidence, and Design Docs'
+`list_design_docs` / `read_design_doc` workflow tools for blocked-on-you
+threads. The agent looks directly for notable-change signals: dependencies,
+schema/migrations, public interfaces, weakened tests, convention deviations,
+overridden or dismissed review findings, and security-sensitive paths. It emits
+typed content through `submit_briefing_block`.
 
-- `operator_briefing_review_findings` promotes adversarial and visual review
-  verdicts out of Workflow artifact JSON while keeping the artifacts for
-  existing Job detail rendering.
-- `operator_briefing_workflow_notable_changes` stores facts returned by the
-  `:notable_change_detector` extension point.
+The plugin owns these data-layer tables:
+
 - `operator_briefing_briefings` wraps the per-repository `briefing_generate` Job.
 - `operator_briefing_revisions` stores typed content blocks. This phase
   renders `narrative` and `link_card` blocks only.
@@ -42,14 +47,7 @@ The plugin also owns these queryable data-layer tables:
 - `operator_briefing_settings` stores per-operator cadence and generation
   settings.
 
-The deterministic detectors cover dependency lockfiles, schema and migration
-files, public API surfaces, deleted or weakened tests, overridden review
-findings, and security-sensitive paths. Convention-deviation detection flags
-changes to repository guidance and convention-sensitive implementation
-surfaces as `attention_debt`; later phases can layer an LLM-backed pass over
-those candidate facts to decide whether the change truly deviates from the
-guidance.
-
 The first "blocked on you" source is
-`OperatorBriefing::BlockedDesignDocThreads`: open design-doc threads visible
-to an operator whose latest comment is not by that operator.
+Design Docs workflow MCP access: the generation agent reads open design-doc
+threads visible to the operator and decides which ones look blocked on that
+operator.

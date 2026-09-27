@@ -94,6 +94,7 @@ module OperatorBriefing
         issue_number: nil,
         issue_title: "Operator briefing: #{repository.slug}",
         owner_user: user,
+        investigation: true,
         agent_provider: settings.agent_provider.presence || user.agent_provider
       )
       briefing = Briefing.create!(

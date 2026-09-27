@@ -6,7 +6,7 @@ RSpec.describe OperatorBriefing::SidebarPages do
       include(
         id: "operator_briefing.dashboard",
         path: "/briefing",
-        paths: [ "/briefing" ],
+        paths: [ "/briefing", "/briefing/history" ],
         component: "operator_briefing/Briefing"
       )
     )
