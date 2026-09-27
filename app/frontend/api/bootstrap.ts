@@ -44,6 +44,7 @@ export type BootstrapPayload = {
     notification_unread_count?: number
     seen_tours?: string[]
     sidebar_nav_order?: string[]
+    mobile_chat_auto_hide_header?: boolean
     review_diff_settings?: ReviewDiffSettings
   } | null
   team_user_count: number
