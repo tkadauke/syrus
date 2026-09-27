@@ -62,6 +62,12 @@ Allow new user registrations. Set to `false` on private instances.
 
 Emergency kill switch: pause all polling jobs (`PollAllRepositoriesJob`, `PollAllPullRequestsJob`, etc.). Jobs already running complete normally; no new issues or PR comments are picked up.
 
+Repository issue polling also backs off automatically when the relevant
+GitHub credential is rate-limited: the fan-out skips already-exhausted
+repositories, and an in-flight autonomous repository poll that receives
+`Octokit::TooManyRequests` re-enqueues after GitHub's reset time without
+advancing the repository poll watermark.
+
 ### runs_paused
 
 **Type:** boolean · **Default:** false

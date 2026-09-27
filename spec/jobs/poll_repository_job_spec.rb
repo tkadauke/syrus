@@ -7,13 +7,14 @@ RSpec.describe PollRepositoryJob, :ci_only do
     Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus", polling_enabled: true)
   end
 
-  def issue(number: 42, labels: [ "syrus" ], body: "", state: "open", user_login: "reporter")
+  def issue(number: 42, labels: [ "syrus" ], body: "", state: "open", user_login: "reporter", updated_at: Time.current)
     OpenStruct.new(
       number: number,
       state: state,
       pull_request: nil,
       title: "Issue #{number}",
       body: body,
+      updated_at: updated_at,
       user: OpenStruct.new(login: user_login),
       labels: labels.map { |name| Struct.new(:name, keyword_init: true).new(name: name) }
     )
@@ -21,7 +22,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
 
   describe "#perform with per-issue controls" do
     before do
-      allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil)
+      allow_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues).and_return({})
     end
 
     it "creates an initial workflow whose first step is implement when the skip-prepare label is present" do
@@ -296,7 +297,6 @@ RSpec.describe PollRepositoryJob, :ci_only do
       # Child issue on the fork must use owner/repo#number to resolve to the upstream epic.
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(number: 42, body: "Epic: acme/core#41") ])
-      allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil)
 
       described_class.perform_now(fork.id)
 
@@ -512,7 +512,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
 
   describe "untagged open issue count" do
     before do
-      allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil)
+      allow_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues).and_return({})
       allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_return([])
     end
 
@@ -557,6 +557,15 @@ RSpec.describe PollRepositoryJob, :ci_only do
       expect(repository.untagged_open_issues_checked_at).to be_nil
     end
 
+    it "does not paginate all open issues again while the cached count is fresh" do
+      repository.update_columns(untagged_open_issues_checked_at: 10.minutes.ago, untagged_open_issue_count: 12)
+      expect_any_instance_of(GithubClient).not_to receive(:list_all_issues)
+
+      described_class.perform_now(repository.id)
+
+      expect(repository.reload.untagged_open_issue_count).to eq(12)
+    end
+
     it "skips the untagged-count call for an archived repository" do
       repository.archive!
       expect_any_instance_of(GithubClient).not_to receive(:list_all_issues)
@@ -577,7 +586,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
     # Tests covering the preempted path (below) override this stub to
     # return a real linked PR.
     before do
-      allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil)
+      allow_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues).and_return({})
       allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_call_original
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .with(repository.slug, repository.trigger_label, state: "closed")
@@ -662,9 +671,8 @@ RSpec.describe PollRepositoryJob, :ci_only do
       before do
         # Cassette returns issues #42 and #46. Pretend an external PR
         # already targets #42, but #46 is unspoken-for.
-        allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue) do |_inst, _slug, issue_number|
-          issue_number == 42 ? { number: 99, url: "https://github.com/acme/widgets/pull/99" } : nil
-        end
+        allow_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues)
+          .and_return({ 42 => { number: 99, url: "https://github.com/acme/widgets/pull/99" } })
       end
 
       it "creates a brand-new issue's Job in implemented state with the external PR captured, no Run" do
@@ -729,19 +737,58 @@ RSpec.describe PollRepositoryJob, :ci_only do
         # someone else opened the PR.
         prior = Job.create!(user: user, repository: repository, issue_number: 42, pr_number: 7, branch_name: "syrus/issue-42-1")
         # Override: GraphQL returns OUR PR as the linked one for #42.
-        allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue) do |_inst, _slug, issue_number|
-          issue_number == 42 ? { number: 7, url: "https://github.com/acme/widgets/pull/7" } : nil
-        end
+        allow_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues)
+          .and_return({ 42 => { number: 7, url: "https://github.com/acme/widgets/pull/7" } })
 
         described_class.perform_now(repository.id)
         expect(prior.reload.external_pr_number).to be_nil   # still nil — it's our own PR
       end
     end
+
+    it "batches linked-PR checks once per poll and caps the issue count" do
+      repository.update_columns(untagged_open_issues_checked_at: 10.minutes.ago)
+      github_issues = (1..60).map { |number| issue(number: number) }
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **|
+        state == "closed" ? [] : github_issues
+      end
+
+      expect_any_instance_of(GithubClient).not_to receive(:linked_open_pr_for_issue)
+      expect_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues)
+        .with(repository.slug, (1..50).to_a)
+        .once
+        .and_return({})
+      expect_any_instance_of(GithubClient).not_to receive(:list_all_issues)
+
+      described_class.perform_now(repository.id)
+    end
+
+    it "skips linked-PR checks for unchanged previously checked issues" do
+      stale_issue = issue(number: 42, updated_at: 2.hours.ago)
+      changed_issue = issue(number: 43, updated_at: Time.current)
+      stale_job = Factories.job(user: user, repository: repository, issue_number: 42)
+      changed_job = Factories.job(user: user, repository: repository, issue_number: 43)
+      checked_at = 1.hour.ago
+      stale_job.update_columns(linked_open_pr_checked_at: checked_at)
+      changed_job.update_columns(linked_open_pr_checked_at: checked_at)
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **|
+        state == "closed" ? [] : [ stale_issue, changed_issue ]
+      end
+
+      expect_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues)
+        .with(repository.slug, [ 43 ])
+        .once
+        .and_return({})
+
+      described_class.perform_now(repository.id)
+
+      expect(stale_job.reload.linked_open_pr_checked_at).to be_within(1.second).of(checked_at)
+      expect(changed_job.reload.linked_open_pr_checked_at).to be_within(1.second).of(Time.current)
+    end
   end
 
   describe "poll status tracking", vcr: { cassette_name: "poll_repository_job/lists_issues" } do
     before do
-      allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil)
+      allow_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues).and_return({})
       allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_call_original
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .with(repository.slug, repository.trigger_label, state: "closed")
@@ -818,6 +865,17 @@ RSpec.describe PollRepositoryJob, :ci_only do
       repository.reload
       expect(repository.last_poll_status).to be_nil
       expect(repository.last_poll_started_at.to_i).to eq(previous_watermark.to_i)
+    end
+
+    it "retries transient GitHub failures without failing the poll" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_raise(Faraday::TimeoutError, "execution expired")
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to have_enqueued_job(described_class).with(repository.id, force: false)
+
+      expect(repository.reload.last_poll_status).to be_nil
     end
 
     it "does not update poll status when the repository is archived (no poll ran)" do
