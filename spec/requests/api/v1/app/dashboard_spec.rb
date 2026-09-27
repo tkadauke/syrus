@@ -621,6 +621,29 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       )
     end
 
+    it "includes urgent operator attention notices only for the default Inbox smart folder" do
+      user.update!(global_role: "admin")
+      item = Factories.attention_item(repository: repo, urgency: "urgent", queue: "operator", updated_at: Time.zone.parse("2026-09-27T12:00:00Z"))
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list" }
+
+      expect(response).to have_http_status(:ok)
+      panel = parse_body.fetch("ui_panels").find { |entry| entry.fetch("id") == "core.urgent_attention_items" }
+      expect(panel).to include("component" => "core/UrgentAttentionItemsBanner", "order" => 5)
+      expect(panel.dig("props", "urgent_attention_items")).to eq(
+        "count" => 1,
+        "dismissal_key" => "urgent_attention_items:1:#{item.updated_at.to_i}",
+        "path" => "/admin/attention_items"
+      )
+
+      SmartFolder.ensure_builtins_for_subject!("job")
+      landing_queue_folder = SmartFolder.find_builtin_by_attention("landing_queue")
+      get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: landing_queue_folder.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("ui_panels").pluck("id")).not_to include("core.urgent_attention_items")
+    end
+
     it "omits the GitHub Source dashboard notice outside the Inbox smart folder" do
       repo.update_columns(untagged_open_issue_count: 3)
       SmartFolder.ensure_builtins_for_subject!("job")

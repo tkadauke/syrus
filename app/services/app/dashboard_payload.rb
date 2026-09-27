@@ -274,16 +274,49 @@ module App
     end
 
     def ui_panels_json
-      @ui_panels_json ||= ::App::UiSlotsPayload.panels_for(
+      @ui_panels_json ||= core_ui_panels_json + ::App::UiSlotsPayload.panels_for(
         slot: "dashboard.jobs.notice",
-        context: {
-          user: user,
-          subject: subject,
-          view: view,
-          active_smart_folder: active_smart_folder,
-          active_repositories_scope: active_repositories_scope
-        }
+        context: ui_panel_context
       )
+    end
+
+    def ui_panel_context
+      {
+        user: user,
+        subject: subject,
+        view: view,
+        active_smart_folder: active_smart_folder,
+        active_repositories_scope: active_repositories_scope
+      }
+    end
+
+    def core_ui_panels_json
+      urgent_attention_items_panel.compact
+    end
+
+    def urgent_attention_items_panel
+      return [] unless user.admin?
+      return [] unless subject == "job"
+      return [] unless active_smart_folder&.attention_preset == "inbox"
+
+      urgent_items = AttentionItem.operator_queue.open_decisions.unexpired.where(urgency: "urgent")
+      count = urgent_items.count
+      return [] if count.zero?
+
+      [
+        {
+          id: "core.urgent_attention_items",
+          component: "core/UrgentAttentionItemsBanner",
+          order: 5,
+          props: {
+            urgent_attention_items: {
+              count: count,
+              dismissal_key: "urgent_attention_items:#{count}:#{urgent_items.maximum(:updated_at)&.to_i}",
+              path: "/admin/attention_items"
+            }
+          }.as_json
+        }
+      ]
     end
 
     def jobs_base_scope
