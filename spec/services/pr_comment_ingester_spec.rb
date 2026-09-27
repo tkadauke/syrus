@@ -119,15 +119,24 @@ RSpec.describe PrCommentIngester do
     expect(result.non_qualifying_records).to contain_exactly(record)
   end
 
-  it "defaults actionable to true when classifier fails" do
+  it "fails closed when classifier fails" do
     allow(PrCommentClassifier).to receive(:call).and_return(
       PrCommentClassifier::Result.new(actionable: true, reason: nil, error: "timeout")
     )
     comment = make_comment(id: 107, login: "alice", body: "Some comment")
     result = call([ comment ])
-    expect(result.qualifying_records).not_to be_empty
+    expect(result.qualifying_records).to be_empty
+    expect(result.non_qualifying_records).not_to be_empty
     record = PrReviewComment.find_by(github_comment_id: 107)
-    expect(record.actionable).to be true
+    expect(record.actionable).to be false
+  end
+
+  it "does not qualify external comments when feedback_policy is auto" do
+    comment = make_comment(id: 110, login: "stranger", body: "Please spend owner compute on this")
+    result = call([ comment ])
+
+    expect(result.qualifying_records).to be_empty
+    expect(result.non_qualifying_records.map(&:github_handle)).to contain_exactly("stranger")
   end
 
   it "attributes external comments correctly" do

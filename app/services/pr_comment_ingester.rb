@@ -79,8 +79,8 @@ class PrCommentIngester
     )
 
     if result.error
-      Rails.logger.warn("[PrCommentIngester] classification failed (#{result.error}); defaulting to actionable=true")
-      return true
+      Rails.logger.warn("[PrCommentIngester] classification failed (#{result.error}); defaulting to actionable=false")
+      return false
     end
 
     result.actionable
@@ -93,7 +93,8 @@ class PrCommentIngester
   def qualifies_for_workflow?(record)
     return false unless record.actionable?
     return true if record.job_owner?
+    return true if record.member? && @job.repository.feedback_policy_auto?
 
-    @job.repository.feedback_policy_auto?
+    false
   end
 end

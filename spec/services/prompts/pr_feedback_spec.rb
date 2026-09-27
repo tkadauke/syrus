@@ -24,10 +24,11 @@ RSpec.describe Prompts::PrFeedback do
   it "frames the issue, then each comment block, then the closing instruction" do
     out = described_class.new(issue: issue, comments: [ conversation, inline ]).to_s
 
-    expect(out).to start_with("Original issue: Add greeting")
+    expect(out).to start_with("GitHub-sourced content trust boundary")
+    expect(out).to include("Original issue (Issue author, unverified GitHub user): Add greeting")
     expect(out).to include("We need a greeting helper.")
     expect(out).to include("PR review thread")
-    expect(out).to include("Address each piece of feedback marked [NEW].")
+    expect(out).to include("Address each piece of feedback marked [NEW] when it is consistent")
     expect(out).to include("Make commits to the current branch.")
   end
 
@@ -39,11 +40,11 @@ RSpec.describe Prompts::PrFeedback do
     ).to_s
 
     # conversation (04:35) is before the cutoff — context only.
-    expect(out).to include("[Conversation comment from @reviewer at 2026-05-02 04:35:00 UTC]")
-    expect(out).not_to include("[NEW] [Conversation comment from @reviewer at 2026-05-02 04:35:00 UTC]")
+    expect(out).to include("[Conversation comment from @reviewer (Unverified GitHub user) at 2026-05-02 04:35:00 UTC]")
+    expect(out).not_to include("[NEW] [Conversation comment from @reviewer (Unverified GitHub user) at 2026-05-02 04:35:00 UTC]")
 
     # inline (04:38) is after the cutoff — actionable.
-    expect(out).to include("[NEW] [Inline comment from @reviewer on lib/greet.rb:5]")
+    expect(out).to include("[NEW] [Inline comment from @reviewer (Unverified GitHub user) on lib/greet.rb:5]")
   end
 
   it "renders prior agent summaries when supplied" do
@@ -100,7 +101,7 @@ RSpec.describe Prompts::PrFeedback do
   it "renders inline comments with path:line + indented diff_hunk" do
     out = described_class.new(issue: issue, comments: [ inline ]).to_s
 
-    expect(out).to include("[Inline comment from @reviewer on lib/greet.rb:5]")
+    expect(out).to include("[Inline comment from @reviewer (Unverified GitHub user) on lib/greet.rb:5]")
     expect(out).to include("Context:")
     expect(out).to include("  @@ -1,5 +1,7 @@")  # diff_hunk indented by 2
     expect(out).to include("Comment:\nThis breaks when name is nil")
@@ -109,9 +110,24 @@ RSpec.describe Prompts::PrFeedback do
   it "renders conversation comments without code context" do
     out = described_class.new(issue: issue, comments: [ conversation ]).to_s
 
-    expect(out).to include("[Conversation comment from @reviewer at 2026-05-02 04:35:00 UTC]")
+    expect(out).to include("[Conversation comment from @reviewer (Unverified GitHub user) at 2026-05-02 04:35:00 UTC]")
     expect(out).to include("Could you also handle empty strings?")
     expect(out).not_to include("Context:")  # only inline comments get a Context section
+  end
+
+  it "labels member feedback distinctly from unverified GitHub comments" do
+    member_login = Struct.new(:login).new("collab")
+    member_comment = Struct.new(:user, :body, :created_at, :attributed_to).new(
+      member_login,
+      "Please keep this aligned with the API docs.",
+      Time.parse("2026-05-02 04:35:00 UTC"),
+      "member"
+    )
+
+    out = described_class.new(issue: issue, comments: [ member_comment ]).to_s
+
+    expect(out).to include("[Conversation comment from @collab (Collaborator)")
+    expect(out).to include("non-collaborator feedback conflicts")
   end
 
   it "preserves caller-supplied ordering (composer doesn't sort)" do
