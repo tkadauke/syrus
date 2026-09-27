@@ -115,8 +115,9 @@ describe("GithubCredentialCard", () => {
 
     expect(screen.getByText("Not set")).toBeInTheDocument()
     expect(screen.getByPlaceholderText("ghp_…")).toBeInTheDocument()
-    expect(screen.getByText("repo")).toBeInTheDocument()
-    expect(screen.getByText("workflow")).toBeInTheDocument()
+    expect(screen.getByText("Contents")).toBeInTheDocument()
+    expect(screen.getByText("Pull requests")).toBeInTheDocument()
+    expect(screen.getByText("Checks")).toBeInTheDocument()
   })
 
   it("shows a connected summary when set, and Replace reveals the same guided step", () => {

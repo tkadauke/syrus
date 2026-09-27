@@ -68,7 +68,7 @@ describe("GithubTokenStep", () => {
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_partial" } })
 
     const line = await screen.findByText(/missing the workflow scope/)
-    expect(line.closest("p")).toHaveClass("text-amber-700")
+    expect(line.closest("p")).toHaveClass("text-warning-text")
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
   })
 
@@ -80,7 +80,7 @@ describe("GithubTokenStep", () => {
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "nope" } })
 
     const line = await screen.findByText(/GitHub rejected this token/)
-    expect(line.closest("p")).toHaveClass("text-red-700")
+    expect(line.closest("p")).toHaveClass("text-danger-text")
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
   })
 
