@@ -165,6 +165,18 @@ export type ResourceAdmissionPressure = {
   process_memory_bytes?: number | null
 }
 
+export type ResourceAdmissionWorkerPressureKey = {
+  storage_key: string
+  hostnames?: string[]
+  health_level?: string | null
+  health_reasons?: string[]
+  max_cpu_pressure?: number | null
+  max_io_pressure?: number | null
+  max_memory_used_percent?: number | null
+  max_data_root_used_percent?: number | null
+  last_observed_at?: string | null
+}
+
 export type ResourceAdmissionConsumer = {
   run_id: number
   job_id: number
@@ -208,10 +220,25 @@ export type ResourceAdmissionDelayedWork = {
     candidate?: ResourceAdmissionCost & Record<string, unknown>
     active?: Record<string, unknown>
     projected?: ResourceAdmissionCost & Record<string, unknown>
-    host?: Record<string, unknown>
+    host?: Record<string, unknown> & {
+      locality?: {
+        scope?: string | null
+        pressure_localized?: boolean
+        pressured_storage_key_count?: number
+        healthy_storage_key_count?: number
+        healthy_alternatives_present?: boolean
+        pressured_storage_keys?: ResourceAdmissionWorkerPressureKey[]
+        healthy_alternative_storage_keys?: ResourceAdmissionWorkerPressureKey[]
+      }
+    }
   } | null
   estimated_remaining_cost?: ResourceAdmissionCost | null
-  details?: Record<string, unknown>
+  details?: Record<string, unknown> & {
+    worker_pressure_scope?: string | null
+    worker_pressure_localized?: boolean
+    pressured_worker_storage_keys?: ResourceAdmissionWorkerPressureKey[]
+    healthy_alternative_worker_storage_keys?: ResourceAdmissionWorkerPressureKey[]
+  }
 }
 
 export type ResourceAdmissionProfile = {

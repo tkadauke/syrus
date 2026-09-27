@@ -166,6 +166,8 @@
     "resource_no_recent": "No recent resource summaries.",
     "resource_no_low_confidence": "No low-confidence profiles.",
     "resource_next_check": "next {{time}}",
+    "resource_worker_pressure_localized": "Localized worker pressure: {{workers}}",
+    "resource_worker_pressure_alternatives": "Healthy alternatives: {{workers}}",
     "resource_wall": "{{time}} wall",
     "resource_confidence": "{{level}} confidence",
     "resource_samples": "{{count}} samples",

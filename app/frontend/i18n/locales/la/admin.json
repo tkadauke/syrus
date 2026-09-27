@@ -100,6 +100,8 @@
     "resource_no_recent": "Nullae summae opum recentes.",
     "resource_no_low_confidence": "Nulla profilia fiduciae humilis.",
     "resource_next_check": "proxima recognitio {{time}}",
+    "resource_worker_pressure_localized": "Pressio operatoris localis: {{workers}}",
+    "resource_worker_pressure_alternatives": "Alternativa sana: {{workers}}",
     "resource_wall": "{{time}} murus",
     "resource_confidence": "fiducia {{level}}",
     "resource_samples": "{{count}} exempla",
