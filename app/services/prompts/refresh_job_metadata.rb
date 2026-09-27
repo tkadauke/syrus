@@ -27,7 +27,7 @@ module Prompts
         Current PR body:
         #{current_pr_body}
 
-        Feedback handled in this workflow:
+        Operator input handled in this workflow:
         #{@feedback.presence || "(none recorded)"}
 
         Prior workflow summaries:

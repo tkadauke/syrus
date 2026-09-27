@@ -9,7 +9,7 @@ module Mcp::Tools
     tool_name "submit_chat_feedback"
 
     description <<~DESC
-      Propose operator feedback on a job for confirmation before triggering a new agent workflow that will improve the implementation. Call this only after discussing the feedback with the operator and reaching agreement on what to change. Feedback for a running or queued job is queued until the job reaches an actionable state. Confirmed feedback on an approved job will unapprove it. Use `list_job_workflows` first to confirm there is no active chat_feedback workflow already running.
+      Propose operator feedback on a job for confirmation before triggering a new agent workflow that will improve the implementation. Call this only after discussing the feedback with the operator and reaching agreement on what to change. For a running or queued job, feedback is queued until the job reaches an actionable state. Confirmed feedback on an approved job will unapprove it. Use `list_job_workflows` first to confirm there is no active chat_feedback workflow already running.
       Pass `media` to attach a whiteboard snapshot or pasted screenshot to the feedback -- useful for pointing at a visible bug. Call save_canvas first to get a snapshot ID, or use list_chat_media to see available refs.
     DESC
 
