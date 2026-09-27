@@ -70,12 +70,12 @@ module SystemAlerts
                "CI-failure detection are degraded until this is fixed; " \
                "the banner clears automatically on the next successful API call.",
       action_steps: [
-        "Generate a <strong>classic</strong> PAT at " \
-          "<a class=\"underline\" href=\"https://github.com/settings/tokens\">github.com/settings/tokens</a> " \
-          "with the <code>repo</code> scope (which covers the entire Syrus surface — clone, push, PRs, comments, check-runs).",
-        "Fine-grained PATs <em>do not work</em> for the full surface today: GitHub doesn't expose a <code>Checks: read</code> permission " \
-          "for fine-grained tokens, so CI-failure detection silently breaks. If you want fine-grained anyway, accept that the " \
-          "<code>check-runs</code> path will keep showing this banner.",
+        "Generate a fine-grained PAT at " \
+          "<a class=\"underline\" href=\"https://github.com/settings/personal-access-tokens/new\">github.com/settings/personal-access-tokens/new</a> " \
+          "scoped only to the repositories this Syrus instance manages, with repository <code>Contents</code> read/write and " \
+          "<code>Pull requests</code> read/write permissions. Use an expiration you can rotate.",
+        "If you use a classic PAT instead, <code>repo</code> is sufficient for private repositories. Syrus does not require the " \
+          "<code>workflow</code> scope unless you expect agents to modify GitHub Actions workflow files through that token.",
         "Paste the new token into <a class=\"underline\" href=\"/credentials\">Settings → Credentials</a> and save. " \
           "The banner clears on the next successful API call."
       ],

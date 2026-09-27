@@ -219,8 +219,9 @@ export function testCredential(credential: string) {
   })
 }
 
-// Probe a pasted-but-unsaved GitHub token: reports whether it authenticates
-// and whether it carries the repo + workflow scopes Syrus requires.
+// Probe a pasted-but-unsaved GitHub token: reports whether GitHub accepts it.
+// Classic token scopes are reported when GitHub returns them; fine-grained
+// tokens validate through repository access when a repository is added or used.
 export function testGithubToken(githubToken: string) {
   return postJson<CredentialTestPayload>("/api/v1/app/credentials/test_github_token", {
     github_token: githubToken

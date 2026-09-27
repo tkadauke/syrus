@@ -24,22 +24,22 @@ function mockRoutes(routes: { test?: () => Response; save?: () => Response }) {
   })
 }
 
-const okResult = { credential: "github_token", ok: true, message: "Token is valid for octocat.", details: { login: "octocat", scopes: ["repo", "workflow"], missing_scopes: [] } }
+const okResult = { credential: "github_token", ok: true, message: "Token is valid for octocat.", details: { login: "octocat", scopes: [], missing_scopes: [] } }
 
 describe("GithubTokenModal", () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it("links to GitHub settings and advises classic token, no expiration, repo + workflow scopes", () => {
+  it("links to GitHub settings and advises fine-grained repository permissions", () => {
     renderModal()
 
-    const link = screen.getByRole("link", { name: /Open github.com\/settings\/tokens/ })
-    expect(link).toHaveAttribute("href", "https://github.com/settings/tokens")
+    const link = screen.getByRole("link", { name: /Open fine-grained token settings/ })
+    expect(link).toHaveAttribute("href", "https://github.com/settings/personal-access-tokens/new")
     expect(link).toHaveAttribute("target", "_blank")
-    expect(screen.getByText(/No expiration/)).toBeInTheDocument()
-    expect(screen.getByText("repo")).toBeInTheDocument()
-    expect(screen.getByText("workflow")).toBeInTheDocument()
+    expect(screen.getByText(/Set an expiration/)).toBeInTheDocument()
+    expect(screen.getByText("Contents")).toBeInTheDocument()
+    expect(screen.getByText("Pull requests")).toBeInTheDocument()
   })
 
   it("tests the token on paste and shows a green check, enabling save", async () => {
@@ -57,7 +57,7 @@ describe("GithubTokenModal", () => {
     const underScoped = {
       credential: "github_token",
       ok: false,
-      message: "Token authenticated as octocat, but it is missing the workflow scope. Regenerate a classic token with repo and workflow enabled.",
+      message: "Token authenticated as octocat, but it is missing the workflow scope. Use a classic token with the missing scope, or a fine-grained token with repository Contents and Pull requests access.",
       details: { login: "octocat", scopes: ["repo"], missing_scopes: ["workflow"] }
     }
     mockRoutes({ test: () => jsonResponse({ credential_test: underScoped }) })

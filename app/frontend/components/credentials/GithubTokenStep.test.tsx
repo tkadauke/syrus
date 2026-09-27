@@ -24,22 +24,22 @@ function mockRoutes(routes: { test?: () => Response; save?: () => Response }) {
   })
 }
 
-const okResult = { credential: "github_token", ok: true, message: "Token is valid for octocat.", details: { login: "octocat", scopes: ["repo", "workflow"], missing_scopes: [] } }
+const okResult = { credential: "github_token", ok: true, message: "Token is valid for octocat.", details: { login: "octocat", scopes: [], missing_scopes: [] } }
 
 describe("GithubTokenStep", () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it("renders the guided steps: settings link, scope checklist, paste field", () => {
+  it("renders the guided steps: settings link, permission checklist, paste field", () => {
     renderStep()
 
-    const link = screen.getByRole("link", { name: /Open github.com\/settings\/tokens/ })
-    expect(link).toHaveAttribute("href", "https://github.com/settings/tokens")
+    const link = screen.getByRole("link", { name: /Open fine-grained token settings/ })
+    expect(link).toHaveAttribute("href", "https://github.com/settings/personal-access-tokens/new")
     expect(link).toHaveAttribute("target", "_blank")
-    expect(screen.getByText(/No expiration/)).toBeInTheDocument()
-    expect(screen.getByText("repo")).toBeInTheDocument()
-    expect(screen.getByText("workflow")).toBeInTheDocument()
+    expect(screen.getByText(/Set an expiration/)).toBeInTheDocument()
+    expect(screen.getByText("Contents")).toBeInTheDocument()
+    expect(screen.getByText("Pull requests")).toBeInTheDocument()
     expect(screen.getByPlaceholderText("ghp_…")).toBeInTheDocument()
   })
 
