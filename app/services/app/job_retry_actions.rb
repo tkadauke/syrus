@@ -43,6 +43,7 @@ module App
       return unless latest_workflow&.retry_available?
       return unless failed_step
       return if failed_step_workspace_git_state_corrupt?
+      return if merge_train_dispatch_blocked?
 
       {
         key: "retry_failed_step",
@@ -86,8 +87,33 @@ module App
 
     def failed_step_label
       return "Restart grade loop" if failed_step&.kind == "grader_fanout" && failed_step.loop_id.present?
+      return "Retry merge train now" if latest_workflow&.trigger_kind == "merge_train"
 
       Workflow::TriggerKind.retry_label_for(latest_workflow.trigger_kind, step_kind: failed_step&.kind)
+    end
+
+    def merge_train_dispatch_blocked?
+      return false unless latest_workflow&.trigger_kind == "merge_train"
+
+      merge_train_dispatcher_blocker_reason.present?
+    end
+
+    def merge_train_dispatcher_blocker_reason
+      train = merge_train_for_latest_workflow
+      return unless train
+
+      if train.bundle_backed?
+        JobBundleDispatcher.blocker_reason(train.repository, bypass_cooldown: true)
+      else
+        MergeTrainDispatcher.blocker_reason(train.epic, bypass_cooldown: true)
+      end
+    end
+
+    def merge_train_for_latest_workflow
+      train_id = latest_workflow&.artifact("merge_train_id")
+      return if train_id.blank?
+
+      MergeTrain.find_by(id: train_id)
     end
 
     # The failed step's own workspace has no valid git HEAD, not the step
