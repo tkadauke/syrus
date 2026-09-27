@@ -6,6 +6,7 @@ RSpec.describe OperatorBriefing::McpToolSet do
 
   before do
     PluginRecord.find_or_create_by!(name: "operator_briefing").update!(enabled: true, disableable: true)
+    allow(AppEvents).to receive(:broadcast)
   end
 
   def context_for(run)
@@ -33,5 +34,45 @@ RSpec.describe OperatorBriefing::McpToolSet do
 
   it "does not advertise briefing tools to other workflow runs" do
     expect(described_class.tool_definitions(context: context_for(ordinary_run))).to eq([])
+  end
+
+  it "appends submitted blocks to the current generated revision" do
+    run = briefing_run
+    briefing = OperatorBriefing::Briefing.create!(
+      job: run.job,
+      repository: repository,
+      owner_user: user,
+      window_start: 1.day.ago,
+      window_end: Time.current
+    )
+    revision = OperatorBriefing::BriefingRevision.create!(
+      briefing: briefing,
+      generation_run: run,
+      revision_number: 1,
+      generated_at: Time.current,
+      content_blocks: []
+    )
+
+    response = described_class.new.handle(
+      "submit_briefing_block",
+      {
+        "kind" => "narrative",
+        "payload" => { "text" => "Live section" }
+      },
+      { run_id: run.id }
+    )
+
+    expect(response).not_to be_error
+    expect(revision.reload.content_blocks).to eq([
+      { "kind" => "narrative", "payload" => { "text" => "Live section" } }
+    ])
+    expect(AppEvents).to have_received(:broadcast).with(
+      user: user,
+      type: "operator_briefing.block_submitted",
+      resource: "operator_briefing",
+      id: briefing.id,
+      changed: [ "revision.content_blocks" ],
+      payload: hash_including(block: { "kind" => "narrative", "payload" => { "text" => "Live section" } })
+    )
   end
 end

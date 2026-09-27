@@ -411,6 +411,8 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
       return event.id == null ? [["dashboard"], ["repositories"]] : [["dashboard"], ["repositories"], ["repositories", String(event.id)]]
     case "design_doc":
       return event.id == null ? [["design_docs"]] : [["design_docs"], ["design_docs", "detail", String(event.id)]]
+    case "operator_briefing":
+      return [["operator_briefing"]]
     case "chat":
       return event.id == null
         ? [["chats"]]
@@ -605,6 +607,7 @@ const exactListRoots = new Set([
   "job_run_artifacts",
   "jobs",
   "notifications",
+  "operator_briefing",
   "repositories",
   "workflows"
 ])

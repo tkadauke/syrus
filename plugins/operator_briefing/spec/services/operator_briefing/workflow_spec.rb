@@ -18,6 +18,14 @@ RSpec.describe OperatorBriefing::Workflow do
     expect(Step::Kind.by_kind.fetch("briefing_generate_run").required_mcp_tools).to eq(%w[submit_briefing_block])
   end
 
+  it "marks briefing generation as an agentic synthesis step" do
+    entry = Step::Kind.by_kind.fetch("briefing_generate_run")
+
+    expect(entry.agentic).to be(true)
+    expect(entry.agent_role).to eq(AgentRole::WORKFLOW_SUMMARY_TEST_PLAN)
+    expect(entry.required_mcp_tools).to eq(%w[submit_briefing_block])
+  end
+
   it "contributes an issueless infrastructure job kind and work definition" do
     expect(Job::Kind.infrastructure_values).to include("briefing_generate")
     expect(Job::Kind.issueless?("briefing_generate")).to be(true)

@@ -15,11 +15,13 @@ module OperatorBriefing
 
     def self.step_kinds
       [
-        {
-          kind: "briefing_generate_run", handler: "OperatorBriefing::GenerateRunStep",
-          label: "Generate briefing", style: "bg-sky-100 text-sky-700", agentic: true,
-          required_mcp_tools: %w[submit_briefing_block]
-        }
+          {
+            kind: "briefing_generate_run", handler: "OperatorBriefing::GenerateRunStep",
+            label: "Generate briefing", style: "bg-sky-100 text-sky-700", agentic: true,
+            agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+            required_mcp_tools: %w[submit_briefing_block],
+            placement_policy: Step::PlacementPolicy::CONTROL_PLANE
+          }
       ]
     end
 
