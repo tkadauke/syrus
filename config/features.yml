@@ -77,7 +77,7 @@ features:
   - slug: per_spawn_resource_limits
     category: "Operations"
     name: "Per-spawn resource limits"
-    description: "Enables cgroup v2 memory ceilings for ProcessRunner subprocesses and records whether each SpawnedProcess actually ran under an enforced memory limit."
+    description: "Enables adaptive cgroup v2 memory ceilings for ProcessRunner subprocesses and records whether each SpawnedProcess actually ran under an enforced memory limit."
     default: false
   - slug: emergency_land
     category: "Labs"
