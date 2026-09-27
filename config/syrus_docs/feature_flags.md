@@ -218,6 +218,18 @@ Enables a worker-local persistent MCP sidecar daemon (`PersistentMcpDaemon`, bui
 
 `ChatMcpTransportSelector` and `WorkflowMcpTransportSelector` each independently decide whether to route to the daemon (`:persistent`) or fall back to the existing per-run/per-turn stdio sidecar (`:stdio`); routing to the daemon requires the flag enabled, a passing daemon health check, and the daemon advertising the relevant capability. Claude can use HTTP MCP directly; stdio-only workflow agent CLIs use `bin/syrus-mcp-proxy`, which forwards to the daemon with a short-lived invocation token instead of booting Rails with worker secrets in the agent process. On the chat side persistent transport is currently restricted to the Claude provider (Codex chat sessions have no persistent HTTP MCP wiring); the resulting transport decision and reason are recorded on the chat's `artifacts["mcp_transport"]` for diagnostics. No `AppSetting`/DB column controls this flag; when disabled, every agent context keeps using the default per-run/per-session stdio sidecars unchanged. On by default.
 
+## per_spawn_resource_limits
+
+**Category:** Operations · **Off by default**
+
+Enables cgroup v2 memory ceilings for subprocesses launched through `ProcessRunner`.
+When enabled, each `SpawnedProcess` records a `resource_attribution.cgroup`
+payload showing whether enforcement was applied, disabled, unavailable, or
+failed. That payload is intentionally loud: diagnostics can tell the operator
+that a command ran with no memory ceiling instead of implying containment from
+the feature flag alone. A recorded `memory.events` `oom_kill` increment is
+classified as `process_memory_limit_exceeded`.
+
 ## emergency_land
 
 **Category:** Labs

@@ -74,6 +74,11 @@ features:
     description: "Enables a worker-local persistent MCP sidecar daemon that boots once and exposes a local-only MCP transport and health check. Chat turns and workflow agent runs can route MCP tool calls to it, with automatic fallback to stdio when the daemon is unavailable or incompatible. Stdio-only agent CLIs use a secret-free proxy process to reach the daemon."
     description_i18n_key: "features.slugs.persistent_mcp_sidecar.description"
     default: true
+  - slug: per_spawn_resource_limits
+    category: "Operations"
+    name: "Per-spawn resource limits"
+    description: "Enables cgroup v2 memory ceilings for ProcessRunner subprocesses and records whether each SpawnedProcess actually ran under an enforced memory limit."
+    default: false
   - slug: emergency_land
     category: "Labs"
     name: "Emergency land"
