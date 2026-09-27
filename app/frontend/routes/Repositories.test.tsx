@@ -1,7 +1,7 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, useLocation } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { _clearRecentApiRequestsForTest } from "../api/client"
 import { RepositoriesIndex } from "./Repositories"
@@ -111,9 +111,15 @@ function renderRouteWithClient(initialPath = "/app-shell/repositories") {
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[initialPath]}>
         <RepositoriesIndex />
+        <CurrentPath />
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function CurrentPath() {
+  const location = useLocation()
+  return <div data-testid="current-path">{location.pathname}</div>
 }
 
 function visibleSlugOrder() {
@@ -421,6 +427,15 @@ describe("RepositoriesIndex data table", () => {
     expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
   })
 
+  it("opens the repository detail route from a non-link row click", async () => {
+    renderRoute()
+
+    const row = await screen.findByRole("row", { name: "acme/widgets" })
+    fireEvent.click(within(row).getByText("0"))
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/app-shell/repositories/1")
+  })
+
   it("still offers Unarchive on archived rows", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse(
@@ -470,7 +485,7 @@ describe("RepositoriesIndex smart folders", () => {
     try {
       renderRoute()
 
-      await screen.findByRole("link", { name: "acme/widgets" })
+      await screen.findByRole("link", { name: /acme\/widgets/ })
 
       fireEvent.click(screen.getByText("Folders and filters"))
 
@@ -687,15 +702,92 @@ describe("RepositoriesIndex responsive gutter", () => {
     expect(tableWrapper?.className ?? "").not.toContain("px-4 sm:px-0")
   })
 
-  it("keeps the filter bar and column menu margined on a narrow viewport", async () => {
+  it("keeps the filter bar margined and omits column customization on a narrow viewport", async () => {
     const restore = mockNarrowViewport()
     try {
       renderRoute()
-      await screen.findByRole("columnheader", { name: "Repository" })
+      await screen.findByRole("link", { name: /acme\/widgets/ })
 
-      const columnsButton = screen.getByRole("button", { name: "Columns" })
-      const controlsRow = columnsButton.closest("div.flex.flex-wrap.items-start.justify-between")
+      expect(screen.queryByRole("button", { name: "Columns" })).not.toBeInTheDocument()
+      const controlsRow = screen.getByRole("button", { name: "+ Add filter" }).closest("div.flex.flex-wrap.items-start.justify-between")
       expect(controlsRow?.className).toContain("mx-4 sm:mx-0")
+    } finally {
+      restore()
+    }
+  })
+
+  it("renders the fixed mobile row summary with slug, last activity, health, and agent", async () => {
+    const restore = mockNarrowViewport()
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        repositoriesPayload({
+          active_repositories: [
+            repositoryRow({
+              slug: "acme/widgets",
+              owner: "acme",
+              last_job_activity_at: "2026-02-01T00:00:00Z",
+              main_health: "healthy",
+              agent_provider_label: "Codex"
+            })
+          ]
+        })
+      )
+    )
+    try {
+      renderRouteWithClient()
+
+      const mobileRow = await screen.findByRole("link", { name: /acme\/widgets/ })
+      expect(within(mobileRow).getByText("acme/widgets")).toBeInTheDocument()
+      expect(within(mobileRow).getByText("Healthy")).toBeInTheDocument()
+      expect(within(mobileRow).getByText("Codex")).toBeInTheDocument()
+      expect(screen.queryByRole("columnheader", { name: "GitHub owner" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Columns" })).not.toBeInTheDocument()
+
+      fireEvent.click(mobileRow)
+      expect(screen.getByTestId("current-path")).toHaveTextContent("/app-shell/repositories/1")
+    } finally {
+      restore()
+    }
+  })
+
+  it("keeps mobile Unarchive available for archived rows", async () => {
+    const restore = mockNarrowViewport()
+    let archived = true
+    const archivedRow = () => repositoryRow({ id: 2, slug: "acme/attic", archived, archived_at: archived ? "2026-01-01T00:00:00Z" : null })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      const method = init?.method || "GET"
+
+      if (url === "/api/v1/app/repositories/2/unarchive" && method === "POST") {
+        archived = false
+        return Promise.resolve(jsonResponse(repositoriesPayload({ message: "acme/attic unarchived." })))
+      }
+
+      return Promise.resolve(
+        jsonResponse(
+          repositoriesPayload({
+            active_repositories: [],
+            archived_repositories: archived ? [archivedRow()] : [],
+            active_smart_folder_id: 3
+          })
+        )
+      )
+    })
+    try {
+      renderRouteWithClient("/app-shell/repositories?smart_folder_id=3")
+
+      expect(await screen.findByRole("link", { name: /acme\/attic/ })).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Unarchive" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/2/unarchive", expect.objectContaining({ method: "POST" }))
+      })
+      await waitFor(() => {
+        expect(screen.queryByRole("link", { name: /acme\/attic/ })).not.toBeInTheDocument()
+      })
+      expect(await screen.findByText("No archived repositories.")).toBeInTheDocument()
+      expect(screen.getByTestId("current-path")).toHaveTextContent("/app-shell/repositories")
     } finally {
       restore()
     }
