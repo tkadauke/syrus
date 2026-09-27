@@ -150,6 +150,8 @@ instead of inventing a parallel pattern.
 
 High-frequency reminders:
 
+- **Public website/docs stay current.** Product-facing behavior changes must
+  update `website/` in the same PR.
 - Keep product-facing behavior aligned with `website/` and operator-facing
   behavior aligned with `config/syrus_docs/`.
 - Preserve `AGENTS.md -> CLAUDE.md`; edit the shared guidance through this file.
