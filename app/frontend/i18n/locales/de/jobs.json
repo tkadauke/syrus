@@ -5,6 +5,7 @@
   "command_error": "Aufgabenbefehl fehlgeschlagen.",
   "feedback_submitted": "Feedback gesendet — ein neuer Arbeitsablauf startet in Kürze.",
   "view_in_chat": "Im Chat anzeigen",
+  "chat": "Chat",
   "chat_about_this": "Darüber chatten",
   "prepare_skipped": "Vorbereitung übersprungen",
   "deployment_stages_label": "Bereitstellungsstufen",

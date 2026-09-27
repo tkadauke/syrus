@@ -1706,6 +1706,27 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("button", { name: "Chat about this" })).toBeInTheDocument()
   })
 
+  it("keeps the mobile chat affordance compact and on the same row as header actions", () => {
+    const payload = jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" },
+      actions: { ...jobPayload().actions, can_start_chat: true, can_approve: true }
+    })
+
+    renderJobDetail(payload)
+
+    const chatButton = screen.getByRole("button", { name: "Chat about this" })
+    const toolbar = screen.getByTestId("job-header-toolbar")
+    const actionSlot = screen.getByTestId("job-header-actions")
+
+    expect(toolbar).toContainElement(chatButton)
+    expect(toolbar).toContainElement(actionSlot)
+    expect(toolbar).toHaveClass("flex-row", "flex-wrap", "items-center", "justify-between")
+    expect(actionSlot).toHaveClass("w-auto")
+    expect(within(chatButton).getByText("Chat")).toHaveClass("sm:hidden")
+    expect(within(chatButton).getByText("Chat about this")).toHaveClass("hidden", "sm:inline")
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument()
+  })
+
   it("hides 'Chat about this' once a discussion chat is linked, showing a link to it instead", () => {
     const payload = jobPayload({
       job: { ...baseJob(), discussion_chat: { chat_id: 9, chat_title: "Bug triage", path: "/chats/9" } },
@@ -2417,7 +2438,7 @@ describe("JobDetailRoute", () => {
 
     const header = main.querySelector("header")
     expect(header).toHaveClass("px-4", "sm:px-0", "block", "space-y-3")
-    expect(screen.getByTestId("job-header-actions").parentElement).toHaveClass("flex", "flex-col", "items-start", "sm:flex-row", "sm:items-center", "sm:justify-between", "gap-x-6", "gap-y-3")
+    expect(screen.getByTestId("job-header-actions").parentElement).toHaveClass("flex", "flex-row", "flex-wrap", "items-center", "justify-between", "gap-x-3", "gap-y-3", "sm:gap-x-6")
 
     const tabChrome = screen.getByRole("navigation", { name: "Job sections" }).parentElement
     expect(tabChrome).toHaveClass("px-4", "sm:px-0")
@@ -3537,9 +3558,10 @@ describe("Job detail tour", () => {
     expect(secondLine?.parentElement).toBe(header)
     expect(secondLine?.firstElementChild).toBe(metadata)
     expect(secondLine?.lastElementChild).toBe(actionSlot)
-    expect(secondLine).toHaveClass("flex-col", "sm:flex-row", "sm:justify-between")
-    expect(metadata).toHaveClass("w-full", "sm:flex-1")
-    expect(actionSlot).toHaveClass("w-full", "sm:w-auto", "justify-end", "shrink-0")
+    expect(secondLine).toHaveClass("flex-row", "flex-wrap", "items-center", "justify-between")
+    expect(metadata).toHaveClass("flex-1")
+    expect(metadata).not.toHaveClass("w-full")
+    expect(actionSlot).toHaveClass("w-auto", "justify-end", "shrink-0")
     expect(actionSlot).toContainElement(screen.getByRole("button", { name: "More actions" }))
     const navigation = screen.getByLabelText("Job navigation")
     expect(actionSlot).toContainElement(navigation)
