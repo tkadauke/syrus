@@ -276,6 +276,27 @@
     "hours_ago": "{{count}}h ago",
     "days_ago": "{{count}}d ago"
   },
+  "connection_status": {
+    "route_title": "Live update status",
+    "back": "Back",
+    "recent_events": "Recent events",
+    "no_events": "No recent connection events",
+    "reconnected_toast": "Reconnected — data refreshed",
+    "connected": {
+      "title": "Live updates active",
+      "body": "Syrus is receiving live updates over the websocket connection."
+    },
+    "reconnecting": {
+      "title": "Reconnecting",
+      "body": "Live updates are paused while Syrus reconnects. Chat views may use fallback polling."
+    },
+    "events": {
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "reconnecting": "Reconnecting",
+      "reconnected": "Reconnected, data refreshed"
+    }
+  },
   "account_aria": "Account",
   "system_alerts_aria": "System alerts",
   "system_alert_dismiss": "Dismiss system alert",

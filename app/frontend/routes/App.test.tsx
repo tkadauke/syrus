@@ -177,6 +177,41 @@ describe("App", () => {
     )
   })
 
+  it("does not show the old persistent connection-lost toast when ActionCable disconnects", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload())
+    document.body.appendChild(script)
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/session/new"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalled())
+      const createSubscriptionMock = actionCable.createSubscription as unknown as { mock: { calls: Array<[unknown, { connected: () => void; disconnected: () => void }]> } }
+      const callbacks = createSubscriptionMock.mock.calls[0][1]
+      vi.useFakeTimers()
+      act(() => callbacks.connected())
+      act(() => callbacks.disconnected())
+      act(() => vi.advanceTimersByTime(4000))
+
+      expect(screen.queryByText("Connection lost — updates paused")).not.toBeInTheDocument()
+      expect(screen.getAllByRole("button", { name: "Reconnecting" }).length).toBeGreaterThan(0)
+    } finally {
+      vi.useRealTimers()
+      script.remove()
+    }
+  })
+
   it("routes bare /app-shell to the dashboard for signed-in users", async () => {
     // Before RootRoute covered /app-shell, the bare desktop entry path fell
     // through to the debug catch-all instead of behaving like "/".

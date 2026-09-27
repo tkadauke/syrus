@@ -32,6 +32,7 @@ import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
 import { Modal } from "../components/Modal"
 import { NoticeToast } from "../components/NoticeToast"
+import { ConnectionStatusButton } from "../components/ConnectionStatus"
 import { NotificationsBell } from "../components/Notifications"
 import { ShellNotices } from "../components/ShellNotices"
 import { SyrusBrand } from "../components/SyrusBrand"
@@ -454,6 +455,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           </div>
           <div className="flex items-center gap-1">
             <BugReportTriggerButton onClick={() => openBugReport()} />
+            {user ? <ConnectionStatusButton prefix={prefix} /> : null}
             {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
           </div>
         </div>
@@ -1119,6 +1121,7 @@ function SidebarContent({
           </div>
           <div className={`items-center gap-1 ${collapsed ? "hidden" : "flex"}`}>
             {user ? <BugReportTriggerButton onClick={onOpenBugReport} /> : null}
+            {user ? <ConnectionStatusButton onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             <button
               aria-label={t("nav:close_sidebar")}

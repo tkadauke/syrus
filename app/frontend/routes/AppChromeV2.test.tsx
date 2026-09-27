@@ -1329,8 +1329,12 @@ describe("AppChromeV2 bug report trigger placement", () => {
 
       const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden") as HTMLElement
       const trigger = within(topBar).getByRole("button", { name: "Report a bug" })
+      const connection = within(topBar).getByRole("link", { name: "Live updates active" })
+      const notifications = within(topBar).getByRole("link", { name: "Notifications" })
       expect(trigger.className).not.toContain("fixed")
       expect(trigger).not.toHaveAttribute("draggable")
+      expect(trigger.compareDocumentPosition(connection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(connection.compareDocumentPosition(notifications) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
       fireEvent.click(trigger)
 
@@ -1346,8 +1350,12 @@ describe("AppChromeV2 bug report trigger placement", () => {
     const desktopSidebar = document.querySelector("aside.lg\\:flex") as HTMLElement
     expect(desktopSidebar).not.toBeNull()
     const trigger = within(desktopSidebar).getByRole("button", { name: "Report a bug" })
+    const connection = within(desktopSidebar).getByRole("button", { name: "Live updates active" })
+    const notifications = within(desktopSidebar).getByRole("button", { name: "Notifications" })
     expect(trigger.className).not.toContain("fixed")
     expect(trigger).not.toHaveAttribute("draggable")
+    expect(trigger.compareDocumentPosition(connection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(connection.compareDocumentPosition(notifications) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(trigger)
 
