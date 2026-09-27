@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, beforeEach } from "vitest"
-import { AttachmentCard, EpicSummaryLink } from "./components"
+import { AttachmentCard, EpicSummaryLink, RunTranscriptLogs } from "./components"
 import type { JobAttachment, JobEpic } from "../../api/jobs"
 import { fetchJobAttachmentContent } from "../../api/jobs"
 
@@ -167,5 +167,34 @@ describe("EpicSummaryLink", () => {
     // before this test (and its clipboard mock) tears down -- otherwise the
     // update fires during a later test and can flip that test's outcome.
     await waitFor(() => expect(copyButton).toHaveAttribute("title", "Copied"))
+  })
+})
+
+describe("RunTranscriptLogs", () => {
+  it("renders assistant, system, and command output with chat-style wrapping surfaces", () => {
+    render(
+      <MemoryRouter>
+        <RunTranscriptLogs
+          logs={[
+            { id: 1, sequence: 1, kind: "assistant_text", chunk: "**Done** with JOB-42", created_at: null },
+            { id: 2, sequence: 2, kind: "system", chunk: "System notice", created_at: null },
+            { id: 3, sequence: 3, kind: "tool_call", chunk: "\u001b[32mpassed\u001b[0m /tmp/workspaces/some/extremely/long/path/that/must/wrap", created_at: null },
+            { id: 4, sequence: 4, kind: "stdout", chunk: "branch-name-without-natural-breakpoints-abcdefghijklmnopqrstuvwxyz", created_at: null }
+          ]}
+        />
+      </MemoryRouter>
+    )
+
+    const stream = screen.getByTestId("run-transcript-log-stream")
+    expect(stream).toHaveClass("min-w-0", "overflow-y-auto", "overflow-x-hidden")
+    expect(screen.getByText("Done")).toBeInTheDocument()
+    expect(screen.getByText("Done").closest(".chat-prose")).toHaveClass("[overflow-wrap:anywhere]")
+    expect(screen.getByText("System")).toBeInTheDocument()
+    expect(screen.getByTestId("run-transcript-log-system")).toHaveTextContent("System notice")
+    expect(screen.getByText("passed")).toHaveClass("text-emerald-700")
+    expect(stream).not.toHaveTextContent("\u001b[32m")
+    expect(screen.getByText(/extremely\/long\/path/).closest("pre")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+    expect(screen.getByText("stdout")).toBeInTheDocument()
+    expect(screen.getByText(/branch-name-without/).closest("pre")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
   })
 })
