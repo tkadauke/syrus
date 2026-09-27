@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { ChatMessage, humanMessageBubbleClass, resolveWorkspaceFileLink, ToolGroup } from "./MessageCards"
+import { ChatMessage, humanMessageBubbleClass, resolveWorkspaceFileLink, shouldRenderUserMarkdown, ToolGroup } from "./MessageCards"
 import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, ChatToolGroupItem } from "../../api/chats"
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
 
@@ -161,6 +161,48 @@ beforeEach(() => {
   vi.mocked(fetchChatMessagePins).mockReset().mockResolvedValue({ pins: [] })
   vi.mocked(createChatMessagePin).mockReset()
   vi.mocked(deleteChatMessagePin).mockReset()
+})
+
+describe("user message markdown heuristic", () => {
+  it("keeps compact ordered-list-looking prose as plain text", () => {
+    renderChatMessageItem(userMessage("1. Yes, 2. No, 3. Maybe"))
+
+    expect(screen.getByText("1. Yes, 2. No, 3. Maybe")).toHaveClass("whitespace-pre-wrap")
+    expect(screen.queryByRole("list")).not.toBeInTheDocument()
+    expect(shouldRenderUserMarkdown("1. Yes, 2. No, 3. Maybe")).toBe(false)
+  })
+
+  it("renders bug-report-style user bodies as markdown", () => {
+    const body = `**Environment**
+- URL: https://example.test/jobs/1
+- Browser: Mobile Safari
+
+**Feature flags**
+- chat_markdown_user_messages`
+
+    renderChatMessageItem(userMessage(body))
+
+    expect(screen.getByText("Environment").tagName).toBe("STRONG")
+    expect(screen.getByText("Feature flags").tagName).toBe("STRONG")
+    expect(screen.getAllByRole("list")).toHaveLength(2)
+    expect(screen.getByText(/URL:/)).toBeInTheDocument()
+    expect(shouldRenderUserMarkdown(body)).toBe(true)
+  })
+
+  it("renders fenced code in user messages as a code block", () => {
+    renderChatMessageItem(userMessage("```ts\nconst answer = 42\n```"))
+
+    expect(screen.getByText("const answer = 42")).toBeInTheDocument()
+    expect(screen.getByText("const answer = 42").closest("pre")).toBeInTheDocument()
+  })
+
+  it("keeps short inline emphasis as plain text", () => {
+    renderChatMessageItem(userMessage("This is **bold** and *italic*."))
+
+    expect(screen.getByText("This is **bold** and *italic*.")).toHaveClass("whitespace-pre-wrap")
+    expect(screen.queryByText("bold")).not.toBeInTheDocument()
+    expect(shouldRenderUserMarkdown("This is **bold** and *italic*.")).toBe(false)
+  })
 })
 
 describe("sender attribution", () => {

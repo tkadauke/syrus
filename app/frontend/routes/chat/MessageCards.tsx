@@ -79,9 +79,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
             </div>
           ) : null}
           {item.chat_shell_command ? <ShellCommandCard shellCommand={item.chat_shell_command} /> : null}
-          {item.text.trim().length > 0 ? (
-            <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} />
-          ) : null}
+          {item.text.trim().length > 0 ? <UserMessageText item={item} payload={payload} /> : null}
           <MessageImageAttachments attachments={item.attachments} align="end" />
           <MessageFileAttachments attachments={item.attachments} align="end" />
         </div>
@@ -138,6 +136,53 @@ export function humanMessageBubbleClass(item: Extract<ChatRenderItem, { type: "m
   }
 
   return `${base} bg-brand text-on-brand`
+}
+
+function UserMessageText({ item, payload }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload }) {
+  if (shouldRenderUserMarkdown(item.text)) {
+    return <Markdown className={humanMarkdownMessageBubbleClass(item, payload)} text={item.text} />
+  }
+
+  return <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} />
+}
+
+function humanMarkdownMessageBubbleClass(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload) {
+  return humanMessageBubbleClass(item, payload).replace("whitespace-pre-wrap", "whitespace-normal")
+}
+
+export function shouldRenderUserMarkdown(text: string) {
+  const normalized = text.replace(/\r\n?/g, "\n").trim()
+  if (normalized === "") return false
+  if (/^```[\w.-]*\s*$/m.test(normalized)) return true
+
+  const lines = normalized.split("\n")
+  if (hasMarkdownTable(lines)) return true
+
+  const signalLineIndexes = lines
+    .map((line, index) => userMarkdownBlockSignal(line) ? index : null)
+    .filter((index): index is number => index !== null)
+
+  if (new Set(signalLineIndexes).size >= 2) return true
+  return signalLineIndexes.length > 0 && /\n\s*\n/.test(normalized)
+}
+
+function userMarkdownBlockSignal(line: string) {
+  return (
+    /^#{1,6}\s+\S/.test(line) ||
+    /^\s*(?:[-*+]|\d+[.)])\s+\S/.test(line) ||
+    /^\s*>\s?\S/.test(line) ||
+    /^\s*(?:---+|\*\*\*+|___+)\s*$/.test(line) ||
+    /^\s*\*\*[^*\n]{1,80}:?\*\*\s*$/.test(line) ||
+    isMarkdownTableDivider(line)
+  )
+}
+
+function hasMarkdownTable(lines: string[]) {
+  return lines.some((line, index) => index > 0 && line.includes("|") && isMarkdownTableDivider(line) && lines[index - 1]?.includes("|"))
+}
+
+function isMarkdownTableDivider(line: string) {
+  return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line)
 }
 
 function MessageImageAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
