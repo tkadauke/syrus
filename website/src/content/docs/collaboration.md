@@ -264,12 +264,12 @@ Feedback policies control how Syrus handles new PR comments from team members or
 
 | Policy | Trigger | When to use |
 | --- | --- | --- |
-| `auto` | Syrus starts a `pr_comment` Workflow immediately when new feedback arrives | Tightly collaborative teams where every comment should be actioned |
+| `auto` | Syrus starts a `pr_comment` Workflow immediately for job-owner and repository-member feedback | Tightly collaborative teams where member feedback should be actioned automatically |
 | `confirm` | New feedback creates a pending action card; the Job owner must click Confirm before the workflow starts | Reviewing feedback in batches, open source upstreams, or when you want to annotate comments before Syrus reads them |
 
 The confirm UX appears in the Syrus Job page as a **Feedback received** pending action. The operator can read the raw comment, decide whether to act on it, confirm or dismiss. Dismissed feedback is recorded in the Job log.
 
-Feedback from GitHub bots, CI checks, and users not registered in Syrus is ignored by both policies unless the PR poll classifies the sender as a relevant actor.
+Feedback from GitHub bots and CI checks is ignored. Feedback from users not registered as the job owner or a repository member is recorded for operator review instead of auto-triggering work.
 
 ---
 
