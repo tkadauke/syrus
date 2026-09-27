@@ -72,42 +72,12 @@ describe("uninstallCommand", () => {
     })
   })
 
-  it("runs uninstall.ps1 through powershell -File on Windows", () => {
-    expect(uninstallCommand("C:\\res\\backend\\uninstall.ps1", false, "win32")).toEqual({
-      command: "powershell.exe",
-      args: [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "C:\\res\\backend\\uninstall.ps1",
-        "--yes"
-      ]
-    })
-  })
-
-  it("never forwards --app-path on Windows — the NSIS uninstaller owns app removal there", () => {
-    const windows = uninstallCommand("C:\\res\\backend\\uninstall.ps1", true, "win32", "/Applications/Syrus.app")
-    expect(windows.args.some((arg) => arg.startsWith("--app-path"))).toBe(false)
-    expect(windows.args).toEqual([
-      "-NoProfile",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-File",
-      "C:\\res\\backend\\uninstall.ps1",
-      "--yes",
-      "--keep-data"
-    ])
-  })
-
-  it("keeps the keep-data mapping identical across platforms", () => {
+  it("keeps the keep-data mapping on the shell command", () => {
     const darwin = uninstallCommand("/s/uninstall.sh", true, "darwin")
-    const windows = uninstallCommand("C:\\s\\uninstall.ps1", true, "win32")
     expect(darwin.args).toContain("--keep-data")
-    expect(windows.args).toContain("--keep-data")
   })
 
-  it("threads --channel test to BOTH the bash and powershell scripts", () => {
+  it("threads --channel test to the shell script", () => {
     const darwin = uninstallCommand("/s/uninstall.sh", true, "darwin", "/Applications/Syrus Test.app", "test")
     expect(darwin.args).toEqual([
       "/s/uninstall.sh",
@@ -117,7 +87,5 @@ describe("uninstallCommand", () => {
       "--channel",
       "test"
     ])
-    const windows = uninstallCommand("C:\\s\\uninstall.ps1", true, "win32", null, "test")
-    expect(windows.args.slice(-2)).toEqual(["--channel", "test"])
   })
 })

@@ -316,8 +316,8 @@ together when preserving active runs.
 
 ## Uninstall
 
-`uninstall.sh` (macOS/Linux) and `uninstall.ps1` (Windows) at the repo root
-reverse `install.sh --docker`, plus the desktop-app artifacts when present.
+`uninstall.sh` at the repo root reverses `install.sh --docker`, plus the
+desktop-app artifacts when present.
 Interactive by default: the script prints exactly what it will remove and
 asks one y/N question. Re-running is always safe — missing artifacts are
 skipped, and an unreachable Docker daemon skips only the Docker steps.
@@ -338,8 +338,7 @@ What it removes:
   removing it together with the data volume destroys the local Syrus data
   permanently** (skipped by `--keep-data`).
 - `~/.syrus/credentials` (skipped by `--keep-data`).
-- The `syrus` CLI: `~/.local/bin/syrus`, or on Windows
-  `%LOCALAPPDATA%\Syrus\bin` plus its user `PATH` entry.
+- The `syrus` CLI: `~/.local/bin/syrus`.
 - The Claude Code skill at `~/.claude/skills/syrus`.
 - The desktop app and its settings (settings skipped by `--keep-data`),
   where present.

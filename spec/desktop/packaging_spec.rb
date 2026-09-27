@@ -213,8 +213,8 @@ RSpec.describe "desktop packaging" do
     expect(package_json.dig("scripts", "build")).to include("stage:backend")
   end
 
-  it "stages both installer scripts, compose file, env template, and a version-pinned manifest" do
-    %w[install.sh install.ps1 docker-compose.yml compose.env.example].each do |asset|
+  it "stages the shell installer scripts, compose file, env template, and a version-pinned manifest" do
+    %w[install.sh uninstall.sh docker-compose.yml compose.env.example].each do |asset|
       expect(staging_script).to include(%("#{asset}"))
     end
     expect(staging_script).to include("ghcr.io/tkadauke/syrus-backend:${version}")

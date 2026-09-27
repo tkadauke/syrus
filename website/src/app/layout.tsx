@@ -62,7 +62,7 @@ const jsonLd = {
       url: "https://syrus-ai.dev",
       applicationCategory: "DeveloperApplication",
       operatingSystem:
-        "macOS (universal: Apple Silicon & Intel), Windows (beta), self-hosted server (Docker/Kubernetes)",
+        "macOS (universal: Apple Silicon & Intel), self-hosted server (Docker/Kubernetes)",
       description,
       publisher: { "@id": "https://syrus-ai.dev/#org" },
     },

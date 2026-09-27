@@ -21,17 +21,4 @@ describe("Welcome", () => {
     expect(onChoose).toHaveBeenCalledWith("local")
   })
 
-  it("offers the local install on Windows via Docker Desktop", () => {
-    stubPlatform("win32")
-    const onChoose = vi.fn()
-    render(<Welcome onChoose={onChoose} />)
-
-    // Phase 2 of docs/windows-desktop-plan.md: install.ps1 drives the local
-    // path on Windows, so the card is a real choice now.
-    fireEvent.click(screen.getByRole("button", { name: /Install on this PC/ }))
-    expect(onChoose).toHaveBeenCalledWith("local")
-
-    fireEvent.click(screen.getByRole("button", { name: /Connect to existing Syrus/ }))
-    expect(onChoose).toHaveBeenCalledWith("remote")
-  })
 })

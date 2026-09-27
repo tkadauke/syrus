@@ -18,14 +18,6 @@ export function AppleIcon(props: IconProps) {
   );
 }
 
-export function WindowsIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
-      <path d="M3 5.5 10.6 4.4v7.05H3V5.5Zm0 13.02 7.6 1.08v-6.98H3v5.9ZM11.55 4.26 21.02 3v8.45h-9.47V4.26Zm0 8.23h9.47V21l-9.47-1.29v-7.22Z" />
-    </svg>
-  );
-}
-
 export function DownloadIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden {...base} {...props}>

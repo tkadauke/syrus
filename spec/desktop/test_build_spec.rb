@@ -6,7 +6,7 @@ require "spec_helper"
 # The TEST BUILD pipeline (.github/workflows/test-build.yml). Its contract
 # is the inverse of release.yml's: every component is DETERMINISTICALLY built —
 # the backend image is pushed to GHCR under a collision-proof test tag, and the
-# signed installers pin that exact tag — while publishing is structurally
+# signed desktop app pins that exact tag — while publishing is structurally
 # impossible (contents: read, no gh release, :latest untouched). The invariants
 # here are the ones that would quietly turn a test build into a shadow release
 # (or a broken artifact) if broken.
@@ -31,11 +31,9 @@ RSpec.describe "desktop test-build pipeline" do
     triggers = workflow[true]
     expect(triggers.keys).to eq(["workflow_dispatch"])
     inputs = triggers.dig("workflow_dispatch", "inputs")
-    expect(inputs.keys).to contain_exactly("run_integration_tests", "build_windows")
+    expect(inputs.keys).to contain_exactly("run_integration_tests")
     expect(inputs.dig("run_integration_tests", "type")).to eq("boolean")
     expect(inputs.dig("run_integration_tests", "default")).to eq(true)
-    expect(inputs.dig("build_windows", "type")).to eq("boolean")
-    expect(inputs.dig("build_windows", "default")).to eq(true)
   end
 
   it "makes publishing structurally impossible: contents read-only, no release, no :latest" do
@@ -57,7 +55,7 @@ RSpec.describe "desktop test-build pipeline" do
     expect(workflow["jobs"].keys).to contain_exactly("prepare", "build")
     # The build spine's jobs live in the shared module.
     expect(build_yaml["jobs"].keys).to contain_exactly(
-      "build-backend", "merge-backend", "build-cli", "build-mac", "build-windows"
+      "build-backend", "merge-backend", "build-cli", "build-mac"
     )
   end
 
@@ -163,15 +161,15 @@ RSpec.describe "desktop test-build pipeline" do
     expect(build_text).to include('--build-arg "SYRUS_BUILT_AT=$SYRUS_BUILT_AT"')
   end
 
-  it "pins the pushed test image into both installers and verifies the pin" do
+  it "pins the pushed test image into the desktop app and verifies the pin" do
     # The module reads SYRUS_BACKEND_IMAGE from the backend_image_pin input in
-    # BOTH desktop build steps — overriding stage-backend-assets.mjs's
+    # the desktop build step — overriding stage-backend-assets.mjs's
     # version-derived pin, which would otherwise be :<app_version>, a tag that
     # never exists. The test caller pins the VERSION-NAMED tag so the in-app
     # badge reads identically for app and backend (the module bakes the
     # app-style version as SYRUS_VERSION: app 0.1.4-test.1 · backend
     # 0.1.4-test.1); the version-named tag is registry addressing.
-    expect(build_text.scan("SYRUS_BACKEND_IMAGE: ${{ inputs.backend_image_pin }}").size).to eq(2)
+    expect(build_text.scan("SYRUS_BACKEND_IMAGE: ${{ inputs.backend_image_pin }}").size).to eq(1)
     expect(workflow.dig("jobs", "build", "with", "backend_image_pin")).to eq(
       "ghcr.io/tkadauke/syrus-backend:${{ needs.prepare.outputs.version_tag }}"
     )
@@ -180,22 +178,20 @@ RSpec.describe "desktop test-build pipeline" do
     # completion. (Parallelism is pinned in its own example.)
     # ...and each verify step asserts the sealed manifest actually carries it.
     expect(build_text).to include('grep -qF "\"image\": \"$BACKEND_IMAGE\"" "$APP/Contents/Resources/backend/manifest.json"')
-    expect(build_text).to include("desktop/out/win-unpacked/resources/backend/manifest.json")
   end
 
   it "signs test builds exactly like a release (guards, preflights, forced signing)" do
     # All shared with the release through the module.
-    expect(build_text.scan("A signed build is required").length).to be >= 2
-    expect(build_text.scan("-c.forceCodeSigning=true").length).to be >= 2
+    expect(build_text.scan("A signed build is required").length).to be >= 1
+    expect(build_text.scan("-c.forceCodeSigning=true").length).to be >= 1
     expect(build_text).to include("Preflight: Apple signing credentials")
-    expect(build_text).to include("Preflight: Azure credentials")
     expect(build_text).to include("xcrun stapler validate")
     # SYRUS_RELEASE_BUILD arms stage-cli's hard-fail and release DMG naming in
-    # both desktop jobs, and Go is pinned so the hard-fail never fires.
-    expect(build_text.scan('SYRUS_RELEASE_BUILD: "1"').size).to eq(2)
+    # the desktop job, and Go is pinned so the hard-fail never fires.
+    expect(build_text.scan('SYRUS_RELEASE_BUILD: "1"').size).to eq(1)
     setup_go = build_text.scan(%r{uses: actions/setup-go@\S+\s+with:\s+go-version-file: cli/go\.mod})
-    expect(setup_go.length).to eq(3) # build-cli + build-mac + build-windows
-    expect(build_text.scan("cache-dependency-path: cli/go.sum").size).to eq(3)
+    expect(setup_go.length).to eq(2)
+    expect(build_text.scan("cache-dependency-path: cli/go.sum").size).to eq(2)
     expect(build_text).to include("grep -qF 'stage-cli: Go toolchain not found'")
     # Stage only — nothing ever publishes from a build.
     expect(build_text).to include("--publish never")
@@ -217,30 +213,27 @@ RSpec.describe "desktop test-build pipeline" do
   end
 
   it "uploads versioned artifacts to the run only — no permalinks, no update feed" do
-    # The versioned .dmg / Setup .exe / CLI tarballs land as workflow-run
-    # artifacts with a 14-day retention and hard-fail if the build produced
+    # The versioned .dmg / CLI tarballs land as workflow-run artifacts with a
+    # 14-day retention and hard-fail if the build produced
     # nothing. Retention + hard-fail are module-level; the test caller sets 14.
     expect(workflow.dig("jobs", "build", "with", "artifact_retention_days")).to eq(14)
     expect(workflow.dig("jobs", "build", "with", "artifact_prefix")).to eq("test-staged")
-    expect(build_text.scan("if-no-files-found: error").size).to be >= 3
+    expect(build_text.scan("if-no-files-found: error").size).to be >= 2
     expect(build_text).to include("retention-days: ${{ inputs.artifact_retention_days }}")
-    # A test build stages ONLY the versioned installers (the else branch of the
+    # A test build stages ONLY the versioned DMG (the else branch of the
     # stage_update_feed gate). Filenames carry the channel product name — the
     # test caller passes channel: test, so $PRODUCT is "Syrus Test" at runtime.
     expect(build_text).to match(%r{cp "desktop/out/\$PRODUCT-\$VERSION-universal\.dmg" "\$RUNNER_TEMP/staged/"})
-    expect(build_text).to match(%r{cp "desktop/out/\$PRODUCT-Setup-\$VERSION-x64\.exe" "\$RUNNER_TEMP/staged/"})
     # The channel-feeding staging (stable-name aliases + latest-mac.yml /
-    # latest.yml / .blockmap) is gated on stage_update_feed, which the test
+    # .blockmap) is gated on stage_update_feed, which the test
     # caller turns OFF — so a test build never feeds the update channel.
     expect(workflow.dig("jobs", "build", "with", "stage_update_feed")).to eq(false)
     # …and the module's guard has the right polarity: the permalink aliases +
     # update-feed files are copied ONLY inside the STAGE_FEED=true branch.
-    expect(build_text.scan("STAGE_FEED: ${{ inputs.stage_update_feed }}").size).to eq(2)
+    expect(build_text.scan("STAGE_FEED: ${{ inputs.stage_update_feed }}").size).to eq(1)
     mac_stage = build_text[/if \[ "\$STAGE_FEED" = "true" \]; then[\s\S]{0,700}?else/]
     expect(mac_stage).to include("latest-mac.yml")
     expect(mac_stage).to include('staged/$PRODUCT.dmg"')
-    win_stage = build_text[/latest\.yml[\s\S]{0,400}?else/]
-    expect(win_stage).to include("$PRODUCT-Setup.exe")
 
     # The failure-diagnostics artifact must stay OUTSIDE the caller's
     # `<prefix>-*` namespace: release's publish downloads `pattern: staged-*`
@@ -270,7 +263,6 @@ RSpec.describe "desktop test-build pipeline" do
     expect(runbook).to include("test-build.yml")
     expect(runbook).to include("gh workflow run test-build.yml --ref")
     expect(runbook).to include("test-staged-mac")
-    expect(runbook).to include("test-staged-windows")
     expect(runbook).to include("test-staged-cli")
     # The tag scheme and retention are the operator-facing contract.
     expect(runbook).to match(/test-<short-sha>|test-<sha>/)
@@ -279,12 +271,11 @@ RSpec.describe "desktop test-build pipeline" do
 
   it "builds desktop in parallel with the backend (no merge-backend gate)" do
     # The manifest pin is a string match, not a docker pull, so the desktop
-    # jobs never need the image to exist yet — gating them on merge-backend
-    # serialized ~5 min of pure waiting. In the module build-mac / build-windows
-    # carry NO needs, so they start immediately alongside build-backend; only
-    # merge-backend waits on the backend. Same posture as release.yml.
+    # job never needs the image to exist yet — gating it on merge-backend
+    # serialized ~5 min of pure waiting. In the module build-mac carries NO
+    # needs, so it starts immediately alongside build-backend; only merge-backend
+    # waits on the backend. Same posture as release.yml.
     expect(build_yaml.dig("jobs", "build-mac", "needs")).to be_nil
-    expect(build_yaml.dig("jobs", "build-windows", "needs")).to be_nil
     expect(build_yaml.dig("jobs", "merge-backend", "needs")).to eq("build-backend")
   end
 end

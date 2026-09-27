@@ -989,17 +989,13 @@ const commandExists = async (command: string) => {
 // argv[0] profile resolution targets ~/.syrus/credentials.test and the test
 // backend. Without this the test app would overwrite the production binary on
 // every launch AND run it under the stable profile against production. Matches
-// the channel-derived CLI paths uninstall.sh / uninstall.ps1 remove.
+// the channel-derived CLI paths uninstall.sh removes.
 const cliBinaryName = () => (currentChannel() === "test" ? "syrus-test" : "syrus")
 
 // The one-click install target, probed directly because a PATH lookup can
 // miss it: on macOS GUI apps get a minimal PATH (so ~/.local/bin is
-// invisible to `which`), and on Windows the registry PATH entry we add only
-// reaches processes started after this app. Windows installs OUTSIDE the
-// NSIS $INSTDIR (%LocalAppData%\Programs\syrus[-test]-desktop) on purpose —
-// the updater replaces that directory wholesale on every auto-update, which
-// would silently delete the CLI. The bin dir also forks per channel so the
-// two channels' CLIs never share a directory.
+// invisible to `which`). The bin dir also forks per channel so the two
+// channels' CLIs never share a directory.
 const localBinSyrus = () => {
   const name = cliBinaryName()
   if (process.platform === "win32") {
@@ -2250,10 +2246,9 @@ const confirmStopBackend = async () => {
 }
 
 // "Uninstall Syrus…": confirm natively, then hand off to the staged
-// uninstall script (uninstall.sh / uninstall.ps1) and get out of its way.
+// uninstall script (uninstall.sh) and get out of its way.
 // The script owns the whole teardown — compose down, volumes/images, CLI,
-// Claude skill, settings, and the app itself (on Windows the NSIS
-// uninstaller runs /S as its LAST step) — so it must outlive this process:
+// Claude skill, settings, and the app itself — so it must outlive this process:
 // spawn detached with ignored stdio, unref, then quit after a short beat.
 // Quitting never touches the stack (backendLifecycle stops containers only
 // on explicit menu action), so there is no race against the script's own
@@ -2266,7 +2261,6 @@ const confirmStopBackend = async () => {
 // live exe path (<bundle>.app/Contents/MacOS/<binary> → <bundle>.app) and
 // passed only when the result actually looks like a bundle; uninstall.sh
 // re-validates it (absolute, ends in /Syrus.app, under an Applications dir).
-// Windows never passes it — the NSIS uninstaller owns app removal there.
 const uninstallAppPath = (): string | null => {
   if (process.platform !== "darwin") {
     return null
@@ -2305,9 +2299,7 @@ const confirmAndUninstall = async () => {
   const scriptPath = uninstallScriptPath()
   const { command, args } = uninstallCommand(scriptPath, !choice.checkboxChecked, process.platform, uninstallAppPath(), channel)
   // detached + unref + ignored stdio: the script keeps running after
-  // app.quit(). windowsHide: false gives uninstall.ps1 its own visible
-  // console window, where teardown progress (and the final NSIS step)
-  // remains observable after the app exits.
+  // app.quit().
   const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: false })
 
   // A short beat lets the detached child finish launching before Electron
@@ -3152,11 +3144,7 @@ app.whenReady().then(async () => {
   registerScreenCaptureHandler()
 
   if (process.platform === "win32") {
-    // Must match electron-builder's appId for THIS channel — NSIS stamps it
-    // into the Start Menu shortcut, and Windows only shows Notification toasts
-    // when the process AUMID matches the shortcut's. The test build overrides
-    // appId to app.syrus.desktop.test (see _build-app.yml); keep this mapping
-    // in lockstep (pinned by spec/desktop/packaging_spec.rb).
+    // Keep this aligned with the packaged appId for this channel.
     app.setAppUserModelId(currentChannel() === "test" ? "app.syrus.desktop.test" : "app.syrus.desktop")
   }
 

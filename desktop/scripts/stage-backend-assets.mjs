@@ -21,15 +21,11 @@ const pkg = JSON.parse(fs.readFileSync(path.join(desktopRoot, "package.json"), "
 fs.rmSync(stagingDir, { recursive: true, force: true })
 fs.mkdirSync(stagingDir, { recursive: true })
 
-// Both installer scripts (and their uninstall counterparts, which power the
-// app's "Uninstall Syrus…" menu item) stage unconditionally — one staging run
-// feeds the mac and the Windows packaging jobs (electron-builder bundles the
-// whole backend dir for every platform; the scripts are a few KB).
+// The installer script and its uninstall counterpart, which power the app's
+// "Uninstall Syrus…" menu item, stage into the signed app bundle.
 for (const name of [
   "install.sh",
-  "install.ps1",
   "uninstall.sh",
-  "uninstall.ps1",
   "docker-compose.yml",
   "compose.env.example"
 ]) {
