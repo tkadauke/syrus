@@ -1,3 +1,5 @@
+require "fugit"
+
 module OperatorBriefing
   extend Syrus::PluginApi
 
@@ -5,8 +7,8 @@ module OperatorBriefing
 
   syrus_plugin "operator_briefing" do
     display_name "Operator Briefing"
-    description "Data-layer groundwork for operator briefing decision surfaces."
-    long_description "Operator Briefing stores briefing items that later generation work can synthesize into the operator-facing briefing."
+    description "Per-repository operator briefings and generation controls."
+    long_description "Operator Briefing turns stored briefing items and repository activity into per-repository briefings for each operator."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/operator_briefing.svg"
     author "Thomas Kadauke"
@@ -14,5 +16,17 @@ module OperatorBriefing
     default_enabled false
     disableable true
     depends_on [ "design_docs" ]
+
+    provides workflow_kinds: "OperatorBriefing::WorkflowKinds",
+             sidebar_page: "OperatorBriefing::SidebarPages",
+             callbacks: "OperatorBriefing::Callbacks"
+    tick_interval 1.minute
+    route :get, "/api/v1/app/briefing", to: "api/v1/app/operator_briefing/briefings#show"
+    route :post, "/api/v1/app/briefing/repositories/:repository_id/regenerate", to: "api/v1/app/operator_briefing/briefings#regenerate"
+    route :patch, "/api/v1/app/briefing/subscriptions/:id", to: "api/v1/app/operator_briefing/subscriptions#update"
+    frontend routes: {
+          "operator_briefing/Briefing" => "app/frontend/routes/Briefing.tsx"
+        },
+        i18n: [ "app/frontend/i18n/locales/*/operator_briefing.json" ]
   end
 end

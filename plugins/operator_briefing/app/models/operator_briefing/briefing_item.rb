@@ -4,6 +4,7 @@ module OperatorBriefing
 
     SEVERITIES = OperatorBriefing::SEVERITIES
 
+    belongs_to :briefing, class_name: "OperatorBriefing::Briefing", optional: true
     belongs_to :source, polymorphic: true, optional: true
 
     validates :severity, presence: true, inclusion: { in: SEVERITIES }
