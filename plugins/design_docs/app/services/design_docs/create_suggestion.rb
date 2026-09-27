@@ -20,6 +20,7 @@ module DesignDocs
         base_version = design_doc.current_version
         visible = AnchorMarkers.strip(design_doc.markdown)
         start_offset, end_offset = normalized_offsets(visible.length)
+        validate_original_markdown!(visible, start_offset, end_offset)
         if autosave? || full_document_suggestion?
           draft = existing_autosave_suggestion
           if draft
@@ -148,7 +149,8 @@ module DesignDocs
 
     def original_markdown(anchor)
       candidate = attributes[:original_markdown].presence || attributes[:selected_markdown].presence || attributes[:selected_text].presence
-      return candidate if candidate.blank? || candidate == anchor.selected_markdown
+      return anchor.selected_markdown.to_s if candidate.blank?
+      return candidate if candidate == anchor.selected_markdown
 
       anchor.selected_markdown.to_s
     end
@@ -212,6 +214,16 @@ module DesignDocs
       return unless selected.match?(BLOCK_MARKER_PATTERN) || cuts_block_marker?(visible, start_offset) || cuts_block_marker?(visible, end_offset)
 
       raise_invalid_suggestion!("Suggestions cannot select only part of Markdown block syntax. Select the whole heading, list item, quote, or code fence block.")
+    end
+
+    def validate_original_markdown!(visible, start_offset, end_offset)
+      expected = attributes[:original_markdown].presence
+      return if expected.blank?
+
+      actual = visible[start_offset...end_offset].to_s
+      return if actual == expected
+
+      raise_invalid_suggestion!("original_markdown does not match the current rendered Markdown at offsets #{start_offset}..#{end_offset}. Re-read the Design Doc or update the offsets before creating the suggestion.")
     end
 
     def validate_pending_overlap!(start_offset, end_offset)
