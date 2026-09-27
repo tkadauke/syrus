@@ -70,6 +70,8 @@ class RunFailureClassifier
       result("source_snapshot_metadata_invalid", 0.95, true, "Workflow source snapshot metadata is missing or does not match the requested immutable checkout.")
     when storage_unavailable?
       result("storage_unavailable", 0.95, true, "Active Storage is temporarily unavailable; retry after the storage backend recovers.")
+    when process_memory_limit_exceeded?
+      result("process_memory_limit_exceeded", 0.99, true, "A subprocess exceeded its cgroup memory ceiling and the kernel killed its process group.")
     when timeout?
       result("timeout", 0.85, true, "The run failed because an operation timed out.")
     when provider_prompt_too_long?
@@ -252,6 +254,25 @@ class RunFailureClassifier
     run.agent_outcome == "worker_died" ||
       text_match?(/ProcessPrunedError|worker died|process (is )?gone|process died|sigkill|killed|terminated/i) ||
       spawned_processes.any? { |process| %w[aliveness_failed stopped operator_killed].include?(process.outcome) }
+  end
+
+  def process_memory_limit_exceeded?
+    spawned_processes.any? { |process| process_cgroup_oom_kill?(process) }
+  end
+
+  def process_cgroup_oom_kill?(process)
+    process_cgroup_oom_kill_count(process).positive?
+  end
+
+  def process_cgroup_oom_kill_count(process)
+    cgroup = process.resource_attribution.to_h["cgroup"].to_h
+    return 0 unless cgroup["state"].to_s == "applied"
+
+    events = cgroup["memory_events"].to_h
+    count = events["oom_kill"].to_i
+    return count if count.positive?
+
+    cgroup["memory_events_after"].to_h["oom_kill"].to_i
   end
 
   # Deliberately excludes a run that died during a rolling deploy, even when
@@ -566,7 +587,9 @@ class RunFailureClassifier
       "error_class" => diagnostic&.error_class,
       "error_message" => diagnostic&.error_message&.truncate(500),
       "job_log_kinds" => recent_logs.map(&:kind).compact,
-      "spawned_process_outcomes" => spawned_processes.map(&:outcome).compact.uniq
+      "spawned_process_outcomes" => spawned_processes.map(&:outcome).compact.uniq,
+      "spawned_process_cgroup_states" => spawned_processes.map { |process| process.resource_attribution.to_h.dig("cgroup", "state") }.compact.uniq,
+      "spawned_process_cgroup_oom_kills" => spawned_processes.sum { |process| process_cgroup_oom_kill_count(process) }
     }
   end
 
