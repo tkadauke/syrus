@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_27_143000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2056,6 +2056,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_143000) do
     t.index ["source_type", "source_id"], name: "idx_operator_briefing_items_source"
   end
 
+  create_table "operator_briefing_review_findings", force: :cascade do |t|
+    t.json "artifacts"
+    t.datetime "created_at", null: false
+    t.text "critique", null: false
+    t.integer "iteration", null: false
+    t.boolean "overridden", default: false, null: false
+    t.datetime "overridden_at"
+    t.string "review_kind", null: false
+    t.integer "run_id"
+    t.string "skip_reason"
+    t.boolean "skipped", default: false, null: false
+    t.integer "step_id"
+    t.datetime "updated_at", null: false
+    t.string "verdict", null: false
+    t.integer "workflow_id", null: false
+    t.index ["run_id"], name: "index_operator_briefing_review_findings_on_run_id"
+    t.index ["step_id"], name: "index_operator_briefing_review_findings_on_step_id"
+    t.index ["workflow_id", "review_kind", "iteration", "run_id"], name: "idx_operator_briefing_review_findings_identity", unique: true
+    t.index ["workflow_id", "review_kind", "verdict", "overridden"], name: "idx_operator_briefing_review_findings_lookup"
+    t.index ["workflow_id"], name: "index_operator_briefing_review_findings_on_workflow_id"
+  end
+
   create_table "operator_briefing_revisions", force: :cascade do |t|
     t.integer "briefing_id", null: false
     t.json "content_blocks"
@@ -2103,6 +2125,68 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_143000) do
     t.index ["repository_id"], name: "index_operator_briefing_subscriptions_on_repository_id"
     t.index ["user_id", "repository_id"], name: "idx_operator_briefing_subscriptions_identity", unique: true
     t.index ["user_id"], name: "index_operator_briefing_subscriptions_on_user_id"
+  end
+
+  create_table "operator_briefing_topic_links", force: :cascade do |t|
+    t.integer "briefing_id", null: false
+    t.datetime "created_at", null: false
+    t.string "source_span"
+    t.integer "topic_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id"
+    t.index ["briefing_id"], name: "index_operator_briefing_topic_links_on_briefing_id"
+    t.index ["topic_id", "briefing_id", "workflow_id"], name: "idx_operator_briefing_topic_links_identity", unique: true
+    t.index ["topic_id"], name: "index_operator_briefing_topic_links_on_topic_id"
+    t.index ["workflow_id"], name: "index_operator_briefing_topic_links_on_workflow_id"
+  end
+
+  create_table "operator_briefing_topic_revisions", force: :cascade do |t|
+    t.integer "briefing_id"
+    t.datetime "created_at", null: false
+    t.json "findings"
+    t.datetime "generated_at", null: false
+    t.text "narrative", null: false
+    t.json "references"
+    t.integer "revision_number", null: false
+    t.integer "run_id"
+    t.integer "topic_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id"
+    t.index ["briefing_id"], name: "index_operator_briefing_topic_revisions_on_briefing_id"
+    t.index ["run_id"], name: "index_operator_briefing_topic_revisions_on_run_id"
+    t.index ["topic_id", "revision_number"], name: "idx_operator_briefing_topic_revisions_number", unique: true
+    t.index ["topic_id"], name: "index_operator_briefing_topic_revisions_on_topic_id"
+    t.index ["workflow_id"], name: "index_operator_briefing_topic_revisions_on_workflow_id"
+  end
+
+  create_table "operator_briefing_topics", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "first_seen_briefing_item_id"
+    t.integer "repository_id", null: false
+    t.string "slug", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["first_seen_briefing_item_id"], name: "index_operator_briefing_topics_on_first_seen_briefing_item_id"
+    t.index ["repository_id", "slug"], name: "idx_operator_briefing_topics_repo_slug", unique: true
+    t.index ["repository_id"], name: "index_operator_briefing_topics_on_repository_id"
+  end
+
+  create_table "operator_briefing_workflow_notable_changes", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "detector_key", null: false
+    t.json "evidence"
+    t.string "fact_key", null: false
+    t.integer "job_id", null: false
+    t.integer "repository_id", null: false
+    t.string "severity", null: false
+    t.text "summary", null: false
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id", null: false
+    t.index ["job_id"], name: "index_operator_briefing_workflow_notable_changes_on_job_id"
+    t.index ["repository_id", "severity", "created_at"], name: "idx_operator_briefing_notable_changes_repo_severity"
+    t.index ["repository_id"], name: "idx_on_repository_id_f6cdaacbc0"
+    t.index ["workflow_id", "fact_key"], name: "idx_operator_briefing_notable_changes_identity", unique: true
+    t.index ["workflow_id"], name: "idx_on_workflow_id_92b5d0245e"
   end
 
   create_table "passkey_challenges", force: :cascade do |t|

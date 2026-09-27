@@ -47,4 +47,24 @@ RSpec.describe OperatorBriefing::Payload do
     expect(repo_payload[:current][:latest_revision][:content_blocks].first.dig("payload", "text")).to eq("Live text")
     expect(repo_payload[:history].first[:id]).to eq(archived.id)
   end
+
+  it "resolves artifact content blocks against existing workflow typed artifacts" do
+    live_job = Job.create!(user: user, owner_user: user, repository: repository, kind: "briefing_generate", priority: "low")
+    source_workflow = Workflow.create!(job: live_job, user: user, trigger_kind: "initial", agent_provider: user.agent_provider)
+    source_workflow.set_typed_artifact!(type: "rails_schema_erd", title: "Schema ERD", payload: { "tables" => [] }, renderer_type: "erd_diagram")
+    live = OperatorBriefing::Briefing.create!(job: live_job, owner_user: user, repository: repository, window_start: 1.day.ago, window_end: Time.current)
+    live.revisions.create!(
+      revision_number: 1,
+      generated_at: Time.current,
+      content_blocks: [ { "kind" => "artifact", "payload" => { "workflow_id" => source_workflow.id, "type" => "rails_schema_erd" } } ]
+    )
+
+    block = described_class.new(user: user).as_json[:repositories].sole[:current][:latest_revision][:content_blocks].sole
+
+    expect(block.dig("payload", "artifact")).to include(
+      "type" => "rails_schema_erd",
+      "title" => "Schema ERD",
+      "renderer_type" => "erd_diagram"
+    )
+  end
 end

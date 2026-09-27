@@ -3,8 +3,6 @@ require "mcp"
 module OperatorBriefing
   module Tools
     class SubmitBriefingBlockTool < MCP::Tool
-      KINDS = %w[narrative link_card].freeze
-
       tool_name "submit_briefing_block"
 
       description <<~DESC
@@ -62,39 +60,10 @@ module OperatorBriefing
 
         def normalize_block(kind, payload)
           kind_s = Mcp::Tools.utf8(kind).strip
-          return Mcp::Tools.invalid("kind must be one of: #{KINDS.join(', ')}") unless KINDS.include?(kind_s)
+          return Mcp::Tools.invalid("kind must be one of: #{BriefingRevision::BLOCK_KINDS.join(', ')}") unless BriefingRevision::BLOCK_KINDS.include?(kind_s)
           return Mcp::Tools.invalid("payload must be an object") unless payload.is_a?(Hash)
 
-          normalized_payload = send("normalize_#{kind_s}", payload)
-          return normalized_payload if normalized_payload.is_a?(MCP::Tool::Response)
-
-          { "kind" => kind_s, "payload" => normalized_payload }
-        end
-
-        def normalize_narrative(payload)
-          text = redact_string(payload["text"] || payload[:text])
-          return Mcp::Tools.invalid("payload.text is required for narrative blocks") if text.blank?
-
-          { "text" => text }
-        end
-
-        def normalize_link_card(payload)
-          title = redact_string(payload["title"] || payload[:title])
-          path = redact_string(payload["path"] || payload[:path])
-          return Mcp::Tools.invalid("payload.title is required for link_card blocks") if title.blank?
-          return Mcp::Tools.invalid("payload.path is required for link_card blocks") if path.blank?
-
-          {
-            "entity_type" => redact_string(payload["entity_type"] || payload[:entity_type]),
-            "entity_id" => payload["entity_id"] || payload[:entity_id],
-            "title" => title,
-            "path" => path,
-            "description" => redact_string(payload["description"] || payload[:description])
-          }.compact
-        end
-
-        def redact_string(value)
-          CommandRedactor.redact(Mcp::Tools.utf8(value)).strip
+          { "kind" => kind_s, "payload" => payload.deep_stringify_keys }
         end
       end
     end

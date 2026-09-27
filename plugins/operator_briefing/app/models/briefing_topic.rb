@@ -1,0 +1,1 @@
+BriefingTopic = OperatorBriefing::BriefingTopic
