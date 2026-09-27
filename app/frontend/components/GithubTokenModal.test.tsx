@@ -40,6 +40,7 @@ describe("GithubTokenModal", () => {
     expect(screen.getByText(/Set an expiration/)).toBeInTheDocument()
     expect(screen.getByText("Contents")).toBeInTheDocument()
     expect(screen.getByText("Pull requests")).toBeInTheDocument()
+    expect(screen.getByText("Checks")).toBeInTheDocument()
   })
 
   it("tests the token on paste and shows a green check, enabling save", async () => {

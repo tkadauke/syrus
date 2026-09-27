@@ -884,6 +884,7 @@
     "step2_description": "Grant repository access only to the repositories connected to this Syrus instance, then enable these repository permissions:",
     "scope_repo": "— read and write, for cloning, branches, commits, and file reads",
     "scope_workflow": "— read and write, for opening and updating pull requests",
+    "scope_checks": "— read, for CI failure detection",
     "step3_heading": "3. Paste the token",
     "input_label": "GitHub personal access token",
     "saving": "Saving…",

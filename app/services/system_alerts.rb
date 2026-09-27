@@ -96,7 +96,7 @@ module SystemAlerts
         "Generate a fine-grained PAT at " \
           "<a class=\"underline\" href=\"https://github.com/settings/personal-access-tokens/new\">github.com/settings/personal-access-tokens/new</a> " \
           "scoped only to the repositories this Syrus instance manages, with repository <code>Contents</code> read/write and " \
-          "<code>Pull requests</code> read/write permissions. Use an expiration you can rotate.",
+          "<code>Pull requests</code> read/write permissions, plus <code>Checks</code> read for CI-failure detection. Use an expiration you can rotate.",
         "If you use a classic PAT instead, <code>repo</code> is sufficient for private repositories. Syrus does not require the " \
           "<code>workflow</code> scope unless you expect agents to modify GitHub Actions workflow files through that token.",
         "Paste the new token into <a class=\"underline\" href=\"/credentials\">Settings → Credentials</a> and save. " \

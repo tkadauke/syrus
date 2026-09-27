@@ -29,6 +29,12 @@ RSpec.describe GithubAuthenticatedGit do
                  body: { token: token, expires_at: 1.hour.from_now.iso8601 }.to_json)
   end
 
+  def workflow_run_for(job)
+    workflow = job.workflows.create!(user: job.user, trigger_kind: "main_grader", agent_provider: job.agent_provider)
+    step = workflow.steps.create!(kind: "implement", position: 1)
+    step.runs.create!(job: job, user: job.user, trigger_kind: workflow.trigger_kind)
+  end
+
   it "invalidates a rejected installation token, refreshes it, and retries git once with App auth" do
     expired_url = "https://x-access-token:ghs_expired@github.com/acme/widgets.git"
     fresh_url = "https://x-access-token:ghs_fresh@github.com/acme/widgets.git"
@@ -51,7 +57,7 @@ RSpec.describe GithubAuthenticatedGit do
   end
 
   it "falls back to PAT with diagnostics when refreshed App auth is still rejected" do
-    run = Factories.job(repository: repository, issue_number: 88).initial_run
+    run = workflow_run_for(Factories.job(repository: repository, kind: "main_grader", issue_number: nil))
     Thread.current[:syrus_current_run] = run
     expired_url = "https://x-access-token:ghs_expired@github.com/acme/widgets.git"
     fresh_url = "https://x-access-token:ghs_fresh@github.com/acme/widgets.git"
@@ -79,6 +85,30 @@ RSpec.describe GithubAuthenticatedGit do
       run_id: run.id
     )
     expect(run.job_logs.last).to have_attributes(kind: "github_auth_fallback")
+    expect(run.job.reload.credential_mode).to eq("pat")
+  ensure
+    Thread.current[:syrus_current_run] = nil
+  end
+
+  it "keeps App credential telemetry when PAT fallback cannot be selected" do
+    user.update!(github_token: nil)
+    run = workflow_run_for(Factories.job(repository: repository, user: user, kind: "main_grader", issue_number: nil))
+    Thread.current[:syrus_current_run] = run
+    expired_url = "https://x-access-token:ghs_expired@github.com/acme/widgets.git"
+    fresh_url = "https://x-access-token:ghs_fresh@github.com/acme/widgets.git"
+    expired_error = GitRunner::GitError.new([ "push", expired_url ], 128, "fatal: Authentication failed")
+    fresh_error = GitRunner::GitError.new([ "push", fresh_url ], 128, "remote: Invalid username or token.")
+    stub_installation_token(token: "ghs_fresh")
+    allow(git).to receive(:run).with("push", expired_url).and_raise(expired_error)
+    allow(git).to receive(:run).with("push", fresh_url).and_raise(fresh_error)
+
+    expect {
+      described_class.run(repository: repository, user: user, git: git, operation_type: "git_push") do |url|
+        git.run("push", url)
+      end
+    }.to raise_error(ArgumentError, /github_token/)
+
+    expect(run.job.reload.credential_mode).to eq("app")
   ensure
     Thread.current[:syrus_current_run] = nil
   end

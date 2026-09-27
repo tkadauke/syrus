@@ -1397,11 +1397,11 @@ actually authored that run's PR.
 
 For PAT setup, fine-grained tokens are recommended. Scope the token only to
 repositories this Syrus instance manages, grant repository Contents
-read/write and Pull requests read/write, and choose an expiration you can
-rotate. Classic PATs still work with `repo` for private repositories or
-`public_repo` for public repositories. The `workflow` scope is not required
-for normal Syrus operation; add it only if you expect agents to modify
-GitHub Actions workflow files through the PAT.
+read/write, Pull requests read/write, and Checks read, then choose an
+expiration you can rotate. Classic PATs still work with `repo` for private
+repositories or `public_repo` for public repositories. The `workflow` scope
+is not required for normal Syrus operation; add it only if you expect agents
+to modify GitHub Actions workflow files through the PAT.
 
 The admin **Installations** page includes a lightweight GitHub App
 diagnostic. It shows recent installation sync status, repository-to-

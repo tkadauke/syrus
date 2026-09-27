@@ -76,7 +76,9 @@ class GithubAuthenticatedGit
       refresh_attempted: refresh_attempted,
       refresh_succeeded: refresh_succeeded
     )
-    yield pat_url
+    result = yield pat_url
+    GithubAuthFallbackRecorder.mark_effective_pat!
+    result
   end
 
   def git_auth_failure?(error)
