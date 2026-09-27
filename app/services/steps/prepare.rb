@@ -213,7 +213,7 @@ module Steps
       result = ProcessRunner.new(
         env: env,
         command: [ "bash", "-c", cmd ],
-        chdir: workspace.path,
+        mounts: ProcessRunner.mounts(workspace.path),
         timeout: PER_COMMAND_TIMEOUT,
         kind: "prepare",
         run: run,
@@ -350,7 +350,7 @@ module Steps
       result = ProcessRunner.new(
         env: env,
         command: [ "mise", "install" ],
-        chdir: workspace.path,
+        mounts: ProcessRunner.mounts(workspace.path),
         timeout: MISE_INSTALL_TIMEOUT,
         kind: "prepare",
         run: run,

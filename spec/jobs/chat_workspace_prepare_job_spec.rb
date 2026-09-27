@@ -153,7 +153,7 @@ RSpec.describe ChatWorkspacePrepareJob do
     expect(ProcessRunner).to receive(:new).with(
       hash_including(
         command: [ "bash", "-c", "bundle install" ],
-        chdir: path,
+        mounts: ProcessRunner.mounts(path),
         timeout: described_class::PER_COMMAND_TIMEOUT,
         kind: "chat_prepare",
         chat_session: chat_session

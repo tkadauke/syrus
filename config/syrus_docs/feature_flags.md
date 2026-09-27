@@ -192,6 +192,14 @@ When the `syrus_dev` plugin is enabled, Admin → Performance and the admin perf
 
 Implementation workflow agents working on `tkadauke/syrus` or a registered fork whose upstream is `tkadauke/syrus` receive the read-only `read_performance_diagnostics` MCP tool through that plugin. Scheduled prompts that ask agents to improve Syrus performance can tell the agent to call this tool before changing code. It returns the same current-revision/all-revisions filtering semantics as the admin performance payload, plus bounded grouped slow-request, slow-phase, browser-trace, and SQL fingerprint summaries. The payload also includes a current-deploy versus previous-retained-deploy baseline comparison so agents can focus on regressions instead of stale slow paths. Raw recent events are omitted unless `include_events` is true, still capped by `limit`, and sanitized to omit SQL samples, query strings, and obvious secret-bearing metadata.
 
+## execution_request_assertions
+
+**Category:** Operations
+
+Checks local `ProcessRunner` executions against their declared mount request before container execution backends depend on that contract. `ProcessRunner` callers declare a `mounts:` structure containing a `workdir`, read-write mounts, optional read-only mounts, and an optional artifacts mount. The local backend still runs the command directly on the host filesystem; this flag only enables assertion checks.
+
+When enabled, local execution requires `strace`. Syrus wraps the subprocess, records filesystem syscalls, and fails the command if it writes through a read-only declaration, writes outside declared writable mounts, or touches another Syrus data-root path that was not declared. The flag defaults off so assertion gaps cannot break existing local-mode installs while the execution request contract is being hardened.
+
 ## operational_log_indexing
 
 **Category:** Operations
