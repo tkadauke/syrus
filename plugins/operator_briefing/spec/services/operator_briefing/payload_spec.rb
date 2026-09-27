@@ -43,9 +43,11 @@ RSpec.describe OperatorBriefing::Payload do
     repo_payload = described_class.new(user: user).as_json[:repositories].sole
 
     expect(repo_payload[:current][:id]).to eq(live.id)
+    expect(repo_payload[:current][:slug]).to eq("BRIEFING-#{live.id}")
     expect(repo_payload[:current][:latest_revision][:revision_number]).to eq(2)
     expect(repo_payload[:current][:latest_revision][:content_blocks].first.dig("payload", "text")).to eq("Live text")
     expect(repo_payload[:history].first[:id]).to eq(archived.id)
+    expect(repo_payload[:history].first[:slug]).to eq("BRIEFING-#{archived.id}")
   end
 
   it "computes repository activity status without per-repository generators" do

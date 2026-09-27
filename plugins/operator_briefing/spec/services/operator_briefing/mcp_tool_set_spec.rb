@@ -40,8 +40,51 @@ RSpec.describe OperatorBriefing::McpToolSet do
   end
 
   it "advertises briefing topic tools only for dive report runs" do
+    expect(described_class.tool_definitions(context: context_for("briefing_dive_investigate")).map { |definition| definition[:name] })
+      .to eq(%w[read_briefing])
     expect(described_class.tool_definitions(context: context_for("submit_dive_report")).map { |definition| definition[:name] })
-      .to eq(%w[list_briefing_topics read_briefing_topic submit_dive_report])
+      .to eq(%w[read_briefing list_briefing_topics read_briefing_topic submit_dive_report])
+  end
+
+  it "reads the full briefing for the run anchor job" do
+    revision.update!(
+      content_blocks: [
+        { "kind" => "narrative", "payload" => { "text" => "Full narrative context" } }
+      ]
+    )
+    briefing.items.create!(
+      severity: "high",
+      narrative: "The migration window needs a closer look.",
+      evidence: [ { "workflow_id" => workflow.id } ]
+    )
+    other_job = Job.create!(user: user, owner_user: user, repository: repository, kind: "briefing_generate", priority: "low")
+    OperatorBriefing::Briefing.create!(
+      job: other_job,
+      repository: repository,
+      owner_user: user,
+      window_start: 2.days.ago,
+      window_end: 1.day.ago
+    )
+    dive_workflow = OperatorBriefing::DiveWorkflow.instantiate(
+      job: job,
+      artifacts: { "briefing_dive_context" => { "briefing_id" => briefing.id } }
+    )
+    dive_step = dive_workflow.steps.find_by!(kind: "briefing_dive_investigate")
+    dive_run = Run.create!(job: job, user: user, step: dive_step, trigger_kind: "briefing_dive", agent_provider: user.agent_provider)
+
+    response = described_class.new.handle("read_briefing", {}, { run_id: dive_run.id })
+
+    expect(response).not_to be_error, response.content.first[:text]
+    result = JSON.parse(response.content.first[:text])
+    expect(result.dig("briefing", "id")).to eq(briefing.id)
+    expect(result.dig("briefing", "slug")).to eq("BRIEFING-#{briefing.id}")
+    expect(result.dig("briefing", "job", "slug")).to eq(job.slug)
+    expect(result.dig("briefing", "latest_revision", "content_blocks").first.dig("payload", "text")).to eq("Full narrative context")
+    expect(result.dig("briefing", "items").sole).to include(
+      "severity" => "high",
+      "narrative" => "The migration window needs a closer look.",
+      "evidence" => [ { "workflow_id" => workflow.id } ]
+    )
   end
 
   it "appends submitted blocks to the current generated revision" do

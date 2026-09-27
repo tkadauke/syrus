@@ -9,6 +9,9 @@ The `/briefing` page is scoped to the signed-in operator. It seeds a
 that operator through repository or team membership. The page renders one
 underline-tab per enabled repository. Subscription and source preferences live
 behind the Settings modal, and archived briefings live at `/briefing/history`.
+Each Briefing has its own `BRIEFING-<id>` slug so chats, history cards, and
+MCP tools can point at the Briefing directly instead of only naming the
+underlying Job.
 
 The generation pipeline creates one `Briefing` wrapper per
 `briefing_generate` Job and one `BriefingRevision` per generation Workflow.
@@ -76,7 +79,7 @@ starts a `briefing_dive` follow-up Workflow on the same live Briefing Job.
 Selecting arbitrary text in the briefing surfaces the same "More info"
 affordance and starts the same dive workflow. The chain is
 `prepare → briefing_dive_investigate → submit_dive_report`; the report step
-exposes `list_briefing_topics`, `read_briefing_topic`, and
+exposes `read_briefing`, `list_briefing_topics`, `read_briefing_topic`, and
 `submit_dive_report` so the agent checks existing topics before creating a new
 wiki page. Completed dives use
 `OperatorBriefing::InterestSignal.record_dive_completed!` to write the same

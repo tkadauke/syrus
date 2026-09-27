@@ -105,5 +105,6 @@ RSpec.describe "Operator briefing personalization API", type: :request do
     chat = ChatSession.last
     expect(response.parsed_body.fetch("redirect_to")).to eq("/chats/#{chat.id}")
     expect(chat.messages.sole.content.fetch("text")).to include("Context: discuss the Operator Briefing for #{repository.slug}.")
+    expect(chat.messages.sole.content.fetch("text")).to include("Briefing: BRIEFING-#{briefing.id}.")
   end
 end

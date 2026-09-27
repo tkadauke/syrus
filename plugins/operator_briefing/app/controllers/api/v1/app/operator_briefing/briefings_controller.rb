@@ -77,6 +77,7 @@ module Api
           def discussion_message(current_briefing)
             [
               "Context: discuss the Operator Briefing for #{current_briefing.repository.slug}.",
+              "Briefing: #{current_briefing.slug}.",
               "Briefing Job: #{current_briefing.job.slug}.",
               "Window: #{current_briefing.window_start&.to_date} to #{current_briefing.window_end&.to_date}.",
               discuss_params[:message].to_s.strip.truncate(8_000)

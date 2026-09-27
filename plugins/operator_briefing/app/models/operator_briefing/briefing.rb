@@ -18,6 +18,10 @@ module OperatorBriefing
     scope :for_owner, ->(user) { where(owner_user: user) }
     scope :for_repository, ->(repository) { where(repository: repository) }
 
+    def slug
+      "BRIEFING-#{id || 'new'}"
+    end
+
     def live? = !job.closed?
 
     def latest_revision
