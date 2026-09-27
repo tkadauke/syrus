@@ -918,7 +918,10 @@ function ClaimedByCell({ job, prefix }: { job: DashboardJobItem; prefix: string 
 // optional column, so repeating it here would duplicate that column.
 function JobAttentionLine({ job, includeBlockedReason = false }: { job: DashboardJobItem; includeBlockedReason?: boolean }) {
   const { t } = useT("dashboard")
-  const hasAttention = Boolean(job.provider_mismatch)
+  const hasUnreadFeedback = jobHasUnreadFeedback(job)
+  const hasAttention = Boolean(job.needs_attention)
+    || hasUnreadFeedback
+    || Boolean(job.provider_mismatch)
     || isNotableDeliveryStatus(job.delivery_status)
     || Boolean(job.retry_state && job.retry_state.state_label !== "No failure")
     || (job.state === "queued" && Boolean(job.start_blocked_reason))
@@ -929,6 +932,7 @@ function JobAttentionLine({ job, includeBlockedReason = false }: { job: Dashboar
 
   return (
     <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-text-secondary">
+      {job.needs_attention || hasUnreadFeedback ? <NeedsAttentionReasonPill hasUnreadFeedback={hasUnreadFeedback} reason={job.needs_attention_reason} /> : null}
       {job.provider_mismatch ? <ProviderMismatchPill mismatch={job.provider_mismatch} /> : null}
       {isNotableDeliveryStatus(job.delivery_status) ? <DeliveryStatusBadge status={job.delivery_status} /> : null}
       {job.retry_state && job.retry_state.state_label !== "No failure" ? <RetryStateInline job={job} /> : null}
@@ -939,6 +943,25 @@ function JobAttentionLine({ job, includeBlockedReason = false }: { job: Dashboar
       {includeBlockedReason && job.blocked_reason ? <span><CopyableBlockedReason reason={translateBlockedReason(job.blocked_reason, t)} /></span> : null}
     </MetadataLine>
   )
+}
+
+function NeedsAttentionReasonPill({ hasUnreadFeedback, reason }: { hasUnreadFeedback: boolean; reason: string | null }) {
+  const { t } = useT("dashboard")
+  let label = t("needs_attention")
+  if (reason) {
+    label = t(`attention_reason.${reason}`, { defaultValue: humanizeOption(reason) })
+  } else if (hasUnreadFeedback) {
+    label = t("attention_reason.unread_pr_feedback")
+  }
+
+  return <TonePill ariaLabel={t("needs_attention_aria")} tone="amber">{label}</TonePill>
+}
+
+function jobHasUnreadFeedback(job: DashboardJobItem) {
+  if (!job.last_seen_comment_at) return false
+  if (!job.last_feedback_addressed_at) return true
+
+  return new Date(job.last_seen_comment_at).getTime() > new Date(job.last_feedback_addressed_at).getTime()
 }
 
 function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
