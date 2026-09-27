@@ -32,7 +32,7 @@ RSpec.describe GithubAuthFallbackRecorder do
     }.not_to change(GithubAuthFallbackDiagnostic, :count)
   end
 
-  it "updates current Job credential mode even when diagnostic writes coalesce" do
+  it "does not update current Job credential mode when only recording a fallback attempt" do
     job = Factories.job(repository: repository, user: user, kind: "main_grader", issue_number: nil, credential_mode: "app")
     workflow = job.workflows.create!(user: user, trigger_kind: "main_grader", agent_provider: job.agent_provider)
     step = workflow.steps.create!(kind: "implement", position: 1)
@@ -59,6 +59,17 @@ RSpec.describe GithubAuthFallbackRecorder do
         run: run
       )
     }.not_to change(GithubAuthFallbackDiagnostic, :count)
+    expect(job.reload.credential_mode).to eq("app")
+  end
+
+  it "updates current Job credential mode when a PAT fallback succeeds" do
+    job = Factories.job(repository: repository, user: user, kind: "main_grader", issue_number: nil, credential_mode: "app")
+    workflow = job.workflows.create!(user: user, trigger_kind: "main_grader", agent_provider: job.agent_provider)
+    step = workflow.steps.create!(kind: "implement", position: 1)
+    run = step.runs.create!(job: job, user: user, trigger_kind: workflow.trigger_kind)
+
+    described_class.mark_effective_pat!(run: run)
+
     expect(job.reload.credential_mode).to eq("pat")
   end
 

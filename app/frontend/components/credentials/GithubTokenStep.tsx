@@ -90,6 +90,10 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
               <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">Pull requests</code>
               <span className="text-gray-600 dark:text-gray-400">{t('github_token.scope_workflow')}</span>
             </li>
+            <li className="flex items-center gap-2">
+              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">Checks</code>
+              <span className="text-gray-600 dark:text-gray-400">{t('github_token.scope_checks')}</span>
+            </li>
           </ul>
         </li>
         <li>

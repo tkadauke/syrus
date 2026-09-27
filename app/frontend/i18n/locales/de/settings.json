@@ -879,6 +879,7 @@
     "step2_description": "Gewähren Sie Repository-Zugriff nur für die Repositories dieser Syrus-Instanz und aktivieren Sie dann diese Repository-Berechtigungen:",
     "scope_repo": "— Lesen und Schreiben, für Klonen, Branches, Commits und Dateizugriff",
     "scope_workflow": "— Lesen und Schreiben, für das Öffnen und Aktualisieren von Pull Requests",
+    "scope_checks": "— Lesen, für CI-Fehlererkennung",
     "step3_heading": "3. Token einfügen",
     "input_label": "Persönlicher GitHub-Zugriffstoken",
     "saving": "Wird gespeichert…",

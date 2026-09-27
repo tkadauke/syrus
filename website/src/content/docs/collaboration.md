@@ -299,6 +299,6 @@ The effective credential mode (`app` or `pat`) is recorded on the Job and visibl
 For token requirements:
 
 - **App installation** — needs `Contents` (read/write) and `Pull requests` (read/write) on the target repository. Syrus administrators link an App installation from the GitHub App settings panel.
-- **PAT** — fine-grained tokens are recommended: grant access only to the repositories this Syrus instance manages, with Contents read/write and Pull requests read/write. Use an expiration you can rotate. Classic tokens need `repo` for private repositories or `public_repo` for public; `workflow` is only needed if agents must modify GitHub Actions workflow files through that token.
+- **PAT** — fine-grained tokens are recommended: grant access only to the repositories this Syrus instance manages, with Contents read/write, Pull requests read/write, and Checks read. Use an expiration you can rotate. Classic tokens need `repo` for private repositories or `public_repo` for public; `workflow` is only needed if agents must modify GitHub Actions workflow files through that token.
 
 For credential setup, see [Per-User Settings](/docs/configuration#per-user-settings) and [GitHub App and PAT Behavior](/docs/features#github-app-and-pat-behavior).

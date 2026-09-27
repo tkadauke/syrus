@@ -50,7 +50,9 @@ class GithubClient
       end
     end
 
-    for_user(actor, repository: repository)
+    client = for_user(actor, repository: repository)
+    client.note_installation_fallback!(installation) if installation
+    client
   end
 
   # Resolves the GitHub identity that should author API-side actions (PR
@@ -1196,6 +1198,7 @@ class GithubClient
     response = response_client.call.last_response
     persist_rate_limit_headers!(response&.headers)
     record_api_usage!(headers: response&.headers, status: response&.status, rate_limited: false, operation: operation, repo_slug: repo_slug)
+    mark_successful_pat_fallback!
     result
   rescue Octokit::Unauthorized, Octokit::NotFound => e
     raise unless installation_auth?
@@ -1204,6 +1207,7 @@ class GithubClient
     response = response_client.call.last_response
     persist_rate_limit_headers!(response&.headers)
     record_api_usage!(headers: response&.headers, status: response&.status, rate_limited: false, operation: operation, repo_slug: repo_slug)
+    mark_successful_pat_fallback!
     result
   rescue Octokit::TooManyRequests => e
     persist_rate_limit_headers!(e.response_headers)
@@ -1313,9 +1317,22 @@ class GithubClient
     @installation = nil
     @user = fallback_user
     @access_token = fallback_user.github_token
+    @pat_fallback_from_installation = installation
     @client = build_octokit_client
     @uncached_client = nil
     @actions_job_logs_connection = nil
+  end
+
+  def note_installation_fallback!(installation)
+    @pat_fallback_from_installation = installation
+  end
+  public :note_installation_fallback!
+
+  def mark_successful_pat_fallback!
+    return unless @pat_fallback_from_installation && @auth_source == :pat
+
+    GithubAuthFallbackRecorder.mark_effective_pat!
+    @pat_fallback_from_installation = nil
   end
 
   def cache_namespace
