@@ -58,6 +58,7 @@ module AppApi
         notification_unread_count: unread_notifications_count,
         seen_tours: user.seen_tours,
         sidebar_nav_order: user.sidebar_nav_order,
+        mobile_chat_auto_hide_header: user.mobile_chat_auto_hide_header?,
         review_diff_settings: user.review_diff_settings
       }
     end

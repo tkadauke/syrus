@@ -11924,6 +11924,71 @@ describe("App", () => {
     }
   })
 
+  it("auto-hides the mobile chat header from real chat scrolling and ignores interactive content taps", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const bootstrap = bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        mobile_chat_auto_hide_header: true
+      }
+    })
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrap)
+    document.body.appendChild(script)
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const path = String(input)
+      if (path.endsWith("/api/v1/app/bootstrap")) return new Response(JSON.stringify(bootstrap), { status: 200, headers: { "Content-Type": "application/json" } })
+
+      return new Response(JSON.stringify(chatPayload({
+        messages: [{
+          type: "message",
+          id: 9,
+          role: "assistant",
+          tool_name: null,
+          content: { text: "Read [Example](https://example.com)." },
+          text: "Read [Example](https://example.com).",
+          bookmarkable: true
+        }]
+      })), { status: 200, headers: { "Content-Type": "application/json" } })
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const stream = await screen.findByTestId("chat-message-stream")
+      const header = screen.getByTestId("mobile-app-header")
+      fireEvent.scroll(stream, { target: { scrollTop: 100 } })
+      expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+
+      fireEvent.touchMove(stream)
+      fireEvent.scroll(stream, { target: { scrollTop: 200 } })
+      fireEvent.touchMove(stream)
+      fireEvent.scroll(stream, { target: { scrollTop: 300 } })
+      fireEvent.touchMove(stream)
+      fireEvent.scroll(stream, { target: { scrollTop: 400 } })
+
+      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
+      expect(screen.getByTestId("mobile-chat-hidden-header-sidebar-button")).toHaveAccessibleName("Open sidebar")
+
+      fireEvent.click(screen.getByRole("link", { name: "Example" }))
+      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
+
+      fireEvent.click(stream)
+      expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+    } finally {
+      restoreMedia()
+      script.remove()
+    }
+  })
+
   it("truncates a long preview-panel tab title in the mobile tab strip instead of stretching it", async () => {
     const restoreMedia = mockMediaQuery(false)
     const longTitle = "A very long preview panel title that should never be allowed to stretch the tab strip or wrap onto a second line"

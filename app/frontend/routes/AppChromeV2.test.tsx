@@ -1,7 +1,7 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import type { ReactElement } from "react"
+import { useRef, type ReactElement } from "react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
@@ -13,6 +13,7 @@ import { recentChatsQueryKey } from "../lib/chatCache"
 import { AppChromeV2 } from "./AppChromeV2"
 import { SIDEBAR_COLLAPSED_KEY, SIDEBAR_WIDTH_KEY, adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
 import { buildAdminNavItems, filterAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
+import { useMobileChatHeaderControls } from "./chat/MobileChatHeaderContext"
 
 const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
   toBlob(callback: (blob: Blob | null) => void) {
@@ -1146,6 +1147,68 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
     } finally {
       restoreMatchMedia()
     }
+  })
+
+  it("auto-hides the mobile chat header on downward chat scroll and reveals it on upward scroll or background tap", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<MobileChatHeaderTestDriver />, {
+        initialEntries: ["/chats/5"],
+        bootstrap: bootstrapPayload({
+          current_user: { ...bootstrapPayload().current_user!, mobile_chat_auto_hide_header: true }
+        })
+      })
+
+      const header = screen.getByTestId("mobile-app-header")
+      expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+
+      fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 100 } })
+      fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 200 } })
+      fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 300 } })
+
+      expect(header).toHaveStyle({ transform: "translateY(-72px)", marginBottom: "-72px" })
+      const hiddenButton = screen.getByTestId("mobile-chat-hidden-header-sidebar-button")
+      expect(hiddenButton).toHaveAccessibleName("Open sidebar")
+      expect(hiddenButton).toHaveClass("fixed", "rounded-full", "bg-gray-950", "text-white")
+
+      fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 260 } })
+      expect(header).toHaveStyle({ transform: "translateY(-48px)" })
+
+      fireEvent.click(screen.getByTestId("chat-message-stream"))
+      expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
+  it("does not auto-hide the mobile chat header when the preference is disabled", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<MobileChatHeaderTestDriver />, { initialEntries: ["/chats/5"] })
+
+      fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 300 } })
+
+      expect(screen.getByTestId("mobile-app-header")).not.toHaveStyle({ transform: "translateY(-72px)" })
+      expect(screen.queryByTestId("mobile-chat-hidden-header-sidebar-button")).not.toBeInTheDocument()
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
+  it("does not auto-hide the chat header on desktop even when the preference is enabled", () => {
+    renderAppChrome(<MobileChatHeaderTestDriver />, {
+      initialEntries: ["/chats/5"],
+      bootstrap: bootstrapPayload({
+        current_user: { ...bootstrapPayload().current_user!, mobile_chat_auto_hide_header: true }
+      })
+    })
+
+    fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 300 } })
+
+    expect(screen.getByTestId("mobile-app-header")).not.toHaveStyle({ transform: "translateY(-72px)" })
+    expect(screen.queryByTestId("mobile-chat-hidden-header-sidebar-button")).not.toBeInTheDocument()
   })
 })
 
@@ -2706,6 +2769,25 @@ describe("AppChromeV2 maintenance sidebar", () => {
 
 function signedOutBootstrap(): BootstrapPayload {
   return { ...bootstrapPayload(), current_user: null }
+}
+
+function MobileChatHeaderTestDriver() {
+  const mobileHeader = useMobileChatHeaderControls()
+  const lastScrollTopRef = useRef(0)
+
+  return (
+    <div
+      data-testid="chat-message-stream"
+      onClick={() => mobileHeader.revealHeader()}
+      onScroll={(event) => {
+        const current = event.currentTarget.scrollTop
+        mobileHeader.reportScrollDelta(current - lastScrollTopRef.current)
+        lastScrollTopRef.current = current
+      }}
+    >
+      Chat body
+    </div>
+  )
 }
 
 function renderAppChrome(

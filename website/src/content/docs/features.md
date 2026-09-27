@@ -1165,7 +1165,7 @@ Each user owns their own profile, credentials, defaults, and preferences:
 - **Profile** stores display name, role, GitHub handle, avatar, bio, and public team profile fields.
 - **Credentials** stores GitHub PAT fallback, Claude credentials, Codex credentials, and the admin API token panel for admins.
 - **Agent Settings** stores the default agent provider, max-turn setting, and auto-approval fallback.
-- **Preferences** stores account-level toggles such as scheduling pause.
+- **Preferences** stores account-level toggles such as scheduling pause and the optional mobile chat focus mode that auto-hides the top app header while scrolling down in a chat.
 - **Connected Platforms** links the Syrus account to external messaging platforms (see below).
 - **Theme** — light, dark, or system (matches the OS color-scheme preference and updates live if it changes) is picked from the account area. The choice applies before the page finishes loading, so there's no flash of the wrong theme, and it's respected by the desktop tray app too.
 - **Color theme** — a theme (19 built-in options — Terracotta, Ocean, Forest, Sunset, Lavender, Slate, Rose, Amber, Midnight, Mint, Plum, Sand, Sky, Crimson, Moss, Coral, Steel, Violet, and Console — plus any custom themes the user owns) is picked from the same account area, independently of light/dark mode. Every theme sets its own color palette; Console additionally proves the theme model goes beyond color, swapping in sharp corners, no panel shadow, a tighter control/spacing rhythm, and an all-monospace type stack. Each built-in theme works in both light and dark mode. The choice applies before the page finishes loading, the same as light/dark mode, so there's no flash of the wrong theme either.
