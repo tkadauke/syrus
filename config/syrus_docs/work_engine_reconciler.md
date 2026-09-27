@@ -254,12 +254,12 @@ Planner examples:
   identity deliberately excludes the fingerprint and app revision. If the same
   actionable circuit trips again after a retry workflow or deploy, the surviving
   item is refreshed with the new evidence and older repeated-failure rows are
-  marked `superseded`, so the admin queue and system-alert count still represent
-  one operator decision. Operators should inspect the latest evidence and only
-  retry manually after the underlying condition has changed or they deliberately
-  decide the evidence was a false positive. The urgent Attention Item also
-  appears through the admin system-alert banner so it is visible outside the
-  stuck-item detail view.
+  marked `superseded`, so the admin queue and Dashboard jobs Inbox notice still
+  represent one operator decision. Operators should inspect the latest evidence
+  and only retry manually after the underlying condition has changed or they
+  deliberately decide the evidence was a false positive. The urgent Attention
+  Item notice is scoped to the Dashboard jobs Inbox notice area rather than the
+  global system-alert banner.
 - Git publication, landing, and semantic failures return operator-review plans
   unless an existing safe rebuild path is declared, such as merge-train rebuild.
 - `branch_diverged_pr_open` is never planned while the same Workflow already
