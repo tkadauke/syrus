@@ -21,6 +21,7 @@ module OperatorBriefing
         header,
         window,
         required_sources,
+        source_preferences,
         notable_signals,
         block_instructions,
         memory_context
@@ -57,6 +58,22 @@ module OperatorBriefing
         Use run transcripts, artifacts, summaries, and review artifacts from those Workflows when available.
         Use `list_design_docs` and `read_design_doc` to look for open Design Doc threads on docs the operator owns,
         especially threads with no operator reply since the last comment.
+      TEXT
+    end
+
+    def source_preferences
+      preferences = SourcePreference.effective_for_user(user).values.sort_by(&:source_key)
+      enabled = preferences.select(&:enabled?).map(&:source_key)
+      disabled = preferences.reject(&:enabled?).map(&:source_key)
+
+      <<~TEXT
+        ## Source Preferences
+
+        Enabled sources: #{enabled.any? ? enabled.join(", ") : "none"}.
+        Disabled sources: #{disabled.any? ? disabled.join(", ") : "none"}.
+
+        Prioritize enabled sources and omit disabled sources unless they are necessary
+        evidence for an enabled source.
       TEXT
     end
 
