@@ -3,7 +3,7 @@ class CreateOperatorBriefingGeneration < ActiveRecord::Migration[8.1]
     create_table :operator_briefing_briefings, if_not_exists: true do |t|
       t.references :job, null: false, foreign_key: false, index: { unique: true }
       t.references :repository, null: false, foreign_key: false
-      t.references :owner_user, null: false, foreign_key: { to_table: :users }
+      t.references :owner_user, null: false, foreign_key: false
       t.datetime :window_start
       t.datetime :window_end
 
@@ -17,11 +17,11 @@ class CreateOperatorBriefingGeneration < ActiveRecord::Migration[8.1]
     end
 
     create_table :operator_briefing_revisions, if_not_exists: true do |t|
-      t.references :briefing, null: false, foreign_key: { to_table: :operator_briefing_briefings }
+      t.references :briefing, null: false, foreign_key: false
       t.integer :revision_number, null: false
       t.datetime :generated_at, null: false
       t.json :content_blocks
-      t.references :generation_run, foreign_key: { to_table: :runs }
+      t.references :generation_run, foreign_key: false
 
       t.timestamps
     end
@@ -34,7 +34,7 @@ class CreateOperatorBriefingGeneration < ActiveRecord::Migration[8.1]
     end
 
     create_table :operator_briefing_subscriptions, if_not_exists: true do |t|
-      t.references :user, null: false, foreign_key: true
+      t.references :user, null: false, foreign_key: false
       t.references :repository, null: false, foreign_key: false
       t.boolean :enabled, null: false, default: true
 
@@ -49,7 +49,7 @@ class CreateOperatorBriefingGeneration < ActiveRecord::Migration[8.1]
     end
 
     create_table :operator_briefing_settings, if_not_exists: true do |t|
-      t.references :user, null: false, foreign_key: true, index: { unique: true }
+      t.references :user, null: false, foreign_key: false, index: { unique: true }
       t.string :cadence_expression, null: false
       t.boolean :budget_check_enabled, null: false, default: false
       t.string :agent_provider
@@ -59,7 +59,7 @@ class CreateOperatorBriefingGeneration < ActiveRecord::Migration[8.1]
     end
 
     unless column_exists?(:operator_briefing_items, :briefing_id)
-      add_reference :operator_briefing_items, :briefing, type: :integer, foreign_key: { to_table: :operator_briefing_briefings }
+      add_reference :operator_briefing_items, :briefing, foreign_key: false
     end
   end
 end
