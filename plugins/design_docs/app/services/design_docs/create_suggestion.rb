@@ -75,8 +75,6 @@ module DesignDocs
 
     private
 
-    BLOCK_MARKER_PATTERN = /\A\s{0,3}(\#{1,6}\s+|[-*+]\s+|\d+\.\s+|>\s?|```|~~~)/
-
     attr_reader :design_doc, :user, :attributes, :actor_kind
 
     def create_autosave_suggestion(base_version)
@@ -209,7 +207,7 @@ module DesignDocs
       return if block_boundary?(visible, start_offset) && block_boundary?(visible, end_offset)
 
       selected = visible[start_offset...end_offset].to_s
-      return unless selected.match?(BLOCK_MARKER_PATTERN) || cuts_block_marker?(visible, start_offset) || cuts_block_marker?(visible, end_offset)
+      return unless starts_with_block_marker?(selected) || cuts_block_marker?(visible, start_offset) || cuts_block_marker?(visible, end_offset)
 
       raise_invalid_suggestion!("Suggestions cannot select only part of Markdown block syntax. Select the whole heading, list item, quote, or code fence block.")
     end
@@ -240,18 +238,15 @@ module DesignDocs
       text = markdown.to_s
       return false if text.include?("\n")
 
-      !text.match?(BLOCK_MARKER_PATTERN)
+      !starts_with_block_marker?(text)
     end
 
     def cuts_block_marker?(visible, offset)
-      line_start = visible.rindex("\n", [ offset - 1, 0 ].max)&.+(1) || 0
-      line_end = visible.index("\n", offset) || visible.length
-      line = visible[line_start...line_end].to_s
-      marker = BLOCK_MARKER_PATTERN.match(line)
-      return false unless marker
+      line = DesignDocs::MarkdownBlocks.line_at(visible, offset)
+      return false unless line&.block_marker?
 
-      marker_end = line_start + marker[0].length
-      offset > line_start && offset < marker_end
+      marker_end = line.start_offset + line.text.match(DesignDocs::MarkdownBlocks::BLOCK_MARKER_PATTERN)[0].length
+      offset > line.start_offset && offset < marker_end
     end
 
     def block_boundary?(visible, offset)
@@ -265,8 +260,12 @@ module DesignDocs
     end
 
     def line_starts_with_block_marker?(visible, offset)
-      line_end = visible.index("\n", offset) || visible.length
-      visible[offset...line_end].to_s.match?(BLOCK_MARKER_PATTERN)
+      DesignDocs::MarkdownBlocks.line_at(visible, offset)&.block_marker?
+    end
+
+    def starts_with_block_marker?(markdown)
+      first_line = markdown.to_s.each_line.first.to_s
+      DesignDocs::MarkdownBlocks.marker_at_line(first_line).present?
     end
 
     def raise_invalid_suggestion!(message)
