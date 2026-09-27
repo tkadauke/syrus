@@ -614,6 +614,18 @@ separately from host telemetry. Admin and dashboard surfaces reading
 `telemetry_state` as the source of truth for "no data" versus "data says busy"
 rather than inferring it from a 0% pressure reading.
 
+Fresh host samples also carry a locality summary under
+`pressure.host.locality`, with flattened copies in `details` for the admin
+page: `pressured_worker_storage_keys`,
+`healthy_alternative_worker_storage_keys`, `worker_pressure_scope`, and
+`worker_pressure_localized`. When high pressure is isolated to one worker
+storage key and other sampled keys are healthy, Syrus records
+`localized_worker_host_pressure_high` instead of presenting the situation as
+whole-pool `worker_host_pressure_high`; per-host Run admission still refuses
+compute work claimed by a critical worker. Operators should use the listed
+storage key plus hostnames to repair the unhealthy worker and the healthy
+alternative list to confirm the pool is not broadly saturated.
+
 **Operator-facing visibility.** The full diagnostics view lives at
 `/admin/resource_admission` (admin-only), backed by
 `Admin::ResourceAdmissionDiagnosticsPayload`. For an admission-blocked Job,
