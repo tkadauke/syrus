@@ -259,6 +259,39 @@ RSpec.describe "App API unified search", type: :request do
     expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") }).to include("repository_id", "created_at", "updated_at")
   end
 
+  it "narrows chat results by provider and mode through the chat session" do
+    allow(User).to receive(:chat_providers).and_return(%w[claude codex])
+    matching_session = ChatSession.create!(user: user, repository: repository, title: "Codex coding chat", chat_provider: "codex", mode: "coding")
+    matching_message = ChatMessage.create!(chat_session: matching_session, role: "user", content: { "text" => "deploy chat" })
+    provider_mismatch = ChatSession.create!(user: user, repository: repository, title: "Claude coding chat", chat_provider: "claude", mode: "coding")
+    provider_mismatch_message = ChatMessage.create!(chat_session: provider_mismatch, role: "user", content: { "text" => "deploy chat" })
+    mode_mismatch = ChatSession.create!(user: user, repository: repository, title: "Codex planning chat", chat_provider: "codex", mode: "planning")
+    mode_mismatch_message = ChatMessage.create!(chat_session: mode_mismatch, role: "user", content: { "text" => "deploy chat" })
+    [ matching_message, provider_mismatch_message, mode_mismatch_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+    tree = {
+      "and" => [
+        { "field" => "chat_provider", "op" => "is", "value" => "codex" },
+        { "field" => "mode", "op" => "is", "value" => "coding" }
+      ]
+    }
+
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "chat", "id" => matching_message.id))
+    schema = parse_body.dig("controls", "filter_schema").index_by { |field| field.fetch("field") }
+    expect(schema.keys).to include("chat_provider", "mode")
+    expect(schema.fetch("chat_provider").fetch("values")).to contain_exactly(
+      { "value" => "claude", "label" => "Claude" },
+      { "value" => "codex", "label" => "Codex" }
+    )
+    expect(schema.fetch("mode").fetch("values")).to include(
+      { "value" => "planning", "label" => "Planning" },
+      { "value" => "coding", "label" => "Coding" },
+      { "value" => "local", "label" => "Local" }
+    )
+  end
+
   it "applies common created_at filters to supported result types" do
     older_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy old job", created_at: 5.days.ago)
     newer_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy new job", created_at: 1.hour.ago)

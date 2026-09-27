@@ -31,12 +31,12 @@ function searchPayload(results: unknown[]) {
   }
 }
 
-function renderRoute(results: unknown[]) {
+function renderRoute(results: unknown[], initialEntry = "/search?query=preview+environment") {
   vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(searchPayload(results)))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/search?query=preview+environment"]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <SearchRoute />
       </MemoryRouter>
     </QueryClientProvider>
@@ -161,11 +161,14 @@ function chatGroupPayload(results = [
   }
 }
 
-function renderWithPayload(payload: unknown) {
+function renderWithPayload(payload: unknown, initialEntry = "/search?query=needle") {
   const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
     const path = String(input)
     if (path.startsWith("/api/v1/app/filters/fk_options")) {
       return Promise.resolve(jsonResponse({ options: [] }))
+    }
+    if (path.startsWith("/api/v1/app/filters/suggestions")) {
+      return Promise.resolve(jsonResponse({ suggestions: [] }))
     }
     if (path.startsWith("/api/v1/app/search")) {
       return Promise.resolve(jsonResponse(payload))
@@ -176,7 +179,7 @@ function renderWithPayload(payload: unknown) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ "/search?query=needle" ]}>
+      <MemoryRouter initialEntries={[ initialEntry ]}>
         <SearchRoute />
       </MemoryRouter>
     </QueryClientProvider>
@@ -219,5 +222,59 @@ describe("SearchRoute results", () => {
         return path.startsWith("/api/v1/app/search?") && path.includes("query=needle") && path.includes("q=")
       })).toBe(true)
     })
+  })
+
+  it("renders filters directly below the search type tabs", async () => {
+    renderWithPayload(chatGroupPayload(), "/search?query=needle&types%5B%5D=chat")
+
+    await screen.findByRole("link", { name: "Forum planning" })
+    const tabs = screen.getByRole("navigation", { name: "Search type filters" })
+    const filterRow = tabs.nextElementSibling
+
+    expect(filterRow?.querySelector("button")).toHaveTextContent("+ Add filter")
+    expect(filterRow?.tagName.toLowerCase()).toBe("div")
+  })
+
+  it("loads remote chat filter suggestions using the chat message subject", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.startsWith("/api/v1/app/filters/suggestions")) {
+        const url = new URL(path, window.location.origin)
+        expect(url.searchParams.get("surface")).toBe("dashboard")
+        expect(url.searchParams.get("subject")).toBe("chat_message")
+        expect(url.searchParams.get("q")).toBe("syrus")
+
+        return Promise.resolve(jsonResponse({
+          suggestions: [
+            {
+              id: "value-repository",
+              label: "Repository is tkadauke/syrus",
+              filter: { field: "repository_id", op: "is", value: 2 },
+              source: "value"
+            }
+          ]
+        }))
+      }
+      if (path.startsWith("/api/v1/app/search")) {
+        return Promise.resolve(jsonResponse(chatGroupPayload()))
+      }
+      return Promise.resolve(jsonResponse({ options: [] }))
+    })
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[ "/search?query=needle&types%5B%5D=chat" ]}>
+          <SearchRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByRole("link", { name: "Forum planning" })
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "syrus" } })
+
+    expect(await screen.findByRole("button", { name: "Repository is tkadauke/syrus" })).toBeInTheDocument()
+    expect(fetchSpy.mock.calls.some((call) => String(call[0]).startsWith("/api/v1/app/filters/suggestions?surface=dashboard&subject=chat_message&q=syrus"))).toBe(true)
   })
 })
