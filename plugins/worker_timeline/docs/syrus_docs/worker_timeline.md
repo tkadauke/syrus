@@ -134,7 +134,11 @@ surface, sharing the same query services and payload shape:
   Each pool has `capacity`, `used`, queue names, and zero or more inferred
   active `slots` containing the best available Job/Workflow/Step/Run/process
   attribution and a redacted command excerpt when a running spawned process
-  provides one.
+  provides one. Inferred `Run` and `Step` slots only count as live occupancy
+  when their parent Workflow is still running; if stale running descendant
+  rows remain under a terminal Workflow, the response classifies them under
+  `diagnostics.stale_terminal_descendants` instead of rendering them as
+  ordinary active slots.
 - `GET /api/v1/app/admin/worker_timeline/workflow` — `?id=<workflow_id>`,
   the Step/Run waterfall for one Workflow (wraps
   `Timeline::WorkflowWaterfallQuery`). The workflow and each Step payload
@@ -187,9 +191,11 @@ renders `WorkerTimeline.tsx` with exactly two tabs:
   `WorkerHostHealthSample` rows, and queue-pool sections with active slots
   nested under the pool they were assigned to. When a slot cannot be matched
   to a specific pool, it is kept in one inferred pool rather than duplicated
-  across matching pools. This first version intentionally reuses `FilterBar`
-  without SmartFolder save/update controls and does not add top-right page
-  header actions.
+  across matching pools. Stale running Step/Run rows whose parent Workflow is
+  already terminal are excluded from occupancy and surfaced only as diagnostic
+  response records. This first version intentionally reuses `FilterBar` without
+  SmartFolder save/update controls and does not add top-right page header
+  actions.
 
 That route renders `WorkflowWaterfall.tsx`: one lane per Step (in position
 order), with that Step's Run attempt(s) drawn as spans within the lane so
