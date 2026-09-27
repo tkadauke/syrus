@@ -25,6 +25,7 @@ export type CredentialsUser = {
   provider_availability_pause_thresholds: Record<string, number>
   provider_availability_overrides: Record<string, unknown>
   scheduling_paused: boolean
+  mobile_chat_auto_hide_header?: boolean
   auto_approve_mode: string
   locale: string
 }
@@ -149,6 +150,7 @@ export type CredentialsInput = {
   recent_chats_group_size: number
   provider_availability_pause_thresholds: Record<string, number>
   scheduling_paused: boolean
+  mobile_chat_auto_hide_header: boolean
   auto_approve_mode: string
   locale: string
 }

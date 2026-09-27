@@ -30,6 +30,7 @@ function credentialsPayload(overrides: Record<string, unknown> = {}) {
       agent_max_turns: 200,
       recent_chats_group_size: 10,
       scheduling_paused: false,
+      mobile_chat_auto_hide_header: false,
       auto_approve_mode: "never",
       locale: "en"
     },
@@ -252,5 +253,40 @@ describe("AccountSettings form primitives", () => {
     const language = await screen.findByLabelText("Language")
     expect(language.tagName).toBe("SELECT")
     expect(screen.getByText("Language")).toHaveAttribute("for", language.id)
+  })
+
+  it("renders and saves the mobile chat auto-hide header preference", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/credentials" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(credentialsPayload({
+          user: { ...credentialsPayload().user, mobile_chat_auto_hide_header: true },
+          message: "Credentials updated."
+        })))
+      }
+
+      return Promise.resolve(jsonResponse(credentialsPayload()))
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <PreferencesRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const checkbox = await screen.findByRole("checkbox", { name: "Auto-hide chat header on mobile" })
+    expect(checkbox).not.toBeChecked()
+    expect(screen.getByText("Hides the top app header while you scroll down in a chat and reveals it when you scroll up or tap the chat background.")).toBeInTheDocument()
+
+    fireEvent.click(checkbox)
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials" && call[1]?.method === "PATCH")
+      expect(JSON.parse(String(patchCall?.[1]?.body)).user).toEqual(expect.objectContaining({
+        mobile_chat_auto_hide_header: true
+      }))
+    })
   })
 })

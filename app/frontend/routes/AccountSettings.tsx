@@ -387,6 +387,21 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
         ) : null}
 
         {section === "preferences" ? (
+          <Checkbox
+            aria-label={t('account_settings.aria_mobile_chat_auto_hide_header')}
+            checked={values.mobile_chat_auto_hide_header}
+            className="mt-1"
+            label={
+              <>
+                <span className="block font-medium text-gray-700 dark:text-gray-300">{t('account_settings.mobile_chat_auto_hide_header')}</span>
+                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t('account_settings.mobile_chat_auto_hide_header_desc')}</span>
+              </>
+            }
+            onChange={(event) => setValues({ ...values, mobile_chat_auto_hide_header: event.target.checked })}
+          />
+        ) : null}
+
+        {section === "preferences" ? (
           <Form.Field>
             <Form.Label>{t('account_settings.reset_tours')}</Form.Label>
             <Form.HelpText>{t('account_settings.reset_tours_desc')}</Form.HelpText>
@@ -648,6 +663,7 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     recent_chats_group_size: payload.user.recent_chats_group_size,
     provider_availability_pause_thresholds: payload.user.provider_availability_pause_thresholds || { claude: 10, codex: 10 },
     scheduling_paused: payload.user.scheduling_paused,
+    mobile_chat_auto_hide_header: payload.user.mobile_chat_auto_hide_header === true,
     auto_approve_mode: payload.user.auto_approve_mode,
     locale: payload.user.locale
   }
