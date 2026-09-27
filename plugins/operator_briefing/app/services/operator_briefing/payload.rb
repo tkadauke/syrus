@@ -11,6 +11,8 @@ module OperatorBriefing
 
       {
         settings: settings_payload,
+        source_preferences: source_preferences_payload,
+        source_preference_suggestions: source_preference_suggestions_payload,
         repositories: repository_payloads,
         subscriptions: subscriptions_payload,
         generated_at: Time.current.iso8601
@@ -53,6 +55,33 @@ module OperatorBriefing
           repository: repository_payload(repository)
         }
       end
+    end
+
+    def source_preferences_payload
+      OperatorBriefing::SourcePreference.effective_for_user(user).values.map do |preference|
+        source_preference_payload(preference)
+      end.sort_by { |row| row[:label] }
+    end
+
+    def source_preference_suggestions_payload
+      OperatorBriefing::SourcePreference.pending_for_user(user).map do |preference|
+        source_preference_payload(preference)
+      end
+    end
+
+    def source_preference_payload(preference)
+      source = preference.source_definition || {}
+      {
+        id: preference.id,
+        source_key: preference.source_key,
+        label: source[:label] || preference.source_key.humanize,
+        description: source[:description],
+        enabled: preference.enabled?,
+        weight: preference.weight,
+        suggested_by: preference.suggested_by,
+        confirmed_at: preference.confirmed_at&.iso8601,
+        pending: preference.confirmed_at.blank?
+      }
     end
 
     def repository_payloads

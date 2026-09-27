@@ -1,4 +1,4 @@
-import { Button, Notice, Page, PageHeading, Section, SectionHeading, Text, Toggle } from "@app/components/ui"
+import { Button, Notice, Page, PageHeading, Section, SectionHeading, Text, Textarea, Toggle } from "@app/components/ui"
 import { UnderlineTabs } from "@app/components/Tabs"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -7,7 +7,7 @@ import { withRoutePrefix } from "@app/lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { fetchBriefing, regenerateBriefing, updateBriefingSubscription, type BriefingBlock, type BriefingPayload, type BriefingRecord, type BriefingRepoPayload, type BriefingSubscription } from "../api/briefing"
+import { confirmBriefingSourcePreference, createBriefingFeedback, fetchBriefing, regenerateBriefing, updateBriefingSourcePreference, updateBriefingSubscription, type BriefingBlock, type BriefingPayload, type BriefingRecord, type BriefingRepoPayload, type BriefingSourcePreference, type BriefingSubscription } from "../api/briefing"
 
 export default function BriefingRoute() {
   const { t } = useT("operator_briefing")
@@ -50,6 +50,8 @@ function BriefingPage({ payload }: { payload: BriefingPayload }) {
         <SubscriptionGrid subscriptions={payload.subscriptions} />
       </Section.Root>
 
+      <SourcePreferences preferences={payload.source_preferences} suggestions={payload.source_preference_suggestions} />
+
       {payload.repositories.length === 0 ? (
         <Notice>{t("empty_enabled")}</Notice>
       ) : (
@@ -69,6 +71,61 @@ function BriefingPage({ payload }: { payload: BriefingPayload }) {
         </section>
       )}
     </Page.Root>
+  )
+}
+
+function SourcePreferences({ preferences, suggestions }: { preferences: BriefingSourcePreference[]; suggestions: BriefingSourcePreference[] }) {
+  const { t } = useT("operator_briefing")
+  const queryClient = useQueryClient()
+  const update = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => updateBriefingSourcePreference(id, enabled),
+    onSuccess: (payload) => queryClient.setQueryData(["operator_briefing"], payload)
+  })
+  const confirm = useMutation({
+    mutationFn: (id: number) => confirmBriefingSourcePreference(id),
+    onSuccess: (payload) => queryClient.setQueryData(["operator_briefing"], payload)
+  })
+
+  if (preferences.length === 0) return null
+
+  return (
+    <Section.Root className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <SectionHeading>{t("source_preferences")}</SectionHeading>
+        <Text variant="caption" tone="muted">{t("source_preferences_count", { count: preferences.filter((preference) => preference.enabled).length })}</Text>
+      </div>
+      {suggestions.length > 0 ? (
+        <div className="space-y-2">
+          {suggestions.map((suggestion) => (
+            <div className="flex flex-col gap-2 rounded-[var(--radius-panel)] border border-border bg-surface-subtle px-3 py-2" key={suggestion.id}>
+              <div>
+                <Text className="font-medium">{t("source_suggestion_title", { source: suggestion.label })}</Text>
+                <Text variant="caption" tone="muted">{suggestion.enabled ? t("source_suggestion_enable") : t("source_suggestion_disable")}</Text>
+              </div>
+              <div>
+                <Button disabled={confirm.isPending} onClick={() => confirm.mutate(suggestion.id)} size="sm">{t("confirm_suggestion")}</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        {preferences.map((preference) => (
+          <div className="flex min-h-16 items-start justify-between gap-3 rounded-[var(--radius-panel)] border border-border bg-surface px-3 py-2" key={preference.id}>
+            <div className="min-w-0">
+              <Text className="font-medium">{preference.label}</Text>
+              {preference.description ? <Text className="mt-1" variant="caption" tone="muted">{preference.description}</Text> : null}
+            </div>
+            <Toggle
+              checked={preference.enabled}
+              disabled={update.isPending}
+              label={preference.enabled ? t("enabled") : t("disabled")}
+              onChange={(enabled) => update.mutate({ id: preference.id, enabled })}
+            />
+          </div>
+        ))}
+      </div>
+    </Section.Root>
   )
 }
 
@@ -166,7 +223,51 @@ function BriefingCard({ briefing, compact = false, pathname }: { briefing: Brief
       ) : (
         <Notice>{briefing.live ? t("generating") : t("no_revision")}</Notice>
       )}
+
+      {!compact ? <BriefingFeedbackForm briefingId={briefing.id} /> : null}
     </Section.Root>
+  )
+}
+
+function BriefingFeedbackForm({ briefingId }: { briefingId: number }) {
+  const { t } = useT("operator_briefing")
+  const queryClient = useQueryClient()
+  const [sentiment, setSentiment] = useState<"positive" | "negative" | "neutral" | null>(null)
+  const [note, setNote] = useState("")
+  const feedback = useMutation({
+    mutationFn: () => createBriefingFeedback({ briefing_id: briefingId, sentiment: sentiment || undefined, note: note.trim() || undefined }),
+    onSuccess: (response) => {
+      queryClient.setQueryData(["operator_briefing"], response.briefing)
+      setSentiment(null)
+      setNote("")
+    }
+  })
+  const canSubmit = Boolean(sentiment || note.trim())
+
+  return (
+    <form className="space-y-2 border-t border-border pt-3" onSubmit={(event) => {
+      event.preventDefault()
+      if (canSubmit) feedback.mutate()
+    }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Text variant="caption" tone="muted">{t("feedback_label")}</Text>
+        {(["positive", "negative", "neutral"] as const).map((value) => (
+          <Button key={value} onClick={() => setSentiment(sentiment === value ? null : value)} size="sm" variant={sentiment === value ? "primary" : "secondary"} type="button">
+            {t(`feedback_${value}`)}
+          </Button>
+        ))}
+      </div>
+      <Textarea
+        aria-label={t("feedback_note")}
+        onChange={(event) => setNote(event.target.value)}
+        placeholder={t("feedback_note_placeholder")}
+        value={note}
+      />
+      {feedback.isError ? <Text variant="caption" tone="danger">{t("feedback_error")}</Text> : null}
+      <Button disabled={!canSubmit || feedback.isPending} size="sm" type="submit">
+        {feedback.isPending ? t("feedback_saving") : t("feedback_submit")}
+      </Button>
+    </form>
   )
 }
 

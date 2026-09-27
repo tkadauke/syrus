@@ -41,6 +41,14 @@ The plugin also owns these queryable data-layer tables:
 - `operator_briefing_subscriptions` stores per-operator repository opt-in.
 - `operator_briefing_settings` stores per-operator cadence and generation
   settings.
+- `operator_briefing_source_preferences` stores confirmed per-operator source
+  preferences plus pending AI suggestions. Defaults are seeded on first payload
+  read with every source enabled; AI suggestions remain pending until the
+  operator confirms them.
+- `operator_briefing_feedbacks` stores explicit thumbs/note feedback on a
+  Briefing or item. Creating feedback writes a global `user_pref` memory
+  through Agent Memory so future briefing generation reads personalization from
+  the same memory system as Agent Insights.
 
 The deterministic detectors cover dependency lockfiles, schema and migration
 files, public API surfaces, deleted or weakened tests, overridden review
@@ -53,3 +61,8 @@ guidance.
 The first "blocked on you" source is
 `OperatorBriefing::BlockedDesignDocThreads`: open design-doc threads visible
 to an operator whose latest comment is not by that operator.
+
+Completed dives use `OperatorBriefing::InterestSignal.record_dive_completed!`
+to write the same kind of global `user_pref` memory with higher confidence than
+explicit feedback. Dive workflows are introduced by a later phase; the shared
+hook exists here so personalization has one weighting path.
