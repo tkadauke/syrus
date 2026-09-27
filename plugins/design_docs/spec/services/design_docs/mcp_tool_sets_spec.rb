@@ -279,7 +279,11 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(suggest.fetch(:description)).to include("re-read the Design Doc")
     expect(read.dig(:input_schema, :properties, :detail, :enum)).to eq(%w[full summary])
     expect(suggest.dig(:input_schema, :properties, :base_version_number, :description)).to include("current_version_number")
+    expect(suggest.dig(:input_schema, :properties, :original_markdown, :description)).to include("must be unique")
+    expect(suggest.dig(:input_schema, :properties, :start_offset, :description)).to include("blank-line boundary")
+    expect(suggest.dig(:input_schema, :properties, :occurrence_index, :description)).to include("1-based occurrence")
     expect(suggest.dig(:input_schema, :required)).to include("base_version_number")
+    expect(suggest.dig(:input_schema, :required)).not_to include("start_offset", "end_offset")
   end
 
   it "keeps read_design_doc default payload identical to the existing full detail payload" do
@@ -542,6 +546,174 @@ RSpec.describe "DesignDocs MCP tool sets" do
       "chat_message_id" => assistant_message.id
     )
     expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello world")
+  end
+
+  it "resolves a unique original_markdown match without caller-supplied offsets" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    server = chat_server
+
+    expect {
+      response = call_tool(
+        server,
+        "suggest_design_doc_change",
+        doc_ref: doc.display_id,
+        base_version_number: doc.current_version.version_number,
+        original_markdown: "beta",
+        proposed_markdown: "BETTA"
+      )
+
+      expect(response.dig(:result, :isError)).to be_falsey
+    }.to change(DesignDocs::DesignDocSuggestion, :count).by(1)
+
+    suggestion = DesignDocs::DesignDocSuggestion.last
+    expect(suggestion).to have_attributes(original_markdown: "beta", suggested_markdown: "BETTA")
+    expect(suggestion.anchor).to have_attributes(start_offset: 6, end_offset: 10, selected_markdown: "beta")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Alpha beta gamma")
+  end
+
+  it "rejects original_markdown lookup when the text is not in the current rendered markdown" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    server = chat_server
+
+    expect {
+      response = call_tool(
+        server,
+        "suggest_design_doc_change",
+        doc_ref: doc.display_id,
+        base_version_number: doc.current_version.version_number,
+        original_markdown: "delta",
+        proposed_markdown: "DELTA"
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(response.dig(:result, :content, 0, :text)).to include("original_markdown was not found")
+      expect(response.dig(:result, :content, 0, :text)).to include("whitespace or Unicode characters")
+    }.not_to change(DesignDocs::DesignDocSuggestion, :count)
+  end
+
+  it "returns contextual disambiguation when original_markdown appears a few times" do
+    doc = create_design_doc(markdown: "Intro target\n\nMiddle target\n\nOutro target")
+    server = chat_server
+
+    expect {
+      response = call_tool(
+        server,
+        "suggest_design_doc_change",
+        doc_ref: doc.display_id,
+        base_version_number: doc.current_version.version_number,
+        original_markdown: "target",
+        proposed_markdown: "selection"
+      )
+
+      text = response.dig(:result, :content, 0, :text)
+      expect(response.dig(:result, :isError)).to be true
+      expect(text).to include("appears 3 times")
+      expect(text).to include("Occurrence 1: start_offset=6, end_offset=12")
+      expect(text).to include("Occurrence 2:")
+      expect(text).to include("Occurrence 3:")
+      expect(text).to include("Retry with occurrence_index: N")
+      expect(text).to include("include more surrounding text")
+    }.not_to change(DesignDocs::DesignDocSuggestion, :count)
+  end
+
+  it "uses occurrence_index to choose one original_markdown occurrence on retry" do
+    doc = create_design_doc(markdown: "Intro target\n\nMiddle target\n\nOutro target")
+    server = chat_server
+
+    response = call_tool(
+      server,
+      "suggest_design_doc_change",
+      doc_ref: doc.display_id,
+      base_version_number: doc.current_version.version_number,
+      original_markdown: "target",
+      occurrence_index: 2,
+      proposed_markdown: "selection"
+    )
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    suggestion = DesignDocs::DesignDocSuggestion.last
+    expect(suggestion.anchor).to have_attributes(start_offset: 21, end_offset: 27, selected_markdown: "target")
+  end
+
+  it "returns a short narrowing error when original_markdown appears more than the ambiguity cap" do
+    doc = create_design_doc(markdown: Array.new(11, "target").join("\n\n"))
+    server = chat_server
+
+    expect {
+      response = call_tool(
+        server,
+        "suggest_design_doc_change",
+        doc_ref: doc.display_id,
+        base_version_number: doc.current_version.version_number,
+        original_markdown: "target",
+        proposed_markdown: "selection"
+      )
+
+      text = response.dig(:result, :content, 0, :text)
+      expect(response.dig(:result, :isError)).to be true
+      expect(text).to include("appears 11 times")
+      expect(text).to include("too many to enumerate")
+      expect(text).not_to include("Occurrence 1")
+    }.not_to change(DesignDocs::DesignDocSuggestion, :count)
+  end
+
+  it "rejects explicit offsets when original_markdown no longer matches that range" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    server = chat_server
+
+    expect {
+      response = call_tool(
+        server,
+        "suggest_design_doc_change",
+        doc_ref: doc.display_id,
+        start_offset: 6,
+        end_offset: 10,
+        base_version_number: doc.current_version.version_number,
+        original_markdown: "gamma",
+        proposed_markdown: "BETTA"
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(response.dig(:result, :content, 0, :text)).to include("original_markdown does not match")
+    }.not_to change(DesignDocs::DesignDocSuggestion, :count)
+  end
+
+  it "preserves offset-only suggestions without original_markdown" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    server = chat_server
+
+    response = call_tool(
+      server,
+      "suggest_design_doc_change",
+      doc_ref: doc.display_id,
+      start_offset: 6,
+      end_offset: 10,
+      base_version_number: doc.current_version.version_number,
+      proposed_markdown: "BETTA"
+    )
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    suggestion = DesignDocs::DesignDocSuggestion.last
+    expect(suggestion).to have_attributes(original_markdown: "beta", suggested_markdown: "BETTA")
+  end
+
+  it "keeps block-boundary validation active for original_markdown-resolved ranges" do
+    doc = create_design_doc(markdown: "## Heading\n\nBody")
+    server = chat_server
+
+    expect {
+      response = call_tool(
+        server,
+        "suggest_design_doc_change",
+        doc_ref: doc.display_id,
+        base_version_number: doc.current_version.version_number,
+        original_markdown: "## He",
+        proposed_markdown: "## Re"
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(response.dig(:result, :content, 0, :text)).to include("Suggestions cannot select only part of Markdown block syntax")
+    }.not_to change(DesignDocs::DesignDocSuggestion, :count)
   end
 
   it "rejects stale offset-based agent suggestions after an earlier suggestion creates a new version" do
