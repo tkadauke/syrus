@@ -276,6 +276,27 @@
     "hours_ago": "vor {{count}} Std.",
     "days_ago": "vor {{count}} Tg."
   },
+  "connection_status": {
+    "route_title": "Live-Update-Status",
+    "back": "Zurück",
+    "recent_events": "Letzte Ereignisse",
+    "no_events": "Keine aktuellen Verbindungsereignisse",
+    "reconnected_toast": "Wieder verbunden — Daten aktualisiert",
+    "connected": {
+      "title": "Live-Updates aktiv",
+      "body": "Syrus empfängt Live-Updates über die Websocket-Verbindung."
+    },
+    "reconnecting": {
+      "title": "Verbindung wird wiederhergestellt",
+      "body": "Live-Updates pausieren, während Syrus die Verbindung wiederherstellt. Chat-Ansichten können ersatzweise pollen."
+    },
+    "events": {
+      "connected": "Verbunden",
+      "disconnected": "Getrennt",
+      "reconnecting": "Verbindung wird wiederhergestellt",
+      "reconnected": "Wieder verbunden, Daten aktualisiert"
+    }
+  },
   "account_aria": "Konto",
   "system_alerts_aria": "Systemwarnungen",
   "system_alert_dismiss": "Systemwarnung ausblenden",

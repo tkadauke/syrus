@@ -436,7 +436,7 @@ describe("chat message tail refetch", () => {
     function Harness({ reconnectAt }: { reconnectAt: number | null }) {
       return (
         <QueryClientProvider client={queryClient}>
-          <ConnectionContext.Provider value={{ isDisconnected: false, reconnectAt }}>
+          <ConnectionContext.Provider value={{ events: [], isDisconnected: false, reconnectAt, status: "connected" }}>
             <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
               <Routes>
                 <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
@@ -482,7 +482,7 @@ describe("chat message tail refetch", () => {
 
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <ConnectionContext.Provider value={{ isDisconnected: true, reconnectAt: null }}>
+          <ConnectionContext.Provider value={{ events: [], isDisconnected: true, reconnectAt: null, status: "reconnecting" }}>
             <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
               <Routes>
                 <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
@@ -526,7 +526,7 @@ describe("chat message tail refetch", () => {
 
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <ConnectionContext.Provider value={{ isDisconnected: false, reconnectAt: null }}>
+          <ConnectionContext.Provider value={{ events: [], isDisconnected: false, reconnectAt: null, status: "connected" }}>
             <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
               <Routes>
                 <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
