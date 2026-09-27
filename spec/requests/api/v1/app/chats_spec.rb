@@ -564,9 +564,70 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     groups = parse_body["groups"].index_by { |group| group["key"] }
-    expect(groups.keys).to include("status-active", "status-hidden")
+    expect(groups.keys).to include("status-unread", "status-active", "status-hidden")
+    expect(groups.fetch("status-unread")["label"]).to eq("Unread")
     expect(groups.fetch("status-active")["chats"]).to eq([])
     expect(groups.fetch("status-hidden")["chats"].map { |chat| chat["title"] }).to eq([ "Only hidden" ])
+  end
+
+  it "puts unread sidebar chats in a separate status group before active and hidden groups" do
+    sign_in_as(user)
+    unread_chat = ChatSession.create!(
+      user: user,
+      title: "Unread chat",
+      last_message_at: 1.minute.ago,
+      last_read_at: 1.hour.ago
+    )
+    read_chat = ChatSession.create!(
+      user: user,
+      title: "Read chat",
+      last_message_at: 2.minutes.ago,
+      last_read_at: Time.current
+    )
+    hidden_chat = ChatSession.create!(
+      user: user,
+      title: "Hidden chat",
+      hidden_at: Time.current,
+      last_message_at: 3.minutes.ago,
+      last_read_at: Time.current
+    )
+
+    get "/api/v1/app/chats", params: { status: "all", group_by: "status" }
+
+    expect(response).to have_http_status(:ok)
+    groups = parse_body["groups"]
+    expect(groups.map { |group| group["key"] }).to eq(%w[status-unread status-active status-hidden])
+    expect(groups.first["chats"].map { |chat| chat["id"] }).to eq([ unread_chat.id ])
+    expect(groups.second["chats"].map { |chat| chat["id"] }).to eq([ read_chat.id ])
+    expect(groups.third["chats"].map { |chat| chat["id"] }).to eq([ hidden_chat.id ])
+  end
+
+  it "pages additional unread sidebar chats within the status group" do
+    sign_in_as(user)
+    unread_chats = 7.times.map do |index|
+      chat = ChatSession.create!(
+        user: user,
+        title: "Unread #{index}",
+        last_message_at: (index + 1).minutes.ago,
+        last_read_at: nil
+      )
+      chat.update_columns(created_at: chat.last_message_at, updated_at: chat.last_message_at)
+      chat
+    end
+    ChatSession.create!(user: user, title: "Read", last_message_at: 30.minutes.ago, last_read_at: Time.current)
+
+    get "/api/v1/app/chats", params: { group_by: "status", per_group: "5" }
+
+    expect(response).to have_http_status(:ok)
+    group = parse_body["groups"].find { |candidate| candidate["key"] == "status-unread" }
+    expect(group["chats"].map { |chat| chat["id"] }).to eq(unread_chats.first(5).map(&:id))
+    expect(group["has_more"]).to eq(true)
+
+    get "/api/v1/app/chats/more", params: { group_by: "status", group_key: "unread", before_id: group["chats"].last["id"], per_group: "5" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["chats"].map { |chat| chat["id"] }).to eq(unread_chats.last(2).map(&:id))
+    expect(parse_body["has_more"]).to eq(false)
   end
 
   it "sorts sidebar chats by name within pinned bands" do
