@@ -8,6 +8,7 @@ class ImmutableSourceCheckout
   CHECKOUT_ROOT = ".syrus/immutable-checkouts/steps".freeze
   PREPARE_CACHE_ROOT = ".syrus/immutable-checkouts/prepare-cache".freeze
   PREPARE_CACHE_LOCK_ROOT = ".syrus/immutable-checkouts/prepare-cache-locks".freeze
+  PREPARED_ARCHIVE_RESTORE_ROOT = ".syrus/immutable-checkouts/prepared-archive-restores".freeze
   PREPARED_MARKER = ".syrus/immutable-source-prepared.json".freeze
   PREPARED_ARCHIVE_CONTENT_TYPE = PreparedWorkspaceArchive::CONTENT_TYPE
   PREPARED_ARCHIVE_MAX_BYTES = PreparedWorkspaceArchive::MAX_BYTES
@@ -431,6 +432,7 @@ class ImmutableSourceCheckout
     attachment = snapshot.prepared_workspace_archive
     return false unless attachment.attached?
     return false unless prepared_archive_snapshot_metadata_matches?(attachment.blob.metadata, snapshot)
+    return restore_prepared_archive_overlay_checkout!(attachment, snapshot) if overlay_restore_enabled?
 
     archive_path = temporary_archive_path("checkout-restore")
     WorkerIoGate.synchronize do
@@ -449,6 +451,35 @@ class ImmutableSourceCheckout
     true
   rescue StandardError => e
     log("[immutable_source_checkout] prepared archive checkout restore failed; falling back to source fetch: #{e.class}: #{e.message}")
+    FileUtils.rm_rf(path.to_s)
+    false
+  ensure
+    FileUtils.rm_f(archive_path.to_s) if archive_path
+  end
+
+  def restore_prepared_archive_overlay_checkout!(attachment, snapshot)
+    lower_path = prepared_archive_restore_path(snapshot, attachment.blob.metadata)
+    archive_path = temporary_archive_path("checkout-overlay-restore")
+    WorkerIoGate.synchronize do
+      unless valid_checkout_at?(lower_path, snapshot)
+        FileUtils.rm_rf(lower_path.to_s)
+        FileUtils.mkdir_p(lower_path)
+        File.open(archive_path, "wb") do |file|
+          attachment.download { |chunk| file.write(chunk) }
+        end
+        run_tar!("tar", "-xzf", archive_path.to_s, "-C", lower_path.to_s)
+      end
+
+      FileUtils.rm_rf(path.to_s)
+      copy_tree!(lower_path, path)
+    end
+    verify_head!(snapshot)
+    ensure_base_ref!
+    ensure_exclude_entry
+    log("[immutable_source_checkout] restored checkout from prepared archive overlay lower before fetching source snapshot")
+    true
+  rescue StandardError => e
+    log("[immutable_source_checkout] prepared archive overlay checkout restore failed; falling back to source fetch: #{e.class}: #{e.message}")
     FileUtils.rm_rf(path.to_s)
     false
   ensure
@@ -576,6 +607,17 @@ class ImmutableSourceCheckout
     PreparedWorkspaceArchive.metadata(workflow: @workflow, snapshot: snapshot, plan: prepare_cache.plan)
   end
 
+  def prepared_archive_restore_path(snapshot, metadata)
+    fingerprint = metadata.to_h["prepare_fingerprint"].presence || "unknown-fingerprint"
+    WorkflowWorkspace.path_for(@workflow).join(
+      PREPARED_ARCHIVE_RESTORE_ROOT,
+      sanitized_worker_storage_key,
+      @workflow.id.to_s,
+      snapshot.source_sha,
+      fingerprint
+    )
+  end
+
   def temporary_archive_path(prefix)
     WorkflowWorkspace.path_for(@workflow).join(
       ".syrus",
@@ -591,12 +633,76 @@ class ImmutableSourceCheckout
   end
 
   def copy_tree!(source, destination)
+    materialization_details = {
+      "strategy" => "copy",
+      "fallback_reason" => overlay_restore_enabled? ? "overlay disabled after support check failed" : "grader_fanout_overlay feature disabled",
+      "lower_path" => source.to_s,
+      "mount_path" => destination.to_s
+    }
+
+    if overlay_restore_enabled?
+      overlay = ImmutableSourceCheckoutOverlay.mount(
+        lower_path: source,
+        mount_path: destination,
+        log: ->(message) { log(message) }
+      )
+      record_workspace_materialization!(overlay)
+      return if overlay.mounted
+
+      materialization_details["fallback_reason"] = overlay.reason
+    end
+
     FileUtils.mkdir_p(destination)
     FileUtils.cp_r(
       source.children.map(&:to_s),
       destination.to_s,
       preserve: true,
       dereference_root: false
+    )
+    record_workspace_materialization!(materialization_details)
+  end
+
+  def valid_checkout_at?(checkout_path, snapshot)
+    checkout_path = Pathname.new(checkout_path)
+    return false unless checkout_path.join(".git").directory?
+
+    @git.run("rev-parse", "HEAD", chdir: checkout_path.to_s).strip == snapshot.source_sha
+  rescue GitRunner::GitError
+    false
+  end
+
+  def overlay_restore_enabled?
+    @step.kind.in?(%w[grader preflight_grader]) && Feature.grader_fanout_overlay_enabled?
+  end
+
+  def record_workspace_materialization!(result)
+    details = if result.is_a?(ImmutableSourceCheckoutOverlay::Result)
+      result.to_h.stringify_keys.merge("strategy" => result.strategy).tap do |payload|
+        payload["fallback_reason"] = result.reason if result.reason.present?
+      end
+    else
+      result.to_h.stringify_keys
+    end
+    @step.update!(details: @step.details.to_h.merge("immutable_source_workspace" => details.compact))
+    record_run_workspace_materialization!(details)
+  end
+
+  def record_run_workspace_materialization!(details)
+    current_run = @run || Thread.current[:syrus_current_run] || @step.latest_run
+    return unless current_run
+
+    payload = details.compact.slice(
+      "strategy",
+      "fallback_reason",
+      "lower_path",
+      "upper_path",
+      "work_path",
+      "mount_path"
+    )
+    JobLog.append!(
+      run: current_run,
+      kind: "system",
+      chunk: "[immutable_source_workspace] #{JSON.generate(payload)}\n"
     )
   end
 
