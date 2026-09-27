@@ -12,6 +12,7 @@ module ChatIndexPayload
   CHAT_INDEX_GROUP_BY_OPTIONS = %w[date repository status mode].freeze
   CHAT_INDEX_SORT_BY_OPTIONS = %w[name date_created last_activity].freeze
   CHAT_INDEX_PER_GROUP_OPTIONS = [ 5, 10, 15, 20 ].freeze
+  CHAT_INDEX_GROUP_PAGE_SIZE = 24
   CHAT_INDEX_MODE_LABELS = {
     "planning" => "Planning",
     "coding" => "Coding",
@@ -38,12 +39,18 @@ module ChatIndexPayload
         @chat_index_param_error ||= "per_group must be one of: #{CHAT_INDEX_PER_GROUP_OPTIONS.join(", ")}."
       end
       per_group = Current.user.recent_chats_group_size unless CHAT_INDEX_PER_GROUP_OPTIONS.include?(per_group)
+      group_offset = Integer(params[:group_offset], exception: false)
+      if params.key?(:group_offset) && (!group_offset || group_offset.negative?)
+        @chat_index_param_error ||= "group_offset must be a non-negative integer."
+      end
+      group_offset = 0 unless group_offset && group_offset >= 0
 
       {
         status: status,
         group_by: group_by,
         sort_by: sort_by,
         per_group: per_group,
+        group_offset: group_offset,
         show_empty_groups: group_by != "date" && ActiveModel::Type::Boolean.new.cast(params[:show_empty_groups])
       }
     end
@@ -61,6 +68,10 @@ module ChatIndexPayload
     chat_index_settings.fetch(:per_group)
   end
 
+  def chat_index_group_offset
+    chat_index_settings.fetch(:group_offset)
+  end
+
   def recent_chats_index_json
     PerformanceLogging.phase("chat_index.groups") do
       group_specs = PerformanceLogging.phase("chat_index.initial_groups") { initial_chat_index_group_specs }
@@ -70,7 +81,11 @@ module ChatIndexPayload
       end
       groups = group_specs.map { |group| chat_index_group_json(**group, context: context) }
 
-      sort_chat_index_groups(groups)
+      {
+        groups: sort_chat_index_groups(groups),
+        has_more: @chat_index_groups_has_more == true,
+        next_offset: @chat_index_groups_has_more == true ? chat_index_group_offset + CHAT_INDEX_GROUP_PAGE_SIZE : nil
+      }
     end
   end
 
@@ -212,6 +227,11 @@ module ChatIndexPayload
   end
 
   def initial_chat_index_group_specs
+    group_page = chat_index_group_page
+    @chat_index_groups_has_more = group_page.fetch(:has_more)
+    page_keys = group_page.fetch(:keys)
+    return [] if page_keys.empty?
+
     rows = chat_index_initial_group_rows
     chat_ids = rows.map { |row| row.fetch("chat_session_id").to_i }.uniq
     repository_ids = rows.filter_map { |row| row.fetch("repository_id")&.to_i }.uniq
@@ -232,7 +252,7 @@ module ChatIndexPayload
       )
     end
 
-    return specs unless chat_index_settings.fetch(:show_empty_groups)
+    return specs unless chat_index_settings.fetch(:show_empty_groups) && chat_index_group_offset.zero?
 
     merge_empty_chat_index_group_specs(specs, repositories_by_id: repositories_by_id)
   end
@@ -254,12 +274,62 @@ module ChatIndexPayload
         ) AS group_position
       SQL
 
+    group_keys = chat_index_group_page.fetch(:keys)
+    quoted_group_keys = group_keys.map { |key| ActiveRecord::Base.connection.quote(key) }.join(", ")
     quoted_limit = ActiveRecord::Base.connection.quote(chat_index_group_size + 1)
     ActiveRecord::Base.connection.select_all(<<~SQL.squish).to_a
       SELECT chat_session_id, repository_id, group_key, group_position
       FROM (#{ranked_scope.to_sql}) chat_index_ranked
       WHERE group_position <= #{quoted_limit}
+        AND group_key IN (#{quoted_group_keys})
     SQL
+  end
+
+  def chat_index_group_page
+    @chat_index_group_page ||= begin
+      rows = ActiveRecord::Base.connection.select_all(chat_index_group_page_sql).to_a
+      limited_rows = rows.first(CHAT_INDEX_GROUP_PAGE_SIZE)
+      {
+        keys: limited_rows.map { |row| row.fetch("group_key").to_s },
+        has_more: rows.size > CHAT_INDEX_GROUP_PAGE_SIZE
+      }
+    end
+  end
+
+  def chat_index_group_page_sql
+    grouped_scope = chat_index_base_scope
+      .active
+      .ordinary_chats
+    grouped_scope = grouped_scope.left_outer_joins(:repository_attachments) if chat_index_settings.fetch(:group_by) == "repository"
+    grouped_scope = grouped_scope
+      .reselect(Arel.sql(<<~SQL.squish))
+        #{chat_index_group_key_sql} AS group_key,
+        MAX(#{chat_activity_order_sql}) AS active_at
+      SQL
+      .group(Arel.sql(chat_index_group_key_sql))
+      .order(Arel.sql(chat_index_group_page_order_sql))
+      .limit(CHAT_INDEX_GROUP_PAGE_SIZE + 1)
+      .offset(chat_index_group_offset)
+
+    grouped_scope.to_sql
+  end
+
+  def chat_index_group_page_order_sql
+    case chat_index_settings.fetch(:group_by)
+    when "date"
+      "group_key DESC"
+    when "repository"
+      "active_at DESC, group_key ASC"
+    when "status"
+      "CASE group_key WHEN 'active' THEN 0 WHEN 'hidden' THEN 1 ELSE 9 END ASC"
+    when "mode"
+      mode_order = ChatSession::MODES.each_with_index.map do |mode, index|
+        "WHEN #{ActiveRecord::Base.connection.quote(mode)} THEN #{index}"
+      end.join(" ")
+      "CASE group_key #{mode_order} ELSE 9 END ASC"
+    else
+      "group_key ASC"
+    end
   end
 
   def chat_index_before(scope, before_chat)

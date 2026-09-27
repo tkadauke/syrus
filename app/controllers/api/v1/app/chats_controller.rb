@@ -30,8 +30,11 @@ module Api
           return unless validate_chat_index_settings
 
           render json: PerformanceLogging.phase("chats_index_payload") {
+            groups_payload = PerformanceLogging.phase("chats_index.groups") { recent_chats_index_json }
             {
-              groups: PerformanceLogging.phase("chats_index.groups") { recent_chats_index_json },
+              groups: groups_payload.fetch(:groups),
+              groups_has_more: groups_payload.fetch(:has_more),
+              groups_next_offset: groups_payload.fetch(:next_offset),
               repositories: PerformanceLogging.phase("chats_index.repositories") { Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) } }
             }
           }
