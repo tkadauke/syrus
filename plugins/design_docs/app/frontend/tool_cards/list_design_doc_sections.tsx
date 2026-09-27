@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, InternalLink, numberValue } from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, InternalLink, numberValue } from "@app/routes/chat/toolCardUi"
 import { parseDesignDocSummary, t, type DesignDocSummary } from "../designDocToolCard"
 
 type DesignDocSection = {
@@ -60,29 +60,27 @@ function renderExpanded(context: ToolCardContext) {
         {href ? (
           <InternalLink href={href}>{result.summary.docRef}</InternalLink>
         ) : (
-          <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{result.summary.docRef}</span>
+          <span className="font-mono font-semibold text-text-primary">{result.summary.docRef}</span>
         )}
         <Badge>{t("tool_sections")}</Badge>
       </div>
-      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{result.summary.title}</div>
+      <div className="text-sm font-medium text-text-primary">{result.summary.title}</div>
       {result.sections.length > 0 ? (
-        <ol className="space-y-1 rounded border border-gray-200 bg-white p-2 text-xs dark:border-gray-800 dark:bg-gray-950">
+        <ol className="space-y-1 rounded-[var(--radius-panel)] border border-border bg-surface p-2 text-xs">
           {result.sections.map((section, index) => (
             <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2" key={`${section.startOffset}-${index}`}>
-              <span className="font-mono text-gray-500 dark:text-gray-400">H{section.level}</span>
-              <span className="min-w-0 truncate text-gray-900 dark:text-gray-100" style={{ paddingLeft: `${Math.max(section.level - 1, 0) * 0.75}rem` }}>
+              <span className="font-mono text-text-muted">H{section.level}</span>
+              <span className="min-w-0 truncate text-text-primary" style={{ paddingLeft: `${Math.max(section.level - 1, 0) * 0.75}rem` }}>
                 {section.text}
               </span>
-              <span className="font-mono text-gray-500 dark:text-gray-400">
+              <span className="font-mono text-text-muted">
                 {section.startOffset}-{section.endOffset}
               </span>
             </li>
           ))}
         </ol>
       ) : (
-        <div className="rounded border border-gray-200 bg-white p-2 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
-          {t("tool_no_sections")}
-        </div>
+        <EmptyState>{t("tool_no_sections")}</EmptyState>
       )}
     </CardShell>
   )
