@@ -1591,6 +1591,92 @@ describe("WorkflowsTab", () => {
     expect(screen.queryByText("Execution details")).not.toBeInTheDocument()
   })
 
+  it("places run action buttons below the run text and right aligns them", () => {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab
+            command={command()}
+            payload={payload({
+              workflows: [workflowWithStepDetails({
+                id: 5604,
+                kind: "implement",
+                display_name: "Implement",
+                display_status: "running",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "running",
+                started_at: "2026-08-25T12:00:00Z",
+                finished_at: null,
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:00:00Z",
+                agentic: true,
+                details: null,
+                warnings: [],
+                latest: true,
+                runs: [{
+                  id: 5604,
+                  state: "running",
+                  trigger_kind: "initial",
+                  agent_provider: "codex",
+                  agent_outcome: null,
+                  agent_turns: 0,
+                  agent_pr_title: null,
+                  agent_summary: null,
+                  parent_session_id: null,
+                  skill_source: null,
+                  skill_resolved_path: null,
+                  skill_resolved_class: null,
+                  head_sha: null,
+                  iteration: 1,
+                  started_at: "2026-08-25T12:00:00Z",
+                  last_heartbeat_at: null,
+                  finished_at: null,
+                  created_at: "2026-08-25T12:00:00Z",
+                  updated_at: "2026-08-25T12:00:00Z",
+                  cost_usd: 0,
+                  input_tokens: 0,
+                  output_tokens: 0,
+                  agent_diff_present: false,
+                  agent_diff_bytes: 0,
+                  step_agent_diff_present: false,
+                  step_agent_diff_bytes: 0,
+                  step_diff_matches_diff: false,
+                  job_log_count: 1,
+                  rate_limited: false,
+                  run_diagnostic: null,
+                  health_snapshots: [],
+                  agent_session: null,
+                  can_stop: true,
+                  can_diagnose: true,
+                  can_resume: false,
+                  app_artifacts_path: "/api/v1/app/jobs/1/runs/5604/artifacts",
+                  app_stop_path: "/stop",
+                  app_diagnose_path: "/diagnose",
+                  app_resume_path: "/resume",
+                  app_grade_log_path: null
+                }]
+              })]
+            })}
+            prefix=""
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    const runCard = screen.getByText("Run #5604").closest("div.rounded")
+    const layout = runCard?.firstElementChild
+    const actions = Array.from(layout?.children ?? []).find((child) => child.textContent?.includes("Diagnose"))
+
+    expect(layout).toHaveClass("space-y-3")
+    expect(layout).not.toHaveClass("flex")
+    expect(actions).toBe(layout?.children[1])
+    expect(actions).toHaveClass("justify-end")
+  })
+
   it("avoids repeating status and timing between the step header and its sole successful run", () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
