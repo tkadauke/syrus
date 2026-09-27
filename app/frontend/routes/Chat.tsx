@@ -801,10 +801,13 @@ function ChatWorkspace({
   // Wider than AppChromeV2's own sidebar breakpoint — see CHAT_WORKSPACE_SPLIT_MIN_WIDTH.
   const isDesktop = useMediaQuery(`(min-width: ${CHAT_WORKSPACE_SPLIT_MIN_WIDTH}px)`, true)
   const { t } = useT("chat")
+  const { autoHideEnabled: mobileHeaderAutoHideEnabled, offset: mobileHeaderOffset, revealHeader } = useMobileChatHeaderControls()
   const hasPins = useHasPins(payload.chat.id, queryKey[2])
   const availableTabs = availableWorkspaceTabs(payload, hasPins)
   const showMobileWorkspaceTabs = mobileWorkspaceTabsVisible(payload)
   const showMobileChatColumn = activeMobileTab === "chat" || !showMobileWorkspaceTabs
+  const mobileTabsAutoHideActive = !isDesktop && showMobileWorkspaceTabs && activeMobileTab === "chat" && mobileHeaderAutoHideEnabled
+  const mobileTabsOffset = mobileTabsAutoHideActive ? Math.min(44, mobileHeaderOffset) : 0
 
   useEffect(() => {
     if (activeTab === null || !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload))
@@ -814,6 +817,13 @@ function ChatWorkspace({
   useEffect(() => {
     if (!showMobileWorkspaceTabs && activeMobileTab !== "chat") setActiveMobileTab("chat")
   }, [activeMobileTab, showMobileWorkspaceTabs])
+
+  useEffect(() => {
+    if (isDesktop) return
+    if (showMobileWorkspaceTabs && activeMobileTab === "chat") return
+
+    revealHeader()
+  }, [activeMobileTab, isDesktop, revealHeader, showMobileWorkspaceTabs])
 
   // Confirming a job/epic proposal optimistically patches the chat query
   // cache so the "jobs" tab becomes available, but that cache update lands
@@ -912,17 +922,26 @@ function ChatWorkspace({
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
         {showMobileWorkspaceTabs ? (
-          <UnderlineTabs
-            activeKey={activeMobileTab}
-            ariaLabel={t("aria_mobile_tabs")}
-            className="flex min-h-[44px] shrink-0 overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-2 text-sm font-medium dark:border-gray-700"
-            itemClassName="max-w-[33vw] truncate px-3 py-2"
-            items={(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => ({
-              key: tab,
-              label: mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs)
-            }))}
-            onSelect={selectMobileTab}
-          />
+          <div
+            className="shrink-0"
+            data-testid="mobile-chat-tabs-shell"
+            style={mobileTabsAutoHideActive ? {
+              marginBottom: `-${mobileTabsOffset}px`,
+              transform: `translateY(-${mobileTabsOffset}px)`
+            } : undefined}
+          >
+            <UnderlineTabs
+              activeKey={activeMobileTab}
+              ariaLabel={t("aria_mobile_tabs")}
+              className="flex min-h-[44px] overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-2 text-sm font-medium dark:border-gray-700"
+              itemClassName="max-w-[33vw] truncate px-3 py-2"
+              items={(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => ({
+                key: tab,
+                label: mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs)
+              }))}
+              onSelect={selectMobileTab}
+            />
+          </div>
         ) : null}
         <div className="flex min-h-0 w-full flex-1">
           {showMobileChatColumn ? (
