@@ -185,6 +185,31 @@ describe("RecentChatsSidebar repository quick-start", () => {
 
     expect(startChat).toHaveBeenCalledWith(7)
   })
+
+  it("starts a repositoryless chat from the General repository group", () => {
+    const startChat = vi.fn()
+    renderSidebar([], {
+      groups: [
+        chatGroup({
+          key: "general",
+          label: "General",
+          repository_id: null,
+          group_by: "repository",
+          group_value: null,
+          chats: [chatNav({ id: 1, title: "General chat" })]
+        })
+      ],
+      onStartChat: startChat
+    })
+
+    const settingsButton = screen.getByRole("button", { name: "Recent chats settings" })
+    const generalQuickStart = screen.getByRole("button", { name: "New chat in General" })
+    fireEvent.click(generalQuickStart)
+
+    expect(startChat).toHaveBeenCalledWith(null)
+    expect(generalQuickStart).toHaveClass("h-6", "w-6", "p-0")
+    expect(settingsButton).toHaveClass("h-6", "w-6", "p-0")
+  })
 })
 
 describe("RecentChatsSidebar settings", () => {
