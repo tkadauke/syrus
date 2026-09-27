@@ -9916,19 +9916,15 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Implement/i }))
     fireEvent.click(screen.getByRole("button", { name: "Transcript" }))
 
-    expect(await screen.findByText((_, element) => (
-      element?.tagName === "PRE" &&
-      element.textContent === "[prepare] (1/2) $ bundle install\nFetching rack 3.2.6\nFetching rack-session 2.1.2"
-    ))).toBeInTheDocument()
-    expect(screen.getByText((_, element) => (
-      element?.tagName === "PRE" &&
-      element.textContent === "[prepare] (2/2) $ npm ci\nadded 42 packages"
-    ))).toBeInTheDocument()
-    expect(screen.queryByText((_, element) => (
-      element?.tagName === "PRE" &&
-      element.textContent === "[prepare] (1/2) $ bundle install\nFetching rack 3.2.6\nFetching rack-session 2.1.2\n[prepare] (2/2) $ npm ci\nadded 42 packages"
-    ))).not.toBeInTheDocument()
-    expect(screen.getAllByText("System")).toHaveLength(2)
+    await screen.findByText("Tool")
+    const systemRows = screen.getAllByTestId("run-transcript-log-system")
+    expect(systemRows).toHaveLength(2)
+    expect(systemRows[0]).toHaveTextContent("[prepare] (1/2) $ bundle install")
+    expect(systemRows[0]).toHaveTextContent("Fetching rack 3.2.6")
+    expect(systemRows[0]).toHaveTextContent("Fetching rack-session 2.1.2")
+    expect(systemRows[0]).not.toHaveTextContent("[prepare] (2/2) $ npm ci")
+    expect(systemRows[1]).toHaveTextContent("[prepare] (2/2) $ npm ci")
+    expect(systemRows[1]).toHaveTextContent("added 42 packages")
     expect(screen.getByText("Tool")).toBeInTheDocument()
   })
 
