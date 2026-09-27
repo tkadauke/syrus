@@ -472,10 +472,15 @@ export function JobDetailView({
   )
 }
 
-type HeaderMetadataItem = { node: ReactNode; className?: string; separatorClassName?: string } | null | false | undefined
+type HeaderMetadataObject = { node: ReactNode; className?: string; separatorClassName?: string }
+type HeaderMetadataItem = HeaderMetadataObject | null | false | undefined
+
+function isHeaderMetadataObject(item: HeaderMetadataItem): item is HeaderMetadataObject {
+  return Boolean(item && typeof item === "object" && "node" in item && item.node)
+}
 
 function HeaderMetadataList({ items }: { items: HeaderMetadataItem[] }) {
-  const visibleItems = items.filter((item): item is Exclude<HeaderMetadataItem, null | false | undefined> => Boolean(item?.node))
+  const visibleItems = items.filter(isHeaderMetadataObject)
   if (visibleItems.length === 0) return null
 
   return (
