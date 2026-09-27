@@ -6,7 +6,7 @@ module App
   # branch through RepositoryContent (RepoDefaultBranchSyrusYml) rather than shelling
   # out against the local bare clone: several of these call sites run on the
   # web tier, and web pods don't mount $SYRUS_DATA_ROOT (see "Deploy target"
-  # in CLAUDE.md — "Web pods don't need this volume"). A local bare clone
+  # in docs/agent-guide/deployed-operations.md — "Web pods don't need this volume"). A local bare clone
   # never existing there made `File.directory?(clone_path)` always false, so
   # `allow_unapproved?` always answered `false` regardless of what
   # `.syrus.yml` actually configured. Mirrors the fix

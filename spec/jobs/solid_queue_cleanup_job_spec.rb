@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe SolidQueueCleanupJob do
   it "clears finished SolidQueue jobs in small bounded batches" do
     # SolidQueue::Job's table isn't loaded in this single-DB test setup
-    # (CLAUDE.md). Replace the class with a bare stand-in so we can
+    # (see docs/agent-guide/conventions.md). Replace the class with a bare stand-in so we can
     # assert the cleanup call without hitting the missing table.
     cleanup_class = Class.new do
       class << self

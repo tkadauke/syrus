@@ -4,7 +4,7 @@ module Metrics
   # Split out from QueueSampler so the sampler's logic -- caching, gauge
   # setting, staleness, degradation when a query fails -- is testable without a
   # queue database. Tests run single-database and the solid_queue_* tables do
-  # not exist there (see CLAUDE.md), so anything that needs them has to live
+  # not exist there (see docs/agent-guide/conventions.md), so anything that needs them has to live
   # behind a seam. This class is deliberately thin: it is the part that cannot
   # be tested here, so there should be as little of it as possible.
   #

@@ -7,7 +7,7 @@ module K8sCluster
   # exactly the kind of thing that is often just not there (a homelab k3s
   # box, a fresh cluster) - so this soft-fails to an explicit "metrics
   # unavailable" result instead of raising, mirroring the `prepare` step's
-  # soft-fail posture for guessed commands (CLAUDE.md).
+  # soft-fail posture for guessed commands (docs/agent-guide/architecture-details.md).
   #
   # metrics.k8s.io isn't in Kubeclient's usual list/get vocabulary (it's an
   # aggregated API with only "nodes"/"pods" resources, no create/update/etc),

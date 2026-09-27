@@ -15,8 +15,8 @@
  * ============================================================
  * One canonical catalog of CSS custom-property color tokens, meant as
  * the long-term replacement for ad hoc `blue-*`/`terracotta-*`/`gray-*`
- * utility usage across app/frontend (see the design-system epic in
- * CLAUDE.md). The Button/Input/Select/Checkbox/Toggle/Modal/Card
+ * utility usage across app/frontend (see the design-system notes in
+ * docs/agent-guide/conventions.md). The Button/Input/Select/Checkbox/Toggle/Modal/Card
  * primitives consume these; most existing call sites still use raw
  * utility classes and migrate onto the primitives (and these tokens)
  * incrementally.

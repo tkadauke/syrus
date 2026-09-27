@@ -21,8 +21,8 @@ set of questions, grouped into three tabs:
 - **Workers & Fleet** — is the worker fleet keeping up (per-host CPU/memory,
   active vs. max concurrent agent runs, admission decisions) and what is
   actually running right now (live pods by version, spawned subprocesses).
-- **Resilience & Product** — are the failure modes documented in `CLAUDE.md`'s
-  "Things that bit us" currently happening (provider circuit state, GitHub
+- **Resilience & Product** — are the failure modes documented in
+  `docs/agent-guide/gotchas-and-key-files.md`'s "Things that bit us" currently happening (provider circuit state, GitHub
   rate limit, main-branch-broken count), is maintenance still working
   (recurring-job staleness, provider-session table growth, auto-retry
   outcomes), is the escalation ladder trending down, and which

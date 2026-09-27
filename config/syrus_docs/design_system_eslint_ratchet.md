@@ -26,7 +26,7 @@ through instead of failing the whole run. Two things actually run it:
   GitHub (not through Syrus) is covered too.
 - `formatters:` in `.syrus.yml` also runs `npx eslint --fix` as part of the
   normal format/autofix step, but that step never fails the workflow on its
-  own (see `CLAUDE.md`'s "format"/"generate" step contract) — the
+  own (see `docs/agent-guide/architecture-details.md`'s "format"/"generate" step contract) — the
   `frontend-lint` grader is what actually blocks.
 
 ## Rules

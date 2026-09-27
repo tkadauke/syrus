@@ -1,6 +1,6 @@
 module Metrics
-  # The "Resilience" metric group: three failure modes named in CLAUDE.md as
-  # already having happened in production and staying invisible outside a
+  # The "Resilience" metric group: three failure modes named in
+  # docs/agent-guide/architecture-details.md as already having happened in production and staying invisible outside a
   # Rails console until someone went looking by hand -- provider-wide outages
   # (ProviderCircuitBreaker), GitHub API rate-limit exhaustion, and an
   # instance-wide main-branch-broken stall (StepDispatcher::MAIN_HEALTH_BLOCK_REASON).

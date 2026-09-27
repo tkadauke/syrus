@@ -3,7 +3,7 @@ module Metrics
   # run-throughput metrics.
   #
   # Unlike Metrics::QueueSource, these are ordinary ActiveRecord tables that
-  # exist in the test database (see CLAUDE.md), so this class is exercised
+  # exist in the test database (see docs/agent-guide/conventions.md), so this class is exercised
   # directly rather than through a fake in specs.
   #
   # Windowed reads only -- callers pass a `[after, through)` boundary so a

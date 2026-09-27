@@ -61,8 +61,8 @@ RSpec.describe "GET /metrics", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
-  # Core cannot hardcode a plugin sampler by name (see CLAUDE.md, "Core specs
-  # must not enumerate plugin-provided things"), so this exercises the generic
+  # Core cannot hardcode a plugin sampler by name (see "Core specs must not
+  # enumerate plugin-provided things" in docs/agent-guide/conventions.md), so this exercises the generic
   # path instead: any registered :callbacks provider gets asked to refresh its
   # own cache-mediated gauges on every scrape.
   describe "plugin metrics refresh" do

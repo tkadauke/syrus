@@ -1,7 +1,7 @@
 require "rails_helper"
 
 # Job/Run/Step are ordinary ActiveRecord tables (unlike solid_queue_*, see
-# CLAUDE.md), so Metrics::LandingSource is exercised directly with real
+# docs/agent-guide/conventions.md), so Metrics::LandingSource is exercised directly with real
 # records here rather than through a fake -- only the Solid Queue-backed half
 # (Metrics::QueueSource#table_rows/#completed_count) needs a stand-in.
 RSpec.describe Metrics::LandingSampler do

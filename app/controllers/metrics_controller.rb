@@ -91,8 +91,8 @@ class MetricsController < Api::BaseController
   end
 
   # Core cannot name a plugin's sampler directly -- that would make the
-  # plugin undeletable (see CLAUDE.md, "Core specs must not enumerate
-  # plugin-provided things") -- so this asks every enabled, healthy plugin's
+  # plugin undeletable (see "Core specs must not enumerate plugin-provided
+  # things" in docs/agent-guide/conventions.md) -- so this asks every enabled, healthy plugin's
   # callbacks provider instead. Most leave `on_metrics_scrape` at its default
   # no-op; a plugin sampling a global metric on its own tick overrides it.
   # One plugin's failure must not blank every other plugin's metrics.

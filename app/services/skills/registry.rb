@@ -1,6 +1,6 @@
 module Skills
   # Built-in tier of the skill resolver (Skills.for). Single source for
-  # built-in skill metadata — same discipline CLAUDE.md documents for
+  # built-in skill metadata — same discipline docs/agent-guide/architecture-details.md documents for
   # Workflow::TriggerKind / Step::Kind ("the single source for
   # trigger/step metadata... add new kinds there instead of scattering
   # constants in helpers/services"), applied here to the built-in

@@ -136,7 +136,7 @@ RSpec.describe SyrusRails::MigrationParser do
     expect(result[:changes]).to eq([])
   end
 
-  # Regression: Syrus's own idempotent-migration convention (CLAUDE.md) writes
+  # Regression: Syrus's own idempotent-migration convention (docs/agent-guide/conventions.md) writes
   # separate up/down methods with inline column_exists? guards instead of a
   # single `change` method. A naive line scan matched add_column in `up` AND
   # the mirrored remove_column in `down`, recording the column as both added

@@ -1,7 +1,7 @@
 require "rails_helper"
 
 # EscalationsPerLanding and AttentionItem are ordinary ActiveRecord-backed
-# services (unlike solid_queue_*, see CLAUDE.md), so both are exercised
+# services (unlike solid_queue_*, see docs/agent-guide/conventions.md), so both are exercised
 # directly with real records here; only the per-source degradation guard
 # needs a stand-in.
 RSpec.describe Metrics::AttentionSampler do

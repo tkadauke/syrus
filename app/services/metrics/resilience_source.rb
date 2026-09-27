@@ -1,7 +1,7 @@
 module Metrics
   # The only place that touches ProviderCircuitBreaker/Installation/User/
   # Repository for the "Resilience" metric group: three failure modes that are
-  # each documented in CLAUDE.md as having already happened in production and
+  # each documented in docs/agent-guide/architecture-details.md as having already happened in production and
   # being invisible outside a Rails console -- the same "everything looks fine
   # except the one number that matters" shape as the queue-backlog incident
   # that motivated the whole metrics plan (see docs/plans/complete/prometheus-dashboard.md).

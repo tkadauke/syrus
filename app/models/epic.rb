@@ -360,8 +360,8 @@ class Epic < ApplicationRecord
     override_state!("in_progress")
   end
 
-  # "Start implementing" — the definite operator action (CLAUDE.md pattern:
-  # re-check state, then dispatch side effects) that moves an Epic into
+  # "Start implementing" — the definite operator action (the convention in
+  # docs/agent-guide/conventions.md: re-check state, then dispatch side effects) that moves an Epic into
   # :in_progress and releases its held child Jobs through the AASM graph
   # (backlog → auto_ready → start). Empty Epics are not startable: starting
   # is the release valve for already-confirmed child work, not a way to mark

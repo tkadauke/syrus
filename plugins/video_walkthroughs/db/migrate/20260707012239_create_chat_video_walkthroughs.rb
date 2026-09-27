@@ -15,7 +15,7 @@ class CreateChatVideoWalkthroughs < ActiveRecord::Migration[8.1]
       # become ACTIVE, so re-analysis knows whether a re-upload is needed.
       t.string :gemini_file_uri
       t.datetime :gemini_file_active_at
-      # JSON columns must not have DB defaults on MySQL 8 (see CLAUDE.md);
+      # JSON columns must not have DB defaults on MySQL 8 (see docs/agent-guide/conventions.md);
       # nullable + model-side seeding instead.
       t.json :analysis
       t.text :error_message

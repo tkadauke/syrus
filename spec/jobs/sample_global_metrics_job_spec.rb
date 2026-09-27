@@ -4,8 +4,8 @@ require "rails_helper"
 # hardcoded list -- the acceptance test for "adding a sampler needs no change
 # to this file" is registering a spec-local class and asserting it gets
 # sampled without this file (or SampleGlobalMetricsJob itself) knowing its
-# name (see CLAUDE.md, "Core specs must not enumerate plugin-provided
-# things" -- the same instinct applies to samplers in general).
+# name (see "Core specs must not enumerate plugin-provided things" in
+# docs/agent-guide/conventions.md -- the same instinct applies to samplers in general).
 RSpec.describe SampleGlobalMetricsJob do
   around do |example|
     original = Syrus::Metrics.registry

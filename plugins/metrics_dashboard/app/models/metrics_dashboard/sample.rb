@@ -29,7 +29,7 @@ module MetricsDashboard
     }
 
     # MySQL 8 rejects defaults on JSON columns, so the default is seeded here
-    # rather than in the schema (see CLAUDE.md).
+    # rather than in the schema (see docs/agent-guide/conventions.md).
     after_initialize { self.labels ||= {} if has_attribute?(:labels) }
 
     # A stable identity for "the same series" across samples. Sorted so that two

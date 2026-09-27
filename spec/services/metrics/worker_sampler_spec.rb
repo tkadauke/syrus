@@ -1,7 +1,7 @@
 require "rails_helper"
 
 # WorkerHostHealthSample, Run, Step and AppSetting are ordinary ActiveRecord
-# tables (unlike solid_queue_*, see CLAUDE.md), so Metrics::WorkerSource is
+# tables (unlike solid_queue_*, see docs/agent-guide/conventions.md), so Metrics::WorkerSource is
 # exercised directly with real records here rather than through a fake --
 # only the per-source degradation guard needs a stand-in.
 RSpec.describe Metrics::WorkerSampler do

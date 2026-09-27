@@ -10,7 +10,7 @@ end
 
 RSpec.describe SkipIfPending do
   # SolidQueue::Job's table lives on the queue DB which isn't loaded
-  # in this single-DB test setup (CLAUDE.md). Stub the constant with
+  # in this single-DB test setup (see docs/agent-guide/conventions.md). Stub the constant with
   # a bare class so referencing `.where(...)` doesn't trigger schema
   # introspection against a table that doesn't exist.
   let(:relation) { double("relation", exists?: false, limit: pending_jobs) }

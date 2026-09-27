@@ -7,7 +7,7 @@ _Status check 2026-09-19: complete. The proposed `generated:`/`formatters:`
 taxonomy, diff-scoped self-gating, and `codegen_ignore` handling all shipped
 (`app/services/steps/generate.rb`, `app/services/steps/format.rb`,
 `app/services/syrus_yml.rb`) and are documented as current behavior in
-CLAUDE.md's Key steps section and `config/syrus_docs/syrus_yml.md`. Retained
+`docs/agent-guide/architecture-details.md`'s Key steps section and `config/syrus_docs/syrus_yml.md`. Retained
 as design history._
 
 ## Context

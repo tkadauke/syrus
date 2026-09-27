@@ -1,7 +1,7 @@
 module Skills
   # Base class for built-in skills — one PORO per skill under
   # app/services/skills/, registered in Skills::Registry. Mirrors the
-  # Prompts:: convention documented in CLAUDE.md: one class per skill,
+  # Prompts:: convention documented in docs/agent-guide/conventions.md: one class per skill,
   # `#to_s` composes the instructions, never inlined elsewhere.
   class Base
     class << self

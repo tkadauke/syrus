@@ -177,7 +177,7 @@ Three exit paths from `:coding`:
   shape of the auto-approval bug fixed in `7fb6aae`.
 - **Recommendation:** Keep `whiny_transitions: false` (the override is
   needed for the `if may_X?` defensive style we use widely). But add
-  a CLAUDE.md note that **never call a state event without `may_`
+  an agent-guide note that **never call a state event without `may_`
   guarding it**, and add a single-purpose method when a transition
   needs to be definite (like `LandingQueueProcessor.try_land!`).
 
@@ -232,7 +232,7 @@ reduction per LOC touched."
    One-line change; cuts unnecessary callback fan-out and reduces Turbo
    broadcast chatter.
 
-4. **Add CLAUDE.md note: always `if may_X?`-guard state event calls**
+4. **Add agent-guide note: always `if may_X?`-guard state event calls**
    (Finding 8). Documents the convention; no behavior change.
 
 5. **Inline `close` event's outer `after:` into the transition `after:`**

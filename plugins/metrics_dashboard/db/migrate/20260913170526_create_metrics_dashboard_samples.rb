@@ -12,7 +12,7 @@ class CreateMetricsDashboardSamples < ActiveRecord::Migration[8.1]
       create_table :metrics_dashboard_samples, if_not_exists: true do |t|
         t.string :metric, null: false, limit: 190
         # The label set, as rendered. MySQL 8 rejects defaults on JSON columns,
-        # so this is nullable and the model seeds {} -- see CLAUDE.md.
+        # so this is nullable and the model seeds {} -- see docs/agent-guide/conventions.md.
         t.json :labels
         # Identifies the series within a metric without re-serialising the
         # label hash on every read, and keeps the uniqueness index short enough

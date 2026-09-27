@@ -10,7 +10,7 @@ RSpec.describe MetricsDashboard::PluginTabs do
   # A fake, non-existent plugin name throughout -- metrics_dashboard never
   # names the plugins that actually contribute (spending_insights,
   # throughput, ...), the same "core specs must not enumerate
-  # plugin-provided things" rule CLAUDE.md applies between sibling plugins,
+  # plugin-provided things" rule docs/agent-guide/conventions.md applies between sibling plugins,
   # not just plugin vs. core. See App::UiSlotsPayload's spec for the same
   # pattern applied to :ui_slot.
   #

@@ -1,7 +1,7 @@
 require "rails_helper"
 
 # AutoRetryAttempt and ProviderSession are ordinary ActiveRecord tables
-# (unlike solid_queue_*, see CLAUDE.md), so Metrics::MaintenanceSource is
+# (unlike solid_queue_*, see docs/agent-guide/conventions.md), so Metrics::MaintenanceSource is
 # exercised directly with real records here. Metrics::QueueSource's
 # recurring-job reading is Solid Queue-backed, so it is exercised through a
 # fake -- the same split Metrics::LandingSampler's own spec uses between

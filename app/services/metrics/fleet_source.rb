@@ -1,7 +1,7 @@
 module Metrics
   # The only place that touches InstanceVersion/SpawnedProcess for the
   # "Fleet" metric group. Ordinary ActiveRecord tables (unlike solid_queue_*,
-  # see CLAUDE.md), so this is exercised directly in specs.
+  # see docs/agent-guide/conventions.md), so this is exercised directly in specs.
   class FleetSource
     # Recently-finished processes still matter to a live fleet snapshot -- a
     # process that finished 30 seconds ago is still evidence of what the

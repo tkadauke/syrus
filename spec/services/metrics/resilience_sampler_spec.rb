@@ -2,7 +2,7 @@ require "rails_helper"
 
 # ProviderCircuitBreaker, Installation/User rate-limit columns, and
 # Repository's main-health enum are all ordinary ActiveRecord state (unlike
-# solid_queue_*, see CLAUDE.md), so Metrics::ResilienceSource is exercised
+# solid_queue_*, see docs/agent-guide/conventions.md), so Metrics::ResilienceSource is exercised
 # directly with real records here rather than through a fake -- only the
 # per-source degradation guard needs a stand-in.
 RSpec.describe Metrics::ResilienceSampler do

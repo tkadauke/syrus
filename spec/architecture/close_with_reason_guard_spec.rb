@@ -1,8 +1,8 @@
 require "rails_helper"
 require "prism"
 
-# CLAUDE.md documents "always call `may_X?` before `state_X!`" as a hard
-# convention (see the AASM event guards note), added after a past production
+# docs/agent-guide/conventions.md documents "always call `may_X?` before
+# `state_X!`" as a hard convention (see the AASM event guards note), added after a past production
 # incident (commit 7fb6aae). `Job#close_with_reason!` sets `closure_reason`
 # and then calls the AASM `close!` event, which silently no-ops on a
 # rejected transition (`whiny_transitions: false`). A `close_with_reason!`

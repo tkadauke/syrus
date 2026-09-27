@@ -42,7 +42,7 @@ map_to_spec() {
       # evals/ scenario fixture repos (e.g. */fixture_repo/spec/**/*_spec.rb)
       # simulate a *different* target repo's spec suite -- often Minitest, not
       # RSpec -- and must never be swept into this repo's own spec run. See
-      # evals/README.md and CLAUDE.md's "kept out of the default bin/rspec"
+      # evals/README.md and docs/agent-guide/conventions.md's "kept out of the default bin/rspec"
       # requirement.
       return
       ;;

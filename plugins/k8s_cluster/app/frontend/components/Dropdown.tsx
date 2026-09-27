@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@app/components/Button"
 
-// Toolbar dropdown control (button+listbox), per CLAUDE.md's convention for
-// small fixed-choice toolbar controls (chat mode/model/effort selectors) -
+// Toolbar dropdown control (button+listbox), per the convention for
+// small fixed-choice toolbar controls in docs/agent-guide/conventions.md -
 // never a native <select> for this kind of in-toolbar switcher.
 export type DropdownOption<T extends string> = { value: T; label: string }
 

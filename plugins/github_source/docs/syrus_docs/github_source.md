@@ -61,8 +61,8 @@ issue number as a string — the durable `external_ref` Jobs are matched
 against on subsequent polls.
 
 **Epic markers vs. plain issues.** `ingest` first checks
-`marker_for(issue)` (an `Epic:`/`Epic: #<n>` line — see the root CLAUDE.md's
-"Syrus Epic issue markers are body-only" convention: only a standalone body
+`marker_for(issue)` (an `Epic:`/`Epic: #<n>` line — see the
+"Syrus Epic issue markers are body-only" convention in `docs/agent-guide/conventions.md`: only a standalone body
 line counts, never the title). `:epic_declaration` creates/finds an `Epic`
 by its GitHub issue URL. `:child_of_epic` resolves the referenced Epic (or,
 if it doesn't exist yet, files the Job with `triaging_reason:

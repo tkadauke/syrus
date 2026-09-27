@@ -2,8 +2,8 @@
 # actions (docs/plans/complete/delivery-tracks-and-promotion.md), keyed by
 # `.syrus.yml`'s `delivery.ref_movement_actions.<name>` block — a class
 # hierarchy instead of a `case action_name` chain, mirroring
-# `ExternalPrIngestions::Base.for(classification)` (see CLAUDE.md's
-# enum-driven-behavior convention).
+# `ExternalPrIngestions::Base.for(classification)` (see the enum-driven
+# behavior convention in docs/agent-guide/conventions.md).
 #
 # Every subclass reuses an existing dispatch primitive from earlier Jobs in
 # this Epic (`UpstreamExportDispatcher`, `WorkUnits::Launcher` +

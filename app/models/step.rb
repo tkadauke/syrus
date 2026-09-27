@@ -30,7 +30,7 @@ class Step < ApplicationRecord
   # Empty means "just my predecessor", so an existing Step with no edges
   # behaves exactly as it did.
   # MySQL 8 rejects defaults on JSON columns, so the empty list is seeded here
-  # rather than by the schema (see CLAUDE.md).
+  # rather than by the schema (see docs/agent-guide/conventions.md).
   after_initialize :seed_depends_on_ids, if: :new_record?
 
   def depends_on_step_ids = Array(depends_on_ids).map(&:to_i)

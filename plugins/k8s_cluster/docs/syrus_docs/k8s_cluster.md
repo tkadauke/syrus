@@ -200,7 +200,7 @@ Any failure fetching either resource - metrics-server not installed (a 404
 from the aggregation layer), any other HTTP error, or a connection failure -
 soft-fails to `{ available: false, reason: "metrics_unavailable", message:
 "..." }` for that resource. `Overview` never raises: this is the same
-soft-fail posture the `prepare` step uses for guessed commands (CLAUDE.md) -
+soft-fail posture the `prepare` step uses for guessed commands (docs/agent-guide/architecture-details.md) -
 a cluster with no metrics-server is a normal, expected configuration, not
 an error condition the operator needs a 502 for.
 
@@ -280,8 +280,8 @@ from `Namespaces#list`) appears only for the namespace-scoped tabs
 (Workloads/Services/Storage/Events/Logs); Overview and Nodes are always
 cluster-wide. The top-level tab switcher and the namespace/workload-kind/
 pod/container pickers all use the same toolbar dropdown control
-(`components/Dropdown.tsx`, a button+listbox pattern) per CLAUDE.md's
-convention for small fixed-choice toolbar controls - never a native
+(`components/Dropdown.tsx`, a button+listbox pattern) per the convention for
+small fixed-choice toolbar controls in `docs/agent-guide/conventions.md` - never a native
 `<select>` for this kind of in-page switcher. All frontend strings are
 translated across `en`/`de`/`la` (`app/frontend/i18n/locales/*/k8s_cluster.json`).
 

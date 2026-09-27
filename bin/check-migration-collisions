@@ -15,7 +15,7 @@
 # is fresh at file-creation time — but as long as agents can
 # hand-write filenames, the grader is the enforcement point.
 #
-# See CLAUDE.md ("Migration timestamps come from the generator").
+# See docs/agent-guide/conventions.md ("Migration timestamps come from the generator").
 
 # frozen_string_literal: true
 

@@ -7,7 +7,7 @@
 # Rejects migrations that hit production-known footguns. Each rule is
 # a small Ruby block in RULES below; add a new one by appending. Run
 # as a grader so the agent gets immediate push-back when it
-# regresses one of the patterns CLAUDE.md warns about.
+# regresses one of the patterns docs/agent-guide/conventions.md warns about.
 #
 # Current rules:
 #   - non_idempotent_add_column     — bare `add_column` without
@@ -298,5 +298,5 @@ end
 warn "[check-migrations] #{offenses.size} offense(s) across #{RULES.size} rules in #{paths.size} changed files"
 offenses.each { |o| warn o.render }
 warn ""
-warn "See CLAUDE.md \"Migrations are idempotent\", \"Syrus does not add database-level foreign keys\", and \"JSON columns can't have defaults on MySQL 8\""
+warn "See docs/agent-guide/conventions.md \"Migrations are idempotent\" and \"JSON columns can't have defaults on MySQL 8\""
 exit 1

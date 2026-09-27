@@ -224,8 +224,8 @@ AppSetting column and its validation/admin metadata must exist regardless of
 whether the plugin happens to be enabled). A plugin that owns a prunable
 table (e.g. `metrics_dashboard`) must never be hand-listed in core's
 `CORE_DEFINITIONS` — a core file naming a plugin's model/job class by string
-would make that plugin undeletable in practice (see CLAUDE.md's "core specs
-must not enumerate plugin-provided things" rule). See
+would make that plugin undeletable in practice (see the "core specs must not
+enumerate plugin-provided things" rule in `docs/agent-guide/conventions.md`). See
 `plugins/metrics_dashboard/app/services/metrics_dashboard/retention_policy.rb`
 for the reference implementation.
 

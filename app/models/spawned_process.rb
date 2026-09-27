@@ -89,7 +89,7 @@ class SpawnedProcess < ApplicationRecord
 
   # Reads /proc/<pid>/status + /proc/<pid>/stat for resident memory
   # and approximate cpu time. Linux-only (worker pods are linux/amd64
-  # per CLAUDE.md). Returns nil on Mac dev or if the pid is gone.
+  # per docs/agent-guide/deployed-operations.md). Returns nil on Mac dev or if the pid is gone.
   # Computed on demand by the admin UI — not persisted.
   def host_metrics
     return nil unless running? && pid && Etc.uname[:sysname] == "Linux"

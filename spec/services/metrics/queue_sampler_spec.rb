@@ -4,7 +4,7 @@ require "rails_helper"
 # them, not because they are inconvenient:
 #
 #   * the queue database. Tests run single-database, so the solid_queue_* tables
-#     do not exist (see CLAUDE.md). Metrics::QueueSource is the seam that holds
+#     do not exist (see docs/agent-guide/conventions.md). Metrics::QueueSource is the seam that holds
 #     every query needing them; it is deliberately thin, and its SQL is not
 #     exercised here. The association names it relies on
 #     (ready/claimed/blocked/scheduled/failed_execution) were read off the

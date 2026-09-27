@@ -222,7 +222,7 @@ mysql_global_status_innodb_row_lock_time_avg
 We have specific history here: fan-out jobs bulk-inserting into
 `solid_queue_jobs` deadlocked under MySQL's default REPEATABLE READ, fixed by
 pinning `transaction_isolation: READ-COMMITTED` on the `queue` and `cable`
-connections (see CLAUDE.md). The `primary` and `cache` connections were
+connections (see `docs/agent-guide/gotchas-and-key-files.md`). The `primary` and `cache` connections were
 deliberately left on the default. A row-lock panel is the early warning if a
 new bulk-insert path lands on one of those.
 

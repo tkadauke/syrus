@@ -1,7 +1,7 @@
 require "rails_helper"
 
 # InstanceVersion and SpawnedProcess are ordinary ActiveRecord tables (unlike
-# solid_queue_*, see CLAUDE.md), so Metrics::FleetSource is exercised
+# solid_queue_*, see docs/agent-guide/conventions.md), so Metrics::FleetSource is exercised
 # directly with real records here rather than through a fake -- only the
 # per-source degradation guard needs a stand-in.
 RSpec.describe Metrics::FleetSampler do

@@ -3,7 +3,7 @@ module Metrics
   # the "Workers and admission" metric group.
   #
   # Every table here is an ordinary ActiveRecord table (unlike solid_queue_*,
-  # see CLAUDE.md), so this is exercised directly in specs rather than through
+  # see docs/agent-guide/conventions.md), so this is exercised directly in specs rather than through
   # a fake.
   class WorkerSource
     # Same window RunHostAdmission/WorkflowAdmissionBudget use to decide a

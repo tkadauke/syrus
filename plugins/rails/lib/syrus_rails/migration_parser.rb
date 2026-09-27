@@ -57,7 +57,7 @@ module SyrusRails
     end
 
     # Idiomatic Syrus migrations use separate up/down methods with inline
-    # column_exists? guards (see CLAUDE.md), not a single `change` method.
+    # column_exists? guards (see docs/agent-guide/conventions.md), not a single `change` method.
     # A naive line scan would match `add_column` in `up` AND the mirrored
     # `remove_column` in `down`, recording the same column as both added
     # and removed -- which then cancel out in build_after_state/

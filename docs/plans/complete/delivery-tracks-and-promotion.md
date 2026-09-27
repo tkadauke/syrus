@@ -2,7 +2,7 @@
 
 _Status check 2026-09-19: complete. The `promotion`/`hotfix_sync`/
 `upstream_export` trigger kinds and workflow chains described here shipped
-(see CLAUDE.md's Trigger kinds section), along with `DeliveryPolicy`,
+(see `docs/agent-guide/architecture-details.md`'s Trigger kinds section), along with `DeliveryPolicy`,
 `RefMovementAction`, `JobPrLink`, and the proposed
 `list_ref_movement_actions`/`resolve_delivery_policy`/
 `dispatch_ref_movement_action`/`read_ref_movement_status` MCP tools. Current

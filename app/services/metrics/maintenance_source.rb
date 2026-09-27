@@ -1,7 +1,7 @@
 module Metrics
   # The only place that touches `ProviderSession` and `AutoRetryAttempt` for
   # the maintenance/pruner metric group. Both are ordinary ActiveRecord
-  # tables (unlike solid_queue_*, see CLAUDE.md), so this class is exercised
+  # tables (unlike solid_queue_*, see docs/agent-guide/conventions.md), so this class is exercised
   # directly with real records in specs -- Metrics::QueueSource owns the
   # Solid Queue-backed half of this metric group
   # (`recurring_job_last_success_at`), the same split Metrics::LandingSampler

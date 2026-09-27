@@ -2,8 +2,8 @@ module Metrics
   # The maintenance/pruner metric group: is every recurring maintenance job
   # (pruners chief among them) still actually succeeding, is the table that
   # already blew up once (`provider_sessions`) growing again, and is the
-  # auto-retry budget-exemption bug documented in CLAUDE.md ("Failure
-  # resilience") recurring.
+  # auto-retry budget-exemption bug documented in "Failure resilience" in
+  # docs/agent-guide/architecture-details.md recurring.
   #
   # Motivating incident: `provider_sessions` reached 6.0 GB, rows dating back
   # over a month, because `prune_provider_sessions` had silently stopped --
@@ -32,7 +32,7 @@ module Metrics
   # (Metrics::MaintenanceSource) reads ordinary ActiveRecord tables
   # (AutoRetryAttempt, ProviderSession) and is exercised directly in specs;
   # `queue_source` (Metrics::QueueSource) reads solid_queue_jobs, which does
-  # not exist in the test database (see CLAUDE.md), so it is exercised
+  # not exist in the test database (see docs/agent-guide/conventions.md), so it is exercised
   # through a fake there.
   class MaintenanceSampler
     CACHE_KEY = "syrus:metrics:maintenance_sample".freeze
