@@ -94,9 +94,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
         <span className="absolute -top-4" id={`message-${item.id}`} />
         {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
         <div className="space-y-3">
-          <div className="px-0 py-1 sm:rounded sm:border sm:border-gray-200 sm:bg-white sm:px-4 sm:py-3 sm:dark:border-gray-700 sm:dark:bg-gray-900">
-            <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={item.text} linkifyUrls onLinkClick={handleMarkdownLink} />
-          </div>
+          <ChatAssistantMarkdownSurface text={item.text} onLinkClick={handleMarkdownLink} />
           <MessageImageAttachments attachments={item.attachments} />
           {!readOnly && item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} /> : null}
           {!readOnly && !item.proposal && item.pending_action && !pendingActionIds.has(item.pending_action.id) ? <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} /> : null}
@@ -198,6 +196,18 @@ function hasMarkdownTable(lines: string[]) {
 
 function isMarkdownTableDivider(line: string) {
   return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line)
+}
+
+export function ChatAssistantMarkdownSurface({ compact = false, text, onLinkClick }: { compact?: boolean; text: string; onLinkClick?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void }) {
+  const compactClass = compact
+    ? "rounded border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+    : "px-0 py-1 sm:rounded sm:border sm:border-gray-200 sm:bg-white sm:px-4 sm:py-3 sm:dark:border-gray-700 sm:dark:bg-gray-900"
+
+  return (
+    <div className={`min-w-0 max-w-full overflow-hidden ${compactClass}`}>
+      <Markdown className="chat-prose break-words text-gray-800 [overflow-wrap:anywhere] dark:text-gray-100" text={text} linkifyUrls onLinkClick={onLinkClick} />
+    </div>
+  )
 }
 
 function MessageImageAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
@@ -658,18 +668,33 @@ const SHELL_COMMAND_OUTCOME_TONE: Record<string, string> = {
 
 function ShellCommandCard({ shellCommand }: { shellCommand: ChatShellCommandResult }) {
   const { t } = useT("chat")
-  const outcomeTone = (shellCommand.outcome && SHELL_COMMAND_OUTCOME_TONE[shellCommand.outcome]) || "bg-gray-700/40 text-gray-300"
+  return (
+    <ChatCommandOutputSurface
+      command={shellCommand.command}
+      emptyLabel={t("shell_command_no_output")}
+      exitStatus={shellCommand.exit_status}
+      outcome={shellCommand.outcome}
+      output={shellCommand.output}
+    />
+  )
+}
+
+export function ChatCommandOutputSurface({ command, compact = false, emptyLabel, exitStatus, outcome, output, testId = "shell-command-card" }: { command: string; compact?: boolean; emptyLabel: string; exitStatus?: number | null; outcome?: string | null; output: string; testId?: string }) {
+  const { t } = useT("chat")
+  const outcomeTone = (outcome && SHELL_COMMAND_OUTCOME_TONE[outcome]) || "bg-gray-700/40 text-gray-300"
+  const paddingClass = compact ? "px-3 py-2" : "px-3 py-2"
+  const maxHeightClass = compact ? "max-h-80" : "max-h-96"
 
   return (
-    <div className="w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-950 text-gray-100 shadow-sm" data-testid="shell-command-card">
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-950 text-gray-100 shadow-sm" data-testid={testId}>
       <div className="flex items-center gap-2 border-b border-gray-800 bg-gray-900 px-3 py-1.5 text-xs">
         <span aria-hidden="true" className="shrink-0 text-gray-500">$</span>
-        <span className="min-w-0 flex-1 truncate font-mono text-gray-200">{shellCommand.command}</span>
-        {shellCommand.exit_status != null ? <span className="shrink-0 font-mono text-gray-500">{t("shell_command_exit_status", { code: shellCommand.exit_status })}</span> : null}
-        {shellCommand.outcome ? <span className={`shrink-0 rounded-full px-2 py-0.5 font-sans text-2xs font-medium ${outcomeTone}`}>{t(`shell_command_outcome_${shellCommand.outcome}`)}</span> : null}
+        <span className="min-w-0 flex-1 truncate font-mono text-gray-200">{command}</span>
+        {exitStatus != null ? <span className="shrink-0 font-mono text-gray-500">{t("shell_command_exit_status", { code: exitStatus })}</span> : null}
+        {outcome ? <span className={`shrink-0 rounded-full px-2 py-0.5 font-sans text-2xs font-medium ${outcomeTone}`}>{t(`shell_command_outcome_${outcome}`)}</span> : null}
       </div>
-      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-relaxed">
-        {shellCommand.output ? <AnsiText text={shellCommand.output} /> : <span className="italic text-gray-500">{t("shell_command_no_output")}</span>}
+      <pre className={`${maxHeightClass} ${paddingClass} min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed [overflow-wrap:anywhere]`}>
+        {output ? <AnsiText text={output} /> : <span className="italic text-gray-500">{emptyLabel}</span>}
       </pre>
     </div>
   )
@@ -860,7 +885,7 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
   )
 }
 
-function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: { item: ChatSystemMessage; prefix: string; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void }) {
+export function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: { item: ChatSystemMessage; prefix: string; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void }) {
   const { t } = useT("chat")
   const [expanded, setExpanded] = useState(false)
   const canRetry = item.tone === "error" && Boolean(retryText) && Boolean(onRetry)
