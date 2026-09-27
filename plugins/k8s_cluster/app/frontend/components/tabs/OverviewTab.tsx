@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { DescriptionList } from "@app/components/ui"
+import { DescriptionList, usePageGutterRestoreClassName } from "@app/components/ui"
+import { classes } from "@app/components/ui/classes"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesNodes, fetchKubernetesOverview, type KubernetesMetricsSection } from "../../api/kubernetesResources"
@@ -9,6 +10,8 @@ import { StatusBadge } from "../StatusBadge"
 
 export function OverviewTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
+  const restoredHeadingGutter = usePageGutterRestoreClassName("padding")
+  const sectionHeadingClassName = classes("text-xs font-semibold uppercase text-gray-500 dark:text-gray-400", restoredHeadingGutter)
   const nodes = useQuery({
     queryKey: [ "k8s_cluster", "nodes", clusterId ],
     queryFn: () => fetchKubernetesNodes(clusterId)
@@ -21,7 +24,7 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
   return (
     <div aria-label={t("aria_overview_tab")} className="space-y-4">
       <section>
-        <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("overview_nodes_heading")}</h3>
+        <h3 className={sectionHeadingClassName}>{t("overview_nodes_heading")}</h3>
         {nodes.isPending ? <PanelMessage>{t("overview_loading_nodes")}</PanelMessage> : null}
         {nodes.isError ? <PanelMessage tone="error">{errorMessage(nodes.error, t("overview_error_loading_nodes"))}</PanelMessage> : null}
         {nodes.isSuccess ? (
@@ -40,7 +43,7 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
       </section>
 
       <section>
-        <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("overview_metrics_heading")}</h3>
+        <h3 className={sectionHeadingClassName}>{t("overview_metrics_heading")}</h3>
         {overview.isPending ? <PanelMessage>{t("overview_loading_metrics")}</PanelMessage> : null}
         {overview.isError ? <PanelMessage tone="error">{errorMessage(overview.error, t("overview_error_loading_metrics"))}</PanelMessage> : null}
         {overview.isSuccess ? (

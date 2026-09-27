@@ -279,7 +279,7 @@ describe("ClusterBrowser", () => {
   })
 
   describe("responsive gutter", () => {
-    it("restores margin on the header and tab nav while the surrounding Page.Root stays flush", async () => {
+    it("restores margin on the header, tab nav, and overview headings while the surrounding Page.Root stays flush", async () => {
       setupFetchMock()
       renderBrowserInResponsiveShell()
 
@@ -288,8 +288,11 @@ describe("ClusterBrowser", () => {
       expect(header?.className).toContain("px-4 sm:px-0")
 
       const dropdownButton = screen.getByRole("button", { name: "Cluster view" })
-      const nav = dropdownButton.closest("div.flex.shrink-0.flex-wrap.items-center.gap-2")
+      const nav = dropdownButton.closest("div.flex.shrink-0.flex-nowrap.items-center.gap-2")
       expect(nav?.className).toContain("px-4 sm:px-0")
+      expect(within(nav as HTMLElement).getByRole("button", { name: "Back to clusters" })).toHaveClass("ml-auto")
+
+      expect(await screen.findByRole("heading", { name: "Resource usage" })).toHaveClass("px-4")
 
       const overviewPane = (await screen.findByText("1")).closest("div.min-h-0.flex-1.overflow-y-auto")
       expect(overviewPane?.className ?? "").not.toContain("px-4 sm:px-0")
