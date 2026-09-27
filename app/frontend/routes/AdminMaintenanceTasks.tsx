@@ -175,36 +175,72 @@ function LandedCommitBackfillFailures({ task }: { task: AdminMaintenanceTaskDeta
                 <TonePill tone="amber">{t("maintenance_tasks.unresolved_omitted", { count: repository.failure_details_omitted })}</TonePill>
               ) : null}
             </div>
-            <div className="max-h-80 overflow-auto">
-              <DataTable.Root density="compact">
-                <DataTable.Header>
-                  <DataTable.Row>
-                    <DataTable.HeadCell>{t("maintenance_tasks.col_landing")}</DataTable.HeadCell>
-                    <DataTable.HeadCell>{t("maintenance_tasks.col_error")}</DataTable.HeadCell>
-                    <DataTable.HeadCell>{t("maintenance_tasks.col_message")}</DataTable.HeadCell>
-                  </DataTable.Row>
-                </DataTable.Header>
-                <DataTable.Body>
-                  {repository.failure_details.map((failure, index) => (
-                    <DataTable.Row key={`${repository.id}-${index}`}>
-                      <DataTable.Cell className="max-w-[14rem] align-top">
-                        <code className="break-all text-[0.7rem] text-text-primary">{landingLabel(failure)}</code>
-                      </DataTable.Cell>
-                      <DataTable.Cell className="max-w-[12rem] break-all align-top font-mono text-[0.7rem] text-text-muted">
-                        {failure.exception_class || "-"}
-                      </DataTable.Cell>
-                      <DataTable.Cell className="min-w-[16rem] max-w-[34rem] whitespace-pre-wrap break-words align-top text-text-primary">
-                        {failure.message || "-"}
-                      </DataTable.Cell>
-                    </DataTable.Row>
-                  ))}
-                </DataTable.Body>
-              </DataTable.Root>
-            </div>
+            <FailureDetailsMobileList failures={repository.failure_details} repositoryId={repository.id} />
+            <FailureDetailsTable failures={repository.failure_details} repositoryId={repository.id} />
           </div>
         ))}
       </div>
     </section>
+  )
+}
+
+function FailureDetailsMobileList({ failures, repositoryId }: { failures: LandedCommitBackfillFailure[]; repositoryId: number }) {
+  const { t } = useT("admin")
+
+  return (
+    <div className="max-h-80 divide-y divide-border overflow-auto sm:hidden" data-testid={`unresolved-failures-mobile-${repositoryId}`}>
+      {failures.map((failure, index) => (
+        <dl className="grid gap-2 px-3 py-3 text-xs" key={`${repositoryId}-${index}`}>
+          <div className="space-y-1">
+            <dt className="font-medium text-text-muted">{t("maintenance_tasks.col_landing")}</dt>
+            <dd>
+              <code className="break-all text-[0.75rem] font-semibold text-text-primary">{landingLabel(failure)}</code>
+            </dd>
+          </div>
+          <div className="space-y-1">
+            <dt className="font-medium text-text-muted">{t("maintenance_tasks.col_error")}</dt>
+            <dd className="break-all font-mono text-[0.75rem] text-text-primary">{failure.exception_class || "-"}</dd>
+          </div>
+          <div className="space-y-1">
+            <dt className="font-medium text-text-muted">{t("maintenance_tasks.col_message")}</dt>
+            <dd className="whitespace-pre-wrap break-words leading-5 text-text-primary">{failure.message || "-"}</dd>
+          </div>
+        </dl>
+      ))}
+    </div>
+  )
+}
+
+function FailureDetailsTable({ failures, repositoryId }: { failures: LandedCommitBackfillFailure[]; repositoryId: number }) {
+  const { t } = useT("admin")
+
+  return (
+    <div className="hidden max-h-80 overflow-auto sm:block">
+      <DataTable.Root density="compact" wrapperClassName="rounded-none border-0 border-t">
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("maintenance_tasks.col_landing")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("maintenance_tasks.col_error")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("maintenance_tasks.col_message")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
+          {failures.map((failure, index) => (
+            <DataTable.Row key={`${repositoryId}-${index}`}>
+              <DataTable.Cell className="max-w-[14rem] align-top">
+                <code className="break-all text-[0.7rem] text-text-primary">{landingLabel(failure)}</code>
+              </DataTable.Cell>
+              <DataTable.Cell className="max-w-[12rem] break-all align-top font-mono text-[0.7rem] text-text-muted">
+                {failure.exception_class || "-"}
+              </DataTable.Cell>
+              <DataTable.Cell className="min-w-[16rem] max-w-[34rem] whitespace-pre-wrap break-words align-top text-text-primary">
+                {failure.message || "-"}
+              </DataTable.Cell>
+            </DataTable.Row>
+          ))}
+        </DataTable.Body>
+      </DataTable.Root>
+    </div>
   )
 }
 
