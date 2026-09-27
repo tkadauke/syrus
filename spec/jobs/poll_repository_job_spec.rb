@@ -34,7 +34,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       job.advance_after_triage!
       workflow = job.workflows.first
       expect(job).to be_skip_prepare
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement coverage_analyze dependency_audit summarize test_plan pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement visual_review coverage_analyze dependency_audit summarize test_plan pr_open ])
       expect(workflow.first_step.kind).to eq("implement")
     end
 
@@ -52,7 +52,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       job = Job.find_by!(repository: repository, issue_number: 42)
       job.advance_after_triage!
       workflow = job.workflows.first
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement coverage_analyze dependency_audit summarize test_plan pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement visual_review coverage_analyze dependency_audit summarize test_plan pr_open ])
     end
 
     it "sets delivery_track from a syrus-track-<name> label on a new issue" do
@@ -94,7 +94,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       job = Job.find_by!(repository: repository, issue_number: 42)
       job.advance_after_triage!
       workflow = job.workflows.first
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare implement coverage_analyze dependency_audit summarize test_plan pr_open ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare implement visual_review coverage_analyze dependency_audit summarize test_plan pr_open ])
       expect(workflow.first_step.kind).to eq("prepare")
     end
 
@@ -333,6 +333,73 @@ RSpec.describe PollRepositoryJob, :ci_only do
       ])
     end
 
+    it "quarantines a poison issue and continues ingesting the rest of the batch" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open"|
+        state == "closed" ? [] : [
+          issue(number: 42),
+          issue(number: 43, body: "Depends-on: #42"),
+          issue(number: 44)
+        ]
+      end
+      allow(Job).to receive(:create!).and_wrap_original do |original, attrs|
+        if attrs[:issue_number] == 43
+          invalid = Job.new(attrs)
+          invalid.errors.add(:base, "Dependency would create a cycle")
+          raise ActiveRecord::RecordInvalid.new(invalid)
+        end
+
+        original.call(attrs)
+      end
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change(Job, :count).by(2)
+
+      expect(Job.where(repository: repository).pluck(:issue_number)).to contain_exactly(42, 44)
+
+      repository.reload
+      expect(repository.last_poll_status).to eq("ok")
+      expect(repository.last_poll_started_at).to be_present
+      expect(repository.poll_issue_errors).to contain_exactly(
+        include(
+          "issue_number" => 43,
+          "issue_title" => "Issue 43",
+          "error_class" => "ActiveRecord::RecordInvalid",
+          "error_message" => include("Dependency would create a cycle")
+        )
+      )
+    end
+
+    it "leaves the watermark unchanged when a poll is killed before the batch is fully processed" do
+      previous_watermark = 2.hours.ago
+      repository.update_columns(last_poll_started_at: previous_watermark)
+      issues = [ issue(number: 42), issue(number: 43) ]
+      poll_attempts = 0
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **_kwargs|
+        state == "closed" ? [] : issues
+      end
+      allow_any_instance_of(described_class).to receive(:ingest_with_quarantine).and_wrap_original do |original, github_issue, repo, client:|
+        poll_attempts += 1
+        raise Interrupt, "worker shutdown" if poll_attempts == 2
+
+        original.call(github_issue, repo, client: client)
+      end
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to raise_error(Interrupt, "worker shutdown")
+
+      expect(repository.reload.last_poll_started_at.to_i).to eq(previous_watermark.to_i)
+      expect(Job.where(repository: repository).pluck(:issue_number)).to contain_exactly(42)
+
+      allow_any_instance_of(described_class).to receive(:ingest_with_quarantine).and_call_original
+
+      described_class.perform_now(repository.id)
+
+      expect(Job.where(repository: repository).pluck(:issue_number)).to contain_exactly(42, 43)
+      expect(repository.reload.last_poll_started_at).to be > previous_watermark
+    end
+
     it "parses Depends-on from the ingested issue body and waits to dispatch" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
       prerequisite.close_with_reason!("cancelled")
@@ -527,7 +594,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       job = Job.find_by!(repository: repository, issue_number: 99)
       job.advance_after_triage!
       workflow = job.latest_workflow
-      expect(workflow.steps.pluck(:kind)).to eq(%w[ implement coverage_analyze dependency_audit summarize test_plan pr_open ])
+      expect(workflow.steps.pluck(:kind)).to eq(%w[ implement visual_review coverage_analyze dependency_audit summarize test_plan pr_open ])
       expect(workflow.artifact("prepare_skipped_reason")).to eq("issue_label")
     end
 
@@ -700,7 +767,9 @@ RSpec.describe PollRepositoryJob, :ci_only do
       expect(calls.any? { |_slug, _label, kwargs| kwargs.key?(:since) }).to be(false)
     end
 
-    it "sets last_poll_status to 'failed' with the error message when GitHub raises" do
+    it "sets last_poll_status to 'failed' without advancing the watermark when GitHub raises" do
+      previous_watermark = 2.hours.ago
+      repository.update_columns(last_poll_started_at: previous_watermark)
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_raise(RuntimeError, "401 Bad credentials")
 
@@ -711,7 +780,22 @@ RSpec.describe PollRepositoryJob, :ci_only do
       repository.reload
       expect(repository.last_poll_status).to eq("failed")
       expect(repository.last_poll_error).to eq("401 Bad credentials")
-      expect(repository.last_poll_started_at).to be_present
+      expect(repository.last_poll_started_at.to_i).to eq(previous_watermark.to_i)
+    end
+
+    it "backs off autonomous polls when GitHub rate limits mid-poll without advancing the watermark" do
+      previous_watermark = 2.hours.ago
+      repository.update_columns(last_poll_started_at: previous_watermark)
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_raise(Octokit::TooManyRequests.new)
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to have_enqueued_job(described_class).with(repository.id, force: false)
+
+      repository.reload
+      expect(repository.last_poll_status).to be_nil
+      expect(repository.last_poll_started_at.to_i).to eq(previous_watermark.to_i)
     end
 
     it "does not update poll status when the repository is archived (no poll ran)" do
