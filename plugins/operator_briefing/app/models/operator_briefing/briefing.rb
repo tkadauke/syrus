@@ -7,6 +7,7 @@ module OperatorBriefing
     belongs_to :owner_user, class_name: "User"
     has_many :revisions, class_name: "OperatorBriefing::BriefingRevision", dependent: :destroy
     has_many :items, class_name: "OperatorBriefing::BriefingItem", dependent: :destroy
+    has_many :feedbacks, class_name: "OperatorBriefing::Feedback", dependent: :destroy
 
     validates :job_id, uniqueness: true
     validates :window_start, presence: true

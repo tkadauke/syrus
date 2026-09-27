@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_27_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_143000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2025,6 +2025,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_130000) do
     t.index ["repository_id"], name: "index_operator_briefing_briefings_on_repository_id"
   end
 
+  create_table "operator_briefing_feedbacks", force: :cascade do |t|
+    t.integer "briefing_id"
+    t.integer "briefing_item_id"
+    t.datetime "created_at", null: false
+    t.integer "memory_entry_id"
+    t.text "note"
+    t.string "sentiment"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.float "weight", default: 0.65, null: false
+    t.index ["briefing_id"], name: "index_operator_briefing_feedbacks_on_briefing_id"
+    t.index ["briefing_item_id"], name: "index_operator_briefing_feedbacks_on_briefing_item_id"
+    t.index ["created_at"], name: "index_operator_briefing_feedbacks_on_created_at"
+    t.index ["memory_entry_id"], name: "index_operator_briefing_feedbacks_on_memory_entry_id"
+    t.index ["user_id"], name: "index_operator_briefing_feedbacks_on_user_id"
+  end
+
   create_table "operator_briefing_items", force: :cascade do |t|
     t.bigint "briefing_id"
     t.datetime "created_at", null: false
@@ -2061,6 +2078,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_130000) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["user_id"], name: "index_operator_briefing_settings_on_user_id", unique: true
+  end
+
+  create_table "operator_briefing_source_preferences", force: :cascade do |t|
+    t.datetime "confirmed_at"
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.string "source_key", null: false
+    t.string "suggested_by", default: "system", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.float "weight", default: 1.0, null: false
+    t.index ["user_id", "source_key", "confirmed_at"], name: "idx_operator_briefing_source_preferences_effective"
+    t.index ["user_id", "source_key", "suggested_by", "created_at"], name: "idx_operator_briefing_source_preferences_suggestions"
+    t.index ["user_id"], name: "index_operator_briefing_source_preferences_on_user_id"
   end
 
   create_table "operator_briefing_subscriptions", force: :cascade do |t|

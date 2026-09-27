@@ -48,6 +48,18 @@ export type BriefingSubscription = {
   repository: BriefingRepository
 }
 
+export type BriefingSourcePreference = {
+  id: number
+  source_key: string
+  label: string
+  description: string | null
+  enabled: boolean
+  weight: number
+  suggested_by: "system" | "user" | "ai" | string
+  confirmed_at: string | null
+  pending: boolean
+}
+
 export type BriefingPayload = {
   settings: {
     cadence_expression: string
@@ -59,9 +71,21 @@ export type BriefingPayload = {
       reason: string | null
     }
   }
+  source_preferences: BriefingSourcePreference[]
+  source_preference_suggestions: BriefingSourcePreference[]
   repositories: BriefingRepoPayload[]
   subscriptions: BriefingSubscription[]
   generated_at: string
+}
+
+export type BriefingFeedbackResponse = {
+  feedback: {
+    id: number
+    memory_entry_id: number | null
+    sentiment: string | null
+    note: string | null
+  }
+  briefing: BriefingPayload
 }
 
 export function fetchBriefing() {
@@ -75,5 +99,21 @@ export function regenerateBriefing(repositoryId: number) {
 export function updateBriefingSubscription(id: number, enabled: boolean) {
   return patchJson<BriefingPayload>(`/api/v1/app/briefing/subscriptions/${id}`, {
     subscription: { enabled }
+  })
+}
+
+export function updateBriefingSourcePreference(id: number, enabled: boolean) {
+  return patchJson<BriefingPayload>(`/api/v1/app/briefing/source_preferences/${id}`, {
+    source_preference: { enabled }
+  })
+}
+
+export function confirmBriefingSourcePreference(id: number) {
+  return postJson<BriefingPayload>(`/api/v1/app/briefing/source_preferences/${id}/confirm`)
+}
+
+export function createBriefingFeedback(input: { briefing_id?: number; briefing_item_id?: number; sentiment?: string; note?: string }) {
+  return postJson<BriefingFeedbackResponse>("/api/v1/app/briefing/feedback", {
+    feedback: input
   })
 }
