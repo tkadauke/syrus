@@ -8,6 +8,7 @@ module OperatorBriefing
       Tools::SubmitBriefingBlockTool,
       Tools::ReadBriefingGitDiffTool,
       Tools::ListRecentWorkflowsTool,
+      Tools::ReadBriefingTool,
       Tools::ListBriefingTopicsTool,
       Tools::ReadBriefingTopicTool,
       Tools::SubmitDiveReportTool
@@ -52,8 +53,10 @@ module OperatorBriefing
       step_kind = context.run&.step&.kind
       if step_kind == "briefing_generate_run"
         [ Tools::SubmitBriefingBlockTool, Tools::ReadBriefingGitDiffTool, Tools::ListRecentWorkflowsTool ]
+      elsif step_kind == "briefing_dive_investigate"
+        [ Tools::ReadBriefingTool ]
       elsif step_kind == "submit_dive_report"
-        [ Tools::ListBriefingTopicsTool, Tools::ReadBriefingTopicTool, Tools::SubmitDiveReportTool ]
+        [ Tools::ReadBriefingTool, Tools::ListBriefingTopicsTool, Tools::ReadBriefingTopicTool, Tools::SubmitDiveReportTool ]
       else
         []
       end

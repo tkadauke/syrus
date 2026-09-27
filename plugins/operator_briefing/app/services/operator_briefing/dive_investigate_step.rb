@@ -28,7 +28,7 @@ module OperatorBriefing
         #{JSON.pretty_generate(context["evidence"] || [])}
         ```
 
-        First inspect existing context, repository files, and any relevant artifacts. The next step will ask you to submit the durable wiki-style dive report, so do not call `submit_dive_report` in this step.
+        First call `read_briefing` to inspect the full briefing context, then inspect repository files and any relevant artifacts. The next step will ask you to submit the durable wiki-style dive report, so do not call `submit_dive_report` in this step.
       PROMPT
     end
   end

@@ -13,7 +13,7 @@ module OperatorBriefing
       run_agent(
         prompt: run.prompt,
         max_turns: TURN_BUDGET,
-        required_mcp_tools: %w[list_briefing_topics read_briefing_topic submit_dive_report]
+        required_mcp_tools: %w[read_briefing list_briefing_topics read_briefing_topic submit_dive_report]
       )
       workflow.reload
       verify_report!
@@ -26,7 +26,7 @@ module OperatorBriefing
       <<~PROMPT
         Turn the Operator Briefing dive investigation into a durable wiki-style topic revision.
 
-        Before creating a new topic, call `list_briefing_topics` and check for a semantic match against existing topics for this repository. If a matching topic exists, pass its `topic_id` to `submit_dive_report`; otherwise pass a concise title and slug for a new topic.
+        Before creating a new topic, call `read_briefing` for the full briefing context, then call `list_briefing_topics` and check for a semantic match against existing topics for this repository. If a matching topic exists, pass its `topic_id` to `submit_dive_report`; otherwise pass a concise title and slug for a new topic.
 
         The original selected span was:
 

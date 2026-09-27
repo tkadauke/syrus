@@ -175,7 +175,8 @@ function BriefingHistoryPage({ payload }: { payload: BriefingPayload }) {
                 key={briefing.id}
                 to={withRoutePrefix(`/briefing/history?briefing_id=${briefing.id}`, prefix)}
               >
-                <span className="block font-medium">{entry.repository.slug}</span>
+                <span className="block font-medium">{briefing.slug}</span>
+                <span className="block text-xs text-text-muted">{entry.repository.slug}</span>
                 <span className="block text-xs text-text-muted">{briefing.window_start && briefing.window_end ? t("window", { start: briefing.window_start.slice(0, 10), end: briefing.window_end.slice(0, 10) }) : t("window_unknown")}</span>
               </Link>
             ))}
@@ -388,6 +389,7 @@ function BriefingCard({ briefing, compact = false, pathname, primaryHref, showJo
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <Link className="text-sm font-semibold text-brand hover:underline" to={withRoutePrefix(mainHref, prefix)}>{briefing.job.title}</Link>
+            <span className="text-xs font-medium text-text-muted">{briefing.slug}</span>
             <span className="rounded-full border border-border px-2 py-0.5 text-2xs font-medium uppercase text-text-muted">{briefing.live ? t("live") : t("archived")}</span>
           </div>
           <Text className="mt-1" variant="caption" tone="muted">

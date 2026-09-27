@@ -166,6 +166,7 @@ module OperatorBriefing
       revision = latest_revisions[briefing.id]
       {
         id: briefing.id,
+        slug: briefing.slug,
         live: briefing.live?,
         window_start: briefing.window_start&.iso8601,
         window_end: briefing.window_end&.iso8601,

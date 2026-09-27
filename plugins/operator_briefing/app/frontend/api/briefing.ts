@@ -16,6 +16,7 @@ export type BriefingRevision = {
 
 export type BriefingRecord = {
   id: number
+  slug: string
   live: boolean
   window_start: string | null
   window_end: string | null
