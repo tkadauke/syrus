@@ -1085,14 +1085,14 @@ module WorkEngine
           workflow = target_workflow
           return skipped("Workflow no longer exists") unless workflow
           return skipped("Workflow is #{workflow.state}, not terminal") unless workflow.terminal?
-          return skipped("Workflow has no active descendants") unless workflow.active_descendants?
+          return skipped("Workflow has no active descendants") unless workflow.terminal_cleanup_active_descendants?
 
           with_transition_reason do
             workflow.cancel_active_descendants!(reason: plan.action)
           end
 
           workflow.reload
-          remaining_steps = workflow.projected_active_step_ids
+          remaining_steps = workflow.persisted_active_step_ids
           remaining_runs = workflow.runs.active.pluck(:id)
           if remaining_steps.any? || remaining_runs.any?
             failure("active descendants remain: steps=#{remaining_steps.inspect} runs=#{remaining_runs.inspect}")

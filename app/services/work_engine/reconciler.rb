@@ -912,7 +912,7 @@ module WorkEngine
 
     def classify_terminal_workflows_with_active_descendants
       workflows.select(&:terminal?).filter_map do |workflow|
-        active_step_ids = workflow.projected_active_step_ids
+        active_step_ids = workflow.persisted_active_step_ids
         active_run_ids = workflow.runs.active.pluck(:id)
         next if active_step_ids.empty? && active_run_ids.empty?
 
@@ -2733,7 +2733,7 @@ module WorkEngine
       workflows.select { |workflow| %w[succeeded failed cancelled].include?(workflow.state) }.filter_map do |workflow|
         next if workflow.cleaned_up_at.present?
         next unless workflow.live_descendants?
-        next if workflow.active_descendants?
+        next if workflow.terminal_cleanup_active_descendants?
 
         issue(
           kind: :cleanup_blocked_by_active_descendants,
