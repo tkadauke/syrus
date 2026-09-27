@@ -192,6 +192,17 @@ module Steps
         "skip_reason" => reason
       }
       workflow.set_artifact!("adversarial_review_iterations", iterations)
+      ReviewFindingEvents.record(
+        workflow: workflow,
+        step: step,
+        run: run,
+        review_kind: "adversarial",
+        iteration: step.iteration,
+        verdict: "skipped",
+        critique: critique,
+        skipped: true,
+        skip_reason: reason
+      )
       step.details = step.details.to_h.merge(
         "adversarial_review_skipped" => true,
         "adversarial_review_skip_reason" => reason

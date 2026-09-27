@@ -3,9 +3,9 @@ require "rails_helper"
 RSpec.describe OperatorBriefing::Tools::SubmitBriefingBlockTool do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
-  let(:job) { Factories.job(user: user, repository: repository) }
-  let(:workflow) { job.latest_workflow }
-  let(:step) { workflow.steps.first }
+  let(:job) { Job.create!(user: user, owner_user: user, repository: repository, kind: "briefing_generate", priority: "low") }
+  let(:workflow) { OperatorBriefing::Workflow.instantiate(job: job) }
+  let(:step) { workflow.steps.find_by!(kind: "briefing_generate_run") }
   let(:run) { step.runs.create!(job: job, user: user, trigger_kind: workflow.trigger_kind, agent_provider: user.agent_provider) }
   let(:briefing) do
     OperatorBriefing::Briefing.create!(
@@ -16,6 +16,14 @@ RSpec.describe OperatorBriefing::Tools::SubmitBriefingBlockTool do
       window_end: Time.current
     )
   end
+
+  before do
+    PluginRecord.find_or_create_by!(name: "operator_briefing").update!(enabled: true, disableable: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    Syrus::Installer.reset!
+    Feature.clear_enabled_cache!("operator_briefing")
+  end
+
   let!(:revision) do
     briefing.revisions.create!(
       revision_number: 1,
@@ -23,11 +31,6 @@ RSpec.describe OperatorBriefing::Tools::SubmitBriefingBlockTool do
       generation_run: run,
       content_blocks: []
     )
-  end
-
-  before do
-    PluginRecord.find_or_create_by!(name: "operator_briefing").update!(enabled: true, disableable: true)
-    Feature.clear_enabled_cache!("operator_briefing")
   end
 
   it "appends a narrative block to the current run revision" do
@@ -45,7 +48,7 @@ RSpec.describe OperatorBriefing::Tools::SubmitBriefingBlockTool do
   end
 
   it "rejects unsupported block kinds" do
-    response = described_class.call(kind: "chart", payload: {}, server_context: { run: run })
+    response = described_class.call(kind: "table", payload: {}, server_context: { run: run })
 
     expect(response).to be_error
     expect(revision.reload.content_blocks).to eq([])

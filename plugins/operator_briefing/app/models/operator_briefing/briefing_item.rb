@@ -2,7 +2,7 @@ module OperatorBriefing
   class BriefingItem < ApplicationRecord
     self.table_name = "operator_briefing_items"
 
-    SEVERITIES = %w[low medium high].freeze
+    SEVERITIES = OperatorBriefing::SEVERITIES
 
     belongs_to :briefing, class_name: "OperatorBriefing::Briefing", optional: true
     belongs_to :source, polymorphic: true, optional: true

@@ -25,4 +25,8 @@ RSpec.describe OperatorBriefing::BriefingItem, type: :model do
     expect(item.errors[:severity]).to include("is not included in the list")
     expect(item.errors[:narrative]).to include("can't be blank")
   end
+
+  it "accepts the design severity vocabulary" do
+    expect(described_class::SEVERITIES).to eq(%w[informational fyi decision_required attention_debt])
+  end
 end

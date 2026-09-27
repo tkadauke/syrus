@@ -20,8 +20,7 @@ module OperatorBriefing
     provides mcp_tool_set: "OperatorBriefing::McpToolSet",
              workflow_kinds: "OperatorBriefing::WorkflowKinds",
              sidebar_page: "OperatorBriefing::SidebarPages",
-             callbacks: "OperatorBriefing::Callbacks",
-             mcp_tool_set: "OperatorBriefing::McpToolSet"
+             callbacks: "OperatorBriefing::Callbacks"
     tick_interval 1.minute
     route :get, "/api/v1/app/briefing", to: "api/v1/app/operator_briefing/briefings#show"
     route :get, "/api/v1/app/briefing/topics/:id", to: "api/v1/app/operator_briefing/topics#show"

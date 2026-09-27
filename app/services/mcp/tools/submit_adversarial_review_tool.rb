@@ -50,6 +50,15 @@ module Mcp::Tools
           "verdict" => normalized_verdict
         }
         workflow.set_artifact!("adversarial_review_iterations", iterations)
+        ReviewFindingEvents.record(
+          workflow: workflow,
+          step: run.step,
+          run: run,
+          review_kind: "adversarial",
+          iteration: run.step.iteration,
+          verdict: normalized_verdict,
+          critique: normalized_critique
+        )
         Mcp::Tools.write_log(run, "[mcp] submit_adversarial_review received: #{normalized_verdict}")
 
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])

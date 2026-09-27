@@ -16,6 +16,16 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
   end
 
   it "accepts a run_id-only sidecar context" do
+    expect(ReviewFindingEvents).to receive(:record).with(
+      workflow: run.workflow,
+      step: run.step,
+      run: run,
+      review_kind: "adversarial",
+      iteration: run.step.iteration,
+      verdict: "approved",
+      critique: "No blocking issues found."
+    )
+
     described_class.call(
       critique: "No blocking issues found.",
       verdict: "approved",
