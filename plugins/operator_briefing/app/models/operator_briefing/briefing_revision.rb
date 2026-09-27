@@ -16,6 +16,17 @@ module OperatorBriefing
       Array(super)
     end
 
+    def append_block!(block)
+      normalized = normalize_block(block)
+
+      with_lock do
+        update!(content_blocks: content_blocks + [ normalized ])
+      end
+
+      broadcast_block(normalized)
+      normalized
+    end
+
     private
 
     def content_blocks_are_supported
@@ -23,6 +34,29 @@ module OperatorBriefing
         kind = block.respond_to?(:[]) ? block["kind"].presence || block[:kind] : nil
         errors.add(:content_blocks, "contains unsupported block kind #{kind.inspect}") unless BLOCK_KINDS.include?(kind.to_s)
       end
+    end
+
+    def normalize_block(block)
+      hash = block.is_a?(Hash) ? block.deep_stringify_keys : {}
+      hash.slice("kind", "payload").tap do |normalized|
+        normalized["payload"] = normalized["payload"].is_a?(Hash) ? normalized["payload"] : {}
+      end
+    end
+
+    def broadcast_block(block)
+      AppEvents.broadcast(
+        user: briefing.owner_user,
+        type: "operator_briefing.block_submitted",
+        resource: "operator_briefing",
+        id: briefing_id,
+        changed: [ "revision.content_blocks" ],
+        payload: {
+          briefing_id: briefing_id,
+          revision_id: id,
+          revision_number: revision_number,
+          block: block
+        }
+      )
     end
   end
 end

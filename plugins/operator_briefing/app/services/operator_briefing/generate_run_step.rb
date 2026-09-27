@@ -6,6 +6,7 @@ module OperatorBriefing
     def call
       briefing = Briefing.find_by!(job: job)
       revision = create_revision!(briefing)
+      content_blocks(briefing).each { |block| revision.append_block!(block) }
       log("created operator briefing revision #{revision.revision_number} for #{repository.slug}")
     end
 
@@ -16,7 +17,7 @@ module OperatorBriefing
         revision_number: briefing.revisions.maximum(:revision_number).to_i + 1,
         generated_at: Time.current,
         generation_run: run,
-        content_blocks: content_blocks(briefing)
+        content_blocks: []
       )
     end
 

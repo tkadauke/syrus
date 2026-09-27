@@ -11,6 +11,7 @@ RSpec.describe OperatorBriefing::GenerateRunStep do
   before do
     PluginRecord.find_or_create_by!(name: "agent_memory").update!(enabled: true, disableable: true)
     PluginRecord.find_or_create_by!(name: "operator_briefing").update!(enabled: true, disableable: true)
+    allow(AppUserChannel).to receive(:broadcast_to)
     @briefing = OperatorBriefing::Briefing.create!(
       job: job,
       repository: repository,
@@ -39,6 +40,7 @@ RSpec.describe OperatorBriefing::GenerateRunStep do
     expect(revision.generation_run).to eq(run)
     expect(revision.content_blocks.map { |block| block.fetch("kind") }).to include("narrative", "link_card")
     expect(revision.content_blocks.to_json).to include("Refine auth", "Schema changed")
+    expect(AppUserChannel).to have_received(:broadcast_to).with(user, hash_including("resource" => "operator_briefing")).at_least(:once)
   end
 
   it "omits cards and counts for disabled sources" do
