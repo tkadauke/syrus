@@ -32,6 +32,36 @@ RSpec.describe GithubAuthFallbackRecorder do
     }.not_to change(GithubAuthFallbackDiagnostic, :count)
   end
 
+  it "updates current Job credential mode even when diagnostic writes coalesce" do
+    job = Factories.job(repository: repository, user: user, kind: "main_grader", issue_number: nil, credential_mode: "app")
+    workflow = job.workflows.create!(user: user, trigger_kind: "main_grader", agent_provider: job.agent_provider)
+    step = workflow.steps.create!(kind: "implement", position: 1)
+    run = step.runs.create!(job: job, user: user, trigger_kind: workflow.trigger_kind)
+    described_class.record!(
+      repository: repository,
+      installation: installation,
+      operation_type: "api",
+      error: error,
+      refresh_attempted: true,
+      refresh_succeeded: true,
+      run: run
+    )
+    job.update!(credential_mode: "app")
+
+    expect {
+      described_class.record!(
+        repository: repository,
+        installation: installation,
+        operation_type: "api",
+        error: error,
+        refresh_attempted: true,
+        refresh_succeeded: true,
+        run: run
+      )
+    }.not_to change(GithubAuthFallbackDiagnostic, :count)
+    expect(job.reload.credential_mode).to eq("pat")
+  end
+
   it "records a fresh diagnostic after the coalescing window" do
     GithubAuthFallbackDiagnostic.create!(
       repository: repository,

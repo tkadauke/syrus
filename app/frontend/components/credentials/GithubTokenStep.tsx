@@ -7,7 +7,7 @@ import { useBackendOutage } from "../../hooks/useBackendUpdate"
 import { Button } from "../Button"
 import { Input } from "../Input"
 
-const TOKEN_SETTINGS_URL = "https://github.com/settings/tokens"
+const TOKEN_SETTINGS_URL = "https://github.com/settings/personal-access-tokens/new"
 
 // Module-level so the probe function stays referentially stable for
 // useDebouncedProbe's dependency list.
@@ -17,7 +17,7 @@ async function probeGithubToken(token: string): Promise<CredentialTestResult> {
 }
 
 // The guided GitHub PAT experience: numbered steps (open settings, pick the
-// repo + workflow scopes, paste), a debounced live probe of the UNSAVED
+// least-privilege repository permissions, paste), a debounced live probe of the UNSAVED
 // token, and a save that stays disabled until the probe comes back green.
 // Extracted from GithubTokenModal so the onboarding modal and the
 // credentials page render the identical flow.
@@ -83,11 +83,11 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
           </p>
           <ul className="mt-2 space-y-1">
             <li className="flex items-center gap-2">
-              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">repo</code>
+              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">Contents</code>
               <span className="text-gray-600 dark:text-gray-400">{t('github_token.scope_repo')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">workflow</code>
+              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">Pull requests</code>
               <span className="text-gray-600 dark:text-gray-400">{t('github_token.scope_workflow')}</span>
             </li>
           </ul>

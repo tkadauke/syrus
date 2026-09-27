@@ -481,16 +481,16 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body.dig("error", "code")).to eq("unknown_credential")
   end
 
-  it "tests an unsaved GitHub token against the required scopes" do
+  it "tests an unsaved GitHub token without requiring classic-only scopes" do
     sign_in_as(user)
     result = CredentialProbe::Result.new(
       credential: "github_token",
       ok: true,
       message: "Token is valid for ada.",
-      details: { login: "ada", scopes: %w[ repo workflow ], missing_scopes: [] }
+      details: { login: "ada", scopes: [], missing_scopes: [] }
     )
     expect(CredentialProbe).to receive(:github_token)
-      .with(token: "ghp_pasted", required_scopes: %w[ repo workflow ])
+      .with(token: "ghp_pasted", required_scopes: [])
       .and_return(result)
 
     post "/api/v1/app/credentials/test_github_token", params: { github_token: "ghp_pasted" }

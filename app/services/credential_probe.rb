@@ -47,7 +47,7 @@ class CredentialProbe
         credential: "github_token",
         ok: false,
         message: "Token authenticated as #{github_user.login}, but it is missing the #{missing.join(" and ")} #{label}. " \
-                 "Regenerate a classic token with repo and workflow enabled.",
+                 "Use a classic token with the missing scope, or a fine-grained token with repository Contents and Pull requests access.",
         details: { login: github_user.login, scopes: scopes, missing_scopes: missing }
       )
     else
@@ -61,9 +61,7 @@ class CredentialProbe
   rescue Octokit::Unauthorized
     Result.new(credential: "github_token", ok: false, message: "GitHub rejected this token. Check that you copied the whole value.", details: {})
   rescue Octokit::Forbidden
-    # A fine-grained token can authenticate but forbid the user lookup; classic
-    # tokens with the documented scopes do not hit this.
-    Result.new(credential: "github_token", ok: false, message: "GitHub accepted the token but refused to read your account. Use a classic token with the repo and workflow scopes.", details: {})
+    Result.new(credential: "github_token", ok: false, message: "GitHub accepted the token but refused to read your account. Check that the token has account read access, or paste a fine-grained token created for the repositories Syrus will manage.", details: {})
   rescue Octokit::Error
     Result.new(credential: "github_token", ok: false, message: "Could not reach GitHub to verify the token. Try again in a moment.", details: {})
   end

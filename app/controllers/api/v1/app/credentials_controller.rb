@@ -4,9 +4,11 @@ module Api
       class CredentialsController < BaseController
         include ProviderRoutingRuleSerialization
 
-        # Scopes a classic GitHub PAT must carry for Syrus to clone, branch,
-        # open PRs, and update GitHub Actions workflows.
-        GITHUB_REQUIRED_SCOPES = %w[ repo workflow ].freeze
+        # Classic PATs expose OAuth scopes in response headers. Fine-grained
+        # PATs are repository-permission based instead, so the paste probe only
+        # verifies that GitHub accepts the token. Repository-specific access is
+        # exercised when the operator adds or uses a repository.
+        GITHUB_REQUIRED_SCOPES = [].freeze
 
         def show
           render json: credentials_payload(Current.user)
