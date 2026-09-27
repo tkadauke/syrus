@@ -286,7 +286,7 @@ RSpec.describe CodexInvocation do
       ENV.replace(saved)
     end
 
-    it "writes a Codex config.toml for the Syrus MCP sidecar without putting env in argv" do
+    it "writes a Codex config.toml for the Syrus MCP sidecar without serializing secret env keys" do
       Dir.mktmpdir do |home|
         invocation = described_class.new(
           "/tmp/wkt",
@@ -312,7 +312,8 @@ RSpec.describe CodexInvocation do
         expect(config).to include("tool_timeout_sec = 120")
         expect(config).to include('[mcp_servers.syrus-mcp-sidecar.env]')
         expect(config).to include('RAILS_ENV = "test"')
-        expect(config).to include('RAILS_MASTER_KEY = "secret"')
+        expect(config).not_to include("RAILS_MASTER_KEY")
+        expect(config).not_to include("secret")
         expect(captured[:cmd].join(" ")).not_to include("RAILS_MASTER_KEY")
       end
     end

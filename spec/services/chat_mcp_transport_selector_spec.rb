@@ -85,7 +85,7 @@ RSpec.describe ChatMcpTransportSelector do
         decision = select
 
         expect(decision.stdio?).to be true
-        expect(decision.reason).to eq("daemon_incompatible: chat tool dispatch not yet supported (capabilities=none)")
+        expect(decision.reason).to eq("daemon_incompatible: missing chat_tools capability (capabilities=none)")
       end
 
       it "selects the persistent transport when the daemon is healthy and advertises chat_tools" do

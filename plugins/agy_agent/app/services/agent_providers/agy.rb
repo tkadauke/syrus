@@ -92,7 +92,7 @@ module AgentProviders
 
     def invoke(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:, required_mcp_tools: nil,
               model: nil, effort_level: nil, **_ignored)
-      log_mcp_transport_decision!(effective_mcp_transport_decision) if mcp
+      log_mcp_transport_decision!(effective_stdio_mcp_transport_decision) if mcp
       api_key = job.user.reload.gemini_api_key.presence
       raise ConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
 
@@ -116,23 +116,8 @@ module AgentProviders
       ).run
     end
 
-    def effective_mcp_transport_decision
-      decision = mcp_transport_decision
-      return decision unless decision&.persistent?
-
-      WorkflowMcpTransportSelector::Decision.new(
-        transport: :stdio,
-        reason: "provider_unsupported: agy has no persistent MCP HTTP transport wiring yet",
-        daemon_identity: nil
-      )
-    end
-
     def mcp_server
-      {
-        command: sidecar_command,
-        args: sidecar_args,
-        env: sidecar_env
-      }
+      stdio_mcp_server_config
     end
 
     def invalid_session_capture(result)

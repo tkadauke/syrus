@@ -13,19 +13,17 @@ require "stringio"
 # the feature on, a passing #health_check, AND `capabilities` to include its
 # own capability (WORKFLOW_TOOLS_CAPABILITY / CHAT_TOOLS_CAPABILITY),
 # falling back to stdio (with a logged reason) otherwise. The two are
-# independent: with the feature enabled, chat turns route here today, but
-# workflow agents still always use stdio (see WORKFLOW_TOOLS_CAPABILITY).
+# independent: with the feature enabled, chat turns and workflow agents can
+# route here once their capability is advertised.
 #
 # It proves the daemon can boot Rails once, hold one MCP::Server in memory,
 # and answer a health/readiness check that enumerates tools and round-trips
 # a no-op MCP request (the protocol-level `ping` method). The real chat MCP
 # tool set (McpToolRegistry surface: :chat) is wired onto this daemon's
-# MCP::Server (see #chat_tools, PersistentMcpDaemon::ChatToolDispatch), so
-# CAPABILITIES advertises CHAT_TOOLS_CAPABILITY and ChatMcpTransportSelector
-# can pick :persistent for a chat turn once this passes #health_check.
-# CAPABILITIES does NOT yet include WORKFLOW_TOOLS_CAPABILITY -- wiring the
-# real workflow tool set onto this daemon is a later milestone, so
-# WorkflowMcpTransportSelector still always falls back to stdio in production.
+# MCP::Server (see #chat_tools, PersistentMcpDaemon::ChatToolDispatch). The
+# workflow tool set is wired the same way: stdio-only CLIs spawn
+# bin/syrus-mcp-proxy, which forwards to this daemon with a short-lived signed
+# run token instead of booting Rails with worker secrets under the agent.
 #
 # Local-only: bound to loopback by default (SYRUS_PERSISTENT_MCP_HOST), and
 # MCP requests are served through
@@ -63,17 +61,9 @@ class PersistentMcpDaemon
   # #chat_tools and PersistentMcpDaemon::ChatToolDispatch. ChatMcpTransportSelector
   # requires this before routing a chat turn's MCP traffic here.
   CHAT_TOOLS_CAPABILITY = "chat_tools"
-  CAPABILITIES = [ CHAT_TOOLS_CAPABILITY ].freeze
-
-  # NOT yet included in CAPABILITIES: wiring a workflow's real tool set
-  # (Mcp::Tools, the same tools the stdio sidecar serves) onto this daemon's
-  # MCP::Server is a later milestone. Until then this daemon only
-  # exposes its proof-of-pipe tools (daemon_ping, daemon_invocation_context)
-  # plus the chat tool set above, so WorkflowMcpTransportSelector always
-  # falls callers back to the stdio sidecar in production. Tests exercise
-  # the persistent-transport path by stubbing a health response that
-  # includes this capability.
   WORKFLOW_TOOLS_CAPABILITY = "workflow_tools"
+  CAPABILITIES = [ CHAT_TOOLS_CAPABILITY, WORKFLOW_TOOLS_CAPABILITY ].freeze
+  @ensure_started_mutex = Mutex.new
 
   def self.port
     Integer(ENV.fetch("SYRUS_PERSISTENT_MCP_PORT", DEFAULT_PORT))
@@ -85,6 +75,23 @@ class PersistentMcpDaemon
 
   def self.start(host: self.host, port: self.port)
     new(host: host, port: port).tap(&:start)
+  end
+
+  def self.ensure_started
+    return nil unless auto_start_enabled?
+
+    @ensure_started_mutex.synchronize do
+      return @instance if @instance&.started?
+
+      @instance = start
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[PersistentMcpDaemon] auto-start failed: #{e.class}: #{e.message}")
+    nil
+  end
+
+  def self.auto_start_enabled?
+    ENV.fetch("SYRUS_MCP_DAEMON_AUTO_START", Rails.env.test? ? "0" : "1") != "0"
   end
 
   def initialize(host: self.class.host, port: self.class.port)
@@ -103,6 +110,10 @@ class PersistentMcpDaemon
     @thread = @server.run(true, thread_name: "persistent-mcp-daemon")
     Rails.logger.info("[PersistentMcpDaemon] listening on #{@host}:#{@port} worker_id=#{identity[:worker_id]}")
     self
+  end
+
+  def started?
+    @server.present?
   end
 
   # Blocks the caller until the server thread exits (SIGTERM/SIGINT handler
@@ -153,7 +164,7 @@ class PersistentMcpDaemon
   def mcp_server
     @mcp_server ||= MCP::Server.new(
       name: "syrus-persistent-mcp-daemon",
-      tools: [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ] + chat_tools,
+      tools: [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ] + routed_tools,
       server_context: { identity: identity }
     )
   end
@@ -167,7 +178,17 @@ class PersistentMcpDaemon
   # PersistentMcpDaemon::ChatContextResolver for how the security-relevant
   # tiering/role/feature-flag gate is still enforced per call.
   def chat_tools
-    @chat_tools ||= McpToolRegistry.tools(surface: :chat).uniq.map { |tool| PersistentMcpDaemon::ChatToolDispatch.wrap(tool) }
+    @chat_tools ||= unique_tools(McpToolRegistry.tools(surface: :chat))
+  end
+
+  def workflow_tools
+    @workflow_tools ||= unique_tools(
+      McpToolRegistry.tools(surface: :workflow) + McpToolPolicy.ref_movement_tools
+    )
+  end
+
+  def routed_tools
+    @routed_tools ||= unique_tools(chat_tools + workflow_tools).map { |tool| PersistentMcpDaemon::ToolDispatch.wrap(tool) }
   end
 
   # Boots (or reuses) the in-memory MCP::Server, lists its tools, and
@@ -192,6 +213,10 @@ class PersistentMcpDaemon
   end
 
   private
+
+  def unique_tools(tools)
+    tools.uniq { |tool| tool.respond_to?(:name_value) ? tool.name_value : tool.name }
+  end
 
   # Bridges INVOCATION_CONTEXT_HEADER into the JSON-RPC request's
   # `params._meta` so MCP::Server#server_context_with_meta (and, downstream,

@@ -4,51 +4,7 @@ module AgentProviders
   class Base
     SessionCapture = Data.define(:provider, :session_id, :transcript_jsonl, :missing_message)
 
-    # Env vars the sidecar needs to boot Syrus's Rails app and reach
-    # MySQL. Agents are launched with narrow env allowlists, then spawn
-    # MCP server children from there; without forwarding these values,
-    # the sidecar can boot under the wrong Rails/Bundler context.
-    #
-    # The S3_* vars are required because production sets
-    # `config.active_storage.service = :minio`, and Rails eagerly
-    # builds the S3Service at boot under `eager_load = true`. With
-    # S3_BUCKET unset, `Aws::S3::Resource#bucket(nil)` raises
-    # `ArgumentError: missing required option :name` mid-boot, the
-    # sidecar dies before responding to claude's MCP `initialize`, and
-    # the agent sees "connection closed: initialize response
-    # (code -32603)". The worker pod has these injected by the
-    # green_acres deployment; we just need to thread them through the
-    # subprocess boundary the same way as RAILS_ENV / DB_HOST.
-    SIDECAR_ENV_FORWARD = %w[
-      RAILS_ENV
-      RAILS_MASTER_KEY
-      ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY
-      ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY
-      ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT
-      SECRET_KEY_BASE
-      RAILS_LOG_LEVEL
-      RAILS_LOG_TO_STDOUT
-      DATABASE_URL
-      DB_HOST
-      SYRUS_DATABASE_PASSWORD
-      SYRUS_SQLITE
-      SYRUS_DATA_ROOT
-      BUNDLE_PATH
-      BUNDLE_DEPLOYMENT
-      BUNDLE_WITHOUT
-      PATH
-      TZ
-      SYRUS_APP_HOST
-      SYRUS_ALLOWED_HOSTS
-      SYRUS_ASSUME_SSL
-      SYRUS_FORCE_SSL
-      S3_BUCKET
-      S3_ENDPOINT
-      S3_REGION
-      S3_ACCESS_KEY_ID
-      S3_SECRET_ACCESS_KEY
-      SYRUS_GIT_MIRROR_TOKEN
-    ].freeze
+    SIDECAR_ENV_FORWARD = AgentSidecarEnvironment::SAFE_ENV_FORWARD
 
     def initialize(run:, workspace:, parent_session_id:)
       @run = run
@@ -218,18 +174,7 @@ module AgentProviders
     end
 
     def sidecar_env
-      env = ENV.slice(*SIDECAR_ENV_FORWARD).compact
-      env["SYRUS_DATA_ROOT"] ||= WorkflowWorkspace.data_root.to_s
-      pin_rubygems_to_bundle_path(env)
-      env
-    end
-
-    def pin_rubygems_to_bundle_path(env)
-      bundle_path = env["BUNDLE_PATH"].presence
-      return unless bundle_path
-
-      env["GEM_HOME"] ||= bundle_path
-      env["GEM_PATH"] ||= bundle_path
+      AgentSidecarEnvironment.build
     end
 
     def sidecar_command
@@ -238,6 +183,46 @@ module AgentProviders
 
     def sidecar_args
       [ "--run-id", @run.id.to_s ]
+    end
+
+    def stdio_mcp_server_config(decision = effective_stdio_mcp_transport_decision)
+      if decision&.persistent?
+        {
+          command: Rails.root.join("bin/syrus-mcp-proxy").to_s,
+          args: [],
+          env: persistent_proxy_env(decision)
+        }
+      else
+        {
+          command: sidecar_command,
+          args: sidecar_args,
+          env: sidecar_env
+        }
+      end
+    end
+
+    def effective_stdio_mcp_transport_decision
+      mcp_transport_decision
+    end
+
+    def persistent_proxy_env(decision)
+      {
+        "SYRUS_MCP_PROXY_URL" => persistent_mcp_url,
+        "SYRUS_MCP_PROXY_INVOCATION_CONTEXT" => mint_invocation_context_token(decision),
+        "PATH" => ENV["PATH"]
+      }.compact
+    end
+
+    def persistent_mcp_url
+      "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}"
+    end
+
+    def mint_invocation_context_token(decision)
+      McpInvocationContext.issue_for_run(
+        @run,
+        worker_id: decision.daemon_identity.fetch("worker_id"),
+        provider: provider
+      )
     end
 
     # Memoized per invocation. `nil` when the feature is off, which callers

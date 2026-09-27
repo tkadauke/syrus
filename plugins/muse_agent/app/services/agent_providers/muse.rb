@@ -33,7 +33,7 @@ module AgentProviders
     private
 
     def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:, required_mcp_tools: nil, **_ignored)
-      log_mcp_transport_decision!(effective_mcp_transport_decision) if mcp
+      log_mcp_transport_decision!(effective_stdio_mcp_transport_decision) if mcp
 
       result = run_invocation(
         workspace_path: workspace_path,
@@ -91,27 +91,9 @@ module AgentProviders
       )
     end
 
-    # Muse Code reads MCP servers from ~/.config/muse/settings.json. Keep that
-    # home per workflow so sidecar run ids and session state never bleed across
-    # jobs.
-    def effective_mcp_transport_decision
-      decision = mcp_transport_decision
-      return decision unless decision&.persistent?
-
-      WorkflowMcpTransportSelector::Decision.new(
-        transport: :stdio,
-        reason: "provider_unsupported: muse has no persistent MCP HTTP transport wiring yet",
-        daemon_identity: nil
-      )
-    end
-
     def mcp_server
       {
-        "syrus-mcp-sidecar" => {
-          command: sidecar_command,
-          args: sidecar_args,
-          env: sidecar_env
-        }
+        "syrus-mcp-sidecar" => stdio_mcp_server_config
       }
     end
   end

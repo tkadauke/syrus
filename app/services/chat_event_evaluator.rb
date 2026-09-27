@@ -449,18 +449,13 @@ class ChatEventEvaluator
     end
 
     def sidecar_env(chat_session, event:, session_id:)
-      env = ENV.slice(*SIDECAR_ENV_FORWARD).compact
-      if env["BUNDLE_PATH"].present?
-        env["GEM_HOME"] ||= env["BUNDLE_PATH"]
-        env["GEM_PATH"] ||= env["BUNDLE_PATH"]
-      end
-      env.merge(
+      AgentSidecarEnvironment.build(extra: {
         "SYRUS_CHAT_SESSION_ID" => chat_session.id.to_s,
         "SYRUS_CHAT_SCOPED_EVENT_ID" => event.id.to_s,
         "SYRUS_CHAT_EVALUATOR_SESSION_ID" => session_id.to_s,
         "SYRUS_CHAT_MCP_TOOL_TIER" => "evaluator",
         "SYRUS_CHAT_MCP_SERVER_NAME" => "syrus-chat-evaluator-sidecar"
-      )
+      })
     end
   end
 end
