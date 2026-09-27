@@ -10,7 +10,7 @@ export function RepositoryTabs({ active, prefix, tabs }: { active: string; prefi
       activeKey={active}
       activeClassName="border-brand text-brand dark:text-brand-emphasis"
       ariaLabel={t("repository_tabs_aria")}
-      className="flex flex-wrap border-b border-gray-200 dark:border-gray-700"
+      className="scroll-fade-x flex overflow-x-auto border-b border-gray-200 dark:border-gray-700"
       inactiveClassName="border-transparent text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-gray-100"
       itemClassName="-mb-px inline-flex items-center gap-1.5 px-4 py-2 text-sm"
       items={tabs.map((tab) => ({
