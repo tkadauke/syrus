@@ -1,7 +1,13 @@
 class PollRepositoryJob < ApplicationJob
   include SkipIfPending
+  include GithubPollingRateLimitGuard
 
   queue_as :polling
+  TRANSIENT_GITHUB_ERROR_CLASSES = [
+    Octokit::ServerError,
+    Faraday::TimeoutError,
+    Faraday::ConnectionFailed
+  ].freeze
 
   # Serialize per-repo polling so a manual "Poll now" click can't race
   # the recurring schedule past the dedup check.
@@ -14,26 +20,33 @@ class PollRepositoryJob < ApplicationJob
     # so a stale "Poll now" tab can't reanimate an archived repo.
     return if repository.archived?
     return unless force || repository.polling_enabled?
+    return if github_polling_rate_limited?(repository, user: repository.user, manual: force, retry_args: [ repository_id ])
 
     previous_poll_started_at = repository.last_poll_started_at
     incremental_since = force ? nil : previous_poll_started_at
-    repository.mark_poll_started!
+    poll_started_at = Time.current
+    repository.mark_poll_started!(at: poll_started_at, advance_watermark: false)
 
-    begin
+    with_github_polling_rate_limit_backoff(repository, user: repository.user, manual: force, retry_args: [ repository_id ], retry_kwargs: { force: force }) do
       client = GithubClient.for(repository: repository, user: repository.user)
       issues = list_labeled_issues(client, repository, since: incremental_since)
       closed_issues = list_labeled_issues(client, repository, state: "closed", since: incremental_since)
 
       stats = Hash.new(0)
       issues.each do |issue|
-        stats[ingest(issue, repository, client: client)] += 1
+        stats[ingest_with_quarantine(issue, repository, client: client)] += 1
       end
       closed_jobs = close_jobs_for_closed_issues!(repository, closed_issues)
       InputSources::PendingWorkWakeup.call(repository)
       update_untagged_open_issue_count!(repository, client)
 
       log_poll_summary(repository, issues: issues, closed_issues: closed_issues, closed_jobs: closed_jobs, stats: stats, incremental_since: incremental_since)
-      repository.mark_poll_success!
+      repository.mark_poll_success!(at: poll_started_at, clear_issue_errors: stats[:quarantined].zero?)
+    rescue Octokit::TooManyRequests
+      raise
+    rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
+      repository.mark_poll_failure!(e.message)
+      Rails.logger.warn("[PollRepositoryJob] #{repository.slug}: transient GitHub polling failure: #{e.class}: #{e.message}")
     rescue => e
       repository.mark_poll_failure!(e.message)
       raise
@@ -81,10 +94,25 @@ class PollRepositoryJob < ApplicationJob
       epics: stats[:epic],
       preempted: stats[:preempted],
       preempt_attached: stats[:preempt_attached],
+      quarantined: stats[:quarantined],
       closed_jobs: closed_jobs
     }
     mode = incremental_since.present? ? "incremental since=#{incremental_since.iso8601}" : "full"
     Rails.logger.info("[PollRepositoryJob] #{repository.slug} #{mode} poll: #{counts.map { |key, value| "#{key}=#{value}" }.join(" ")}")
+  end
+
+  def ingest_with_quarantine(issue, repository, client:)
+    ingest(issue, repository, client: client)
+  rescue Octokit::TooManyRequests, *TRANSIENT_GITHUB_ERROR_CLASSES
+    raise
+  rescue => e
+    repository.record_poll_issue_error!(
+      issue_number: issue.number,
+      issue_title: issue_title(issue),
+      error: e
+    )
+    Rails.logger.error("[PollRepositoryJob] #{repository.slug}##{issue.number} quarantined after ingestion failure: #{e.class}: #{e.message}")
+    :quarantined
   end
 
   def ingest(issue, repository, client:)

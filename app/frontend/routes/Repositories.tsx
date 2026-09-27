@@ -667,6 +667,22 @@ function PollingPill({ enabled }: { enabled: boolean }) {
 
 function LastPoll({ repository }: { repository: RepositoryRow }) {
   const { t } = useT("settings")
+  const pollIssueErrors = repository.poll_issue_errors ?? []
+  if (pollIssueErrors.length > 0) {
+    const latest = pollIssueErrors[0]
+    return (
+      <div>
+        <span className="font-medium text-amber-700 dark:text-amber-300">{t("repositories.poll_quarantined", { count: pollIssueErrors.length })}</span>
+        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+          <RelativeTimestamp value={repository.last_poll_started_at || latest.recorded_at} />
+        </span>
+        <div className="mt-0.5 max-w-xs truncate font-mono text-xs text-amber-700 dark:text-amber-300" title={`#${latest.issue_number}: ${latest.error_message}`}>
+          #{latest.issue_number}: {latest.error_message}
+        </div>
+      </div>
+    )
+  }
+
   if (repository.last_poll_status === "failed") {
     return (
       <div>

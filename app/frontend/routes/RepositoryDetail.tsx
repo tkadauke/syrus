@@ -113,6 +113,7 @@ function RepositoryDetail({ activeTab, detail, prefix, queryKey }: { activeTab: 
 function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
   const { t } = useT("settings")
   const repository = payload.repository
+  const pollIssueErrors = repository.poll_issue_errors ?? []
   const nonzeroCounts = [
     { label: t("repository.count_running"), value: payload.counts.running, tone: "blue" as const },
     { label: t("repository.count_queued"), value: payload.counts.queued, tone: "gray" as const },
@@ -122,6 +123,9 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
       <TonePill tone={repository.polling_enabled ? "green" : "gray"}>{repository.polling_enabled ? t("repository.polling_enabled") : t("repository.polling_paused")}</TonePill>
+      {pollIssueErrors.length > 0 ? (
+        <TonePill tone="amber">{t("repository.poll_quarantined", { count: pollIssueErrors.length })}</TonePill>
+      ) : null}
       <span>{payload.credential_status.label}</span>
       <span className="text-gray-300 dark:text-gray-600">·</span>
       <span>
@@ -265,6 +269,7 @@ function writeDismissedRecommendations(repositoryId: number, dismissed: Set<stri
 function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {
   const { t } = useT("settings")
   const repository = payload.repository
+  const pollIssueErrors = repository.poll_issue_errors ?? []
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" aria-label={t('repository.details')}>
@@ -299,6 +304,15 @@ function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailP
         {repository.github_rate_limit ? (
           <DescriptionList.Item descriptionClassName="text-gray-700 dark:text-gray-300" label={t('repository.github_quota')}>
             <strong>{repository.github_rate_limit.remaining.toLocaleString()}</strong> / {repository.github_rate_limit.limit.toLocaleString()} ({repository.github_rate_limit.resource})
+          </DescriptionList.Item>
+        ) : null}
+        {pollIssueErrors.length > 0 ? (
+          <DescriptionList.Item descriptionClassName="space-y-1 text-gray-700 dark:text-gray-300" label={t('repository.poll_issue_errors')}>
+            {pollIssueErrors.map((error) => (
+              <div key={`${error.issue_number}-${error.recorded_at}`} className="font-mono text-xs text-amber-700 dark:text-amber-300" title={error.error_message}>
+                #{error.issue_number}: {error.error_message}
+              </div>
+            ))}
           </DescriptionList.Item>
         ) : null}
         {payload.credential_status.mode === "app" && payload.credential_status.installation_account ? (

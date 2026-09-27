@@ -34,6 +34,7 @@ export type RepositoryRow = {
   last_poll_status: string | null
   last_poll_started_at: string | null
   last_poll_error: string | null
+  poll_issue_errors?: RepositoryPollIssueError[]
   repository_path: string
   edit_repository_path: string
 }
@@ -375,6 +376,15 @@ export type RepositoryDetailRecord = {
   main_branch_repair_auto_approve: boolean
   treat_grader_timeouts_as_failures: boolean
   last_health_checked_sha: string | null
+  poll_issue_errors?: RepositoryPollIssueError[]
+}
+
+export type RepositoryPollIssueError = {
+  issue_number: number
+  issue_title: string
+  error_class: string
+  error_message: string
+  recorded_at: string
 }
 
 export type RepositoryDeliveryTrack = {
