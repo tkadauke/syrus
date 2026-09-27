@@ -80,7 +80,7 @@ module Steps
       workflow.set_artifact!("visual_review_preview_preparation_failure", failure)
       step.update!(details: step.details.to_h.merge("preview_preparation_failure" => failure))
       log("[visual_review] preview preparation unavailable: #{e.message}")
-      record_skip!("Visual review infrastructure could not prepare the preview (#{failure['reason']}): #{e.message}")
+      record_skip!("Visual review infrastructure could not prepare the preview (#{failure['reason']}): #{e.message}", skip_reason: failure["reason"])
       false
     end
 
@@ -164,7 +164,10 @@ module Steps
 
     def skip_via_pre_filter!
       log("[visual_review] skipped: no changed files match visual_review.when_files_changed")
-      record_skip!("No changed files matched the configured visual_review.when_files_changed patterns.")
+      record_skip!(
+        "No changed files matched the configured visual_review.when_files_changed patterns.",
+        skip_reason: "visual_review_when_files_changed_no_match"
+      )
     end
 
     def skip_unavailable_preview_project!
@@ -172,7 +175,7 @@ module Steps
       message = skip_message_for(reason)
       log("[visual_review] skipped: #{message}")
       workflow.set_artifact!("visual_review_preview_projects_unavailable_reason", reason)
-      record_skip!(message)
+      record_skip!(message, skip_reason: reason)
     end
 
     def skip_message_for(reason)
@@ -184,7 +187,7 @@ module Steps
       }.fetch(reason.to_s, "Affected preview projects are unavailable for visual review.")
     end
 
-    def record_skip!(critique)
+    def record_skip!(critique, skip_reason:)
       iterations = review_iterations
       iterations << {
         "iteration" => step.iteration,
@@ -194,6 +197,17 @@ module Steps
         "verdict" => "skipped"
       }
       workflow.set_artifact!("visual_review_iterations", iterations)
+      ReviewFindingEvents.record(
+        workflow: workflow,
+        step: step,
+        run: run,
+        review_kind: "visual",
+        iteration: step.iteration,
+        verdict: "skipped",
+        critique: critique,
+        skipped: true,
+        skip_reason: skip_reason
+      )
     end
 
     def review_issue
