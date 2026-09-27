@@ -43,6 +43,7 @@ module App
       return unless latest_workflow&.retry_available?
       return unless failed_step
       return if failed_step_workspace_git_state_corrupt?
+      return if merge_train_waiting_on_same_repository_landing?
 
       {
         key: "retry_failed_step",
@@ -86,8 +87,39 @@ module App
 
     def failed_step_label
       return "Restart grade loop" if failed_step&.kind == "grader_fanout" && failed_step.loop_id.present?
+      return "Retry merge train now" if latest_workflow&.trigger_kind == "merge_train"
 
       Workflow::TriggerKind.retry_label_for(latest_workflow.trigger_kind, step_kind: failed_step&.kind)
+    end
+
+    def merge_train_waiting_on_same_repository_landing?
+      return false unless latest_workflow&.trigger_kind == "merge_train"
+
+      blocker = merge_train_dispatcher_blocker_reason
+      blocker.present? && same_repository_landing_blocker?(blocker)
+    end
+
+    def merge_train_dispatcher_blocker_reason
+      train = merge_train_for_latest_workflow
+      return unless train
+
+      if train.bundle_backed?
+        JobBundleDispatcher.blocker_reason(train.repository, bypass_cooldown: true)
+      else
+        MergeTrainDispatcher.blocker_reason(train.epic, bypass_cooldown: true)
+      end
+    end
+
+    def merge_train_for_latest_workflow
+      train_id = latest_workflow&.artifact("merge_train_id")
+      return if train_id.blank?
+
+      MergeTrain.find_by(id: train_id)
+    end
+
+    def same_repository_landing_blocker?(blocker)
+      repository_slug = job.repository.slug
+      blocker.match?(/\AJOB-\d+ is already landing for #{Regexp.escape(repository_slug)}\z/)
     end
 
     # The failed step's own workspace has no valid git HEAD, not the step

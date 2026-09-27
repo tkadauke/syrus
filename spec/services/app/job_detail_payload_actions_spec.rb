@@ -823,12 +823,13 @@ RSpec.describe App::JobDetailPayload, :ci_only do
   end
 
   describe "#actions_json retry actions" do
-    def create_failed_workflow(job, trigger_kind:, failed_step_kind:)
+    def create_failed_workflow(job, trigger_kind:, failed_step_kind:, artifacts: {})
       workflow = Workflow.create!(
         job: job,
         trigger_kind: trigger_kind,
         agent_provider: job.agent_provider,
         state: "failed",
+        artifacts: artifacts,
         started_at: 2.minutes.ago,
         finished_at: 1.minute.ago
       )
@@ -840,6 +841,54 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         finished_at: 1.minute.ago
       )
       workflow
+    end
+
+    it "offers a clearer retry action for an unblocked failed merge-train workflow" do
+      epic = Factories.epic(user: user, repository: repo)
+      job = Factories.job_record(user: user, repository: repo, epic: epic, state: "failed")
+      train = MergeTrain.create!(epic: epic, repository: repo, base_branch: repo.default_branch, state: "failed")
+      workflow = create_failed_workflow(
+        job,
+        trigger_kind: "merge_train",
+        failed_step_kind: "merge_train_build",
+        artifacts: { "merge_train_id" => train.id }
+      )
+      allow(MergeTrainDispatcher).to receive(:blocker_reason).with(epic, bypass_cooldown: true).and_return(nil)
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions[:can_retry_from_failed_step]).to be(true)
+      expect(actions[:retry_failed_step_action]).to include(
+        key: "retry_failed_step",
+        label: "Retry merge train now",
+        workflow_id: workflow.id,
+        step_kind: "merge_train_build"
+      )
+    end
+
+    it "suppresses merge-train retry while another same-repository job is already landing" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      landing_job = Factories.job_record(user: user, repository: repo, state: "landing")
+      train = MergeTrain.create!(
+        repository: repo,
+        base_branch: repo.default_branch,
+        priority: "medium",
+        state: "failed"
+      )
+      create_failed_workflow(
+        job,
+        trigger_kind: "merge_train",
+        failed_step_kind: "merge_train_build",
+        artifacts: { "merge_train_id" => train.id }
+      )
+      allow(JobBundleDispatcher).to receive(:blocker_reason)
+        .with(repo, bypass_cooldown: true)
+        .and_return("#{landing_job.slug} is already landing for #{repo.slug}")
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions[:can_retry_from_failed_step]).to be(false)
+      expect(actions[:retry_failed_step_action]).to be_nil
     end
 
     it "offers failed-step retry and implementation retry for implementation-shaped failures" do
