@@ -1375,8 +1375,8 @@ function RunRow({ run, payload, command, prefix, active = false, agentic = true,
 
   return (
     <Surface className={`rounded ${active ? "border-brand/30 ring-1 ring-brand/20" : ""}`} padding="sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+      <div className="space-y-3">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-text-primary">{t("run_number", { id: run.id })}</span>
             {redundantStatus && !diagnosticRun ? null : <StatusPill state={run.state} />}
