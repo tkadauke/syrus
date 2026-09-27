@@ -8,11 +8,13 @@ require "net/http"
 # outcome carries a `reason` string so callers can log actionable diagnostics
 # instead of silently falling back (see AgentProviders::Base#log_mcp_transport_decision!).
 #
-# Workflow tools are served by the persistent daemon. Providers whose CLIs
-# cannot speak HTTP MCP directly use bin/syrus-mcp-proxy as a secret-free
-# stdio bridge to the daemon.
+# The daemon exposes one workflow MCP path per agent role. #select carries the
+# requested role into the persistent decision so the agent's `tools/list`
+# response is role-scoped instead of a daemon-wide workflow superset.
+# Providers whose CLIs cannot speak HTTP MCP directly use bin/syrus-mcp-proxy
+# as a secret-free stdio bridge to the daemon.
 class WorkflowMcpTransportSelector
-  Decision = Struct.new(:transport, :reason, :daemon_identity, keyword_init: true) do
+  Decision = Struct.new(:transport, :reason, :daemon_identity, :mcp_path, keyword_init: true) do
     def persistent? = transport == :persistent
     def stdio? = transport == :stdio
   end
@@ -25,13 +27,14 @@ class WorkflowMcpTransportSelector
     Net::OpenTimeout, Net::ReadTimeout, SocketError, IOError
   ].freeze
 
-  def self.select(host: PersistentMcpDaemon.host, port: PersistentMcpDaemon.port)
-    new(host: host, port: port).select
+  def self.select(host: PersistentMcpDaemon.host, port: PersistentMcpDaemon.port, role: AgentRole::WORKFLOW_IMPLEMENT)
+    new(host: host, port: port, role: role).select
   end
 
-  def initialize(host:, port:)
+  def initialize(host:, port:, role:)
     @host = host
     @port = port
+    @role = role.to_s
   end
 
   def select
@@ -42,7 +45,12 @@ class WorkflowMcpTransportSelector
     return stdio_decision(health[:reason]) unless health[:ok]
     return stdio_decision(incompatibility_reason(health[:body])) unless workflow_tools_supported?(health[:body])
 
-    Decision.new(transport: :persistent, reason: nil, daemon_identity: health[:body]["identity"])
+    Decision.new(
+      transport: :persistent,
+      reason: nil,
+      daemon_identity: health[:body]["identity"],
+      mcp_path: PersistentMcpDaemon.workflow_role_path(@role)
+    )
   rescue StandardError => e
     stdio_decision("selector_error: #{e.class}: #{e.message}")
   end
@@ -50,7 +58,7 @@ class WorkflowMcpTransportSelector
   private
 
   def stdio_decision(reason)
-    Decision.new(transport: :stdio, reason: reason, daemon_identity: nil)
+    Decision.new(transport: :stdio, reason: reason, daemon_identity: nil, mcp_path: nil)
   end
 
   def workflow_tools_supported?(body)

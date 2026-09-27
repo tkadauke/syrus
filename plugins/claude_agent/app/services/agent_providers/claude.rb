@@ -261,7 +261,7 @@ module AgentProviders
     # PersistentMcpDaemon#inject_invocation_context).
     def with_persistent_mcp_config(decision)
       Tempfile.create([ "syrus-mcp-#{@run.id}-", ".json" ]) do |f|
-        url = persistent_mcp_url
+        url = persistent_mcp_url(decision)
         token = mint_invocation_context_token(decision)
         f.write({
           mcpServers: {
@@ -279,8 +279,9 @@ module AgentProviders
       end
     end
 
-    def persistent_mcp_url
-      "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}"
+    def persistent_mcp_url(decision)
+      path = decision.mcp_path.presence || PersistentMcpDaemon::MCP_PATH
+      "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{path}"
     end
 
     def log_mcp_config!(path:, env:)

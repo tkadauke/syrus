@@ -45,13 +45,9 @@ RSpec.describe PersistentMcpDaemon do
         expect(response[0]).to eq(200)
         body = json_body(response)
         expect(body["status"]).to eq("ok")
-        expect(body["tools"]).to include("daemon_ping", "daemon_invocation_context", "list_jobs", "read_workflow", "read_live_state")
-        expected_tool_count = (
-          McpToolRegistry.tools(surface: :chat) +
-          McpToolRegistry.tools(surface: :workflow) +
-          McpToolPolicy.ref_movement_tools
-        ).uniq { |tool| tool.name_value }.size + 2
-        expect(body["tools"].size).to eq(expected_tool_count)
+        expect(body["tools"]).to include("daemon_ping", "daemon_invocation_context", "list_jobs", "read_workflow")
+        expect(body["tools"].size).to eq(McpToolRegistry.tools(surface: :chat).uniq.size + 2)
+        expect(body["workflow_tools"]).to include("read_live_state", "submit_adversarial_review")
         expect(body["ping_ok"]).to be true
         expect(body["identity"]).to include(
           "worker_id" => WorkerStorageIdentity.key(data_root: data_root),
@@ -60,10 +56,14 @@ RSpec.describe PersistentMcpDaemon do
         )
       end
 
-      it "advertises chat_tools and workflow_tools" do
+      it "advertises chat_tools and workflow_tools once role-partitioned workflow servers are wired in" do
         response = call("/healthz")
 
         expect(json_body(response)["capabilities"]).to eq([ "chat_tools", "workflow_tools" ])
+        expect(json_body(response)["workflow_paths"]).to include(
+          AgentRole::WORKFLOW_IMPLEMENT => "/mcp/workflow/workflow_implement",
+          AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER => "/mcp/workflow/workflow_adversarial_reviewer"
+        )
         expect(described_class::CAPABILITIES).to eq([ "chat_tools", "workflow_tools" ])
       end
 
@@ -110,6 +110,125 @@ RSpec.describe PersistentMcpDaemon do
         expect(list_response[0]).to eq(200)
         tool_names = json_body(list_response).dig("result", "tools").map { |tool| tool["name"] }
         expect(tool_names).to include("daemon_ping", "daemon_invocation_context", "list_jobs", "admin_overview")
+      end
+    end
+
+    describe "workflow tool dispatch over role-partitioned /mcp/workflow/* paths" do
+      let(:user) { Factories.user }
+      let(:job) { Factories.job(user: user) }
+      let(:run) { job.initial_run }
+      let(:worker_id) { WorkerStorageIdentity.key(data_root: data_root) }
+
+      before do
+        PluginRecord.find_or_create_by!(name: "design_docs").update!(enabled: true, disableable: true)
+      end
+
+      def call_workflow_tool(path, name, token:, arguments: {})
+        call(
+          path,
+          method: "POST",
+          body: {
+            jsonrpc: "2.0", id: 1, method: "tools/call",
+            params: { name: name, arguments: arguments }
+          }.to_json,
+          headers: { "HTTP_X_SYRUS_INVOCATION_CONTEXT" => token }
+        )
+      end
+
+      def call(path, method: "GET", body: nil, headers: {})
+        env = Rack::MockRequest.env_for(
+          path, method: method, input: body,
+          "CONTENT_TYPE" => "application/json",
+          "HTTP_ACCEPT" => "application/json, text/event-stream",
+          **headers
+        )
+        daemon.call(env)
+      end
+
+      it "advertises different static tool lists for different workflow roles" do
+        implement_response = call(
+          described_class.workflow_role_path(AgentRole::WORKFLOW_IMPLEMENT),
+          method: "POST",
+          body: { jsonrpc: "2.0", id: 1, method: "tools/list" }.to_json
+        )
+        adversarial_response = call(
+          described_class.workflow_role_path(AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER),
+          method: "POST",
+          body: { jsonrpc: "2.0", id: 2, method: "tools/list" }.to_json
+        )
+
+        implement_names = json_body(implement_response).dig("result", "tools").map { |tool| tool["name"] }
+        adversarial_names = json_body(adversarial_response).dig("result", "tools").map { |tool| tool["name"] }
+        expect(implement_names).to include("read_live_state", "submit_summary")
+        expect(implement_names).to include("list_design_docs")
+        expect(implement_names).to include("list_delivery_tracks")
+        expect(implement_names).not_to include("submit_adversarial_review")
+        expect(adversarial_names).to include("read_live_state", "submit_adversarial_review")
+        expect(adversarial_names).not_to include("submit_summary")
+      end
+
+      it "keeps step-kind-gated workflow tools registered for roles that can need them" do
+        summary_response = call(
+          described_class.workflow_role_path(AgentRole::WORKFLOW_SUMMARY_TEST_PLAN),
+          method: "POST",
+          body: { jsonrpc: "2.0", id: 1, method: "tools/list" }.to_json
+        )
+
+        summary_names = json_body(summary_response).dig("result", "tools").map { |tool| tool["name"] }
+        expect(summary_names).to include("submit_report", "submit_job_metadata")
+      end
+
+      it "dispatches a workflow tool by resolving a run-surface token against workflow registry policy" do
+        token = McpInvocationContext.issue_for_run(run, worker_id: worker_id, provider: "claude")
+
+        expect {
+          response = call_workflow_tool(
+            described_class.workflow_role_path(AgentRole::WORKFLOW_IMPLEMENT),
+            "read_live_state",
+            token: token
+          )
+
+          result = json_body(response)["result"]
+          expect(result["isError"]).to be_falsey
+          payload = JSON.parse(result.dig("content", 0, "text"))
+          expect(payload.dig("run", "id")).to eq(run.id)
+        }.to change(McpToolUsage, :count).by(1)
+
+        usage = McpToolUsage.sole
+        expect(usage).to have_attributes(
+          surface: "workflow",
+          normalized_tool_name: "read_live_state",
+          status: "completed",
+          sidecar_mode: "persistent",
+          daemon_worker_id: worker_id,
+          run_id: run.id,
+          provider: "claude"
+        )
+      end
+
+      it "records a failed workflow usage row when the invocation token is invalid" do
+        expired_token = McpInvocationContext.issue_for_run(run, worker_id: worker_id, expires_in: -1.minute)
+
+        expect {
+          response = call_workflow_tool(
+            described_class.workflow_role_path(AgentRole::WORKFLOW_IMPLEMENT),
+            "read_live_state",
+            token: expired_token
+          )
+          result = json_body(response)["result"]
+          expect(result["isError"]).to be true
+          expect(result.dig("content", 0, "text")).to match(/Unauthorized: invocation context Expired/)
+        }.to change(McpToolUsage, :count).by(1)
+
+        usage = McpToolUsage.sole
+        expect(usage).to have_attributes(
+          surface: "workflow",
+          normalized_tool_name: "read_live_state",
+          status: "failed",
+          sidecar_mode: "persistent",
+          run_id: nil,
+          error_class: "McpInvocationContext::Expired"
+        )
       end
     end
 
@@ -284,6 +403,12 @@ RSpec.describe PersistentMcpDaemon do
 
     it "returns 404 for unknown paths" do
       response = call("/nope")
+
+      expect(response[0]).to eq(404)
+    end
+
+    it "returns 404 for unknown workflow role paths instead of falling through to chat /mcp" do
+      response = call("/mcp/workflow/not_a_role")
 
       expect(response[0]).to eq(404)
     end
