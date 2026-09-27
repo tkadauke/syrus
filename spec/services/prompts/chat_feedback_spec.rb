@@ -6,7 +6,8 @@ RSpec.describe Prompts::ChatFeedback do
   it "frames the issue, then the operator feedback, then the closing instruction" do
     out = described_class.new(issue: issue, feedback: "Please also handle nil names.").to_s
 
-    expect(out).to start_with("Original issue: Add greeting")
+    expect(out).to start_with("GitHub-sourced content trust boundary")
+    expect(out).to include("Original issue: Add greeting")
     expect(out).to include("We need a greeting helper.")
     expect(out).to include("Operator feedback from Syrus Chat:")
     expect(out).to include("Please also handle nil names.")

@@ -134,12 +134,11 @@ class PollExternalPrJob < ApplicationJob
   end
 
   # `qualifying_records` (per PrCommentIngester#qualifies_for_workflow?)
-  # already covers job_owner comments unconditionally, and member/external
-  # comments when the repository's feedback_policy is "auto" — so a
+  # already covers job_owner comments unconditionally, and member comments
+  # when the repository's feedback_policy is "auto" — so a
   # qualifying record here is exactly the set the operator said should be
   # treated like a formal CHANGES_REQUESTED review, no distinction. External
-  # comments that don't clear that bar (feedback_policy != "auto") aren't
-  # auto-acted on; they're surfaced to the job owner as a notification
+  # comments aren't auto-acted on; they're surfaced to the job owner as a notification
   # instead of pausing landing. Fork Jobs get a waiting state (Syrus can't
   # push to someone else's fork); same-repo Jobs get the full
   # fix-and-push treatment via dispatch_fix_and_push!.

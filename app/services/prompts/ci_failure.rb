@@ -5,7 +5,10 @@ module Prompts
   # on the current PR head, includes the GitHub-provided summary text,
   # and asks for a fix on the existing branch. Same scope rule as
   # PrFeedback: no functional drift, just make the failing checks pass.
+  # GitHub-sourced content trust boundary
   class CiFailure
+    include GithubContentTrust
+
     MAX_CHECKS = 5
     MAX_SUMMARY_BYTES = 2_000
     MAX_ERROR_BLOCK_BYTES = 6_000
@@ -25,6 +28,8 @@ module Prompts
 
     def to_s
       main_prompt = <<~PROMPT.strip
+        #{github_content_trust_boundary}
+
         CI is failing on PR `#{@repo_slug}##{@pr_number}` (branch `#{@branch_name}` at `#{head_sha_label}`). Fix the failing checks.
 
         # Original issue

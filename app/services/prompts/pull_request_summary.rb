@@ -2,7 +2,10 @@ module Prompts
   # Asks the agent to write a PR title + body given the issue + the
   # diff it just produced. Single-shot — no tool exploration. Output
   # is JSON so the parser is dumb and unambiguous.
+  # GitHub-sourced content trust boundary
   class PullRequestSummary
+    include GithubContentTrust
+
     MAX_DIFF_BYTES = 30_000  # claude context budget — agent rarely needs more
 
     def initialize(issue:, diff:)
@@ -12,6 +15,8 @@ module Prompts
 
     def to_s
       <<~PROMPT.strip
+        #{github_content_trust_boundary}
+
         You just produced a code change to address a GitHub issue. Write a clear pull-request title and description for it.
 
         # Original issue

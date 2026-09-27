@@ -1,6 +1,9 @@
 module Prompts
   # Prompt for follow-up Runs triggered from Syrus Chat operator feedback.
+  # GitHub-sourced content trust boundary
   class ChatFeedback
+    include GithubContentTrust
+
     def initialize(issue:, feedback:, diff_comments: [], prior_summaries: [], recent_commits: [], epic: nil, job: nil, user: nil, repository_ids: [], injected_context: [])
       @issue = issue
       @feedback = feedback
@@ -16,6 +19,7 @@ module Prompts
 
     def to_s
       sections = [
+        github_content_trust_boundary,
         issue_section,
         epic_context,
         prior_context_section,

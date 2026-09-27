@@ -2,7 +2,10 @@ module Prompts
   # Prompt for a fresh workflow agent repairing pre-PR Coding Mode handoffs:
   # a review's needs_work verdict, a required grader failure, or both. Later
   # loop iterations append Prompts::ReviewFeedback and/or Prompts::GradeFailureFeedback.
+  # GitHub-sourced content trust boundary
   class CodingHandoffFix
+    include GithubContentTrust
+
     def initialize(issue:, repo_slug:, branch_name:, handoff_snapshot:, recent_commits: [], epic: nil, job: nil)
       @issue = issue
       @repo_slug = repo_slug
@@ -15,6 +18,7 @@ module Prompts
 
     def to_s
       sections = [
+        github_content_trust_boundary,
         context_section,
         issue_section,
         epic_context,
