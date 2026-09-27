@@ -2387,6 +2387,17 @@ RSpec.describe StepDispatcher, :ci_only do
         expect(sequence).to eq([ [ "adversarial_review", 1 ] ])
       end
 
+      it "rounds: #{rounds} -- adversarial review, skipped exits after the first review with no repair" do
+        review_workflow = workflow_with_adversarial_review_loop(max_iterations: rounds)
+
+        sequence = drive_review_loop!(
+          review_workflow, review_kind: "adversarial_review", agent_kind: "implement",
+          artifact_key: "adversarial_review_iterations", verdicts: %w[ skipped ]
+        )
+
+        expect(sequence).to eq([ [ "adversarial_review", 1 ] ])
+      end
+
       it "rounds: #{rounds} -- adversarial review, always-needs_work seeks exactly #{rounds} review opinions, each reacted to with a repair" do
         review_workflow = workflow_with_adversarial_review_loop(max_iterations: rounds)
 
