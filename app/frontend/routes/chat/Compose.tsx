@@ -2440,10 +2440,9 @@ const TOOLBAR_DROPDOWN_PANEL_CLASS = "absolute bottom-full left-0 z-20 mb-1 min-
 const TOOLBAR_DROPDOWN_ERROR_CLASS = "absolute bottom-full left-0 z-20 mb-1 whitespace-nowrap rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:bg-gray-950 dark:text-red-300"
 
 // Only offered on an unstarted chat (no messages yet): once the first message
-// is sent, the provider is pinned to whatever a mid-conversation switch would
-// need to rehydrate/resume (see ChatSettingsDialog's provider Select for
-// that path), so this inline control intentionally disappears the moment the
-// landing composer stops being a landing composer.
+// is sent, the provider is pinned and chat settings display it read-only, so
+// this inline control intentionally disappears the moment the landing composer
+// stops being a landing composer.
 function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; queryKey: ChatQueryKey }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
