@@ -149,11 +149,12 @@ If the train fails at any phase, `MergeTrainFailureHandler` does **not** blanket
   frames) is observed on three failed train attempts in a row, Syrus stops
   planning `rebuild_merge_train`, opens or refreshes one urgent operator
   `AttentionItem` for the affected Job's repeated-failure circuit, and shows
-  the admin system-alert banner until an operator decides how to proceed. A
-  deploy that changes the app revision resets the automatic streak, but the
-  open attention row remains keyed to the Job/circuit and is refreshed with the
-  latest fingerprint, revision, and run identifiers; older repeated-failure rows
-  for that same actionable circuit are marked `superseded`.
+  the urgent attention notice in the Dashboard jobs Inbox notice area until an
+  operator decides how to proceed. A deploy that changes the app revision resets
+  the automatic streak, but the open attention row remains keyed to the
+  Job/circuit and is refreshed with the latest fingerprint, revision, and run
+  identifiers; older repeated-failure rows for that same actionable circuit are
+  marked `superseded`.
 - After the cooldown, `LandingQueueProcessor` can assemble a new train.
 - If a member Job's own runaway protection trips (too many consecutive failed Workflows), `WorkIntents::Gates::RunawayProtection` blocks admission of the next WorkIntent for that member's scope (its Job, or the Epic/bundle it belongs to) until an operator retries the Job and clears the flag. This is the backstop for a train that keeps failing for a reason the patch-equivalence check above cannot resolve: without it, a fast-failing deferral loop can keep rebuilding and re-dispatching for hours after runaway protection already flagged the member as needing operator attention, because nothing previously consulted that flag before admitting the next attempt.
 
