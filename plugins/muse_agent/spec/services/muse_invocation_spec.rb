@@ -20,7 +20,15 @@ RSpec.describe MuseInvocation do
 
   def stub_process_runners(lines:, exit_status: 0, export_jsonl: nil, captured: [])
     allow(ProcessRunner).to receive(:new) do |**kwargs|
-      kwargs[:prompt_file_content] = File.read(kwargs[:command][kwargs[:command].index("--prompt-file") + 1]) if kwargs[:command][0, 2] == %w[muse exec]
+      if kwargs[:command][0, 2] == %w[muse exec]
+        prompt_path = kwargs[:command][kwargs[:command].index("--prompt-file") + 1]
+        kwargs[:prompt_file_content] = File.read(prompt_path)
+        rules_path = File.join(kwargs[:chdir], "AGENTS.md")
+        if File.exist?(rules_path) || File.symlink?(rules_path)
+          kwargs[:rules_file_size] = File.size(rules_path)
+        end
+        kwargs[:rules_file_symlink] = File.symlink?(rules_path)
+      end
       captured << kwargs
       instance_double(ProcessRunner).tap do |runner|
         allow(runner).to receive(:run) do
@@ -149,11 +157,12 @@ RSpec.describe MuseInvocation do
     expect(captured.first[:command]).to include("--trust-workspace")
   end
 
-  it "fails before launch when AGENTS.md exceeds Muse's rules context limit" do
+  it "temporarily truncates oversized multibyte AGENTS.md before launch and restores it afterward" do
     events = []
+    captured = []
 
     Dir.mktmpdir("muse-workspace") do |workspace|
-      oversized_rules = "A" * (described_class::MUSE_RULES_CONTEXT_LIMIT_BYTES + 10_000)
+      oversized_rules = "€" * 30_000
       File.write(File.join(workspace, "CLAUDE.md"), oversized_rules)
       File.symlink("CLAUDE.md", File.join(workspace, "AGENTS.md"))
       system("git", "-C", workspace, "init", "--quiet")
@@ -162,7 +171,7 @@ RSpec.describe MuseInvocation do
       system("git", "-C", workspace, "add", "CLAUDE.md", "AGENTS.md")
       system("git", "-C", workspace, "commit", "--quiet", "-m", "rules")
 
-      expect(ProcessRunner).not_to receive(:new)
+      stub_process_runners(lines: fixture_lines, captured: captured)
 
       result = described_class.new(
         workspace,
@@ -172,9 +181,10 @@ RSpec.describe MuseInvocation do
         log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
       ).run
 
-      expect(result).not_to be_success
-      expect(result.outcome).to eq(described_class::MUSE_RULES_CONTEXT_OUTCOME)
-      expect(result.final_text).to include("exceeds Muse's 65536-byte startup context limit")
+      expect(result).to be_success
+      expect(captured.first[:rules_file_size])
+        .to be <= described_class::MUSE_RULES_CONTEXT_LIMIT_BYTES
+      expect(captured.first[:rules_file_symlink]).to be(false)
       expect(File.symlink?(File.join(workspace, "AGENTS.md"))).to be true
       expect(File.readlink(File.join(workspace, "AGENTS.md"))).to eq("CLAUDE.md")
       expect(File.size(File.join(workspace, "CLAUDE.md"))).to eq(oversized_rules.bytesize)
@@ -182,7 +192,7 @@ RSpec.describe MuseInvocation do
       expect(status).to be_success
       expect(status_output).to be_empty
       expect(events).to include(a_collection_including(
-        a_string_including("[muse rules]", "exceeds Muse's 65536-byte startup context limit"),
+        a_string_including("[muse rules]", "using a temporary truncated rules file"),
         { kind: "system" }
       ))
     end
