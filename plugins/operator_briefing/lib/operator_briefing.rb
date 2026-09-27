@@ -22,7 +22,7 @@ module OperatorBriefing
     category "observability"
     default_enabled false
     disableable true
-    optionally_depends_on [ "design_docs" ]
+    depends_on [ "design_docs" ]
 
     provides notable_change_detector: [
                "OperatorBriefing::Detectors::DependencyChanges",

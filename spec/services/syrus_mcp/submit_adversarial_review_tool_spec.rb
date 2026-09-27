@@ -16,20 +16,15 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
   end
 
   it "accepts a run_id-only sidecar context" do
-    allow(Syrus::Events).to receive(:known?).and_call_original
-    allow(Syrus::Events).to receive(:known?).with("operator_briefing.review_finding_recorded").and_return(true)
-    expect(Syrus::Events).to receive(:publish).with(
-      "operator_briefing.review_finding_recorded",
-      hash_including(
-        workflow_id: run.workflow_id,
-        step_id: run.step_id,
-        run_id: run.id,
-        review_kind: "adversarial",
-        iteration: run.step.iteration,
-        verdict: "approved",
-        critique: "No blocking issues found."
-      )
-    ).and_call_original
+    expect(ReviewFindingEvents).to receive(:record).with(
+      workflow: run.workflow,
+      step: run.step,
+      run: run,
+      review_kind: "adversarial",
+      iteration: run.step.iteration,
+      verdict: "approved",
+      critique: "No blocking issues found."
+    )
 
     described_class.call(
       critique: "No blocking issues found.",

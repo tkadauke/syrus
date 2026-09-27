@@ -2431,10 +2431,10 @@ references, not prose that the frontend has to parse.
 The bundled Operator Briefing plugin registers the initial deterministic
 detectors for dependency lockfiles, schema/migration changes, public API
 changes, deleted or weakened tests, overridden review findings, and
-security-sensitive paths. It also reserves a convention-deviation detector
-slot for the later LLM-backed pass over the repository's guidance; that
-semantic detector intentionally returns no facts until the agentic layer
-exists.
+security-sensitive paths. Its convention-deviation detector flags changes to
+repository guidance and convention-sensitive implementation surfaces as
+`attention_debt`; later phases can layer an LLM-backed pass over those
+candidate facts to decide whether the change truly deviates from the guidance.
 
 ## `affected_test_analyzer`
 

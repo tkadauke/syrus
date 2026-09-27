@@ -9,14 +9,16 @@ RSpec.describe "operator briefing notable-change detectors" do
       "Gemfile.lock",
       "db/migrate/20260927000000_add_widgets.rb",
       "config/routes.rb",
-      "app/policies/widget_policy.rb"
+      "app/policies/widget_policy.rb",
+      "CLAUDE.md"
     ]
 
     facts = [
       OperatorBriefing::Detectors::DependencyChanges,
       OperatorBriefing::Detectors::SchemaChanges,
       OperatorBriefing::Detectors::PublicApiChanges,
-      OperatorBriefing::Detectors::SecuritySensitivePaths
+      OperatorBriefing::Detectors::SecuritySensitivePaths,
+      OperatorBriefing::Detectors::ConventionDeviation
     ].flat_map do |detector|
       detector.detect(
         workflow: workflow,
@@ -31,7 +33,8 @@ RSpec.describe "operator briefing notable-change detectors" do
       "dependencies:lockfiles_changed",
       "schema:schema_or_migration_changed",
       "public_api:public_interface_changed",
-      "security_sensitive_paths:security_sensitive_paths_changed"
+      "security_sensitive_paths:security_sensitive_paths_changed",
+      "conventions:semantic_convention_review_required"
     )
   end
 

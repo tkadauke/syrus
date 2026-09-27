@@ -16,9 +16,11 @@ When enabled, the plugin owns three queryable tables:
 
 The deterministic detectors cover dependency lockfiles, schema and migration
 files, public API surfaces, deleted or weakened tests, overridden review
-findings, and security-sensitive paths. Convention-deviation detection is
-registered as a semantic detector slot but does not emit rows until the
-agentic pass exists.
+findings, and security-sensitive paths. Convention-deviation detection flags
+changes to repository guidance and convention-sensitive implementation
+surfaces as `attention_debt`; later phases can layer an LLM-backed pass over
+those candidate facts to decide whether the change truly deviates from the
+guidance.
 
 The first "blocked on you" source is
 `OperatorBriefing::BlockedDesignDocThreads`: open design-doc threads visible

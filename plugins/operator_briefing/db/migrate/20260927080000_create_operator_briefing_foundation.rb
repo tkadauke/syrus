@@ -15,15 +15,17 @@ class CreateOperatorBriefingFoundation < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :operator_briefing_review_findings,
-              [ :workflow_id, :review_kind, :iteration, :run_id ],
-              unique: true,
-              name: "idx_operator_briefing_review_findings_identity",
-              if_not_exists: true
-    add_index :operator_briefing_review_findings,
-              [ :workflow_id, :review_kind, :verdict, :overridden ],
-              name: "idx_operator_briefing_review_findings_lookup",
-              if_not_exists: true
+    unless index_exists?(:operator_briefing_review_findings, [ :workflow_id, :review_kind, :iteration, :run_id ], name: "idx_operator_briefing_review_findings_identity")
+      add_index :operator_briefing_review_findings,
+                [ :workflow_id, :review_kind, :iteration, :run_id ],
+                unique: true,
+                name: "idx_operator_briefing_review_findings_identity"
+    end
+    unless index_exists?(:operator_briefing_review_findings, [ :workflow_id, :review_kind, :verdict, :overridden ], name: "idx_operator_briefing_review_findings_lookup")
+      add_index :operator_briefing_review_findings,
+                [ :workflow_id, :review_kind, :verdict, :overridden ],
+                name: "idx_operator_briefing_review_findings_lookup"
+    end
 
     create_table :operator_briefing_workflow_notable_changes, if_not_exists: true do |t|
       t.references :workflow, null: false, foreign_key: false
@@ -38,15 +40,17 @@ class CreateOperatorBriefingFoundation < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :operator_briefing_workflow_notable_changes,
-              [ :workflow_id, :fact_key ],
-              unique: true,
-              name: "idx_operator_briefing_notable_changes_identity",
-              if_not_exists: true
-    add_index :operator_briefing_workflow_notable_changes,
-              [ :repository_id, :severity, :created_at ],
-              name: "idx_operator_briefing_notable_changes_repo_severity",
-              if_not_exists: true
+    unless index_exists?(:operator_briefing_workflow_notable_changes, [ :workflow_id, :fact_key ], name: "idx_operator_briefing_notable_changes_identity")
+      add_index :operator_briefing_workflow_notable_changes,
+                [ :workflow_id, :fact_key ],
+                unique: true,
+                name: "idx_operator_briefing_notable_changes_identity"
+    end
+    unless index_exists?(:operator_briefing_workflow_notable_changes, [ :repository_id, :severity, :created_at ], name: "idx_operator_briefing_notable_changes_repo_severity")
+      add_index :operator_briefing_workflow_notable_changes,
+                [ :repository_id, :severity, :created_at ],
+                name: "idx_operator_briefing_notable_changes_repo_severity"
+    end
 
     create_table :operator_briefing_items, if_not_exists: true do |t|
       t.bigint :briefing_id
@@ -59,14 +63,16 @@ class CreateOperatorBriefingFoundation < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :operator_briefing_items, :briefing_id, if_not_exists: true
-    add_index :operator_briefing_items,
-              [ :source_type, :source_id ],
-              name: "idx_operator_briefing_items_source",
-              if_not_exists: true
-    add_index :operator_briefing_items,
-              [ :severity, :created_at ],
-              name: "idx_operator_briefing_items_severity",
-              if_not_exists: true
+    add_index :operator_briefing_items, :briefing_id unless index_exists?(:operator_briefing_items, :briefing_id)
+    unless index_exists?(:operator_briefing_items, [ :source_type, :source_id ], name: "idx_operator_briefing_items_source")
+      add_index :operator_briefing_items,
+                [ :source_type, :source_id ],
+                name: "idx_operator_briefing_items_source"
+    end
+    unless index_exists?(:operator_briefing_items, [ :severity, :created_at ], name: "idx_operator_briefing_items_severity")
+      add_index :operator_briefing_items,
+                [ :severity, :created_at ],
+                name: "idx_operator_briefing_items_severity"
+    end
   end
 end
