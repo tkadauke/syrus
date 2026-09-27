@@ -7,6 +7,7 @@ gem "django",      path: "plugins/django"
 gem "go",          path: "plugins/go"
 gem "syrus_rails", path: "plugins/rails"
 gem "design_docs", path: "plugins/design_docs"
+gem "operator_briefing", path: "plugins/operator_briefing"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 8.1.3", ">= 8.1.3.1"

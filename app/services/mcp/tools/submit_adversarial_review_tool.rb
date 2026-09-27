@@ -44,16 +44,42 @@ module Mcp::Tools
         iterations = Array(workflow.artifact("adversarial_review_iterations"))
         iterations << {
           "iteration" => run.step.iteration,
+          "step_id" => run.step_id,
+          "run_id" => run.id,
           "critique" => normalized_critique,
           "verdict" => normalized_verdict
         }
         workflow.set_artifact!("adversarial_review_iterations", iterations)
+        record_review_finding(
+          workflow: workflow,
+          run: run,
+          iteration: run.step.iteration,
+          critique: normalized_critique,
+          verdict: normalized_verdict
+        )
         Mcp::Tools.write_log(run, "[mcp] submit_adversarial_review received: #{normalized_verdict}")
 
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
       rescue StandardError => e
         Rails.logger.error("[Mcp::Tools::SubmitAdversarialReviewTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
+      end
+
+      def record_review_finding(workflow:, run:, iteration:, critique:, verdict:)
+        return unless Syrus::Events.known?("operator_briefing.review_finding_recorded")
+
+        Syrus::Events.publish(
+          "operator_briefing.review_finding_recorded",
+          workflow_id: workflow.id,
+          step_id: run.step_id,
+          run_id: run.id,
+          review_kind: "adversarial",
+          iteration: iteration,
+          verdict: verdict,
+          critique: critique
+        )
+      rescue StandardError => e
+        Rails.logger.warn("[Mcp::Tools::SubmitAdversarialReviewTool] review finding record failed: #{e.class}: #{e.message}")
       end
     end
   end

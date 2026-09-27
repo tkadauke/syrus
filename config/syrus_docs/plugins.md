@@ -24,6 +24,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `review_criteria_provider`
 - `autofix_command`
 - `dependency_audit_command`
+- `notable_change_detector`
 - `affected_test_analyzer`
 - `build_system_graph_provider`
 - `workspace_tab`
@@ -2406,6 +2407,34 @@ gated on `uv.lock`/`poetry.lock`/`requirements.txt` — one tool covers every
 lockfile flavor, unlike JavaScript's per-package-manager split). The `go`
 plugin registers `Go::DependencyAuditCommand` (`govulncheck ./...`, gated on
 `go.sum`).
+
+## `notable_change_detector`
+
+Lets plugins inspect a completed Workflow's diff and return structured facts
+about changes an operator may want surfaced later. Core owns only the
+invocation seam: before a terminal Workflow workspace is cleaned up, it asks
+enabled `:notable_change_detector` providers for facts and publishes them to
+plugin-owned subscribers. Storage and presentation stay with the plugin that
+owns the briefing or insight surface.
+
+Include `Syrus::Plugin::NotableChangeDetector` and implement the class methods:
+
+| Method | Signature | Description |
+|---|---|---|
+| `detector_key` | `() -> String` | Stable detector namespace used for idempotency and filtering. |
+| `detect` | `(workflow:, diff:, changed_files:, name_status:, workspace_path:) -> Array<Hash>` | Return zero or more facts shaped like `{ key:, severity:, summary:, evidence: [...] }`. |
+
+`severity` is one of `informational`, `fyi`, `decision_required`, or
+`attention_debt`. `evidence` should be structured JSON, usually file/line
+references, not prose that the frontend has to parse.
+
+The bundled Operator Briefing plugin registers the initial deterministic
+detectors for dependency lockfiles, schema/migration changes, public API
+changes, deleted or weakened tests, overridden review findings, and
+security-sensitive paths. It also reserves a convention-deviation detector
+slot for the later LLM-backed pass over the repository's guidance; that
+semantic detector intentionally returns no facts until the agentic layer
+exists.
 
 ## `affected_test_analyzer`
 
