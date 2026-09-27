@@ -23,6 +23,7 @@ module WorkerTimeline
           strategy: "Slots are inferred from running spawned processes, claimed worker capacity, and active Run/Workflow state."
         },
         summary: summary_for(workers),
+        diagnostics: diagnostics_payload,
         workers: workers
       }
     end
@@ -276,11 +277,21 @@ module WorkerTimeline
     end
 
     def running_runs
-      @running_runs ||= Run.where(state: "running").includes(:job, step: :workflow).order(:started_at, :id).to_a
+      @running_runs ||= Run.where(state: "running")
+        .joins(step: :workflow)
+        .where(workflows: { state: "running" })
+        .includes(:job, step: :workflow)
+        .order(:started_at, :id)
+        .to_a
     end
 
     def running_steps
-      @running_steps ||= Step.where(state: "running").includes(workflow: :job).order(:started_at, :id).to_a
+      @running_steps ||= Step.where(state: "running")
+        .joins(:workflow)
+        .where(workflows: { state: "running" })
+        .includes(workflow: :job)
+        .order(:started_at, :id)
+        .to_a
     end
 
     def running_workflows
@@ -308,6 +319,58 @@ module WorkerTimeline
 
     def latest_samples_by_key
       @latest_samples_by_key ||= samples.group_by { |sample| sample_key(sample) }.transform_values(&:first)
+    end
+
+    def diagnostics_payload
+      {
+        stale_terminal_descendants: stale_terminal_descendant_slots
+      }
+    end
+
+    def stale_terminal_descendant_slots
+      @stale_terminal_descendant_slots ||= (stale_terminal_run_slots + stale_terminal_step_slots).sort_by do |slot|
+        [ slot[:workflow_id].to_i, slot[:step_id].to_i, slot[:run_id].to_i ]
+      end
+    end
+
+    def stale_terminal_run_slots
+      stale_terminal_runs.map do |run|
+        workflow = run.workflow
+        slot_payload(
+          id: "stale-run-#{run.id}", attribution: "stale_terminal_descendant", hostname: workflow&.worker_hostname,
+          workflow: workflow, job: run.job, step: run.step, run: run, started_at: run.started_at
+        ).merge(record_type: "run", workflow_state: workflow&.state, descendant_state: run.state)
+      end
+    end
+
+    def stale_terminal_step_slots
+      stale_terminal_steps.map do |step|
+        workflow = step.workflow
+        slot_payload(
+          id: "stale-step-#{step.id}", attribution: "stale_terminal_descendant", hostname: workflow&.worker_hostname,
+          workflow: workflow, job: workflow&.job, step: step, started_at: step.started_at
+        ).merge(record_type: "step", workflow_state: workflow&.state, descendant_state: step.state)
+      end
+    end
+
+    def stale_terminal_runs
+      @stale_terminal_runs ||= Run.where(state: "running")
+        .joins(step: :workflow)
+        .merge(Workflow.terminal)
+        .includes(:job, step: { workflow: :job })
+        .order(:started_at, :id)
+        .to_a
+        .then { |runs| hostname_filter ? runs.select { |run| run.workflow&.worker_hostname == hostname_filter } : runs }
+    end
+
+    def stale_terminal_steps
+      @stale_terminal_steps ||= Step.where(state: "running")
+        .joins(:workflow)
+        .merge(Workflow.terminal)
+        .includes(workflow: :job)
+        .order(:started_at, :id)
+        .to_a
+        .then { |steps| hostname_filter ? steps.select { |step| step.workflow&.worker_hostname == hostname_filter } : steps }
     end
 
     def samples
