@@ -77,6 +77,26 @@ describe("applyAppEvent", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
   })
 
+  it("invalidates the operator briefing query when a briefing block is submitted", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, {
+      type: "operator_briefing.block_submitted",
+      resource: "operator_briefing",
+      id: 2,
+      changed: ["blocks"],
+      payload: {
+        block: {
+          key: "overview",
+          title: "Overview"
+        }
+      }
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["operator_briefing"], exact: true })
+  })
+
   it("updates and invalidates notification cache when a notification is created", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
