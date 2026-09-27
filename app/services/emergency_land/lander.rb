@@ -47,9 +47,12 @@ module EmergencyLand
       return refuse(no_commits_message) unless commits_ahead_of_default_branch?
 
       pr_number = open_pull_request!
-      return refuse(not_mergeable_message(pr_number)) unless mergeable?(pr_number)
+      pull_request = validated_pull_request(pr_number)
+      return refuse(not_mergeable_message(pr_number)) unless mergeable?(pull_request)
+      expected_sha = pr_head_sha(pull_request)
+      return failure("GitHub did not report a head SHA for PR ##{pr_number}.") if expected_sha.blank?
 
-      merge = merge!(pr_number)
+      merge = merge!(pr_number, expected_sha: expected_sha)
       return failure("GitHub did not report PR ##{pr_number} as merged.") unless merged?(merge)
 
       record_audit!(pr_number: pr_number, merge: merge)
@@ -98,8 +101,11 @@ module EmergencyLand
       job.issue_body.presence || "Emergency landed via Syrus."
     end
 
-    def mergeable?(pr_number)
-      pull_request = client.pull_request(repository.slug, pr_number, bypass_cache: true)
+    def validated_pull_request(pr_number)
+      client.pull_request(repository.slug, pr_number, bypass_cache: true)
+    end
+
+    def mergeable?(pull_request)
       pull_request.mergeable != false
     end
 
@@ -107,10 +113,15 @@ module EmergencyLand
       "GitHub reports PR ##{pr_number} is not mergeable."
     end
 
-    def merge!(pr_number)
+    def pr_head_sha(pull_request)
+      pull_request&.head&.sha.to_s.presence
+    end
+
+    def merge!(pr_number, expected_sha:)
       PullRequestMerger.new(repository, client: client).merge(
         pr_number: pr_number,
-        commit_title: "Merge #{repository.slug}##{pr_number} via Syrus (emergency land)"
+        commit_title: "Merge #{repository.slug}##{pr_number} via Syrus (emergency land)",
+        expected_sha: expected_sha
       )
     end
 

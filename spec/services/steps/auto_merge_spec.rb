@@ -55,7 +55,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     described_class.new(run).call
 
     expect(client).to have_received(:merge_pull_request)
-      .with("acme/widgets", 7, hash_including(merge_method: "rebase"))
+      .with("acme/widgets", 7, hash_including(merge_method: "rebase", sha: "abc"))
     expect(client).to have_received(:add_issue_comment).with("acme/widgets", 7, include(job.slug))
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("pr_merged")
@@ -324,7 +324,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     described_class.new(run).call
 
     expect(client).to have_received(:merge_pull_request)
-      .with("acme/widgets", 7, hash_including(merge_method: "rebase"))
+      .with("acme/widgets", 7, hash_including(merge_method: "rebase", sha: "abc"))
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("pr_merged")
   end
@@ -511,6 +511,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
 
     expect(AutoRebase).to have_received(:new).with(job, base_branch: "main", branch_name: "syrus/issue-42-1")
     expect(client).to have_received(:merge_pull_request)
+      .with("acme/widgets", 7, hash_including(merge_method: "rebase", sha: "new-head"))
     expect(job.reload).to be_closed
     expect(workflow.reload).to be_running
     expect(workflow.artifact("landing_base_moved_rebase")).to include(
