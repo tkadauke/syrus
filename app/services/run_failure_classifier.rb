@@ -88,6 +88,8 @@ class RunFailureClassifier
       result("grader_failure", 0.90, false, "A configured grader command failed.")
     when missing_required_tool_call?
       result("missing_required_tool_call", 0.85, true, "The reviewer agent completed analysis but didn't call the step's required MCP tool; safe to retry since these steps are read-only (workspace changes are discarded before this failure is raised).")
+    when process_memory_limit_exceeded?
+      result("process_memory_limit_exceeded", 0.99, true, "A subprocess exceeded its cgroup memory ceiling and the kernel killed its process group.")
     when process_died_under_resource_pressure?
       result("worker_died_under_resource_pressure", 0.95, true, "The worker or agent process disappeared while the host was under critical resource pressure; retry after admission pressure settles.")
     when agent_gave_up_waiting?
@@ -250,6 +252,25 @@ class RunFailureClassifier
     run.agent_outcome == "worker_died" ||
       text_match?(/ProcessPrunedError|worker died|process (is )?gone|process died|sigkill|killed|terminated/i) ||
       spawned_processes.any? { |process| %w[aliveness_failed stopped operator_killed].include?(process.outcome) }
+  end
+
+  def process_memory_limit_exceeded?
+    spawned_processes.any? { |process| process_cgroup_oom_kill?(process) }
+  end
+
+  def process_cgroup_oom_kill?(process)
+    process_cgroup_oom_kill_count(process).positive?
+  end
+
+  def process_cgroup_oom_kill_count(process)
+    cgroup = process.resource_attribution.to_h["cgroup"].to_h
+    return 0 unless cgroup["state"].to_s == "applied"
+
+    events = cgroup["memory_events"].to_h
+    count = events["oom_kill"].to_i
+    return count if count.positive?
+
+    cgroup["memory_events_after"].to_h["oom_kill"].to_i
   end
 
   # Deliberately excludes a run that died during a rolling deploy, even when
@@ -521,7 +542,9 @@ class RunFailureClassifier
       "error_class" => diagnostic&.error_class,
       "error_message" => diagnostic&.error_message&.truncate(500),
       "job_log_kinds" => recent_logs.map(&:kind).compact,
-      "spawned_process_outcomes" => spawned_processes.map(&:outcome).compact.uniq
+      "spawned_process_outcomes" => spawned_processes.map(&:outcome).compact.uniq,
+      "spawned_process_cgroup_states" => spawned_processes.map { |process| process.resource_attribution.to_h.dig("cgroup", "state") }.compact.uniq,
+      "spawned_process_cgroup_oom_kills" => spawned_processes.sum { |process| process_cgroup_oom_kill_count(process) }
     }
   end
 
