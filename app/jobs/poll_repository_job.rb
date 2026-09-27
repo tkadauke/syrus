@@ -3,6 +3,8 @@ class PollRepositoryJob < ApplicationJob
   include GithubPollingRateLimitGuard
 
   queue_as :polling
+  UNTAGGED_OPEN_ISSUE_REFRESH_INTERVAL = 1.hour
+  LINKED_OPEN_PR_LOOKUP_LIMIT = 50
   TRANSIENT_GITHUB_ERROR_CLASSES = [
     Octokit::ServerError,
     Faraday::TimeoutError,
@@ -20,21 +22,23 @@ class PollRepositoryJob < ApplicationJob
     # so a stale "Poll now" tab can't reanimate an archived repo.
     return if repository.archived?
     return unless force || repository.polling_enabled?
-    return if github_polling_rate_limited?(repository, user: repository.user, manual: force, retry_args: [ repository_id ])
+    return if github_polling_rate_limited?(repository, user: repository.user, manual: force, retry_args: [ repository_id ], retry_kwargs: { force: force })
 
     previous_poll_started_at = repository.last_poll_started_at
     incremental_since = force ? nil : previous_poll_started_at
     poll_started_at = Time.current
-    repository.mark_poll_started!(at: poll_started_at, advance_watermark: false)
 
     with_github_polling_rate_limit_backoff(repository, user: repository.user, manual: force, retry_args: [ repository_id ], retry_kwargs: { force: force }) do
       client = GithubClient.for(repository: repository, user: repository.user)
       issues = list_labeled_issues(client, repository, since: incremental_since)
       closed_issues = list_labeled_issues(client, repository, state: "closed", since: incremental_since)
+      linked_lookup_issue_numbers = linked_open_pr_lookup_issue_numbers(repository, issues)
+      linked_open_prs = linked_lookup_issue_numbers.any? ? client.linked_open_prs_for_issues(repository.slug, linked_lookup_issue_numbers) : {}
+      linked_lookup_numbers = linked_lookup_issue_numbers.index_with(true)
 
       stats = Hash.new(0)
       issues.each do |issue|
-        stats[ingest_with_quarantine(issue, repository, client: client)] += 1
+        stats[ingest_with_quarantine(issue, repository, linked_open_prs: linked_open_prs, linked_lookup_numbers: linked_lookup_numbers)] += 1
       end
       closed_jobs = close_jobs_for_closed_issues!(repository, closed_issues)
       InputSources::PendingWorkWakeup.call(repository)
@@ -42,15 +46,17 @@ class PollRepositoryJob < ApplicationJob
 
       log_poll_summary(repository, issues: issues, closed_issues: closed_issues, closed_jobs: closed_jobs, stats: stats, incremental_since: incremental_since)
       repository.mark_poll_success!(at: poll_started_at, clear_issue_errors: stats[:quarantined].zero?)
-    rescue Octokit::TooManyRequests
-      raise
-    rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
-      repository.mark_poll_failure!(e.message)
-      Rails.logger.warn("[PollRepositoryJob] #{repository.slug}: transient GitHub polling failure: #{e.class}: #{e.message}")
-    rescue => e
-      repository.mark_poll_failure!(e.message)
-      raise
     end
+  rescue Octokit::TooManyRequests
+    raise
+  rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
+    Rails.logger.warn("[PollRepositoryJob] #{repository&.slug || repository_id}: transient GitHub polling failure; retrying - #{e.class}: #{e.message}")
+    self.class.set(wait: 1.minute).perform_later(repository_id, force: force)
+  rescue => e
+    if repository
+      repository.mark_poll_failure!(e.message)
+    end
+    raise
   end
 
   private
@@ -60,6 +66,7 @@ class PollRepositoryJob < ApplicationJob
   # not fail the poll or block labeled-issue ingestion.
   def update_untagged_open_issue_count!(repository, client)
     return if repository.archived? || !repository.polling_enabled?
+    return unless untagged_open_issue_count_stale?(repository)
 
     open_issues = client.list_all_issues(repository.slug, state: "open")
     untagged_count = open_issues.count { |issue| untagged?(issue, repository) }
@@ -69,6 +76,11 @@ class PollRepositoryJob < ApplicationJob
     )
   rescue => e
     Rails.logger.warn("[PollRepositoryJob] #{repository.slug} failed to refresh untagged open issue count: #{e.message}")
+  end
+
+  def untagged_open_issue_count_stale?(repository)
+    repository.untagged_open_issues_checked_at.blank? ||
+      repository.untagged_open_issues_checked_at < UNTAGGED_OPEN_ISSUE_REFRESH_INTERVAL.ago
   end
 
   def untagged?(issue, repository)
@@ -101,8 +113,8 @@ class PollRepositoryJob < ApplicationJob
     Rails.logger.info("[PollRepositoryJob] #{repository.slug} #{mode} poll: #{counts.map { |key, value| "#{key}=#{value}" }.join(" ")}")
   end
 
-  def ingest_with_quarantine(issue, repository, client:)
-    ingest(issue, repository, client: client)
+  def ingest_with_quarantine(issue, repository, linked_open_prs:, linked_lookup_numbers:)
+    ingest(issue, repository, linked_open_prs: linked_open_prs, linked_lookup_numbers: linked_lookup_numbers)
   rescue Octokit::TooManyRequests, *TRANSIENT_GITHUB_ERROR_CLASSES
     raise
   rescue => e
@@ -115,7 +127,38 @@ class PollRepositoryJob < ApplicationJob
     :quarantined
   end
 
-  def ingest(issue, repository, client:)
+  def linked_open_pr_lookup_issue_numbers(repository, issues)
+    Array(issues).filter_map do |issue|
+      number = issue.number
+      prior = latest_job_for_issue(repository, number)
+      next number if prior.nil?
+      next unless prior.open?
+      next number if linked_open_pr_lookup_stale?(prior, issue)
+
+      nil
+    end.uniq.first(LINKED_OPEN_PR_LOOKUP_LIMIT)
+  end
+
+  def linked_open_pr_lookup_stale?(job, issue)
+    checked_at = job.linked_open_pr_checked_at
+    return true if checked_at.blank?
+
+    updated_at = issue_updated_at(issue)
+    return true if updated_at.blank?
+
+    updated_at > checked_at
+  end
+
+  def issue_updated_at(issue)
+    return unless issue.respond_to?(:updated_at)
+
+    value = issue.updated_at
+    value.is_a?(Time) ? value : Time.zone.parse(value.to_s)
+  rescue ArgumentError
+    nil
+  end
+
+  def ingest(issue, repository, linked_open_prs:, linked_lookup_numbers:)
     decision = IngestPolicy.evaluate(issue, repository)
     unless decision.allow
       return :skipped
@@ -133,7 +176,8 @@ class PollRepositoryJob < ApplicationJob
     # immediately. Skip only fully-closed Jobs (they're terminal and
     # the lookup would be wasted).
     needs_lookup = prior.nil? || prior.open?
-    linked = needs_lookup ? client.linked_open_pr_for_issue(repository.slug, issue.number) : nil
+    looked_up_linked_pr = needs_lookup && linked_lookup_numbers.include?(issue.number)
+    linked = looked_up_linked_pr ? linked_open_prs[issue.number] : nil
     # Filter out our OWN PR — `closedByPullRequestsReferences` returns
     # every PR that closes this issue, including the one Syrus opened.
     # If the linked PR is ours, it's not "external preemption", just us.
@@ -143,6 +187,7 @@ class PollRepositoryJob < ApplicationJob
     # discovery to it, or just dedup as before.
     if prior
       sync_issue_label_state!(prior, issue)
+      prior.update_columns(linked_open_pr_checked_at: Time.current) if looked_up_linked_pr
 
       if linked && prior.external_pr_number != linked[:number]
         Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} preempt-attach to #{prior.slug}: external PR ##{linked[:number]}")
@@ -164,7 +209,8 @@ class PollRepositoryJob < ApplicationJob
         issue_title: issue_title(issue),
         issue_body: issue_body(issue),
         state: "implemented",
-        external_pr_number: linked[:number]
+        external_pr_number: linked[:number],
+        linked_open_pr_checked_at: Time.current
       )
       enqueue_issue_image_ingest(job)
       return :preempted
@@ -179,7 +225,8 @@ class PollRepositoryJob < ApplicationJob
       state: initial_state_for_issue(issue),
       skip_prepare: skip_prepare_label_present?(issue),
       prepare_skip_reason_override: prepare_skip_reason(issue),
-      delivery_track: delivery_track_label_value(issue)
+      delivery_track: delivery_track_label_value(issue),
+      linked_open_pr_checked_at: looked_up_linked_pr ? Time.current : nil
     )
     classify_if_available(job)
     enqueue_issue_image_ingest(job)

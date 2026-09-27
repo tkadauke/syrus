@@ -23,7 +23,10 @@ the next poll, check these in order:
    but each repo can use a different label.
 5. The issue does not have `syrus-skip`.
 6. The user's GitHub token is present and can read the repository.
-7. A worker is running the default queue, where
+7. The GitHub credential is not currently rate-limited. Syrus delays
+   autonomous repository polls until GitHub's reset time when quota is
+   exhausted.
+8. A worker is running the default queue, where
    `PollAllRepositoriesJob` and `PollRepositoryJob` run.
 
 To force a quick check from the UI, open the repository in Syrus and use

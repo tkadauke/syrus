@@ -1609,6 +1609,12 @@ time. The notice only appears on the Inbox smart folder, directly above the
 data table, since that is where new unlabeled work would otherwise go
 unnoticed.
 
+Repository polling is quota-aware. If GitHub reports an exhausted API bucket,
+autonomous polls wait until the reset time instead of advancing the repository
+poll watermark and failing. The unlabeled-issue count is cached rather than
+fully paginated on every tick, and linked-PR discovery is batched with
+per-issue watermarks so unchanged issues do not keep spending GraphQL calls.
+
 When approval propagation is enabled, Syrus mirrors eligible Job approvals as
 GitHub PR reviews. It posts as the approving user's own connected GitHub
 account whenever their GitHub identity differs from the PR's author; when the
