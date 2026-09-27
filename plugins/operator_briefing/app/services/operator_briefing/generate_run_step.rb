@@ -1,11 +1,18 @@
 module OperatorBriefing
   class GenerateRunStep < ::Steps::Base
+    GENERATION_TURN_BUDGET = 25
+
     def call
       workspace.setup
       revision = create_revision!
       persist_prompt_if_needed(revision)
       log("invoking agent for briefing_generate_run step (#{workflow.slug})")
-      run_agent(prompt: run.prompt, required_mcp_tools: %w[submit_briefing_block])
+      run_agent(
+        prompt: run.prompt,
+        max_turns: GENERATION_TURN_BUDGET,
+        required_mcp_tools: %w[submit_briefing_block]
+      )
+      verify_blocks_submitted!(revision)
     end
 
     private
@@ -27,6 +34,13 @@ module OperatorBriefing
 
     def briefing
       @briefing ||= Briefing.find_by!(job: job)
+    end
+
+    def verify_blocks_submitted!(revision)
+      return if revision.reload.content_blocks.any?
+
+      capture_mcp_sidecar_stderr
+      raise StepFailed, "agent didn't call submit_briefing_block"
     end
   end
 end

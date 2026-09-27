@@ -2,11 +2,15 @@ require "mcp"
 
 module OperatorBriefing
   class McpToolSet
+    include Syrus::Plugin::McpToolSet
+
     TOOL_CLASSES = [
       Tools::SubmitBriefingBlockTool,
       Tools::ReadBriefingGitDiffTool,
       Tools::ListRecentWorkflowsTool
     ].freeze
+
+    def self.available_for?(_repository) = OperatorBriefing.enabled?
 
     def self.available_for_context?(context)
       OperatorBriefing.enabled? && context.run? && context.run&.step&.kind == "briefing_generate_run"
