@@ -35,6 +35,19 @@ RSpec.describe OperatorBriefing::Workflow do
       .to eq(%w[list_briefing_topics read_briefing_topic submit_dive_report])
   end
 
+  it "uses ordinary job lifecycle propagation for briefing dive failures" do
+    parent_job = Factories.job_record(user: user, repository: repository, state: "running")
+    workflow = OperatorBriefing::DiveWorkflow.instantiate(job: parent_job)
+    investigate_step = workflow.steps.find_by!(kind: "briefing_dive_investigate")
+    run = Run.create!(job: parent_job, step: investigate_step, trigger_kind: "briefing_dive", state: "failed")
+    run.create_run_diagnostic!(error_class: "Steps::Base::StepFailed", error_message: "agent exited 1")
+
+    expect(Workflow::TriggerKind.owns_job_lifecycle?(workflow.trigger_kind)).to eq(false)
+    expect(workflow.work_definition).not_to be_manages_own_job_lifecycle
+    expect { StepDispatcher.fail_from(investigate_step) }
+      .to change { parent_job.reload.state }.from("running").to("failed")
+  end
+
   it "contributes an issueless infrastructure job kind and work definition" do
     expect(Job::Kind.infrastructure_values).to include("briefing_generate")
     expect(Job::Kind.issueless?("briefing_generate")).to be(true)
@@ -49,6 +62,7 @@ RSpec.describe OperatorBriefing::Workflow do
     dive_definition = WorkDefinitions.for("briefing_dive")
     expect(dive_definition).to be_a(OperatorBriefing::DiveWorkDefinition)
     expect(dive_definition).to be_child
+    expect(dive_definition).not_to be_manages_own_job_lifecycle
     expect(dive_definition.workflow_trigger_kind).to eq("briefing_dive")
   end
 end
