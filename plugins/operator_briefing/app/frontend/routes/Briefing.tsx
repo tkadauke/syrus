@@ -139,6 +139,9 @@ function SettingsModal({ open, onClose, payload }: { open: boolean; onClose: () 
           <SectionHeading>{t("settings")}</SectionHeading>
           <Text className="mt-1" variant="caption" tone="muted">{t("settings_description", { cadence: payload.settings.cadence_expression })}</Text>
         </div>
+        {payload.settings.budget_check_enabled && payload.settings.budget_gate.reason ? (
+          <Notice tone="warning">{t("budget_gate_unenforced", { reason: payload.settings.budget_gate.reason })}</Notice>
+        ) : null}
         <Section.Root className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <SectionHeading>{t("subscriptions")}</SectionHeading>
