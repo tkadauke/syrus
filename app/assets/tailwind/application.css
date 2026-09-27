@@ -281,6 +281,8 @@
 .chat-prose {
   font-size: 0.875rem;
   line-height: 1.5;
+  min-width: 0;
+  max-width: 100%;
   overflow-wrap: anywhere;
   word-break: normal;
 }
@@ -338,6 +340,7 @@
 .chat-prose pre {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85em;
+  max-width: 100%;
   background: var(--color-surface-raised);
   color: var(--color-text-primary);
   padding: 0.75rem 1rem;
@@ -396,6 +399,7 @@
 }
 .chat-prose th:first-child, .chat-prose td:first-child { min-width: min(10rem, 42vw); }
 .chat-prose-table-wrap {
+  min-width: 0;
   width: 100%;
   max-width: 100%;
   overflow-x: auto;

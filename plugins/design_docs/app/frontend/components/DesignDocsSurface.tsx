@@ -289,7 +289,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   }
 
   return (
-    <main aria-label={t("aria_page")} className={compact ? "space-y-4" : "mx-auto max-w-[96rem] space-y-6 p-6"}>
+    <main aria-label={t("aria_page")} className={compact ? "space-y-4" : "mx-auto max-w-[96rem] space-y-6 p-0 md:p-6"}>
       {content}
     </main>
   )
@@ -2637,6 +2637,10 @@ function nodeToMarkdown(node: ChildNode): string {
   if (node.tagName === "HR") return "---"
   if (node.tagName === "PRE") return fencedCodeMarkdown(node)
   if (node.tagName === "TABLE") return tableMarkdown(node)
+  if (node.tagName === "DIV" && node.classList.contains("chat-prose-table-wrap")) {
+    const table = node.querySelector("table")
+    return table ? tableMarkdown(table) : inlineMarkdownText(node).trim()
+  }
   if (node.tagName === "UL") return listMarkdown(node, 0)
   if (node.tagName === "OL") return listMarkdown(node, 0)
   if (node.tagName === "BLOCKQUOTE") return blockquoteMarkdown(node)
@@ -2811,7 +2815,7 @@ function renderWysiwygTable(lines: string[], index: number, offset: number, high
     .join("")
 
   return {
-    html: `<table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`,
+    html: `<div class="chat-prose-table-wrap"><table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></div>`,
     nextIndex: index,
     nextOffset: offset
   }
