@@ -183,26 +183,24 @@ exactly one of them, never both, per invocation:
   the agent CLI's own output stream and call
   `McpToolUsageRecorder.record_workflow_tool_call`/`record_chat_tool_call`
   (and their `_result` counterparts), which default `sidecar_mode` to
-  `"stdio"`. This is the only recording path for workflow steps today (no
-  workflow tool dispatch is wired onto the persistent daemon yet — see
-  `persistent_mcp_sidecar.md`), and it stays the recording path for chat
-  turns that used the stdio sidecars.
-- **Dispatch-boundary (`sidecar_mode: "persistent"`)** — chat turns routed to
-  `PersistentMcpDaemon` instead call
-  `PersistentMcpDaemon::ChatToolDispatch`, which wraps every tool call with
+  `"stdio"`. This stays the recording path for contexts that used stdio
+  sidecars.
+- **Dispatch-boundary (`sidecar_mode: "persistent"`)** — chat turns and
+  workflow runs routed to `PersistentMcpDaemon` instead call
+  `PersistentMcpDaemon::ChatToolDispatch` or
+  `PersistentMcpDaemon::WorkflowToolDispatch`, which wrap every tool call with
   `McpToolUsageRecorder.record_dispatch` right at the point the daemon
-  actually dispatches it. This is authoritative for persistent-mode chat
-  calls: `ChatTurnJob#record_transcript_mcp_usage?` skips the
-  transcript-derived path entirely for a turn whose
-  `ChatMcpTransportSelector` decision was `:persistent`, so the two paths
-  never double-count the same call. Being a synchronous request/response
-  cycle rather than an observed two-event stream, the dispatch-boundary path
-  also captures rejections a transcript would never show as a clean
-  tool_result — an invalid/expired/wrong-worker `McpInvocationContext`
-  token, or a tier/role authorization denial — as a `status: "failed"` row
-  with `error_class` set and a bounded `error_message_summary`, even when no
-  chat_session could be resolved (an invalid-context rejection happens
-  before the token's chat session is known).
+  actually dispatches it. This is authoritative for persistent-mode calls:
+  `ChatTurnJob#record_transcript_mcp_usage?` skips the transcript-derived path
+  entirely for a chat turn whose `ChatMcpTransportSelector` decision was
+  `:persistent`, and workflow persistent calls are recorded directly by the
+  daemon dispatch wrapper. Being a synchronous request/response cycle rather
+  than an observed two-event stream, the dispatch-boundary path also captures
+  rejections a transcript would never show as a clean tool_result — an
+  invalid/expired/wrong-worker `McpInvocationContext` token, or a tier/role
+  authorization denial — as a `status: "failed"` row with `error_class` set
+  and a bounded `error_message_summary`, even when no chat_session or run
+  could be resolved.
 
 `daemon_worker_id` is set alongside `sidecar_mode: "persistent"` from
 `PersistentMcpDaemon#identity`'s `worker_id` — the same stable per-worker id
