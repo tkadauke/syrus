@@ -12,6 +12,19 @@ function renderTabs(tabs: Parameters<typeof RepositoryTabs>[0]["tabs"]) {
 }
 
 describe("RepositoryTabs", () => {
+  it("scrolls horizontally instead of wrapping on narrow screens", () => {
+    renderTabs([
+      { key: "overview", label: "Overview", path: "/repositories/1" },
+      { key: "github_issues", label: "GitHub Issues", path: "/repositories/1?tab=github_issues" },
+      { key: "documents", label: "Documents", path: "/repositories/1/documents" },
+      { key: "scheduled_tasks", label: "Scheduled Tasks", path: "/repositories/1/scheduled_tasks" }
+    ])
+
+    const tabList = screen.getByRole("navigation", { name: "Repository tabs" })
+    expect(tabList).toHaveClass("overflow-x-auto", "scroll-fade-x")
+    expect(tabList).not.toHaveClass("flex-wrap")
+  })
+
   it("renders a red exclamation badge on the Health tab when the main branch is unhealthy", () => {
     renderTabs([
       { key: "overview", label: "Overview", path: "/repositories/1" },
