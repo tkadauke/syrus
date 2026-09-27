@@ -117,7 +117,7 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
       </ol>
 
       {saveError ? (
-        <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" role="alert">
+        <p className="rounded border border-danger-border bg-danger-surface px-3 py-2 text-sm text-danger-text" role="alert">
           {saveError}
         </p>
       ) : null}
@@ -136,7 +136,7 @@ function TokenStatus({ test }: { test: ProbeState }) {
   if (test.status === "idle") return null
   if (test.status === "testing") {
     return (
-      <p className="mt-2 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
+      <p className="mt-2 flex items-center gap-2 text-sm text-text-secondary" role="status">
         <Spinner /> {t('github_token.checking_token')}
       </p>
     )
@@ -150,13 +150,13 @@ function TokenStatus({ test }: { test: ProbeState }) {
 }
 
 function StatusLine({ tone, children }: { tone: "ok" | "warning" | "error"; children: React.ReactNode }) {
-  const toneClass = tone === "ok" ? "text-green-700 dark:text-green-400" : tone === "warning" ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400"
+  const toneClass = tone === "ok" ? "text-success-text" : tone === "warning" ? "text-warning-text" : "text-danger-text"
   return <p className={`mt-2 flex items-start gap-1.5 text-sm ${toneClass}`} role={tone === "ok" ? "status" : "alert"}>{children}</p>
 }
 
 function Spinner() {
   return (
-    <svg aria-hidden="true" className="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+    <svg aria-hidden="true" className="h-4 w-4 animate-spin text-text-secondary" fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" d="M4 12a8 8 0 018-8" fill="currentColor" />
     </svg>
