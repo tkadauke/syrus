@@ -20,6 +20,7 @@ const preferredOrder = [
   "getting-started",
   "concepts",
   "workflows",
+  "issue-authoring",
   "landing",
   "tests-and-graders",
   "previews",
