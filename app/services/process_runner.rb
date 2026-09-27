@@ -185,7 +185,7 @@ class ProcessRunner
     def access_mode(syscall, args, index, path_count)
       return :write if ALL_PATH_WRITE_SYSCALLS.include?(syscall)
       return index == path_count - 1 ? :write : :read if DESTINATION_WRITE_SYSCALLS.include?(syscall)
-      return write_access?(syscall, args) ? :write : :read
+      write_access?(syscall, args) ? :write : :read
     end
 
     def write_access?(syscall, args)
