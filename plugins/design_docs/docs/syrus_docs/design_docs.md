@@ -304,6 +304,13 @@ new docs with `propose_design_doc`, add anchored discussion with
 `comment_on_design_doc`, suggest edits with `suggest_design_doc_change`, and
 archive docs with `delete_design_doc`.
 
+`read_design_doc` defaults to `detail: "full"`, preserving the complete payload
+with capped Markdown, rendered Markdown, permissions, threads, comments, and
+suggestions. Callers that only need routing or freshness metadata can pass
+`detail: "summary"` to receive just DOC reference, title, state, visibility,
+current version number, pending suggestion count, open thread count, and update
+timestamp.
+
 `suggest_design_doc_change` requires `base_version_number`, copied from the
 `current_version_number` field returned by the `read_design_doc` call used to
 compute `start_offset` and `end_offset`. A successful suggestion inserts anchor
