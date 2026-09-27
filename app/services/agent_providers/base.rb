@@ -132,6 +132,7 @@ module AgentProviders
       updates[:output_tokens] = result.output_tokens if result.output_tokens
       updates[:cache_creation_input_tokens] = result.cache_creation_input_tokens if result.cache_creation_input_tokens
       updates[:cache_read_input_tokens] = result.cache_read_input_tokens if result.cache_read_input_tokens
+      updates[:cost_usd] ||= estimated_cost_usd(result) if usage_tokens?(result)
       @run.update!(updates) if updates.any?
 
       SessionStore.new(run: @run, log: log).capture!(session_capture(result))
@@ -156,6 +157,23 @@ module AgentProviders
     def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:,
               required_mcp_tools: nil, disallowed_tools: nil, model: nil, effort_level: nil)
       raise NotImplementedError, "#{self.class.name} must implement #invoke"
+    end
+
+    def estimated_cost_usd(result)
+      AgentPricing::Base.for(provider).estimate(
+        input_tokens: result.input_tokens,
+        output_tokens: result.output_tokens,
+        cache_creation_input_tokens: result.cache_creation_input_tokens,
+        cache_read_input_tokens: result.cache_read_input_tokens,
+        model: @run.model
+      )
+    end
+
+    def usage_tokens?(result)
+      result.input_tokens.present? ||
+        result.output_tokens.present? ||
+        result.cache_creation_input_tokens.present? ||
+        result.cache_read_input_tokens.present?
     end
 
     def invocation_timeout
