@@ -745,7 +745,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       end
     end
 
-    it "batches linked-PR checks once per poll and caps the issue count" do
+    it "batches linked-PR checks once per poll, caps the issue count, and leaves overflow for a later poll" do
       repository.update_columns(untagged_open_issues_checked_at: 10.minutes.ago)
       github_issues = (1..60).map { |number| issue(number: number) }
       allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **|
@@ -760,6 +760,31 @@ RSpec.describe PollRepositoryJob, :ci_only do
       expect_any_instance_of(GithubClient).not_to receive(:list_all_issues)
 
       described_class.perform_now(repository.id)
+
+      expect(Job.where(repository: repository).pluck(:issue_number)).to match_array((1..50).to_a)
+      expect(repository.reload.last_poll_started_at).to be_nil
+    end
+
+    it "does not permanently miss external PR preemption for issues beyond the per-poll lookup budget" do
+      repository.update_columns(untagged_open_issues_checked_at: 10.minutes.ago)
+      github_issues = (1..60).map { |number| issue(number: number, updated_at: 5.minutes.ago) }
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **|
+        state == "closed" ? [] : github_issues
+      end
+      allow_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues)
+        .with(repository.slug, (1..50).to_a)
+        .and_return({})
+      allow_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues)
+        .with(repository.slug, (51..60).to_a)
+        .and_return({ 51 => { number: 99, url: "https://github.com/acme/widgets/pull/99" } })
+
+      described_class.perform_now(repository.id)
+      described_class.perform_now(repository.id)
+
+      preempted = Job.find_by!(repository: repository, issue_number: 51)
+      expect(preempted).to be_implemented
+      expect(preempted.external_pr_number).to eq(99)
+      expect(repository.reload.last_poll_started_at).to be_present
     end
 
     it "skips linked-PR checks for unchanged previously checked issues" do
