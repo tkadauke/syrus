@@ -7,7 +7,7 @@ module Mcp::Tools
 
     tool_name "search_chats"
 
-    description "Search this user's prior chat messages by full-text content."
+    description "Search this user's prior chat messages by full-text content, returning each matched chat's mode and attached Job summary for triage."
 
     input_schema(
       properties: {
@@ -18,6 +18,8 @@ module Mcp::Tools
     )
 
     class << self
+      include ChatDiscoveryPayload
+
       def call(server_context:, query:, limit: 10)
         chat_session = server_context.fetch(:chat_session)
         query = query.to_s.strip
@@ -33,7 +35,8 @@ module Mcp::Tools
         )
         results = admin? ? results : reject_deleted(results)
 
-        payload = { results: results.map { |row| result_payload(row) } }
+        sessions_by_id = preload_sessions(results)
+        payload = { results: results.filter_map { |row| result_payload(row, sessions_by_id) } }
         payload[:message] = "No matching messages found." if payload[:results].empty?
 
         Mcp::Tools.success(payload)
@@ -70,18 +73,28 @@ module Mcp::Tools
         value.to_i.clamp(1, 50)
       end
 
-      def result_payload(row)
-        chat_session = ChatSession.includes(:attached_repositories).find(row.fetch(:chat_session_id))
+      def preload_sessions(results)
+        ids = results.map { |row| row.fetch(:chat_session_id) }.uniq
+        return {} if ids.empty?
+
+        ChatSession
+          .preload(:attached_repositories, attached_jobs: :repository)
+          .where(id: ids)
+          .index_by(&:id)
+      end
+
+      def result_payload(row, sessions_by_id)
+        chat_session = sessions_by_id[row.fetch(:chat_session_id)]
+        return unless chat_session
 
         payload = {
           chat_session_id: chat_session.id,
           message_id: row.fetch(:chat_message_id),
           chat_title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository),
-          repository: chat_session.repository&.slug,
           role: row.fetch(:role),
           snippet: row.fetch(:snippet),
           created_at: row.fetch(:created_at)
-        }
+        }.merge(chat_discovery_payload(chat_session))
         payload.merge!(admin_deletion_payload(row, chat_session)) if admin?
         payload
       end
