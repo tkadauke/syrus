@@ -66,6 +66,15 @@ RSpec.describe CredentialProbe do
       expect(result.details).to include(login: "ada", missing_scopes: [])
     end
 
+    it "accepts an authenticated fine-grained token without classic OAuth scopes" do
+      stub_user("github_pat_unsaved", scopes: "")
+
+      result = described_class.github_token(token: "github_pat_unsaved", required_scopes: [])
+
+      expect(result.ok).to be true
+      expect(result.details).to include(login: "ada", scopes: [], missing_scopes: [])
+    end
+
     it "is not ok and names the missing scope when under-scoped" do
       stub_user("ghp_partial", scopes: "repo")
 

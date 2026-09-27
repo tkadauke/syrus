@@ -294,11 +294,11 @@ Syrus uses two credential paths for GitHub operations:
 | **GitHub App** | When a Syrus GitHub App installation is linked to the repository owner. Used for cloning, pushing, opening PRs, and posting comments. Commits show the App bot identity. |
 | **Personal access token (PAT)** | Fallback when no App installation exists, or always for cross-owner operations such as upstream PRs in Mode 3. Commits show the user's GitHub identity. |
 
-The credential mode chosen at Job creation time (`app` or `pat`) is recorded on the Job and visible on the Job detail page. Follow-up Workflows (feedback, rebase, CI repair) reuse the same credential mode that was active when the Job was created.
+The effective credential mode (`app` or `pat`) is recorded on the Job and visible on the Job detail page. If a GitHub App call hits an authorization boundary such as a 404 and Syrus falls back to the user's PAT, Syrus records a fallback diagnostic and updates the Job to `pat` so the visible telemetry matches the credential that actually worked.
 
 For token requirements:
 
 - **App installation** — needs `Contents` (read/write) and `Pull requests` (read/write) on the target repository. Syrus administrators link an App installation from the GitHub App settings panel.
-- **PAT** — needs `repo` scope for private repositories or `public_repo` for public. Fine-grained PATs need repository access plus Contents and Pull requests read/write.
+- **PAT** — fine-grained tokens are recommended: grant access only to the repositories this Syrus instance manages, with Contents read/write and Pull requests read/write. Use an expiration you can rotate. Classic tokens need `repo` for private repositories or `public_repo` for public; `workflow` is only needed if agents must modify GitHub Actions workflow files through that token.
 
 For credential setup, see [Per-User Settings](/docs/configuration#per-user-settings) and [GitHub App and PAT Behavior](/docs/features#github-app-and-pat-behavior).

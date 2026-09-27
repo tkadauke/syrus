@@ -3,6 +3,7 @@ class GithubAuthFallbackRecorder
 
   def self.record!(repository:, installation:, operation_type:, error:, refresh_attempted:, refresh_succeeded:, run: Thread.current[:syrus_current_run])
     return unless repository && installation
+    record_effective_pat_mode!(run)
     return if recently_recorded?(
       repository: repository,
       installation: installation,
@@ -36,6 +37,16 @@ class GithubAuthFallbackRecorder
     Rails.logger.warn("[GithubAuthFallback] diagnostic write failed: #{e.class}: #{e.message}")
     nil
   end
+
+  def self.record_effective_pat_mode!(run)
+    job = run&.job
+    return unless job&.credential_mode == "app"
+
+    job.update!(credential_mode: "pat")
+  rescue => e
+    Rails.logger.warn("[GithubAuthFallback] credential_mode update failed: #{e.class}: #{e.message}")
+  end
+  private_class_method :record_effective_pat_mode!
 
   def self.recently_recorded?(repository:, installation:, operation_type:, error:, refresh_attempted:, refresh_succeeded:, run:)
     GithubAuthFallbackDiagnostic

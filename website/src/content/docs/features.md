@@ -1371,6 +1371,13 @@ etc.), repositories prefer an active GitHub App installation when one is
 linked for the repository owner. If no active installation is available,
 Syrus falls back to the user's PAT.
 
+When an App-authenticated API call later hits an authorization boundary
+such as a GitHub 404, Syrus retries with a refreshed App installation token
+once, then falls back to the user's PAT if one is available. That fallback is
+recorded as a per-repository diagnostic and, when it happens during a
+Workflow run, the Job's `credential_mode` is updated to `pat` so the visible
+telemetry reflects the credential that actually worked.
+
 Commit and pull request **authorship** is different: for an ordinary Job
 that belongs to a real person, the Job owner's own connected GitHub PAT
 wins over the shared App installation whenever one is connected, so
@@ -1391,6 +1398,14 @@ commit authored by the shared bot on behalf of a human gets a
 the human owner does not need one. Jobs persist the selected
 `credential_mode` as `app` or `pat` so operators can tell which identity
 actually authored that run's PR.
+
+For PAT setup, fine-grained tokens are recommended. Scope the token only to
+repositories this Syrus instance manages, grant repository Contents
+read/write and Pull requests read/write, and choose an expiration you can
+rotate. Classic PATs still work with `repo` for private repositories or
+`public_repo` for public repositories. The `workflow` scope is not required
+for normal Syrus operation; add it only if you expect agents to modify
+GitHub Actions workflow files through the PAT.
 
 The admin **Installations** page includes a lightweight GitHub App
 diagnostic. It shows recent installation sync status, repository-to-
