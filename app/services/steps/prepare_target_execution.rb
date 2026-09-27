@@ -71,7 +71,7 @@ module Steps
         result = ProcessRunner.new(
           env: env,
           command: [ "bash", "-c", command ],
-          chdir: workdir,
+          mounts: ProcessRunner.mounts(workdir, read_write: workspace.path),
           timeout: Steps::Prepare::PER_COMMAND_TIMEOUT,
           kind: "prepare",
           run: run,

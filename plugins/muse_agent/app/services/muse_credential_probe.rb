@@ -24,7 +24,7 @@ class MuseCredentialProbe
           "Reply with OK."
         ],
         stdin_data: user.muse_api_key,
-        chdir: workspace,
+        mounts: ProcessRunner.mounts(workspace),
         timeout: CredentialProbe::TIMEOUT_SECONDS,
         silent_timeout: 15,
         kind: "agent",
