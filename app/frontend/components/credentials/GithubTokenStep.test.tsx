@@ -40,6 +40,7 @@ describe("GithubTokenStep", () => {
     expect(screen.getByText(/Set an expiration/)).toBeInTheDocument()
     expect(screen.getByText("Contents")).toBeInTheDocument()
     expect(screen.getByText("Pull requests")).toBeInTheDocument()
+    expect(screen.getByText("Checks")).toBeInTheDocument()
     expect(screen.getByPlaceholderText("ghp_…")).toBeInTheDocument()
   })
 

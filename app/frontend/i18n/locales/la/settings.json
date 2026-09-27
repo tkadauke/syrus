@@ -884,6 +884,7 @@
     "step2_description": "Accessum da tantum receptaculis huic instantiae Syri coniunctis, deinde has permissiones receptaculi activa:",
     "scope_repo": "— legere et scribere, ad clonandum, ramos, commissa, et fasciculos legendos",
     "scope_workflow": "— legere et scribere, ad petitiones tractationis aperiendas et renovandas",
+    "scope_checks": "— legere, ad defectus CI deprehendendos",
     "step3_heading": "3. Tesseram inserere",
     "input_label": "Tessera personalis GitHub",
     "saving": "Servans…",
