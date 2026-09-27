@@ -27,6 +27,5 @@ module OperatorBriefing
       scope = scope.where("workflows.created_at > :since OR workflows.updated_at > :since OR workflows.finished_at > :since", since: since) if since.present?
       scope.exists?
     end
-
   end
 end
