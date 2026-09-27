@@ -4939,7 +4939,7 @@ describe("scratchpad panel", () => {
     expect(await screen.findByText("Check the aqueduct route")).toBeInTheDocument()
   })
 
-  it("shows a Queue button on scratchpad items", async () => {
+  it("shows a Send message button on scratchpad items when the agent is idle", async () => {
     mockChatRouteFetch(chatPayload({
       scratchpad_items: [
         { id: 1, content: "Refactor the aqueduct service", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
@@ -4948,7 +4948,24 @@ describe("scratchpad panel", () => {
     renderRoute()
 
     await screen.findByText("Refactor the aqueduct service")
+    expect(screen.getAllByRole("button", { name: "Send message" })).toHaveLength(2)
+    expect(screen.queryByRole("button", { name: "Queue" })).not.toBeInTheDocument()
+  })
+
+  it("shows a Queue button on scratchpad items when the agent is active", async () => {
+    mockChatRouteFetch({
+      ...chatPayload({
+        scratchpad_items: [
+          { id: 1, content: "Refactor the aqueduct service", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+        ]
+      }),
+      agent_busy: true
+    })
+    renderRoute()
+
+    await screen.findByText("Refactor the aqueduct service")
     expect(screen.getByRole("button", { name: "Queue" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Send message" })).not.toBeInTheDocument()
   })
 
   it("calls POST queued_messages then DELETE scratchpad item on Queue click", async () => {
@@ -4973,11 +4990,14 @@ describe("scratchpad panel", () => {
       if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
         return Promise.resolve(jsonResponse(afterDelete))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        scratchpad_items: [
-          { id: 1, content: "Refactor the aqueduct service", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
-        ]
-      })))
+      return Promise.resolve(jsonResponse({
+        ...chatPayload({
+          scratchpad_items: [
+            { id: 1, content: "Refactor the aqueduct service", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+          ]
+        }),
+        agent_busy: true
+      }))
     })
 
     renderRoute()
@@ -5032,18 +5052,21 @@ describe("scratchpad panel", () => {
       if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
         return Promise.resolve(jsonResponse(afterDelete))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        scratchpad_items: [
-          {
-            id: 1,
-            content: "",
-            text: "",
-            attachments: [queuedAttachment],
-            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
-            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
-          }
-        ]
-      })))
+      return Promise.resolve(jsonResponse({
+        ...chatPayload({
+          scratchpad_items: [
+            {
+              id: 1,
+              content: "",
+              text: "",
+              attachments: [queuedAttachment],
+              app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+              app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+            }
+          ]
+        }),
+        agent_busy: true
+      }))
     })
 
     renderRoute()
