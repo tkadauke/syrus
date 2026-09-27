@@ -9,7 +9,7 @@ module OperatorBriefing
           label: "Briefing",
           label_key: "operator_briefing:nav_briefing",
           path: "/briefing",
-          paths: [ "/briefing" ],
+          paths: [ "/briefing", "/briefing/history" ],
           component: "operator_briefing/Briefing",
           icon: "operator_briefing",
           order: 45

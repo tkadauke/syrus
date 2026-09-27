@@ -1,4 +1,4 @@
-import { Button, Notice, Page, PageHeading, Section, SectionHeading, Text, Toggle } from "@app/components/ui"
+import { Button, Modal, Notice, Page, PageHeading, Section, SectionHeading, Text, Toggle, buttonClasses } from "@app/components/ui"
 import { UnderlineTabs } from "@app/components/Tabs"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -6,7 +6,7 @@ import { useT } from "@app/hooks/useT"
 import { withRoutePrefix } from "@app/lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useSearchParams } from "react-router-dom"
 import { fetchBriefing, regenerateBriefing, updateBriefingSubscription, type BriefingBlock, type BriefingPayload, type BriefingRecord, type BriefingRepoPayload, type BriefingSubscription } from "../api/briefing"
 
 export default function BriefingRoute() {
@@ -28,27 +28,33 @@ export default function BriefingRoute() {
 function BriefingPage({ payload }: { payload: BriefingPayload }) {
   const { t } = useT("operator_briefing")
   const location = useLocation()
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [activeRepositoryId, setActiveRepositoryId] = useState<number | null>(() => payload.repositories[0]?.repository.id ?? null)
   const activeRepo = useMemo(() => {
     if (payload.repositories.length === 0) return null
     return payload.repositories.find((entry) => entry.repository.id === activeRepositoryId) ?? payload.repositories[0]
   }, [activeRepositoryId, payload.repositories])
+  const historyPath = withRoutePrefix("/briefing/history", routePrefix(location.pathname))
+
+  if (location.pathname.endsWith("/briefing/history")) {
+    return <BriefingHistoryPage payload={payload} />
+  }
 
   return (
     <Page.Root aria-label={t("aria_label")} className="space-y-5" gutter="responsive" size="wide">
       <Page.Header className="border-b border-border pb-4">
         <Text className="font-medium uppercase" variant="caption" tone="muted">{t("eyebrow")}</Text>
-        <PageHeading>{t("title")}</PageHeading>
-        <Page.Description>{t("description", { cadence: payload.settings.cadence_expression })}</Page.Description>
-      </Page.Header>
-
-      <Section.Root className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <SectionHeading>{t("subscriptions")}</SectionHeading>
-          <Text variant="caption" tone="muted">{t("subscribed_count", { count: payload.repositories.length })}</Text>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <PageHeading>{t("title")}</PageHeading>
+            <Page.Description>{t("description", { cadence: payload.settings.cadence_expression })}</Page.Description>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link className={buttonClasses("secondary", "sm")} to={historyPath}>{t("history")}</Link>
+            <Button onClick={() => setSettingsOpen(true)} size="sm" variant="secondary">{t("settings")}</Button>
+          </div>
         </div>
-        <SubscriptionGrid subscriptions={payload.subscriptions} />
-      </Section.Root>
+      </Page.Header>
 
       {payload.repositories.length === 0 ? (
         <Notice>{t("empty_enabled")}</Notice>
@@ -68,7 +74,81 @@ function BriefingPage({ payload }: { payload: BriefingPayload }) {
           {activeRepo ? <RepositoryBriefing entry={activeRepo} pathname={location.pathname} /> : null}
         </section>
       )}
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} payload={payload} />
     </Page.Root>
+  )
+}
+
+function BriefingHistoryPage({ payload }: { payload: BriefingPayload }) {
+  const { t } = useT("operator_briefing")
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const prefix = routePrefix(location.pathname)
+  const selectedId = Number(searchParams.get("briefing_id") || "")
+  const archived = payload.repositories.flatMap((entry) => entry.history.map((briefing) => ({ entry, briefing })))
+  const selected = archived.find((item) => item.briefing.id === selectedId) ?? archived[0] ?? null
+
+  return (
+    <Page.Root aria-label={t("history_aria_label")} className="space-y-5" gutter="responsive" size="wide">
+      <Page.Header className="border-b border-border pb-4">
+        <Text className="font-medium uppercase" variant="caption" tone="muted">{t("eyebrow")}</Text>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <PageHeading>{t("history")}</PageHeading>
+            <Page.Description>{t("history_description")}</Page.Description>
+          </div>
+          <Link className={buttonClasses("secondary", "sm")} to={withRoutePrefix("/briefing", prefix)}>{t("back_to_briefing")}</Link>
+        </div>
+      </Page.Header>
+
+      {archived.length === 0 ? (
+        <Notice>{t("empty_history")}</Notice>
+      ) : (
+        <div className="grid gap-5 lg:grid-cols-[minmax(220px,320px),1fr]">
+          <Section.Root className="space-y-2">
+            {archived.map(({ entry, briefing }) => (
+              <Link
+                className={`block rounded-[var(--radius-panel)] border px-3 py-2 text-sm ${selected?.briefing.id === briefing.id ? "border-brand bg-surface-raised text-text-primary" : "border-border bg-surface hover:border-brand"}`}
+                key={briefing.id}
+                to={withRoutePrefix(`/briefing/history?briefing_id=${briefing.id}`, prefix)}
+              >
+                <span className="block font-medium">{entry.repository.slug}</span>
+                <span className="block text-xs text-text-muted">{briefing.window_start && briefing.window_end ? t("window", { start: briefing.window_start.slice(0, 10), end: briefing.window_end.slice(0, 10) }) : t("window_unknown")}</span>
+              </Link>
+            ))}
+          </Section.Root>
+          {selected ? (
+            <BriefingCard briefing={selected.briefing} pathname={location.pathname} primaryHref={`/briefing/history?briefing_id=${selected.briefing.id}`} showJobLink />
+          ) : null}
+        </div>
+      )}
+    </Page.Root>
+  )
+}
+
+function SettingsModal({ open, onClose, payload }: { open: boolean; onClose: () => void; payload: BriefingPayload }) {
+  const { t } = useT("operator_briefing")
+
+  return (
+    <Modal className="max-w-2xl" label={t("settings")} onClose={onClose} open={open}>
+      <div className="space-y-4">
+        <div>
+          <SectionHeading>{t("settings")}</SectionHeading>
+          <Text className="mt-1" variant="caption" tone="muted">{t("settings_description", { cadence: payload.settings.cadence_expression })}</Text>
+        </div>
+        <Section.Root className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <SectionHeading>{t("subscriptions")}</SectionHeading>
+            <Text variant="caption" tone="muted">{t("subscribed_count", { count: payload.repositories.length })}</Text>
+          </div>
+          <SubscriptionGrid subscriptions={payload.subscriptions} />
+        </Section.Root>
+        <div className="flex justify-end">
+          <Button onClick={onClose} size="sm">{t("close_settings")}</Button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -123,38 +203,29 @@ function RepositoryBriefing({ entry, pathname }: { entry: BriefingRepoPayload; p
         </Button>
       </div>
 
-      {current ? <BriefingCard briefing={current} pathname={pathname} /> : <Notice>{t("no_current_briefing")}</Notice>}
-
-      <Section.Root className="space-y-3">
-        <SectionHeading>{t("history")}</SectionHeading>
-        {entry.history.length === 0 ? (
-          <Text tone="muted">{t("empty_history")}</Text>
-        ) : (
-          <div className="space-y-3">
-            {entry.history.map((briefing) => <BriefingCard briefing={briefing} key={briefing.id} pathname={pathname} compact />)}
-          </div>
-        )}
-      </Section.Root>
+      {current ? <BriefingCard briefing={current} pathname={pathname} /> : <Notice>{entry.status.message || t("no_current_briefing")}</Notice>}
     </div>
   )
 }
 
-function BriefingCard({ briefing, compact = false, pathname }: { briefing: BriefingRecord; compact?: boolean; pathname: string }) {
+function BriefingCard({ briefing, compact = false, pathname, primaryHref, showJobLink = false }: { briefing: BriefingRecord; compact?: boolean; pathname: string; primaryHref?: string; showJobLink?: boolean }) {
   const { t } = useT("operator_briefing")
-  const prefix = pathname.startsWith("/app-shell") ? "/app-shell" : ""
+  const prefix = routePrefix(pathname)
   const revision = briefing.latest_revision
+  const mainHref = primaryHref || briefing.job.path
 
   return (
     <Section.Root className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Link className="text-sm font-semibold text-brand hover:underline" to={withRoutePrefix(briefing.job.path, prefix)}>{briefing.job.title}</Link>
+            <Link className="text-sm font-semibold text-brand hover:underline" to={withRoutePrefix(mainHref, prefix)}>{briefing.job.title}</Link>
             <span className="rounded-full border border-border px-2 py-0.5 text-2xs font-medium uppercase text-text-muted">{briefing.live ? t("live") : t("archived")}</span>
           </div>
           <Text className="mt-1" variant="caption" tone="muted">
             {briefing.window_start && briefing.window_end ? t("window", { start: briefing.window_start.slice(0, 10), end: briefing.window_end.slice(0, 10) }) : t("window_unknown")}
           </Text>
+          {showJobLink ? <Link className="mt-1 inline-block text-xs text-brand hover:underline" to={withRoutePrefix(briefing.job.path, prefix)}>{t("view_job")}</Link> : null}
         </div>
         {revision?.generated_at ? <Text as="span" variant="caption" tone="muted"><RelativeTimestamp value={revision.generated_at} /></Text> : null}
       </div>
@@ -187,4 +258,8 @@ function BriefingBlockView({ block, prefix }: { block: BriefingBlock; prefix: st
   }
 
   return null
+}
+
+function routePrefix(pathname: string) {
+  return pathname.startsWith("/app-shell") ? "/app-shell" : ""
 }

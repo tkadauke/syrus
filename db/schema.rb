@@ -2073,6 +2073,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_130000) do
     t.index ["user_id", "repository_id"], name: "idx_operator_briefing_subscriptions_identity", unique: true
     t.index ["user_id"], name: "index_operator_briefing_subscriptions_on_user_id"
   end
+
   create_table "passkey_challenges", force: :cascade do |t|
     t.string "challenge", null: false
     t.string "challenge_type", null: false

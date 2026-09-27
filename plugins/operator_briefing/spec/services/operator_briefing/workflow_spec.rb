@@ -14,6 +14,8 @@ RSpec.describe OperatorBriefing::Workflow do
 
     expect(workflow.trigger_kind).to eq("briefing_generate")
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[prepare briefing_generate_run])
+    expect(Step::Kind.by_kind.fetch("briefing_generate_run").agentic).to eq(true)
+    expect(Step::Kind.by_kind.fetch("briefing_generate_run").required_mcp_tools).to eq(%w[submit_briefing_block])
   end
 
   it "contributes an issueless infrastructure job kind and work definition" do

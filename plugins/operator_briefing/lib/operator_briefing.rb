@@ -7,8 +7,8 @@ module OperatorBriefing
 
   syrus_plugin "operator_briefing" do
     display_name "Operator Briefing"
-    description "Per-repository operator briefings and generation controls."
-    long_description "Operator Briefing turns stored briefing items and repository activity into per-repository briefings for each operator."
+    description "Per-repository operator briefings and blocked-on-you signals."
+    long_description "Operator Briefing generates per-repository briefings for each operator. The generation agent reads repository diffs, workflow history, artifacts, and linked design docs directly, then writes structured briefing blocks for the operator."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/operator_briefing.svg"
     author "Thomas Kadauke"
@@ -17,7 +17,8 @@ module OperatorBriefing
     disableable true
     depends_on [ "design_docs" ]
 
-    provides workflow_kinds: "OperatorBriefing::WorkflowKinds",
+    provides mcp_tool_set: "OperatorBriefing::McpToolSet",
+             workflow_kinds: "OperatorBriefing::WorkflowKinds",
              sidebar_page: "OperatorBriefing::SidebarPages",
              callbacks: "OperatorBriefing::Callbacks"
     tick_interval 1.minute

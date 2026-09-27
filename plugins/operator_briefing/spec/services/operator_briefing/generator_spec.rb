@@ -24,6 +24,7 @@ RSpec.describe OperatorBriefing::Generator do
 
     expect(result).to be_created
     expect(result.job.kind).to eq("briefing_generate")
+    expect(result.job).to be_investigation
     expect(result.briefing).to have_attributes(owner_user: user, repository: repository, job: result.job)
     expect(WorkUnits::Launcher).to have_received(:create_and_start!).with(
       kind: "briefing_generate",

@@ -1,72 +1,32 @@
 module OperatorBriefing
   class GenerateRunStep < ::Steps::Base
-    RECENT_JOB_LIMIT = 5
-
     def call
-      briefing = Briefing.find_by!(job: job)
-      revision = create_revision!(briefing)
-      log("created operator briefing revision #{revision.revision_number} for #{repository.slug}")
+      workspace.setup
+      revision = create_revision!
+      persist_prompt_if_needed(revision)
+      log("invoking agent for briefing_generate_run step (#{workflow.slug})")
+      run_agent(prompt: run.prompt, required_mcp_tools: %w[submit_briefing_block])
     end
 
     private
 
-    def create_revision!(briefing)
+    def create_revision!
       briefing.revisions.create!(
         revision_number: briefing.revisions.maximum(:revision_number).to_i + 1,
         generated_at: Time.current,
         generation_run: run,
-        content_blocks: content_blocks(briefing)
+        content_blocks: []
       )
     end
 
-    def content_blocks(briefing)
-      [
-        narrative_block(briefing),
-        *recent_job_cards(briefing)
-      ]
+    def persist_prompt_if_needed(revision)
+      return if run.prompt.present?
+
+      run.update!(prompt: Prompt.new(briefing: briefing, revision: revision, user: job.user).to_s)
     end
 
-    def narrative_block(briefing)
-      jobs_count = recent_jobs_scope(briefing).count
-      text = if jobs_count.zero?
-        "No notable activity was found for #{repository.slug} in this briefing window."
-      else
-        "Briefing window for #{repository.slug}: #{jobs_count} recent Jobs."
-      end
-
-      { "kind" => "narrative", "payload" => { "text" => text } }
-    end
-
-    def recent_job_cards(briefing)
-      recent_jobs_scope(briefing).limit(RECENT_JOB_LIMIT).map do |recent_job|
-        link_card(
-          entity_type: "job",
-          entity_id: recent_job.id,
-          title: recent_job.issue_title.presence || recent_job.slug,
-          path: "/jobs/#{recent_job.id}",
-          description: "#{recent_job.kind.humanize} / #{recent_job.state}"
-        )
-      end
-    end
-
-    def link_card(entity_type:, entity_id:, title:, path:, description:)
-      {
-        "kind" => "link_card",
-        "payload" => {
-          "entity_type" => entity_type,
-          "entity_id" => entity_id,
-          "title" => title,
-          "path" => path,
-          "description" => description
-        }
-      }
-    end
-
-    def recent_jobs_scope(briefing)
-      repository.jobs
-        .where.not(kind: ActivityGate::EXCLUDED_JOB_KINDS)
-        .where("jobs.created_at >= :start_at AND jobs.created_at <= :end_at", start_at: briefing.window_start, end_at: briefing.window_end)
-        .order(created_at: :desc, id: :desc)
+    def briefing
+      @briefing ||= Briefing.find_by!(job: job)
     end
   end
 end

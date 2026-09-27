@@ -19,14 +19,17 @@ RSpec.describe OperatorBriefing::GenerateRunStep do
     )
   end
 
-  it "creates a structured revision with narrative and link-card blocks" do
-    recent_job = Job.create!(user: user, owner_user: user, repository: repository, kind: "direct", issue_number: nil, issue_title: "Refine auth", priority: "low")
+  it "creates an empty revision and invokes the agent with briefing instructions" do
+    step_handler = described_class.new(run)
+    allow(step_handler).to receive(:run_agent)
+    allow(step_handler).to receive(:workspace).and_return(double(setup: true))
 
-    described_class.new(run).call
+    step_handler.call
 
     revision = @briefing.revisions.sole
     expect(revision.generation_run).to eq(run)
-    expect(revision.content_blocks.map { |block| block.fetch("kind") }).to include("narrative", "link_card")
-    expect(revision.content_blocks.to_json).to include("Refine auth")
+    expect(revision.content_blocks).to eq([])
+    expect(run.reload.prompt).to include("read_briefing_git_diff", "list_briefing_recent_workflows", "submit_briefing_block")
+    expect(step_handler).to have_received(:run_agent).with(prompt: run.prompt, required_mcp_tools: %w[submit_briefing_block])
   end
 end
