@@ -28,7 +28,7 @@ const DEFAULT_INACTIVE_TAB_CLASS = "border-transparent text-gray-600 hover:borde
 
 export function underlineTabClass(active: boolean, className = "", activeClassName = DEFAULT_ACTIVE_TAB_CLASS, inactiveClassName = DEFAULT_INACTIVE_TAB_CLASS) {
   return [
-    "shrink-0 border-b-2 font-medium",
+    "min-w-0 shrink-0 border-b-2 font-medium",
     active ? activeClassName : inactiveClassName,
     className
   ].filter(Boolean).join(" ")
