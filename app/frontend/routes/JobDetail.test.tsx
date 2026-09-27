@@ -194,6 +194,17 @@ describe("JobDetailView", () => {
     expect(within(metadataItems[3] as HTMLElement).getByRole("link", { name: "Roadmap chat" })).toBeInTheDocument()
   })
 
+  it("does not render an empty chat metadata item when no chat affordance is available", () => {
+    renderJobDetail(jobPayload())
+
+    const metadata = screen.getByTestId("job-header-metadata")
+    const metadataItems = Array.from(metadata.children)
+    expect(metadataItems).toHaveLength(3)
+    expect(metadataItems[0]).toHaveTextContent("running")
+    expect(metadataItems[1]).toHaveTextContent("acme/widgets")
+    expect(metadataItems[2]).toHaveTextContent("codex")
+  })
+
   it("shows automatic provider failover as a tooltip on the provider pill in the job detail header", () => {
     renderJobDetail(
       jobPayload({
