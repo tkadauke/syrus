@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { fetchAdminGithubAppConfirm, fetchAdminGithubAppRegister, syncAdminGithubAppInstallations } from "../api/adminGithubApp"
+import type { BootstrapPayload } from "../api/bootstrap"
 import { ApiError } from "../api/client"
 import { openInNewTab } from "../lib/desktopShell"
 import { useT } from "../hooks/useT"
@@ -25,6 +26,12 @@ export function GithubAppPanel({
   const [awaiting, setAwaiting] = useState(false)
   const [awaitingInstall, setAwaitingInstall] = useState(false)
   const [popupBlocked, setPopupBlocked] = useState<string | null>(null)
+  const onSavedRef = useRef(onSaved)
+  const registrationSavedRef = useRef(false)
+
+  useEffect(() => {
+    onSavedRef.current = onSaved
+  }, [onSaved])
 
   // Fetched once: generates the manifest + the session state GitHub echoes
   // back to the callback. Refetching would rotate that state, so keep it stable.
@@ -52,11 +59,25 @@ export function GithubAppPanel({
   // Once the App is registered, the GitHub step is satisfied — refresh
   // bootstrap so the checklist marks it complete, and stop polling.
   useEffect(() => {
-    if (!registered) return
+    if (!registered || registrationSavedRef.current) return
+    registrationSavedRef.current = true
     setAwaiting(false)
+    queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => {
+      if (!current?.setup_status) return current
+      return {
+        ...current,
+        setup_status: {
+          ...current.setup_status,
+          credential_status: {
+            ...current.setup_status.credential_status,
+            github_app: true
+          }
+        }
+      }
+    })
     void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
-    onSaved?.()
-  }, [registered])
+    onSavedRef.current?.()
+  }, [queryClient, registered])
 
   // Installations are only discovered by polling GitHub (Syrus has no
   // webhooks) — while the operator is on GitHub's install page, keep asking

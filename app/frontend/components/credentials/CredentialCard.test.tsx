@@ -78,6 +78,9 @@ function mockRoutes(routes: {
   patch?: () => Response
   claudePreflight?: () => Response
   githubProbe?: () => Response
+  githubAppRegister?: () => Response
+  githubAppConfirm?: () => Response
+  githubAppSync?: () => Response
   codexStart?: () => Response
   codexExchange?: () => Response
 } = {}) {
@@ -88,6 +91,9 @@ function mockRoutes(routes: {
     if (url.endsWith("/clear_credential")) return routes.clear?.() ?? jsonResponse(makePayload())
     if (url.endsWith("/test_claude_cli")) return routes.claudePreflight?.() ?? jsonResponse({ credential_test: { credential: "claude_oauth_token", ok: false, message: "Not yet.", details: {} } })
     if (url.endsWith("/test_github_token")) return routes.githubProbe?.() ?? jsonResponse({ credential_test: { ok: false, message: "", details: {} } })
+    if (url.includes("/admin/github_app/register")) return routes.githubAppRegister?.() ?? jsonResponse({ github_app: { registered: false, id: null, slug: null, registered_at: null, install_url: null, installations: [] }, bounce_url: "https://github.com/settings/apps/new?state=abc", submit_label: "Register GitHub App" })
+    if (url.endsWith("/admin/github_app/confirm")) return routes.githubAppConfirm?.() ?? jsonResponse({ github_app: { registered: false, id: null, slug: null, registered_at: null, install_url: null, installations: [] } })
+    if (url.endsWith("/admin/github_app/sync_installations")) return routes.githubAppSync?.() ?? jsonResponse({ enqueued: true })
     if (url.endsWith("/codex_oauth_start")) return routes.codexStart?.() ?? jsonResponse({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc", listener_started: true })
     if (url.endsWith("/codex_oauth_exchange")) return routes.codexExchange?.() ?? jsonResponse({ credential_test: { credential: "codex_auth_json", ok: true, message: "Codex ChatGPT auth.json is valid.", details: {} } })
     if (url.endsWith("/credentials") && method === "GET") return jsonResponse(makePayload())
@@ -150,6 +156,35 @@ describe("GithubCredentialCard", () => {
 
     expect(screen.getByText("GitHub App not registered")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Set up GitHub App" })).toBeInTheDocument()
+  })
+
+  it("updates the card badge when the expanded GitHub App panel confirms registration", async () => {
+    mockRoutes({
+      githubAppRegister: () => jsonResponse({
+        github_app: { registered: false, id: null, slug: null, registered_at: null, install_url: null, installations: [] },
+        bounce_url: "https://github.com/settings/apps/new?state=abc",
+        submit_label: "Register GitHub App"
+      }),
+      githubAppConfirm: () => jsonResponse({
+        github_app: {
+          registered: true,
+          id: 42,
+          slug: "operator-syrus",
+          registered_at: "2026-09-27T00:00:00Z",
+          install_url: "https://github.com/apps/operator-syrus/installations/new",
+          installations: []
+        }
+      })
+    })
+    const bootstrap = { setup_status: { first_successful_job_completed: true, credential_status: { github: true, github_pat: true, github_app: false, agent: true, active_agent_provider: "claude" } } }
+    renderCard(<GithubCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { github_token: true }, admin: true })} />, { bootstrap })
+
+    expect(screen.getByText("GitHub App not registered")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Set up GitHub App" }))
+
+    expect(await screen.findByText("The Syrus GitHub App is registered.")).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText("GitHub App not registered")).not.toBeInTheDocument())
+    expect(screen.getByText("GitHub App registered")).toBeInTheDocument()
   })
 
   it("hides the GitHub App action from non-admins and shows registered state", () => {
