@@ -458,6 +458,8 @@
     "polling_enabled": "activum",
     "polling_paused": "intermissum",
     "poll_failed": "defecit",
+    "poll_quarantined_one": "1 exitus segregatus",
+    "poll_quarantined_other": "{{count}} exitus segregati",
     "poll_ok": "bene"
   },
   "repository": {
@@ -470,6 +472,8 @@
     "count_failed_7d": "defecit 7d",
     "polling_enabled": "interrogatio activa",
     "polling_paused": "interrogatio pausata",
+    "poll_quarantined_one": "1 exitus segregatus",
+    "poll_quarantined_other": "{{count}} exitus segregati",
     "recommended_actions": "Actiones commendatae",
     "recommendation_job_created": "Opus commendationis creatum est.",
     "tip_position": "Consilium {{index}} ex {{count}}",
@@ -486,6 +490,7 @@
     "syrus_owner": "Dominus Syri",
     "added": "Additum",
     "github_quota": "Quota GitHub",
+    "poll_issue_errors": "Errores exitus interrogationis",
     "credential": "Testimonium",
     "syrus_app_via": "Applicatio Syri per {{account}}",
     "new_job": "Officium Novum",
