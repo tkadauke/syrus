@@ -395,6 +395,39 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(old_group["chats"].map { |chat| chat["id"] }).to eq([ old_chat.id ])
   end
 
+  it "paginates date groups in the sidebar index" do
+    sign_in_as(user)
+    chats = 26.times.map do |index|
+      timestamp = index.days.ago
+      chat = ChatSession.create!(
+        user: user,
+        title: "Dated chat #{index}",
+        last_message_at: timestamp
+      )
+      chat.update_columns(created_at: timestamp, updated_at: timestamp)
+      chat
+    end
+
+    get "/api/v1/app/chats", params: { group_by: "date" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["groups"].size).to eq(24)
+    expect(body["groups_has_more"]).to eq(true)
+    expect(body["groups_next_offset"]).to eq(24)
+    expect(body["groups"].first["chats"].map { |chat| chat["id"] }).to eq([ chats.first.id ])
+    expect(body["groups"].last["chats"].map { |chat| chat["id"] }).to eq([ chats[23].id ])
+
+    get "/api/v1/app/chats", params: { group_by: "date", group_offset: "24" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["groups"].size).to eq(2)
+    expect(body["groups_has_more"]).to eq(false)
+    expect(body["groups_next_offset"]).to be_nil
+    expect(body["groups"].flat_map { |group| group["chats"].map { |chat| chat["id"] } }).to eq(chats.last(2).map(&:id))
+  end
+
   it "loads initial sidebar chat groups without one chat query per repository" do
     sign_in_as(user)
     8.times do |index|
@@ -567,6 +600,21 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(groups.keys).to include("status-active", "status-hidden")
     expect(groups.fetch("status-active")["chats"]).to eq([])
     expect(groups.fetch("status-hidden")["chats"].map { |chat| chat["title"] }).to eq([ "Only hidden" ])
+  end
+
+  it "includes empty sidebar groups when no chats match the first group page" do
+    sign_in_as(user)
+    repository
+
+    get "/api/v1/app/chats", params: { group_by: "repository", show_empty_groups: "1" }
+
+    expect(response).to have_http_status(:ok)
+    groups = parse_body["groups"].index_by { |group| group["key"] }
+    expect(groups.keys).to include("general", "repository-#{repository.id}")
+    expect(groups.fetch("general")["chats"]).to eq([])
+    expect(groups.fetch("repository-#{repository.id}")["chats"]).to eq([])
+    expect(parse_body["groups_has_more"]).to eq(false)
+    expect(parse_body["groups_next_offset"]).to be_nil
   end
 
   it "sorts sidebar chats by name within pinned bands" do
