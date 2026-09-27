@@ -41,6 +41,7 @@ import {
 } from "./selfInstall.js"
 import { maybeProvisionDesktopToken } from "./tokenProvisioner.js"
 import { paintUnreadDot } from "./trayBadge.js"
+import { desktopCommandEnvironment } from "./shellEnvironment.js"
 import { createOnboardingWindow } from "./windows/onboardingWindow.js"
 import { resolveInstanceOrigin, resolveOpenInSyrusTarget } from "./windows/openInSyrusTarget.js"
 import { computePopoverPosition } from "./windows/popoverPosition.js"
@@ -1481,7 +1482,11 @@ const checkoutJob = async ({ jobRef, repoSlug, branchName, extraArgs }: Checkout
     // resolve to the stable profile and act against the production instance.
     // cliBinaryName() fails safe with ENOENT instead.
     const cliBinary = (await syrusCliBinary()) ?? cliBinaryName()
-    await execFileAsync(cliBinary, ["checkout", jobRef, ...(extraArgs ?? [])], { cwd: localPath, windowsHide: true })
+    await execFileAsync(cliBinary, ["checkout", jobRef, ...(extraArgs ?? [])], {
+      cwd: localPath,
+      env: await desktopCommandEnvironment(),
+      windowsHide: true
+    })
     setLastUsedRepo(repoSlug)
     return { branchName }
   } catch (error) {
@@ -1549,7 +1554,11 @@ const localStatus = async (): Promise<LocalStatus | null> => {
       // Channel-correct fallback (see checkoutJob): never the hardcoded stable
       // `syrus`, so a test build can't read production's local status.
       const statusBinary = (await syrusCliBinary()) ?? cliBinaryName()
-      const { stdout } = await execFileAsync(statusBinary, ["status", "--json"], { cwd: localPath, windowsHide: true })
+      const { stdout } = await execFileAsync(statusBinary, ["status", "--json"], {
+        cwd: localPath,
+        env: await desktopCommandEnvironment(),
+        windowsHide: true
+      })
       const status = parseLocalStatus(stdout)
       if (status) {
         return status
