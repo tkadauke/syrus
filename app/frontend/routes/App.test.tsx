@@ -12832,15 +12832,12 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     await screen.findByText("Provider")
-    fireEvent.change(screen.getByLabelText("Chat provider"), { target: { value: "codex" } })
-
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+    expect(screen.getByText("Claude")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalledWith(
       "/api/v1/app/chats/8/switch_provider",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ provider: "codex" })
-      })
-    ))
+      expect.anything()
+    )
   })
 
   it("opens the bug report dialog from the /report slash command with transcript opt-in", async () => {
