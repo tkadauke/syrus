@@ -230,6 +230,9 @@ module ChatIndexPayload
     group_page = chat_index_group_page
     @chat_index_groups_has_more = group_page.fetch(:has_more)
     page_keys = group_page.fetch(:keys)
+    if page_keys.empty? && chat_index_settings.fetch(:show_empty_groups) && chat_index_group_offset.zero?
+      return chat_index_empty_group_specs(repositories_by_id: {})
+    end
     return [] if page_keys.empty?
 
     rows = chat_index_initial_group_rows

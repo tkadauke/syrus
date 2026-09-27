@@ -602,6 +602,21 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(groups.fetch("status-hidden")["chats"].map { |chat| chat["title"] }).to eq([ "Only hidden" ])
   end
 
+  it "includes empty sidebar groups when no chats match the first group page" do
+    sign_in_as(user)
+    repository
+
+    get "/api/v1/app/chats", params: { group_by: "repository", show_empty_groups: "1" }
+
+    expect(response).to have_http_status(:ok)
+    groups = parse_body["groups"].index_by { |group| group["key"] }
+    expect(groups.keys).to include("general", "repository-#{repository.id}")
+    expect(groups.fetch("general")["chats"]).to eq([])
+    expect(groups.fetch("repository-#{repository.id}")["chats"]).to eq([])
+    expect(parse_body["groups_has_more"]).to eq(false)
+    expect(parse_body["groups_next_offset"]).to be_nil
+  end
+
   it "sorts sidebar chats by name within pinned bands" do
     sign_in_as(user)
     beta = ChatSession.create!(user: user, repository: repository, title: "Beta", last_message_at: 1.minute.ago)
