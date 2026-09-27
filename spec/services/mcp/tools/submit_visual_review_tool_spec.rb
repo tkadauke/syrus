@@ -16,6 +16,22 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
   end
 
   it "accepts a run_id-only sidecar context" do
+    allow(Syrus::Events).to receive(:known?).and_call_original
+    allow(Syrus::Events).to receive(:known?).with("operator_briefing.review_finding_recorded").and_return(true)
+    expect(Syrus::Events).to receive(:publish).with(
+      "operator_briefing.review_finding_recorded",
+      hash_including(
+        workflow_id: run.workflow_id,
+        step_id: run.step_id,
+        run_id: run.id,
+        review_kind: "visual",
+        iteration: run.step.iteration,
+        verdict: "approved",
+        critique: "No visual issues found.",
+        artifacts: []
+      )
+    ).and_call_original
+
     described_class.call(
       critique: "No visual issues found.",
       verdict: "approved",

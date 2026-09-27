@@ -1,0 +1,12 @@
+module OperatorBriefing
+  class BriefingItem < ApplicationRecord
+    self.table_name = "operator_briefing_items"
+
+    SEVERITIES = OperatorBriefing::SEVERITIES
+
+    belongs_to :source, polymorphic: true, optional: true
+
+    validates :severity, presence: true, inclusion: { in: SEVERITIES }
+    validates :narrative, presence: true
+  end
+end

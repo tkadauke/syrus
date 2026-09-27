@@ -44,15 +44,24 @@ module Mcp::Tools
 
         workflow = run.workflow
         iterations = Array(workflow.artifact("visual_review_iterations"))
+        artifacts = visual_artifacts_for_run(workflow, run)
         iterations << {
           "iteration" => run.step.iteration,
           "step_id" => run.step_id,
           "run_id" => run.id,
           "critique" => normalized_critique,
           "verdict" => normalized_verdict,
-          "artifacts" => visual_artifacts_for_run(workflow, run)
+          "artifacts" => artifacts
         }
         workflow.set_artifact!("visual_review_iterations", iterations)
+        record_review_finding(
+          workflow: workflow,
+          run: run,
+          iteration: run.step.iteration,
+          critique: normalized_critique,
+          verdict: normalized_verdict,
+          artifacts: artifacts
+        )
         Mcp::Tools.write_log(run, "[mcp] submit_visual_review received: #{normalized_verdict}")
 
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
@@ -79,6 +88,24 @@ module Mcp::Tools
             "created_at" => entry["created_at"]
           }
         end
+      end
+
+      def record_review_finding(workflow:, run:, iteration:, critique:, verdict:, artifacts:)
+        return unless Syrus::Events.known?("operator_briefing.review_finding_recorded")
+
+        Syrus::Events.publish(
+          "operator_briefing.review_finding_recorded",
+          workflow_id: workflow.id,
+          step_id: run.step_id,
+          run_id: run.id,
+          review_kind: "visual",
+          iteration: iteration,
+          verdict: verdict,
+          critique: critique,
+          artifacts: artifacts
+        )
+      rescue StandardError => e
+        Rails.logger.warn("[Mcp::Tools::SubmitVisualReviewTool] review finding record failed: #{e.class}: #{e.message}")
       end
     end
   end
