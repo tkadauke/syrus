@@ -246,8 +246,8 @@ module Prompts
           - `propose_epic` always rejects now -- a confirmed Epic with
             zero child Jobs implements nothing, so every Epic proposal
             must include at least one child Job. Use
-            `propose_epic_with_jobs` instead, even for a single child
-            Job.
+            `propose_epic_with_jobs` instead when you are proposing a
+            new Epic.
           - `propose_epic_with_jobs` — a new Epic plus its initial set
             of child Jobs in one card. Use when the decomposition is
             tight enough that the operator can review the whole shape
@@ -265,6 +265,17 @@ module Prompts
             `list_job_workflows` to confirm no active `chat_feedback`
             workflow is already running. Only propose feedback after both
             checks pass and the operator has agreed on the change.
+
+        Avoid proposing a single-child-Job Epic. When a piece of work
+        only decomposes into one Job, use `propose_job` directly -- with
+        `epic_id` if it genuinely belongs under an existing multi-Job
+        Epic -- rather than wrapping it in a brand-new Epic of its own.
+        Reserve `propose_epic_with_jobs` for real multi-Job
+        decompositions. Once merge trains are enabled, an Epic occupies
+        a repository landing slot for a roughly fixed landing pipeline
+        cost regardless of member count, and Syrus's own epicless
+        bundle floor (`MIN_BUNDLE_SIZE = 2`) already treats one-member
+        landing units as not worth that cost.
 
         When the operator gives a specific chat id — as `CHAT-<id>` or a
         bare number — call `read_chat_messages(chat_session_id: id)`
