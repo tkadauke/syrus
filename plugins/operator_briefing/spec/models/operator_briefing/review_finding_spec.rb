@@ -14,8 +14,12 @@ RSpec.describe OperatorBriefing::ReviewFinding, type: :model do
       review_kind: "visual",
       iteration: 1,
       verdict: "needs_work",
-      critique: "Button overlaps."
+      critique: "Button overlaps.",
+      skipped: true,
+      skip_reason: "manual_skip"
     )
+
+    expect(first.reload).to have_attributes(skipped: true, skip_reason: "manual_skip")
 
     described_class.record!(
       workflow: workflow,

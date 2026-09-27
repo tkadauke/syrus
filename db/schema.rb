@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_27_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_120950) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2034,6 +2034,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_080000) do
     t.datetime "overridden_at"
     t.string "review_kind", null: false
     t.integer "run_id"
+    t.string "skip_reason"
+    t.boolean "skipped", default: false, null: false
     t.integer "step_id"
     t.datetime "updated_at", null: false
     t.string "verdict", null: false

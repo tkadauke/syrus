@@ -91,21 +91,16 @@ module Mcp::Tools
       end
 
       def record_review_finding(workflow:, run:, iteration:, critique:, verdict:, artifacts:)
-        return unless Syrus::Events.known?("operator_briefing.review_finding_recorded")
-
-        Syrus::Events.publish(
-          "operator_briefing.review_finding_recorded",
-          workflow_id: workflow.id,
-          step_id: run.step_id,
-          run_id: run.id,
+        ReviewFindingEvents.record(
+          workflow: workflow,
+          step: run.step,
+          run: run,
           review_kind: "visual",
           iteration: iteration,
           verdict: verdict,
           critique: critique,
           artifacts: artifacts
         )
-      rescue StandardError => e
-        Rails.logger.warn("[Mcp::Tools::SubmitVisualReviewTool] review finding record failed: #{e.class}: #{e.message}")
       end
     end
   end

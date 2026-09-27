@@ -30,7 +30,9 @@ module OperatorBriefing
         iteration: event[:iteration],
         verdict: event[:verdict],
         critique: event[:critique],
-        artifacts: event[:artifacts] || []
+        artifacts: event[:artifacts] || [],
+        skipped: event[:skipped] || false,
+        skip_reason: event[:skip_reason]
       )
     end
   end

@@ -47,7 +47,9 @@ RSpec.describe OperatorBriefing::Subscribers do
         review_kind: "adversarial",
         iteration: 1,
         verdict: "needs_work",
-        critique: "Missing edge case."
+        critique: "Missing edge case.",
+        skipped: true,
+        skip_reason: "missing_required_tool_call"
       }
     )
 
@@ -59,7 +61,9 @@ RSpec.describe OperatorBriefing::Subscribers do
       run: run,
       review_kind: "adversarial",
       verdict: "needs_work",
-      critique: "Missing edge case."
+      critique: "Missing edge case.",
+      skipped: true,
+      skip_reason: "missing_required_tool_call"
     )
   end
 end

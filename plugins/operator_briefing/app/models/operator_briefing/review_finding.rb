@@ -16,7 +16,7 @@ module OperatorBriefing
 
     scope :overridden, -> { where(overridden: true) }
 
-    def self.record!(workflow:, review_kind:, iteration:, verdict:, critique:, step: nil, run: nil, artifacts: [])
+    def self.record!(workflow:, review_kind:, iteration:, verdict:, critique:, step: nil, run: nil, artifacts: [], skipped: false, skip_reason: nil)
       transaction do
         finding = find_or_initialize_by(
           workflow: workflow,
@@ -29,7 +29,9 @@ module OperatorBriefing
           run: run,
           verdict: verdict,
           critique: critique,
-          artifacts: artifacts || []
+          artifacts: artifacts || [],
+          skipped: skipped,
+          skip_reason: skip_reason
         )
         finding.save!
         mark_prior_findings_overridden!(workflow: workflow, review_kind: review_kind) if verdict != "needs_work"
