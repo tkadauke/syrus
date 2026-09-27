@@ -7,6 +7,11 @@ class SystemAlertDelivery
     new(alerts).deliver
   end
 
+  def self.configured?
+    ENV["SYRUS_ALERT_WEBHOOK_URL"].to_s.strip.present? ||
+      ENV["SYRUS_ALERT_EMAIL_TO"].to_s.split(",").map(&:strip).reject(&:blank?).any?
+  end
+
   def initialize(alerts)
     @alerts = Array(alerts)
   end
@@ -36,7 +41,7 @@ class SystemAlertDelivery
   attr_reader :alerts
 
   def configured?
-    webhook_url.present? || email_to.any?
+    self.class.configured?
   end
 
   def alarm_alerts

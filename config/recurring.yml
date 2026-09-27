@@ -81,6 +81,10 @@ default: &default
     class: SampleGlobalMetricsJob
     queue: control_plane
     schedule: every minute
+  deliver_system_alerts:
+    class: SystemAlertDeliveryJob
+    queue: control_plane
+    schedule: every minute
   prune_operational_logs:
     class: PruneOperationalLogsJob
     queue: cleanup
