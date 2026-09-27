@@ -11,14 +11,15 @@ RSpec.describe PullRequestMerger do
     fake_client = instance_double(GithubClient, merge_pull_request: merge_result)
 
     merger = described_class.new(repository, client: fake_client)
-    result = merger.merge(pr_number: 7, commit_title: "Merge acme/widgets#7 via Syrus")
+    result = merger.merge(pr_number: 7, commit_title: "Merge acme/widgets#7 via Syrus", expected_sha: "headsha123")
 
     expect(result).to eq(merge_result)
     expect(fake_client).to have_received(:merge_pull_request).with(
       "acme/widgets",
       7,
       commit_title: "Merge acme/widgets#7 via Syrus",
-      merge_method: "rebase"
+      merge_method: "rebase",
+      sha: "headsha123"
     )
   end
 
@@ -28,6 +29,7 @@ RSpec.describe PullRequestMerger do
     described_class.new(repository, client: fake_client).merge(
       pr_number: 7,
       commit_title: "Merge acme/widgets#7 via Syrus",
+      expected_sha: "headsha123",
       merge_method: "squash"
     )
 
@@ -35,8 +37,17 @@ RSpec.describe PullRequestMerger do
       "acme/widgets",
       7,
       commit_title: "Merge acme/widgets#7 via Syrus",
-      merge_method: "squash"
+      merge_method: "squash",
+      sha: "headsha123"
     )
+  end
+
+  it "requires the expected head SHA so callers bind the merge to what they validated" do
+    fake_client = instance_double(GithubClient)
+
+    expect do
+      described_class.new(repository, client: fake_client).merge(pr_number: 7, commit_title: "Merge acme/widgets#7 via Syrus", expected_sha: nil)
+    end.to raise_error(ArgumentError, /expected_sha/)
   end
 
   it "propagates GitHub errors instead of swallowing them, leaving retry/rescue policy to the caller" do
@@ -44,7 +55,7 @@ RSpec.describe PullRequestMerger do
     allow(fake_client).to receive(:merge_pull_request).and_raise(Octokit::Conflict.new(status: 409, body: { message: "conflict" }))
 
     expect do
-      described_class.new(repository, client: fake_client).merge(pr_number: 7, commit_title: "Merge acme/widgets#7 via Syrus")
+      described_class.new(repository, client: fake_client).merge(pr_number: 7, commit_title: "Merge acme/widgets#7 via Syrus", expected_sha: "headsha123")
     end.to raise_error(Octokit::Conflict)
   end
 end
