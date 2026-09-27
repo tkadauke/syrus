@@ -11,7 +11,7 @@ const REPO = "tkadauke/syrus";
 const latestAsset = (name: string) =>
   `https://github.com/${REPO}/releases/latest/download/${name}`;
 
-export type Platform = "mac" | "windows";
+export type Platform = "mac";
 
 export type DownloadArtifact = {
   id: Platform;
@@ -33,14 +33,6 @@ export const downloads: DownloadArtifact[] = [
     filename: "Syrus.dmg",
     url: latestAsset("Syrus.dmg"),
     size: data.mac?.size ?? null,
-  },
-  {
-    id: "windows",
-    osLabel: "Windows",
-    archLabel: "64-bit (x64) · beta",
-    filename: "Syrus-Setup.exe",
-    url: latestAsset("Syrus-Setup.exe"),
-    size: data.windows?.size ?? null,
   },
 ];
 

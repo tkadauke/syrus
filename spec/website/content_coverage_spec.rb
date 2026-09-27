@@ -22,7 +22,7 @@ RSpec.describe "website content coverage" do
   it "has current Next.js surfaces for the basic visitor questions" do
     pages = {
       "src/app/page.tsx" => ["<Hero", "<TeamWorkflow", "<Features", "<EntryPoints", "<Demo"],
-      "src/app/download/page.tsx" => ["Download Syrus", "macOS", "Windows", "CLI"],
+      "src/app/download/page.tsx" => ["Download Syrus", "macOS", "Apple Silicon", "Intel"],
       "lib/site.ts" => [
         "Ship more of your roadmap.",
         "Proposes epics & tickets",

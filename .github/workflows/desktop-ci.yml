@@ -6,14 +6,12 @@ on:
     paths:
       - "desktop/**"
       - "install.sh"
-      - "install.ps1"
       - ".github/workflows/desktop-ci.yml"
   push:
     branches: [main]
     paths:
       - "desktop/**"
       - "install.sh"
-      - "install.ps1"
       - ".github/workflows/desktop-ci.yml"
 
 permissions:
@@ -75,77 +73,3 @@ jobs:
           set -e
           [[ "$CODE" == "2" ]] || { echo "::error::expected exit 2, got $CODE"; exit 1; }
           echo "$OUT" | jq -e '.event == "error" and .code == 2' >/dev/null
-
-  # install.ps1 targets Windows PowerShell 5.1 — the inbox shell nothing off
-  # Windows can run (the parity spec covers the shared contract strings;
-  # this covers actual 5.1 parsing and the NDJSON protocol on a real
-  # windows-latest runner via powershell.exe, which IS 5.1).
-  installer-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: PowerShell 5.1 parse check
-        shell: powershell
-        run: |
-          $tokens = $null; $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile("$PWD\install.ps1", [ref]$tokens, [ref]$errors) | Out-Null
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Host "::error::$($_.Message) at line $($_.Extent.StartLineNumber)" }
-            exit 1
-          }
-          Write-Host "AST parse clean under $($PSVersionTable.PSVersion)"
-
-      - name: Smoke-test the machine interface (usage error speaks NDJSON)
-        shell: powershell
-        run: |
-          # The child's stderr must never touch this shell's error stream:
-          # PS 5.1 turns redirected native stderr into ErrorRecords, which
-          # either terminate (runner-prepended EAP=Stop → NativeCommandError)
-          # or silently flip -Command mode's HadErrors → exit 1 AFTER every
-          # assertion passed. cmd owns the redirection instead — no
-          # ErrorRecords can exist. Same trap install.ps1's Invoke-NativeQuiet
-          # documents.
-          $out = cmd /c "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File install.ps1 --json --non-interactive 2>nul"
-          $code = $LASTEXITCODE
-          if ($code -ne 2) { Write-Host "::error::expected exit 2, got $code"; exit 1 }
-          $lines = @($out | Where-Object { $_ -ne "" })
-          if ($lines.Count -ne 1) { Write-Host "::error::expected exactly one NDJSON line, got $($lines.Count)"; exit 1 }
-          $event = $lines[0] | ConvertFrom-Json
-          if ($event.event -ne "error" -or $event.code -ne 2) { Write-Host "::error::unexpected event: $($lines[0])"; exit 1 }
-          Write-Host "usage error spoke NDJSON with exit 2"
-          exit 0
-
-      # Dynamic docker-flow case, mirroring spec/desktop/install_sh_gui_spec.rb's
-      # stubbed-docker runs on the bash side: a healthy stub runtime plus an
-      # existing data volume with no .env must trip the encryption-key guard
-      # (exit 20, NDJSON error event on the env_check step).
-      - name: Volume guard fires over the machine interface (stubbed docker)
-        shell: powershell
-        run: |
-          $stub = Join-Path $env:RUNNER_TEMP "docker-stub"
-          New-Item -ItemType Directory -Force -Path $stub | Out-Null
-          # Exit-0 stub: `docker info`, `docker compose version`, and
-          # `docker volume inspect syrus_syrus-data` all "succeed", so the
-          # script sees a healthy runtime AND an existing data volume.
-          Set-Content -Path (Join-Path $stub "docker.bat") -Value "@echo off", "exit /b 0" -Encoding ASCII
-          $env:PATH = "$stub;$env:PATH"
-          $target = Join-Path $env:RUNNER_TEMP "syrus-guard-test"
-          # cmd owns the stderr redirection — see the smoke-test step.
-          $out = cmd /c "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File install.ps1 --docker --json --non-interactive --skip-runtime-install --target-dir ""$target"" 2>nul"
-          $code = $LASTEXITCODE
-          if ($code -ne 20) { Write-Host "::error::expected exit 20 (volume guard), got $code"; Write-Host ($out -join "`n"); exit 1 }
-          $last = @($out | Where-Object { $_ -ne "" })[-1] | ConvertFrom-Json
-          if ($last.event -ne "error" -or $last.code -ne 20) { Write-Host "::error::unexpected final event: $last"; exit 1 }
-          Write-Host "volume guard fired with exit 20 over NDJSON"
-          exit 0
-
-      - name: Help lists the GUI flags and exit codes
-        shell: powershell
-        run: |
-          $help = powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File install.ps1 --help
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::--help exited $LASTEXITCODE"; exit 1 }
-          $text = $help -join "`n"
-          foreach ($needle in @("--non-interactive", "--json", "--target-dir", "--skip-runtime-install", "--image", "--port", "Exit codes:")) {
-            if ($text -notlike "*$needle*") { Write-Host "::error::--help output is missing '$needle'"; exit 1 }
-          }

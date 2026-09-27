@@ -19,11 +19,10 @@ RSpec.describe "desktop auto-update and release pipeline" do
   let(:app_updates) { read(desktop_root, "electron/appUpdates.ts") }
   let(:main_process) { read(desktop_root, "electron/main.ts") }
   let(:release_workflow) { read(repo_root, ".github/workflows/release.yml") }
-  # The build/sign spine (build-backend, merge-backend, build-cli, build-mac,
-  # build-windows) lives in the reusable module both Release and Test build
-  # call; release.yml is the thin caller that owns prepare + publish. Assertions
-  # about how a component is built read the module; publish assertions read
-  # release.yml.
+  # The build/sign spine (build-backend, merge-backend, build-cli, build-mac)
+  # lives in the reusable module both Release and Test build call; release.yml
+  # is the thin caller that owns prepare + publish. Assertions about how a
+  # component is built read the module; publish assertions read release.yml.
   let(:build_workflow) { read(repo_root, ".github/workflows/_build-app.yml") }
   let(:ci_workflow) { read(repo_root, ".github/workflows/desktop-ci.yml") }
 
@@ -112,7 +111,7 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(workflow.dig("jobs", "build", "uses")).to eq("./.github/workflows/_build-app.yml")
     build_workflow_yaml = YAML.safe_load(build_workflow)
     expect(build_workflow_yaml["jobs"].keys).to include(
-      "build-backend", "merge-backend", "build-cli", "build-mac", "build-windows"
+      "build-backend", "merge-backend", "build-cli", "build-mac"
     )
     # Atomic: publish waits for the whole build spine (the single `build` job)
     # and is skipped on a dry run, so a failure means nothing is tagged,
@@ -124,11 +123,10 @@ RSpec.describe "desktop auto-update and release pipeline" do
 
   it "release workflow only ships signed builds and STAGES them (never publishes mid-build)" do
     # Signing is a hard requirement — even a dry run signs (it's the fragile
-    # part worth rehearsing). Both platform guards refuse to build without it,
-    # and forceCodeSigning turns electron-builder's silent skip into a failure.
-    # These build/sign steps live in the shared module.
-    expect(build_workflow.scan("A signed build is required").length).to be >= 2
-    expect(build_workflow.scan("-c.forceCodeSigning=true").length).to be >= 2
+    # part worth rehearsing). The macOS guard refuses to build without it, and
+    # forceCodeSigning turns electron-builder's silent skip into a failure.
+    expect(build_workflow.scan("A signed build is required").length).to be >= 1
+    expect(build_workflow.scan("-c.forceCodeSigning=true").length).to be >= 1
     # The signed build/sign steps are NOT gated on a real run — dry runs sign
     # too. There is no unsigned dry-run build step anymore.
     expect(build_workflow).not_to include("Build unsigned (dry run)")
@@ -138,7 +136,6 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(build_workflow).to include("--publish never")
     # Credential preflights fail in seconds, not after a 15-minute build.
     expect(build_workflow).to include("Preflight: Apple signing credentials")
-    expect(build_workflow).to include("Preflight: Azure credentials")
     # Notarization failures surface the developer log, and stapler runs on the
     # .app — the DMG container carries no ticket (Error 65 by design).
     expect(build_workflow).to include("Fetch notarytool developer log")
@@ -147,7 +144,6 @@ RSpec.describe "desktop auto-update and release pipeline" do
     # Runaway builds must not burn the 6-hour default job timeout.
     workflow = YAML.safe_load(build_workflow)
     expect(workflow.dig("jobs", "build-mac", "timeout-minutes")).to be_a(Integer)
-    expect(workflow.dig("jobs", "build-windows", "timeout-minutes")).to be_a(Integer)
     expect(workflow.dig("jobs", "build-backend", "timeout-minutes")).to be_a(Integer)
   end
 
@@ -232,9 +228,8 @@ RSpec.describe "desktop auto-update and release pipeline" do
     # into each build with `npm version` (so the shipped apps carry it), but
     # NEVER commits back to main — desktop/package.json stays a 0.0.0 sentinel.
     expect(release_workflow).to include("Compute the release version")
-    # `npm version "$VERSION"` stamps each desktop build (mac + windows) — those
-    # steps live in the shared module now.
-    expect(build_workflow.scan(/npm --prefix desktop version "\$VERSION"/).length).to be >= 2
+    # `npm version "$VERSION"` stamps the desktop build in the shared module.
+    expect(build_workflow.scan(/npm --prefix desktop version "\$VERSION"/).length).to be >= 1
     # No push-to-main bump step: publish only tags + releases.
     expect(release_workflow).not_to include("Commit the version bump to main")
     expect(release_workflow).not_to match(/git push origin "HEAD:/)
@@ -255,29 +250,24 @@ RSpec.describe "desktop auto-update and release pipeline" do
     # stage-cli.mjs exited 0 after wiping the staging dir, so every in-app
     # CLI/skill install died with ENOENT. Three layers now prevent it:
     # (1) stage-cli hard-fails under SYRUS_RELEASE_BUILD=1 (pinned in
-    # cli_install_spec), (2) BOTH desktop jobs pin the Go toolchain from
+    # cli_install_spec), (2) the desktop job pins the Go toolchain from
     # cli/go.mod — same source of truth as build-cli — and (3) the verify
     # steps assert the binaries are actually inside the packaged app.
-    # The three setup-go steps (build-cli + build-mac + build-windows) all live
-    # in the shared module now.
+    # The setup-go steps (build-cli + build-mac) live in the shared module.
     setup_go = build_workflow.scan(%r{uses: actions/setup-go@\S+\s+with:\s+go-version-file: cli/go\.mod})
-    expect(setup_go.length).to be >= 3 # build-cli + build-mac + build-windows
+    expect(setup_go.length).to be >= 2
     # setup-go's default cache expects go.sum at the repo root; ours is under
     # cli/, so every setup-go step must point the cache there or it caches
     # nothing (with a warning) on every release run.
-    expect(build_workflow.scan("cache-dependency-path: cli/go.sum").length).to be >= 3
+    expect(build_workflow.scan("cache-dependency-path: cli/go.sum").length).to be >= 2
 
-    # build-windows is the last job in the module, so slice to end-of-string.
-    mac_job = build_workflow[/^  build-mac:[\s\S]*?(?=^  build-windows:)/]
+    mac_job = build_workflow[/^  build-mac:[\s\S]*\z/]
     expect(mac_job).to include("go-version-file: cli/go.mod")
-    windows_job = build_workflow[/^  build-windows:[\s\S]*\z/]
-    expect(windows_job).to include("go-version-file: cli/go.mod")
 
     # Layer (1) only arms itself when the workflow declares a release build:
     # stage-cli's hard-fail and the DMG's release naming both key on
-    # SYRUS_RELEASE_BUILD=1, so BOTH desktop build steps must set it.
+    # SYRUS_RELEASE_BUILD=1.
     expect(mac_job).to include('SYRUS_RELEASE_BUILD: "1"')
-    expect(windows_job).to include('SYRUS_RELEASE_BUILD: "1"')
 
     # The mac build's retry-once loop must treat the stage-cli hard-fail as
     # deterministic (like a notarization "Invalid") — retrying a missing Go
@@ -291,11 +281,6 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(mac_verify).to include('test -x "$APP/Contents/Resources/cli/syrus-darwin-arm64"')
     expect(mac_verify).to include('test -x "$APP/Contents/Resources/cli/syrus-darwin-x64"')
 
-    # Windows: the packaged resources dir (win-unpacked is what NSIS wraps)
-    # must carry the x64 exe.
-    windows_verify = build_workflow[/name: Verify signatures, update feed, and backend pin[\s\S]{0,1800}/]
-    expect(windows_verify).to include("desktop/out/win-unpacked/resources/cli/syrus-win32-x64.exe")
-    expect(windows_verify).to include("Bundled CLI missing")
   end
 
   it "release workflow verifies the signature, stapling, and stable download aliases" do
@@ -303,20 +288,14 @@ RSpec.describe "desktop auto-update and release pipeline" do
     # stage_update_feed=true branch (the release caller passes true).
     release_with = YAML.safe_load(release_workflow).dig("jobs", "build", "with")
     expect(release_with["stage_update_feed"]).to eq(true)
-    # A skipped job inside the module still yields a successful `build`
-    # result, so these with: values are the ONLY thing keeping Windows and
-    # the integration gate in every release — pin them.
-    expect(release_with["build_windows"]).to eq(true)
     expect(release_with["run_integration_tests"]).to eq(true)
     expect(build_workflow).to include("codesign --verify --deep --strict")
     expect(build_workflow).to include("xcrun stapler validate")
-    # One universal macOS build → one Syrus.dmg permalink (no Intel split);
-    # Windows is x64-only → Syrus-Setup.exe. Filenames carry the channel's
-    # product name ($PRODUCT), which is "Syrus" on the release (stable) caller.
+    # One universal macOS build → one Syrus.dmg permalink (no Intel split).
+    # Filenames carry the channel's product name ($PRODUCT), which is "Syrus"
+    # on the release (stable) caller.
     expect(build_workflow).to match(%r{"desktop/out/\$PRODUCT-\$VERSION-universal\.dmg" "\$RUNNER_TEMP/staged/\$PRODUCT\.dmg"})
     expect(build_workflow).not_to include("Syrus-Intel.dmg")
-    expect(build_workflow).to match(%r{\$PRODUCT-Setup-\$VERSION-x64\.exe" "\$RUNNER_TEMP/staged/\$PRODUCT-Setup\.exe"})
-    expect(build_workflow).not_to include("Syrus-Setup-arm64.exe")
     # Parsimony: macOS auto-update rides the .zip (+ blockmap) + latest-mac.yml;
     # the versioned dmg would be a byte-identical twin of Syrus.dmg, so on the
     # release-feed path it is NOT staged under its versioned name. Don't
@@ -326,7 +305,7 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(build_workflow).not_to match(%r{cp desktop/out/\*\.blockmap})
   end
 
-  it "ships CLI tarballs for Linux only (macOS/Windows get the CLI via the desktop app)" do
+  it "ships CLI tarballs for Linux only (macOS gets the CLI via the desktop app)" do
     cli = read(repo_root, "bin/release-cli")
     expect(cli).to include("linux/arm64")
     expect(cli).to include("linux/amd64")

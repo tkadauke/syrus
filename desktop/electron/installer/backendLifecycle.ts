@@ -290,9 +290,8 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
     const log = createWriteStream(path.join(stateDir(), "install.log"), { flags: "a" })
     try {
       const ok = await new Promise<boolean>((resolve) => {
-        // Same platform-selected interpreter as the onboarding driver — the
-        // image-update path IS the installer (bash install.sh on POSIX,
-        // powershell install.ps1 on Windows).
+        // Same interpreter as the onboarding driver: the image-update path IS
+        // the installer.
         const { command, args } = installerCommand(installerScriptPath(), [
           "--docker",
           "--non-interactive",

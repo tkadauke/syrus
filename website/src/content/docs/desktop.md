@@ -1,6 +1,6 @@
 ---
 title: Desktop App
-description: Download the Syrus desktop app — a guided local install, the full web UI in a native window, and a menu-bar inbox. macOS today; Windows in beta.
+description: Download the Syrus desktop app — a guided local install, the full web UI in a native window, and a menu-bar inbox for macOS.
 ---
 
 # Desktop App
@@ -13,22 +13,6 @@ installs itself into `~/Applications` and relaunches from there).
 **[Download Syrus for Mac](https://github.com/tkadauke/syrus/releases/latest/download/Syrus.dmg)**
 — one universal build for both Apple Silicon and Intel · other artifacts on
 the [releases page](https://github.com/tkadauke/syrus/releases).
-
-**Windows** is in beta: the app installs and runs Syrus locally on Docker
-Desktop (or connects to an existing instance), with the same tray inbox
-and bundled CLI. Installers aren't published to the releases page yet —
-they ship there once code signing goes live. Setup differences worth
-knowing: the local backend needs [Docker
-Desktop](https://www.docker.com/products/docker-desktop/) on WSL 2, and
-**the app installs it for you** — it downloads the official installer and
-runs it silently (per-user, no admin permission, service agreement
-pre-accepted), so there is nothing to click. If WSL 2 is missing, the app
-offers a one-click elevated install first. Either install may restart
-Windows; **Syrus reopens after you log back in and setup continues where
-it left off**. State lives
-under `%USERPROFILE%\.syrus\`, and the
-automatically installed CLI lands in `%LocalAppData%\Syrus\bin` and joins
-your user PATH (open a new terminal to pick it up).
 
 ## Signing in — no API keys
 
@@ -68,8 +52,8 @@ instances.)
   Preferences instead.
 - **The Syrus CLI, batteries included.** The app installs the bundled
   `syrus` CLI automatically — at launch and again the moment a local
-  install finishes setting up (`~/.local/bin` on macOS,
-  `%LocalAppData%\Syrus\bin` on Windows — see the [CLI docs](/docs/cli))
+  install finishes setting up (`~/.local/bin` on macOS — see the
+  [CLI docs](/docs/cli))
   — and keeps it current with every app update, already signed in through
   the shared credentials file. There is nothing to click; the tray banner
   and Preferences remain as repair/reinstall surfaces if an install ever
@@ -164,7 +148,7 @@ dialog has an **"Also delete my Syrus data"** checkbox (off by default);
 checking it removes those too. Deleting the data is irreversible — without
 the encryption keys the database cannot be read again.
 
-The same teardown is scriptable: `uninstall.sh` (macOS/Linux) and
-`uninstall.ps1` (Windows) ship at the repo root and inside the app. See
+The same teardown is scriptable: `uninstall.sh` ships at the repo root
+and inside the app. See
 [Uninstall on the Docker Compose page](/docs/deployment/docker-compose#uninstall)
 for flags and details.

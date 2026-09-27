@@ -3,11 +3,10 @@
 require "spec_helper"
 
 # The desktop app's "Uninstall Syrus…" flow: a native confirmation dialog
-# hands off to the staged uninstall script (uninstall.sh / uninstall.ps1),
-# which owns the whole teardown — including, on Windows, removing the app
-# itself as its LAST step. The script must therefore outlive the app: spawn
-# detached, unref, quit. These assertions pin that source contract the same
-# way backend_lifecycle_spec pins the lifecycle menu.
+# hands off to the staged uninstall script, which owns the whole teardown. The
+# script must therefore outlive the app: spawn detached, unref, quit. These
+# assertions pin that source contract the same way backend_lifecycle_spec pins
+# the lifecycle menu.
 # (The scripts' own NDJSON/flag parity is pinned separately in
 # spec/desktop/uninstall_spec.rb.)
 RSpec.describe "desktop uninstall flow" do
@@ -22,8 +21,8 @@ RSpec.describe "desktop uninstall flow" do
   let(:uninstall_command) { read("electron/installer/uninstallCommand.ts") }
   let(:main_process) { read("electron/main.ts") }
 
-  it "stages both uninstall scripts alongside the installers, shell script executable" do
-    %w[uninstall.sh uninstall.ps1].each do |asset|
+  it "stages the uninstall script alongside the installer, shell scripts executable" do
+    %w[install.sh uninstall.sh].each do |asset|
       expect(staging_script).to include(%("#{asset}"))
     end
     # chmod must cover uninstall.sh too — a non-executable staged script
@@ -38,7 +37,7 @@ RSpec.describe "desktop uninstall flow" do
 
   it "resolves the staged uninstall script per platform, mirroring the installer" do
     expect(install_paths).to include("export const uninstallScriptPath")
-    expect(install_paths).to include(%(process.platform === "win32" ? "uninstall.ps1" : "uninstall.sh"))
+    expect(install_paths).to include('"uninstall.sh"')
     expect(install_paths).to include("installerAssetsDir()")
   end
 
@@ -56,7 +55,7 @@ RSpec.describe "desktop uninstall flow" do
   end
 
   it "scopes a test build's uninstall to the test channel" do
-    # buildUninstallArgs appends --channel test so uninstall.sh/.ps1 tear down
+    # buildUninstallArgs appends --channel test so uninstall.sh tears down
     # only the test stack/app/CLI/settings, never production's.
     expect(uninstall_command).to include('channel === "test" ? ["--channel", "test"] : []')
   end
@@ -72,15 +71,9 @@ RSpec.describe "desktop uninstall flow" do
     expect(derivation).to include('bundlePathFromExecPath(app.getPath("exe"))')
     # Only trust the derived path when it actually looks like a bundle.
     expect(derivation).to include('bundle.endsWith(".app") ? bundle : null')
-    # Windows never receives --app-path: the NSIS uninstaller owns app
-    # removal there, and the win32 branch must not forward it.
-    win32_branch = uninstall_command[/platform === "win32"[\s\S]*?\}\n    :/]
-    expect(win32_branch).not_to include("appPath")
   end
 
-  it "drives uninstall.ps1 via powershell -File so the GNU-style flags pass through verbatim" do
-    expect(uninstall_command).to include('command: "powershell.exe"')
-    expect(uninstall_command).to match(/"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath/)
+  it "drives uninstall.sh through bash" do
     expect(uninstall_command).to include('command: "/bin/bash"')
   end
 
@@ -122,9 +115,9 @@ RSpec.describe "desktop uninstall flow" do
 
   it "surfaces a spawn failure instead of quitting with nothing uninstalled" do
     confirm = main_process[/const confirmAndUninstall = async \(\) => \{[\s\S]*?\n\}/]
-    # Without an "error" listener a failed spawn (blocked powershell.exe,
-    # missing staged script) is an uncaught main-process exception AND a
-    # silent no-op uninstall: the 500ms timer quits the app anyway.
+    # Without an "error" listener a failed spawn is an uncaught main-process
+    # exception AND a silent no-op uninstall: the 500ms timer quits the app
+    # anyway.
     expect(confirm).to include('child.once("error"')
     # The pending quit is cancelled FIRST — the timer and the error dialog
     # must never both fire.

@@ -6,11 +6,10 @@ import { app } from "electron"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Packaged builds bundle install.sh/.ps1 + uninstall.sh/.ps1 +
-// docker-compose.yml + compose.env.example
-// (+ manifest.json) under <Resources>/backend via electron-builder
-// extraResources; everything there is sealed by the code signature and must
-// never be written to. In dev the repo root plays that role:
+// Packaged builds bundle install.sh + uninstall.sh + docker-compose.yml +
+// compose.env.example (+ manifest.json) under <Resources>/backend via
+// electron-builder extraResources; everything there is sealed by the code
+// signature and must never be written to. In dev the repo root plays that role:
 // desktop/dist-electron/installer/ -> ../../.. = the repo checkout.
 export const installerAssetsDir = () => {
   if (app.isPackaged) {
@@ -20,28 +19,16 @@ export const installerAssetsDir = () => {
   return path.resolve(__dirname, "../../..")
 }
 
-// The installer script and its interpreter, per platform. install.ps1
-// implements the identical --docker machine interface (NDJSON events, step
-// ids, exit codes) — spec/desktop/install_parity_spec.rb keeps the two
-// scripts' contract strings in lockstep.
-export const installerScriptPath = () =>
-  path.join(installerAssetsDir(), process.platform === "win32" ? "install.ps1" : "install.sh")
+// The installer script and its interpreter.
+export const installerScriptPath = () => path.join(installerAssetsDir(), "install.sh")
 
 export const installerCommand = (scriptPath: string, flags: string[]): { command: string; args: string[] } =>
-  process.platform === "win32"
-    ? {
-        command: "powershell.exe",
-        // -File (not -Command) so the script's exit code propagates.
-        args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath, ...flags]
-      }
-    : { command: "/bin/bash", args: [scriptPath, ...flags] }
+  ({ command: "/bin/bash", args: [scriptPath, ...flags] })
 
-// The uninstaller script, per platform — staged next to the installer by
-// desktop/scripts/stage-backend-assets.mjs. uninstall.ps1 mirrors
-// uninstall.sh's flag surface (--yes / --keep-data / --json); the app's
-// "Uninstall Syrus…" flow (main.ts) spawns this detached and quits.
-export const uninstallScriptPath = () =>
-  path.join(installerAssetsDir(), process.platform === "win32" ? "uninstall.ps1" : "uninstall.sh")
+// The uninstaller script — staged next to the installer by
+// desktop/scripts/stage-backend-assets.mjs. The app's "Uninstall Syrus…"
+// flow (main.ts) spawns this detached and quits.
+export const uninstallScriptPath = () => path.join(installerAssetsDir(), "uninstall.sh")
 
 // Written by desktop/scripts/stage-backend-assets.mjs at build time: pins the
 // backend image tag to this app release. Absent in dev — install.sh then
