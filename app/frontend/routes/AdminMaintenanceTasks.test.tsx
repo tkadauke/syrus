@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
@@ -71,9 +71,12 @@ describe("AdminMaintenanceTaskDetail", () => {
     expect(screen.getByText("acme/widgets")).toBeInTheDocument()
     expect(screen.getByText("3 unresolved items")).toBeInTheDocument()
     expect(screen.getByText("2 more omitted")).toBeInTheDocument()
-    expect(screen.getByText("JOB-123")).toBeInTheDocument()
-    expect(screen.getByText("ArgumentError")).toBeInTheDocument()
-    expect(screen.getByText("expected 2 commits ending at abc123, found 1")).toBeInTheDocument()
+    const mobileDetails = screen.getByTestId("unresolved-failures-mobile-42")
+    expect(mobileDetails).toHaveClass("sm:hidden")
+    expect(within(mobileDetails).getByText("JOB-123")).toBeInTheDocument()
+    expect(within(mobileDetails).getByText("ArgumentError")).toBeInTheDocument()
+    expect(within(mobileDetails).getByText("expected 2 commits ending at abc123, found 1")).toBeInTheDocument()
+    expect(screen.getAllByText("JOB-123")).toHaveLength(2)
   })
 })
 
