@@ -114,6 +114,10 @@ class Feature < ApplicationRecord
     enabled?(:persistent_mcp_sidecar)
   end
 
+  def self.per_spawn_resource_limits_enabled?
+    enabled?(:per_spawn_resource_limits)
+  end
+
   # Emergency-land escape hatch for Coding Mode. A second, explicit opt-in
   # layered on top of coding_mode_enabled? itself -- emergency land skips
   # Syrus's own grader/adversarial-review/visual-review pipeline, which is

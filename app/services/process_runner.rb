@@ -568,6 +568,7 @@ class ProcessRunner
         killer.kill
         sample_resource_attribution!
         status = wait_thread.value
+        sample_cgroup_exit!
         process_exit_status = status.exitstatus || 1
         clean_exit_after_aliveness =
           aliveness_failed &&
@@ -703,7 +704,7 @@ class ProcessRunner
   def register_spawned_process
     return nil unless @kind
 
-    SpawnedProcess.create!(
+    process = SpawnedProcess.create!(
       kind: @kind,
       command: command_string,
       workdir: @chdir.presence,
@@ -716,10 +717,12 @@ class ProcessRunner
       job: @job,
       chat_session: @chat_session,
       agent: @agent
-    ).tap do |process|
-      attempt = Thread.current[:syrus_current_job_classification_attempt]
-      attempt&.update_columns(spawned_process_id: process.id) if attempt&.spawned_process_id.blank?
-    end
+    )
+    attempt = Thread.current[:syrus_current_job_classification_attempt]
+    attempt&.update_columns(spawned_process_id: process.id) if attempt&.spawned_process_id.blank?
+    @cgroup = SpawnedProcessCgroup.new(spawned_process: process)
+    process.update_column(:resource_attribution, current_resource_attribution)
+    process
   end
 
   def update_pid!(pid)
@@ -732,6 +735,7 @@ class ProcessRunner
         nil
       end
     end
+    attach_cgroup!(pid)
     @resource_sampler = ProcessResourceSampler.new(pid: pid, pgid: pgid)
     sample_resource_attribution!
     @spawned_process.update!(
@@ -783,6 +787,8 @@ class ProcessRunner
     return unless @spawned_process
 
     sample_resource_attribution!
+    sample_cgroup_exit!
+    cleanup_cgroup!
     resource_attribution = current_resource_attribution
     finished_at = Time.current
     rows = SpawnedProcess.where(id: @spawned_process.id, finished_at: nil)
@@ -798,9 +804,9 @@ class ProcessRunner
       CommandSpan.where(spawned_process_id: @spawned_process.id).find_each do |span|
         span.update_column(:resource_attribution, command_span_process_owned_payload)
       end
-      return if ChatTurnAutoRetryReconciler.reconcile_spawned_process!(@spawned_process, finished_at: finished_at)
-
-      ChatStopReconciler.reconcile_spawned_process!(@spawned_process, finished_at: finished_at)
+      unless ChatTurnAutoRetryReconciler.reconcile_spawned_process!(@spawned_process, finished_at: finished_at)
+        ChatStopReconciler.reconcile_spawned_process!(@spawned_process, finished_at: finished_at)
+      end
     end
   rescue StandardError => e
     Rails.logger.warn("[ProcessRunner] finalize failed: #{e.class}: #{e.message}")
@@ -808,6 +814,21 @@ class ProcessRunner
 
   def sample_resource_attribution!
     @resource_sampler&.sample!
+  end
+
+  def attach_cgroup!(pid)
+    @cgroup&.attach!(pid)
+  end
+
+  def sample_cgroup_exit!
+    return if @cgroup_exit_sampled
+
+    @cgroup&.sample_exit!
+    @cgroup_exit_sampled = true
+  end
+
+  def cleanup_cgroup!
+    @cgroup&.cleanup!
   end
 
   def persist_resource_attribution?(now)
@@ -818,7 +839,10 @@ class ProcessRunner
   end
 
   def current_resource_attribution
-    @resource_sampler&.payload || {}
+    payload = @resource_sampler&.payload || {}
+    return payload unless @cgroup
+
+    payload.merge("cgroup" => @cgroup.payload)
   end
 
   def command_span_process_owned_payload
