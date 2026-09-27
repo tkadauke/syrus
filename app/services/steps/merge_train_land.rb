@@ -47,7 +47,7 @@ module Steps
 
       pr = find_or_create_integration_pr(train, client)
 
-      merge = merge_integration_pr(train, client, pr)
+      merge = merge_integration_pr(train, client, pr, expected_sha: integration_sha)
       merged = merge.respond_to?(:merged) ? merge.merged : merge[:merged]
       raise StepFailed, "merge_train: GitHub did not report the integration PR as merged" unless merged
 
@@ -275,12 +275,13 @@ module Steps
       state.to_s == "open"
     end
 
-    def merge_integration_pr(train, client, pr)
+    def merge_integration_pr(train, client, pr, expected_sha:)
       client.merge_pull_request(
         repository.slug,
         pr.number,
         commit_title: "Merge #{train.label} via Syrus merge-train",
-        merge_method: "merge"
+        merge_method: "merge",
+        sha: expected_sha
       )
     rescue Octokit::MethodNotAllowed => e
       built_base_sha = workflow.artifact(BASE_SHA_ARTIFACT).to_s.presence

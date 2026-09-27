@@ -203,7 +203,8 @@ module Steps
     def merge_pull_request(client, gate)
       PullRequestMerger.new(repository, client: client).merge(
         pr_number: job.pr_number,
-        commit_title: "Merge #{repository.slug}##{job.pr_number} via Syrus"
+        commit_title: "Merge #{repository.slug}##{job.pr_number} via Syrus",
+        expected_sha: merge_head_sha(gate)
       )
     rescue Octokit::MethodNotAllowed => e
       if rebase_merge_rejected?(e)
@@ -254,6 +255,13 @@ module Steps
 
     def transient_error_message(error)
       error.message.to_s[0, 121]
+    end
+
+    def merge_head_sha(gate)
+      sha = gate.pr&.head&.sha.to_s.presence
+      return sha if sha.present?
+
+      raise StepFailed, "auto_merge: missing validated PR head SHA"
     end
 
     def add_merge_comment(client, comment)

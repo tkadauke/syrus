@@ -33,15 +33,15 @@ RSpec.describe EmergencyLand::Lander do
     allow(client).to receive(:create_pull_request).and_return(OpenStruct.new(number: number))
   end
 
-  def stub_mergeable_pr(number: 9, mergeable: true)
+  def stub_mergeable_pr(number: 9, mergeable: true, head_sha: "headsha123")
     allow(client).to receive(:pull_request)
       .with("acme/widgets", number, bypass_cache: true)
-      .and_return(OpenStruct.new(mergeable: mergeable))
+      .and_return(OpenStruct.new(mergeable: mergeable, head: OpenStruct.new(sha: head_sha)))
   end
 
-  def stub_merge(number: 9, merged: true, sha: "mergedsha123")
+  def stub_merge(number: 9, merged: true, sha: "mergedsha123", expected_sha: "headsha123")
     allow(client).to receive(:merge_pull_request)
-      .with("acme/widgets", number, hash_including(merge_method: "rebase"))
+      .with("acme/widgets", number, hash_including(merge_method: "rebase", sha: expected_sha))
       .and_return(OpenStruct.new(merged: merged, sha: sha))
   end
 
@@ -63,7 +63,7 @@ RSpec.describe EmergencyLand::Lander do
       expect(client).to have_received(:create_pull_request)
         .with("acme/widgets", hash_including(base: "main", head: "acme:syrus/emergency-1"))
       expect(client).to have_received(:merge_pull_request)
-        .with("acme/widgets", 9, hash_including(merge_method: "rebase"))
+        .with("acme/widgets", 9, hash_including(merge_method: "rebase", sha: "headsha123"))
 
       job.reload
       expect(job).to be_closed
