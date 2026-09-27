@@ -286,6 +286,8 @@ module Filters
       model: ChatMessage,
       chips: {
         "repository_id" => "Filters::Chips::ChatMessages::RepositoryId",
+        "chat_provider" => "Filters::Chips::ChatMessages::ChatProvider",
+        "mode" => "Filters::Chips::ChatMessages::Mode",
         "created_at" => "Filters::Chips::CreatedAt",
         "updated_at" => "Filters::Chips::UpdatedAt"
       }
