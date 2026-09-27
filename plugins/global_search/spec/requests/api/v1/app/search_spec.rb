@@ -292,6 +292,25 @@ RSpec.describe "App API unified search", type: :request do
     )
   end
 
+  it "treats mode-less chats as planning when filtering chat results" do
+    mode_less_session = ChatSession.create!(user: user, repository: repository, title: "Default planning chat", mode: nil)
+    mode_less_message = ChatMessage.create!(chat_session: mode_less_session, role: "user", content: { "text" => "deploy chat" })
+    planning_session = ChatSession.create!(user: user, repository: repository, title: "Explicit planning chat", mode: "planning")
+    planning_message = ChatMessage.create!(chat_session: planning_session, role: "user", content: { "text" => "deploy chat" })
+    coding_session = ChatSession.create!(user: user, repository: repository, title: "Coding chat", mode: "coding")
+    coding_message = ChatMessage.create!(chat_session: coding_session, role: "user", content: { "text" => "deploy chat" })
+    [ mode_less_message, planning_message, coding_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+    tree = { "and" => [ { "field" => "mode", "op" => "is", "value" => "planning" } ] }
+
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(
+      include("type" => "chat", "id" => mode_less_message.id),
+      include("type" => "chat", "id" => planning_message.id)
+    )
+  end
+
   it "applies common created_at filters to supported result types" do
     older_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy old job", created_at: 5.days.ago)
     newer_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy new job", created_at: 1.hour.ago)
