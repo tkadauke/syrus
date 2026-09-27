@@ -2030,9 +2030,9 @@ class Job < ApplicationRecord
   end
 
   def investigation_requires_investigable_kind
-    return if direct? || kind == "briefing_generate"
+    return if Job::Kind.investigable?(kind)
 
-    errors.add(:investigation, "requires kind=direct or kind=briefing_generate")
+    errors.add(:investigation, "requires an investigable Job kind")
   end
 
   def investigation_excludes_skill_name

@@ -196,12 +196,63 @@ module OperatorBriefing
     def status_payload(repository, current)
       return { kind: "live", message: nil } if current
 
-      generator = Generator.new(user: user, repository: repository, mode: :scheduled, now: Time.current)
-      if generator.activity_since_last_generation?
+      if activity_by_repository_id[repository.id]
         { kind: "ready", message: "Activity is available for the next scheduled briefing." }
       else
         { kind: "no_activity", message: "No briefing generated because nothing changed since the last closed briefing." }
       end
+    end
+
+    def activity_by_repository_id
+      @activity_by_repository_id ||= enabled_repository_ids.index_with do |repository_id|
+        activity_rows_by_repository_id.fetch(repository_id, []).any? do |timestamp|
+          anchor = activity_anchor_by_repository_id[repository_id]
+          anchor.blank? || timestamp.present? && timestamp > anchor
+        end
+      end
+    end
+
+    def activity_rows_by_repository_id
+      @activity_rows_by_repository_id ||= begin
+        rows = Hash.new { |hash, key| hash[key] = [] }
+        job_activity_rows.each { |repository_id, *timestamps| rows[repository_id].concat(timestamps.compact) }
+        workflow_activity_rows.each { |repository_id, *timestamps| rows[repository_id].concat(timestamps.compact) }
+        rows
+      end
+    end
+
+    def activity_anchor_by_repository_id
+      @activity_anchor_by_repository_id ||= last_closed_at_by_repository_id
+    end
+
+    def last_closed_at_by_repository_id
+      @last_closed_at_by_repository_id ||= Briefing
+        .joins(:job)
+        .where(owner_user: user, repository_id: enabled_repository_ids, jobs: { state: "closed" })
+        .group(:repository_id)
+        .maximum(Arel.sql("COALESCE(jobs.finished_at, operator_briefing_briefings.window_end)"))
+    end
+
+    def activity_since_floor
+      @activity_since_floor ||= begin
+        anchors = activity_anchor_by_repository_id.values.compact
+        anchors.min if anchors.length == enabled_repository_ids.length
+      end
+    end
+
+    def job_activity_rows
+      scope = Job.where(repository_id: enabled_repository_ids).where.not(kind: ActivityGate::EXCLUDED_JOB_KINDS)
+      scope = scope.where("jobs.created_at > :since OR jobs.updated_at > :since OR jobs.finished_at > :since", since: activity_since_floor) if activity_since_floor.present?
+      scope.pluck(:repository_id, :created_at, :updated_at, :finished_at)
+    end
+
+    def workflow_activity_rows
+      scope = ::Workflow
+        .joins(:job)
+        .where(jobs: { repository_id: enabled_repository_ids })
+        .where.not(jobs: { kind: ActivityGate::EXCLUDED_JOB_KINDS })
+      scope = scope.where("workflows.created_at > :since OR workflows.updated_at > :since OR workflows.finished_at > :since", since: activity_since_floor) if activity_since_floor.present?
+      scope.pluck("jobs.repository_id", "workflows.created_at", "workflows.updated_at", "workflows.finished_at")
     end
   end
 end

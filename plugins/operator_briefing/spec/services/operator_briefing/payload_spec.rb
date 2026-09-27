@@ -47,4 +47,25 @@ RSpec.describe OperatorBriefing::Payload do
     expect(repo_payload[:current][:latest_revision][:content_blocks].first.dig("payload", "text")).to eq("Live text")
     expect(repo_payload[:history].first[:id]).to eq(archived.id)
   end
+
+  it "computes repository activity status without per-repository generators" do
+    quiet_repository = Factories.repository(user: user, owner: "acme", name: "quiet")
+    active_repository = Factories.repository(user: user, owner: "acme", name: "active")
+    OperatorBriefing::BriefingSubscription.seed_for_user!(user)
+
+    [ quiet_repository, active_repository ].each do |repo|
+      archived_job = Job.create!(user: user, owner_user: user, repository: repo, kind: "briefing_generate", priority: "low")
+      archived_job.close_with_reason!("briefing_superseded") if archived_job.may_close?
+      archived_job.update_columns(finished_at: 2.days.ago)
+      OperatorBriefing::Briefing.create!(job: archived_job, owner_user: user, repository: repo, window_start: 3.days.ago, window_end: 2.days.ago)
+    end
+    Job.create!(user: user, owner_user: user, repository: active_repository, kind: "direct", priority: "low", issue_number: nil, created_at: 1.hour.ago, updated_at: 1.hour.ago)
+
+    expect(OperatorBriefing::Generator).not_to receive(:new)
+
+    statuses = described_class.new(user: user).as_json[:repositories].index_by { |row| row[:repository][:slug] }.transform_values { |row| row[:status][:kind] }
+
+    expect(statuses.fetch(quiet_repository.slug)).to eq("no_activity")
+    expect(statuses.fetch(active_repository.slug)).to eq("ready")
+  end
 end

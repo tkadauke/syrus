@@ -24,7 +24,7 @@ module OperatorBriefing
     end
 
     def self.job_kinds
-      [ { kind: "briefing_generate", infrastructure: true, issueless: true } ]
+      [ { kind: "briefing_generate", infrastructure: true, issueless: true, investigable: true } ]
     end
 
     def self.work_definitions

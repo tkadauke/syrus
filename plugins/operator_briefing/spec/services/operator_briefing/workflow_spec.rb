@@ -21,6 +21,7 @@ RSpec.describe OperatorBriefing::Workflow do
   it "contributes an issueless infrastructure job kind and work definition" do
     expect(Job::Kind.infrastructure_values).to include("briefing_generate")
     expect(Job::Kind.issueless?("briefing_generate")).to be(true)
+    expect(Job::Kind.investigable?("briefing_generate")).to be(true)
 
     definition = WorkDefinitions.for("briefing_generate")
     expect(definition).to be_a(OperatorBriefing::WorkDefinition)

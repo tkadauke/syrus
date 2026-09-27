@@ -26,7 +26,7 @@ RSpec.describe Job do
     it "rejects investigation on an issue Job" do
       job = Job.new(user: user, repository: repository, kind: "issue", issue_number: 1, investigation: true)
       expect(job).not_to be_valid
-      expect(job.errors[:investigation]).to include("requires kind=direct or kind=briefing_generate")
+      expect(job.errors[:investigation]).to include("requires an investigable Job kind")
     end
 
     it "allows investigation on a direct Job" do
