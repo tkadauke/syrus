@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { ChatMessage, humanMessageBubbleClass, resolveWorkspaceFileLink, ToolGroup } from "./MessageCards"
+import { ChatMessage, humanMessageBubbleClass, resolveWorkspaceFileLink, shouldRenderUserMarkdown, ToolGroup } from "./MessageCards"
 import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, ChatToolGroupItem } from "../../api/chats"
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
 
@@ -161,6 +161,82 @@ beforeEach(() => {
   vi.mocked(fetchChatMessagePins).mockReset().mockResolvedValue({ pins: [] })
   vi.mocked(createChatMessagePin).mockReset()
   vi.mocked(deleteChatMessagePin).mockReset()
+})
+
+describe("user message markdown heuristic", () => {
+  it("keeps compact ordered-list-looking prose as plain text", () => {
+    renderChatMessageItem(userMessage("1. Yes, 2. No, 3. Maybe"))
+
+    expect(screen.getByText("1. Yes, 2. No, 3. Maybe")).toHaveClass("whitespace-pre-wrap")
+    expect(screen.queryByRole("list")).not.toBeInTheDocument()
+    expect(shouldRenderUserMarkdown("1. Yes, 2. No, 3. Maybe")).toBe(false)
+  })
+
+  it("renders bug-report-style user bodies as markdown", () => {
+    const body = `**Environment**
+- URL: https://example.test/jobs/1
+- Browser: Mobile Safari
+
+**Feature flags**
+- chat_markdown_user_messages`
+
+    renderChatMessageItem(userMessage(body))
+
+    expect(screen.getByText("Environment").tagName).toBe("STRONG")
+    expect(screen.getByText("Feature flags").tagName).toBe("STRONG")
+    expect(screen.getAllByRole("list")).toHaveLength(2)
+    expect(screen.getByText(/URL:/)).toBeInTheDocument()
+    expect(shouldRenderUserMarkdown(body)).toBe(true)
+  })
+
+  it("uses the inverted prose treatment for current-user markdown bubbles", () => {
+    renderChatMessageItem(userMessage("```ts\nconst answer = 42\n```"))
+
+    const bubble = screen.getByText("const answer = 42").closest(".chat-prose")
+    expect(bubble).toHaveClass("bg-brand", "text-on-brand", "chat-prose-invert")
+    expect(bubble).not.toHaveClass("whitespace-pre-wrap")
+  })
+
+  it("keeps other participant markdown bubbles on the alternate group colors", () => {
+    const payload = makePayload()
+    payload.chat.conversation_kind = "group"
+
+    renderChatMessageItem(userMessage("```ts\nconst answer = 42\n```", { sender_user: { id: 3, name: "Marcus Cato" } }), payload)
+
+    const bubble = screen.getByText("const answer = 42").closest(".chat-prose")
+    expect(bubble).toHaveClass("bg-gray-100", "text-gray-800", "dark:bg-gray-800", "dark:text-gray-100")
+    expect(bubble).not.toHaveClass("chat-prose-invert")
+  })
+
+  it("keeps inbound bridge markdown bubbles on the cyan bridge colors", () => {
+    renderChatMessageItem(userMessage("```ts\nconst answer = 42\n```", {
+      cross_chat_bridge: {
+        thread_id: 7,
+        direction: "inbound",
+        counterpart_chat_session_id: 42,
+        counterpart_chat_title: "Debugging session"
+      }
+    }))
+
+    const bubble = screen.getByText("const answer = 42").closest(".chat-prose")
+    expect(bubble).toHaveClass("bg-cyan-50", "text-cyan-950", "dark:bg-cyan-950/50", "dark:text-cyan-100")
+    expect(bubble).not.toHaveClass("chat-prose-invert")
+  })
+
+  it("renders fenced code in user messages as a code block", () => {
+    renderChatMessageItem(userMessage("```ts\nconst answer = 42\n```"))
+
+    expect(screen.getByText("const answer = 42")).toBeInTheDocument()
+    expect(screen.getByText("const answer = 42").closest("pre")).toBeInTheDocument()
+  })
+
+  it("keeps short inline emphasis as plain text", () => {
+    renderChatMessageItem(userMessage("This is **bold** and *italic*."))
+
+    expect(screen.getByText("This is **bold** and *italic*.")).toHaveClass("whitespace-pre-wrap")
+    expect(screen.queryByText("bold")).not.toBeInTheDocument()
+    expect(shouldRenderUserMarkdown("This is **bold** and *italic*.")).toBe(false)
+  })
 })
 
 describe("sender attribution", () => {
