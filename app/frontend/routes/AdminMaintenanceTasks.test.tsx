@@ -27,19 +27,57 @@ describe("AdminMaintenanceTaskDetail", () => {
     renderDetailRoute()
 
     expect(await screen.findByRole("heading", { name: "Backfill Agent records" })).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/admin/maintenance_tasks/1?log_page=2",
-      expect.objectContaining({ credentials: "same-origin" })
-    )
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/maintenance_tasks/1?log_page=2", expect.objectContaining({ credentials: "same-origin" }))
     expect(screen.getByText("Showing 101-105 of 105 log entries")).toBeInTheDocument()
     expect(screen.getByText("Page 2 of 2")).toHaveClass("whitespace-nowrap")
     expect(screen.getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/app-shell/admin/maintenance_tasks/1")
     expect(screen.getByText("Next")).toHaveClass("text-gray-400")
     expect(screen.getByTestId("maintenance-task-log-mobile")).toHaveClass("sm:hidden")
   })
+
+  it("renders unresolved landed-commit backfill failures from the checkpoint", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        taskPayload({
+          definition_key: "landed_commits_backfill",
+          title: "Backfill landed commit records",
+          checkpoint: {
+            unresolved_repositories: [
+              {
+                id: 42,
+                slug: "acme/widgets",
+                errors: 3,
+                failure_details: [
+                  {
+                    repository_slug: "acme/widgets",
+                    landable_type: "Job",
+                    landable_id: 123,
+                    landable_slug: "JOB-123",
+                    exception_class: "ArgumentError",
+                    message: "expected 2 commits ending at abc123, found 1"
+                  }
+                ],
+                failure_details_omitted: 2
+              }
+            ]
+          }
+        })
+      )
+    )
+
+    renderDetailRoute()
+
+    expect(await screen.findByRole("heading", { name: "Unresolved landings" })).toBeInTheDocument()
+    expect(screen.getByText("acme/widgets")).toBeInTheDocument()
+    expect(screen.getByText("3 unresolved items")).toBeInTheDocument()
+    expect(screen.getByText("2 more omitted")).toBeInTheDocument()
+    expect(screen.getByText("JOB-123")).toBeInTheDocument()
+    expect(screen.getByText("ArgumentError")).toBeInTheDocument()
+    expect(screen.getByText("expected 2 commits ending at abc123, found 1")).toBeInTheDocument()
+  })
 })
 
-function taskPayload() {
+function taskPayload(overrides: Record<string, unknown> = {}) {
   return {
     id: 1,
     definition_key: "agents_backfill",
@@ -66,6 +104,7 @@ function taskPayload() {
     dismissed_at: null,
     last_error: null,
     pending_reason: null,
+    checkpoint: null,
     documentation: "Backfills historical Agent rows.",
     steps: [],
     paths: { admin: "/admin/maintenance_tasks/1", api: "/api/v1/app/admin/maintenance_tasks/1" },
@@ -78,6 +117,7 @@ function taskPayload() {
         message: "Created 1 Run Agent row.",
         units_done: 101,
         units_total: 105,
+        metadata: {},
         created_at: "2026-09-13T10:05:00Z"
       }
     ],
@@ -92,6 +132,7 @@ function taskPayload() {
       next_page: null,
       has_previous_page: true,
       has_next_page: false
-    }
+    },
+    ...overrides
   }
 }

@@ -138,7 +138,23 @@ RSpec.describe "maintenance task definitions" do
         landed_sha: "ghi789"
       )
       task = maintenance_task_for(definition)
-      service_result = Jobs::LandedCommitsBackfill::Result.new(checked: 1, recorded: 0, commits_recorded: 0, skipped: 0, errors: 1)
+      service_result = Jobs::LandedCommitsBackfill::Result.new(
+        checked: 1,
+        recorded: 0,
+        commits_recorded: 0,
+        skipped: 0,
+        errors: 1,
+        failures: [
+          {
+            "repository_slug" => repository.slug,
+            "landable_type" => "Job",
+            "landable_id" => 123,
+            "landable_slug" => "JOB-123",
+            "exception_class" => "Octokit::NotFound",
+            "message" => "pull request was deleted"
+          }
+        ]
+      )
       service_retry_result = Jobs::LandedCommitsBackfill::Result.new(checked: 1, recorded: 1, commits_recorded: 1, skipped: 0, errors: 0)
       service = instance_double(Jobs::LandedCommitsBackfill, call: service_result)
       retry_service = instance_double(Jobs::LandedCommitsBackfill, call: service_retry_result)
@@ -150,7 +166,21 @@ RSpec.describe "maintenance task definitions" do
       expect(result.level).to eq("warning")
       expect(task.checkpoint["processed_repository_ids"]).to include(repository.id)
       expect(task.checkpoint["unresolved_repositories"]).to contain_exactly(
-        hash_including("id" => repository.id, "slug" => repository.slug, "errors" => 1)
+        hash_including(
+          "id" => repository.id,
+          "slug" => repository.slug,
+          "errors" => 1,
+          "failure_details" => [
+            hash_including(
+              "landable_type" => "Job",
+              "landable_id" => 123,
+              "landable_slug" => "JOB-123",
+              "exception_class" => "Octokit::NotFound",
+              "message" => "pull request was deleted"
+            )
+          ],
+          "failure_details_omitted" => 0
+        )
       )
 
       expect { definition.perform_batch(task) }
@@ -162,6 +192,51 @@ RSpec.describe "maintenance task definitions" do
       expect(retry_result.failed).to eq(0)
       expect(task.checkpoint["retry_unresolved_repository_ids"]).to be_empty
       expect(task.checkpoint["unresolved_repositories"]).to be_empty
+    end
+
+    it "bounds unresolved repository failure details in the checkpoint" do
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        state: "closed",
+        issue_number: 110,
+        pr_number: 111,
+        landed_sha: "mno345"
+      )
+      task = maintenance_task_for(definition)
+      failures = 30.times.map do |index|
+        {
+          "repository_slug" => repository.slug,
+          "landable_type" => "Job",
+          "landable_id" => index + 1,
+          "landable_slug" => "JOB-#{index + 1}",
+          "exception_class" => "ArgumentError",
+          "message" => "x" * 400
+        }
+      end
+      service_result = Jobs::LandedCommitsBackfill::Result.new(
+        checked: 30,
+        recorded: 0,
+        commits_recorded: 0,
+        skipped: 0,
+        errors: 30,
+        failures: failures
+      )
+      service = instance_double(Jobs::LandedCommitsBackfill, call: service_result)
+      allow(Jobs::LandedCommitsBackfill).to receive(:new).with(repository: repository).and_return(service)
+
+      result = definition.perform_batch(task)
+
+      entry = task.checkpoint["unresolved_repositories"].sole
+      expect(entry["failure_details"].size).to eq(25)
+      expect(entry["failure_details_omitted"]).to eq(5)
+      expect(entry["failure_details"].first["message"].length).to be <= 240
+      expect(result.metadata["unresolved_repositories"].sole).to include(
+        "id" => repository.id,
+        "slug" => repository.slug,
+        "errors" => 30,
+        "failure_details_omitted" => 5
+      )
     end
 
     it "clears stale unresolved entries when the missing landed commits were repaired externally" do

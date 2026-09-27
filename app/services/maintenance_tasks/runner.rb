@@ -48,7 +48,7 @@ module MaintenanceTasks
         task.log!(
           result.message.presence || "Processed #{result.processed.to_i} item(s).",
           level: result.level.presence || "progress",
-          metadata: { elapsed_seconds: elapsed.round(3) }
+          metadata: result.metadata.merge(elapsed_seconds: elapsed.round(3))
         )
       end
 
