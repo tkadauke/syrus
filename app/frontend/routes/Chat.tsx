@@ -146,10 +146,11 @@ const NON_INTERACTIVE_CHAT_TAP_SELECTOR = [
   "[data-chat-interactive]"
 ].join(",")
 const USER_SCROLL_INTENT_WINDOW_MS = 700
+const MOBILE_CHAT_TOP_CHROME_FALLBACK_HEIGHT = 70
 
-function UsageOverlay({ payload }: { payload: ChatPayload }) {
+function UsageOverlay({ payload, mobile = false }: { payload: ChatPayload; mobile?: boolean }) {
   return (
-    <p className="pointer-events-none absolute left-0 right-0 top-0 border-b border-gray-100 bg-white/95 px-4 py-1.5 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-950/95 dark:text-gray-400">
+    <p className={`${mobile ? "border-t" : "pointer-events-none absolute left-0 right-0 top-0 border-b"} border-gray-100 bg-white/95 px-4 py-1.5 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-950/95 dark:text-gray-400`}>
       Tokens: {formatTokenCount(payload.chat.cumulative_input_tokens)} in / {formatTokenCount(payload.chat.cumulative_output_tokens)} out · {formatCurrency(payload.chat.cumulative_cost_usd)}
     </p>
   )
@@ -425,6 +426,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
   const queryClient = useQueryClient()
   const search = queryKey[2]
   const mobileHeader = useMobileChatHeaderControls()
+  const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const streamRef = useRef<HTMLDivElement | null>(null)
   const lastScrollTopRef = useRef(0)
   const lastUserScrollIntentAtRef = useRef(0)
@@ -552,7 +554,11 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
     if (event.defaultPrevented) return
     if (event.target instanceof Element && event.target.closest(NON_INTERACTIVE_CHAT_TAP_SELECTOR)) return
 
-    mobileHeader.revealHeader()
+    if (mobileHeader.hidden) {
+      mobileHeader.revealHeader()
+    } else {
+      mobileHeader.hideHeader()
+    }
   }, [mobileHeader])
 
   useEffect(() => {
@@ -675,7 +681,17 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
         // keeps the default (pre-measurement, or composer shorter than
         // assumed) case unchanged.
       }
-      <div className="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain p-2 pt-12 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pt-12 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))]" data-testid="chat-message-stream" onClick={handleStreamClick} onScroll={handleScroll} onTouchMove={handleTouchMove} onWheel={handleWheel} ref={streamRef}>
+      <div
+        className={`h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${isDesktop ? "pt-12 sm:pt-12" : "sm:pt-4"}`}
+        data-mobile-header-hidden={mobileHeader.hidden ? "true" : undefined}
+        data-testid="chat-message-stream"
+        onClick={handleStreamClick}
+        onScroll={handleScroll}
+        onTouchMove={handleTouchMove}
+        onWheel={handleWheel}
+        ref={streamRef}
+        style={!isDesktop && mobileHeader.hiddenHeight > 0 ? { "--chat-hidden-header-height": `${mobileHeader.hiddenHeight}px` } as CSSProperties : undefined}
+      >
         {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">{t("loading_older_messages")}</div> : null}
         {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div> : null}
         {hiddenSystemMessageCount > 0 ? (
@@ -718,6 +734,9 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
         >
           {t("new_messages_button", { count: newMessageCount })}
         </button>
+      ) : null}
+      {!isDesktop && mobileHeader.hidden ? (
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-white/90 via-white/55 to-transparent dark:from-gray-950/90 dark:via-gray-950/55" data-testid="mobile-chat-hidden-header-scrim" />
       ) : null}
     </div>
   )
@@ -801,13 +820,12 @@ function ChatWorkspace({
   // Wider than AppChromeV2's own sidebar breakpoint — see CHAT_WORKSPACE_SPLIT_MIN_WIDTH.
   const isDesktop = useMediaQuery(`(min-width: ${CHAT_WORKSPACE_SPLIT_MIN_WIDTH}px)`, true)
   const { t } = useT("chat")
-  const { autoHideEnabled: mobileHeaderAutoHideEnabled, offset: mobileHeaderOffset, revealHeader } = useMobileChatHeaderControls()
+  const { autoHideEnabled: mobileHeaderAutoHideEnabled, revealHeader } = useMobileChatHeaderControls()
   const hasPins = useHasPins(payload.chat.id, queryKey[2])
   const availableTabs = availableWorkspaceTabs(payload, hasPins)
   const showMobileWorkspaceTabs = mobileWorkspaceTabsVisible(payload)
   const showMobileChatColumn = activeMobileTab === "chat" || !showMobileWorkspaceTabs
   const mobileTabsAutoHideActive = !isDesktop && showMobileWorkspaceTabs && activeMobileTab === "chat" && mobileHeaderAutoHideEnabled
-  const mobileTabsOffset = mobileTabsAutoHideActive ? Math.min(44, mobileHeaderOffset) : 0
 
   useEffect(() => {
     if (activeTab === null || !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload))
@@ -921,28 +939,14 @@ function ChatWorkspace({
   if (!isDesktop) {
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
-        {showMobileWorkspaceTabs ? (
-          <div
-            className="shrink-0"
-            data-testid="mobile-chat-tabs-shell"
-            style={mobileTabsAutoHideActive ? {
-              marginBottom: `-${mobileTabsOffset}px`,
-              transform: `translateY(-${mobileTabsOffset}px)`
-            } : undefined}
-          >
-            <UnderlineTabs
-              activeKey={activeMobileTab}
-              ariaLabel={t("aria_mobile_tabs")}
-              className="flex min-h-[44px] overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-2 text-sm font-medium dark:border-gray-700"
-              itemClassName="max-w-[33vw] truncate px-3 py-2"
-              items={(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => ({
-                key: tab,
-                label: mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs)
-              }))}
-              onSelect={selectMobileTab}
-            />
-          </div>
-        ) : null}
+        <MobileChatTopChrome
+          activeMobileTab={activeMobileTab}
+          availableTabs={availableTabs}
+          autoHideActive={mobileTabsAutoHideActive}
+          payload={payload}
+          showMobileWorkspaceTabs={showMobileWorkspaceTabs}
+          onSelectMobileTab={selectMobileTab}
+        />
         <div className="flex min-h-0 w-full flex-1">
           {showMobileChatColumn ? (
             <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} />
@@ -1034,6 +1038,66 @@ function mediaItemCount(payload: ChatPayload) {
     (payload.video_walkthroughs?.length ?? 0) +
     (payload.chat.whiteboard_snapshot_count ?? 0) +
     (payload.chat.typed_artifact_count ?? 0)
+}
+
+function MobileChatTopChrome({
+  activeMobileTab,
+  availableTabs,
+  autoHideActive,
+  payload,
+  showMobileWorkspaceTabs,
+  onSelectMobileTab
+}: {
+  activeMobileTab: MobileChatTab
+  availableTabs: WorkspaceTab[]
+  autoHideActive: boolean
+  payload: ChatPayload
+  showMobileWorkspaceTabs: boolean
+  onSelectMobileTab: (tab: MobileChatTab) => void
+}) {
+  const { t } = useT("chat")
+  const { setContentHeight } = useMobileChatHeaderControls()
+  const topChromeRef = useRef<HTMLDivElement | null>(null)
+
+  useLayoutEffect(() => {
+    if (!autoHideActive) {
+      setContentHeight(0)
+      return
+    }
+
+    const node = topChromeRef.current
+    if (!node) return
+
+    const reportHeight = () => {
+      const measured = node.getBoundingClientRect().height
+      setContentHeight(measured > 0 ? measured : MOBILE_CHAT_TOP_CHROME_FALLBACK_HEIGHT)
+    }
+    reportHeight()
+    if (typeof ResizeObserver === "undefined") return
+
+    const observer = new ResizeObserver(reportHeight)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [autoHideActive, setContentHeight, showMobileWorkspaceTabs])
+
+  if (!showMobileWorkspaceTabs) return null
+
+  return (
+    <div className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950" data-testid="mobile-chat-tabs-shell" ref={topChromeRef}>
+      <UnderlineTabs
+        activeKey={activeMobileTab}
+        ariaLabel={t("aria_mobile_tabs")}
+        className="flex min-h-[44px] overflow-x-auto px-[max(0.5rem,env(safe-area-inset-left))] pt-2 text-sm font-medium"
+        itemClassName="max-w-[33vw] truncate px-3 py-2"
+        items={(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => ({
+          key: tab,
+          label: mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs)
+        }))}
+        onSelect={onSelectMobileTab}
+      />
+      <UsageOverlay mobile payload={payload} />
+    </div>
+  )
 }
 
 function BookmarkPickerModal({ payload, queryKey, onClose, onSelect }: { payload: ChatPayload; queryKey: ChatQueryKey; onClose: () => void; onSelect: (messageId: number) => void }) {
@@ -1268,7 +1332,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       <div className={`relative min-h-0 overflow-hidden rounded-t border border-b-0 border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
         <MessageStream bookmarkTarget={bookmarkTarget} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
-        <UsageOverlay payload={payload} />
+        {isDesktop ? <UsageOverlay payload={payload} /> : null}
         {!landing ? <Compose key={chatId} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} /> : null}
       </div>
       {landing ? (

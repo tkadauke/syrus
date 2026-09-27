@@ -11940,9 +11940,11 @@ describe("App", () => {
       expect(screen.queryByRole("heading", { name: "Aqueduct planning" })).not.toBeInTheDocument()
       expect(screen.queryByRole("link", { name: "New chat" })).not.toBeInTheDocument()
       const mobileTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
+      const mobileTabsShell = screen.getByTestId("mobile-chat-tabs-shell")
       expect(mobileTabs.parentElement).not.toHaveClass("rounded")
       expect(mobileTabs.parentElement).not.toHaveClass("border")
       expect(mobileTabs.parentElement?.lastElementChild).not.toHaveClass("p-3")
+      expect(within(mobileTabsShell).getByText("Tokens: 12.4k in / 3.2k out · $0.0123")).toBeInTheDocument()
       expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("border-brand")
       expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
       expect(within(mobileTabs).getByRole("button", { name: "Files" })).toBeInTheDocument()
@@ -11957,6 +11959,7 @@ describe("App", () => {
       expect(chromeScrollPane).not.toHaveClass("overflow-auto")
       expect(mobileTabs).toHaveClass("min-h-[44px]", "px-[max(0.5rem,env(safe-area-inset-left))]")
       expect(screen.getByTestId("chat-message-stream")).toHaveClass("h-full", "min-h-0", "overflow-y-auto", "overscroll-contain", "p-2")
+      expect(screen.getByTestId("chat-message-stream")).not.toHaveClass("pt-12")
       expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("min-h-11", "text-base", "sm:min-h-9", "sm:text-sm")
       const attachmentButton = screen.getByRole("button", { name: "Add attachment" })
       expect(attachmentButton).toHaveClass("h-8", "w-8", "min-h-11", "min-w-11", "sm:min-h-0", "sm:min-w-0")
@@ -11970,7 +11973,7 @@ describe("App", () => {
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Whiteboard" }))
       expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toHaveClass("border-brand")
       expect(screen.queryByTestId("chat-message-stream")).not.toBeInTheDocument()
-      expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
+      expect(await screen.findByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
       expect(screen.queryByText(/^Version \d+$/)).not.toBeInTheDocument()
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Files" }))
@@ -12030,27 +12033,31 @@ describe("App", () => {
       const mobileTabsShell = screen.getByTestId("mobile-chat-tabs-shell")
       fireEvent.scroll(stream, { target: { scrollTop: 100 } })
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
-      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-0px)" })
+      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
 
-      fireEvent.touchMove(stream)
-      fireEvent.scroll(stream, { target: { scrollTop: 200 } })
-      fireEvent.touchMove(stream)
-      fireEvent.scroll(stream, { target: { scrollTop: 300 } })
-      fireEvent.touchMove(stream)
-      fireEvent.scroll(stream, { target: { scrollTop: 400 } })
+      for (const scrollTop of [200, 300, 400, 500, 600, 700]) {
+        fireEvent.touchMove(stream)
+        fireEvent.scroll(stream, { target: { scrollTop } })
+      }
 
-      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
-      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-44px)", marginBottom: "-44px" })
+      expect(header).toHaveStyle({ transform: "translateY(-142px)", marginBottom: "-142px" })
+      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
       expect(screen.getByTestId("mobile-chat-hidden-header-sidebar-button")).toHaveAccessibleName("Open sidebar")
+      expect(screen.getByTestId("mobile-chat-hidden-header-scrim")).toBeInTheDocument()
+      expect(stream).toHaveAttribute("data-mobile-header-hidden", "true")
+      expect(stream).not.toHaveClass("pt-12")
       expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("border-brand")
 
       fireEvent.click(screen.getByRole("link", { name: "Example" }))
-      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
-      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-44px)" })
+      expect(header).toHaveStyle({ transform: "translateY(-142px)" })
+      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
 
       fireEvent.click(stream)
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
-      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-0px)" })
+      expect(screen.queryByTestId("mobile-chat-hidden-header-scrim")).not.toBeInTheDocument()
+
+      fireEvent.click(stream)
+      expect(header).toHaveStyle({ transform: "translateY(-142px)", marginBottom: "-142px" })
     } finally {
       restoreMedia()
       script.remove()
@@ -12091,15 +12098,13 @@ describe("App", () => {
       const mobileTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
       const mobileTabsShell = screen.getByTestId("mobile-chat-tabs-shell")
 
-      fireEvent.touchMove(stream)
-      fireEvent.scroll(stream, { target: { scrollTop: 200 } })
-      fireEvent.touchMove(stream)
-      fireEvent.scroll(stream, { target: { scrollTop: 300 } })
-      fireEvent.touchMove(stream)
-      fireEvent.scroll(stream, { target: { scrollTop: 400 } })
+      for (const scrollTop of [200, 300, 400, 500, 600, 700]) {
+        fireEvent.touchMove(stream)
+        fireEvent.scroll(stream, { target: { scrollTop } })
+      }
 
-      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
-      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-44px)" })
+      expect(header).toHaveStyle({ transform: "translateY(-142px)" })
+      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Whiteboard" }))
       await waitFor(() => {
@@ -12107,22 +12112,20 @@ describe("App", () => {
         expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
       })
       expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toHaveClass("border-brand")
-      expect(screen.getByRole("complementary", { name: "Chat workspace" })).toBeInTheDocument()
+      expect(await screen.findByRole("complementary", { name: "Chat workspace" })).toBeInTheDocument()
       expect(screen.queryByTestId("mobile-chat-hidden-header-sidebar-button")).not.toBeInTheDocument()
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chat" }))
       const restoredStream = await screen.findByTestId("chat-message-stream")
-      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-0px)" })
+      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
 
-      fireEvent.touchMove(restoredStream)
-      fireEvent.scroll(restoredStream, { target: { scrollTop: 500 } })
-      fireEvent.touchMove(restoredStream)
-      fireEvent.scroll(restoredStream, { target: { scrollTop: 600 } })
-      fireEvent.touchMove(restoredStream)
-      fireEvent.scroll(restoredStream, { target: { scrollTop: 700 } })
+      for (const scrollTop of [500, 600, 700, 800, 900, 1000]) {
+        fireEvent.touchMove(restoredStream)
+        fireEvent.scroll(restoredStream, { target: { scrollTop } })
+      }
 
-      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
-      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-44px)" })
+      expect(header).toHaveStyle({ transform: "translateY(-142px)" })
+      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
     } finally {
       restoreMedia()
       script.remove()
