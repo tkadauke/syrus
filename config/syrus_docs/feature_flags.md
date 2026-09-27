@@ -49,6 +49,14 @@ Enables the Local chat mode and the `syrus local` daemon command. The agent conn
 
 Visual review — the headless-browser QA pass the worker agent runs against its own in-step preview to catch visible defects before opening a PR, capturing screenshot artifacts for operator review — is unconditionally on by default and is no longer gated by an instance-wide Feature flag; `config/features.yml` has no `visual_review` entry and `Feature.visual_review_enabled?` does not exist. It was already independently gated per repository via `.syrus.yml`'s `visual_review.enabled`, so the instance-wide flag became redundant once it was unconditionally available. A repository's `.syrus.yml` `visual_review.enabled` setting still overrides the always-on default per repo. See the Visual Review documentation for the full config block, step behavior, seeding requirements, and the browser tool set's loopback restriction, and the `visual_review` section of the `.syrus.yml` reference for the per-repo `rounds`, `when_files_changed`, and `seed_notes` fields.
 
+## grader_fanout_overlay
+
+**Category:** Operations · **Off by default**
+
+Mounts local overlayfs workspaces for immutable grader checkouts when the worker supports it. The prepared checkout remains the read-only lower directory, while each materialized grader gets its own thin upper/work directories and mountpoint under the workflow workspace. This avoids copying large prepared dependencies such as `vendor/bundle` and `node_modules` for every grader.
+
+Syrus checks for Linux and kernel overlayfs support before attempting the mount. A mount failure, an unsupported filesystem, or a non-Linux worker falls back to the existing full-copy checkout path and records the explicit reason in the grader step's `immutable_source_workspace` details. Workflow cleanup unmounts overlay workspaces before removing the workflow directory.
+
 ## chat_context_compaction
 
 **Category:** Operations
