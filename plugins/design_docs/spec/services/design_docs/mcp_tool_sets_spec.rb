@@ -793,6 +793,33 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(suggestion).to have_attributes(original_markdown: "beta", suggested_markdown: "BETTA")
   end
 
+  it "allows marker-looking lines inside fenced code blocks" do
+    markdown = "```\n# code\n```\n\nBody"
+    doc = create_design_doc(markdown: markdown)
+    server = chat_server
+    start_offset = markdown.index("# code")
+    end_offset = start_offset + "# code".length
+
+    expect {
+      response = call_tool(
+        server,
+        "suggest_design_doc_change",
+        doc_ref: doc.display_id,
+        start_offset: start_offset,
+        end_offset: end_offset,
+        base_version_number: doc.current_version.version_number,
+        original_markdown: "# code",
+        proposed_markdown: "# still code"
+      )
+
+      expect(response.dig(:result, :isError)).to be_falsey
+    }.to change(DesignDocs::DesignDocSuggestion, :count).by(1)
+
+    suggestion = DesignDocs::DesignDocSuggestion.last
+    expect(suggestion.anchor).to have_attributes(start_offset: start_offset, end_offset: end_offset)
+    expect(suggestion).to have_attributes(original_markdown: "# code", suggested_markdown: "# still code")
+  end
+
   it "keeps block-boundary validation active for original_markdown-resolved ranges" do
     doc = create_design_doc(markdown: "## Heading\n\nBody")
     server = chat_server

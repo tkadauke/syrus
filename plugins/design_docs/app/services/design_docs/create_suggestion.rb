@@ -208,8 +208,7 @@ module DesignDocs
       return if start_offset == end_offset
       return if block_boundary?(visible, start_offset) && block_boundary?(visible, end_offset)
 
-      selected = visible[start_offset...end_offset].to_s
-      return unless starts_with_block_marker?(selected) || cuts_block_marker?(visible, start_offset) || cuts_block_marker?(visible, end_offset)
+      return unless range_starts_with_block_marker?(visible, start_offset) || cuts_block_marker?(visible, start_offset) || cuts_block_marker?(visible, end_offset)
 
       raise_invalid_suggestion!(
         "Suggestions cannot select only part of Markdown block syntax. Select the whole heading, list item, quote, or code fence block. #{valid_range_hint(visible, start_offset, end_offset)}"
@@ -275,6 +274,11 @@ module DesignDocs
 
     def line_starts_with_block_marker?(visible, offset)
       DesignDocs::MarkdownBlocks.line_at(visible, offset)&.block_marker?
+    end
+
+    def range_starts_with_block_marker?(visible, offset)
+      line = DesignDocs::MarkdownBlocks.line_at(visible, offset)
+      line&.block_marker? && offset == line.start_offset
     end
 
     def starts_with_block_marker?(markdown)
