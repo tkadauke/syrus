@@ -25,14 +25,15 @@ Backend producers open items into one of the queues
   distinct from an ordinary failed-Run notification: automatic retry/rebuild is
   paused, the evidence includes the latest fingerprint, revision, streak count,
   exception class/message, top stack frames, and current Workflow/Step/Run
-  identifiers, and the admin system-alert banner links operators back to this
-  queue. The open queue item is keyed to the actionable Job plus repeated-failure
-  circuit, not to the volatile fingerprint or app revision, so a later trip for
-  the same Job refreshes the existing row with current evidence and supersedes
-  older repeated-failure rows. Operators should still inspect the latest
-  fingerprint and app revision before retrying, but the queue represents one
-  decision: fix or deploy the underlying condition, manually retry after that
-  change, or deliberately dismiss the evidence as a false positive.
+  identifiers, and the Dashboard jobs Inbox notice area links operators back to
+  this queue when urgent operator items are open. The open queue item is keyed to
+  the actionable Job plus repeated-failure circuit, not to the volatile
+  fingerprint or app revision, so a later trip for the same Job refreshes the
+  existing row with current evidence and supersedes older repeated-failure rows.
+  Operators should still inspect the latest fingerprint and app revision before
+  retrying, but the queue represents one decision: fix or deploy the underlying
+  condition, manually retry after that change, or deliberately dismiss the
+  evidence as a false positive.
 
 ## Operator surface
 
