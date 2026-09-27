@@ -214,6 +214,16 @@ toolbar does not offer `Edit`, their in-flight edits autosave as pending
 suggestions, the save action is labeled as suggestion creation, and
 accept/reject controls render as pending owner review.
 
+## MCP tools
+
+Chat agents can list, read, propose, comment on, suggest changes to, archive,
+and inspect the section outline of visible design docs. Workflow agents get the
+read-only subset scoped to docs linked to the run repository. The
+`list_design_doc_sections` tool returns every Markdown heading in the current
+rendered Markdown, with its level, text, start offset, and section end offset,
+so agents can target `suggest_design_doc_change` without hand-parsing the full
+document body.
+
 ## Thread Mentions
 
 Users who can comment/suggest on a Design Doc can invoke a lightweight Design

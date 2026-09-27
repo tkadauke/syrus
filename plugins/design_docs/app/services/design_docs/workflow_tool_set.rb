@@ -4,7 +4,8 @@ module DesignDocs
 
     TOOL_CLASSES = [
       ListDesignDocsTool,
-      ReadDesignDocTool
+      ReadDesignDocTool,
+      ListDesignDocSectionsTool
     ].freeze
 
     def self.available_for?(repository)
