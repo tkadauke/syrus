@@ -105,8 +105,12 @@ class WorkflowAdmissionBudget
     end
 
     # The one capacity question worth asking, and it is answered by measuring
-    # rather than predicting: is this host busy *right now*?
-    if soft_host_pressure? && !urgent?
+    # rather than predicting: is the worker pool broadly busy *right now*?
+    # A single unhealthy worker/storage key is recorded as localized pressure
+    # so operators can repair that host without making the whole pool look
+    # saturated. Per-host RunHostAdmission still prevents a critical worker
+    # from starting compute work it happens to claim.
+    if broad_soft_host_pressure? && !urgent?
       return delay("worker_host_pressure_high", pressure, details: details_payload(candidate, active, decision_basis: "measured_host_pressure"))
     end
 
@@ -516,7 +520,7 @@ class WorkflowAdmissionBudget
   # admissions came through it, that was the predictive gates refusing
   # everything, not the floor doing its job.
   def minimum_progress_floor_reason(_candidate, _active, _pressure)
-    return "worker_host_pressure_high" if soft_host_pressure?
+    return "worker_host_pressure_high" if broad_soft_host_pressure?
 
     nil
   end
@@ -589,7 +593,8 @@ class WorkflowAdmissionBudget
         "io_pressure" => [ IO_BUDGET - samples.map { |sample| [ sample.io_pressure_some, sample.io_pressure_full ].compact.max.to_f }.max.to_f, 0.0 ].max.round(1),
         "memory_used_percent" => [ MEMORY_BUDGET - samples.map { |sample| sample.memory_used_percent.to_f }.max.to_f, 0.0 ].max.round(1),
         "data_root_used_percent" => [ HARD_DATA_ROOT_USED_PERCENT - samples.map { |sample| sample.data_root_used_percent.to_f }.max.to_f, 0.0 ].max.round(1)
-      }
+      },
+      "locality" => pressure_locality_payload(samples)
     }
   end
 
@@ -611,7 +616,63 @@ class WorkflowAdmissionBudget
         "io_pressure" => IO_BUDGET,
         "memory_used_percent" => MEMORY_BUDGET,
         "data_root_used_percent" => HARD_DATA_ROOT_USED_PERCENT
+      },
+      "locality" => {
+        "scope" => "unknown",
+        "pressure_localized" => false,
+        "pressured_storage_key_count" => 0,
+        "healthy_storage_key_count" => 0,
+        "healthy_alternatives_present" => false,
+        "pressured_storage_keys" => [],
+        "healthy_alternative_storage_keys" => []
       }
+    }
+  end
+
+  def pressure_locality_payload(samples)
+    by_storage_key = samples.group_by { |sample| sample.worker_storage_key.presence || sample.hostname }
+    key_payloads = by_storage_key.map { |storage_key, key_samples| storage_key_pressure_payload(storage_key, key_samples) }
+    pressured = key_payloads.select do |payload|
+      WorkerHealthSampleAnalysis::LEVEL_ORDER.fetch(payload.fetch("health_level"), 0) >=
+        WorkerHealthSampleAnalysis::LEVEL_ORDER.fetch("warning")
+    end
+    healthy = key_payloads.select { |payload| payload.fetch("health_level") == "ok" }
+
+    {
+      "scope" => pressure_scope(pressured, healthy, key_payloads),
+      "pressure_localized" => pressured.any? && healthy.any?,
+      "pressured_storage_key_count" => pressured.size,
+      "healthy_storage_key_count" => healthy.size,
+      "healthy_alternatives_present" => healthy.any?,
+      "pressured_storage_keys" => pressured.sort_by { |payload| payload.fetch("storage_key") },
+      "healthy_alternative_storage_keys" => healthy.sort_by { |payload| payload.fetch("storage_key") }
+    }
+  end
+
+  def pressure_scope(pressured, healthy, key_payloads)
+    return "none" if pressured.empty?
+    return "localized" if healthy.any?
+    return "fleet_wide" if pressured.size == key_payloads.size
+
+    "mixed"
+  end
+
+  def storage_key_pressure_payload(storage_key, samples)
+    health = samples.map { |sample| WorkerHealthSampleAnalysis.health_for(sample).stringify_keys }
+    health_level = health
+      .map { |sample_health| sample_health.fetch("level") }
+      .max_by { |level| WorkerHealthSampleAnalysis::LEVEL_ORDER.fetch(level) } || "unknown"
+
+    {
+      "storage_key" => storage_key,
+      "hostnames" => samples.map(&:hostname).uniq.sort,
+      "health_level" => health_level,
+      "health_reasons" => health.flat_map { |sample_health| sample_health.fetch("reasons", []) }.uniq,
+      "max_cpu_pressure" => samples.map { |sample| [ sample.cpu_pressure_some, sample.cpu_pressure_full ].compact.max.to_f }.max.to_f.round(1),
+      "max_io_pressure" => samples.map { |sample| [ sample.io_pressure_some, sample.io_pressure_full ].compact.max.to_f }.max.to_f.round(1),
+      "max_memory_used_percent" => samples.map { |sample| sample.memory_used_percent.to_f }.max.to_f.round(1),
+      "max_data_root_used_percent" => samples.map { |sample| sample.data_root_used_percent.to_f }.max.to_f.round(1),
+      "last_observed_at" => samples.map(&:observed_at).compact.max&.iso8601
     }
   end
 
@@ -661,12 +722,20 @@ class WorkflowAdmissionBudget
       host_pressure.fetch("max_data_root_used_percent") >= SOFT_HOST_PRESSURE
   end
 
+  def localized_soft_host_pressure?
+    soft_host_pressure? && host_pressure.dig("locality", "healthy_alternatives_present")
+  end
+
+  def broad_soft_host_pressure?
+    soft_host_pressure? && !localized_soft_host_pressure?
+  end
+
   def admit_decision_basis(reason, _candidate)
     reason == "within_budget" ? "measured_host_pressure" : reason
   end
 
   def pressure_detected?(pressure)
-    pressure.fetch("active").fetch("workflow_count").positive? || soft_host_pressure?
+    pressure.fetch("active").fetch("workflow_count").positive? || broad_soft_host_pressure?
   end
 
   def urgent_override(reason, pressure)
@@ -727,7 +796,8 @@ class WorkflowAdmissionBudget
 
   def disabled_bypassed_gates(candidate, active, pressure)
     gates = []
-    gates << "worker_host_pressure_high" if soft_host_pressure?
+    gates << "worker_host_pressure_high" if broad_soft_host_pressure?
+    gates << "localized_worker_host_pressure_high" if localized_soft_host_pressure?
     gates << "landing_queue_capacity_reserved" if landing_capacity_reserved_for_queue?
     gates.uniq
   end
@@ -780,6 +850,10 @@ class WorkflowAdmissionBudget
       "hard_pressure_gates_considered" => %w[worker_memory_exhausted worker_disk_exhausted],
       "soft_pressure_gates_considered" => soft_pressure_gates,
       "soft_pressure_gates_present" => disabled_bypassed_gates(candidate, active, pressure_payload(candidate: candidate, active: active)),
+      "worker_pressure_scope" => host_pressure.dig("locality", "scope"),
+      "worker_pressure_localized" => host_pressure.dig("locality", "pressure_localized"),
+      "pressured_worker_storage_keys" => host_pressure.dig("locality", "pressured_storage_keys"),
+      "healthy_alternative_worker_storage_keys" => host_pressure.dig("locality", "healthy_alternative_storage_keys"),
       "job_priority" => job.priority,
       "trigger_kind" => workflow.trigger_kind,
       "decision_basis" => decision_basis,
@@ -792,6 +866,7 @@ class WorkflowAdmissionBudget
   def soft_pressure_gates
     %w[
       worker_host_pressure_high
+      localized_worker_host_pressure_high
       bootstrap_missing_profiles
       landing_queue_capacity_reserved
       predicted_budget_pressure_high

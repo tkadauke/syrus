@@ -240,6 +240,38 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
       expect(worker.fetch("pools").map { |pool| pool.fetch("used") }).to contain_exactly(1, 0)
     end
 
+    it "classifies running descendants of terminal workflows as diagnostics instead of live occupancy" do
+      enable_plugin!
+      sign_in_as(admin)
+      solid_queue_process(hostname: "worker-a", pid: 101, metadata: { "queues" => "runs", "thread_pool_size" => 2 })
+      create_health_sample(hostname: "worker-a", worker_storage_key: "storage-a", cpu_used_percent: 10, memory_used_percent: 20, io_pressure_some: 0)
+
+      active_workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-a", worker_storage_key: "storage-a")
+      active_step = active_workflow.steps.create!(kind: "implement", position: 1, state: "running", started_at: 9.minutes.ago)
+      active_run = Run.create!(job: job, user: admin, step: active_step, trigger_kind: "initial", agent_provider: "codex", state: "running", started_at: 8.minutes.ago)
+
+      stale_job = Factories.job_record(user: admin, repository: repository, state: "running", issue_title: "Already landed")
+      stale_workflow = Workflow.create!(job: stale_job, trigger_kind: "initial", state: "failed", started_at: 40.minutes.ago, finished_at: 30.minutes.ago, worker_hostname: "worker-a", worker_storage_key: "storage-a")
+      stale_cancelled_step = stale_workflow.steps.create!(kind: "prepare", position: 0, state: "cancelled", started_at: 39.minutes.ago, finished_at: 38.minutes.ago)
+      Run.create!(job: stale_job, user: admin, step: stale_cancelled_step, trigger_kind: "initial", agent_provider: "codex", state: "cancelled", started_at: 39.minutes.ago, finished_at: 38.minutes.ago)
+      stale_running_step = stale_workflow.steps.create!(kind: "implement", position: 1, state: "running", started_at: 37.minutes.ago)
+      stale_running_run = Run.create!(job: stale_job, user: admin, step: stale_running_step, trigger_kind: "initial", agent_provider: "codex", state: "running", started_at: 36.minutes.ago)
+      stale_job.update_columns(state: "closed", closure_reason: "merged", landed_sha: "abc123", finished_at: 25.minutes.ago)
+
+      get "/api/v1/app/admin/worker_timeline/live"
+
+      expect(response).to have_http_status(:ok)
+      worker = parse_body.fetch("workers").find { |entry| entry.fetch("hostname") == "worker-a" }
+      expect(worker.dig("occupancy")).to eq("used" => 1, "total" => 2)
+      live_slots = worker.fetch("pools").flat_map { |pool| pool.fetch("slots") }
+      expect(live_slots.map { |slot| slot.fetch("run_id") }).to eq([ active_run.id ])
+      expect(live_slots.map { |slot| slot.fetch("step_id") }).to eq([ active_step.id ])
+
+      stale_diagnostics = parse_body.dig("diagnostics", "stale_terminal_descendants")
+      expect(stale_diagnostics.map { |slot| slot.fetch("id") }).to contain_exactly("stale-run-#{stale_running_run.id}", "stale-step-#{stale_running_step.id}")
+      expect(stale_diagnostics).to all(include("attribution" => "stale_terminal_descendant", "workflow_id" => stale_workflow.id, "workflow_state" => "failed", "descendant_state" => "running"))
+    end
+
     it "filters live workers by status from the shared FilterBar q param" do
       enable_plugin!
       sign_in_as(admin)

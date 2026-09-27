@@ -956,6 +956,12 @@ Admission decisions record a `telemetry_state` of present, stale, or absent
 worker host telemetry alongside the pressure numbers, so a monitoring gap
 (no recent host samples) is distinguishable from workers that are genuinely
 busy or exhausted, instead of both looking like a 0% pressure reading.
+When pressure is isolated to one worker storage key while other workers remain
+healthy, the same diagnostics call that out as localized worker pressure,
+listing the unhealthy storage key and hostnames separately from healthy
+alternatives. That keeps a single bad worker from looking like whole-pool
+saturation while the per-host admission guard still prevents work from
+starting on the critical worker.
 When a Job is blocked on admission control, its Job detail page shows an
 operator-facing pressure breakdown directly — which dimension tripped, its
 current value against the threshold that tripped it, and whether the reading

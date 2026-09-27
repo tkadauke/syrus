@@ -141,14 +141,14 @@ RSpec.describe Workflow, :ci_only do
       expect(workflow.live_descendants?).to be(true)
     end
 
-    it "does not cancel a stale active Step whose latest Run is terminal" do
+    it "cancels a stale active Step whose latest Run is terminal" do
       workflow = described_class.create!(job: job, trigger_kind: "initial", state: "failed")
       step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "running")
       Run.create!(job: job, step: step, trigger_kind: "initial", state: "failed")
 
       workflow.cancel_active_descendants!
 
-      expect(step.reload).to be_running
+      expect(step.reload).to be_cancelled
       expect(workflow.projected_active_step_ids).to be_empty
     end
 

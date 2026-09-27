@@ -106,6 +106,7 @@ class RunHostAdmission
     {
       "reason" => reason,
       "hostname" => hostname,
+      "worker_storage_key" => local_sample&.worker_storage_key,
       "sample_observed_at" => local_sample&.observed_at&.iso8601,
       "sample_health" => local_health.stringify_keys,
       "step_kind" => step&.kind,

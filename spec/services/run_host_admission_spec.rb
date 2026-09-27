@@ -16,7 +16,7 @@ RSpec.describe RunHostAdmission do
   end
 
   it "defers compute runs on a worker with critical local pressure" do
-    worker_sample(cpu_pressure_some: 55.0)
+    worker_sample(cpu_pressure_some: 55.0, worker_storage_key: "storage-critical")
 
     decision = described_class.call(run: run)
 
@@ -24,6 +24,7 @@ RSpec.describe RunHostAdmission do
     expect(decision.reason).to eq("local_worker_pressure_critical")
     expect(decision.details).to include(
       "hostname" => "worker-a",
+      "worker_storage_key" => "storage-critical",
       "step_kind" => "prepare"
     )
     expect(decision.details.fetch("sample_health")).to include("level" => "critical")
