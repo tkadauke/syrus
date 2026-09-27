@@ -3,23 +3,19 @@
 `.github/workflows/release.yml` went red. This doc gets you from the
 red X to a cause in minutes: find your error string in the triage table,
 jump to the section, run the Check, apply the Fix. It covers the macOS
-signing/notarization path (`CSC_LINK` + notarytool) and the Windows Azure
-Artifact Signing path (both live in the shared `_build-app.yml` build
-module, called by `release.yml` and `test-build.yml` — `build-mac` and
-`build-windows` — which run in **parallel**). To prove signing without
-cutting a release, run a **dry-run release** (`dry_run = true`): the build
-jobs are identical on a dry and a real run — they sign and stage every
-artifact — and only `publish` / `publish-website` are skipped. Setup docs
-live in [`releasing.md`](./releasing.md) and
-[`windows-signing.md`](./windows-signing.md); this doc assumes setup was once
-working.
+signing/notarization path (`CSC_LINK` + notarytool). To prove signing
+without cutting a release, run a **dry-run release** (`dry_run = true`):
+the build jobs are identical on a dry and a real run — they sign and stage
+every artifact — and only `publish` / `publish-website` are skipped. Setup
+docs live in [`releasing.md`](./releasing.md); this doc assumes setup was
+once working.
 
 The pipeline is **manually dispatched** (`workflow_dispatch`) — you pick a
 `bump` (patch/minor/major, default minor) or an explicit `version`, and an
 optional `dry_run`. There is no tag trigger; `prepare` computes the version by
 bumping the newest tag (`desktop/package.json` stays a `0.0.0` sentinel), then
-guards that the tag/release don't already exist. The four build jobs
-(`build-backend`, `build-cli`, `build-mac`, `build-windows`) each produce
+guards that the tag/release don't already exist. The build jobs
+(`build-backend`, `build-cli`, `build-mac`) each produce
 **staged** artifacts and push only a *versioned* backend image — never
 `:latest`. Only the final `publish` job creates the tag + GitHub Release,
 uploads every staged asset, and moves the image `:latest` pointer. It
@@ -59,14 +55,6 @@ Grep the failed run's log for the string in column one.
 | `The staple and validate action failed! Error 65` | stapling a mutated artifact, or CDN lag | [4.4](#44-stapler-failures) |
 | `skipped macOS application code signing` | silent skip — no usable identity | [6.1](#61-green-build-unsigned-artifact) |
 | `skipped macOS notarization` | silent skip — notarize creds absent | [6.1](#61-green-build-unsigned-artifact) |
-| `Azure signing configuration missing:` | Azure secrets/vars not configured | [5](#5-windows-azure-artifact-signing) |
-| `No match was found for the specified search criteria for the provider 'NuGet'` | PSGallery bootstrap flake | [5.1](#51-module-install-failures) |
-| `being used by another process` / `SignTool failed with exit code 3` | concurrent-signing race | [5.2](#52-the-concurrent-signing-race) |
-| `Status: 403 (Forbidden)` (codesigning.azure.net) | SP role / identity validation / name mismatch | [5.3](#53-403-forbidden) |
-| `AADSTS` | bad `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` | [5.3](#53-403-forbidden) |
-| `is not validly signed (status:` | our verify step caught a bad/unsigned exe | [5.4](#54-publishername-and-cn-mismatches), [5.6](#56-timestamping) |
-| Windows 403 after months of green, no config diff | identity validation expired (2-year clock) | [5.5](#55-identity-validation-expiry) |
-| `timestamp.acs.microsoft.com` errors | flaky ACS timestamp server | [5.6](#56-timestamping) |
 | `no staged artifacts to publish` | a build job produced no assets to upload | [6.2](#62-publish-job-failures) |
 | `imagetools create` failure moving `:latest` | GHCR packages-write permission / auth | [6.2](#62-publish-job-failures) |
 | `denied: permission_denied: write_package` (build-backend) | `syrus-backend` package not connected to the repo — connect it (no PAT) | [6.2](#62-publish-job-failures) |
@@ -97,14 +85,6 @@ the workflow working as designed, not bugs:
    signed build is required on purpose — Squirrel.Mac would strand the
    installed base — and this guard fires on **dry runs too**, because a dry
    run signs everything (it only skips publishing).
-3. **`Azure signing configuration missing: <names> — see
-   docs/windows-signing.md. A signed build is required — set them in repo
-   secrets/variables (dry runs sign too).`** (`build-windows`, "Guard: Azure
-   signing configuration present") — one or more of the four `AZURE_SIGN_*`
-   identifiers or the three client credentials are absent. This guard fires on
-   dry runs too (a dry run Azure-signs). See
-   [5](#5-windows-azure-artifact-signing).
-
 The backend image is built, integration-tested, and pushed **inside CI** by
 the `build-backend` matrix (amd64 on `ubuntu-latest`, arm64 on
 `ubuntu-24.04-arm` — native, no QEMU). Each leg runs
@@ -282,151 +262,6 @@ permission) see [6.4](#64-build-backend-disk-and-cache).
   the `staged-*` namespace so publish's download glob can never attach it
   to the Release, even across re-run attempts.)
 
-## 5. Windows (Azure Artifact Signing)
-
-Windows signing runs live in the shared `_build-app.yml` module's `build-windows`
-job on every manual dispatch (in parallel with `build-mac`); its guard
-fails the run when any of the four `AZURE_SIGN_*` identifiers (or the
-client credentials) are absent — add the listed ones per the
-[secrets table](./windows-signing.md#6-repo-secrets).
-A **dry-run release** exercises the same chain without cutting a release —
-the `build-windows` job is identical on a dry and a real run, so it signs
-and stages the `.exe` while publishing nothing (the workflow file must be on
-the default branch for the Run-workflow button to exist — the fork
-workaround is in
-[windows-signing.md §7](./windows-signing.md#7-test-it)). Note
-`azureSignOptions` is injected via CLI dot-paths, never committed to
-`electron-builder.yml` — its mere presence would force signing on every
-unsigned dev build.
-
-### 5.1 Module install failures
-
-- **Symptom (grep):** `Install-PackageProvider: No match was found for the
-  specified search criteria for the provider 'NuGet'`, or
-  `Install-Module` failures for `TrustedSigning` mid-build.
-- **Cause:** electron-builder installs the TrustedSigning PowerShell
-  module (and the NuGet provider) on the fly at first sign; PSGallery
-  bootstrap on a fresh runner is flaky
-  ([#8828](https://github.com/electron-userland/electron-builder/issues/8828),
-  [walkthrough](https://hendrik-erz.de/post/code-signing-with-azure-trusted-signing-on-github-actions)).
-- **Check:** the `Install-PackageProvider`/`Install-Module` lines appear in
-  electron-builder's output right before the failure — i.e. nothing
-  pre-installed the toolchain.
-- **Fix:** re-run (often enough). Durable fix: a dedicated pwsh step
-  before the build —
-  `Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser;
-  Install-Module TrustedSigning -RequiredVersion <pinned> -Force -Scope CurrentUser`
-  — pinned, so it's neither a flake nor a supply-chain hole.
-
-### 5.2 The concurrent-signing race
-
-- **Symptom (grep):** `The process cannot access the file
-  '...Azure.CodeSigning.Dlib.dll' because it is being used by another
-  process` / `Package 'Microsoft.Trusted.Signing.Client' failed to be
-  installed` / `SignTool failed with exit code 3`. Nondeterministic
-  across runs.
-- **Cause:** electron-builder signs multiple files in parallel (we build
-  x64 + arm64 in one invocation — installers, uninstallers, helpers), and
-  each parallel `Invoke-TrustedSigning` call races to install the same
-  NuGet packages
-  ([#8615](https://github.com/electron-userland/electron-builder/issues/8615),
-  recurrence on 26.0.13:
-  [#9076](https://github.com/electron-userland/electron-builder/issues/9076)).
-- **Check:** file-lock errors naming `Microsoft.Trusted.Signing.Client` or
-  `Microsoft.Windows.SDK.BuildTools` paths = the race, not credentials.
-  Worst on a fresh runner with no cached module.
-- **Fix:** pre-install the module before the build (see 5.1) so no install
-  happens during signing; keep electron-builder current (the
-  serialization fix landed via #8632 but treat it as incomplete); last
-  resort, a custom sequential `win.sign` hook.
-
-### 5.3 403 Forbidden
-
-- **Symptom (grep):** `Status: 403 (Forbidden)` from
-  `codesigning.azure.net`, often wrapped in `SignerSign() failed` /
-  `0x80004005`. (`AADSTS` errors are different — that's authentication:
-  wrong tenant/client/secret, or the app registration was created with
-  the wrong account type — see
-  [windows-signing.md §5](./windows-signing.md#5-service-principal-for-ci-no-interactive-login-in-actions).)
-- **Cause:** authorization, not authentication. In rough order of
-  likelihood: the role went to your *user* instead of the service
-  principal (the workflow authenticates as the app registration, not as
-  you); identity validation not `Completed` (or expired —
-  [5.5](#55-identity-validation-expiry)); account/profile/endpoint values
-  wrong
-  ([MS Q&A](https://learn.microsoft.com/en-us/answers/questions/5633617/403-forbidden-error-when-using-signtool-with-trust),
-  [melatonin.dev guide](https://melatonin.dev/blog/code-signing-on-windows-with-azure-trusted-signing/)).
-- **Check:** portal → Trusted Signing account → **Access control (IAM)**:
-  the app registration (e.g. `syrus-release-ci`) must hold **"Trusted
-  Signing Certificate Profile Signer"**. Then Identity validation status.
-  Then compare `AZURE_SIGN_ENDPOINT` (region-coded, e.g.
-  `https://eus.codesigning.azure.net`), `AZURE_SIGN_ACCOUNT_NAME`, and
-  `AZURE_SIGN_CERT_PROFILE` character-for-character against the portal.
-  The workflow already strips a trailing slash from the endpoint.
-- **Fix:** assign the role to the exact SP used by CI (propagation takes a
-  few minutes), complete/renew the validation, or fix the mismatched
-  name. Microsoft's own guidance adds: transient 403/500s exist —
-  [retry before re-architecting](https://learn.microsoft.com/en-us/answers/questions/2280136/signtool-fails-with-opaque-error-(trusted-signing)).
-
-### 5.4 publisherName and CN mismatches
-
-- **Symptom:** signing fails against the profile, or (later, in the field)
-  electron-updater refuses a downloaded update with a
-  `publisherNames ... doesn't match` class error; our verify step throws
-  `<exe> is not validly signed (status: ...)`.
-- **Cause:** `AZURE_SIGN_PUBLISHER_NAME` must match the certificate
-  profile's Subject CN **byte-for-byte** (it's threaded into
-  `win.azureSignOptions.publisherName`). Trusted Signing certs often
-  render the legal name differently (e.g. uppercase) than expected, and
-  electron-updater validates installers against the configured publisher
-  ([#8696](https://github.com/electron-userland/electron-builder/issues/8696)).
-- **Check:** on a signed artifact:
-  `Get-AuthenticodeSignature .\Syrus-Setup-*.exe | % { $_.SignerCertificate.Subject }`
-  and compare with the secret and the certificate profile page.
-- **Fix:** set the secret to the exact CN. If the CN ever changes (cert
-  migration), ship an interim release that lists both old and new names
-  so existing installs accept the newly-signed update before the old
-  entry is dropped.
-
-### 5.5 Identity validation expiry
-
-- **Symptom:** signing worked for months, now every run 403s with zero
-  config changes. The portal shows the identity validation expired;
-  "Action required" renewal emails were missed.
-- **Cause:** Azure identity validation **expires every 2 years**
-  ([windows-signing.md §3](./windows-signing.md#3-identity-validation) told
-  you to set a calendar reminder — this is why). Once lapsed, cert
-  issuance stops and every sign call against profiles tied to it fails.
-- **Check:** portal → Trusted Signing account → Identity validations →
-  status/expiry. Correlate the first red run with the expiry date.
-- **Fix:** renewal is only possible starting **60 days before expiry**.
-  After expiry you must create a *new* identity validation (ID + selfie
-  again), then recreate the certificate profile **with the same name**
-  pointing at the new validation so no CI secret changes
-  ([MS renewal doc](https://learn.microsoft.com/en-us/azure/artifact-signing/how-to-renew-identity-validation)).
-
-### 5.6 Timestamping
-
-- **Symptom (grep):** intermittent `SignerSign() failed` / errors naming
-  `timestamp.acs.microsoft.com`; or signed builds whose signature dies
-  later because **no timestamp was applied**.
-- **Cause:** the Microsoft ACS timestamp endpoint fails intermittently
-  under batch signing
-  ([Rick Strahl's writeup](https://weblog.west-wind.com/posts/2026/Feb/26/Dont-use-the-Microsoft-Timestamp-Server-for-Signing)),
-  and electron-builder's Azure path once shipped without RFC3161 params
-  entirely ([#8626](https://github.com/electron-userland/electron-builder/issues/8626)).
-  This matters more than on other platforms: Trusted Signing certs are
-  short-lived, so an untimestamped signature expires with the cert —
-  within days.
-- **Check:** post-sign,
-  `Get-AuthenticodeSignature .\Syrus-Setup-*.exe | % { $_.TimeStamperCertificate }`
-  must be non-null (our verify step checks `Status -eq Valid` but not the
-  timestamp — check it by hand when suspicious). Flakiness across re-runs
-  with identical config = TSA availability, not you.
-- **Fix:** re-run; keep electron-builder past the no-timestamp bug; if
-  driving signtool by hand, use RFC3161 (`/tr http://... /td SHA256`,
-  plain http — https TSAs are unsupported).
-
 ## 6. electron-builder generalities
 
 ### 6.1 Green build, unsigned artifact
@@ -480,7 +315,7 @@ own failure signature.
   matched nothing). Because the assets go into a **draft**, an abort here
   leaves nothing visible, and the rollback step cleans up the draft + tag.
   **Check:** open each build job's "Stage …" step and its `upload-artifact`
-  step; confirm `staged-cli` / `staged-mac` / `staged-windows` exist under
+  step; confirm `staged-cli` / `staged-mac` exist under
   the run's artifacts and haven't passed their 7-day retention. **Fix:**
   re-dispatch the whole pipeline — the builds are cheap relative to a broken
   release, and nothing was published.
@@ -541,14 +376,12 @@ own failure signature.
   ([#2137](https://github.com/electron-userland/electron-builder/issues/2137)) —
   the comment in `desktop/electron-builder.yml` saying zip is REQUIRED
   is not decorative.
-- **Check:** `gh release view vX.Y.Z` and confirm the full set: both DMGs,
-  both zips, `latest-mac.yml` (mac feed), `Syrus-Setup-*.exe` + `latest.yml`
-  (Windows feed), and every `*.blockmap`. The build jobs verify these are
-  present before staging (`grep -q "Syrus-$VERSION-arm64.zip"
-  latest-mac.yml`, `Test-Path desktop/out/latest.yml`), and `publish`
-  uploads whatever was staged in one `gh release create`. The stable-named
-  `Syrus.dmg` / `Syrus-Setup.exe` aliases are *outside*
-  the feed (website permalinks only) — clobbering those is always safe.
+- **Check:** `gh release view vX.Y.Z` and confirm the full set: the macOS zip,
+  `latest-mac.yml`, `Syrus.dmg`, and every macOS `*.blockmap`. The build jobs
+  verify these are present before staging (`grep -q "$VERSION-universal.zip"
+  latest-mac.yml`), and `publish` uploads whatever was staged in one
+  `gh release create`. The stable-named `Syrus.dmg` alias is *outside* the feed
+  (website permalink only) — clobbering it is always safe.
 - **Fix:** re-dispatch the pipeline so the feed is regenerated and uploaded
   as a matched set. Never hand-edit, rename, or re-upload a published asset —
   every client hash check fails against a modified file. If the ymls and
@@ -613,7 +446,7 @@ Then bisect:
 | --- | --- | --- |
 | red | red | credential/config problem (cert type, expired cert, entitlements, bad key) — fix the credential, sections 3–4 |
 | green | red | CI-side: secret got mangled in transit (compare decoded-p12 `shasum` local vs. a temporary debug step), runner image changed (job log header), or Apple was backed up at that hour |
-| was green, red now, no diff | — | external: [Apple System Status](https://developer.apple.com/system-status/), Azure identity expiry ([5.5](#55-identity-validation-expiry)), runner image migration, GHCR availability |
+| was green, red now, no diff | — | external: [Apple System Status](https://developer.apple.com/system-status/), runner image migration, GHCR availability |
 
 Battle scars for the local leg:
 
@@ -623,13 +456,7 @@ Battle scars for the local leg:
 2. `bin/signing-env` prints a wrong-cert-type warning at build start and a
    mode warning if the env files aren't `chmod 600` — read its output
    before blaming CI.
-3. **Windows cannot be bisected locally from a Mac.** `Invoke-TrustedSigning`
-   is Windows-only; the windows loader in `bin/signing-env` deliberately
-   no-ops on Darwin ([windows-signing.md §8](./windows-signing.md#8-local-signing-and-why-it-doesnt-work-from-this-mac)).
-   The bisect tool there is a **dry-run release** — the `build-windows` job
-   signs on `windows-latest` and stages the `.exe` without publishing —
-   run from a fork while `release.yml` isn't on the default branch.
-4. The notary service is account-scoped, not machine-scoped: your local
+3. The notary service is account-scoped, not machine-scoped: your local
    `notarytool history` / `log` sees CI's submissions too
    ([4.1](#41-invalid-verdict-pull-the-developer-log)). That's usually
    faster than adding debug steps to the workflow.

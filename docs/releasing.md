@@ -5,15 +5,13 @@ manual workflow run:
 
 - **CLI** — `syrus_vX.Y.Z_linux_{amd64,arm64}.tar.gz` + checksums. **Linux only**:
   it's the sole platform with no desktop app, so the tarballs are the only way
-  CI / servers / headless boxes get the CLI. macOS + Windows users get the CLI
-  bundled + auto-installed by the desktop app, so darwin tarballs were dropped
-  (add them back to `bin/release-cli` if a CLI-only-on-Mac audience appears).
-- **Desktop apps** — one universal, notarized macOS build (Apple Silicon +
-  Intel) and an Azure-signed Windows x64 build (runs on arm64 Windows via
-  emulation). Humans download the stable **`Syrus.dmg`** / **`Syrus-Setup.exe`**
-  website permalinks; the app's **auto-update** rides `Syrus-X.Y.Z-universal.zip`
-  + `latest-mac.yml` (macOS, via Squirrel.Mac) and `Syrus-Setup-X.Y.Z-x64.exe` +
-  `latest.yml` (Windows), plus `.blockmap`s for delta downloads. The *versioned*
+  CI / servers / headless boxes get the CLI. macOS users get the CLI bundled +
+  auto-installed by the desktop app, so darwin tarballs were dropped (add them
+  back to `bin/release-cli` if a CLI-only-on-Mac audience appears).
+- **Desktop app** — one universal, notarized macOS build (Apple Silicon +
+  Intel). Humans download the stable **`Syrus.dmg`** website permalink; the
+  app's **auto-update** rides `Syrus-X.Y.Z-universal.zip` + `latest-mac.yml`
+  (via Squirrel.Mac), plus `.blockmap`s for delta downloads. The *versioned*
   dmg is not shipped — it would be a byte-identical twin of `Syrus.dmg`.
 - **Backend image** — `ghcr.io/tkadauke/syrus-backend:X.Y.Z`, built and
   integration-tested in CI, with `:latest` moved to it.
@@ -35,7 +33,7 @@ any failure — see [the pipeline](#the-pipeline-githubworkflowsreleaseyml)).
 | --- | --- |
 | `bump` | `patch` / `minor` (default) / `major`. The version is computed by bumping the latest release tag (`desktop/package.json` stays a `0.0.0` sentinel, so you never hand-set a version). |
 | `version` | Optional explicit override, e.g. `1.2.3` or a pre-release `1.2.3-beta.1` (auto-flagged as a GitHub pre-release). A leading `v` is accepted but not needed. Overrides `bump`. |
-| `dry_run` | Build and stage **everything** (image built + integration-tested, apps **signed + notarized / Azure-signed**, CLI cross-compiled) but publish nothing — no tag, no release, no image push, no `:latest` move. The full rehearsal: the build jobs are identical to a real release, so signing is validated every dry run. The staged artifacts (`staged-mac` / `staged-windows` / `staged-cli`) are downloadable from the run for inspection. |
+| `dry_run` | Build and stage **everything** (image built + integration-tested, app **signed + notarized**, CLI cross-compiled) but publish nothing — no tag, no release, no image push, no `:latest` move. The full rehearsal: the build jobs are identical to a real release, so signing is validated every dry run. The staged artifacts (`staged-mac` / `staged-cli`) are downloadable from the run for inspection. |
 | `review_notes` | Hold the release as a **draft** so you can read the (LLM-written) notes before it goes public. Everything runs — build, sign, generate notes, move image `:latest` — but the final draft→published flip is skipped; you edit the notes and click **Publish** in the GitHub UI when ready. Default off (auto-publish). |
 
 ### The pipeline (`.github/workflows/release.yml`)
@@ -60,8 +58,7 @@ prepare ── build  (uses ./.github/workflows/_build-app.yml — the SHARED sp
                  │                       merge-backend (imagetools create → the
                  │                       multi-arch :X.Y.Z tag; NOT :latest)
                  ├─ build-cli     (cross-compile tarballs → staged)
-                 ├─ build-mac     (sign + notarize + staple → staged)
-                 └─ build-windows (Azure-sign → staged)
+                 └─ build-mac     (sign + notarize + staple → staged)
                     │  the whole build spine must pass
                     ▼
                  publish   (NEAR-ATOMIC draft-release flow:
@@ -78,8 +75,8 @@ prepare ── build  (uses ./.github/workflows/_build-app.yml — the SHARED sp
 
 `.github/workflows/_build-app.yml` is a `workflow_call` module that builds and
 signs the whole shippable set — backend image (native per-arch matrix →
-multi-arch manifest), CLI tarballs, the notarized macOS app, and the Azure-signed
-Windows installer — and stages them as run artifacts. It owns none of the
+multi-arch manifest), CLI tarballs, and the notarized macOS app — and stages
+them as run artifacts. It owns none of the
 release-specific plumbing: version computation stays in each caller's `prepare`
 job, and publishing (draft release, `:latest` move, notes, website) stays in
 `release.yml`. Callers reach it as a single job (`build:`) and pass `secrets:
@@ -99,7 +96,7 @@ The two callers differ **only** in inputs:
 | `stage_update_feed` | `true` | `false` |
 | `artifact_prefix` | `staged` | `test-staged` |
 | `artifact_retention_days` | 7 | 14 |
-| `run_integration_tests` / `build_windows` | `true` | the dispatch inputs |
+| `run_integration_tests` | `true` | the dispatch input |
 
 To change how ANY component is built or signed, edit the module once; both
 entry points pick it up. To change what a release vs. a test build produces,
@@ -107,9 +104,8 @@ change the input a caller passes.
 
 Nothing is user-visible until `publish`. The build jobs only *stage* artifacts
 and push a *versioned* image tag; if any of them fails, `publish` never runs —
-no tag, no release, no moved `:latest`. macOS and Windows build in parallel
-(the old create-release 422 race is gone because neither job touches the
-release). A dry run skips `publish` and `publish-website` entirely, **but still
+no tag, no release, no moved `:latest`. The build jobs never touch the release
+directly. A dry run skips `publish` and `publish-website` entirely, **but still
 builds and integration-tests both arches natively** — a faithful rehearsal, no
 QEMU, publishing nothing (no digest push, no manifest, no tag).
 
@@ -173,21 +169,20 @@ a feature branch — without publishing anything:
 - **Backend image** — built natively per arch (same no-QEMU matrix as the
   release), integration-tested with `bin/test-docker`, and **pushed to GHCR**
   under two twin tags: `ghcr.io/tkadauke/syrus-backend:test-<X.Y.Z-test.N>`
-  (the badge-consistent tag the installers pin) and `:test-<short-sha>` (commit
+  (the badge-consistent tag the app pins) and `:test-<short-sha>` (commit
   traceability). Both shapes are guarded (`test-` prefix, never `latest`,
   never semver), so a test image can never collide with or shadow a release
   tag. `:latest` is never touched, and
   test builds write their own registry build-cache tags
   (`buildcache-test-<arch>`) so a divergent branch can't evict the warm cache
   the next real release depends on.
-- **Desktop apps** — a **signed + notarized** macOS DMG and (unless you
-  uncheck `build_windows`) an **Azure-signed** Windows installer, versioned
+- **Desktop app** — a **signed + notarized** macOS DMG, versioned
   `X.Y.Z-test.<run-number>` (the next patch over the same tag/`package.json`
   base a release uses) so a test build can never be mistaken for a release.
-  Both installers pin the `test-<X.Y.Z-test.N>` image in their `manifest.json`
+  The app pins the `test-<X.Y.Z-test.N>` image in its `manifest.json`
   (registry addressing), and the image itself bakes the app-style version as
   `SYRUS_VERSION`, so the in-app badge reads identically for both halves:
-  `app 0.1.4-test.1 · backend 0.1.4-test.1`. The installers build in
+  `app 0.1.4-test.1 · backend 0.1.4-test.1`. The app builds in
   **parallel** with the backend image (the pin is a string, not a pull); the
   run only succeeds when the tag was also pushed and verified, so a downloaded
   test installer from a green run installs end-to-end.
@@ -204,21 +199,18 @@ release — the app therefore skips auto-update entirely for `-test.` versions
 a deliberate manual reinstall.
 
 The built artifacts land as **workflow-run artifacts** — `test-staged-mac`
-(the versioned `.dmg`), `test-staged-windows` (the versioned Setup `.exe`),
-and `test-staged-cli` (the CLI tarballs + checksums) on the run's Summary
+(the versioned `.dmg`) and `test-staged-cli` (the CLI tarballs + checksums) on the run's Summary
 page, kept for **14 days**. They are deliberately **not** attached to a GitHub
-Release and carry no stable-name aliases (`Syrus.dmg` / `Syrus-Setup.exe` are
-the website permalinks — releases only) and no auto-update feed files: the
+Release and carry no stable-name aliases (`Syrus.dmg` is the website permalink
+for releases only) and no auto-update feed files: the
 workflow runs with `contents: read` permissions, so creating a tag or Release
 is structurally impossible.
 
 | Input | Meaning |
 | --- | --- |
 | `run_integration_tests` | Run `bin/test-docker` against each built arch before pushing (default on). Uncheck for a faster untested image. |
-| `build_windows` | Also build + sign the Windows installer (default on). |
-
 **Test build vs. `dry_run`:** a dry-run *release* is a rehearsal — it builds
-and signs everything but pushes **nothing**, so its installers pin an image
+and signs everything but pushes **nothing**, so its app pins an image
 tag that never exists. A *test build* always pushes the test-tagged image,
 so its artifacts are actually usable: install the DMG, and the app pulls and
 runs the exact backend built from your branch. Use `dry_run` to validate the
@@ -227,7 +219,7 @@ unmerged work.
 
 ### Side-by-side with a release (channels)
 
-A test build installs as **`Syrus Test.app`** (Windows: `Syrus Test`) and runs
+A test build installs as **`Syrus Test.app`** and runs
 **beside** a production release — install one without touching the other. This
 is what makes Syrus-develops-Syrus practical. Every namespaced resource forks
 off a single build-time **channel** bit (`stable` for releases, `test` for a
@@ -250,8 +242,8 @@ The channel is baked at packaging time: the Release workflow passes
 `channel: stable`, the Test-build workflow passes `channel: test`, and a local
 `npm --prefix desktop run build` (version `0.0.0`) is `test`. The CI threads it
 through the shared [`_build-app.yml`](../.github/workflows/_build-app.yml)
-module to electron-builder overrides (product name, appId, icon, DMG title,
-NSIS shortcut). At runtime the app forks its own userData/lock via
+module to electron-builder overrides (product name, appId, icon, DMG title).
+At runtime the app forks its own userData/lock via
 `app.setName()` before the settings store is created — electron-builder's
 `-c.productName` renames the `.app` bundle but **not** the bundled
 `package.json`, and `app.getName()` (which drives userData and the
@@ -353,7 +345,6 @@ To regenerate notes on your own machine: `bin/release-notes vX.Y.Z` (writes
 | `CSC_KEY_PASSWORD` | repo secret | the `.p12` export password |
 | App Store Connect API key (`.p8`) | appstoreconnect.apple.com → Integrations | Developer role suffices for notarytool |
 | `APPLE_API_KEY_P8` / `APPLE_API_KEY_ID` / `APPLE_API_ISSUER` | repo secrets | the key contents + its ids |
-| Azure Trusted Signing | see [`windows-signing.md`](./windows-signing.md) | `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` (secrets) + the four `AZURE_SIGN_*` identifiers (secrets or repo variables) |
 | GHCR `syrus-backend` package visibility | Package settings → Change visibility | **must be public** — every end user's install pulls it anonymously. New packages are private; flip it once after the first CI publish creates it. |
 
 **No GHCR token needed.** The backend image publishes with the workflow's
@@ -368,12 +359,11 @@ run — connect it manually via *Package settings → Manage Actions access → 
 Repository → `tkadauke/syrus` → Write*; see
 [`release-troubleshooting.md`](./release-troubleshooting.md#62-publish-job-failures).)
 
-Validate both signing paths (Apple **and** Azure) without cutting a release
-with a **dry-run release**: **Actions → "Release" → Run workflow → check
-`dry_run`**. It builds + signs + notarizes / Azure-signs every artifact and
-stages them (`staged-mac` / `staged-windows` / `staged-cli`, downloadable from
-the run) but publishes nothing. The Apple credentials can also be validated
-locally (below).
+Validate signing without cutting a release with a **dry-run release**:
+**Actions → "Release" → Run workflow → check `dry_run`**. It builds + signs +
+notarizes every artifact and stages them (`staged-mac` / `staged-cli`,
+downloadable from the run) but publishes nothing. The Apple credentials can
+also be validated locally (below).
 
 ## Signing / building locally
 
@@ -399,9 +389,7 @@ same credentials CI gets from repo secrets, from `~/.config/syrus/` instead:
 
 With both present, `bin/release-desktop` signs and notarizes exactly like the
 CI pipeline; without them it falls back to an unsigned local build. Neither
-file is committed — they play the role repo secrets play in CI. Windows local
-signing is documented in [`windows-signing.md`](./windows-signing.md)
-(`~/.config/syrus/windows-signing.env`).
+file is committed — they play the role repo secrets play in CI.
 
 ## Why unsigned releases are blocked
 
@@ -412,9 +400,6 @@ The pipeline refuses to publish a non-dry release without signing secrets:
 - electron-updater on macOS rides Squirrel.Mac, which refuses to install an
   update into an unsigned or differently-signed app — one unsigned release
   would strand the installed base off the update path.
-- Windows SmartScreen penalizes unsigned installers, and the pipeline never
-  ships an unsigned `.exe`.
-
 ## When a run goes red
 
 Go straight to [`release-troubleshooting.md`](./release-troubleshooting.md) —

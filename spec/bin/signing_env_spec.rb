@@ -5,9 +5,8 @@ require "spec_helper"
 require "tmpdir"
 
 # Local desktop signing: bin/signing-env lets bin/release-desktop sign and
-# notarize a macOS build (and, in principle, a Windows one) using the same
-# env var names release.yml sets from repo secrets, but read from
-# ~/.config/syrus/ instead — see docs/releasing.md and docs/windows-signing.md.
+# notarize a macOS build using the same env var names release.yml sets from
+# repo secrets, but read from ~/.config/syrus/ instead — see docs/releasing.md.
 RSpec.describe "bin/signing-env" do
   let(:script_path) { File.expand_path("../../bin/signing-env", __dir__) }
   let(:script) { File.read(script_path, encoding: "UTF-8") }
@@ -19,9 +18,9 @@ RSpec.describe "bin/signing-env" do
     expect(File.executable?(script_path)).to be(false)
   end
 
-  it "is sourced by bin/release-desktop, which loads both loaders before packaging" do
+  it "is sourced by bin/release-desktop before packaging" do
     expect(release_desktop).to include(". \"$ROOT/bin/signing-env\"")
-    expect(release_desktop).to match(/syrus_load_mac_signing_env[\s\S]*syrus_load_windows_signing_env[\s\S]*electron-builder/)
+    expect(release_desktop).to match(/syrus_load_mac_signing_env[\s\S]*electron-builder/)
   end
 
   def run_with_home(tmp_home, script_body)
@@ -88,25 +87,6 @@ RSpec.describe "bin/signing-env" do
     end
   end
 
-  it "guards windows signing env loading to a genuine Windows shell (MINGW/MSYS/CYGWIN)" do
-    Dir.mktmpdir do |home|
-      config_dir = File.join(home, ".config", "syrus")
-      FileUtils.mkdir_p(config_dir)
-      File.write(File.join(config_dir, "windows-signing.env"), "AZURE_TENANT_ID=should-not-load\n")
-
-      out, err, status = run_with_home(home, <<~BASH)
-        syrus_load_windows_signing_env
-        echo "AZURE_TENANT_ID=[${AZURE_TENANT_ID:-}]"
-      BASH
-      expect(status.exitstatus).to eq(0), err
-      # This test runs on Darwin/Linux, so uname -s is never MINGW/MSYS/CYGWIN —
-      # the loader must stay inert here even though the file exists.
-      expect(out).to include("AZURE_TENANT_ID=[]")
-    end
-
-    expect(script).to match(/MINGW\*\|MSYS\*\|CYGWIN\*/)
-  end
-
   def write_p12_env(home, common_name)
     config_dir = File.join(home, ".config", "syrus")
     FileUtils.mkdir_p(config_dir)
@@ -150,13 +130,9 @@ RSpec.describe "bin/signing-env" do
     end
   end
 
-  it "documents the local env file convention in docs/releasing.md and docs/windows-signing.md" do
+  it "documents the local env file convention in docs/releasing.md" do
     releasing = File.read(File.expand_path("../../docs/releasing.md", __dir__), encoding: "UTF-8")
     expect(releasing).to include("~/.config/syrus/mac-signing.env")
     expect(releasing).to include("apple-api-key.p8")
-
-    windows_signing = File.read(File.expand_path("../../docs/windows-signing.md", __dir__), encoding: "UTF-8")
-    expect(windows_signing).to include("~/.config/syrus/windows-signing.env")
-    expect(windows_signing).to include("Invoke-TrustedSigning")
   end
 end

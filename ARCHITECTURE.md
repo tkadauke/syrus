@@ -48,9 +48,8 @@ domain concepts. File paths are repo-relative.
 - **Electron desktop shell** under `desktop/` for a menubar inbox,
   native notifications, checkout/approval shortcuts, and local
   repository path preferences against the same app API. Distributed as a
-  universal macOS DMG (arm64 + x64 in one binary) and a Windows x64 NSIS
-  installer (`install.ps1`); both bundles include the Go CLI for one-click
-  install to `~/.local/bin/syrus`
+  universal macOS DMG (arm64 + x64 in one binary), with the Go CLI bundled
+  for one-click install to `~/.local/bin/syrus`
 - **Octokit** for the GitHub API
 - **AASM** for state machines on `Job`, `Workflow`, `Step`, and `Run`
 - **Claude Code** and **Codex** as agent providers (subprocesses behind
@@ -2200,8 +2199,8 @@ session outcome.
   notes.
 - Releases are cut by the CI pipeline (`.github/workflows/release.yml`) —
   a manual dispatch that computes the version, builds and signs the CLI,
-  the macOS universal DMG, the Windows x64 NSIS installer, and the backend
-  image, and publishes them atomically (see `docs/releasing.md`). Versions
+  the macOS universal DMG, and the backend image, and publishes them
+  atomically (see `docs/releasing.md`). Versions
   are tag-driven: `desktop/package.json` stays at `0.0.0` permanently;
   the release tag is the canonical version. The backend image is published
   using `GITHUB_TOKEN` (no PAT required — the package auto-connects to

@@ -1,15 +1,12 @@
 // Builds the Syrus CLI (a pure-Go binary — CGO_ENABLED=0, so no C toolchain
-// needed) for macOS and Windows on both architectures and stages it into
-// resources/cli/, which electron-builder bundles at <Resources>/cli with a
-// per-platform filter (mac DMGs carry only the darwin binaries, NSIS only
-// the windows ones — see electron-builder.yml). The app's Preferences offer
-// a one-click install from there (see "install-syrus-cli" in
+// needed) for macOS on both architectures and stages it into resources/cli/,
+// which electron-builder bundles at <Resources>/cli. The app's Preferences
+// offer a one-click install from there (see "install-syrus-cli" in
 // electron/main.ts).
 //
 // Naming mirrors Electron's runtime identifiers so main.ts can derive the
 // source as syrus-<process.platform>-<process.arch>[.exe]:
-//   syrus-darwin-arm64, syrus-darwin-x64, syrus-win32-arm64.exe,
-//   syrus-win32-x64.exe
+//   syrus-darwin-arm64, syrus-darwin-x64
 //
 // Dev builds skip with a notice when Go isn't available — the app then
 // simply shows manual install guidance instead of the one-click button.
@@ -52,8 +49,7 @@ try {
 }
 
 const targets = [
-  { goos: "darwin", platform: "darwin", suffix: "" },
-  { goos: "windows", platform: "win32", suffix: ".exe" }
+  { goos: "darwin", platform: "darwin", suffix: "" }
 ]
 
 for (const target of targets) {

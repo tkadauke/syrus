@@ -1,6 +1,6 @@
 # A TEST BUILD: deterministically build every shippable component from any
 # ref — the backend image is PUSHED to GHCR under a collision-proof test tag,
-# and the signed macOS DMG + Windows installer are built with that exact tag
+# and the signed macOS DMG is built with that exact tag
 # manifested in — while making publishing structurally impossible.
 #
 # This is a THIN caller of the shared `_build-app.yml` module — the SAME build
@@ -22,10 +22,10 @@
 #   self-replace — appUpdates.ts skips auto-update for `-test.` versions,
 #   because the baked-in GitHub feed plus semver ordering (X.Y.Z-test.N < X.Y.Z)
 #   would otherwise swap a pinned evaluation for the next published release.
-# - Artifacts land on the WORKFLOW RUN (test-staged-mac / test-staged-windows /
-#   test-staged-cli, 14 days), not in a GitHub Release, and there are no
-#   stable-name aliases (Syrus.dmg / Syrus-Setup.exe imply the website
-#   permalinks — releases only).
+# - Artifacts land on the WORKFLOW RUN (test-staged-mac / test-staged-cli,
+#   14 days), not in a GitHub Release, and there are no
+#   stable-name aliases (Syrus.dmg implies the website permalink — releases
+#   only).
 # - There is no publish job at all: no draft release, no `:latest` move, no
 #   LLM notes, no website deploy — this file has only `prepare` + `build`.
 #
@@ -42,10 +42,6 @@ on:
     inputs:
       run_integration_tests:
         description: "Run bin/test-docker against each built arch before pushing"
-        type: boolean
-        default: true
-      build_windows:
-        description: "Also build + sign the Windows installer"
         type: boolean
         default: true
 
@@ -145,7 +141,7 @@ jobs:
   # branch can't evict the warm cache the next release depends on), the pushed
   # test tag pinned into both installers (backend_image_pin), NO auto-update
   # feed staged, 14-day artifact retention. push_image is always true — uploading
-  # the image is the whole point. run_integration_tests / build_windows thread
+  # the image is the whole point. run_integration_tests threads
   # straight through from the dispatch inputs. secrets: inherit hands the module
   # the signing secrets; the module's contents:read + packages:write matches
   # this workflow's grants exactly.
@@ -164,7 +160,6 @@ jobs:
       artifact_prefix: test-staged
       artifact_retention_days: 14
       run_integration_tests: ${{ inputs.run_integration_tests }}
-      build_windows: ${{ inputs.build_windows }}
       # Fork the product name / appId / icon so this installs as "Syrus Test.app"
       # beside — never over — a production release.
       channel: test

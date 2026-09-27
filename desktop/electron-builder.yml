@@ -14,7 +14,7 @@ files:
   - dist/**/*
   - dist-electron/**/*
   - package.json
-# Staged by scripts/stage-backend-assets.mjs: install.sh + install.ps1,
+# Staged by scripts/stage-backend-assets.mjs: install.sh,
 # docker-compose.yml, compose.env.example, manifest.json (the backend image
 # pin for this app version). Sealed by the code signature — never written to
 # at runtime.
@@ -108,37 +108,6 @@ dmg:
     - x: 330
       y: 175
       type: file
-# NSIS one-click, not MSI: electron-updater auto-updates NSIS installs but
-# not MSI, and auto-update is what keeps the pinned backend image current.
-# Per-user install (no admin), silent /S for fleets. Unsigned until the
-# Authenticode cert lands — see docs/windows-desktop-plan.md.
-win:
-  icon: build/icon.ico
-  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
-  # Windows twin of the mac CLI FileSet above. x64 only (the app is x64).
-  extraResources:
-    - from: resources/cli
-      to: cli
-      filter: ["syrus-win32-x64*"]
-  # x64 only: Windows 11 on ARM runs x64 installers and apps (and the bundled
-  # x64 CLI) via built-in emulation, so one x64 build covers every Windows
-  # machine. Native arm64 would be a marginal perf win for a rounding-error
-  # share of users; not worth a second artifact.
-  target:
-    - target: nsis
-      arch: [x64]
-nsis:
-  oneClick: true
-  perMachine: false
-  deleteAppDataOnUninstall: false
-  shortcutName: Syrus
-  # Brand the one-click UI: the setup exe's own icon, and the icon the
-  # progress dialog (SpiderBanner) shows next to "Installing, please wait".
-  installerIcon: build/icon.ico
-  installerHeaderIcon: build/icon.ico
-  # Post-extraction guard: fail loudly (Defender guidance) instead of the
-  # shell's "Missing Shortcut" dialog when the exe vanishes before launch.
-  include: build/installer.nsh
 linux:
   category: Development
   syncDesktopName: true
