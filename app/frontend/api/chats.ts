@@ -10,6 +10,7 @@ export type ChatRepository = {
 
 export type ChatMode = "planning" | "coding" | "local"
 export type ChatConversationKind = "direct" | "group"
+export type ChatType = "agent" | "group" | "external"
 
 export type ChatParticipant = {
   id: number
@@ -26,6 +27,8 @@ export type ChatRecord = {
   title_pending: boolean
   system_kind?: string | null
   conversation_kind?: ChatConversationKind
+  origin_platform?: string | null
+  chat_type?: ChatType
   participants?: ChatParticipant[]
   pinned: boolean
   pinned_context: string | null
@@ -628,13 +631,14 @@ export type ChatGroupRecord = {
 }
 
 export type ChatSidebarStatus = "active" | "hidden" | "all"
-export type ChatSidebarGroupBy = "date" | "repository" | "status" | "mode"
+export type ChatSidebarGroupBy = "date" | "repository" | "status" | "mode" | "chat_type"
 export type ChatSidebarSortBy = "name" | "date_created" | "last_activity"
 export type ChatSidebarPerGroup = 5 | 10 | 15 | 20
 
 export type ChatSidebarSettings = {
   status: ChatSidebarStatus
   group_by: ChatSidebarGroupBy
+  chat_types: ChatType[]
   sort_by: ChatSidebarSortBy
   show_empty_groups: boolean
   per_group: ChatSidebarPerGroup
@@ -643,6 +647,7 @@ export type ChatSidebarSettings = {
 export const DEFAULT_CHAT_SIDEBAR_SETTINGS: ChatSidebarSettings = {
   status: "active",
   group_by: "repository",
+  chat_types: [],
   sort_by: "last_activity",
   show_empty_groups: false,
   per_group: 10
@@ -652,6 +657,7 @@ export type ChatsIndexPayload = {
   groups: ChatGroupRecord[]
   groups_has_more?: boolean
   groups_next_offset?: number | null
+  available_chat_types?: ChatType[]
   repositories: ChatRepository[]
 }
 
@@ -998,6 +1004,7 @@ function chatSidebarSearchParams(settings?: Partial<ChatSidebarSettings>, groupO
 
   if (settings.status && settings.status !== "active") search.set("status", settings.status)
   if (settings.group_by && settings.group_by !== "repository") search.set("group_by", settings.group_by)
+  if (settings.chat_types && settings.chat_types.length > 0) search.set("chat_types", settings.chat_types.join(","))
   if (settings.sort_by && settings.sort_by !== "last_activity") search.set("sort_by", settings.sort_by)
   if (settings.show_empty_groups === true) search.set("show_empty_groups", "1")
   if (settings.per_group && settings.per_group !== 10) search.set("per_group", String(settings.per_group))
