@@ -152,7 +152,7 @@ class RunPreAdmissionSkip
         .order(:position)
         .last
         &.latest_run
-        &.then { |agentic_run| agentic_run.step_agent_diff.presence || agentic_run.agent_diff.presence }
+        &.then { |agentic_run| agentic_run.agent_diff.presence || agentic_run.step_agent_diff.presence }
     end
 
     def agentic_kind

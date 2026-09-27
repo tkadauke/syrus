@@ -152,12 +152,12 @@ module Steps
     end
 
     def changed_files
-      scoped_diff = review_diff
-      return diff_file_paths(scoped_diff) if scoped_diff.present?
+      branch_diff = review_eligibility_diff
+      return diff_file_paths(branch_diff) if branch_diff.present?
 
       GitRunner.new.run("diff", "--name-only", "#{default_branch_ref}...HEAD", chdir: workspace.path.to_s)
         .split("\n").map(&:strip).reject(&:empty?)
-    rescue GitRunner::GitError => e
+    rescue GitRunner::GitError, Errno::ENOENT => e
       log("[visual_review] warning: could not determine changed files: #{e.message}")
       []
     end
@@ -209,6 +209,16 @@ module Steps
     # broken loop iteration surfaces instead of silently reviewing stale state.
     def review_diff
       latest_agentic_diff.presence
+    end
+
+    def review_eligibility_diff
+      scope = workflow.steps.where(kind: agentic_kind)
+
+      if scope.exists?
+        latest_agentic_review_run&.agent_diff.presence || latest_agentic_diff.presence
+      else
+        diff_against_default.presence
+      end
     end
 
     def latest_agentic_diff
