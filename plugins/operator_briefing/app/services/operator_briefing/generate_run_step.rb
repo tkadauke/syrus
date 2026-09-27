@@ -48,9 +48,16 @@ module OperatorBriefing
         typed block.
 
         Use only these supported block kinds:
-        - `narrative` with payload `{ "text": "..." }`
+        - `narrative` with payload `{ "text": "...", "dive_candidates": [{ "text": "span that appears verbatim in text", "prompt": "why this is worth a dive", "evidence": [] }] }`; include at most #{BriefingRevision::MAX_DIVE_CANDIDATES} dive candidates across the whole briefing.
+        - `chart` with payload `{ "chart_type": "count_by_severity", "title": "...", "data": [{ "label": "...", "value": 1 }] }`
+        - `image` with payload `{ "workflow_id": 123, "type": "visual_review_screenshot_run_123_1", "title": "...", "caption": "..." }`, only referencing an existing screenshot typed artifact from the workflow being summarized.
+        - `artifact` with payload `{ "workflow_id": 123, "type": "rails_schema_erd", "title": "...", "caption": "..." }`, only referencing an existing non-image typed artifact from the workflow being summarized.
         - `link_card` with payload fields for `entity_type`, `entity_id`,
           `title`, `path`, and `description`
+
+        Never generate fresh image or artifact content for this briefing. Only
+        use `image` or `artifact` when the originating Workflow already captured
+        that typed artifact.
 
         The current deterministic source pass found these candidate blocks. You
         may tighten wording, reorder, or omit low-value blocks, but preserve the

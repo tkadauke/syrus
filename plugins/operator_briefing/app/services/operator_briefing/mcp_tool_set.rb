@@ -5,19 +5,22 @@ module OperatorBriefing
     include Syrus::Plugin::McpToolSet
 
     TOOL_CLASSES = [
-      Tools::SubmitBriefingBlockTool
+      Tools::SubmitBriefingBlockTool,
+      Tools::ListBriefingTopicsTool,
+      Tools::ReadBriefingTopicTool,
+      Tools::SubmitDiveReportTool
     ].freeze
 
     def self.available_for?(_repository) = OperatorBriefing.enabled?
 
     def self.available_for_context?(context)
-      OperatorBriefing.enabled? && context.run? && context.run&.step&.kind == "briefing_generate_run"
+      OperatorBriefing.enabled? && context.run? && tool_classes_for(context).any?
     end
 
     def self.tool_definitions(context: nil)
       return [] if context && !available_for_context?(context)
 
-      TOOL_CLASSES.map do |klass|
+      tool_classes_for(context).map do |klass|
         {
           name: klass.tool_name,
           description: klass.description_value,
@@ -27,7 +30,8 @@ module OperatorBriefing
     end
 
     def handle(tool_name, params, server_context)
-      klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
+      context = McpToolContext.from_run(Mcp::Tools.run_from_context(server_context))
+      klass = self.class.tool_classes_for(context).find { |candidate| candidate.tool_name == tool_name.to_s }
       return Mcp::Tools.invalid("Unknown Operator Briefing tool: #{tool_name.inspect}") unless klass
 
       klass.call(**self.class.symbolize(params), server_context: server_context)
@@ -38,6 +42,19 @@ module OperatorBriefing
 
     def self.symbolize(params)
       (params || {}).each_with_object({}) { |(key, value), normalized| normalized[key.to_sym] = value }
+    end
+
+    def self.tool_classes_for(context)
+      return TOOL_CLASSES unless context
+
+      step_kind = context.run&.step&.kind
+      if step_kind == "briefing_generate_run"
+        [ Tools::SubmitBriefingBlockTool ]
+      elsif step_kind == "submit_dive_report"
+        [ Tools::ListBriefingTopicsTool, Tools::ReadBriefingTopicTool, Tools::SubmitDiveReportTool ]
+      else
+        []
+      end
     end
   end
 end

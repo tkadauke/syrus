@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_27_143000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2125,6 +2125,50 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_143000) do
     t.index ["repository_id"], name: "index_operator_briefing_subscriptions_on_repository_id"
     t.index ["user_id", "repository_id"], name: "idx_operator_briefing_subscriptions_identity", unique: true
     t.index ["user_id"], name: "index_operator_briefing_subscriptions_on_user_id"
+  end
+
+  create_table "operator_briefing_topic_links", force: :cascade do |t|
+    t.integer "briefing_id", null: false
+    t.datetime "created_at", null: false
+    t.string "source_span"
+    t.integer "topic_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id"
+    t.index ["briefing_id"], name: "index_operator_briefing_topic_links_on_briefing_id"
+    t.index ["topic_id", "briefing_id", "workflow_id"], name: "idx_operator_briefing_topic_links_identity", unique: true
+    t.index ["topic_id"], name: "index_operator_briefing_topic_links_on_topic_id"
+    t.index ["workflow_id"], name: "index_operator_briefing_topic_links_on_workflow_id"
+  end
+
+  create_table "operator_briefing_topic_revisions", force: :cascade do |t|
+    t.integer "briefing_id"
+    t.datetime "created_at", null: false
+    t.json "findings"
+    t.datetime "generated_at", null: false
+    t.text "narrative", null: false
+    t.json "references"
+    t.integer "revision_number", null: false
+    t.integer "run_id"
+    t.integer "topic_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id"
+    t.index ["briefing_id"], name: "index_operator_briefing_topic_revisions_on_briefing_id"
+    t.index ["run_id"], name: "index_operator_briefing_topic_revisions_on_run_id"
+    t.index ["topic_id", "revision_number"], name: "idx_operator_briefing_topic_revisions_number", unique: true
+    t.index ["topic_id"], name: "index_operator_briefing_topic_revisions_on_topic_id"
+    t.index ["workflow_id"], name: "index_operator_briefing_topic_revisions_on_workflow_id"
+  end
+
+  create_table "operator_briefing_topics", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "first_seen_briefing_item_id"
+    t.integer "repository_id", null: false
+    t.string "slug", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["first_seen_briefing_item_id"], name: "index_operator_briefing_topics_on_first_seen_briefing_item_id"
+    t.index ["repository_id", "slug"], name: "idx_operator_briefing_topics_repo_slug", unique: true
+    t.index ["repository_id"], name: "index_operator_briefing_topics_on_repository_id"
   end
 
   create_table "operator_briefing_workflow_notable_changes", force: :cascade do |t|

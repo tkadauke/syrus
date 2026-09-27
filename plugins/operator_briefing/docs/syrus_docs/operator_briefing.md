@@ -39,8 +39,15 @@ The plugin also owns these queryable data-layer tables:
   `:notable_change_detector` extension point.
 - `operator_briefing_briefings` wraps the per-repository `briefing_generate` Job.
 - `operator_briefing_revisions` stores typed content blocks. This phase
-  renders `narrative` and `link_card` blocks only.
+  renders `narrative`, `chart`, `image`, `artifact`, and `link_card` blocks.
+  Image and artifact blocks are read-only references to existing
+  `typed_artifacts` captured by the Workflow being summarized; briefing
+  generation never regenerates or uploads fresh artifacts for the main page.
 - `operator_briefing_items` stores notable items connected to a briefing.
+- `operator_briefing_topics`, `operator_briefing_topic_revisions`, and
+  `operator_briefing_topic_links` store durable wiki-style dive pages and their
+  links back to the Briefing Jobs that spawned them. Topic rows are scoped to a
+  repository and outlive any single briefing period.
 - `operator_briefing_subscriptions` stores per-operator repository opt-in.
 - `operator_briefing_settings` stores per-operator cadence and generation
   settings.
@@ -65,10 +72,23 @@ The first "blocked on you" source is
 `OperatorBriefing::BlockedDesignDocThreads`: open design-doc threads visible
 to an operator whose latest comment is not by that operator.
 
-Completed dives use `OperatorBriefing::InterestSignal.record_dive_completed!`
-to write the same kind of global `user_pref` memory with higher confidence than
-explicit feedback. Dive workflows are introduced by a later phase; the shared
-hook exists here so personalization has one weighting path.
+Narrative blocks may include a small capped set of dive-candidate spans. The
+page renders those spans with a dashed underline and marker; clicking one
+starts a `briefing_dive` follow-up Workflow on the same live Briefing Job.
+Selecting arbitrary text in the briefing surfaces the same "More info"
+affordance and starts the same dive workflow. The chain is
+`prepare → briefing_dive_investigate → submit_dive_report`; the report step
+exposes `list_briefing_topics`, `read_briefing_topic`, and
+`submit_dive_report` so the agent checks existing topics before creating a new
+wiki page. Completed dives use
+`OperatorBriefing::InterestSignal.record_dive_completed!` to write the same
+kind of global `user_pref` memory with higher confidence than explicit
+feedback.
+
+The "Discuss this" action resolves chat in this order: the most recent chat
+with confirmed proposal lineage for the briefing Job, then a recent chat with
+the repository attached, then a new chat. Every branch adds a short context
+message before waking the chat agent.
 
 Generation reads `OperatorBriefing::SourcePreference.effective_for_user` before
 building a revision. Disabled sources are omitted from deterministic cards and

@@ -43,6 +43,11 @@ RSpec.describe OperatorBriefing::McpToolSet do
     expect(described_class.tool_definitions(context: context_for("implement"))).to eq([])
   end
 
+  it "advertises briefing topic tools only for dive report runs" do
+    expect(described_class.tool_definitions(context: context_for("submit_dive_report")).map { |definition| definition[:name] })
+      .to eq(%w[list_briefing_topics read_briefing_topic submit_dive_report])
+  end
+
   it "appends submitted blocks to the current generated revision" do
     response = described_class.new.handle(
       "submit_briefing_block",
@@ -74,5 +79,36 @@ RSpec.describe OperatorBriefing::McpToolSet do
 
     expect(response).to be_error
     expect(response.content.first[:text]).to include("no active Operator Briefing revision")
+  end
+
+  it "creates a topic revision from a submitted dive report" do
+    dive_workflow = OperatorBriefing::DiveWorkflow.instantiate(
+      job: job,
+      artifacts: {
+        "briefing_dive_context" => {
+          "briefing_id" => briefing.id,
+          "selected_text" => "architecture change"
+        }
+      }
+    )
+    dive_step = dive_workflow.steps.find_by!(kind: "submit_dive_report")
+    dive_run = Run.create!(job: job, user: user, step: dive_step, trigger_kind: "briefing_dive", agent_provider: user.agent_provider)
+
+    response = described_class.new.handle(
+      "submit_dive_report",
+      {
+        "title" => "Architecture change",
+        "narrative" => "The architecture changed across several workflows.",
+        "findings" => [ "One durable finding" ]
+      },
+      { run_id: dive_run.id }
+    )
+
+    expect(response).not_to be_error
+    topic = OperatorBriefing::BriefingTopic.sole
+    expect(topic.repository).to eq(repository)
+    expect(topic.latest_revision.narrative).to include("architecture changed")
+    expect(OperatorBriefing::BriefingTopicLink.sole).to have_attributes(topic: topic, briefing: briefing, workflow: dive_workflow)
+    expect(dive_workflow.reload.artifact("briefing_dive_report")).to include("topic_id" => topic.id)
   end
 end

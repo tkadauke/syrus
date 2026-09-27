@@ -1,4 +1,5 @@
 import { getJson, patchJson, postJson } from "@app/api/client"
+import type { TypedArtifact } from "@app/api/artifacts"
 
 export type BriefingRepository = {
   id: number
@@ -29,8 +30,31 @@ export type BriefingRecord = {
 }
 
 export type BriefingBlock =
-  | { kind: "narrative"; payload: { text?: string | null } }
+  | { kind: "narrative"; payload: { text?: string | null; dive_candidates?: BriefingDiveCandidate[] | null } }
+  | { kind: "chart"; payload: { chart_type?: "count_by_severity" | "count_by_state" | string | null; title?: string | null; data?: BriefingChartDatum[] | null } }
+  | { kind: "image"; payload: BriefingArtifactReference }
+  | { kind: "artifact"; payload: BriefingArtifactReference }
   | { kind: "link_card"; payload: { entity_type?: string | null; entity_id?: number | string | null; title?: string | null; path?: string | null; description?: string | null } }
+
+export type BriefingDiveCandidate = {
+  text: string
+  prompt?: string | null
+  evidence?: unknown[] | null
+  topic_id?: number | null
+}
+
+export type BriefingChartDatum = {
+  label: string
+  value: number
+}
+
+export type BriefingArtifactReference = {
+  workflow_id?: number | string | null
+  type?: string | null
+  title?: string | null
+  caption?: string | null
+  artifact?: TypedArtifact | null
+}
 
 export type BriefingRepoPayload = {
   repository: BriefingRepository
@@ -78,6 +102,23 @@ export type BriefingPayload = {
   generated_at: string
 }
 
+export type BriefingTopicPayload = {
+  id: number
+  slug: string
+  title: string
+  repository: BriefingRepository
+  revisions: Array<{
+    id: number
+    revision_number: number
+    generated_at: string | null
+    narrative: string
+    findings: string[]
+    references: unknown[]
+    briefing_id: number | null
+    workflow_id: number | null
+  }>
+}
+
 export type BriefingFeedbackResponse = {
   feedback: {
     id: number
@@ -92,8 +133,24 @@ export function fetchBriefing() {
   return getJson<BriefingPayload>("/api/v1/app/briefing")
 }
 
+export function fetchBriefingTopic(id: string | number) {
+  return getJson<BriefingTopicPayload>(`/api/v1/app/briefing/topics/${id}`)
+}
+
 export function regenerateBriefing(repositoryId: number) {
   return postJson<BriefingPayload>(`/api/v1/app/briefing/repositories/${repositoryId}/regenerate`)
+}
+
+export function startBriefingDive(briefingId: number, input: { selected_text: string; prompt?: string; evidence?: unknown[] }) {
+  return postJson<{ workflow_id: number; status: string; briefing: BriefingPayload }>(`/api/v1/app/briefing/${briefingId}/dive`, {
+    dive: input
+  })
+}
+
+export function discussBriefing(briefingId: number, message?: string) {
+  return postJson<{ redirect_to: string }>(`/api/v1/app/briefing/${briefingId}/discuss`, {
+    discussion: { message }
+  })
 }
 
 export function updateBriefingSubscription(id: number, enabled: boolean) {

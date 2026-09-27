@@ -32,25 +32,56 @@ RSpec.describe "App API job chats", type: :request do
       expect(chat).to be_turn_in_flight
       expect(message.role).to eq("user")
       expect(message.sender_user_id).to eq(user.id)
-      expect(message.content).to eq("text" => "I would like to chat about JOB-#{job.id}.")
+      expect(message.content["text"]).to include("Context: discuss JOB-#{job.id}.")
+      expect(message.content["text"]).to include("Repository: #{repo.slug}.")
       expect(job.reload.discussion_chat).to eq(chat)
       expect(parse_body["redirect_to"]).to eq("/chats/#{chat.id}")
       expect(ChatTitleJob).to have_been_enqueued.with(chat.id, message.id)
       expect(ChatTurnJob).to have_been_enqueued.with(chat.id, message.id)
     end
 
-    it "reuses the existing discussion chat instead of creating a duplicate" do
+    it "reuses the existing discussion chat and injects a context message" do
       existing_chat = ChatSession.create!(user: user, repository: repo)
       job.chat_attachments.create!(chat_session: existing_chat)
 
       expect {
         post path(job), as: :json
-      }.not_to change(ChatSession, :count)
-      expect(ChatMessage.count).to eq(0)
-      expect(ChatTitleJob).not_to have_been_enqueued
-      expect(ChatTurnJob).not_to have_been_enqueued
+      }.to change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob).with(existing_chat.id, kind_of(Integer))
+      expect(ChatSession.count).to eq(1)
 
+      expect(existing_chat.messages.sole.content["text"]).to include("Context: discuss JOB-#{job.id}.")
       expect(parse_body["redirect_to"]).to eq("/chats/#{existing_chat.id}")
+    end
+
+    it "prefers the proposal-lineage chat before a recent repository chat" do
+      proposal_chat = ChatSession.create!(user: user, repository: repo, last_message_at: 2.days.ago)
+      recent_chat = ChatSession.create!(user: user, repository: repo, last_message_at: 1.hour.ago)
+      ChatProposal.create!(
+        chat_session: proposal_chat,
+        repository: repo,
+        job: job,
+        state: "confirmed",
+        confirmed_at: Time.current,
+        kind: "job",
+        slug: "proposal-chat",
+        title: "Proposal chat",
+        body: "Body"
+      )
+
+      post path(job), as: :json
+
+      expect(parse_body["redirect_to"]).to eq("/chats/#{proposal_chat.id}")
+      expect(job.reload.discussion_chat).to eq(proposal_chat)
+    end
+
+    it "uses a recent repository chat when no proposal-lineage chat exists" do
+      recent_chat = ChatSession.create!(user: user, repository: repo, last_message_at: 1.hour.ago)
+
+      post path(job), as: :json
+
+      expect(parse_body["redirect_to"]).to eq("/chats/#{recent_chat.id}")
+      expect(job.reload.discussion_chat).to eq(recent_chat)
     end
 
     it "adds a supplied discussion message to an existing job chat and wakes it" do
@@ -65,7 +96,10 @@ RSpec.describe "App API job chats", type: :request do
       expect(response).to have_http_status(:ok)
       message = existing_chat.messages.sole
       expect(message.content["text"]).to eq(<<~TEXT.strip)
-        I would like to discuss JOB-#{job.id}.
+        Context: discuss JOB-#{job.id}.
+        Repository: #{repo.slug}.
+        Title: #{job.issue_title.presence || job.slug}.
+        State: #{job.state}.
 
         Revision: abc123
         Location: app/models/widget.rb:12

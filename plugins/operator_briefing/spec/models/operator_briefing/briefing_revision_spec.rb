@@ -49,4 +49,26 @@ RSpec.describe OperatorBriefing::BriefingRevision do
       )
     )
   end
+
+  it "accepts chart, artifact, image, and narrative dive candidate blocks" do
+    revision.append_block!(
+      "kind" => "narrative",
+      "payload" => {
+        "text" => "A cross-workflow architecture change happened.",
+        "dive_candidates" => [
+          { "text" => "architecture change", "prompt" => "Explain the change", "evidence" => [ { "workflow_id" => 1 } ] }
+        ]
+      }
+    )
+    revision.append_block!("kind" => "chart", "payload" => { "chart_type" => "count_by_severity", "data" => [ { "label" => "FYI", "value" => 2 } ] })
+    revision.append_block!("kind" => "image", "payload" => { "workflow_id" => 12, "type" => "visual_review_screenshot_run_12_1" })
+    revision.append_block!("kind" => "artifact", "payload" => { "workflow_id" => 12, "type" => "rails_schema_erd" })
+
+    expect(revision.reload.content_blocks.map { |block| block["kind"] }).to eq(%w[narrative chart image artifact])
+    expect(revision.content_blocks.first.dig("payload", "dive_candidates").sole).to include(
+      "text" => "architecture change",
+      "prompt" => "Explain the change",
+      "evidence" => [ { "workflow_id" => 1 } ]
+    )
+  end
 end

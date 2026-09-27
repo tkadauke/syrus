@@ -8,6 +8,8 @@ module OperatorBriefing
     has_many :revisions, class_name: "OperatorBriefing::BriefingRevision", dependent: :destroy
     has_many :items, class_name: "OperatorBriefing::BriefingItem", dependent: :destroy
     has_many :feedbacks, class_name: "OperatorBriefing::Feedback", dependent: :destroy
+    has_many :topic_links, class_name: "OperatorBriefing::BriefingTopicLink", dependent: :destroy
+    has_many :topics, through: :topic_links, source: :topic
 
     validates :job_id, uniqueness: true
     validates :window_start, presence: true

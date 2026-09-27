@@ -38,5 +38,17 @@
   "feedback_submit": "Save feedback",
   "feedback_saving": "Saving",
   "feedback_error": "Unable to save feedback.",
-  "untitled_link": "Linked item"
+  "untitled_link": "Linked item",
+  "chart_title": "Briefing chart",
+  "artifact_title": "Briefing artifact",
+  "artifact_unavailable": "The referenced artifact is no longer available.",
+  "more_info": "More info",
+  "discuss_this": "Discuss this",
+  "discussing": "Opening chat",
+  "topic_load_error": "Unable to load the briefing topic.",
+  "topic_revision_count": "{{count}} revisions",
+  "topic_latest": "Latest revision",
+  "topic_empty": "No dive report has been submitted yet.",
+  "topic_history": "Revision history",
+  "topic_revision": "Revision {{number}}"
 }

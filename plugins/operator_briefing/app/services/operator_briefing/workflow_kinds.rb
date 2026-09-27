@@ -9,6 +9,12 @@ module OperatorBriefing
           label: "Briefing generation", style: "bg-sky-100 text-sky-700",
           retry_label: nil, feedback_kind: nil, runtime_role: "infrastructure",
           owns_job_lifecycle: true
+        },
+        {
+          kind: "briefing_dive", template: "OperatorBriefing::DiveWorkflow",
+          label: "Briefing dive", style: "bg-cyan-100 text-cyan-700",
+          retry_label: nil, feedback_kind: nil, runtime_role: "child",
+          owns_job_lifecycle: true
         }
       ]
     end
@@ -21,6 +27,18 @@ module OperatorBriefing
           agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
           required_mcp_tools: %w[submit_briefing_block],
           placement_policy: Step::PlacementPolicy::CONTROL_PLANE
+        },
+        {
+          kind: "briefing_dive_investigate", handler: "OperatorBriefing::DiveInvestigateStep",
+          label: "Investigate dive", style: "bg-cyan-100 text-cyan-700", agentic: true,
+          agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
+        },
+        {
+          kind: "submit_dive_report", handler: "OperatorBriefing::SubmitDiveReportStep",
+          label: "Submit dive report", style: "bg-cyan-200 text-cyan-800", agentic: true,
+          agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+          required_mcp_tools: %w[list_briefing_topics read_briefing_topic submit_dive_report],
+          skip_if_artifact: "briefing_dive_report"
         }
       ]
     end
@@ -30,7 +48,7 @@ module OperatorBriefing
     end
 
     def self.work_definitions
-      [ OperatorBriefing::WorkDefinition ]
+      [ OperatorBriefing::WorkDefinition, OperatorBriefing::DiveWorkDefinition ]
     end
   end
 end
