@@ -246,7 +246,8 @@ module AgentProviders
     def mcp_transport_decision
       return @mcp_transport_decision if defined?(@mcp_transport_decision)
 
-      @mcp_transport_decision = Feature.persistent_mcp_sidecar_enabled? ? WorkflowMcpTransportSelector.select : nil
+      role = AgentRole.for_step_kind(@run.step.kind)
+      @mcp_transport_decision = Feature.persistent_mcp_sidecar_enabled? ? WorkflowMcpTransportSelector.select(role: role) : nil
     end
 
     # Records the transport decision where existing run/job diagnostics
