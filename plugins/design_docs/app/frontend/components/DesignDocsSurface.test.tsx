@@ -735,6 +735,83 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/1")
   })
 
+  it("removes the full-page gutter from the mobile detail route while keeping document body padding", async () => {
+    mockMobileViewport()
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("region", { name: "Design doc content" })
+    const main = screen.getByRole("main", { name: "Design docs" })
+    const body = screen.getByTestId("design-doc-read-only-body")
+
+    expect(main.className).toContain("p-0")
+    expect(main.className).toContain("md:p-6")
+    expect(main.className).not.toContain(" p-6")
+    expect(body.className).toContain("p-4")
+  })
+
+  it("wraps Rich Text tables in the shared horizontal scroller", async () => {
+    mockFetch(docWithMarkdown([
+      "| Shape | Execution | Isolation need |",
+      "| --- | --- | --- |",
+      "| MacBook, Electron + docker-compose | no containers | none (single user) |",
+      "| k3s / Portainer | containers preferred | none (trusted team) |"
+    ].join("\n")))
+    renderSurface("/design_docs/1")
+
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const wrapper = editor.querySelector(".chat-prose-table-wrap")
+
+    expect(wrapper).toBeInTheDocument()
+    expect(wrapper?.querySelector("table")).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Shape" })).toBeInTheDocument()
+  })
+
+  it("wraps read-only mobile tables in the shared horizontal scroller", async () => {
+    mockMobileViewport()
+    mockFetch(docWithMarkdown([
+      "| Shape | Execution | Isolation need |",
+      "| --- | --- | --- |",
+      "| MacBook, Electron + docker-compose | no containers | none (single user) |"
+    ].join("\n")))
+    renderSurface("/design_docs/1")
+
+    const body = await screen.findByRole("region", { name: "Design doc content" })
+    const wrapper = body.querySelector(".chat-prose-table-wrap")
+
+    expect(wrapper).toBeInTheDocument()
+    expect(wrapper?.querySelector("table")).toBeInTheDocument()
+  })
+
+  it("round-trips wrapped Rich Text tables back to Markdown", async () => {
+    const fetchSpy = mockFetch(docWithMarkdown([
+      "| Shape | Execution |",
+      "| --- | --- |",
+      "| MacBook | no containers |"
+    ].join("\n")))
+    renderSurface("/design_docs/1")
+
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    editor.innerHTML = [
+      '<div class="chat-prose-table-wrap"><table><thead><tr><th>Shape</th><th>Execution</th></tr></thead><tbody>',
+      "<tr><td>MacBook</td><td>no containers</td></tr>",
+      "<tr><td>k3s</td><td>containers preferred</td></tr>",
+      "</tbody></table></div>"
+    ].join("")
+    fireEvent.input(editor)
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 900))
+    })
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" })))
+    const updateRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH")
+    expect(JSON.parse(String(updateRequest?.[1]?.body))).toMatchObject({
+      design_doc: {
+        markdown: "| Shape | Execution |\n| --- | --- |\n| MacBook | no containers |\n| k3s | containers preferred |"
+      }
+    })
+  })
+
   it("renders soft-wrapped Markdown paragraph lines as flowing Rich Text while keeping source-offset highlights", async () => {
     const markdown = "first line\nsecond line"
     const selected = "second"
