@@ -40,7 +40,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
       include(
         "key" => "max_concurrent_agent_runs",
         "type" => "integer",
-        "default" => 0,
+        "default" => 3,
         "category" => "Instance operations",
         "min" => 0,
         "zero_means" => a_string_including("No global cap")
@@ -106,7 +106,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     sign_in_as(admin)
 
     get "/api/v1/app/admin/settings"
-    expect(parse_body.dig("settings", "max_concurrent_agent_runs")).to eq(0)
+    expect(parse_body.dig("settings", "max_concurrent_agent_runs")).to eq(3)
 
     patch "/api/v1/app/admin/settings", params: {
       app_setting: { signups_open: true, max_concurrent_agent_runs: 4 }

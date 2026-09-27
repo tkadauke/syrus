@@ -25,6 +25,7 @@ RSpec.describe AppSettingRegistry do
     )
     expect(described_class.fetch(:video_storage_budget_mb).zero_means).to eq("Size cap is disabled; time-based retention still applies.")
     expect(described_class.fetch(:max_concurrent_agent_runs).zero_means).to include("No global cap")
+    expect(described_class.fetch(:user_daily_spend_budget_usd).default).to eq(10)
   end
 
   it "declares the current admin settings payload metadata" do

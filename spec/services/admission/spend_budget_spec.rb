@@ -8,6 +8,16 @@ RSpec.describe Admission::SpendBudget do
     job.runs.first.update!(user: user, cost_usd: amount, created_at: at)
   end
 
+  it "uses the configured default budget when no explicit budget is supplied" do
+    AppSetting.current.update!(user_daily_spend_budget_usd: 10)
+    spend!(10)
+
+    result = described_class.for(user: user)
+
+    expect(result).to be_over_budget
+    expect(result).not_to be_unlimited
+  end
+
   it "does not limit anyone when no budget is set" do
     spend!(100)
 
