@@ -8,7 +8,7 @@ import { Link } from "react-router-dom"
 import { ApiError } from "../../api/client"
 import { formatClock } from "../../components/WalkthroughRecorder"
 import { mergeChatPayloadUpdate, updateRecentChatCache } from "../../lib/chatCache"
-import { chatPreviewPanelFileUrl, closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, switchChatProvider, type ChatMediaImage, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVersion, type ChatPreviewPanelVisibility, type ChatWhiteboardScene, type PreviewPanelPayload, type WhiteboardSnapshot } from "../../api/chats"
+import { chatPreviewPanelFileUrl, closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, type ChatMediaImage, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVersion, type ChatPreviewPanelVisibility, type ChatWhiteboardScene, type PreviewPanelPayload, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { UnderlineTabs, type UnderlineTabItem } from "../../components/Tabs"
 import { Select } from "../../components/Select"
@@ -1153,16 +1153,8 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
 export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onClose: () => void }) {
   const queryClient = useQueryClient()
   const { t } = useT("chat")
-  const providerOptions = payload.chat.chat_provider_options || []
-  const configuredExplicitOptions = providerOptions.filter((option) => option.configured)
-  const showProviderSelector = configuredExplicitOptions.length > 1
-  const selectedProvider = payload.chat.chat_provider || payload.chat.effective_chat_provider || ""
-  const provider = useMutation({
-    mutationFn: (value: string) => switchChatProvider(payload.paths.app_switch_provider_path, value),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey })
-    }
-  })
+  const selectedProvider = payload.chat.effective_chat_provider || payload.chat.chat_provider || ""
+  const selectedProviderLabel = payload.chat.effective_chat_provider_label || selectedProvider
 
   const modeOptions: Array<{ value: ChatMode; label: string }> = [
     { value: "planning", label: t("mode_planning") },
@@ -1195,39 +1187,14 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
         </button>
       </div>
       <div className="space-y-3 text-sm">
-        {showProviderSelector ? (
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("provider")}</span>
-            <div className="flex items-center gap-2">
-              {selectedProvider ? <img alt="" aria-hidden="true" className="h-4 w-4 shrink-0" src={providerIconSrc(selectedProvider)} /> : null}
-              <Select
-                aria-label={t("aria_chat_provider")}
-                disabled={provider.isPending}
-                onChange={(event) => provider.mutate(event.target.value)}
-                value={selectedProvider}
-              >
-                {providerOptions.map((option) => (
-                  <option disabled={!option.configured} key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <span className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-              <span>{t("chat_settings_effective_provider", { label: payload.chat.effective_chat_provider_label || t("chat_settings_effective_default") })}</span>
-              <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />
-            </span>
-          </label>
-        ) : (
-          <div>
-            <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("provider")}</span>
-            <span className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-200">
-              <span>{payload.chat.effective_chat_provider_label || payload.chat.effective_chat_provider}</span>
-              <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />
-            </span>
-          </div>
-        )}
-        {provider.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(provider.error, t("provider_update_error"))}</div> : null}
+        <div>
+          <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("provider")}</span>
+          <span className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-200">
+            {selectedProvider ? <img alt="" aria-hidden="true" className="h-4 w-4 shrink-0" src={providerIconSrc(selectedProvider)} /> : null}
+            <span>{selectedProviderLabel}</span>
+            <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />
+          </span>
+        </div>
         <label className="block">
           <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mode_label")}</span>
           <div className="flex rounded border border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-950" role="group" aria-label={t("mode_label")}>
