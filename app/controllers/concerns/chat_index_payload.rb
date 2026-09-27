@@ -403,7 +403,7 @@ module ChatIndexPayload
       end
       [ { key: "general", label: "General", repository_id: nil, group_by: "repository", group_value: "general", chats: [], has_more: false }, *repository_specs ]
     when "status"
-      statuses = chat_index_settings.fetch(:status) == "all" ? %w[active hidden] : [ chat_index_settings.fetch(:status) ]
+      statuses = chat_index_empty_status_groups
       statuses.map { |status| { key: "status-#{status}", label: chat_index_group_label("status", status), repository_id: nil, group_by: "status", group_value: status, chats: [], has_more: false } }
     when "mode"
       ChatSession::MODES.map { |mode| { key: "mode-#{mode}", label: chat_index_group_label("mode", mode), repository_id: nil, group_by: "mode", group_value: mode, chats: [], has_more: false } }
@@ -417,7 +417,7 @@ module ChatIndexPayload
     when "date"
       chat_index_date_label(group_key)
     when "status"
-      group_key == "hidden" ? "Hidden" : "Active"
+      { "unread" => "Unread", "hidden" => "Hidden", "active" => "Active" }.fetch(group_key, group_key.to_s.titleize)
     when "mode"
       CHAT_INDEX_MODE_LABELS.fetch(group_key, group_key.to_s.titleize)
     else
@@ -441,7 +441,7 @@ module ChatIndexPayload
     when "repository"
       groups.sort_by { |group| [ group.fetch(:chats).empty? ? 1 : 0, -(group.delete(:active_at)&.to_i || 0), group.fetch(:label).downcase ] }
     when "status"
-      order = { "status-active" => 0, "status-hidden" => 1 }
+      order = { "status-unread" => 0, "status-active" => 1, "status-hidden" => 2 }
       groups.sort_by { |group| [ order.fetch(group.fetch(:key), 9), group.fetch(:chats).empty? ? 1 : 0 ] }
     when "mode"
       order = ChatSession::MODES.each_with_index.to_h { |mode, index| [ "mode-#{mode}", index ] }
@@ -456,7 +456,7 @@ module ChatIndexPayload
     {
       "date" => "DATE(#{chat_activity_order_sql})",
       "repository" => "COALESCE(CAST(chat_attachments.attachable_id AS CHAR), 'general')",
-      "status" => "CASE WHEN chat_sessions.hidden_at IS NULL THEN 'active' ELSE 'hidden' END",
+      "status" => "CASE WHEN chat_sessions.hidden_at IS NOT NULL THEN 'hidden' WHEN #{chat_index_unread_sql} THEN 'unread' ELSE 'active' END",
       "mode" => "COALESCE(chat_sessions.mode, 'planning')"
     }.fetch(chat_index_settings.fetch(:group_by))
   end
@@ -465,13 +465,25 @@ module ChatIndexPayload
     {
       "date" => "DATE(#{chat_activity_order_sql}) = ?",
       "repository" => "COALESCE(CAST(chat_attachments.attachable_id AS CHAR), 'general') = ?",
-      "status" => "CASE WHEN chat_sessions.hidden_at IS NULL THEN 'active' ELSE 'hidden' END = ?",
+      "status" => "CASE WHEN chat_sessions.hidden_at IS NOT NULL THEN 'hidden' WHEN #{chat_index_unread_sql} THEN 'unread' ELSE 'active' END = ?",
       "mode" => "COALESCE(chat_sessions.mode, 'planning') = ?"
     }.fetch(group_by)
   end
 
   def chat_index_order_sql
     "chat_sessions.pinned DESC, #{chat_index_sort_sql}, chat_sessions.id DESC"
+  end
+
+  def chat_index_empty_status_groups
+    return %w[unread active hidden] if chat_index_settings.fetch(:status) == "all"
+
+    [ "unread", chat_index_settings.fetch(:status) ].uniq
+  end
+
+  def chat_index_unread_sql
+    "chat_sessions.last_message_at IS NOT NULL " \
+      "AND (COALESCE(chat_participants.last_read_at, chat_sessions.last_read_at) IS NULL " \
+      "OR chat_sessions.last_message_at > COALESCE(chat_participants.last_read_at, chat_sessions.last_read_at))"
   end
 
   def chat_index_sort_sql

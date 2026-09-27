@@ -1,5 +1,14 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
-import { DEFAULT_CHAT_SIDEBAR_SETTINGS, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatPayloadUpdate, type ChatRecord, type ChatSidebarSettings, type ChatsIndexPayload } from "../api/chats"
+import {
+  DEFAULT_CHAT_SIDEBAR_SETTINGS,
+  type ChatGroupRecord,
+  type ChatNavRecord,
+  type ChatPayload,
+  type ChatPayloadUpdate,
+  type ChatRecord,
+  type ChatSidebarSettings,
+  type ChatsIndexPayload
+} from "../api/chats"
 
 export function mergeChatPayloadUpdate(queryClient: QueryClient, queryKey: QueryKey, update: ChatPayloadUpdate) {
   let merged: ChatPayload | undefined
@@ -48,15 +57,7 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
     return ["chats", "recent"]
   }
 
-  return [
-    "chats",
-    "recent",
-    normalized.status,
-    normalized.group_by,
-    normalized.sort_by,
-    normalized.show_empty_groups,
-    normalized.per_group
-  ]
+  return ["chats", "recent", normalized.status, normalized.group_by, normalized.sort_by, normalized.show_empty_groups, normalized.per_group]
 }
 
 export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
@@ -69,13 +70,9 @@ export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord
     const groups = withoutChat(current.groups, chat.id)
     const targetIndex = groups.findIndex((group) => group.key === targetKey)
     const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
-    const nextChats = options.prepend || !existing
-      ? [updated, ...targetGroup.chats]
-      : replaceOrPrependChat(targetGroup.chats, updated)
+    const nextChats = options.prepend || !existing ? [updated, ...targetGroup.chats] : replaceOrPrependChat(targetGroup.chats, updated)
     const nextGroup = { ...targetGroup, chats: nextChats }
-    const nextGroups = targetIndex >= 0
-      ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)]
-      : [nextGroup, ...groups]
+    const nextGroups = targetIndex >= 0 ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)] : [nextGroup, ...groups]
 
     return { ...current, groups: nextGroups }
   })
@@ -90,12 +87,65 @@ export function updateChatUnread(queryClient: QueryClient, id: number, unread: b
     if (!current) return current
     return {
       ...current,
-      groups: current.groups.map((group) => ({
-        ...group,
-        chats: group.chats.map((chat) => chat.id === id ? { ...chat, unread } : chat)
-      }))
+      groups: updateUnreadGroups(current.groups, id, unread)
     }
   })
+}
+
+function updateUnreadGroups(groups: ChatGroupRecord[], id: number, unread: boolean) {
+  const sourceGroup = groups.find((group) => group.chats.some((chat) => chat.id === id))
+  if (!sourceGroup) return updateUnreadFlags(groups, id, unread)
+
+  const chat = sourceGroup.chats.find((candidate) => candidate.id === id)
+  if (!chat) return updateUnreadFlags(groups, id, unread)
+
+  const updated = { ...chat, unread }
+  if (sourceGroup.group_by !== "status" || sourceGroup.key === "status-hidden") {
+    return updateUnreadFlags(groups, id, unread)
+  }
+
+  const targetKey = unread ? "status-unread" : "status-active"
+  if (sourceGroup.key === targetKey) return updateUnreadFlags(groups, id, unread)
+
+  const groupsWithoutChat = withoutChat(groups, id)
+  const targetIndex = groupsWithoutChat.findIndex((group) => group.key === targetKey)
+  const targetGroup = targetIndex >= 0 ? groupsWithoutChat[targetIndex] : statusGroupFor(targetKey)
+  const nextTargetGroup = { ...targetGroup, chats: [updated, ...targetGroup.chats] }
+  const nextGroups =
+    targetIndex >= 0
+      ? [...groupsWithoutChat.slice(0, targetIndex), nextTargetGroup, ...groupsWithoutChat.slice(targetIndex + 1)]
+      : [...groupsWithoutChat, nextTargetGroup]
+
+  return sortStatusGroups(nextGroups)
+}
+
+function updateUnreadFlags(groups: ChatGroupRecord[], id: number, unread: boolean) {
+  return groups.map((group) => ({
+    ...group,
+    chats: group.chats.map((chat) => (chat.id === id ? { ...chat, unread } : chat))
+  }))
+}
+
+function statusGroupFor(key: "status-unread" | "status-active"): ChatGroupRecord {
+  return {
+    key,
+    label: key === "status-unread" ? "Unread" : "Active",
+    repository_id: null,
+    group_by: "status",
+    group_value: key.replace("status-", ""),
+    chats: [],
+    has_more: false
+  }
+}
+
+function sortStatusGroups(groups: ChatGroupRecord[]) {
+  const order = new Map([
+    ["status-unread", 0],
+    ["status-active", 1],
+    ["status-hidden", 2]
+  ])
+
+  return [...groups].sort((left, right) => (order.get(left.key) ?? 9) - (order.get(right.key) ?? 9))
 }
 
 function recentChatRecord(chat: ChatRecord, existing?: ChatNavRecord, occurredAt = new Date().toISOString()): ChatNavRecord {
@@ -135,11 +185,7 @@ function replaceOrPrependChat(chats: ChatNavRecord[], chat: ChatNavRecord) {
   const index = chats.findIndex((item) => item.id === chat.id)
   if (index < 0) return [chat, ...chats]
 
-  return [
-    ...chats.slice(0, index),
-    chat,
-    ...chats.slice(index + 1)
-  ]
+  return [...chats.slice(0, index), chat, ...chats.slice(index + 1)]
 }
 
 export function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
