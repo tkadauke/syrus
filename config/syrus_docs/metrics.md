@@ -44,11 +44,11 @@ slow at exactly the moment those tables are the problem.
 
 `GET /readyz` is the unauthenticated readiness probe for load balancers and
 container health checks. It uses `AppApi::ReadinessChecks` without per-user
-credential checks, so it verifies web/database boot, registered Solid Queue
-workers, pause state, storage, and instance-level GitHub App setup without
-requiring a browser session or decrypting an operator's personal credentials.
-The route returns `503` when any required check is in error; `/up` remains the
-lighter Rails boot/liveness check.
+credential checks, so it verifies web/database boot, fresh registered Solid
+Queue worker heartbeats, pause state, storage, and instance-level GitHub App
+setup without requiring a browser session or decrypting an operator's personal
+credentials. The route returns `503` when any required check is in error; `/up`
+remains the lighter Rails boot/liveness check.
 
 The Docker image and the single-host Compose `web` service both probe
 `/readyz`. Compose installations can inspect it with:

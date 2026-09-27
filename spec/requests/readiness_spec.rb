@@ -33,13 +33,26 @@ RSpec.describe "GET /readyz", type: :request do
     )
   end
 
-  def solid_queue_process
+  it "reports not-ready when only stale Solid Queue worker rows remain" do
+    solid_queue_process(last_heartbeat_at: (InstanceVersion::HEARTBEAT_STALE_THRESHOLD + 1.minute).ago)
+
+    get "/readyz"
+
+    expect(response).to have_http_status(:service_unavailable)
+    worker_check = parse_body.fetch("checks").find { |check| check.fetch("key") == "worker_queue" }
+    expect(worker_check).to include(
+      "status" => "error",
+      "message" => "No fresh Solid Queue worker heartbeats are registered."
+    )
+  end
+
+  def solid_queue_process(last_heartbeat_at: Time.current)
     SolidQueue::Process.create!(
       kind: "Worker",
       name: "worker-1",
       hostname: "worker",
       pid: 123,
-      last_heartbeat_at: Time.current,
+      last_heartbeat_at: last_heartbeat_at,
       created_at: Time.current,
       metadata: { "queues" => [ "runs" ] }
     )

@@ -71,14 +71,19 @@ module AppApi
     end
 
     def worker_queue_check
-      worker_count = SolidQueue::Process.where(kind: "Worker").count
-      return check("worker_queue", "Worker/queue", "ok", "#{worker_count} Solid Queue worker process#{'es' unless worker_count == 1} registered.", nil) if worker_count.positive?
+      total_worker_count = SolidQueue::Process.where(kind: "Worker").count
+      fresh_worker_count = SolidQueue::Process
+        .where(kind: "Worker")
+        .where("last_heartbeat_at > ?", InstanceVersion::HEARTBEAT_STALE_THRESHOLD.ago)
+        .count
+      return check("worker_queue", "Worker/queue", "ok", "#{fresh_worker_count} fresh Solid Queue worker process#{'es' unless fresh_worker_count == 1} registered.", nil) if fresh_worker_count.positive?
 
+      message = total_worker_count.positive? ? "No fresh Solid Queue worker heartbeats are registered." : "No Solid Queue worker processes are registered."
       check(
         "worker_queue",
         "Worker/queue",
         "error",
-        "No Solid Queue worker processes are registered.",
+        message,
         "Start the worker process with bin/jobs and confirm it can connect to the queue database."
       )
     rescue => e

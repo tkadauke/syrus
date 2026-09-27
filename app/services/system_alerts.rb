@@ -25,19 +25,40 @@ module SystemAlerts
   end
 
   def self.active_for(user:)
+    alerts_for(user: user, include_admin_alerts: user&.admin?)
+  end
+
+  def self.outbound_alerts
+    alerts = []
+    User.find_each do |user|
+      alerts.concat(alerts_for(user: user, include_admin_alerts: false))
+    end
+    alerts.concat(admin_alerts)
+    sort_alerts(alerts)
+  end
+
+  def self.alerts_for(user:, include_admin_alerts:)
     out = []
     provider_availability = provider_availability_for_alerts(user)
     out.concat(github_api_alerts(user)) if user
     out.concat(provider_auth_alerts(user, provider_availability)) if user
     out << codex_usage(user, availability: provider_availability["codex"]) if user
-    out << data_root_disk_usage if user&.admin?
-    out.concat(stuck_main_branch_repairs) if user&.admin?
-    alerts = out
+    out.concat(admin_alerts) if include_admin_alerts
+    sort_alerts(out)
+  end
+  private_class_method :alerts_for
+
+  def self.admin_alerts
+    [ data_root_disk_usage, *stuck_main_branch_repairs ].compact
+  end
+  private_class_method :admin_alerts
+
+  def self.sort_alerts(alerts)
+    alerts
       .compact
       .sort_by { |alert| SEVERITIES.index(alert.severity) || SEVERITIES.length }
-    SystemAlertDelivery.deliver(alerts)
-    alerts
   end
+  private_class_method :sort_alerts
 
   def self.provider_availability_for_alerts(user)
     return {} unless user
