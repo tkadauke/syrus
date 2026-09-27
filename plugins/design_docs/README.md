@@ -161,11 +161,21 @@ Workflow access is additionally scoped to the run repository. Agents should use
 `DOC-<id>` references returned by `list_design_docs` and `propose_design_doc`.
 For existing docs, content changes must go through
 `suggest_design_doc_change`; the tool and service layer never mutate canonical
-Markdown directly for agent actors. Offset-based suggestions must include the
-`current_version_number` returned by the `read_design_doc` call used to compute
-the offsets as `base_version_number`. Creating a suggestion inserts anchor
-markers and creates a new document version, so agents must re-read the Design Doc
-before sending another offset-based suggestion.
+Markdown directly for agent actors. Suggestions must include
+`base_version_number`, copied from the `current_version_number` returned by the
+`read_design_doc` call that observed the current content. The preferred edit
+locator is `original_markdown`: when offsets are omitted, the tool finds that
+exact rendered Markdown in the current document, accepts it only when it is
+unique, and resolves the range automatically. If the text appears a few times,
+the error lists numbered occurrences with surrounding context and offsets; retry
+with `occurrence_index: N` or include more surrounding text in
+`original_markdown`. If it appears too many times, narrow the selected Markdown.
+Callers that already have precise ranges can still pass `start_offset` and
+`end_offset`; when they also pass `original_markdown`, the tool validates that
+the live text at that range still matches instead of silently using a different
+selection. Creating a suggestion inserts anchor markers and creates a new
+document version, so agents must re-read the Design Doc before sending another
+suggestion.
 
 Despite its name, `delete_design_doc` archives the target document by setting
 `state: archived`; it never physically deletes the doc, versions, comments,

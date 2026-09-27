@@ -41,6 +41,15 @@ RSpec.describe "Mcp::Tools chat search tools" do
 
   describe "search_chats" do
     it "returns ranked results scoped to the current user" do
+      chat_session.update!(mode: "coding")
+      job = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_title: "Search attached Job",
+        issue_number: 501,
+        state: "implemented"
+      )
+      ChatAttachment.create!(chat_session: chat_session, attachable: job)
       weaker = message(chat_session, role: "assistant", text: "needle deployment")
       stronger = message(chat_session, role: "user", text: "needle needle needle deployment")
       other = message(other_user_chat, role: "user", text: "needle needle needle deployment")
@@ -55,7 +64,18 @@ RSpec.describe "Mcp::Tools chat search tools" do
       expect(results.first).to include(
         message_id: stronger.id,
         chat_title: "Current chat",
+        mode: "coding",
         repository: repository.slug,
+        attached_jobs_count: 1,
+        attached_jobs: [
+          {
+            id: job.id,
+            slug: job.slug,
+            title: "Search attached Job",
+            state: "implemented",
+            repository: repository.slug
+          }
+        ],
         snippet: a_string_including("<b>needle</b>"),
         created_at: stronger.created_at.iso8601
       )
@@ -70,6 +90,11 @@ RSpec.describe "Mcp::Tools chat search tools" do
       result = response_payload(response).fetch(:results).first
 
       expect(result[:chat_title]).to eq("widgets")
+      expect(result).to include(
+        mode: "planning",
+        attached_jobs_count: 0,
+        attached_jobs: []
+      )
     end
 
     it "returns an empty successful response when no messages match" do
@@ -95,6 +120,27 @@ RSpec.describe "Mcp::Tools chat search tools" do
       response = call_tool("search_chats", query: "limitneedle", limit: 100)
 
       expect(response_payload(response).fetch(:results).size).to eq(50)
+    end
+
+    it "preloads chat discovery metadata for repeated matches" do
+      job = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_title: "Repeated search Job",
+        issue_number: 502,
+        state: "running"
+      )
+      ChatAttachment.create!(chat_session: chat_session, attachable: job)
+      3.times { |i| ChatMessageSearchIndex.insert(message(chat_session, text: "preloadneedle #{i}")) }
+
+      queries = capture_sql do
+        results = response_payload(call_tool("search_chats", query: "preloadneedle")).fetch(:results)
+        expect(results.size).to eq(3)
+        expect(results).to all(include(attached_jobs_count: 1))
+      end
+
+      job_selects = queries.grep(/SELECT .*FROM "?jobs"?/i)
+      expect(job_selects.size).to be <= 1
     end
 
     it "excludes soft-deleted messages from search results" do
@@ -288,5 +334,17 @@ RSpec.describe "Mcp::Tools chat search tools" do
         value TEXT
       )
     SQL
+  end
+
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      queries << sql unless payload[:name] == "SCHEMA" || sql.include?("sqlite_master")
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
   end
 end
