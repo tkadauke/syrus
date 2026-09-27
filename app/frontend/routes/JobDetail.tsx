@@ -333,6 +333,7 @@ export function JobDetailView({
   }, [activeTab, workflowAnchor, renderedWorkflowIds])
 
   const providerLabel = payload.job.agent_provider ? agentProviderLabel(payload, payload.job.agent_provider) : null
+  const headerChatAffordanceVisible = Boolean(payload.job.source_chat || payload.origin_chat || payload.job.discussion_chat || payload.actions.can_start_chat)
 
   return (
     <>
@@ -368,10 +369,12 @@ export function JobDetailView({
                     className: "hidden sm:inline-flex"
                   }
                 : null,
-              {
-                node: <HeaderChatAffordance command={command} payload={payload} prefix={prefix} />,
-                separatorClassName: "hidden sm:inline"
-              }
+              headerChatAffordanceVisible
+                ? {
+                    node: <HeaderChatAffordance command={command} payload={payload} prefix={prefix} />,
+                    separatorClassName: "hidden sm:inline"
+                  }
+                : null
             ]}
           />
           <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center justify-end gap-3 sm:w-auto" data-testid="job-header-actions">
