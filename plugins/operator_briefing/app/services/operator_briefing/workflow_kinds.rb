@@ -30,13 +30,14 @@ module OperatorBriefing
         {
           kind: "briefing_dive_investigate", handler: "OperatorBriefing::DiveInvestigateStep",
           label: "Investigate dive", style: "bg-cyan-100 text-cyan-700", agentic: true,
-          agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
+          agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+          required_mcp_tools: %w[read_briefing]
         },
         {
           kind: "submit_dive_report", handler: "OperatorBriefing::SubmitDiveReportStep",
           label: "Submit dive report", style: "bg-cyan-200 text-cyan-800", agentic: true,
           agent_role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
-          required_mcp_tools: %w[list_briefing_topics read_briefing_topic submit_dive_report],
+          required_mcp_tools: %w[read_briefing list_briefing_topics read_briefing_topic submit_dive_report],
           skip_if_artifact: "briefing_dive_report"
         }
       ]

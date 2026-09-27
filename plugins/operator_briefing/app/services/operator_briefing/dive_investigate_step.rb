@@ -4,7 +4,7 @@ module OperatorBriefing
       workspace.setup
       run.update!(prompt: prompt) if run.prompt.blank?
       log("invoking agent for operator briefing dive investigation (#{workflow.slug})")
-      run_agent(prompt: run.prompt)
+      run_agent(prompt: run.prompt, required_mcp_tools: %w[read_briefing])
     end
 
     private

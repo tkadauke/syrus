@@ -31,8 +31,10 @@ RSpec.describe OperatorBriefing::Workflow do
 
     expect(workflow.trigger_kind).to eq("briefing_dive")
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[prepare briefing_dive_investigate submit_dive_report])
+    expect(Step::Kind.by_kind.fetch("briefing_dive_investigate").required_mcp_tools)
+      .to eq(%w[read_briefing])
     expect(Step::Kind.by_kind.fetch("submit_dive_report").required_mcp_tools)
-      .to eq(%w[list_briefing_topics read_briefing_topic submit_dive_report])
+      .to eq(%w[read_briefing list_briefing_topics read_briefing_topic submit_dive_report])
   end
 
   it "uses ordinary job lifecycle propagation for briefing dive failures" do
