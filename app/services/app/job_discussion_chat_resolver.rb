@@ -16,11 +16,21 @@ module App
     attr_reader :job, :user
 
     def lineage_chat
-      source = App::JobSourceChat.for(job, anchor: false)
-      chat_id = source&.fetch(:chat_id, nil)
-      return unless chat_id
+      proposal = confirmed_lineage_proposals
+        .joins(chat_session: :chat_participants)
+        .where(chat_participants: { user_id: user.id })
+        .includes(:chat_session)
+        .order(Arel.sql("COALESCE(chat_proposals.confirmed_at, chat_proposals.updated_at, chat_proposals.created_at) DESC"), id: :desc)
+        .first
 
-      visible_chats.find_by(id: chat_id)
+      proposal&.chat_session
+    end
+
+    def confirmed_lineage_proposals
+      proposals = ChatProposal.confirmed.where(job_id: job.id)
+      return proposals unless job.epic_id
+
+      proposals.or(ChatProposal.confirmed.where(epic_id: job.epic_id))
     end
 
     def recent_repository_chat

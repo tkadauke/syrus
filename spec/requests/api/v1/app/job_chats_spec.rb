@@ -75,6 +75,53 @@ RSpec.describe "App API job chats", type: :request do
       expect(job.reload.discussion_chat).to eq(proposal_chat)
     end
 
+    it "chooses the newest confirmed proposal-lineage chat and ignores unconfirmed proposals" do
+      older_chat = ChatSession.create!(user: user, repository: repo, last_message_at: 3.hours.ago)
+      newer_chat = ChatSession.create!(user: user, repository: repo, last_message_at: 2.hours.ago)
+      unconfirmed_chat = ChatSession.create!(user: user, repository: repo, last_message_at: 1.hour.ago)
+
+      older_proposal = ChatProposal.create!(
+        chat_session: older_chat,
+        repository: repo,
+        job: job,
+        state: "confirmed",
+        confirmed_at: 2.days.ago,
+        kind: "job",
+        slug: "older-confirmed",
+        title: "Older confirmed",
+        body: "Body"
+      )
+      newer_proposal = ChatProposal.create!(
+        chat_session: newer_chat,
+        repository: repo,
+        job: job,
+        state: "confirmed",
+        confirmed_at: 1.hour.ago,
+        kind: "job",
+        slug: "newer-confirmed",
+        title: "Newer confirmed",
+        body: "Body"
+      )
+      ChatProposal.create!(
+        chat_session: unconfirmed_chat,
+        repository: repo,
+        job: job,
+        state: "proposed",
+        kind: "job",
+        slug: "unconfirmed",
+        title: "Unconfirmed",
+        body: "Body"
+      )
+
+      older_proposal.update_columns(created_at: 3.days.ago, updated_at: 3.days.ago)
+      newer_proposal.update_columns(created_at: 2.days.ago, updated_at: 2.days.ago)
+
+      post path(job), as: :json
+
+      expect(parse_body["redirect_to"]).to eq("/chats/#{newer_chat.id}")
+      expect(job.reload.discussion_chat).to eq(newer_chat)
+    end
+
     it "uses a recent repository chat when no proposal-lineage chat exists" do
       recent_chat = ChatSession.create!(user: user, repository: repo, last_message_at: 1.hour.ago)
 
