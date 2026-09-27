@@ -50,6 +50,7 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
   if (
     normalized.status === DEFAULT_CHAT_SIDEBAR_SETTINGS.status &&
     normalized.group_by === DEFAULT_CHAT_SIDEBAR_SETTINGS.group_by &&
+    normalized.chat_types.join(",") === DEFAULT_CHAT_SIDEBAR_SETTINGS.chat_types.join(",") &&
     normalized.sort_by === DEFAULT_CHAT_SIDEBAR_SETTINGS.sort_by &&
     normalized.show_empty_groups === DEFAULT_CHAT_SIDEBAR_SETTINGS.show_empty_groups &&
     normalized.per_group === DEFAULT_CHAT_SIDEBAR_SETTINGS.per_group
@@ -57,7 +58,16 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
     return ["chats", "recent"]
   }
 
-  return ["chats", "recent", normalized.status, normalized.group_by, normalized.sort_by, normalized.show_empty_groups, normalized.per_group]
+  return [
+    "chats",
+    "recent",
+    normalized.status,
+    normalized.group_by,
+    normalized.chat_types.join(","),
+    normalized.sort_by,
+    normalized.show_empty_groups,
+    normalized.per_group
+  ]
 }
 
 export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
