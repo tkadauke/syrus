@@ -36,6 +36,12 @@ RSpec.describe "production configuration" do
     expect(production_config).to include("ActiveRecordEncryptionConfig.apply_env_overrides!(config)")
   end
 
+  it "lets local health probes reach liveness and readiness without host or SSL redirects" do
+    expect(production_config).to include('healthcheck_path = ->(request) { request.path.in?(%w[/up /readyz]) }')
+    expect(production_config).to include("config.ssl_options = { redirect: { exclude: healthcheck_path } }")
+    expect(production_config).to include("config.host_authorization = { exclude: healthcheck_path }")
+  end
+
   it "sets build-only runtime placeholders while precompiling assets" do
     expect(production_config).to include('app_host = ENV.fetch("SYRUS_APP_HOST")')
     expect(dockerfile).to include("SYRUS_APP_HOST=syrus.invalid")

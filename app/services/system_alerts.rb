@@ -32,9 +32,11 @@ module SystemAlerts
     out << codex_usage(user, availability: provider_availability["codex"]) if user
     out << data_root_disk_usage if user&.admin?
     out.concat(stuck_main_branch_repairs) if user&.admin?
-    out
+    alerts = out
       .compact
       .sort_by { |alert| SEVERITIES.index(alert.severity) || SEVERITIES.length }
+    SystemAlertDelivery.deliver(alerts)
+    alerts
   end
 
   def self.provider_availability_for_alerts(user)

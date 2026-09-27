@@ -46,12 +46,13 @@ Rails.application.configure do
   # proxy boundary unless an alternate deploy explicitly opts out.
   config.assume_ssl = env_boolean.call("SYRUS_ASSUME_SSL", "true")
   config.force_ssl = env_boolean.call("SYRUS_FORCE_SSL", "true")
-  config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
+  healthcheck_path = ->(request) { request.path.in?(%w[/up /readyz]) }
+  config.ssl_options = { redirect: { exclude: healthcheck_path } }
 
   # Enable DNS rebinding protection and other `Host` header attacks. Add extra
   # ingress names with SYRUS_ALLOWED_HOSTS as a comma-separated list.
   config.hosts.concat(allowed_hosts)
-  config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+  config.host_authorization = { exclude: healthcheck_path }
 
   # Log to STDOUT with the current request id as a default log tag.
   # MCP sidecars use stdout as the JSON-RPC protocol stream, so any
