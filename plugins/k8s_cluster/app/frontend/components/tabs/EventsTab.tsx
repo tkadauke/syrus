@@ -3,35 +3,44 @@ import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesEvents, type KubernetesEventRow } from "../../api/kubernetesResources"
+import { formatAge } from "../../lib/k8sFormat"
 import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
 import { StatusBadge } from "../StatusBadge"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 export function EventsTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
+  const { query, setQuery } = useTableSearch()
   const events = useQuery({
     queryKey: ["k8s_cluster", "events", clusterId, namespace],
     queryFn: () => fetchKubernetesEvents(clusterId, namespace)
   })
 
+  if (events.isPending) return <PanelMessage>{t("events_loading")}</PanelMessage>
+  if (events.isError) return <PanelMessage tone="error">{errorMessage(events.error, t("events_error_loading"))}</PanelMessage>
+  if (events.data.events.length === 0) return <PanelMessage>{t("events_empty")}</PanelMessage>
+
+  const visible = events.data.events.filter((event) =>
+    matchesSearch(query, event.name, event.namespace, event.type, event.reason, event.message, event.involved_object.kind, event.involved_object.name)
+  )
+
   return (
-    <div aria-label={t("aria_events_tab")}>
-      {events.isPending ? <PanelMessage>{t("events_loading")}</PanelMessage> : null}
-      {events.isError ? <PanelMessage tone="error">{errorMessage(events.error, t("events_error_loading"))}</PanelMessage> : null}
-      {events.isSuccess ? (
-        events.data.events.length === 0 ? (
-          <PanelMessage>{t("events_empty")}</PanelMessage>
-        ) : (
-          <KubernetesResourceTable
-            columns={eventColumns(t)}
-            defaultSort={{ column: "last_timestamp", direction: "desc" }}
-            empty={<PanelMessage>{t("events_empty")}</PanelMessage>}
-            getRowKey={(event) => `${event.namespace}/${event.name}/${event.last_timestamp || event.first_timestamp || ""}/${event.count}`}
-            rows={events.data.events}
-            storageKey="syrus.k8s_cluster.events.columns"
-            summary={t("tab_events")}
-          />
-        )
-      ) : null}
+    <div aria-label={t("aria_events_tab")} className="space-y-3">
+      <TableSearch onChange={setQuery} query={query} />
+      {events.data.truncated ? <TruncatedNotice /> : null}
+      {visible.length === 0 ? (
+        <SearchNoMatches />
+      ) : (
+        <KubernetesResourceTable
+          columns={eventColumns(t)}
+          defaultSort={{ column: "last_timestamp", direction: "desc" }}
+          empty={<PanelMessage>{t("events_empty")}</PanelMessage>}
+          getRowKey={(event) => `${event.namespace}/${event.name}/${event.last_timestamp || event.first_timestamp || ""}/${event.count}`}
+          rows={visible}
+          storageKey="syrus.k8s_cluster.events.columns"
+          summary={t("tab_events")}
+        />
+      )}
     </div>
   )
 }
@@ -92,9 +101,19 @@ function eventColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResource
       header: t("col_last_seen"),
       className: "text-gray-700 dark:text-gray-300",
       filterValue: (event) => event.last_timestamp || event.first_timestamp,
-      render: (event) => event.last_timestamp || event.first_timestamp || "-",
+      render: (event) => <EventAge timestamp={event.last_timestamp || event.first_timestamp} />,
       sort: "last_timestamp",
       sortValue: (event) => event.last_timestamp || event.first_timestamp
     }
   ]
+}
+
+function EventAge({ timestamp }: { timestamp: string | null | undefined }) {
+  if (!timestamp) return <>-</>
+
+  return (
+    <span className="cursor-help" title={timestamp}>
+      {formatAge(timestamp)}
+    </span>
+  )
 }

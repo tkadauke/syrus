@@ -4,25 +4,83 @@ import { DescriptionList, usePageGutterRestoreClassName } from "@app/components/
 import { classes } from "@app/components/ui/classes"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
-import { fetchKubernetesNodes, fetchKubernetesOverview, type KubernetesMetricsSection } from "../../api/kubernetesResources"
-import { formatBytes, formatMillicores } from "../../lib/k8sFormat"
+import {
+  fetchKubernetesNamespaces,
+  fetchKubernetesNodes,
+  fetchKubernetesOverview,
+  type KubernetesMetricsSection,
+  type KubernetesNamespaceRow
+} from "../../api/kubernetesResources"
+import { formatAge, formatBytes, formatMillicores } from "../../lib/k8sFormat"
+import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
+import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
+import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
 export function OverviewTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const restoredHeadingGutter = usePageGutterRestoreClassName("padding")
   const sectionHeadingClassName = classes("text-xs font-semibold uppercase text-gray-500 dark:text-gray-400", restoredHeadingGutter)
+  const detail = useResourceDetail()
+  const { query, setQuery } = useTableSearch()
   const nodes = useQuery({
     queryKey: [ "k8s_cluster", "nodes", clusterId ],
     queryFn: () => fetchKubernetesNodes(clusterId)
+  })
+  const namespaces = useQuery({
+    queryKey: [ "k8s_cluster", "namespaces", clusterId ],
+    queryFn: () => fetchKubernetesNamespaces(clusterId)
   })
   const overview = useQuery({
     queryKey: [ "k8s_cluster", "overview", clusterId ],
     queryFn: () => fetchKubernetesOverview(clusterId)
   })
 
+  const openNamespace = (row: KubernetesNamespaceRow) =>
+    detail.openDetail({
+      kind: "namespace",
+      kindLabel: t("namespaces_heading"),
+      name: row.name,
+      namespace: null,
+      fields: [
+        { label: t("col_status"), value: row.status || "-" },
+        { label: t("col_age"), value: formatAge(row.created_at) }
+      ]
+    })
+
+  const visibleNamespaces = (namespaces.data?.namespaces ?? []).filter((row) => matchesSearch(query, row.name, row.status))
+
   return (
     <div aria-label={t("aria_overview_tab")} className="space-y-4">
+      <section>
+        <h3 className={sectionHeadingClassName}>{t("namespaces_heading")}</h3>
+        {namespaces.isPending ? <PanelMessage>{t("namespaces_loading")}</PanelMessage> : null}
+        {namespaces.isError ? <PanelMessage tone="error">{errorMessage(namespaces.error, t("namespaces_error_loading"))}</PanelMessage> : null}
+        {namespaces.isSuccess ? (
+          namespaces.data.namespaces.length === 0 ? (
+            <PanelMessage>{t("namespaces_empty")}</PanelMessage>
+          ) : (
+            <>
+              <TableSearch onChange={setQuery} query={query} />
+              {namespaces.data.truncated ? <TruncatedNotice /> : null}
+              {visibleNamespaces.length === 0 ? (
+                <SearchNoMatches />
+              ) : (
+                <KubernetesResourceTable
+                  columns={namespaceColumns(t, openNamespace)}
+                  defaultSort={{ column: "name", direction: "asc" }}
+                  empty={<PanelMessage>{t("namespaces_empty")}</PanelMessage>}
+                  getRowKey={(row) => row.name}
+                  rows={visibleNamespaces}
+                  storageKey="syrus.k8s_cluster.namespaces.columns"
+                  summary={t("namespaces_heading")}
+                />
+              )}
+            </>
+          )
+        ) : null}
+      </section>
+
       <section>
         <h3 className={sectionHeadingClassName}>{t("overview_nodes_heading")}</h3>
         {nodes.isPending ? <PanelMessage>{t("overview_loading_nodes")}</PanelMessage> : null}
@@ -31,9 +89,9 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
           nodes.data.nodes.length === 0 ? (
             <PanelMessage>{t("overview_no_nodes")}</PanelMessage>
           ) : (
-            <div className="flex flex-wrap items-center gap-3 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
-              <span className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{nodes.data.nodes.length}</span>
-              <span className="text-sm text-gray-500 dark:text-gray-400">{t("overview_node_count_label")}</span>
+            <div className="flex flex-wrap items-center gap-3 rounded border border-border bg-surface p-4">
+              <span className="text-2xl font-semibold text-text-primary">{nodes.data.nodes.length}</span>
+              <span className="text-sm text-text-secondary">{t("overview_node_count_label")}</span>
               <StatusBadge tone={nodes.data.nodes.every((node) => node.ready) ? "success" : "warning"}>
                 {t("overview_nodes_ready", { ready: nodes.data.nodes.filter((node) => node.ready).length, total: nodes.data.nodes.length })}
               </StatusBadge>
@@ -41,6 +99,8 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
           )
         ) : null}
       </section>
+
+      <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
 
       <section>
         <h3 className={sectionHeadingClassName}>{t("overview_metrics_heading")}</h3>
@@ -57,23 +117,57 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
   )
 }
 
+function namespaceColumns(
+  t: ReturnType<typeof useT>["t"],
+  onOpen: (row: KubernetesNamespaceRow) => void
+): Array<KubernetesResourceTableColumn<KubernetesNamespaceRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (row) => <DetailNameButton name={row.name} onOpen={() => onOpen(row)} />,
+      required: true,
+      sort: "name",
+      sortValue: (row) => row.name
+    },
+    {
+      key: "status",
+      header: t("col_status"),
+      render: (row) => (
+        <StatusBadge tone={row.status === "Active" ? "success" : "neutral"}>{row.status || "-"}</StatusBadge>
+      ),
+      sort: "status",
+      sortValue: (row) => row.status
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (row) => formatAge(row.created_at),
+      sort: "created_at",
+      sortValue: (row) => row.created_at
+    }
+  ]
+}
+
 function MetricsCard({ heading, section }: { heading: string; section: KubernetesMetricsSection<{ name: string; cpu_millicores: number; memory_bytes: number }> }) {
   const { t } = useT("k8s_cluster")
 
   return (
-    <div className="rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
-      <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{heading}</h4>
+    <div className="rounded border border-border bg-surface p-4">
+      <h4 className="text-sm font-semibold text-text-primary">{heading}</h4>
       {section.available ? (
         <DescriptionList.Root className="mt-2 grid-cols-2 sm:grid-cols-2" density="compact">
-          <DescriptionList.Item descriptionClassName="font-medium text-gray-900 dark:text-gray-100" label={t("overview_total_cpu")} termClassName="normal-case tracking-normal">
+          <DescriptionList.Item descriptionClassName="font-medium text-text-primary" label={t("overview_total_cpu")} termClassName="normal-case tracking-normal">
             {formatMillicores(section.total_cpu_millicores)}
           </DescriptionList.Item>
-          <DescriptionList.Item descriptionClassName="font-medium text-gray-900 dark:text-gray-100" label={t("overview_total_memory")} termClassName="normal-case tracking-normal">
+          <DescriptionList.Item descriptionClassName="font-medium text-text-primary" label={t("overview_total_memory")} termClassName="normal-case tracking-normal">
             {formatBytes(section.total_memory_bytes)}
           </DescriptionList.Item>
         </DescriptionList.Root>
       ) : (
-        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-2 text-xs text-text-muted">
           <p>{t("overview_metrics_unavailable")}</p>
           <p className="mt-1 font-mono">{section.message}</p>
         </div>

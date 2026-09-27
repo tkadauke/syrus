@@ -195,6 +195,87 @@ function withNamespace(path: string, namespace?: string | null) {
   return namespace ? `${path}?namespace=${encodeURIComponent(namespace)}` : path
 }
 
+// Every describe endpoint shares its list route: passing `name` (plus
+// `namespace` for namespace-scoped kinds) switches that same action from
+// list to describe. Each fetcher below normalizes its kind-specific
+// envelope (`{ pod: {...} }`, `{ deployment: {...} }`, …) into one uniform
+// shape so the shared detail drawer treats every kind identically.
+export type KubernetesResourceDetail = {
+  available: true
+  generated_at: string
+  object: Record<string, unknown>
+}
+
+type DescribePayload = { available: true; generated_at: string } & Record<string, unknown>
+
+async function fetchDescribe(path: string, key: string): Promise<KubernetesResourceDetail> {
+  const data = await getJson<DescribePayload>(path)
+  const object = (data[key] ?? {}) as Record<string, unknown>
+  return { available: true, generated_at: data.generated_at, object }
+}
+
+function describeClusterPath(base: string, name: string) {
+  return `${base}?${new URLSearchParams({ name }).toString()}`
+}
+
+function describeNamespacedPath(base: string, namespace: string, name: string) {
+  return `${base}?${new URLSearchParams({ name, namespace }).toString()}`
+}
+
+export function fetchKubernetesNamespaceDetail(clusterId: number, name: string) {
+  return fetchDescribe(describeClusterPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/namespaces`, name), "namespace")
+}
+
+export function fetchKubernetesNodeDetail(clusterId: number, name: string) {
+  return fetchDescribe(describeClusterPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/nodes`, name), "node")
+}
+
+export function fetchKubernetesPodDetail(clusterId: number, namespace: string, name: string) {
+  return fetchDescribe(describeNamespacedPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/pods`, namespace, name), "pod")
+}
+
+export function fetchKubernetesDeploymentDetail(clusterId: number, namespace: string, name: string) {
+  return fetchDescribe(describeNamespacedPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/deployments`, namespace, name), "deployment")
+}
+
+export function fetchKubernetesStatefulSetDetail(clusterId: number, namespace: string, name: string) {
+  return fetchDescribe(describeNamespacedPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/statefulsets`, namespace, name), "stateful_set")
+}
+
+export function fetchKubernetesDaemonSetDetail(clusterId: number, namespace: string, name: string) {
+  return fetchDescribe(describeNamespacedPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/daemonsets`, namespace, name), "daemon_set")
+}
+
+export function fetchKubernetesJobDetail(clusterId: number, namespace: string, name: string) {
+  return fetchDescribe(describeNamespacedPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/jobs`, namespace, name), "job")
+}
+
+export function fetchKubernetesCronJobDetail(clusterId: number, namespace: string, name: string) {
+  return fetchDescribe(describeNamespacedPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/cronjobs`, namespace, name), "cron_job")
+}
+
+export function fetchKubernetesServiceDetail(clusterId: number, namespace: string, name: string) {
+  return fetchDescribe(describeNamespacedPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/services`, namespace, name), "service")
+}
+
+export function fetchKubernetesIngressDetail(clusterId: number, namespace: string, name: string) {
+  return fetchDescribe(describeNamespacedPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/ingresses`, namespace, name), "ingress")
+}
+
+export function fetchKubernetesConfigMapDetail(clusterId: number, namespace: string, name: string) {
+  return fetchDescribe(describeNamespacedPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/configmaps`, namespace, name), "config_map")
+}
+
+// Secret describe is redacted server-side (metadata summary only, never
+// values), so rendering its detail object is safe by construction.
+export function fetchKubernetesSecretDetail(clusterId: number, namespace: string, name: string) {
+  return fetchDescribe(describeNamespacedPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/secrets`, namespace, name), "secret")
+}
+
+export function fetchKubernetesPersistentVolumeClaimDetail(clusterId: number, namespace: string, name: string) {
+  return fetchDescribe(describeNamespacedPath(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/pvcs`, namespace, name), "persistent_volume_claim")
+}
+
 export function fetchKubernetesNamespaces(clusterId: number) {
   return getJson<KubernetesNamespacesResponse>(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/namespaces`)
 }
@@ -215,11 +296,13 @@ export function fetchKubernetesPodLogs(
   clusterId: number,
   namespace: string,
   name: string,
-  options: { container?: string | null; tail_lines?: number } = {}
+  options: { container?: string | null; tail_lines?: number; previous?: boolean; timestamps?: boolean } = {}
 ) {
   const search = new URLSearchParams({ namespace })
   if (options.container) search.set("container", options.container)
   if (options.tail_lines) search.set("tail_lines", String(options.tail_lines))
+  if (options.previous) search.set("previous", "true")
+  if (options.timestamps) search.set("timestamps", "true")
 
   return getJson<KubernetesPodLogsResponse>(
     `/api/v1/app/admin/kubernetes_clusters/${clusterId}/pods/${encodeURIComponent(name)}/logs?${search.toString()}`
@@ -230,6 +313,70 @@ export function fetchKubernetesDeployments(clusterId: number, namespace?: string
   return getJson<KubernetesDeploymentsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/deployments`, namespace))
 }
 
+export type KubernetesStatefulSetRow = {
+  name: string
+  namespace: string
+  replicas: number | null
+  ready_replicas: number
+  current_replicas: number
+  updated_replicas: number
+  created_at: string | null
+}
+
+export type KubernetesStatefulSetsResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  stateful_sets: KubernetesStatefulSetRow[]
+}
+
+export type KubernetesDaemonSetRow = {
+  name: string
+  namespace: string
+  desired_number_scheduled: number
+  current_number_scheduled: number
+  number_ready: number
+  number_available: number
+  created_at: string | null
+}
+
+export type KubernetesDaemonSetsResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  daemon_sets: KubernetesDaemonSetRow[]
+}
+
+export type KubernetesJobRow = {
+  name: string
+  namespace: string
+  completions: number | null
+  parallelism: number | null
+  active_count: number
+  succeeded: number
+  failed: number
+  created_at: string | null
+}
+
+export type KubernetesJobsResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  jobs: KubernetesJobRow[]
+}
+
+export function fetchKubernetesStatefulSets(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesStatefulSetsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/statefulsets`, namespace))
+}
+
+export function fetchKubernetesDaemonSets(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesDaemonSetsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/daemonsets`, namespace))
+}
+
+export function fetchKubernetesJobs(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesJobsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/jobs`, namespace))
+}
+
 export function fetchKubernetesCronJobs(clusterId: number, namespace?: string | null) {
   return getJson<KubernetesCronJobsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/cronjobs`, namespace))
 }
@@ -238,12 +385,84 @@ export function fetchKubernetesServices(clusterId: number, namespace?: string | 
   return getJson<KubernetesServicesResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/services`, namespace))
 }
 
+export type KubernetesIngressPath = {
+  path: string | null
+  path_type: string | null
+  service_name: string | null
+  service_port: number | string | null
+}
+
+export type KubernetesIngressRule = {
+  host: string | null
+  paths: KubernetesIngressPath[]
+}
+
+export type KubernetesIngressRow = {
+  name: string
+  namespace: string
+  ingress_class: string | null
+  hosts: string[]
+  rules: KubernetesIngressRule[]
+  tls_hosts: string[]
+  created_at: string | null
+}
+
+export type KubernetesIngressesResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  ingresses: KubernetesIngressRow[]
+}
+
+export function fetchKubernetesIngresses(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesIngressesResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/ingresses`, namespace))
+}
+
 export function fetchKubernetesEndpoints(clusterId: number, namespace?: string | null) {
   return getJson<KubernetesEndpointsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/endpoints`, namespace))
 }
 
 export function fetchKubernetesPersistentVolumeClaims(clusterId: number, namespace?: string | null) {
   return getJson<KubernetesPersistentVolumeClaimsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/pvcs`, namespace))
+}
+
+export type KubernetesConfigMapRow = {
+  name: string
+  namespace: string
+  key_count: number
+  key_names: string[]
+  created_at: string | null
+}
+
+export type KubernetesConfigMapsResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  config_maps: KubernetesConfigMapRow[]
+}
+
+export type KubernetesSecretRow = {
+  name: string
+  namespace: string
+  type: string | null
+  key_count: number
+  key_names: string[]
+  created_at: string | null
+}
+
+export type KubernetesSecretsResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  secrets: KubernetesSecretRow[]
+}
+
+export function fetchKubernetesConfigMaps(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesConfigMapsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/configmaps`, namespace))
+}
+
+export function fetchKubernetesSecrets(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesSecretsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/secrets`, namespace))
 }
 
 export function fetchKubernetesEvents(clusterId: number, namespace?: string | null) {

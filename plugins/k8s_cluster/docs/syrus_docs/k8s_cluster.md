@@ -13,7 +13,8 @@ The foundation Jobs scaffolded connection management (register a cluster
 from a pasted kubeconfig, test the connection, edit, and delete), the
 read-only Kubernetes API client - one service object per resource kind, and
 the JSON API endpoints those services back: namespaces, pods (including
-per-container log tail), deployments, services, events,
+per-container log tail), deployments, StatefulSets, DaemonSets, Jobs,
+services, events,
 PersistentVolumeClaims, nodes, CronJobs, and a cluster overview backed by
 the `metrics.k8s.io` API. A follow-up Job added the tabbed cluster-browsing
 UI that consumes those endpoints - see "Cluster-browsing UI" below, then a
@@ -115,8 +116,10 @@ it never raises out to the controller.
 `K8sCluster::ApiClient` builds authenticated `Kubeclient::Client` instances
 (the `kubeclient` gem) per Kubernetes API group for a `KubernetesCluster`:
 `#core` (`/api`, `v1` - namespaces, pods, services, events,
-PersistentVolumeClaims, nodes), `#apps` (`apis/apps/v1` - deployments),
-`#batch` (`apis/batch/v1` - CronJobs), and `#metrics`
+PersistentVolumeClaims, nodes), `#apps` (`apis/apps/v1` - deployments,
+StatefulSets, DaemonSets),
+`#batch` (`apis/batch/v1` - CronJobs, Jobs), `#networking`
+(`apis/networking.k8s.io/v1` - ingresses), and `#metrics`
 (`apis/metrics.k8s.io/v1beta1` - see Overview below). Each client is built
 with `as: :parsed`, so entity calls (`get_pods`, `get_deployment`, ...) hand
 back plain parsed JSON hashes instead of `RecursiveOpenStruct` wrappers -
@@ -148,7 +151,8 @@ resource kind gets its own read-only service class under
 DNS/connection-refused - the same two-outcome shape `SchemaInspector` uses):
 
 - `Namespaces`, `Nodes` - cluster-scoped: `#list` and `#describe(name)`.
-- `Pods`, `Deployments`, `Services`, `Endpoints`, `PersistentVolumeClaims`,
+- `Pods`, `Deployments`, `StatefulSets`, `DaemonSets`, `Jobs`, `Services`,
+  `Ingresses`, `Endpoints`, `PersistentVolumeClaims`,
   `CronJobs` - namespace-scoped: `#list(namespace: nil)` (omitting
   `namespace` lists across every namespace, matching `kubectl get <kind>
   -A`) and `#describe(name, namespace:)` (namespace is required to describe
@@ -168,6 +172,10 @@ DNS/connection-refused - the same two-outcome shape `SchemaInspector` uses):
   the Services tab pairs the two without a separate lookup field; a Service
   with no selector (e.g. `ExternalName`) simply has no matching Endpoints
   row, which the UI treats as "not applicable" rather than an error.
+  `Ingresses#list`'s summary row carries `hosts`, `rules` (each rule's host
+  plus its paths with backend `service_name`/`service_port`), `tls_hosts`,
+  and `ingress_class` so the browsing UI can trace an external URL to its
+  backing Service without a second request.
 - `Events` - namespace-scoped, `#list(namespace: nil)` only; an individual
   Event has no useful "describe" beyond its list row. Sorted
   most-recent-first by `lastTimestamp`/`eventTime`/`firstTimestamp`.
@@ -217,10 +225,16 @@ GET .../kubernetes_clusters/:id/namespaces[?name=]
 GET .../kubernetes_clusters/:id/pods[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/pods/:name/logs?namespace=[&container=&tail_lines=&previous=&timestamps=]
 GET .../kubernetes_clusters/:id/deployments[?namespace=][?name=&namespace=]
+GET .../kubernetes_clusters/:id/statefulsets[?namespace=][?name=&namespace=]
+GET .../kubernetes_clusters/:id/daemonsets[?namespace=][?name=&namespace=]
+GET .../kubernetes_clusters/:id/jobs[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/services[?namespace=][?name=&namespace=]
+GET .../kubernetes_clusters/:id/ingresses[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/endpoints[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/events[?namespace=]
 GET .../kubernetes_clusters/:id/pvcs[?namespace=][?name=&namespace=]
+GET .../kubernetes_clusters/:id/configmaps[?namespace=][?name=&namespace=]
+GET .../kubernetes_clusters/:id/secrets[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/nodes[?name=]
 GET .../kubernetes_clusters/:id/cronjobs[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/overview
@@ -245,22 +259,37 @@ mirroring `mysql_db_browser`'s connections-list-to-schema-browser flow:
 - **Overview** - node count and ready/not-ready status (from `Nodes#list`)
   plus aggregate node/pod CPU and memory (from `Overview#call`), with a
   graceful "metrics unavailable" message per section instead of an error
-  when `metrics.k8s.io` isn't installed.
-- **Workloads** - a workload-kind switcher (Pods/Deployments/CronJobs) over
+  when `metrics.k8s.io` isn't installed. Also lists namespaces (from
+  `Namespaces#list`) with status and age, since namespaces otherwise appear
+  only in the namespace-filter dropdown and would have no clickable row.
+- **Workloads** - a workload-kind switcher
+  (Pods/Deployments/StatefulSets/DaemonSets/Jobs/CronJobs) over
   the shared namespace filter, with status/ready/restart-count (pods),
-  ready/available/updated replica counts (deployments), or
+  ready/available/updated replica counts (deployments),
+  ready/current/updated replica counts (StatefulSets),
+  scheduled/ready/available counts (DaemonSets),
+  completions/active/succeeded/failed counts (Jobs), or
   schedule/suspended/active-count (CronJobs) columns, plus an age column
   computed client-side from `created_at`.
-- **Services** - namespaced services with type, cluster IP, and ports, plus
-  an Endpoints column (fetched alongside, paired by `(namespace, name)`)
-  showing ready/not-ready backing-address counts; a Service with no matching
+- **Services** - a network-kind switcher (Services/Ingresses, the same
+  toolbar-dropdown pattern as the Workloads tab) over the shared namespace
+  filter. Services show type, cluster IP, and ports, plus an Endpoints
+  column (fetched alongside, paired by `(namespace, name)`) showing
+  ready/not-ready backing-address counts; a Service with no matching
   Endpoints row (e.g. `ExternalName`) shows a dash, and an Endpoints fetch
   failure degrades that column to a dash instead of failing the whole tab.
   Kubernetes' newer `EndpointSlice` API is not fetched - the older
   `Endpoints` object covers the same summary-level readiness data this tab
-  needs.
+  needs. Ingresses show hosts, a flattened backend Service/port column
+  (so an external URL traces to its backing Service), a TLS badge,
+  ingress class, and age.
 - **Storage** - PersistentVolumeClaims with bound status, capacity, and
   storage class.
+- **Config** - ConfigMaps and Secrets over the shared namespace filter,
+  each with key counts, expandable key names, and an age column. Secret
+  values are never displayed: the API returns metadata only (name,
+  namespace, type, key names, `created_at`), stated in a note above the
+  Secrets table.
 - **Nodes** - the cluster-scoped node list with readiness, roles,
   capacity, and allocatable capacity.
 - **Events** - namespaced/cluster events as returned by `Events#list`
@@ -277,7 +306,7 @@ mirroring `mysql_db_browser`'s connections-list-to-schema-browser flow:
 
 A shared namespace filter (`ClusterBrowser`'s `NamespacePicker`, populated
 from `Namespaces#list`) appears only for the namespace-scoped tabs
-(Workloads/Services/Storage/Events/Logs); Overview and Nodes are always
+(Workloads/Services/Storage/Config/Events/Logs); Overview and Nodes are always
 cluster-wide. The top-level tab switcher and the namespace/workload-kind/
 pod/container pickers all use the same toolbar dropdown control
 (`components/Dropdown.tsx`, a button+listbox pattern) per CLAUDE.md's
@@ -285,13 +314,28 @@ convention for small fixed-choice toolbar controls - never a native
 `<select>` for this kind of in-page switcher. All frontend strings are
 translated across `en`/`de`/`la` (`app/frontend/i18n/locales/*/k8s_cluster.json`).
 
+Clicking any row (pods, deployments, StatefulSets, DaemonSets, Jobs,
+CronJobs, services, ingresses, ConfigMaps, Secrets, PVCs, nodes, namespaces)
+opens one shared read-only detail drawer
+(`components/ResourceDetailDrawer.tsx`, driven by `useResourceDetail` in each
+tab). The drawer shows key fields taken from the clicked row plus a read-only
+YAML view of the full describe object, fetched through the describe fetchers
+in `api/kubernetesResources.ts` - the same list routes with `?name=` (plus
+`?namespace=` for namespace-scoped kinds) that previously no UI called. The
+YAML is rendered by a small dependency-free serializer (`lib/toYaml.ts`)
+covering the plain-JSON subset the describe endpoints return. Secret detail
+stays redacted by construction: the backend describe returns the metadata
+summary only, never values. The drawer has loading/error states, closes via
+its close button, backdrop click, or Escape, and never issues anything but
+the describe GET - no editing, no apply.
+
 ## Agentic access
 
 Each `KubernetesCluster` carries its own `agentic_access_enabled` opt-in
 (surfaced as a checkbox on the connection create/edit form, default `false`),
 independent of the plugin's own enable/disable toggle. When set, that
 specific cluster becomes browsable read-only by workflow and chat agents
-through eleven read-only MCP tools (plus four write tools gated separately -
+through seventeen read-only MCP tools (plus four write tools gated separately -
 see "Write-capable agentic tools" below) exposed via `mcp_tool_set`/`chat_mcp_tool_set`
 (`K8sCluster::WorkflowToolSet` / `K8sCluster::ChatToolSet`,
 `plugins/k8s_cluster/app/services/k8s_cluster/{workflow,chat}_tool_set.rb`),
@@ -305,14 +349,20 @@ mirroring `mysql_db_browser`'s own MCP tool sets:
 - `k8s_cluster_namespaces` / `k8s_cluster_nodes` - list or describe the two
   cluster-scoped kinds. Omitting `name` lists; passing `name` describes that
   one object.
-- `k8s_cluster_pods` / `k8s_cluster_deployments` / `k8s_cluster_services` /
-  `k8s_cluster_pvcs` / `k8s_cluster_cronjobs` - list or describe the
+- `k8s_cluster_pods` / `k8s_cluster_deployments` /
+  `k8s_cluster_statefulsets` / `k8s_cluster_daemonsets` / `k8s_cluster_jobs` /
+  `k8s_cluster_services` / `k8s_cluster_ingresses` /
+  `k8s_cluster_pvcs` / `k8s_cluster_cronjobs` /
+  `k8s_cluster_configmaps` - list or describe the
   namespace-scoped kinds. Omitting `namespace` lists across every namespace
   (matching `kubectl get <kind> -A`); passing `name` describes a single
   object and requires `namespace` alongside it (rejected with a
   `namespace is required` tool error otherwise) - the same list-vs-describe
   contract `KubernetesResourcesController` uses for the browsing UI's
   endpoints.
+- `k8s_cluster_secrets` - list or describe Secrets redacted server-side:
+  metadata only (name, namespace, type, key names, `created_at`) - secret
+  data values never appear in any payload, log, or tool response.
 - `k8s_cluster_events` - list-only, `namespace` optional, most-recent-first
   (an individual Event has no useful describe beyond its list row).
 - `k8s_cluster_pod_logs` - a pod's log tail via `Pods#logs`; `container` is
@@ -326,7 +376,8 @@ mirroring `mysql_db_browser`'s own MCP tool sets:
 
 Every tool call takes a `cluster_id` param and every read wraps the matching
 `K8sCluster::` resource service directly (`Namespaces`, `Pods`,
-`Deployments`, `Services`, `Events`, `PersistentVolumeClaims`, `Nodes`,
+`Deployments`, `StatefulSets`, `DaemonSets`, `Jobs`, `Services`,
+`Ingresses`, `Events`, `PersistentVolumeClaims`, `Nodes`,
 `CronJobs`, `Overview`) - no separate agentic-only code path, so the agent
 sees exactly what the browsing UI sees.
 
@@ -459,6 +510,9 @@ rules:
     verbs: [get, list]
   - apiGroups: [batch]
     resources: [cronjobs]
+    verbs: [get, list]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
     verbs: [get, list]
   - apiGroups: [metrics.k8s.io]
     resources: [nodes, pods]

@@ -147,6 +147,71 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
       expect(parse_body.dig("services", 0, "name")).to eq("web")
     end
 
+    it "lists configmaps" do
+      config_maps = instance_double(K8sCluster::ConfigMaps)
+      allow(K8sCluster::ConfigMaps).to receive(:new).with(cluster).and_return(config_maps)
+      allow(config_maps).to receive(:list).with(namespace: nil).and_return(available: true, config_maps: [ { name: "app-settings" } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/configmaps"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("config_maps", 0, "name")).to eq("app-settings")
+    end
+
+    it "requires a namespace to describe a specific configmap" do
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/configmaps", params: { name: "app-settings" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("namespace_required")
+    end
+
+    it "lists secrets" do
+      secrets = instance_double(K8sCluster::Secrets)
+      allow(K8sCluster::Secrets).to receive(:new).with(cluster).and_return(secrets)
+      allow(secrets).to receive(:list).with(namespace: nil).and_return(available: true, secrets: [ { name: "db-credentials" } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/secrets"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("secrets", 0, "name")).to eq("db-credentials")
+    end
+
+    it "requires a namespace to describe a specific secret" do
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/secrets", params: { name: "db-credentials" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("namespace_required")
+    end
+
+    it "lists ingresses" do
+      ingresses = instance_double(K8sCluster::Ingresses)
+      allow(K8sCluster::Ingresses).to receive(:new).with(cluster).and_return(ingresses)
+      allow(ingresses).to receive(:list).with(namespace: nil).and_return(available: true, ingresses: [ { name: "web" } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/ingresses"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("ingresses", 0, "name")).to eq("web")
+    end
+
+    it "requires a namespace to describe a specific ingress" do
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/ingresses", params: { name: "web" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("namespace_required")
+    end
+
+    it "describes an ingress when both name and namespace are given" do
+      ingresses = instance_double(K8sCluster::Ingresses)
+      allow(K8sCluster::Ingresses).to receive(:new).with(cluster).and_return(ingresses)
+      allow(ingresses).to receive(:describe).with("web", namespace: "default").and_return(available: true, ingress: { "metadata" => { "name" => "web" } })
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/ingresses", params: { name: "web", namespace: "default" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("ingress", "metadata", "name")).to eq("web")
+    end
+
     it "lists endpoints" do
       endpoints = instance_double(K8sCluster::Endpoints)
       allow(K8sCluster::Endpoints).to receive(:new).with(cluster).and_return(endpoints)
@@ -200,6 +265,95 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.dig("cron_jobs", 0, "name")).to eq("nightly")
+    end
+
+    it "lists statefulsets" do
+      stateful_sets = instance_double(K8sCluster::StatefulSets)
+      allow(K8sCluster::StatefulSets).to receive(:new).with(cluster).and_return(stateful_sets)
+      allow(stateful_sets).to receive(:list).with(namespace: nil).and_return(available: true, stateful_sets: [ { name: "db" } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/statefulsets"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("stateful_sets", 0, "name")).to eq("db")
+    end
+
+    it "requires a namespace to describe a specific statefulset" do
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/statefulsets", params: { name: "db" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("namespace_required")
+    end
+
+
+    it "describes a statefulset when both name and namespace are given" do
+      stateful_sets = instance_double(K8sCluster::StatefulSets)
+      allow(K8sCluster::StatefulSets).to receive(:new).with(cluster).and_return(stateful_sets)
+      allow(stateful_sets).to receive(:describe).with("db", namespace: "default").and_return(available: true, stateful_set: { "metadata" => { "name" => "db" } })
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/statefulsets", params: { name: "db", namespace: "default" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("stateful_set", "metadata", "name")).to eq("db")
+    end
+
+    it "lists daemonsets" do
+      daemon_sets = instance_double(K8sCluster::DaemonSets)
+      allow(K8sCluster::DaemonSets).to receive(:new).with(cluster).and_return(daemon_sets)
+      allow(daemon_sets).to receive(:list).with(namespace: nil).and_return(available: true, daemon_sets: [ { name: "monitoring" } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/daemonsets"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("daemon_sets", 0, "name")).to eq("monitoring")
+    end
+
+    it "requires a namespace to describe a specific daemonset" do
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/daemonsets", params: { name: "monitoring" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("namespace_required")
+    end
+
+
+    it "describes a daemonset when both name and namespace are given" do
+      daemon_sets = instance_double(K8sCluster::DaemonSets)
+      allow(K8sCluster::DaemonSets).to receive(:new).with(cluster).and_return(daemon_sets)
+      allow(daemon_sets).to receive(:describe).with("monitoring", namespace: "default").and_return(available: true, daemon_set: { "metadata" => { "name" => "monitoring" } })
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/daemonsets", params: { name: "monitoring", namespace: "default" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("daemon_set", "metadata", "name")).to eq("monitoring")
+    end
+
+    it "lists jobs" do
+      jobs = instance_double(K8sCluster::Jobs)
+      allow(K8sCluster::Jobs).to receive(:new).with(cluster).and_return(jobs)
+      allow(jobs).to receive(:list).with(namespace: nil).and_return(available: true, jobs: [ { name: "migrate" } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/jobs"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("jobs", 0, "name")).to eq("migrate")
+    end
+
+    it "requires a namespace to describe a specific job" do
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/jobs", params: { name: "migrate" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("namespace_required")
+    end
+
+    it "describes a job when both name and namespace are given" do
+      jobs = instance_double(K8sCluster::Jobs)
+      allow(K8sCluster::Jobs).to receive(:new).with(cluster).and_return(jobs)
+      allow(jobs).to receive(:describe).with("migrate", namespace: "default").and_return(available: true, job: { "metadata" => { "name" => "migrate" } })
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/jobs", params: { name: "migrate", namespace: "default" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("job", "metadata", "name")).to eq("migrate")
     end
 
     it "returns the cluster overview" do

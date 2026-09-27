@@ -13,11 +13,23 @@ module KubeApiStubs
     { "name" => "endpoints", "namespaced" => true, "kind" => "Endpoints" },
     { "name" => "events", "namespaced" => true, "kind" => "Event" },
     { "name" => "persistentvolumeclaims", "namespaced" => true, "kind" => "PersistentVolumeClaim" },
+    { "name" => "configmaps", "namespaced" => true, "kind" => "ConfigMap" },
+    { "name" => "secrets", "namespaced" => true, "kind" => "Secret" },
     { "name" => "nodes", "namespaced" => false, "kind" => "Node" }
   ].freeze
 
-  APPS_RESOURCES = [ { "name" => "deployments", "namespaced" => true, "kind" => "Deployment" } ].freeze
-  BATCH_RESOURCES = [ { "name" => "cronjobs", "namespaced" => true, "kind" => "CronJob" } ].freeze
+  APPS_RESOURCES = [
+    { "name" => "deployments", "namespaced" => true, "kind" => "Deployment" },
+    { "name" => "statefulsets", "namespaced" => true, "kind" => "StatefulSet" },
+    { "name" => "daemonsets", "namespaced" => true, "kind" => "DaemonSet" }
+  ].freeze
+  BATCH_RESOURCES = [
+    { "name" => "cronjobs", "namespaced" => true, "kind" => "CronJob" },
+    { "name" => "jobs", "namespaced" => true, "kind" => "Job" }
+  ].freeze
+  NETWORKING_RESOURCES = [
+    { "name" => "ingresses", "namespaced" => true, "kind" => "Ingress" }
+  ].freeze
 
   def stub_core_discovery(base)
     stub_discovery(base: base, path: "api/v1", group_version: "v1", resources: CORE_RESOURCES)
@@ -29,6 +41,10 @@ module KubeApiStubs
 
   def stub_batch_discovery(base)
     stub_discovery(base: base, path: "apis/batch/v1", group_version: "batch/v1", resources: BATCH_RESOURCES)
+  end
+
+  def stub_networking_discovery(base)
+    stub_discovery(base: base, path: "apis/networking.k8s.io/v1", group_version: "networking.k8s.io/v1", resources: NETWORKING_RESOURCES)
   end
 
   def stub_discovery(base:, path:, group_version:, resources:)

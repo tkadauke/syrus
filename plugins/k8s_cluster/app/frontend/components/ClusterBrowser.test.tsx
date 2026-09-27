@@ -98,6 +98,37 @@ const DEFAULT_CRONJOBS = {
   ]
 }
 
+const DEFAULT_STATEFULSETS = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  stateful_sets: [{ name: "db", namespace: "default", replicas: 3, ready_replicas: 3, current_replicas: 3, updated_replicas: 3, created_at: GENERATED_AT }]
+}
+
+const DEFAULT_DAEMONSETS = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  daemon_sets: [
+    {
+      name: "monitoring",
+      namespace: "default",
+      desired_number_scheduled: 3,
+      current_number_scheduled: 3,
+      number_ready: 3,
+      number_available: 3,
+      created_at: GENERATED_AT
+    }
+  ]
+}
+
+const DEFAULT_JOBS = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  jobs: [{ name: "migrate", namespace: "default", completions: 1, parallelism: 1, active_count: 0, succeeded: 1, failed: 0, created_at: GENERATED_AT }]
+}
+
 const DEFAULT_SERVICES = {
   available: true,
   generated_at: GENERATED_AT,
@@ -115,6 +146,23 @@ const DEFAULT_SERVICES = {
   ]
 }
 
+const DEFAULT_INGRESSES = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  ingresses: [
+    {
+      name: "web",
+      namespace: "default",
+      ingress_class: "nginx",
+      hosts: ["web.example.com"],
+      rules: [{ host: "web.example.com", paths: [{ path: "/", path_type: "Prefix", service_name: "web", service_port: 80 }] }],
+      tls_hosts: ["web.example.com"],
+      created_at: GENERATED_AT
+    }
+  ]
+}
+
 const DEFAULT_ENDPOINTS = {
   available: true,
   generated_at: GENERATED_AT,
@@ -126,6 +174,37 @@ const DEFAULT_ENDPOINTS = {
       ready_addresses: 2,
       not_ready_addresses: 0,
       ports: [{ name: "http", port: 8080, protocol: "TCP" }],
+      created_at: GENERATED_AT
+    }
+  ]
+}
+
+const DEFAULT_CONFIGMAPS = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  config_maps: [
+    {
+      name: "app-settings",
+      namespace: "default",
+      key_count: 2,
+      key_names: ["feature_flags", "log_level"],
+      created_at: GENERATED_AT
+    }
+  ]
+}
+
+const DEFAULT_SECRETS = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  secrets: [
+    {
+      name: "db-credentials",
+      namespace: "default",
+      type: "Opaque",
+      key_count: 2,
+      key_names: ["password", "username"],
       created_at: GENERATED_AT
     }
   ]
@@ -177,7 +256,24 @@ const DEFAULT_POD_LOGS = {
   log: "line one\nline two\n"
 }
 
-type ResourceKey = "namespaces" | "nodes" | "overview" | "pods" | "deployments" | "cronjobs" | "services" | "endpoints" | "pvcs" | "events" | "podLogs"
+type ResourceKey =
+  | "namespaces"
+  | "nodes"
+  | "overview"
+  | "pods"
+  | "deployments"
+  | "statefulsets"
+  | "daemonsets"
+  | "jobs"
+  | "cronjobs"
+  | "services"
+  | "ingresses"
+  | "endpoints"
+  | "configmaps"
+  | "secrets"
+  | "pvcs"
+  | "events"
+  | "podLogs"
 
 function dataTransfer() {
   return { dropEffect: "", effectAllowed: "", getData: vi.fn(), setData: vi.fn() }
@@ -187,18 +283,55 @@ function encodeFilterTree(tree: Record<string, unknown>) {
   return btoa(unescape(encodeURIComponent(JSON.stringify(tree)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 }
 
-function setupFetchMock(overrides: Partial<Record<ResourceKey, unknown>> = {}, errors: Partial<Record<ResourceKey, number>> = {}) {
+const DESCRIBE_ENVELOPES: Record<string, { key: ResourceKey; envelope: string; kind: string }> = {
+  "/namespaces": { key: "namespaces", envelope: "namespace", kind: "Namespace" },
+  "/nodes": { key: "nodes", envelope: "node", kind: "Node" },
+  "/pods": { key: "pods", envelope: "pod", kind: "Pod" },
+  "/deployments": { key: "deployments", envelope: "deployment", kind: "Deployment" },
+  "/statefulsets": { key: "statefulsets", envelope: "stateful_set", kind: "StatefulSet" },
+  "/daemonsets": { key: "daemonsets", envelope: "daemon_set", kind: "DaemonSet" },
+  "/jobs": { key: "jobs", envelope: "job", kind: "Job" },
+  "/cronjobs": { key: "cronjobs", envelope: "cron_job", kind: "CronJob" },
+  "/services": { key: "services", envelope: "service", kind: "Service" },
+  "/ingresses": { key: "ingresses", envelope: "ingress", kind: "Ingress" },
+  "/configmaps": { key: "configmaps", envelope: "config_map", kind: "ConfigMap" },
+  "/secrets": { key: "secrets", envelope: "secret", kind: "Secret" },
+  "/pvcs": { key: "pvcs", envelope: "persistent_volume_claim", kind: "PersistentVolumeClaim" }
+}
+
+function setupFetchMock(
+  overrides: Partial<Record<ResourceKey, unknown>> = {},
+  errors: Partial<Record<ResourceKey, number>> = {},
+  describeErrors: Partial<Record<ResourceKey, number>> = {}
+) {
   const calls: string[] = []
 
   const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(((input: RequestInfo | URL) => {
     const url = String(input)
     calls.push(url)
     const path = url.split("?")[0]
+    const query = new URLSearchParams(url.split("?")[1] ?? "")
 
     const respond = (key: ResourceKey, fallback: unknown) => {
       const status = errors[key]
       if (status) return Promise.resolve(jsonResponse({ error: { message: `boom-${key}` } }, status))
       return Promise.resolve(jsonResponse(overrides[key] ?? fallback))
+    }
+
+    // A `name` query param switches the shared route from list to describe.
+    const describeName = query.get("name")
+    const describe = Object.entries(DESCRIBE_ENVELOPES).find(([suffix]) => path.endsWith(suffix))
+    if (describeName && describe) {
+      const { key, envelope, kind } = describe[1]
+      const status = describeErrors[key]
+      if (status) return Promise.resolve(jsonResponse({ error: { message: `boom-${key}-describe` } }, status))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          generated_at: GENERATED_AT,
+          [envelope]: { apiVersion: "v1", kind, metadata: { name: describeName, namespace: query.get("namespace") } }
+        })
+      )
     }
 
     if (/\/namespaces$/.test(path)) return respond("namespaces", DEFAULT_NAMESPACES)
@@ -207,9 +340,15 @@ function setupFetchMock(overrides: Partial<Record<ResourceKey, unknown>> = {}, e
     if (/\/pods\/[^/]+\/logs$/.test(path)) return respond("podLogs", DEFAULT_POD_LOGS)
     if (/\/pods$/.test(path)) return respond("pods", DEFAULT_PODS)
     if (/\/deployments$/.test(path)) return respond("deployments", DEFAULT_DEPLOYMENTS)
+    if (/\/statefulsets$/.test(path)) return respond("statefulsets", DEFAULT_STATEFULSETS)
+    if (/\/daemonsets$/.test(path)) return respond("daemonsets", DEFAULT_DAEMONSETS)
+    if (/\/jobs$/.test(path)) return respond("jobs", DEFAULT_JOBS)
     if (/\/cronjobs$/.test(path)) return respond("cronjobs", DEFAULT_CRONJOBS)
     if (/\/services$/.test(path)) return respond("services", DEFAULT_SERVICES)
+    if (/\/ingresses$/.test(path)) return respond("ingresses", DEFAULT_INGRESSES)
     if (/\/endpoints$/.test(path)) return respond("endpoints", DEFAULT_ENDPOINTS)
+    if (/\/configmaps$/.test(path)) return respond("configmaps", DEFAULT_CONFIGMAPS)
+    if (/\/secrets$/.test(path)) return respond("secrets", DEFAULT_SECRETS)
     if (/\/pvcs$/.test(path)) return respond("pvcs", DEFAULT_PVCS)
     if (/\/events$/.test(path)) return respond("events", DEFAULT_EVENTS)
 
@@ -425,6 +564,122 @@ describe("ClusterBrowser", () => {
       expect(screen.getByText("1 of 2 resources")).toBeInTheDocument()
     })
 
+    it("filters pod rows through the table search box", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+      await screen.findByText("web-1")
+
+      fireEvent.change(screen.getByLabelText("Filter rows"), { target: { value: "zzz-no-such-pod" } })
+
+      expect(await screen.findByText("No rows match the current filter.")).toBeInTheDocument()
+      expect(screen.queryByText("web-1")).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText("Filter rows"), { target: { value: "web" } })
+      expect(await screen.findByText("web-1")).toBeInTheDocument()
+    })
+
+    it("shows a capped-results notice when the pods list is truncated", async () => {
+      setupFetchMock({ pods: { ...DEFAULT_PODS, truncated: true } })
+      renderBrowser()
+      await switchTab("Workloads")
+
+      expect(await screen.findByText("Showing partial results — the server capped this list.")).toBeInTheDocument()
+      expect(screen.getByText("web-1")).toBeInTheDocument()
+    })
+
+    it("joins per-pod CPU/memory from the overview metrics when available", async () => {
+      setupFetchMock({
+        overview: {
+          generated_at: GENERATED_AT,
+          nodes: { available: false, reason: "metrics_unavailable", message: "metrics-server is not installed" },
+          pods: {
+            available: true,
+            items: [{ name: "web-1", namespace: "default", cpu_millicores: 250, memory_bytes: 134217728 }],
+            total_cpu_millicores: 250,
+            total_memory_bytes: 134217728
+          }
+        }
+      })
+      renderBrowser()
+      await switchTab("Workloads")
+
+      expect(await screen.findByRole("columnheader", { name: "CPU" })).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: "Memory" })).toBeInTheDocument()
+      expect(screen.getByText("250m")).toBeInTheDocument()
+      expect(screen.getByText("128.0 MB")).toBeInTheDocument()
+    })
+
+    it("falls back to dashes for per-pod CPU/memory when metrics are unavailable", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+      await screen.findByText("web-1")
+
+      const row = screen.getByText("web-1").closest("tr")
+      expect(row).toBeInTheDocument()
+      expect(within(row as HTMLElement).getAllByText("-")).not.toHaveLength(0)
+      expect(screen.queryByText("boom-overview")).not.toBeInTheDocument()
+    })
+
+    it("filters pod rows through the table search box", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+      await screen.findByText("web-1")
+
+      fireEvent.change(screen.getByLabelText("Filter rows"), { target: { value: "zzz-no-such-pod" } })
+
+      expect(await screen.findByText("No rows match the current filter.")).toBeInTheDocument()
+      expect(screen.queryByText("web-1")).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText("Filter rows"), { target: { value: "web" } })
+      expect(await screen.findByText("web-1")).toBeInTheDocument()
+    })
+
+    it("shows a capped-results notice when the pods list is truncated", async () => {
+      setupFetchMock({ pods: { ...DEFAULT_PODS, truncated: true } })
+      renderBrowser()
+      await switchTab("Workloads")
+
+      expect(await screen.findByText("Showing partial results — the server capped this list.")).toBeInTheDocument()
+      expect(screen.getByText("web-1")).toBeInTheDocument()
+    })
+
+    it("joins per-pod CPU/memory from the overview metrics when available", async () => {
+      setupFetchMock({
+        overview: {
+          generated_at: GENERATED_AT,
+          nodes: { available: false, reason: "metrics_unavailable", message: "metrics-server is not installed" },
+          pods: {
+            available: true,
+            items: [{ name: "web-1", namespace: "default", cpu_millicores: 250, memory_bytes: 134217728 }],
+            total_cpu_millicores: 250,
+            total_memory_bytes: 134217728
+          }
+        }
+      })
+      renderBrowser()
+      await switchTab("Workloads")
+
+      expect(await screen.findByRole("columnheader", { name: "CPU" })).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: "Memory" })).toBeInTheDocument()
+      expect(screen.getByText("250m")).toBeInTheDocument()
+      expect(screen.getByText("128.0 MB")).toBeInTheDocument()
+    })
+
+    it("falls back to dashes for per-pod CPU/memory when metrics are unavailable", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+      await screen.findByText("web-1")
+
+      const row = screen.getByText("web-1").closest("tr")
+      expect(row).toBeInTheDocument()
+      expect(within(row as HTMLElement).getAllByText("-")).not.toHaveLength(0)
+      expect(screen.queryByText("boom-overview")).not.toBeInTheDocument()
+    })
+
     it("switches to deployments and cronjobs via the workload kind dropdown", async () => {
       setupFetchMock()
       renderBrowser()
@@ -440,6 +695,65 @@ describe("ClusterBrowser", () => {
       fireEvent.click(await screen.findByRole("option", { name: "CronJobs" }))
       expect(await screen.findByText("nightly")).toBeInTheDocument()
       expect(screen.getByText("0 0 * * *")).toBeInTheDocument()
+    })
+
+    it("switches to statefulsets, daemonsets, and jobs via the workload kind dropdown", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+      await screen.findByText("web-1")
+
+      fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "StatefulSets" }))
+      expect(await screen.findByText("db")).toBeInTheDocument()
+      expect(screen.getByText("3/3")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "DaemonSets" }))
+      expect(await screen.findByText("monitoring")).toBeInTheDocument()
+      expect(screen.getByText("3/3")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Jobs" }))
+      expect(await screen.findByText("migrate")).toBeInTheDocument()
+    })
+
+    it("shows the empty state when there are no statefulsets", async () => {
+      setupFetchMock({ statefulsets: { available: true, generated_at: GENERATED_AT, truncated: false, stateful_sets: [] } })
+      renderBrowser()
+      await switchTab("Workloads")
+
+      fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "StatefulSets" }))
+
+      expect(await screen.findByText("No StatefulSets found.")).toBeInTheDocument()
+    })
+
+    it("shows an error when jobs fail to load", async () => {
+      setupFetchMock({}, { jobs: 502 })
+      renderBrowser()
+      await switchTab("Workloads")
+
+      fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Jobs" }))
+
+      expect(await screen.findByText("boom-jobs")).toBeInTheDocument()
+    })
+
+    it("re-fetches statefulsets scoped to the selected namespace", async () => {
+      const { calls } = setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+
+      fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "StatefulSets" }))
+      await screen.findByText("db")
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Namespace" })[0])
+      fireEvent.click(await screen.findByRole("option", { name: "default" }))
+
+      await screen.findByText("db")
+      expect(calls.some((url) => url.includes("/statefulsets?namespace=default"))).toBe(true)
     })
 
     it("shows the empty state when there are no pods", async () => {
@@ -533,6 +847,121 @@ describe("ClusterBrowser", () => {
 
       expect(await screen.findByText("boom-services")).toBeInTheDocument()
     })
+
+    it("switches to ingresses via the network kind dropdown, tracing hosts to backing services", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Services")
+      await screen.findByText("web")
+
+      fireEvent.click(screen.getByRole("button", { name: "Network kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Ingresses" }))
+
+      expect(await screen.findByText("web.example.com")).toBeInTheDocument()
+      expect(screen.getByText("web:80")).toBeInTheDocument()
+      expect(screen.getByText("nginx")).toBeInTheDocument()
+    })
+
+    it("shows the empty state when there are no ingresses", async () => {
+      setupFetchMock({ ingresses: { available: true, generated_at: GENERATED_AT, truncated: false, ingresses: [] } })
+      renderBrowser()
+      await switchTab("Services")
+
+      fireEvent.click(screen.getByRole("button", { name: "Network kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Ingresses" }))
+
+      expect(await screen.findByText("No ingresses found.")).toBeInTheDocument()
+    })
+
+    it("shows an error when ingresses fail to load", async () => {
+      setupFetchMock({}, { ingresses: 502 })
+      renderBrowser()
+      await switchTab("Services")
+
+      fireEvent.click(screen.getByRole("button", { name: "Network kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Ingresses" }))
+
+      expect(await screen.findByText("boom-ingresses")).toBeInTheDocument()
+    })
+
+    it("re-fetches ingresses scoped to the selected namespace", async () => {
+      const { calls } = setupFetchMock()
+      renderBrowser()
+      await switchTab("Services")
+
+      fireEvent.click(screen.getByRole("button", { name: "Network kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Ingresses" }))
+      await screen.findByText("web.example.com")
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Namespace" })[0])
+      fireEvent.click(await screen.findByRole("option", { name: "default" }))
+
+      await screen.findByText("web.example.com")
+      expect(calls.some((url) => url.includes("/ingresses?namespace=default"))).toBe(true)
+    })
+  })
+
+  describe("Config tab", () => {
+    it("lists configmaps and secrets with key counts and the redaction note", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Config")
+
+      expect(await screen.findByText("app-settings")).toBeInTheDocument()
+      expect(screen.getByText("db-credentials")).toBeInTheDocument()
+      expect(screen.getByText("Opaque")).toBeInTheDocument()
+      expect(screen.getByText("Secret values are never displayed — names and metadata only.")).toBeInTheDocument()
+      expect(screen.getAllByRole("button", { name: "Show 2 keys" })).toHaveLength(2)
+    })
+
+    it("expands a row to show its key names", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Config")
+      await screen.findByText("app-settings")
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Show 2 keys" })[0])
+
+      expect(await screen.findByText("feature_flags, log_level")).toBeInTheDocument()
+    })
+
+    it("shows the empty state when there are no configmaps", async () => {
+      setupFetchMock({ configmaps: { available: true, generated_at: GENERATED_AT, truncated: false, config_maps: [] } })
+      renderBrowser()
+      await switchTab("Config")
+
+      expect(await screen.findByText("No ConfigMaps found.")).toBeInTheDocument()
+    })
+
+    it("shows the empty state when there are no secrets", async () => {
+      setupFetchMock({ secrets: { available: true, generated_at: GENERATED_AT, truncated: false, secrets: [] } })
+      renderBrowser()
+      await switchTab("Config")
+
+      expect(await screen.findByText("No Secrets found.")).toBeInTheDocument()
+    })
+
+    it("shows an error when secrets fail to load", async () => {
+      setupFetchMock({}, { secrets: 502 })
+      renderBrowser()
+      await switchTab("Config")
+
+      expect(await screen.findByText("boom-secrets")).toBeInTheDocument()
+    })
+
+    it("re-fetches configmaps scoped to the selected namespace", async () => {
+      const { calls } = setupFetchMock()
+      renderBrowser()
+      await switchTab("Config")
+      await screen.findByText("app-settings")
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Namespace" })[0])
+      fireEvent.click(await screen.findByRole("option", { name: "default" }))
+
+      await screen.findByText("app-settings")
+      expect(calls.some((url) => url.includes("/configmaps?namespace=default"))).toBe(true)
+      expect(calls.some((url) => url.includes("/secrets?namespace=default"))).toBe(true)
+    })
   })
 
   describe("Storage tab", () => {
@@ -603,6 +1032,46 @@ describe("ClusterBrowser", () => {
       expect(screen.getByRole("button", { name: "Columns" })).toBeInTheDocument()
     })
 
+    it("shows relative ages with the raw timestamp as a tooltip", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Events")
+      await screen.findByText("Successfully assigned default/web-1 to node-1")
+
+      expect(document.querySelector(`[title="${GENERATED_AT}"]`)).toBeInTheDocument()
+    })
+
+    it("filters events and shows a capped-results notice when truncated", async () => {
+      setupFetchMock({ events: { ...DEFAULT_EVENTS, truncated: true } })
+      renderBrowser()
+      await switchTab("Events")
+
+      expect(await screen.findByText("Showing partial results — the server capped this list.")).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText("Filter rows"), { target: { value: "zzz-no-such-event" } })
+      expect(await screen.findByText("No rows match the current filter.")).toBeInTheDocument()
+    })
+
+    it("shows relative ages with the raw timestamp as a tooltip", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Events")
+      await screen.findByText("Successfully assigned default/web-1 to node-1")
+
+      expect(document.querySelector(`[title="${GENERATED_AT}"]`)).toBeInTheDocument()
+    })
+
+    it("filters events and shows a capped-results notice when truncated", async () => {
+      setupFetchMock({ events: { ...DEFAULT_EVENTS, truncated: true } })
+      renderBrowser()
+      await switchTab("Events")
+
+      expect(await screen.findByText("Showing partial results — the server capped this list.")).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText("Filter rows"), { target: { value: "zzz-no-such-event" } })
+      expect(await screen.findByText("No rows match the current filter.")).toBeInTheDocument()
+    })
+
     it("shows the empty state when there are no events", async () => {
       setupFetchMock({ events: { available: true, generated_at: GENERATED_AT, truncated: false, events: [] } })
       renderBrowser()
@@ -627,6 +1096,98 @@ describe("ClusterBrowser", () => {
       await switchTab("Logs")
 
       expect(await screen.findByText("Select a pod to view its log tail.")).toBeInTheDocument()
+    })
+
+    it("renders log option controls alongside the manual Refresh button", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Logs")
+      await screen.findByText("Select a pod to view its log tail.")
+
+      fireEvent.click(screen.getByRole("button", { name: "Pod" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default/web-1" }))
+      await screen.findByText("line one", { exact: false })
+
+      expect(screen.getByRole("button", { name: "Lines" })).toBeInTheDocument()
+      expect(screen.getByLabelText("Previous container")).toBeInTheDocument()
+      expect(screen.getByLabelText("Show timestamps")).toBeInTheDocument()
+      expect(screen.getByLabelText("Follow")).toBeInTheDocument()
+      expect(screen.getByLabelText("Search logs")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
+    })
+
+    it("sends tail_lines, previous, and timestamps params from the log option controls", async () => {
+      const { calls } = setupFetchMock()
+      renderBrowser()
+      await switchTab("Logs")
+      await screen.findByText("Select a pod to view its log tail.")
+
+      fireEvent.click(screen.getByRole("button", { name: "Pod" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default/web-1" }))
+      await screen.findByText("line one", { exact: false })
+
+      await vi.waitFor(() => {
+        expect(calls.some((url) => url.includes("/logs?") && url.includes("tail_lines=200"))).toBe(true)
+      })
+
+      fireEvent.click(screen.getByRole("button", { name: "Lines" }))
+      fireEvent.click(await screen.findByRole("option", { name: "500" }))
+      await vi.waitFor(() => {
+        expect(calls.some((url) => url.includes("/logs?") && url.includes("tail_lines=500"))).toBe(true)
+      })
+
+      fireEvent.click(screen.getByLabelText("Previous container"))
+      await vi.waitFor(() => {
+        expect(calls.some((url) => url.includes("/logs?") && url.includes("previous=true"))).toBe(true)
+      })
+
+      fireEvent.click(screen.getByLabelText("Show timestamps"))
+      await vi.waitFor(() => {
+        expect(calls.some((url) => url.includes("/logs?") && url.includes("timestamps=true"))).toBe(true)
+      })
+    })
+
+    it("filters log output through the log search box", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Logs")
+      await screen.findByText("Select a pod to view its log tail.")
+
+      fireEvent.click(screen.getByRole("button", { name: "Pod" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default/web-1" }))
+      await screen.findByText("line one", { exact: false })
+
+      fireEvent.change(screen.getByLabelText("Search logs"), { target: { value: "zzz-no-such-line" } })
+      expect(await screen.findByText("No log lines match the current search.")).toBeInTheDocument()
+      expect(screen.queryByText("line one", { exact: false })).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText("Search logs"), { target: { value: "two" } })
+      expect(await screen.findByText("line two", { exact: false })).toBeInTheDocument()
+      expect(screen.queryByText("line one", { exact: false })).not.toBeInTheDocument()
+    })
+
+    it("shows the empty state when the pod has no log output", async () => {
+      setupFetchMock({ podLogs: { ...DEFAULT_POD_LOGS, log: "" } })
+      renderBrowser()
+      await switchTab("Logs")
+      await screen.findByText("Select a pod to view its log tail.")
+
+      fireEvent.click(screen.getByRole("button", { name: "Pod" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default/web-1" }))
+
+      expect(await screen.findByText("No log output.")).toBeInTheDocument()
+    })
+
+    it("shows an error when logs fail to load", async () => {
+      setupFetchMock({}, { podLogs: 502 })
+      renderBrowser()
+      await switchTab("Logs")
+      await screen.findByText("Select a pod to view its log tail.")
+
+      fireEvent.click(screen.getByRole("button", { name: "Pod" }))
+      fireEvent.click(await screen.findByRole("option", { name: "default/web-1" }))
+
+      expect(await screen.findByText("boom-podLogs")).toBeInTheDocument()
     })
 
     it("shows the log tail for a selected single-container pod without a container picker", async () => {
@@ -683,6 +1244,118 @@ describe("ClusterBrowser", () => {
 
       fireEvent.click(screen.getByRole("tab", { name: "Recent events" }))
       expect(await screen.findByText("Scheduled: Successfully assigned default/web-1 to node-1")).toBeInTheDocument()
+    })
+  })
+
+  describe("Detail drawer", () => {
+    it("lists namespaces on the overview tab and opens a read-only drawer with YAML", async () => {
+      const { calls } = setupFetchMock()
+      renderBrowser()
+
+      fireEvent.click(await screen.findByRole("button", { name: "default" }))
+
+      expect(await screen.findByRole("dialog", { name: "Namespaces default" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: Namespace/)).toBeInTheDocument()
+      expect(screen.getByText("Read-only — values cannot be edited here.")).toBeInTheDocument()
+      expect(calls.some((url) => url.includes("/namespaces?name=default"))).toBe(true)
+
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    })
+
+    it("opens a read-only pod drawer with key fields and YAML from the workloads table", async () => {
+      const { calls } = setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+      fireEvent.click(await screen.findByRole("button", { name: "web-1" }))
+
+      expect(await screen.findByRole("dialog", { name: "Pods default/web-1" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: Pod/)).toBeInTheDocument()
+      expect(calls.some((url) => url.includes("/pods?") && url.includes("name=web-1") && url.includes("namespace=default"))).toBe(true)
+    })
+
+    it("shows a drawer error when the describe fetch fails", async () => {
+      setupFetchMock({}, {}, { pods: 502 })
+      renderBrowser()
+      await switchTab("Workloads")
+      fireEvent.click(await screen.findByRole("button", { name: "web-1" }))
+
+      expect(await screen.findByRole("dialog", { name: "Pods default/web-1" })).toBeInTheDocument()
+      expect(await screen.findByText("boom-pods-describe")).toBeInTheDocument()
+    })
+
+    it("opens drawers for every other workload kind", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Workloads")
+      await screen.findByText("web-1")
+
+      const cases: Array<{ option: string; button: string; dialog: string; yaml: RegExp }> = [
+        { option: "Deployments", button: "web", dialog: "Deployments default/web", yaml: /kind: Deployment/ },
+        { option: "StatefulSets", button: "db", dialog: "StatefulSets default/db", yaml: /kind: StatefulSet/ },
+        { option: "DaemonSets", button: "monitoring", dialog: "DaemonSets default/monitoring", yaml: /kind: DaemonSet/ },
+        { option: "Jobs", button: "migrate", dialog: "Jobs default/migrate", yaml: /kind: Job/ },
+        { option: "CronJobs", button: "nightly", dialog: "CronJobs default/nightly", yaml: /kind: CronJob/ }
+      ]
+
+      for (const { option, button, dialog, yaml } of cases) {
+        fireEvent.click(screen.getByRole("button", { name: "Workload kind" }))
+        fireEvent.click(await screen.findByRole("option", { name: option }))
+        fireEvent.click(await screen.findByRole("button", { name: button }))
+
+        expect(await screen.findByRole("dialog", { name: dialog })).toBeInTheDocument()
+        expect(await screen.findByText(yaml)).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+      }
+    })
+
+    it("opens drawers for services and ingresses", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Services")
+      fireEvent.click(await screen.findByRole("button", { name: "web" }))
+      expect(await screen.findByRole("dialog", { name: "Services default/web" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: Service/)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+
+      fireEvent.click(screen.getByRole("button", { name: "Network kind" }))
+      fireEvent.click(await screen.findByRole("option", { name: "Ingresses" }))
+      await screen.findByText("web.example.com")
+      fireEvent.click(await screen.findByRole("button", { name: "web" }))
+      expect(await screen.findByRole("dialog", { name: "Ingresses default/web" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: Ingress/)).toBeInTheDocument()
+    })
+
+    it("opens drawers for configmaps and redacted secrets", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Config")
+      fireEvent.click(await screen.findByRole("button", { name: "app-settings" }))
+      expect(await screen.findByRole("dialog", { name: "ConfigMaps default/app-settings" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: ConfigMap/)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+
+      fireEvent.click(await screen.findByRole("button", { name: "db-credentials" }))
+      expect(await screen.findByRole("dialog", { name: "Secrets default/db-credentials" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: Secret/)).toBeInTheDocument()
+    })
+
+    it("opens drawers for nodes and persistent volume claims", async () => {
+      setupFetchMock()
+      renderBrowser()
+      await switchTab("Nodes")
+      fireEvent.click(await screen.findByRole("button", { name: "node-1" }))
+
+      expect(await screen.findByRole("dialog", { name: "Nodes node-1" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: Node/)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Close details" }))
+
+      await switchTab("Storage")
+      fireEvent.click(await screen.findByRole("button", { name: "data" }))
+      expect(await screen.findByRole("dialog", { name: "Storage default/data" })).toBeInTheDocument()
+      expect(await screen.findByText(/kind: PersistentVolumeClaim/)).toBeInTheDocument()
     })
   })
 })

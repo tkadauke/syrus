@@ -44,8 +44,32 @@ module Api
             render_namespace_scoped(::K8sCluster::Deployments.new(@cluster))
           end
 
+          def statefulsets
+            render_namespace_scoped(::K8sCluster::StatefulSets.new(@cluster))
+          end
+
+          def daemonsets
+            render_namespace_scoped(::K8sCluster::DaemonSets.new(@cluster))
+          end
+
+          def jobs
+            render_namespace_scoped(::K8sCluster::Jobs.new(@cluster))
+          end
+
           def services
             render_namespace_scoped(::K8sCluster::Services.new(@cluster))
+          end
+
+          def ingresses
+            render_namespace_scoped(::K8sCluster::Ingresses.new(@cluster))
+          end
+
+          def configmaps
+            render_namespace_scoped(::K8sCluster::ConfigMaps.new(@cluster))
+          end
+
+          def secrets
+            render_namespace_scoped(::K8sCluster::Secrets.new(@cluster))
           end
 
           def endpoints

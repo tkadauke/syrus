@@ -22,7 +22,23 @@ users:
       token: fake-e2e-token
 `
 
-const RESOURCE_PATH = /\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/(namespaces|pods|nodes|overview)$/
+const RESOURCE_PATH = /\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/(namespaces|pods|nodes|overview|pods\/[^/]+\/logs)$/
+
+const DESCRIBE_ENVELOPES: Record<string, { envelope: string; kind: string }> = {
+  "/namespaces": { envelope: "namespace", kind: "Namespace" },
+  "/nodes": { envelope: "node", kind: "Node" },
+  "/pods": { envelope: "pod", kind: "Pod" },
+  "/deployments": { envelope: "deployment", kind: "Deployment" },
+  "/statefulsets": { envelope: "stateful_set", kind: "StatefulSet" },
+  "/daemonsets": { envelope: "daemon_set", kind: "DaemonSet" },
+  "/jobs": { envelope: "job", kind: "Job" },
+  "/cronjobs": { envelope: "cron_job", kind: "CronJob" },
+  "/services": { envelope: "service", kind: "Service" },
+  "/ingresses": { envelope: "ingress", kind: "Ingress" },
+  "/configmaps": { envelope: "config_map", kind: "ConfigMap" },
+  "/secrets": { envelope: "secret", kind: "Secret" },
+  "/pvcs": { envelope: "persistent_volume_claim", kind: "PersistentVolumeClaim" }
+}
 
 // There is no reachable external Kubernetes API server in the preview
 // sandbox, so route interception stands in for one -- creating/editing a
@@ -33,7 +49,25 @@ const RESOURCE_PATH = /\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/(namespa
 // the real "register cluster -> browse -> view read-only resources" path.
 async function mockClusterResources(page: Page) {
   await page.route((url) => RESOURCE_PATH.test(url.pathname), async (route) => {
-    const path = new URL(route.request().url()).pathname
+    const requestUrl = new URL(route.request().url())
+    const path = requestUrl.pathname
+
+    // A `name` query param switches the shared route from list to describe.
+    const describeName = requestUrl.searchParams.get("name")
+    if (describeName) {
+      const suffix = Object.keys(DESCRIBE_ENVELOPES).find((candidate) => path.endsWith(candidate))
+      if (suffix) {
+        const { envelope, kind } = DESCRIBE_ENVELOPES[suffix]
+        await route.fulfill({
+          json: {
+            available: true,
+            generated_at: GENERATED_AT,
+            [envelope]: { apiVersion: "v1", kind, metadata: { name: describeName, namespace: requestUrl.searchParams.get("namespace") } }
+          }
+        })
+        return
+      }
+    }
 
     if (path.endsWith("/namespaces")) {
       await route.fulfill({
@@ -91,7 +125,7 @@ async function mockClusterResources(page: Page) {
         json: {
           available: true,
           generated_at: GENERATED_AT,
-          truncated: false,
+          truncated: true,
           pods: [
             {
               name: "web-6f8d9c-abc12",
@@ -105,6 +139,20 @@ async function mockClusterResources(page: Page) {
               created_at: GENERATED_AT
             }
           ]
+        }
+      })
+      return
+    }
+
+    if (/\/pods\/[^/]+\/logs$/.test(path)) {
+      await route.fulfill({
+        json: {
+          available: true,
+          generated_at: GENERATED_AT,
+          pod: "web-6f8d9c-abc12",
+          namespace: "default",
+          container: "web",
+          log: "starting server\nlistening on :8080\n"
         }
       })
       return
@@ -164,11 +212,42 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   await expect(page.getByText("1/1 ready")).toBeVisible()
   await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
 
+  // Namespaces listed on the overview tab open the read-only detail drawer.
+  await page.getByRole("cell", { name: "default" }).click()
+  await expect(page.getByRole("dialog", { name: "Namespaces default" })).toBeVisible()
+  await expect(page.getByText("kind: Namespace")).toBeVisible()
+  await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
+  await page.getByRole("button", { name: "Close details" }).click()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+
   await page.getByRole("button", { name: "Cluster view" }).click()
   await page.getByRole("option", { name: "Workloads" }).click()
   await expect(page.getByRole("cell", { name: "web-6f8d9c-abc12" })).toBeVisible()
   await expect(page.getByRole("cell", { name: "Running" })).toBeVisible()
   await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
+
+  // Per-pod metrics columns render even when metrics-server is absent (dashes).
+  await expect(page.getByRole("columnheader", { name: "CPU" })).toBeVisible()
+  await expect(page.getByRole("columnheader", { name: "Memory" })).toBeVisible()
+
+  // Client-side table search narrows the rows without a new request.
+  await page.getByLabel("Filter rows").fill("zzz-no-such-pod")
+  await expect(page.getByText("No rows match the current filter.")).toBeVisible()
+  await expect(page.getByRole("cell", { name: "web-6f8d9c-abc12" })).toHaveCount(0)
+  await page.getByLabel("Filter rows").fill("")
+  await expect(page.getByRole("cell", { name: "web-6f8d9c-abc12" })).toBeVisible()
+
+  // The API's truncated flag renders as a visible capped-results notice.
+  await expect(page.getByText("Showing partial results — the server capped this list.")).toBeVisible()
+
+  // Clicking a workload row opens the same drawer with the full object YAML.
+  await page.getByRole("cell", { name: "web-6f8d9c-abc12" }).click()
+  await expect(page.getByRole("dialog", { name: "Pods default/web-6f8d9c-abc12" })).toBeVisible()
+  await expect(page.getByText("kind: Pod")).toBeVisible()
+  await expect(page.getByText("Read-only — values cannot be edited here.")).toBeVisible()
+  await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
+  await page.getByRole("button", { name: "Close details" }).click()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
 
   const namespacePicker = page.getByRole("button", { name: "Namespace" })
   await expect(namespacePicker).toBeVisible()
@@ -176,11 +255,42 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   await expect(page.getByRole("option", { name: "default" })).toBeVisible()
   await expect(page.getByRole("option", { name: "kube-system" })).toBeVisible()
 
+  // Logs tab: pick a pod, tune the read-only tail options, and search the output.
+  await page.getByRole("button", { name: "Cluster view" }).click()
+  await page.getByRole("option", { name: "Logs", exact: true }).click()
+  await expect(page.getByText("Select a pod to view its log tail.")).toBeVisible()
+  await page.getByRole("button", { name: "Pod" }).click()
+  await page.getByRole("option", { name: "default/web-6f8d9c-abc12" }).click()
+  await expect(page.getByText("starting server")).toBeVisible()
+  // Single-container pod: no container picker, but tail-size and log options render.
+  await expect(page.getByRole("button", { name: "Container" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Lines" })).toBeVisible()
+  await expect(page.getByLabel("Previous container")).toBeVisible()
+  await expect(page.getByLabel("Show timestamps")).toBeVisible()
+  await expect(page.getByLabel("Follow")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible()
+  await page.getByLabel("Previous container").check()
+  await page.getByLabel("Show timestamps").check()
+  await expect(page.getByText("starting server")).toBeVisible()
+  await page.getByLabel("Search logs").fill("zzz-no-such-line")
+  await expect(page.getByText("No log lines match the current search.")).toBeVisible()
+  await page.getByLabel("Search logs").fill("listening")
+  await expect(page.getByText("listening on :8080")).toBeVisible()
+  await expect(page.getByText("starting server")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
+
   await page.getByRole("button", { name: "Cluster view" }).click()
   await page.getByRole("option", { name: "Nodes", exact: true }).click()
   await expect(page.getByRole("cell", { name: "node-1" })).toBeVisible()
   await expect(page.getByRole("cell", { name: "control-plane" })).toBeVisible()
   await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
+
+  await page.getByRole("cell", { name: "node-1" }).click()
+  await expect(page.getByRole("dialog", { name: "Nodes node-1" })).toBeVisible()
+  await expect(page.getByText("kind: Node")).toBeVisible()
+  await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
+  await page.getByRole("button", { name: "Close details" }).click()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
 
   // Enabling "Allow write actions" on the cluster does not unlock any write
   // controls in this read-only admin UI -- allow_writes only gates the
