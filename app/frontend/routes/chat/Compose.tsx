@@ -3057,13 +3057,14 @@ function StopButton({ className, payload, queryKey }: { className?: string; payl
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
+  const stopRequestedAt = payload.chat?.stop_requested_at
   const stop = useMutation({
     mutationFn: () => stopChat(appendSearch(payload.paths.app_stop_path, search)),
     onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
   })
   return (
-    <button aria-label={t("aria_stop_agent")} className={className ?? STOP_BUTTON_CLASS} disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
-      <StopIcon className={`h-5 w-5 ${payload.chat.stop_requested_at || stop.isPending ? "opacity-50" : ""}`} />
+    <button aria-label={t("aria_stop_agent")} className={className ?? STOP_BUTTON_CLASS} disabled={Boolean(stopRequestedAt) || stop.isPending} onClick={() => stop.mutate()} type="button">
+      <StopIcon className={`h-5 w-5 ${stopRequestedAt || stop.isPending ? "opacity-50" : ""}`} />
     </button>
   )
 }

@@ -797,7 +797,7 @@ function ChatWorkspace({
   const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
   const [pendingJobsTabRequest, setPendingJobsTabRequest] = useState(false)
   const bookmarkRequestIdRef = useRef(0)
-  const previousMediaCountRef = useRef(mediaItemCount(payload))
+  const previousMediaRef = useRef({ chatId: payload.chat.id, count: mediaItemCount(payload) })
   // Wider than AppChromeV2's own sidebar breakpoint — see CHAT_WORKSPACE_SPLIT_MIN_WIDTH.
   const isDesktop = useMediaQuery(`(min-width: ${CHAT_WORKSPACE_SPLIT_MIN_WIDTH}px)`, true)
   const { t } = useT("chat")
@@ -808,6 +808,15 @@ function ChatWorkspace({
   const showMobileChatColumn = activeMobileTab === "chat" || !showMobileWorkspaceTabs
   const mobileTabsAutoHideActive = !isDesktop && showMobileWorkspaceTabs && activeMobileTab === "chat" && mobileHeaderAutoHideEnabled
   const mobileTabsOffset = mobileTabsAutoHideActive ? Math.min(44, mobileHeaderOffset) : 0
+
+  useLayoutEffect(() => {
+    previousMediaRef.current = { chatId: payload.chat.id, count: mediaItemCount(payload) }
+    setActiveMobileTab("chat")
+    setBookmarkTarget(null)
+    setBookmarkPickerOpen(false)
+    setPendingJobsTabRequest(false)
+    revealHeader()
+  }, [payload.chat.id, revealHeader])
 
   useEffect(() => {
     if (activeTab === null || !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload))
@@ -844,10 +853,10 @@ function ChatWorkspace({
   }, [pendingJobsTabRequest, availableTabs])
 
   useEffect(() => {
-    const previous = previousMediaCountRef.current
+    const previous = previousMediaRef.current
     const current = mediaItemCount(payload)
-    previousMediaCountRef.current = current
-    if (current <= previous || !availableTabs.includes("media")) return
+    previousMediaRef.current = { chatId: payload.chat.id, count: current }
+    if (previous.chatId !== payload.chat.id || current <= previous.count || !availableTabs.includes("media")) return
 
     setPanelCollapsed(false)
     setActiveMobileTab("media")
