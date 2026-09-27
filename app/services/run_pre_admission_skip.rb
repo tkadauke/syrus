@@ -1,9 +1,5 @@
 class RunPreAdmissionSkip
-  Result = Data.define(:skip, :reason, :message, :artifacts, :review_findings) do
-    def initialize(review_findings: [], **attributes)
-      super(review_findings: review_findings, **attributes)
-    end
-
+  Result = Data.define(:skip, :reason, :message, :artifacts) do
     def skip? = skip
   end
 
@@ -74,8 +70,8 @@ class RunPreAdmissionSkip
 
     attr_reader :run, :step, :workflow, :job, :workspace_path
 
-    def skip(reason, message, artifacts = {}, review_findings: [])
-      Result.new(skip: true, reason: reason, message: message, artifacts: artifacts, review_findings: review_findings)
+    def skip(reason, message, artifacts = {})
+      Result.new(skip: true, reason: reason, message: message, artifacts: artifacts)
     end
 
     def pass
@@ -115,14 +111,7 @@ class RunPreAdmissionSkip
       skip(
         "visual_review_when_files_changed_no_match",
         "[visual_review] skipped: no changed files match visual_review.when_files_changed",
-        { "visual_review_iterations" => iterations + [ review_iteration ] },
-        review_findings: [
-          review_iteration.merge(
-            "review_kind" => "visual",
-            "skipped" => true,
-            "skip_reason" => "visual_review_when_files_changed_no_match"
-          )
-        ]
+        { "visual_review_iterations" => iterations + [ review_iteration ] }
       )
     rescue SyrusYml::ParseError, Errno::ENOENT, GitRunner::GitError
       pass

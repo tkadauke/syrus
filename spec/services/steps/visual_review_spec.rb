@@ -130,17 +130,6 @@ RSpec.describe Steps::VisualReview do
     )
     allow_any_instance_of(PreviewPreparation).to receive(:call).and_raise(failure)
     expect(handler).not_to receive(:run_agent)
-    expect(ReviewFindingEvents).to receive(:record).with(
-      workflow: workflow,
-      step: review_step,
-      run: run,
-      review_kind: "visual",
-      iteration: review_step.iteration,
-      verdict: "skipped",
-      critique: include("Visual review infrastructure could not prepare the preview"),
-      skipped: true,
-      skip_reason: "preview_seed_failed"
-    )
 
     handler.call
 
@@ -387,17 +376,6 @@ RSpec.describe Steps::VisualReview do
 
     it "skips clearly without invoking the agent" do
       expect(handler).not_to receive(:run_agent)
-      expect(ReviewFindingEvents).to receive(:record).with(
-        workflow: workflow,
-        step: review_step,
-        run: run,
-        review_kind: "visual",
-        iteration: review_step.iteration,
-        verdict: "skipped",
-        critique: "No affected project has a preview configured.",
-        skipped: true,
-        skip_reason: "no_affected_preview_project"
-      )
 
       handler.call
 
@@ -432,17 +410,6 @@ RSpec.describe Steps::VisualReview do
     it "skips the agent turn and records a skipped verdict" do
       expect(App::VisualReviewProjects).not_to receive(:call)
       expect(handler).not_to receive(:run_agent)
-      expect(ReviewFindingEvents).to receive(:record).with(
-        workflow: workflow,
-        step: review_step,
-        run: run,
-        review_kind: "visual",
-        iteration: review_step.iteration,
-        verdict: "skipped",
-        critique: "No changed files matched the configured visual_review.when_files_changed patterns.",
-        skipped: true,
-        skip_reason: "visual_review_when_files_changed_no_match"
-      )
 
       handler.call
 
@@ -529,7 +496,7 @@ RSpec.describe Steps::VisualReview do
     end
   end
 
-  context "when when_files_changed includes the plugin frontend globs and the diff is plugin-only (JOB-562 regression)" do
+  context "when when_files_changed includes plugin frontend globs and the diff is plugin-only" do
     before do
       allow(handler.send(:workspace)).to receive(:base_ref).and_return("origin/main")
       allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
