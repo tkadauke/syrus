@@ -22,7 +22,7 @@ module DesignDocs
         rendered_markdown = DesignDocs::AnchorMarkers.strip(design_doc.markdown)
 
         success(
-          design_doc: metadata_payload(design_doc),
+          design_doc: list_payload(design_doc),
           sections: section_payloads(rendered_markdown),
           read_only: context.run?,
           reference_format: design_doc.display_id
@@ -37,26 +37,14 @@ module DesignDocs
       private
 
       def section_payloads(rendered_markdown)
-        headings = DesignDocs::MarkdownBlocks.lines(rendered_markdown).select(&:heading?)
-
-        headings.each_with_index.map do |heading, index|
+        DesignDocs::MarkdownBlocks.heading_sections(rendered_markdown).map do |section|
           {
-            text: heading_text(heading),
-            level: heading.marker.count("#"),
-            start_offset: heading.start_offset,
-            end_offset: end_offset_for(headings, index, rendered_markdown.length)
+            text: section.text,
+            level: section.level,
+            start_offset: section.start_offset,
+            end_offset: section.end_offset
           }
         end
-      end
-
-      def heading_text(heading)
-        heading.text.sub(DesignDocs::MarkdownBlocks::BLOCK_MARKER_PATTERN, "").strip
-      end
-
-      def end_offset_for(headings, index, document_length)
-        current_level = headings[index].marker.count("#")
-        next_heading = headings[(index + 1)..]&.find { |candidate| candidate.marker.count("#") <= current_level }
-        next_heading&.start_offset || document_length
       end
     end
   end

@@ -6,6 +6,7 @@ module DesignDocs
       def block_marker? = marker.present?
       def heading? = marker.to_s.start_with?("#")
     end
+    HeadingSection = Data.define(:text, :level, :start_offset, :end_offset)
 
     class << self
       def lines(markdown)
@@ -45,7 +46,31 @@ module DesignDocs
         marker_for(line.to_s, in_fenced_code)
       end
 
+      def heading_sections(markdown)
+        text = markdown.to_s
+        headings = lines(text).select(&:heading?)
+
+        headings.each_with_index.map do |heading, index|
+          HeadingSection.new(
+            text: heading_text(heading),
+            level: heading.marker.count("#"),
+            start_offset: heading.start_offset,
+            end_offset: heading_section_end_offset(headings, index, text.length)
+          )
+        end
+      end
+
       private
+
+      def heading_text(heading)
+        heading.text.sub(BLOCK_MARKER_PATTERN, "").strip
+      end
+
+      def heading_section_end_offset(headings, index, document_length)
+        current_level = headings[index].marker.count("#")
+        next_heading = headings[(index + 1)..]&.find { |candidate| candidate.marker.count("#") <= current_level }
+        next_heading&.start_offset || document_length
+      end
 
       def marker_for(line, fence_state)
         match = BLOCK_MARKER_PATTERN.match(line)
