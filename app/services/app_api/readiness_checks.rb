@@ -14,7 +14,7 @@ module AppApi
     # installations read as "sync pending" rather than misconfiguration.
     INSTALLATION_SYNC_GRACE = 15.minutes
 
-    def initialize(user)
+    def initialize(user = nil)
       @user = user
     end
 
@@ -24,8 +24,8 @@ module AppApi
         worker_queue_check,
         pause_check,
         storage_check,
-        github_check,
-        agent_provider_check,
+        user && github_check,
+        user && agent_provider_check,
         github_app_check
       ].compact
 

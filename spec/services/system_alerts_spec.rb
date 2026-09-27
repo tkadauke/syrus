@@ -50,6 +50,17 @@ RSpec.describe SystemAlerts do
       expect(alert.cta).to eq(text: "Update token", path: "/credentials")
     end
 
+    it "passes computed alerts to the outbound delivery hook" do
+      user = Factories.user
+      user.mark_gh_api_blocked!("Resource not accessible by personal access token")
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+      allow(SystemAlertDelivery).to receive(:deliver)
+
+      alerts = described_class.active_for(user: user)
+
+      expect(SystemAlertDelivery).to have_received(:deliver).with(alerts)
+    end
+
     it "surfaces GitHub App installation rate limits separately from PAT credential guidance" do
       user = Factories.user
       installation = Factories.installation(

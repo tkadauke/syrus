@@ -1,0 +1,46 @@
+groups:
+  - name: syrus.core
+    rules:
+      - alert: SyrusQueueOldestAgeHigh
+        expr: max by (queue) (syrus_global_queue_oldest_age_seconds) > 1800
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Syrus queue {{ $labels.queue }} has work older than 30 minutes"
+          description: "The oldest ready execution on queue {{ $labels.queue }} has been waiting for more than 30 minutes."
+
+      - alert: SyrusProviderCircuitOpen
+        expr: max by (provider) (syrus_provider_circuit_state) > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Syrus provider circuit is open for {{ $labels.provider }}"
+          description: "Syrus is deferring work because the {{ $labels.provider }} provider circuit is open."
+
+      - alert: SyrusRecurringJobStale
+        expr: |
+          syrus_recurring_job_last_success_seconds{job="process_landing_queue"} > 60
+          or syrus_recurring_job_last_success_seconds{job=~"plugin_ticks|poll_scheduled_chat_messages|flush_observability_events|sample_global_metrics|reap_stale_runs|refresh_data_root_disk_usage|reap_orphaned_spawned_processes|reap_stale_instance_versions|sample_worker_host_health"} > 120
+          or syrus_recurring_job_last_success_seconds{job=~"poll_repositories|poll_input_sources|poll_main_branch_health|poll_pull_requests|poll_external_open_prs|poll_merge_states|poll_hotfix_syncs|poll_deployment_stages|sync_github_permissions|watch_platform_connectors|discover_maintenance_tasks|retry_failed_chat_scoped_event_evaluators|check_worker_host_health_telemetry_gap|check_polling_queue_coverage"} > 600
+          or syrus_recurring_job_last_success_seconds{job=~"prune_operational_logs|prune_auto_retry_attempts"} > 1200
+          or syrus_recurring_job_last_success_seconds{job="sync_enabled_forks"} > 1800
+          or syrus_recurring_job_last_success_seconds{job=~"refresh_workflow_step_resource_profiles|refresh_retention_size_snapshot"} > 7200
+          or syrus_recurring_job_last_success_seconds{job="prune_workflow_workspaces"} > 14400
+          or syrus_recurring_job_last_success_seconds{job=~"prune_worker_host_health_samples|prune_run_resource_summaries|reap_stale_branches|prune_spawned_processes|prune_provider_sessions|prune_run_diagnostics|prune_work_engine_reconciler_activity|prune_old_notifications|prune_coverage_hit_map_ttl|purge_expired_passkey_challenges|prune_run_health_snapshots|prune_main_branch_health_checks|prune_workflow_step_resource_profiles"} > 172800
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Syrus recurring job {{ $labels.job }} is stale"
+          description: "Recurring job {{ $labels.job }} has not completed successfully within the expected window."
+
+      - alert: SyrusAttentionItemsGrowing
+        expr: sum(syrus_attention_items_open_total) > 0 and deriv(sum(syrus_attention_items_open_total)[30m:5m]) > 0
+        for: 30m
+        labels:
+          severity: page
+        annotations:
+          summary: "Syrus attention item backlog is growing"
+          description: "The open AttentionItem count has been trending upward for 30 minutes."

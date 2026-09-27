@@ -538,6 +538,8 @@ needs durable workspace storage because it manages clones and worktrees.
 | `SYRUS_GITHUB_REPO` | Yes | GitHub `owner/repo` slug for this Syrus installation's own repository; used for build revision links |
 | `SYRUS_BUG_REPORT_OWNER` | Yes | GitHub owner or organization for in-app bug reports; Syrus uses the configured `syrus` repository under that owner |
 | `SYRUS_MAILER_FROM` | No | From address for password reset and invitation email; defaults to `Syrus <noreply@$SYRUS_APP_HOST>` |
+| `SYRUS_ALERT_WEBHOOK_URL` | No | JSON webhook URL for alarm-severity SystemAlerts; repeated alerts are deduplicated by dismissal key |
+| `SYRUS_ALERT_EMAIL_TO` | No | Comma-separated email recipients for alarm-severity SystemAlerts |
 | `SMTP_ADDRESS` | No | Enables SMTP delivery for password reset and invitation email when set |
 | `SMTP_PORT` | No | SMTP port; defaults to `587` |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | No | SMTP credentials, when required by the server |

@@ -3026,6 +3026,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_223403) do
     t.index ["workflow_id"], name: "index_steps_on_workflow_id"
   end
 
+  create_table "system_alert_notifications", force: :cascade do |t|
+    t.string "alert_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "delivered_at"
+    t.string "delivery_error_class"
+    t.text "delivery_error_message"
+    t.string "dismissal_key", null: false
+    t.json "payload"
+    t.string "severity", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_system_alert_notifications_on_created_at"
+    t.index ["dismissal_key"], name: "index_system_alert_notifications_on_dismissal_key", unique: true
+  end
+
   create_table "tags", force: :cascade do |t|
     t.string "color", default: "gray", null: false
     t.datetime "created_at", null: false
