@@ -6,7 +6,7 @@ import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type DragEvent, type FormEvent, type MouseEvent, type MutableRefObject, type ReactElement, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import { type DragEvent, type FormEvent, type MouseEvent, type MutableRefObject, type ReactElement, type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload, type SystemAlertAction } from "../api/bootstrap"
@@ -56,7 +56,7 @@ const EMPTY_SIDEBAR_NAV_ORDER: string[] = []
 const SETTINGS_POPUP_MENU_CLASS = "absolute bottom-full left-0 z-30 mb-2 w-60 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950"
 const HIDDEN_MOBILE_CHAT_HEADER_BUTTON_LAYOUT_CLASS = "fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] z-30 inline-flex h-11 w-11 items-center justify-center rounded-full"
 const HIDDEN_MOBILE_CHAT_HEADER_BUTTON_TONE_CLASS = "border border-white/80 bg-gray-950 text-white shadow-lg ring-1 ring-gray-950/20 hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-gray-700 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100"
-const MOBILE_CHAT_HEADER_HIDE_DISTANCE = 72
+const MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT = 72
 type MaintenanceSidebarState = { collapsed: boolean; hasTaskSnapshot: boolean; taskKeys: string[] }
 
 function randomPubliliusSyrusQuote() {
@@ -122,6 +122,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const isMobileChatPage = activeChatId != null && !isDesktopSidebarViewport
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [mobileChatHeaderOffset, setMobileChatHeaderOffset] = useState(0)
+  const [mobileChatAppHeaderHeight, setMobileChatAppHeaderHeight] = useState(MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT)
+  const [mobileChatContentHeaderHeight, setMobileChatContentHeaderHeight] = useState(0)
+  const mobileAppHeaderRef = useRef<HTMLDivElement | null>(null)
   const sidebarSplitter = useResizableSplitter({
     widthKey: SIDEBAR_WIDTH_KEY,
     collapsedKey: SIDEBAR_COLLAPSED_KEY,
@@ -190,29 +193,58 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     ...(navBadges[item.id] === undefined ? {} : { badge: navBadges[item.id] })
   })), [mergedSidebarNavItems, navBadges, normalizedPath, prefix])
   const mobileChatHeaderAutoHideActive = Boolean(user?.mobile_chat_auto_hide_header && isMobileChatPage && !drawerOpen && !inOnboarding)
-  const mobileChatHeaderHidden = mobileChatHeaderOffset >= MOBILE_CHAT_HEADER_HIDE_DISTANCE - 1
+  const mobileChatHeaderHideDistance = Math.max(MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT, mobileChatAppHeaderHeight + mobileChatContentHeaderHeight)
+  const mobileChatHeaderHidden = mobileChatHeaderOffset >= mobileChatHeaderHideDistance - 1
   const revealMobileChatHeader = useCallback(() => {
     setMobileChatHeaderOffset(0)
+  }, [])
+  const hideMobileChatHeader = useCallback(() => {
+    if (!mobileChatHeaderAutoHideActive) return
+
+    setMobileChatHeaderOffset(mobileChatHeaderHideDistance)
+  }, [mobileChatHeaderAutoHideActive, mobileChatHeaderHideDistance])
+  const setMobileChatHeaderContentHeight = useCallback((height: number) => {
+    setMobileChatContentHeaderHeight(Math.max(0, Math.round(height)))
   }, [])
   const reportMobileChatScrollDelta = useCallback((delta: number) => {
     if (!mobileChatHeaderAutoHideActive || !Number.isFinite(delta) || Math.abs(delta) < 1) return
 
     const cappedDelta = Math.max(-24, Math.min(24, delta))
-    setMobileChatHeaderOffset((current) => Math.max(0, Math.min(MOBILE_CHAT_HEADER_HIDE_DISTANCE, current + cappedDelta)))
-  }, [mobileChatHeaderAutoHideActive])
+    setMobileChatHeaderOffset((current) => Math.max(0, Math.min(mobileChatHeaderHideDistance, current + cappedDelta)))
+  }, [mobileChatHeaderAutoHideActive, mobileChatHeaderHideDistance])
   const mobileChatHeaderContext = useMemo(() => ({
     autoHideEnabled: mobileChatHeaderAutoHideActive,
+    hidden: mobileChatHeaderHidden,
+    hiddenHeight: mobileChatHeaderHidden ? mobileChatHeaderHideDistance : 0,
+    hideHeader: hideMobileChatHeader,
     offset: mobileChatHeaderOffset,
     reportScrollDelta: reportMobileChatScrollDelta,
-    revealHeader: revealMobileChatHeader
-  }), [mobileChatHeaderAutoHideActive, mobileChatHeaderOffset, reportMobileChatScrollDelta, revealMobileChatHeader])
+    revealHeader: revealMobileChatHeader,
+    setContentHeight: setMobileChatHeaderContentHeight
+  }), [hideMobileChatHeader, mobileChatHeaderAutoHideActive, mobileChatHeaderHidden, mobileChatHeaderHideDistance, mobileChatHeaderOffset, reportMobileChatScrollDelta, revealMobileChatHeader, setMobileChatHeaderContentHeight])
+
+  useLayoutEffect(() => {
+    const node = mobileAppHeaderRef.current
+    if (!node || typeof ResizeObserver === "undefined") return
+
+    const updateHeight = () => setMobileChatAppHeaderHeight(Math.max(MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT, Math.round(node.getBoundingClientRect().height)))
+    updateHeight()
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     if (!mobileChatHeaderAutoHideActive) setMobileChatHeaderOffset(0)
   }, [mobileChatHeaderAutoHideActive])
 
   useEffect(() => {
+    setMobileChatHeaderOffset((current) => Math.min(current, mobileChatHeaderHideDistance))
+  }, [mobileChatHeaderHideDistance])
+
+  useEffect(() => {
     setMobileChatHeaderOffset(0)
+    setMobileChatContentHeaderHeight(0)
   }, [activeChatId, isDesktopSidebarViewport])
 
   const navItems: SidebarNavItem[] = useMemo(() => (
@@ -437,6 +469,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         <div
           className={`sticky left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden ${mobileChatHeaderAutoHideActive && !reducedMotion ? "transition-[transform,margin-bottom] duration-150 ease-out" : ""}`}
           data-testid="mobile-app-header"
+          ref={mobileAppHeaderRef}
           style={mobileChatHeaderAutoHideActive ? {
             marginBottom: `-${mobileChatHeaderOffset}px`,
             transform: `translateY(-${mobileChatHeaderOffset}px)`
