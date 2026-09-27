@@ -26,7 +26,7 @@ function renderWithReconnectControl({
     setReconnectAt = setAt
     return (
       <QueryClientProvider client={queryClient}>
-        <ConnectionContext.Provider value={{ isDisconnected: false, reconnectAt }}>
+        <ConnectionContext.Provider value={{ events: [], isDisconnected: false, reconnectAt, status: "connected" }}>
           <Probe chatId={chatId} />
         </ConnectionContext.Provider>
       </QueryClientProvider>

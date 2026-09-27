@@ -276,6 +276,27 @@
     "hours_ago": "ante {{count}}h",
     "days_ago": "ante {{count}}d"
   },
+  "connection_status": {
+    "route_title": "Status renovationum vivarum",
+    "back": "Retro",
+    "recent_events": "Eventus recentes",
+    "no_events": "Nulli eventus connexionis recentes",
+    "reconnected_toast": "Iterum coniunctum — data renovata",
+    "connected": {
+      "title": "Renovationes vivae activae",
+      "body": "Syrus renovationes vivas per conexionem websocket accipit."
+    },
+    "reconnecting": {
+      "title": "Iterum conectitur",
+      "body": "Renovationes vivae pausatae sunt dum Syrus iterum conectitur. Colloquia scrutatione subsidiaria uti possunt."
+    },
+    "events": {
+      "connected": "Coniunctum",
+      "disconnected": "Disiunctum",
+      "reconnecting": "Iterum conectitur",
+      "reconnected": "Iterum coniunctum, data renovata"
+    }
+  },
   "account_aria": "Ratio",
   "system_alerts_aria": "Monita systematis",
   "system_alert_dismiss": "Monitum systematis dimitte",

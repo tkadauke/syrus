@@ -53,6 +53,28 @@ describe("Markdown", () => {
     expect(container.querySelector("pre code")).toHaveTextContent("const enabled = true")
   })
 
+  it("renders markdown tables with the chat prose table wrapper", () => {
+    const markdown = [
+      "| Surface | Notes |",
+      "| --- | --- |",
+      "| Dashboard Jobs | Long narrative content that should not squeeze the short label column into letter-by-letter wrapping. |",
+      "| Inspector | ALongUnbrokenTokenThatStillNeedsToStayInsideTheChatLayoutWithoutBreakingTheMessageShell |",
+    ].join("\n")
+    const { container } = render(<Markdown text={markdown} />)
+
+    const wrapper = container.querySelector(".chat-prose-table-wrap")
+    const table = wrapper?.querySelector("table")
+
+    expect(wrapper).toBeInTheDocument()
+    expect(wrapper).toHaveClass("chat-prose-table-wrap")
+    expect(wrapper).not.toHaveClass("overflow-x-auto")
+    expect(table).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Surface" })).toBeInTheDocument()
+    expect(screen.getByRole("cell", { name: "Dashboard Jobs" })).toBeInTheDocument()
+    expect(screen.getByText(/Long narrative content/).closest("td")).toBeInTheDocument()
+    expect(screen.getByText(/ALongUnbrokenToken/).closest("td")).toBeInTheDocument()
+  })
+
   it("renders strong emphasis that spans a soft-broken source line", () => {
     const { container } = render(
       <Markdown text={"## 4. Open-core boundary\n\n**Decision: OSS ships mechanism, including good isolation. Commercial ships\ntenancy.**\n\nIsolation is commodity."} />

@@ -1,6 +1,6 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
-import { useEffect, useState, type ReactNode } from "react"
+import { type ReactNode } from "react"
 import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { authPrimaryButtonClass } from "../lib/buttonStyles"
@@ -11,6 +11,7 @@ import { PageHeading, SectionHeading } from "../components/Heading"
 import { SyrusMark } from "../components/SyrusBrand"
 import { RouteErrorBoundary } from "../components/RouteErrorBoundary"
 import { NotificationsRoute } from "../components/Notifications"
+import { ConnectionStatusRoute } from "../components/ConnectionStatus"
 import { useAppEvents } from "../lib/useAppEvents"
 import { ConnectionContext } from "../lib/connectionContext"
 import { AdminConsole } from "./AdminConsole"
@@ -86,6 +87,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/dashboard/jobs", element: <DashboardRoute /> },
   { path: "/dashboard/workflows", element: <DashboardRoute /> },
   { path: "/notifications", element: <NotificationsRoute /> },
+  { path: "/connection", element: <ConnectionStatusRoute /> },
   { path: "/setup", element: <SetupRedirect /> },
   { path: "/admin", element: <AdminOverview /> },
   { path: "/admin/resource_admission", element: <AdminResourceAdmission /> },
@@ -157,27 +159,15 @@ const appRouteDefinitions: AppRouteDefinition[] = [
 ]
 
 export function App() {
-  const { isDisconnected, justReconnected, reconnectAt, clearReconnected } = useAppEvents()
+  const { isDisconnected, status, events, justReconnected, reconnectAt, clearReconnected } = useAppEvents()
   const initialBootstrap = readInitialBootstrap()
-
-  const [bannerDismissed, setBannerDismissed] = useState(false)
-  useEffect(() => {
-    if (isDisconnected) setBannerDismissed(false)
-  }, [isDisconnected])
+  const { t } = useT("nav")
 
   return (
-    <ConnectionContext.Provider value={{ isDisconnected, reconnectAt }}>
+    <ConnectionContext.Provider value={{ isDisconnected, status, reconnectAt, events }}>
       <AppShell initialBootstrap={initialBootstrap} />
-      {isDisconnected && !bannerDismissed ? (
-        <NoticeToast persistent onDismiss={() => setBannerDismissed(true)}>
-          <span className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500" />
-            Connection lost — updates paused
-          </span>
-        </NoticeToast>
-      ) : null}
       {justReconnected ? (
-        <NoticeToast onDismiss={clearReconnected} message="Reconnected — data refreshed" />
+        <NoticeToast onDismiss={clearReconnected} message={t("connection_status.reconnected_toast")} />
       ) : null}
     </ConnectionContext.Provider>
   )
