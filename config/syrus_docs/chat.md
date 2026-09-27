@@ -138,17 +138,21 @@ This mirrors `AdminReadMemoryAuditHistoryTool`'s additive-field precedent
 rather than gating the whole tool behind admin status.
 
 The chat-reading MCP tools return compact navigation payloads intended for
-both agent context and chat UI cards. `list_chats` returns `chats` with
-`id`, `title`, `repository`, `message_count`, and `updated_at`, plus
-pagination metadata. `search_chats` returns one row per matching message with
-`chat_session_id`, `message_id`, `chat_title`, `repository`, `role`,
-`snippet`, and `created_at`, so clients can link directly to
-`/chats/:chat_session_id#message-:message_id` while still showing repository
-context and highlighted snippets. `read_chat_messages` returns `chat_title`,
-`page`, `has_more`, `next_page`, and `messages` with each message's `id`,
-`role`, `content`, and `created_at`; callers should treat `has_more` as a
-neutral "another page is available" signal because page direction is defined
-by the tool's ordering contract, not by the field name.
+both agent context and chat UI cards. `list_chats` accepts optional `mode`,
+`job_id`, and `has_attached_jobs` filters and returns `chats` with `id`,
+`title`, `mode` (nil is reported as the effective default `planning`),
+`repository`, `message_count`, `attached_jobs_count`, `attached_jobs`, and
+`updated_at`, plus pagination metadata. `attached_jobs` is capped to the first
+five attached Jobs and includes each Job's `id`, `slug`, `title`, `state`, and
+`repository`. `search_chats` returns one row per matching message with
+`chat_session_id`, `message_id`, `chat_title`, the same chat mode/attached-Job
+summary fields, `repository`, `role`, `snippet`, and `created_at`, so clients
+can link directly to `/chats/:chat_session_id#message-:message_id` while still
+showing repository context and highlighted snippets. `read_chat_messages`
+returns `chat_title`, `page`, `has_more`, `next_page`, and `messages` with each
+message's `id`, `role`, `content`, and `created_at`; callers should treat
+`has_more` as a neutral "another page is available" signal because page
+direction is defined by the tool's ordering contract, not by the field name.
 
 Job-navigation MCP tools use the same compact-card posture. `search_jobs`
 searches across all repositories visible to the current chat user by Job title

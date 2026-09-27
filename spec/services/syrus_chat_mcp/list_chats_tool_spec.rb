@@ -51,13 +51,19 @@ RSpec.describe Mcp::Tools::ListChatsTool do
     expect(chats.map { |chat| chat[:id] }).not_to include(deleted.id)
     expect(chats.first).to include(
       title: "Epic #42 follow-up",
+      mode: "planning",
       repository: nil,
-      message_count: 1
+      message_count: 1,
+      attached_jobs_count: 0,
+      attached_jobs: []
     )
     expect(chats.second).to include(
       title: "api",
+      mode: "planning",
       repository: "acme/api",
-      message_count: 2
+      message_count: 2,
+      attached_jobs_count: 0,
+      attached_jobs: []
     )
     expect(chats.second[:updated_at]).to be_present
     expect(payload.fetch(:pagination)).to include(
@@ -76,6 +82,96 @@ RSpec.describe Mcp::Tools::ListChatsTool do
 
     expect(queries.grep(/SELECT .*chat_messages\\.\\*/i)).to be_empty
     expect(queries.grep(/COUNT.*chat_messages/i)).not_to be_empty
+  end
+
+  it "returns attached Job summaries without per-chat Job lookups" do
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_title: "Fix widget exports",
+      issue_number: 77,
+      state: "running"
+    )
+    ChatAttachment.create!(chat_session: chat_session, attachable: job)
+
+    first_attached = nil
+    3.times do |i|
+      session = ChatSession.create!(user: user, title: "Job chat #{i}", updated_at: i.minutes.ago)
+      attached = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_title: "Attached #{i}",
+        issue_number: 100 + i,
+        state: "queued"
+      )
+      first_attached = attached if i.zero?
+      ChatAttachment.create!(chat_session: session, attachable: attached)
+    end
+
+    queries = capture_sql do
+      payload = response_payload(call_tool(per_page: 4))
+      first = payload.fetch(:chats).first
+
+      expect(first).to include(
+        attached_jobs_count: 1,
+        attached_jobs: [
+          {
+            id: first_attached.id,
+            slug: first_attached.slug,
+            title: "Attached 0",
+            state: "queued",
+            repository: repository.slug
+          }
+        ]
+      )
+    end
+
+    job_selects = queries.grep(/SELECT .*FROM "?jobs"?/i)
+    expect(job_selects.size).to be <= 1
+  end
+
+  it "filters by effective planning mode and attached Job presence" do
+    planning_with_job = ChatSession.create!(user: user, title: "Filed plan", mode: "planning", updated_at: 3.minutes.ago)
+    nil_mode_without_job = ChatSession.create!(user: user, title: "Loose plan", mode: nil, updated_at: 2.minutes.ago)
+    coding = ChatSession.create!(user: user, title: "Coding chat", mode: "coding", updated_at: 1.minute.ago)
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Filed work", issue_number: 78)
+    ChatAttachment.create!(chat_session: planning_with_job, attachable: job)
+
+    planning_payload = response_payload(call_tool(mode: "planning"))
+    expect(planning_payload.fetch(:chats).map { |chat| chat[:id] }).to include(planning_with_job.id, nil_mode_without_job.id, chat_session.id)
+    expect(planning_payload.fetch(:chats).map { |chat| chat[:id] }).not_to include(coding.id)
+    expect(planning_payload.fetch(:chats).all? { |chat| chat[:mode] == "planning" }).to be(true)
+
+    without_jobs = response_payload(call_tool(mode: "planning", has_attached_jobs: false))
+    expect(without_jobs.fetch(:chats).map { |chat| chat[:id] }).to include(nil_mode_without_job.id, chat_session.id)
+    expect(without_jobs.fetch(:chats).map { |chat| chat[:id] }).not_to include(planning_with_job.id)
+  end
+
+  it "filters by attached Job id" do
+    matching = ChatSession.create!(user: user, title: "Specific Job chat", updated_at: 1.minute.ago)
+    other = ChatSession.create!(user: user, title: "Other Job chat", updated_at: 2.minutes.ago)
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Specific work", issue_number: 79)
+    other_job = Factories.job_record(user: user, repository: repository, issue_title: "Other work", issue_number: 80)
+    ChatAttachment.create!(chat_session: matching, attachable: job)
+    ChatAttachment.create!(chat_session: other, attachable: other_job)
+
+    payload = response_payload(call_tool(job_id: job.id))
+
+    expect(payload.fetch(:chats).map { |chat| chat[:id] }).to eq([ matching.id ])
+    expect(payload.fetch(:chats).first[:attached_jobs].first).to include(
+      id: job.id,
+      slug: job.slug,
+      title: "Specific work",
+      state: job.state,
+      repository: repository.slug
+    )
+  end
+
+  it "rejects invalid discovery filters" do
+    expect(call_tool(mode: "debug")[:result][:content].first[:text]).to include("value at `/mode` is not one of")
+    expect(call_tool(job_id: "nope")[:result][:content].first[:text]).to include("value at `/job_id` is not an integer")
+    expect(call_tool(job_id: -1)[:result][:content].first[:text]).to include("job_id must be a positive integer")
+    expect(call_tool(has_attached_jobs: "maybe")[:result][:content].first[:text]).to include("value at `/has_attached_jobs` is not a boolean")
   end
 
   it "paginates sessions by most recently updated first" do
