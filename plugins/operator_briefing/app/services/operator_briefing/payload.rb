@@ -56,16 +56,24 @@ module OperatorBriefing
     end
 
     def repository_payloads
-      subscriptions.select(&:enabled?).map do |subscription|
+      enabled_subscriptions.map do |subscription|
         repository = subscription.repository
-        current = current_briefing(repository)
+        current = current_briefings[repository.id]
         {
           repository: repository_payload(repository),
           current: briefing_payload(current),
-          history: history_payload(repository, current),
+          history: history_payload(repository),
           status: status_payload(repository, current)
         }
       end
+    end
+
+    def enabled_subscriptions
+      @enabled_subscriptions ||= subscriptions.select(&:enabled?)
+    end
+
+    def enabled_repository_ids
+      @enabled_repository_ids ||= enabled_subscriptions.map(&:repository_id)
     end
 
     def repository_payload(repository)
@@ -76,31 +84,57 @@ module OperatorBriefing
       }
     end
 
-    def current_briefing(repository)
-      Briefing
+    def current_briefings
+      @current_briefings ||= Briefing
         .joins(:job)
-        .where(owner_user: user, repository: repository)
+        .where(owner_user: user, repository_id: enabled_repository_ids)
         .where.not(jobs: { state: Job::TERMINAL_STATES })
-        .includes(:job, :revisions)
+        .includes(:job)
         .order(created_at: :desc, id: :desc)
-        .first
+        .each_with_object({}) do |briefing, index|
+          index[briefing.repository_id] ||= briefing
+        end
     end
 
-    def history_payload(repository, current)
-      Briefing
+    def history_briefings
+      @history_briefings ||= Briefing
         .joins(:job)
-        .where(owner_user: user, repository: repository, jobs: { state: "closed" })
-        .where.not(id: current&.id)
-        .includes(:job, :revisions)
+        .where(owner_user: user, repository_id: enabled_repository_ids, jobs: { state: "closed" })
+        .includes(:job)
         .order(created_at: :desc, id: :desc)
-        .limit(HISTORY_LIMIT)
+        .group_by(&:repository_id)
+        .transform_values { |briefings| briefings.first(HISTORY_LIMIT) }
+    end
+
+    def all_serialized_briefings
+      @all_serialized_briefings ||= current_briefings.values + history_briefings.values.flatten
+    end
+
+    def latest_revisions
+      @latest_revisions ||= begin
+        briefing_ids = all_serialized_briefings.map(&:id)
+        if briefing_ids.empty?
+          {}
+        else
+          BriefingRevision
+            .where(briefing_id: briefing_ids)
+            .order(revision_number: :desc, id: :desc)
+            .each_with_object({}) do |revision, index|
+              index[revision.briefing_id] ||= revision
+            end
+        end
+      end
+    end
+
+    def history_payload(repository)
+      history_briefings.fetch(repository.id, [])
         .map { |briefing| briefing_payload(briefing) }
     end
 
     def briefing_payload(briefing)
       return nil unless briefing
 
-      revision = briefing.latest_revision
+      revision = latest_revisions[briefing.id]
       {
         id: briefing.id,
         live: briefing.live?,
@@ -134,7 +168,7 @@ module OperatorBriefing
       return { kind: "live", message: nil } if current
 
       generator = Generator.new(user: user, repository: repository, mode: :scheduled, now: Time.current)
-      if generator.activity_since_last_closed?
+      if generator.activity_since_last_generation?
         { kind: "ready", message: "Activity is available for the next scheduled briefing." }
       else
         { kind: "no_activity", message: "No briefing generated because nothing changed since the last closed briefing." }
