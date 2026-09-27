@@ -470,10 +470,15 @@ RSpec.describe Steps::VisualReview do
           )
         )
       )
+      allow(GitRunner).to receive(:new).and_return(instance_double(GitRunner).tap do |git|
+        allow(git).to receive(:run).with("diff", "--name-only", anything, chdir: "/tmp/workspace")
+                                    .and_return(
+                                      "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx\n" \
+                                      "app/services/step_dispatcher.rb\n"
+                                    )
+      end)
       implement_run.update!(
         agent_diff: <<~DIFF,
-          diff --git a/plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx b/plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx
-          +<div>parent stack UI change</div>
           diff --git a/app/services/step_dispatcher.rb b/app/services/step_dispatcher.rb
           +dispatch_ready_siblings
         DIFF
@@ -484,7 +489,7 @@ RSpec.describe Steps::VisualReview do
       )
     end
 
-    it "skips visual review based on this step's scoped diff" do
+    it "skips visual review based on this Job's captured branch diff, not a wider workspace diff" do
       expect(handler).not_to receive(:run_agent)
 
       handler.call
@@ -493,6 +498,60 @@ RSpec.describe Steps::VisualReview do
         "iteration" => review_step.iteration,
         "verdict" => "skipped"
       )
+    end
+  end
+
+  context "when an earlier implement changed UI and a later repair only changed backend files" do
+    before do
+      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
+        SyrusYml::Config.new(
+          prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, agent_insight: nil,
+          coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil,
+          visual_review: SyrusYml::VisualReviewConfig.new(
+            enabled: true, rounds: 1,
+            when_files_changed: [ "app/frontend/**/*", "plugins/**/app/frontend/**/*" ],
+            seed_notes: nil
+          )
+        )
+      )
+
+      repair_step = Step.create!(
+        workflow: workflow,
+        kind: "implement",
+        position: 99,
+        iteration: 2,
+        state: "succeeded",
+        loop_id: loop_id
+      )
+      Run.create!(
+        job: job,
+        step: repair_step,
+        trigger_kind: "initial",
+        state: "succeeded",
+        agent_diff: <<~DIFF,
+          diff --git a/plugins/global_search/app/frontend/routes/Search.tsx b/plugins/global_search/app/frontend/routes/Search.tsx
+          +<SearchFilters />
+          diff --git a/app/services/search_filter.rb b/app/services/search_filter.rb
+          +filter semantics
+        DIFF
+        step_agent_diff: <<~DIFF
+          diff --git a/app/services/search_filter.rb b/app/services/search_filter.rb
+          +filter semantics
+        DIFF
+      )
+    end
+
+    it "runs visual review but keeps the reviewer prompt focused on the latest scoped diff" do
+      expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).to include("diff --git a/app/services/search_filter.rb")
+        expect(prompt).not_to include("Search.tsx")
+        workflow.set_artifact!("visual_review_iterations", [
+          { "iteration" => review_step.iteration, "critique" => "OK.", "verdict" => "approved" }
+        ])
+      end
+
+      handler.call
     end
   end
 
