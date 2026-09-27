@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { DataTable, DescriptionList, usePageGutterRestoreClassName } from "@app/components/ui"
+import { DescriptionList, usePageGutterRestoreClassName } from "@app/components/ui"
 import { classes } from "@app/components/ui/classes"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -12,6 +12,7 @@ import {
   type KubernetesNamespaceRow
 } from "../../api/kubernetesResources"
 import { formatAge, formatBytes, formatMillicores } from "../../lib/k8sFormat"
+import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
 import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { StatusBadge } from "../StatusBadge"
 import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
@@ -65,28 +66,15 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
               {visibleNamespaces.length === 0 ? (
                 <SearchNoMatches />
               ) : (
-                <DataTable.Root density="compact">
-                  <DataTable.Header>
-                    <DataTable.Row>
-                      <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-                      <DataTable.HeadCell>{t("col_status")}</DataTable.HeadCell>
-                      <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-                    </DataTable.Row>
-                  </DataTable.Header>
-                  <DataTable.Body>
-                    {visibleNamespaces.map((row) => (
-                      <DataTable.Row interactive key={row.name} onClick={() => openNamespace(row)}>
-                        <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">
-                          <DetailNameButton name={row.name} onOpen={() => openNamespace(row)} />
-                        </DataTable.Cell>
-                        <DataTable.Cell>
-                          <StatusBadge tone={row.status === "Active" ? "success" : "neutral"}>{row.status || "-"}</StatusBadge>
-                        </DataTable.Cell>
-                        <DataTable.Cell className="text-gray-700 dark:text-gray-300">{formatAge(row.created_at)}</DataTable.Cell>
-                      </DataTable.Row>
-                    ))}
-                  </DataTable.Body>
-                </DataTable.Root>
+                <KubernetesResourceTable
+                  columns={namespaceColumns(t, openNamespace)}
+                  defaultSort={{ column: "name", direction: "asc" }}
+                  empty={<PanelMessage>{t("namespaces_empty")}</PanelMessage>}
+                  getRowKey={(row) => row.name}
+                  rows={visibleNamespaces}
+                  storageKey="syrus.k8s_cluster.namespaces.columns"
+                  summary={t("namespaces_heading")}
+                />
               )}
             </>
           )
@@ -127,6 +115,41 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
       </section>
     </div>
   )
+}
+
+function namespaceColumns(
+  t: ReturnType<typeof useT>["t"],
+  open: (row: KubernetesNamespaceRow) => void
+): Array<KubernetesResourceTableColumn<KubernetesNamespaceRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (row) => <DetailNameButton name={row.name} onOpen={() => open(row)} />,
+      required: true,
+      sort: "name",
+      sortValue: (row) => row.name
+    },
+    {
+      key: "status",
+      header: t("col_status"),
+      filterValue: (row) => row.status,
+      render: (row) => (
+        <StatusBadge tone={row.status === "Active" ? "success" : "neutral"}>{row.status || "-"}</StatusBadge>
+      ),
+      sort: "status",
+      sortValue: (row) => row.status
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (row) => formatAge(row.created_at),
+      sort: "created_at",
+      sortValue: (row) => row.created_at
+    }
+  ]
 }
 
 function MetricsCard({ heading, section }: { heading: string; section: KubernetesMetricsSection<{ name: string; cpu_millicores: number; memory_bytes: number }> }) {

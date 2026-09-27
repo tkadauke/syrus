@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { DataTable } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
@@ -233,42 +232,90 @@ function IngressesTable({ clusterId, namespace }: { clusterId: number; namespace
       {visible.length === 0 ? (
         <SearchNoMatches />
       ) : (
-        <DataTable.Root density="compact">
-          <DataTable.Header>
-            <DataTable.Row>
-              <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_hosts")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_backend")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_tls")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_ingress_class")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-            </DataTable.Row>
-          </DataTable.Header>
-          <DataTable.Body>
-            {visible.map((ingress) => (
-            <DataTable.Row interactive key={`${ingress.namespace}/${ingress.name}`} onClick={() => open(ingress)}>
-              <DataTable.Cell className="font-medium">
-                <DetailNameButton name={ingress.name} onOpen={() => open(ingress)} />
-              </DataTable.Cell>
-              <DataTable.Cell className="text-text-secondary">{ingress.namespace}</DataTable.Cell>
-              <DataTable.Cell className="font-mono text-text-secondary">{ingress.hosts.length === 0 ? "-" : ingress.hosts.join(", ")}</DataTable.Cell>
-              <DataTable.Cell className="font-mono text-text-secondary">{backendSummary(ingress)}</DataTable.Cell>
-              <DataTable.Cell>
-                <StatusBadge tone={ingress.tls_hosts.length > 0 ? "success" : "neutral"}>
-                  {ingress.tls_hosts.length > 0 ? t("yes") : t("no")}
-                </StatusBadge>
-              </DataTable.Cell>
-              <DataTable.Cell className="text-text-secondary">{ingress.ingress_class || "-"}</DataTable.Cell>
-              <DataTable.Cell className="text-text-secondary">{formatAge(ingress.created_at)}</DataTable.Cell>
-            </DataTable.Row>
-            ))}
-          </DataTable.Body>
-        </DataTable.Root>
+        <KubernetesResourceTable
+          columns={ingressColumns(t, open)}
+          defaultSort={{ column: "name", direction: "asc" }}
+          empty={<PanelMessage>{t("ingresses_empty")}</PanelMessage>}
+          getRowKey={(ingress) => `${ingress.namespace}/${ingress.name}`}
+          rows={visible}
+          storageKey="syrus.k8s_cluster.ingresses.columns"
+          summary={t("network_kind_ingresses")}
+        />
       )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
+}
+
+function ingressColumns(
+  t: ReturnType<typeof useT>["t"],
+  open: (ingress: KubernetesIngressRow) => void
+): Array<KubernetesResourceTableColumn<KubernetesIngressRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (ingress) => <DetailNameButton name={ingress.name} onOpen={() => open(ingress)} />,
+      required: true,
+      sort: "name",
+      sortValue: (ingress) => ingress.name
+    },
+    {
+      key: "namespace",
+      header: t("col_namespace"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (ingress) => ingress.namespace,
+      sort: "namespace",
+      sortValue: (ingress) => ingress.namespace
+    },
+    {
+      key: "hosts",
+      header: t("col_hosts"),
+      className: "font-mono text-gray-700 dark:text-gray-300",
+      filterValue: (ingress) => ingress.hosts,
+      render: (ingress) => (ingress.hosts.length === 0 ? "-" : ingress.hosts.join(", ")),
+      sort: "hosts",
+      sortValue: (ingress) => ingress.hosts[0] ?? null
+    },
+    {
+      key: "backend",
+      header: t("col_backend"),
+      className: "font-mono text-gray-700 dark:text-gray-300",
+      filterValue: (ingress) => backendSummary(ingress),
+      render: (ingress) => backendSummary(ingress),
+      sort: "backend",
+      sortValue: (ingress) => backendSummary(ingress)
+    },
+    {
+      key: "tls",
+      header: t("col_tls"),
+      filterValue: (ingress) => (ingress.tls_hosts.length > 0 ? t("yes") : t("no")),
+      render: (ingress) => (
+        <StatusBadge tone={ingress.tls_hosts.length > 0 ? "success" : "neutral"}>
+          {ingress.tls_hosts.length > 0 ? t("yes") : t("no")}
+        </StatusBadge>
+      ),
+      sort: "tls",
+      sortValue: (ingress) => Number(ingress.tls_hosts.length > 0)
+    },
+    {
+      key: "ingress_class",
+      header: t("col_ingress_class"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (ingress) => ingress.ingress_class || "-",
+      sort: "ingress_class",
+      sortValue: (ingress) => ingress.ingress_class
+    },
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (ingress) => formatAge(ingress.created_at),
+      sort: "created_at",
+      sortValue: (ingress) => ingress.created_at
+    }
+  ]
 }
 
 // Flatten every rule path's backend Service/port so the operator can trace

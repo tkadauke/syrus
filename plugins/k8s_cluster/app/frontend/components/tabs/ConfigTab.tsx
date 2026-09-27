@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
-import { useState, type ReactNode } from "react"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { DataTable } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesConfigMaps, fetchKubernetesSecrets, type KubernetesConfigMapRow, type KubernetesSecretRow } from "../../api/kubernetesResources"
 import { formatAge } from "../../lib/k8sFormat"
+import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
 import { DetailNameButton, ResourceDetailDrawer, useResourceDetail } from "../ResourceDetailDrawer"
 import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
 
@@ -62,29 +61,16 @@ function ConfigMapsTable({ clusterId, namespace }: { clusterId: number; namespac
       {visible.length === 0 ? (
         <SearchNoMatches />
       ) : (
-        <DataTable.Root density="compact">
-          <DataTable.Header>
-            <DataTable.Row>
-              <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_keys")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-            </DataTable.Row>
-          </DataTable.Header>
-          <DataTable.Body>
-            {visible.map((configMap) => (
-              <ExpandableKeyRow
-                key={`${configMap.namespace}/${configMap.name}`}
-                age={configMap.created_at}
-                extraCells={null}
-                keyNames={configMap.key_names}
-                name={configMap.name}
-                namespace={configMap.namespace}
-                onOpen={() => open(configMap)}
-              />
-            ))}
-          </DataTable.Body>
-        </DataTable.Root>
+        <KubernetesResourceTable
+          columns={configMapColumns(t, open)}
+          defaultSort={{ column: "name", direction: "asc" }}
+          empty={<PanelMessage>{t("config_empty_configmaps")}</PanelMessage>}
+          getRowKey={(configMap) => `${configMap.namespace}/${configMap.name}`}
+          renderExpanded={(configMap) => <span className="font-mono text-text-secondary">{configMap.key_names.join(", ")}</span>}
+          rows={visible}
+          storageKey="syrus.k8s_cluster.config_maps.columns"
+          summary={t("config_section_configmaps")}
+        />
       )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
@@ -129,91 +115,126 @@ function SecretsTable({ clusterId, namespace }: { clusterId: number; namespace: 
       {visible.length === 0 ? (
         <SearchNoMatches />
       ) : (
-        <DataTable.Root density="compact">
-          <DataTable.Header>
-            <DataTable.Row>
-              <DataTable.HeadCell>{t("col_name")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_namespace")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_type")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_keys")}</DataTable.HeadCell>
-              <DataTable.HeadCell>{t("col_age")}</DataTable.HeadCell>
-            </DataTable.Row>
-          </DataTable.Header>
-          <DataTable.Body>
-            {visible.map((secret) => (
-              <ExpandableKeyRow
-                key={`${secret.namespace}/${secret.name}`}
-                age={secret.created_at}
-                colSpan={5}
-                extraCells={<DataTable.Cell className="text-text-secondary">{secret.type || "-"}</DataTable.Cell>}
-                keyNames={secret.key_names}
-                name={secret.name}
-                namespace={secret.namespace}
-                onOpen={() => open(secret)}
-              />
-            ))}
-          </DataTable.Body>
-        </DataTable.Root>
+        <KubernetesResourceTable
+          columns={secretColumns(t, open)}
+          defaultSort={{ column: "name", direction: "asc" }}
+          empty={<PanelMessage>{t("config_empty_secrets")}</PanelMessage>}
+          getRowKey={(secret) => `${secret.namespace}/${secret.name}`}
+          renderExpanded={(secret) => <span className="font-mono text-text-secondary">{secret.key_names.join(", ")}</span>}
+          rows={visible}
+          storageKey="syrus.k8s_cluster.secrets.columns"
+          summary={t("config_section_secrets")}
+        />
       )}
       <ResourceDetailDrawer clusterId={clusterId} onClose={detail.closeDetail} selection={detail.selection} />
     </>
   )
 }
 
-function ExpandableKeyRow({
-  name,
-  namespace,
-  age,
-  keyNames,
-  extraCells,
-  colSpan = 4,
-  onOpen
-}: {
-  name: string
-  namespace: string
-  age: string | null
-  keyNames: string[]
-  extraCells: ReactNode
-  colSpan?: number
-  onOpen: () => void
-}) {
-  const { t } = useT("k8s_cluster")
-  const [expanded, setExpanded] = useState(false)
+function configMapColumns(
+  t: ReturnType<typeof useT>["t"],
+  open: (configMap: KubernetesConfigMapRow) => void
+): Array<KubernetesResourceTableColumn<KubernetesConfigMapRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (configMap) => <DetailNameButton name={configMap.name} onOpen={() => open(configMap)} />,
+      required: true,
+      sort: "name",
+      sortValue: (configMap) => configMap.name
+    },
+    {
+      key: "namespace",
+      header: t("col_namespace"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (configMap) => configMap.namespace,
+      sort: "namespace",
+      sortValue: (configMap) => configMap.namespace
+    },
+    keyNamesColumn(t),
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (configMap) => formatAge(configMap.created_at),
+      sort: "created_at",
+      sortValue: (configMap) => configMap.created_at
+    }
+  ]
+}
 
-  return (
-    <>
-      <DataTable.Row interactive key={`${namespace}/${name}`} onClick={onOpen}>
-        <DataTable.Cell className="font-medium">
-          <DetailNameButton name={name} onOpen={onOpen} />
-        </DataTable.Cell>
-        <DataTable.Cell className="text-text-secondary">{namespace}</DataTable.Cell>
-        {extraCells}
-        <DataTable.Cell className="text-text-secondary">
-          {keyNames.length === 0 ? (
-            "-"
-          ) : (
-            <button
-              aria-expanded={expanded}
-              className="underline decoration-dotted underline-offset-2"
-              onClick={(event) => {
-                event.stopPropagation()
-                setExpanded((value) => !value)
-              }}
-              type="button"
-            >
-              {expanded ? t("config_hide_keys") : t("config_show_keys", { count: keyNames.length })}
-            </button>
-          )}
-        </DataTable.Cell>
-        <DataTable.Cell className="text-text-secondary">{formatAge(age)}</DataTable.Cell>
-      </DataTable.Row>
-      {expanded && keyNames.length > 0 ? (
-        <DataTable.Row>
-          <DataTable.Cell className="font-mono text-text-secondary" colSpan={colSpan}>
-            {keyNames.join(", ")}
-          </DataTable.Cell>
-        </DataTable.Row>
-      ) : null}
-    </>
-  )
+function secretColumns(
+  t: ReturnType<typeof useT>["t"],
+  open: (secret: KubernetesSecretRow) => void
+): Array<KubernetesResourceTableColumn<KubernetesSecretRow>> {
+  return [
+    {
+      key: "name",
+      header: t("col_name"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (secret) => <DetailNameButton name={secret.name} onOpen={() => open(secret)} />,
+      required: true,
+      sort: "name",
+      sortValue: (secret) => secret.name
+    },
+    {
+      key: "namespace",
+      header: t("col_namespace"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (secret) => secret.namespace,
+      sort: "namespace",
+      sortValue: (secret) => secret.namespace
+    },
+    {
+      key: "type",
+      header: t("col_type"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (secret) => secret.type || "-",
+      sort: "type",
+      sortValue: (secret) => secret.type
+    },
+    keyNamesColumn(t),
+    {
+      key: "created_at",
+      header: t("col_age"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (secret) => formatAge(secret.created_at),
+      sort: "created_at",
+      sortValue: (secret) => secret.created_at
+    }
+  ]
+}
+
+// Expandable key-name cell shared by the ConfigMaps and Secrets tables: the
+// toggle drives the shared table's per-row expanded content, which lists the
+// redacted key names without ever showing secret values.
+function keyNamesColumn<T extends { key_count: number; key_names: string[] }>(
+  t: ReturnType<typeof useT>["t"]
+): KubernetesResourceTableColumn<T> {
+  return {
+    key: "keys",
+    header: t("col_keys"),
+    className: "text-gray-700 dark:text-gray-300",
+    filterValue: (row) => row.key_names,
+    render: (row, { expanded, toggleExpanded }) =>
+      row.key_names.length === 0 ? (
+        "-"
+      ) : (
+        <button
+          aria-expanded={expanded}
+          className="underline decoration-dotted underline-offset-2"
+          onClick={(event) => {
+            event.stopPropagation()
+            toggleExpanded()
+          }}
+          type="button"
+        >
+          {expanded ? t("config_hide_keys") : t("config_show_keys", { count: row.key_names.length })}
+        </button>
+      ),
+    sort: "keys",
+    sortValue: (row) => row.key_count
+  }
 }

@@ -749,7 +749,7 @@ describe("ClusterBrowser", () => {
       fireEvent.click(await screen.findByRole("option", { name: "StatefulSets" }))
       await screen.findByText("db")
 
-      fireEvent.click(screen.getByRole("button", { name: "Namespace" }))
+      fireEvent.click(screen.getAllByRole("button", { name: "Namespace" })[0])
       fireEvent.click(await screen.findByRole("option", { name: "default" }))
 
       await screen.findByText("db")
@@ -893,7 +893,7 @@ describe("ClusterBrowser", () => {
       fireEvent.click(await screen.findByRole("option", { name: "Ingresses" }))
       await screen.findByText("web.example.com")
 
-      fireEvent.click(screen.getByRole("button", { name: "Namespace" }))
+      fireEvent.click(screen.getAllByRole("button", { name: "Namespace" })[0])
       fireEvent.click(await screen.findByRole("option", { name: "default" }))
 
       await screen.findByText("web.example.com")
@@ -955,7 +955,7 @@ describe("ClusterBrowser", () => {
       await switchTab("Config")
       await screen.findByText("app-settings")
 
-      fireEvent.click(screen.getByRole("button", { name: "Namespace" }))
+      fireEvent.click(screen.getAllByRole("button", { name: "Namespace" })[0])
       fireEvent.click(await screen.findByRole("option", { name: "default" }))
 
       await screen.findByText("app-settings")
