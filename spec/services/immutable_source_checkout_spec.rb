@@ -157,6 +157,39 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
+  it "preserves root symlinks when restoring a local prepare cache" do
+    first_checkout = described_class.new(step)
+    first_checkout.setup
+    FileUtils.rm_rf(first_checkout.path)
+
+    second_checkout = described_class.new(second_step)
+    second_checkout.setup
+
+    link = second_checkout.path.join("AGENTS.md")
+    expect(link).to be_symlink
+    expect(link.readlink.to_s).to eq("CLAUDE.md")
+    expect(second_step.reload.details.dig("prepare_cache", "status")).to eq("hit")
+  end
+
+  it "does not restore a legacy prepare cache that may have dereferenced root symlinks" do
+    first_checkout = described_class.new(step)
+    first_checkout.setup
+    cache_path = Pathname.new(step.reload.details.dig("prepare_cache", "cache_path"))
+    marker_path = cache_path.join(described_class::PREPARED_MARKER)
+    marker = JSON.parse(marker_path.read).except("prepare_cache_format_version")
+    marker_path.write(JSON.pretty_generate(marker))
+    FileUtils.rm_f(cache_path.join("AGENTS.md"))
+    File.write(cache_path.join("AGENTS.md"), "dereferenced legacy copy\n")
+    snapshot.reload.prepared_workspace_archive.purge
+    FileUtils.rm_rf(first_checkout.path)
+
+    second_checkout = described_class.new(second_step)
+    second_checkout.setup
+
+    expect(second_checkout.path.join("AGENTS.md")).to be_symlink
+    expect(second_step.reload.details.dig("prepare_cache", "status")).to eq("miss")
+  end
+
   it "invalidates a local prepare cache whose marker claims missing Node package binaries" do
     plan = instance_double(
       RepoPrepPlan::Result,
@@ -221,6 +254,19 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       "prepare_cache_status" => "archive_hit"
     )
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
+  end
+
+  it "preserves root symlinks when restoring a prepared archive on another worker" do
+    described_class.new(step).setup
+    File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-b\n")
+
+    second_checkout = described_class.new(second_step)
+    second_checkout.setup
+
+    link = second_checkout.path.join("AGENTS.md")
+    expect(link).to be_symlink
+    expect(link.readlink.to_s).to eq("CLAUDE.md")
+    expect(second_step.reload.details.dig("prepare_cache", "status")).to eq("archive_hit")
   end
 
   it "restores the source checkout from the prepared archive before fetching on a fresh worker" do
@@ -351,11 +397,13 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     Dir.mktmpdir("syrus-immutable-source-seed") do |seed|
       sh("git init -q -b main #{seed}")
       File.write(File.join(seed, "README.md"), "hello\n")
+      File.write(File.join(seed, "CLAUDE.md"), "agent guide\n")
+      File.symlink("CLAUDE.md", File.join(seed, "AGENTS.md"))
       File.write(File.join(seed, ".syrus.yml"), <<~YAML)
         prepare:
           - mkdir -p "$BUNDLE_PATH" && printf 'ready\\n' > "$BUNDLE_PATH/prepared.txt"
       YAML
-      sh("git -C #{seed} add README.md .syrus.yml")
+      sh("git -C #{seed} add README.md CLAUDE.md AGENTS.md .syrus.yml")
       sh("git -C #{seed} commit -q -m 'initial' --author='Seed <s@e>'")
       sh("git -C #{seed} checkout -q -b feature")
       File.write(File.join(seed, "feature.txt"), "feature\n")

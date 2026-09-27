@@ -286,6 +286,7 @@ class ImmutableSourceCheckout
       "source_sha" => snapshot.source_sha,
       "source_ref" => snapshot.source_ref,
       "worker_storage_key" => prepare_cache.worker_storage_key,
+      "prepare_cache_format_version" => PreparedWorkspaceArchive::PREPARE_CACHE_FORMAT_VERSION,
       "prepare_fingerprint" => prepare_cache.prepare_fingerprint,
       "prepare_cache_key" => prepare_cache.cache_key,
       "prepared_at" => Time.current.iso8601,
@@ -499,11 +500,13 @@ class ImmutableSourceCheckout
     metadata.to_h.slice(
       "workflow_id",
       "source_snapshot_id",
-      "source_sha"
+      "source_sha",
+      "prepare_cache_format_version"
     ) == {
       "workflow_id" => @workflow.id,
       "source_snapshot_id" => snapshot.id,
-      "source_sha" => snapshot.source_sha
+      "source_sha" => snapshot.source_sha,
+      "prepare_cache_format_version" => PreparedWorkspaceArchive::PREPARE_CACHE_FORMAT_VERSION
     }
   end
 
@@ -511,11 +514,13 @@ class ImmutableSourceCheckout
     JSON.parse(marker_path.read).slice(
       "worker_storage_key",
       "workflow_id",
-      "source_sha"
+      "source_sha",
+      "prepare_cache_format_version"
     ) == {
       "worker_storage_key" => WorkerStorageIdentity.queue_key,
       "workflow_id" => @workflow.id,
-      "source_sha" => snapshot.source_sha
+      "source_sha" => snapshot.source_sha,
+      "prepare_cache_format_version" => PreparedWorkspaceArchive::PREPARE_CACHE_FORMAT_VERSION
     }
   rescue Errno::ENOENT, JSON::ParserError
     false
@@ -545,7 +550,12 @@ class ImmutableSourceCheckout
 
   def copy_tree!(source, destination)
     FileUtils.mkdir_p(destination)
-    FileUtils.cp_r(source.children.map(&:to_s), destination.to_s, preserve: true)
+    FileUtils.cp_r(
+      source.children.map(&:to_s),
+      destination.to_s,
+      preserve: true,
+      dereference_root: false
+    )
   end
 
   def record_prepare_cache!(prepare_cache, status)
@@ -611,7 +621,12 @@ class ImmutableSourceCheckout
       FileUtils.rm_rf(temporary_path.to_s)
       FileUtils.mkdir_p(path.dirname)
       FileUtils.mkdir_p(temporary_path)
-      FileUtils.cp_r(Pathname.new(checkout_path).children.map(&:to_s), temporary_path.to_s, preserve: true)
+      FileUtils.cp_r(
+        Pathname.new(checkout_path).children.map(&:to_s),
+        temporary_path.to_s,
+        preserve: true,
+        dereference_root: false
+      )
       FileUtils.rm_rf(path.to_s)
       FileUtils.mv(temporary_path.to_s, path.to_s)
     ensure
@@ -668,11 +683,13 @@ class ImmutableSourceCheckout
         "worker_storage_key",
         "workflow_id",
         "source_sha",
+        "prepare_cache_format_version",
         "prepare_fingerprint"
       ) == {
         "worker_storage_key" => worker_storage_key,
         "workflow_id" => workflow.id,
         "source_sha" => snapshot.source_sha,
+        "prepare_cache_format_version" => PreparedWorkspaceArchive::PREPARE_CACHE_FORMAT_VERSION,
         "prepare_fingerprint" => prepare_fingerprint
       }
     rescue JSON::ParserError
