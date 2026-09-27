@@ -367,6 +367,13 @@ Compose doesn't own TLS. For a local install you don't need it (plain HTTP on
 service and terminate HTTPS there, and set `SYRUS_APP_HOST` /
 `SYRUS_ASSUME_SSL=true` accordingly.
 
+## Health Check
+
+The Compose web service uses `GET /readyz` as its container health check. The
+probe returns not-ready when Rails can boot but Syrus cannot do useful work, for
+example when no Solid Queue worker is registered. Use `/up` only for lightweight
+process liveness.
+
 ## Develop from source instead
 
 If you're working *on* Syrus rather than just running it, the bare-metal

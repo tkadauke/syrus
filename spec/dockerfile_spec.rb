@@ -30,6 +30,16 @@ RSpec.describe "Dockerfile" do
     expect(worker_stage.index("USER 1000:1000")).to be < worker_stage.index("ENTRYPOINT")
   end
 
+  it "probes readiness only for web/default image roles" do
+    healthchecks = dockerfile.scan(/^HEALTHCHECK .+$/)
+
+    expect(healthchecks.size).to eq(2)
+    healthchecks.each do |healthcheck|
+      expect(healthcheck).to include('curl -fsS http://127.0.0.1/readyz')
+      expect(healthcheck).to include('[ -n "$SYRUS_ROLE" ] && [ "$SYRUS_ROLE" != "web" ]')
+    end
+  end
+
   it "installs Poetry as an executable worker tool" do
     stage = worker_deps_stage
 

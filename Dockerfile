@@ -247,6 +247,7 @@ ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 
 # Start server via Thruster by default, this can be overwritten at runtime
 EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD if [ -n "$SYRUS_ROLE" ] && [ "$SYRUS_ROLE" != "web" ]; then exit 0; fi; curl -fsS http://127.0.0.1/readyz >/dev/null || exit 1
 CMD ["./bin/thrust", "./bin/rails", "server"]
 
 
@@ -553,6 +554,7 @@ ENV SYRUS_BUILT_AT=$SYRUS_BUILT_AT
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 
 EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD if [ -n "$SYRUS_ROLE" ] && [ "$SYRUS_ROLE" != "web" ]; then exit 0; fi; curl -fsS http://127.0.0.1/readyz >/dev/null || exit 1
 
 # Inherits app's posture (thrust+rails server) by default; the worker
 # pod's Deployment overrides command to `bin/jobs` per greenacres#16.

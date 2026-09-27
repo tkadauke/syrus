@@ -52,6 +52,12 @@ services:
       - syrus-search:/home/rails/.syrus-search
     ports:
       - "${SYRUS_PORT:-3000}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/readyz >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   worker:
     <<: *app

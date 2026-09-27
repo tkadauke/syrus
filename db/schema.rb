@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_062000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_010100) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2844,6 +2844,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_062000) do
     t.index ["workflow_id", "position"], name: "index_steps_on_workflow_id_and_position"
     t.index ["workflow_id", "state", "position", "id"], name: "idx_steps_workflow_state_position_for_repository_detail"
     t.index ["workflow_id"], name: "index_steps_on_workflow_id"
+  end
+
+  create_table "system_alert_notifications", force: :cascade do |t|
+    t.string "alert_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "delivered_at"
+    t.string "delivery_error_class"
+    t.text "delivery_error_message"
+    t.string "dismissal_key", null: false
+    t.json "payload"
+    t.string "severity", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_system_alert_notifications_on_created_at"
+    t.index ["dismissal_key"], name: "index_system_alert_notifications_on_dismissal_key", unique: true
   end
 
   create_table "tags", force: :cascade do |t|
