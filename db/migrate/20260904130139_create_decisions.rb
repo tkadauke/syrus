@@ -16,7 +16,8 @@ class CreateDecisions < ActiveRecord::Migration[8.1]
       t.text :summary
 
       # Indexed references without database-level constraints: Syrus keeps
-      # referential behavior in application code (see CLAUDE.md).
+      # referential behavior in application code (see
+      # docs/agent-guide/conventions.md).
       t.references :user, null: true
       t.references :repository, null: true
       t.references :job, null: true

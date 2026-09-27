@@ -590,7 +590,7 @@ credential).
   the existing stream-json + `--mcp-config` paths cover this.
   Document the chat use case in the class comment.
 - `README.md` — short blurb on per-repo chat in the feature list.
-- `CLAUDE.md` — agent guide entry for the chat sidecar +
+- `docs/agent-guide/architecture-details.md` — agent guide entry for the chat sidecar +
   workspace conventions.
 
 ## Build order

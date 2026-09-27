@@ -6,7 +6,7 @@ operator-initiated ("direct") Jobs, **Epics** (ordered stacks of Jobs for
 work too big for one PR), and **Chat** (planning, Coding Mode, Local
 Mode, and Chat Goals for multi-turn continuation loops) all funnel into
 the same Workflow → Step → Run execution pipeline described in
-`CLAUDE.md`. Around that core: a landing queue with
+`docs/agent-guide/architecture-details.md`. Around that core: a landing queue with
 per-repo auto-merge and Epic **merge trains** (atomic multi-PR landing
 through one integration branch), **delivery tracks** (`promotion` /
 `hotfix_sync` / `upstream_export` trigger kinds for repos that split
@@ -18,10 +18,11 @@ third-party. A `WorkUnit`/`WorkIntent` ownership-and-scheduling layer
 retry/lock/landing policy that used to be scattered across services, in
 front of `StepDispatcher`, which remains the actual execution engine.
 
-`CLAUDE.md` is the authoritative architecture description and
-`config/syrus_docs/` has feature-level detail; this document does not
-restate either. Read this roadmap as "what's still open," not as an
-introduction to what Syrus is.
+`CLAUDE.md` is the agent-facing index; `ARCHITECTURE.md`,
+`docs/agent-guide/`, and `config/syrus_docs/` carry the detailed
+architecture and feature references. This document does not restate them.
+Read this roadmap as "what's still open," not as an introduction to what
+Syrus is.
 
 **Current frontier:** `docs/plans/workflow-engine-v3.md` ("One Failure
 Vocabulary") is the active architectural initiative. Today the engine
@@ -82,9 +83,9 @@ tightening.
 Unscheduled directions. Not committed, not ordered — captured here so
 they don't get lost. If an idea you remember from an earlier version of
 this document isn't listed below, it has almost certainly shipped —
-check `CLAUDE.md` and `config/syrus_docs/` before assuming a gap still
-exists (this document was badly out of date until the 2026-09-06
-architecture audit that produced this rewrite).
+check `docs/agent-guide/`, `ARCHITECTURE.md`, and `config/syrus_docs/`
+before assuming a gap still exists (this document was badly out of date
+until the 2026-09-06 architecture audit that produced this rewrite).
 
 ### Multi-layer rate limiting
 
@@ -235,7 +236,8 @@ scoping carefully before restarting either:
   event-driven core survives as `ChatWorkEvents` (renamed from
   `SupervisorEvents`) and `ChatScopedEventEvaluatorJob`, which now serve
   ordinary chats that originated the referenced work instead of a
-  dedicated admin surface (`CLAUDE.md`, `config/syrus_docs/chat.md`).
+  dedicated admin surface (`docs/agent-guide/architecture-details.md`,
+  `config/syrus_docs/chat.md`).
   Whether that reactive-evaluation shape fully matches the scan's
   "actively pings the operator only when there's a real decision"
   framing — applied to ordinary chats rather than a Supervisor room —

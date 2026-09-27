@@ -1158,12 +1158,12 @@ single funnel for starting a Workflow: find-or-create the `WorkIntent`,
 create a `WorkUnit`, instantiate the `WorkDefinition`'s workflow
 template, attach members/locks, gate-check via `WorkUnits::Scheduler`,
 then call `StepDispatcher.start_workflow` — the same dispatcher and AASM
-machines described above and in `CLAUDE.md` are still what actually
-advances Job/Workflow/Step/Run; the work engine wraps that call rather
-than replacing it. Every workflow-launching call site (initial, retry,
-rebase, coding handoff, insight, scheduled task, external PR, landing,
-CI repair, PR/chat feedback, merge train, job bundle) has been migrated
-to go through it one at a time.
+machines described above and in `docs/agent-guide/architecture-details.md`
+are still what actually advances Job/Workflow/Step/Run; the work engine
+wraps that call rather than replacing it. Every workflow-launching call
+site (initial, retry, rebase, coding handoff, insight, scheduled task,
+external PR, landing, CI repair, PR/chat feedback, merge train, job bundle)
+has been migrated to go through it one at a time.
 
 **Rollout state as of this writing: WorkUnit ownership is the runtime
 funnel for known launch paths.** `WorkUnits::PathOwnership` maps the
@@ -2188,16 +2188,17 @@ session outcome.
   version endpoint shows the request handler plus fresh instances, which
   makes rolling deploy state visible.
 - Two clusters: staging (default kubeconfig) and production
-  (`~/.kube/config-production`). Diagnostic recipes are in `CLAUDE.md`
-  under "Debugging staging / production via kubectl".
+  (`~/.kube/config-production`). Diagnostic recipes are in
+  `docs/agent-guide/deployed-operations.md` under "Debugging staging /
+  production via kubectl".
 - Kubernetes deploys use `bin/deploy` to build and push the web and
   worker images for the configured cluster architecture. That path uses
   plain `docker build` plus `docker push` through `bin/docker-image-lib`
   instead of buildx registry exporters, because the deploy path has
   observed buildx hangs after image export. Local Compose and publish
   flows still share the same helper and can opt into the registry-backed
-  BuildKit cache. See CLAUDE.md "Deploy target" for platform-specific
-  notes.
+  BuildKit cache. See `docs/agent-guide/deployed-operations.md` "Deploy
+  target" for platform-specific notes.
 - Releases are cut by the CI pipeline (`.github/workflows/release.yml`) —
   a manual dispatch that computes the version, builds and signs the CLI,
   the macOS universal DMG, the Windows x64 NSIS installer, and the backend

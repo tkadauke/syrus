@@ -215,8 +215,8 @@ merged away in the IA pass for epic #751.
 
 Standard OSS-docs outline. Most sections reuse content from
 existing in-repo docs (`ARCHITECTURE.md`, `ROADMAP.md`,
-`CLAUDE.md`) rather than duplicating. The concrete route order, page
-contracts, and source-content disposition are now tracked in
+`docs/agent-guide/`) rather than duplicating. The concrete route order,
+page contracts, and source-content disposition are now tracked in
 `docs/plans/website-information-architecture.md`.
 
 - **What is Syrus?**: plain product explanation and issue-to-PR flow.

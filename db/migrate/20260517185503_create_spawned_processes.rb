@@ -3,7 +3,7 @@ class CreateSpawnedProcesses < ActiveRecord::Migration[8.1]
   # operation, prepare command) gets a row in this table at spawn
   # time, heartbeats while running, and finalizes on exit. Powers
   # the admin /processes page + API and the cross-pod kill switch.
-  # Guarded so partial deploys don't crash retries (CLAUDE.md).
+  # Guarded so partial deploys don't crash retries (docs/agent-guide/conventions.md).
   def up
     return if table_exists?(:spawned_processes)
 

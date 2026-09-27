@@ -82,8 +82,8 @@
   of truth, not duplicate stale documentation.
 - **Website/docs audit.** If no website/docs update is needed, the PR body
   must say why so reviewers can audit the call. `AGENTS.md` is a symlink to
-  `CLAUDE.md`; preserve that relationship and edit the shared guidance through
-  `CLAUDE.md`.
+  `CLAUDE.md`; preserve that relationship and edit shared guidance in the
+  relevant root index or referenced `docs/agent-guide/` file.
 - **Feature flag descriptions are timeless.** `config/features.yml`
   descriptions must not reference PR numbers, issue numbers, or phrases like
   "Introduced in PR #123." or "Added in #456." That information is in git
@@ -591,4 +591,3 @@ The suite is large. During implementation, run the narrowest useful local
 validation: the exact failing example, the smallest affected spec file, or the
 focused frontend test file. Syrus runs typed framework graders from
 `.syrus.yml` after agentic steps for broader feedback.
-

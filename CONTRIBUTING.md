@@ -138,14 +138,16 @@ Running the suite under Node 22 avoids the problem entirely.
 
 ### Known gotchas
 
-A few footguns have bitten real contributors before; see `CLAUDE.md` for the
-full list, but two are common enough to call out here:
+A few footguns have bitten real contributors before; see
+`docs/agent-guide/gotchas-and-key-files.md` for the full list, but two are
+common enough to call out here:
 
 - **Non-idempotent migrations hang deploys.** Guard every `add_column`,
   `remove_column`, `add_reference`, and `add_index` with an `unless
   column_exists?`/`index_exists?` check — a migration that isn't safe to
   re-run against a partially-migrated database will crash a retried deploy
-  indefinitely. See CLAUDE.md's "Migrations are idempotent" note.
+  indefinitely. See `docs/agent-guide/conventions.md`'s "Migrations are
+  idempotent" note.
 - **`ApplicationJob` subclasses must declare a consumed queue.** SolidQueue's
   `default` queue has no worker listening on it (see `config/queue.yml`), so a
   job enqueued there silently never runs. Set `queue_as` to one of the
@@ -161,8 +163,8 @@ drive-by cleanup make review harder.
 PRs are expected to:
 
 - Preserve existing workflow semantics unless the PR explicitly changes them.
-- Follow local conventions in `CLAUDE.md`, especially around migrations,
-  three-dot diffs, state-machine guards, and test seams.
+- Follow local conventions in `docs/agent-guide/conventions.md`, especially
+  around migrations, three-dot diffs, state-machine guards, and test seams.
 - Include or update documentation when operator behavior changes.
 - Avoid committing secrets, generated local state, or dependency artifacts.
 - Be reviewable as one coherent change.

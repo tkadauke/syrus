@@ -6,9 +6,9 @@ class AddPrChecksFailingNamesToJobs < ActiveRecord::Migration[8.1]
   # is the PR side.
   #
   # JSON with no DB default: MySQL 8 rejects defaults on JSON columns (see
-  # CLAUDE.md). Nullable is the correct resting state anyway -- NULL means "we
-  # have not recorded names for this SHA", which is distinct from [] meaning
-  # "nothing is failing".
+  # docs/agent-guide/conventions.md). Nullable is the correct resting state
+  # anyway -- NULL means "we have not recorded names for this SHA", which is
+  # distinct from [] meaning "nothing is failing".
   def up
     add_column :jobs, :pr_checks_failing_names, :json unless column_exists?(:jobs, :pr_checks_failing_names)
   end

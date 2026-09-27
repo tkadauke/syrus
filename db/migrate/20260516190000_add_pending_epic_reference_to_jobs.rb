@@ -5,7 +5,8 @@ class AddPendingEpicReferenceToJobs < ActiveRecord::Migration[8.1]
   # for existing rows, then NOT NULL it. The Job model should
   # `after_initialize` seed `{}` for new records so the column
   # stays non-null going forward without a DB default. See
-  # CLAUDE.md "JSON columns can't have a DB default on MySQL 8".
+  # docs/agent-guide/conventions.md "JSON columns can't have a DB default
+  # on MySQL 8".
   #
   # Idempotent — the column_exists? guard recovers from a partial
   # retry without crashing on `Duplicate column name`.
