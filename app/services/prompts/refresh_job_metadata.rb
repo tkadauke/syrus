@@ -2,7 +2,10 @@ module Prompts
   # Prompt for feedback workflows after summarize_amend. The prior step's
   # submit_summary remains revision-scoped; this prompt refreshes canonical
   # Job/PR review metadata only when feedback changed the Job's effective intent.
+  # GitHub-sourced content trust boundary
   class RefreshJobMetadata
+    include GithubContentTrust
+
     def initialize(job:, current_pr: nil, prior_summaries: [], feedback: nil, diff: nil)
       @job = job
       @current_pr = current_pr
@@ -13,6 +16,8 @@ module Prompts
 
     def to_s
       <<~PROMPT.strip
+        #{github_content_trust_boundary}
+
         Review whether the feedback workflow changed the Job's effective intent.
 
         Original Job title:

@@ -2,7 +2,10 @@ module Prompts
   # Prompt for the final agentic pass inside auto-merge. The agent is
   # operating on the exact branch state Syrus is about to grade and
   # merge. Later loop iterations append Prompts::GradeFailureFeedback.
+  # GitHub-sourced content trust boundary
   class LandingFix
+    include GithubContentTrust
+
     def initialize(issue:, pr_number:, repo_slug:, branch_name:, recent_commits: [], epic: nil, job: nil)
       @issue = issue
       @pr_number = pr_number
@@ -15,6 +18,7 @@ module Prompts
 
     def to_s
       sections = [
+        github_content_trust_boundary,
         context_section,
         issue_section,
         epic_context,

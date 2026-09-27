@@ -2,7 +2,10 @@ module Prompts
   # Fallback test-plan prompt for the rare case where the implementation
   # session is unavailable to resume. It gives the agent bounded durable job
   # context and the produced diff, then asks it to call submit_test_plan.
+  # GitHub-sourced content trust boundary
   class TestPlanFallback
+    include GithubContentTrust
+
     MAX_BODY_BYTES = 16 * 1024
     MAX_DIFF_BYTES = Prompts::PullRequestSummary::MAX_DIFF_BYTES
 
@@ -14,6 +17,8 @@ module Prompts
 
     def to_s
       <<~PROMPT.strip
+        #{github_content_trust_boundary}
+
         You just finished the implementation for this Syrus job, but the
         original agent session is not available to resume. Use this bounded
         durable context instead.

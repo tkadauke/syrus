@@ -1,5 +1,8 @@
 module Prompts
+  # GitHub-sourced content trust boundary
   class CommentClassifier
+    include GithubContentTrust
+
     MAX_BODY_LENGTH = 2_000
 
     def initialize(body:)
@@ -8,6 +11,8 @@ module Prompts
 
     def to_s
       <<~PROMPT
+        #{github_content_trust_boundary}
+
         You are classifying a GitHub pull request comment.
 
         Determine whether this comment contains actionable feedback: a request for a code change, correction, or improvement that a developer should act on.
