@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
-import { closeChatPreviewPanel, fetchChatMedia, fetchChatMessagePins, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider, updateChatPreviewPanelVisibility } from "../../api/chats"
+import { closeChatPreviewPanel, fetchChatMedia, fetchChatMessagePins, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, updateChatPreviewPanelVisibility } from "../../api/chats"
 import { ApiError } from "../../api/client"
 import type { WorkspaceTab } from "./workspaceTabs"
 import { attachMediaLibraryImage } from "./attachMediaLibraryImage"
@@ -39,7 +39,6 @@ vi.mock("../../api/chats", async (importOriginal) => {
     fetchCodingFileContent: vi.fn(),
     fetchCodingFileTree: vi.fn(),
     fetchWhiteboardSnapshots: vi.fn(),
-    switchChatProvider: vi.fn(),
     updateChatPreviewPanelVisibility: vi.fn()
   }
 })
@@ -254,8 +253,7 @@ describe("ChatSettingsDialog", () => {
     expect(screen.queryByText(/automatic failover/i)).not.toBeInTheDocument()
   })
 
-  it("renders configured explicit provider options and switches through the switch endpoint", async () => {
-    vi.mocked(switchChatProvider).mockResolvedValue({ message: "Switching to codex." })
+  it("shows the current provider without a settings dropdown when multiple providers are configured", () => {
     const payload = makePayload({
       chat_provider: "claude",
       effective_chat_provider: "claude",
@@ -267,9 +265,9 @@ describe("ChatSettingsDialog", () => {
     })
 
     renderDialog(payload)
-    fireEvent.change(screen.getByLabelText("Chat provider"), { target: { value: "codex" } })
 
-    await waitFor(() => expect(switchChatProvider).toHaveBeenCalledWith("/api/v1/app/chats/1/switch_provider", "codex"))
+    expect(screen.getByText("Claude")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
   })
 
   it("renders the selected provider's icon at the expected size", () => {
@@ -285,8 +283,7 @@ describe("ChatSettingsDialog", () => {
 
     renderDialog(payload)
 
-    const select = screen.getByLabelText("Chat provider")
-    const icon = select.parentElement?.querySelector('img[src="/plugin-icons/claude_agent.svg"]')
+    const icon = screen.getByText("Claude").parentElement?.querySelector('img[src="/plugin-icons/claude_agent.svg"]')
     expect(icon).toBeInTheDocument()
     expect(icon).toHaveClass("h-4", "w-4")
   })
