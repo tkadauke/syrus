@@ -146,7 +146,38 @@ RSpec.describe Admin::ResourceAdmissionDiagnosticsPayload do
         "action" => "delay_until",
         "reason" => "worker_host_pressure_high",
         "delay_until" => (now + 11.minutes).iso8601,
-        "details" => { "decision_basis" => "ambient_pressure" }
+        "pressure" => {
+          "host" => {
+            "locality" => {
+              "scope" => "localized",
+              "pressure_localized" => true,
+              "pressured_storage_keys" => [
+                {
+                  "storage_key" => "storage-critical",
+                  "hostnames" => [ "syrus-worker-compute-bad", "syrus-worker-home-bad" ],
+                  "health_level" => "critical"
+                }
+              ],
+              "healthy_alternative_storage_keys" => [
+                { "storage_key" => "storage-healthy", "hostnames" => [ "syrus-worker-compute-ok" ], "health_level" => "ok" }
+              ]
+            }
+          }
+        },
+        "details" => {
+          "decision_basis" => "ambient_pressure",
+          "worker_pressure_scope" => "localized",
+          "pressured_worker_storage_keys" => [
+            {
+              "storage_key" => "storage-critical",
+              "hostnames" => [ "syrus-worker-compute-bad", "syrus-worker-home-bad" ],
+              "health_level" => "critical"
+            }
+          ],
+          "healthy_alternative_worker_storage_keys" => [
+            { "storage_key" => "storage-healthy", "hostnames" => [ "syrus-worker-compute-ok" ], "health_level" => "ok" }
+          ]
+        }
       }
     )
 
@@ -160,6 +191,22 @@ RSpec.describe Admin::ResourceAdmissionDiagnosticsPayload do
       next_check_at: (now + 11.minutes).iso8601
     )
     expect(delayed.fetch(:details)).to include("decision_basis" => "ambient_pressure")
+    expect(delayed.fetch(:details)).to include(
+      "worker_pressure_scope" => "localized",
+      "pressured_worker_storage_keys" => [
+        include(
+          "storage_key" => "storage-critical",
+          "hostnames" => [ "syrus-worker-compute-bad", "syrus-worker-home-bad" ]
+        )
+      ],
+      "healthy_alternative_worker_storage_keys" => [
+        include("storage_key" => "storage-healthy", "hostnames" => [ "syrus-worker-compute-ok" ])
+      ]
+    )
+    expect(delayed.dig(:pressure, "host", "locality")).to include(
+      "scope" => "localized",
+      "pressure_localized" => true
+    )
   end
 
   it "surfaces low-confidence profiles and admission override audit entries" do

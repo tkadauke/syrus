@@ -44,12 +44,13 @@ RSpec.describe WorkflowAdmissionBudget do
     )
   end
 
-  def worker_sample(hostname: "worker-1", cpu: 5.0, io: 5.0, memory: 40.0, disk: 25.0)
+  def worker_sample(hostname: "worker-1", worker_storage_key: nil, cpu: 5.0, io: 5.0, memory: 40.0, disk: 25.0)
     WorkerHostHealthSample.create!(
       hostname: hostname,
       role: "worker",
       version: "test",
       observed_at: Time.current,
+      worker_storage_key: worker_storage_key,
       cpu_pressure_some: cpu,
       io_pressure_some: io,
       memory_used_percent: memory,
@@ -400,6 +401,44 @@ RSpec.describe WorkflowAdmissionBudget do
       "active_agentic_run_count" => 1,
       "minimum_progress_floor_capacity" => 1,
       "minimum_progress_floor_available" => false
+    )
+  end
+
+  it "admits step-level work when pressure is localized to one storage key with healthy alternatives" do
+    WorkerHostHealthSample.delete_all
+    worker_sample(hostname: "syrus-worker-compute-bad", worker_storage_key: "storage-critical", io: 90.0)
+    worker_sample(hostname: "syrus-worker-home-bad", worker_storage_key: "storage-critical", io: 45.0)
+    worker_sample(hostname: "syrus-worker-compute-ok", worker_storage_key: "storage-healthy-a", io: 2.0)
+    worker_sample(hostname: "syrus-worker-home-ok", worker_storage_key: "storage-healthy-b", io: 3.0)
+    candidate = workflow_for
+    step = candidate.first_step
+
+    decision = described_class.call(workflow: candidate, step: step)
+
+    expect(decision.action).to eq("admit_now")
+    expect(decision.reason).to eq("within_budget")
+    expect(decision.details.fetch("soft_pressure_gates_present")).to eq([ "localized_worker_host_pressure_high" ])
+    expect(decision.details).to include(
+      "worker_pressure_scope" => "localized",
+      "worker_pressure_localized" => true
+    )
+    expect(decision.details.fetch("pressured_worker_storage_keys")).to contain_exactly(
+      include(
+        "storage_key" => "storage-critical",
+        "hostnames" => contain_exactly("syrus-worker-compute-bad", "syrus-worker-home-bad"),
+        "health_level" => "critical"
+      )
+    )
+    expect(decision.details.fetch("healthy_alternative_worker_storage_keys")).to contain_exactly(
+      include("storage_key" => "storage-healthy-a", "hostnames" => [ "syrus-worker-compute-ok" ]),
+      include("storage_key" => "storage-healthy-b", "hostnames" => [ "syrus-worker-home-ok" ])
+    )
+    expect(decision.pressure.dig("host", "locality")).to include(
+      "scope" => "localized",
+      "pressure_localized" => true,
+      "pressured_storage_key_count" => 1,
+      "healthy_storage_key_count" => 2,
+      "healthy_alternatives_present" => true
     )
   end
 
