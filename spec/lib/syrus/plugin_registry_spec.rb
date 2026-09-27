@@ -82,10 +82,6 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:ci_log_parser)
     end
 
-    it "includes :notable_change_detector" do
-      expect(described_class::EXTENSION_POINTS).to include(:notable_change_detector)
-    end
-
     it "includes :preview_provider" do
       expect(described_class::EXTENSION_POINTS).to include(:preview_provider)
     end
@@ -291,10 +287,6 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "maps :dependency_audit_command to Syrus::Plugin::DependencyAuditCommand" do
       expect(described_class::INTERFACE_FOR[:dependency_audit_command].call).to eq(Syrus::Plugin::DependencyAuditCommand)
-    end
-
-    it "maps :notable_change_detector to Syrus::Plugin::NotableChangeDetector" do
-      expect(described_class::INTERFACE_FOR[:notable_change_detector].call).to eq(Syrus::Plugin::NotableChangeDetector)
     end
 
     it "gives dependency audit command providers the class contract used by the registry" do

@@ -19,7 +19,6 @@ module Workflows
     def succeeded!
       workflow.finished_at = Time.current
       workflow.sync_work_unit_terminal!("succeeded")
-      detect_notable_changes!
       workflow.cleanup_workspace!
       workflow.propagate_succeed_to_job!
       workflow.cancel_superseded_retry_workflows!
@@ -30,7 +29,6 @@ module Workflows
       workflow.finished_at = Time.current
       workflow.sync_work_unit_terminal!("failed")
       workflow.cancel_orphan_active_runs!
-      detect_notable_changes!
       workflow.propagate_fail_to_job!
       dispatch_hook(:after_fail)
       workflow.cleanup_workspace! if workflow.infrastructure_workflow?
@@ -40,7 +38,6 @@ module Workflows
       workflow.finished_at = Time.current
       workflow.sync_work_unit_terminal!("cancelled")
       workflow.cancel_active_descendants!
-      detect_notable_changes!
       workflow.propagate_cancel_to_job!
       workflow.cleanup_workspace!
       dispatch_hook(:after_cancel)
@@ -58,12 +55,6 @@ module Workflows
 
     def dispatch_hook(name)
       workflow.send(:dispatch_hook, name)
-    end
-
-    def detect_notable_changes!
-      Syrus::NotableChangeDetection.detect!(workflow)
-    rescue StandardError => e
-      Rails.logger.warn("[WorkflowLifecycle] notable-change detection failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
     end
   end
 end

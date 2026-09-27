@@ -11,7 +11,6 @@ require "syrus/plugin_api"
 require "syrus/plugin/grade_detector"
 require "syrus/plugin/grader_type"
 require "syrus/plugin/focused_test_command"
-require "syrus/plugin/notable_change_detector"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.

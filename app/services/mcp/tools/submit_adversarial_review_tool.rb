@@ -50,31 +50,12 @@ module Mcp::Tools
           "verdict" => normalized_verdict
         }
         workflow.set_artifact!("adversarial_review_iterations", iterations)
-        record_review_finding(
-          workflow: workflow,
-          run: run,
-          iteration: run.step.iteration,
-          critique: normalized_critique,
-          verdict: normalized_verdict
-        )
         Mcp::Tools.write_log(run, "[mcp] submit_adversarial_review received: #{normalized_verdict}")
 
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
       rescue StandardError => e
         Rails.logger.error("[Mcp::Tools::SubmitAdversarialReviewTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
-      end
-
-      def record_review_finding(workflow:, run:, iteration:, critique:, verdict:)
-        ReviewFindingEvents.record(
-          workflow: workflow,
-          step: run.step,
-          run: run,
-          review_kind: "adversarial",
-          iteration: iteration,
-          verdict: verdict,
-          critique: critique
-        )
       end
     end
   end

@@ -144,17 +144,6 @@ RSpec.describe Steps::AdversarialReview do
 
   it "skips review when the provider rejects the prompt as too long" do
     allow(handler).to receive(:run_agent).and_raise(StandardError, "Claude API error: Prompt is too long")
-    expect(ReviewFindingEvents).to receive(:record).with(
-      workflow: workflow,
-      step: review_step,
-      run: run,
-      review_kind: "adversarial",
-      iteration: review_step.iteration,
-      verdict: "skipped",
-      critique: include("Adversarial review skipped:"),
-      skipped: true,
-      skip_reason: include("Prompt is too long")
-    )
 
     expect { handler.call }.not_to raise_error
 
@@ -173,17 +162,6 @@ RSpec.describe Steps::AdversarialReview do
                           error_message: "agent didn't call submit_adversarial_review",
                           problem_code: "missing_required_tool_call")
     allow(handler).to receive(:run_agent)
-    expect(ReviewFindingEvents).to receive(:record).with(
-      workflow: workflow,
-      step: review_step,
-      run: run,
-      review_kind: "adversarial",
-      iteration: review_step.iteration,
-      verdict: "skipped",
-      critique: include("Adversarial review skipped:"),
-      skipped: true,
-      skip_reason: include("did not call submit_adversarial_review")
-    )
 
     expect { handler.call }.not_to raise_error
 

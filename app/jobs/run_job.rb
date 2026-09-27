@@ -255,7 +255,6 @@ class RunJob < ApplicationJob
 
     log(result.message, kind: "system") if result.message.present?
     result.artifacts.each { |key, value| @workflow.set_artifact!(key, value) }
-    result.review_findings.each { |finding| record_pre_admission_review_finding(finding) }
     @step.update!(details: @step.details.to_h.merge("skipped" => true, "skip_reason" => result.reason))
 
     @run.reload
@@ -268,21 +267,6 @@ class RunJob < ApplicationJob
     @step.save!
     log("step #{@step.kind} done (#{@workflow.slug})")
     true
-  end
-
-  def record_pre_admission_review_finding(finding)
-    ReviewFindingEvents.record(
-      workflow: @workflow,
-      step: @step,
-      run: @run,
-      review_kind: finding.fetch("review_kind"),
-      iteration: finding.fetch("iteration"),
-      verdict: finding.fetch("verdict"),
-      critique: finding.fetch("critique"),
-      skipped: finding["skipped"] || false,
-      skip_reason: finding["skip_reason"],
-      artifacts: finding["artifacts"] || []
-    )
   end
 
   def perform_step

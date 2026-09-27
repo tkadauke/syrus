@@ -16,17 +16,6 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
   end
 
   it "accepts a run_id-only sidecar context" do
-    expect(ReviewFindingEvents).to receive(:record).with(
-      workflow: run.workflow,
-      step: run.step,
-      run: run,
-      review_kind: "visual",
-      iteration: run.step.iteration,
-      verdict: "approved",
-      critique: "No visual issues found.",
-      artifacts: []
-    )
-
     described_class.call(
       critique: "No visual issues found.",
       verdict: "approved",

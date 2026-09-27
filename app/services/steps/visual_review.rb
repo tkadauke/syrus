@@ -197,17 +197,6 @@ module Steps
         "verdict" => "skipped"
       }
       workflow.set_artifact!("visual_review_iterations", iterations)
-      ReviewFindingEvents.record(
-        workflow: workflow,
-        step: step,
-        run: run,
-        review_kind: "visual",
-        iteration: step.iteration,
-        verdict: "skipped",
-        critique: critique,
-        skipped: true,
-        skip_reason: skip_reason
-      )
     end
 
     def review_issue

@@ -1062,18 +1062,6 @@ RSpec.describe RunJob, :ci_only do
       initialize_workspace_repo(wf)
       record_critical_worker_pressure!
       expect(RunHostAdmission).not_to receive(:call)
-      expect(ReviewFindingEvents).to receive(:record).with(
-        workflow: wf,
-        step: step,
-        run: run,
-        review_kind: "visual",
-        iteration: step.iteration,
-        verdict: "skipped",
-        critique: "No changed files matched the configured visual_review.when_files_changed patterns.",
-        skipped: true,
-        skip_reason: "visual_review_when_files_changed_no_match",
-        artifacts: []
-      )
 
       expect {
         RunJob.perform_now(run.id)

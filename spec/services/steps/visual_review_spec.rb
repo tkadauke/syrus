@@ -588,7 +588,7 @@ RSpec.describe Steps::VisualReview do
     end
   end
 
-  context "when when_files_changed includes the plugin frontend globs and the diff is plugin-only (JOB-562 regression)" do
+  context "when when_files_changed includes plugin frontend globs and the diff is plugin-only" do
     before do
       allow(handler.send(:workspace)).to receive(:base_ref).and_return("origin/main")
       allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(

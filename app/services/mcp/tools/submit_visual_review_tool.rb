@@ -54,14 +54,6 @@ module Mcp::Tools
           "artifacts" => artifacts
         }
         workflow.set_artifact!("visual_review_iterations", iterations)
-        record_review_finding(
-          workflow: workflow,
-          run: run,
-          iteration: run.step.iteration,
-          critique: normalized_critique,
-          verdict: normalized_verdict,
-          artifacts: artifacts
-        )
         Mcp::Tools.write_log(run, "[mcp] submit_visual_review received: #{normalized_verdict}")
 
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
@@ -88,19 +80,6 @@ module Mcp::Tools
             "created_at" => entry["created_at"]
           }
         end
-      end
-
-      def record_review_finding(workflow:, run:, iteration:, critique:, verdict:, artifacts:)
-        ReviewFindingEvents.record(
-          workflow: workflow,
-          step: run.step,
-          run: run,
-          review_kind: "visual",
-          iteration: iteration,
-          verdict: verdict,
-          critique: critique,
-          artifacts: artifacts
-        )
       end
     end
   end
