@@ -79,9 +79,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
             </div>
           ) : null}
           {item.chat_shell_command ? <ShellCommandCard shellCommand={item.chat_shell_command} /> : null}
-          {item.text.trim().length > 0 ? (
-            <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} />
-          ) : null}
+          {item.text.trim().length > 0 ? <UserMessageText item={item} payload={payload} /> : null}
           <MessageImageAttachments attachments={item.attachments} align="end" />
           <MessageFileAttachments attachments={item.attachments} align="end" />
         </div>
@@ -125,19 +123,79 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
 
 export function humanMessageBubbleClass(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload) {
   const base = "whitespace-pre-wrap break-words rounded px-4 py-2 text-sm leading-normal"
-  const currentUserId = payload.chat.current_user_id
-  const isOtherGroupParticipant = payload.chat.conversation_kind === "group" && item.sender_user && currentUserId !== undefined && item.sender_user.id !== currentUserId
-  const isInboundCrossChatBridge = item.cross_chat_bridge?.direction === "inbound"
 
-  if (isInboundCrossChatBridge) {
+  if (isInboundCrossChatBridge(item)) {
     return `${base} border border-cyan-200 bg-cyan-50 text-cyan-950 dark:border-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-100`
   }
 
-  if (isOtherGroupParticipant) {
+  if (isOtherGroupParticipant(item, payload)) {
     return `${base} border border-gray-200 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100`
   }
 
   return `${base} bg-brand text-on-brand`
+}
+
+function UserMessageText({ item, payload }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload }) {
+  if (shouldRenderUserMarkdown(item.text)) {
+    return <Markdown className={humanMarkdownMessageBubbleClass(item, payload)} text={item.text} />
+  }
+
+  return <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} />
+}
+
+function humanMarkdownMessageBubbleClass(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload) {
+  return [
+    humanMessageBubbleClass(item, payload).replace("whitespace-pre-wrap", "whitespace-normal"),
+    isCurrentUserBubble(item, payload) ? "chat-prose-invert" : null
+  ].filter(Boolean).join(" ")
+}
+
+function isCurrentUserBubble(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload) {
+  return !isInboundCrossChatBridge(item) && !isOtherGroupParticipant(item, payload)
+}
+
+function isInboundCrossChatBridge(item: Extract<ChatRenderItem, { type: "message" }>) {
+  return item.cross_chat_bridge?.direction === "inbound"
+}
+
+function isOtherGroupParticipant(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload) {
+  const currentUserId = payload.chat.current_user_id
+  return Boolean(payload.chat.conversation_kind === "group" && item.sender_user && currentUserId !== undefined && item.sender_user.id !== currentUserId)
+}
+
+export function shouldRenderUserMarkdown(text: string) {
+  const normalized = text.replace(/\r\n?/g, "\n").trim()
+  if (normalized === "") return false
+  if (/^```[\w.-]*\s*$/m.test(normalized)) return true
+
+  const lines = normalized.split("\n")
+  if (hasMarkdownTable(lines)) return true
+
+  const signalLineIndexes = lines
+    .map((line, index) => userMarkdownBlockSignal(line) ? index : null)
+    .filter((index): index is number => index !== null)
+
+  if (new Set(signalLineIndexes).size >= 2) return true
+  return signalLineIndexes.length > 0 && /\n\s*\n/.test(normalized)
+}
+
+function userMarkdownBlockSignal(line: string) {
+  return (
+    /^#{1,6}\s+\S/.test(line) ||
+    /^\s*(?:[-*+]|\d+[.)])\s+\S/.test(line) ||
+    /^\s*>\s?\S/.test(line) ||
+    /^\s*(?:---+|\*\*\*+|___+)\s*$/.test(line) ||
+    /^\s*\*\*[^*\n]{1,80}:?\*\*\s*$/.test(line) ||
+    isMarkdownTableDivider(line)
+  )
+}
+
+function hasMarkdownTable(lines: string[]) {
+  return lines.some((line, index) => index > 0 && line.includes("|") && isMarkdownTableDivider(line) && lines[index - 1]?.includes("|"))
+}
+
+function isMarkdownTableDivider(line: string) {
+  return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line)
 }
 
 function MessageImageAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
