@@ -32,20 +32,37 @@ class PollRepositoryJob < ApplicationJob
       client = GithubClient.for(repository: repository, user: repository.user)
       issues = list_labeled_issues(client, repository, since: incremental_since)
       closed_issues = list_labeled_issues(client, repository, state: "closed", since: incremental_since)
-      linked_lookup_issue_numbers = linked_open_pr_lookup_issue_numbers(repository, issues)
+      prior_jobs_by_issue_number = latest_jobs_by_issue_number(repository, issues)
+      linked_lookup_candidates = linked_open_pr_lookup_issue_numbers(issues, prior_jobs_by_issue_number)
+      linked_lookup_issue_numbers = linked_lookup_candidates.first(LINKED_OPEN_PR_LOOKUP_LIMIT)
+      linked_lookup_overflow_numbers = linked_lookup_candidates.drop(LINKED_OPEN_PR_LOOKUP_LIMIT).index_with(true)
       linked_open_prs = linked_lookup_issue_numbers.any? ? client.linked_open_prs_for_issues(repository.slug, linked_lookup_issue_numbers) : {}
       linked_lookup_numbers = linked_lookup_issue_numbers.index_with(true)
 
       stats = Hash.new(0)
       issues.each do |issue|
-        stats[ingest(issue, repository, linked_open_prs: linked_open_prs, linked_lookup_numbers: linked_lookup_numbers)] += 1
+        stats[ingest(
+          issue,
+          repository,
+          prior_jobs_by_issue_number: prior_jobs_by_issue_number,
+          linked_open_prs: linked_open_prs,
+          linked_lookup_numbers: linked_lookup_numbers,
+          linked_lookup_overflow_numbers: linked_lookup_overflow_numbers
+        )] += 1
       end
       closed_jobs = close_jobs_for_closed_issues!(repository, closed_issues)
       InputSources::PendingWorkWakeup.call(repository)
       update_untagged_open_issue_count!(repository, client)
 
       log_poll_summary(repository, issues: issues, closed_issues: closed_issues, closed_jobs: closed_jobs, stats: stats, incremental_since: incremental_since)
-      repository.mark_poll_started!(at: poll_started_at)
+      if linked_lookup_overflow_numbers.any?
+        Rails.logger.info(
+          "[PollRepositoryJob] #{repository.slug} deferred #{linked_lookup_overflow_numbers.size} " \
+          "issue(s) until a later poll to stay within the linked-PR lookup budget"
+        )
+      else
+        repository.mark_poll_started!(at: poll_started_at)
+      end
       repository.mark_poll_success!
     end
   rescue Octokit::TooManyRequests
@@ -107,22 +124,34 @@ class PollRepositoryJob < ApplicationJob
       epics: stats[:epic],
       preempted: stats[:preempted],
       preempt_attached: stats[:preempt_attached],
+      deferred: stats[:deferred],
       closed_jobs: closed_jobs
     }
     mode = incremental_since.present? ? "incremental since=#{incremental_since.iso8601}" : "full"
     Rails.logger.info("[PollRepositoryJob] #{repository.slug} #{mode} poll: #{counts.map { |key, value| "#{key}=#{value}" }.join(" ")}")
   end
 
-  def linked_open_pr_lookup_issue_numbers(repository, issues)
+  def latest_jobs_by_issue_number(repository, issues)
+    issue_numbers = Array(issues).map(&:number).compact.uniq
+    return {} if issue_numbers.empty?
+
+    Job.where(repository_id: repository.id, issue_number: issue_numbers)
+      .order(:issue_number, :created_at, :id)
+      .each_with_object({}) do |job, latest|
+        latest[job.issue_number] = job
+      end
+  end
+
+  def linked_open_pr_lookup_issue_numbers(issues, prior_jobs_by_issue_number)
     Array(issues).filter_map do |issue|
       number = issue.number
-      prior = latest_job_for_issue(repository, number)
+      prior = prior_jobs_by_issue_number[number]
       next number if prior.nil?
       next unless prior.open?
       next number if linked_open_pr_lookup_stale?(prior, issue)
 
       nil
-    end.uniq.first(LINKED_OPEN_PR_LOOKUP_LIMIT)
+    end.uniq
   end
 
   def linked_open_pr_lookup_stale?(job, issue)
@@ -130,7 +159,7 @@ class PollRepositoryJob < ApplicationJob
     return true if checked_at.blank?
 
     updated_at = issue_updated_at(issue)
-    return true if updated_at.blank?
+    return false if updated_at.blank?
 
     updated_at > checked_at
   end
@@ -144,7 +173,14 @@ class PollRepositoryJob < ApplicationJob
     nil
   end
 
-  def ingest(issue, repository, linked_open_prs:, linked_lookup_numbers:)
+  def ingest(
+    issue,
+    repository,
+    prior_jobs_by_issue_number:,
+    linked_open_prs:,
+    linked_lookup_numbers:,
+    linked_lookup_overflow_numbers:
+  )
     decision = IngestPolicy.evaluate(issue, repository)
     unless decision.allow
       return :skipped
@@ -153,7 +189,7 @@ class PollRepositoryJob < ApplicationJob
     marker = EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository)
     return ingest_epic_marker!(marker, issue, repository) if marker
 
-    prior = latest_job_for_issue(repository, issue.number)
+    prior = prior_jobs_by_issue_number[issue.number]
 
     # Look up linked PRs for any issue we might still act on — i.e.
     # brand-new issues *and* any open Job, regardless of whether
@@ -162,6 +198,8 @@ class PollRepositoryJob < ApplicationJob
     # immediately. Skip only fully-closed Jobs (they're terminal and
     # the lookup would be wasted).
     needs_lookup = prior.nil? || prior.open?
+    return :deferred if needs_lookup && linked_lookup_overflow_numbers.include?(issue.number)
+
     looked_up_linked_pr = needs_lookup && linked_lookup_numbers.include?(issue.number)
     linked = looked_up_linked_pr ? linked_open_prs[issue.number] : nil
     # Filter out our OWN PR — `closedByPullRequestsReferences` returns
