@@ -53,6 +53,8 @@ const SYSTEM_ALERT_DISMISSALS_KEY = "syrus.system_alert_dismissals"
 const MAINTENANCE_SIDEBAR_STATE_KEY = "syrus.maintenance_sidebar.state"
 const EMPTY_SIDEBAR_NAV_ORDER: string[] = []
 const SETTINGS_POPUP_MENU_CLASS = "absolute bottom-full left-0 z-30 mb-2 w-60 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950"
+const HIDDEN_MOBILE_CHAT_HEADER_BUTTON_LAYOUT_CLASS = "fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] z-30 inline-flex h-11 w-11 items-center justify-center rounded-full"
+const HIDDEN_MOBILE_CHAT_HEADER_BUTTON_TONE_CLASS = "border border-white/80 bg-gray-950 text-white shadow-lg ring-1 ring-gray-950/20 hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-gray-700 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100"
 const MOBILE_CHAT_HEADER_HIDE_DISTANCE = 72
 type MaintenanceSidebarState = { collapsed: boolean; hasTaskSnapshot: boolean; taskKeys: string[] }
 
@@ -418,7 +420,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         {mobileChatHeaderAutoHideActive && mobileChatHeaderHidden ? (
           <button
             aria-label={t("nav:open_sidebar")}
-            className="fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] z-30 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/80 bg-gray-950 text-white shadow-lg ring-1 ring-gray-950/20 hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-gray-700 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100"
+            className={`${HIDDEN_MOBILE_CHAT_HEADER_BUTTON_LAYOUT_CLASS} ${HIDDEN_MOBILE_CHAT_HEADER_BUTTON_TONE_CLASS}`}
             data-testid="mobile-chat-hidden-header-sidebar-button"
             onClick={() => {
               revealMobileChatHeader()
@@ -1710,7 +1712,7 @@ function ColorThemePicker() {
         type="button"
       >
         <span aria-hidden="true" className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: current.tokens.light.brand }} />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700 dark:text-gray-300">{current.name}</span>
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-primary">{current.name}</span>
         <ChevronDownIcon className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${expanded ? "rotate-180" : ""}`} />
       </button>
       <div
