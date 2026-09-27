@@ -75,6 +75,7 @@ RSpec.describe Steps::PromotionPublish do
   describe "mode: auto_pr" do
     before do
       allow(git).to receive(:run).with("push", "https://push.example/repo.git", "HEAD:refs/heads/#{branch_name}", chdir: "/tmp/workspace")
+      allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/workspace").and_return("promotionsha123\n")
       allow(client).to receive(:open_pull_request_for_head).and_return(nil)
       allow(client).to receive(:create_pull_request).and_return(OpenStruct.new(number: 501))
     end
@@ -91,7 +92,10 @@ RSpec.describe Steps::PromotionPublish do
         body: a_string_including(PrProvenanceMarker.stamp(kind: "syrus_promotion", job: job))
       )
       expect(client).to have_received(:merge_pull_request).with(
-        repository.slug, 501, commit_title: "Promote develop into main via Syrus", merge_method: "merge"
+        repository.slug, 501,
+        commit_title: "Promote develop into main via Syrus",
+        merge_method: "merge",
+        sha: "promotionsha123"
       )
       link = job.pr_links.find_by!(role: JobPrLink::ROLE_PROMOTION)
       expect(link.pr_number).to eq(501)
@@ -131,6 +135,7 @@ RSpec.describe Steps::PromotionPublish do
     before do
       stub_policy(mode: "manual_pr", approval_required: false)
       allow(git).to receive(:run).with("push", "https://push.example/repo.git", "HEAD:refs/heads/#{branch_name}", chdir: "/tmp/workspace")
+      allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/workspace").and_return("promotionsha123\n")
       allow(client).to receive(:open_pull_request_for_head).and_return(nil)
       allow(client).to receive(:create_pull_request).and_return(OpenStruct.new(number: 777))
       allow(client).to receive(:merge_pull_request)

@@ -12,12 +12,15 @@ class PullRequestMerger
     @client = client
   end
 
-  def merge(pr_number:, commit_title:, merge_method: DEFAULT_MERGE_METHOD)
+  def merge(pr_number:, commit_title:, expected_sha:, merge_method: DEFAULT_MERGE_METHOD)
+    raise ArgumentError, "expected_sha is required" if expected_sha.blank?
+
     @client.merge_pull_request(
       @repository.slug,
       pr_number,
       commit_title: commit_title,
-      merge_method: merge_method
+      merge_method: merge_method,
+      sha: expected_sha
     )
   end
 end
