@@ -201,9 +201,10 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   }, [mobileChatHeaderAutoHideActive])
   const mobileChatHeaderContext = useMemo(() => ({
     autoHideEnabled: mobileChatHeaderAutoHideActive,
+    offset: mobileChatHeaderOffset,
     reportScrollDelta: reportMobileChatScrollDelta,
     revealHeader: revealMobileChatHeader
-  }), [mobileChatHeaderAutoHideActive, reportMobileChatScrollDelta, revealMobileChatHeader])
+  }), [mobileChatHeaderAutoHideActive, mobileChatHeaderOffset, reportMobileChatScrollDelta, revealMobileChatHeader])
 
   useEffect(() => {
     if (!mobileChatHeaderAutoHideActive) setMobileChatHeaderOffset(0)
