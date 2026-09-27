@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_062000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_223403) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1534,6 +1534,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_062000) do
     t.datetime "last_seen_comment_at"
     t.datetime "last_seen_fork_review_comment_at"
     t.integer "linked_chat_id"
+    t.datetime "linked_open_pr_checked_at"
     t.string "local_mergeability_base_sha"
     t.datetime "local_mergeability_checked_at"
     t.string "local_mergeability_head_sha"

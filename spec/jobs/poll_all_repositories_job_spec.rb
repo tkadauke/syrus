@@ -23,4 +23,18 @@ RSpec.describe PollAllRepositoriesJob do
       described_class.perform_now
     }.not_to have_enqueued_job(PollRepositoryJob)
   end
+
+  it "skips repositories whose GitHub credential is already rate-limited" do
+    rate_limited = Factories.repository(polling_enabled: true)
+    rate_limited.user.update!(
+      gh_rate_limit_remaining: 0,
+      gh_rate_limit_reset_at: 30.minutes.from_now,
+      gh_rate_limit_observed_at: Time.current
+    )
+    ready = Factories.repository(polling_enabled: true)
+
+    expect {
+      described_class.perform_now
+    }.to have_enqueued_job(PollRepositoryJob).once.with(ready.id)
+  end
 end
