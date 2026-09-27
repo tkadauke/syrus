@@ -94,12 +94,26 @@ module OperatorBriefing
       <<~TEXT
         ## Output
 
-        Call `submit_briefing_block` once for each section as you produce it. For this phase,
-        submit only:
+        Call `submit_briefing_block` once for each section as you produce it. Supported
+        block kinds:
 
-        - `narrative` blocks with `payload.text`
+        - `narrative` blocks with `payload.text` and optional `payload.dive_candidates`.
+          Dive candidates must reference spans that appear verbatim in `payload.text`;
+          include at most #{BriefingRevision::MAX_DIVE_CANDIDATES} across the whole briefing.
+        - `chart` blocks with `payload.chart_type`, `payload.title`, and
+          `payload.data` entries containing `label` and `value`.
+        - `image` blocks with `payload.workflow_id`, `payload.type`, `payload.title`,
+          and optional `payload.caption`, only referencing existing screenshot typed
+          artifacts from summarized Workflows.
+        - `artifact` blocks with `payload.workflow_id`, `payload.type`, `payload.title`,
+          and optional `payload.caption`, only referencing existing non-image typed
+          artifacts from summarized Workflows.
         - `link_card` blocks with `payload.entity_type`, `payload.entity_id`, `payload.title`,
           `payload.path`, and optional `payload.description`
+
+        Never generate fresh image or artifact content for this briefing. Only use
+        `image` or `artifact` when the originating Workflow already captured that
+        typed artifact.
 
         Keep the writing concise and evidence-driven. Prefer a small number of high-signal
         blocks over a broad activity log. Include links to existing Jobs, Workflows, PRs,

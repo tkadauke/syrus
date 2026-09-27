@@ -1,0 +1,1 @@
+BriefingTopicRevision = OperatorBriefing::BriefingTopicRevision

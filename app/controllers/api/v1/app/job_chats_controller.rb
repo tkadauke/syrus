@@ -14,27 +14,15 @@ module Api
           job = find_job
           return unless authorize_job_mutation!(job)
 
-          chat_session = job.discussion_chat
+          chat_session = job.discussion_chat || ::App::JobDiscussionChatResolver.new(job: job, user: Current.user).resolve
           user_message = nil
           message_text = requested_message(job).presence
 
-          unless chat_session
-            ApplicationRecord.transaction do
-              chat_session = ChatSession.create!(user: Current.user, repository: job.repository)
-              chat_session.chat_attachments.create!(attachable: job)
-              user_message = chat_session.messages.create!(
-                role: "user",
-                content: { "text" => message_text || opening_message(job) },
-                sender_user_id: Current.user.id
-              )
-              chat_session.pin_chat_provider!
-            end
-          end
-
-          if chat_session && message_text.present? && user_message.nil?
+          ApplicationRecord.transaction do
+            chat_session.chat_attachments.find_or_create_by!(attachable: job)
             user_message = chat_session.messages.create!(
               role: "user",
-              content: { "text" => message_text },
+              content: { "text" => message_text || opening_message(job) },
               sender_user_id: Current.user.id
             )
             chat_session.pin_chat_provider!
@@ -59,14 +47,23 @@ module Api
         end
 
         def opening_message(job)
-          "I would like to chat about #{job.slug}."
+          context_card(job)
         end
 
         def requested_message(job)
           body = params[:message].to_s.strip
           return if body.blank?
 
-          [ "I would like to discuss #{job.slug}.", body.truncate(8_000) ].join("\n\n")
+          [ context_card(job), body.truncate(8_000) ].join("\n\n")
+        end
+
+        def context_card(job)
+          [
+            "Context: discuss #{job.slug}.",
+            "Repository: #{job.repository.slug}.",
+            "Title: #{job.issue_title.presence || job.slug}.",
+            "State: #{job.state}."
+          ].join("\n")
         end
       end
     end

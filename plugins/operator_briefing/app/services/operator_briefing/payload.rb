@@ -179,8 +179,41 @@ module OperatorBriefing
         id: revision.id,
         revision_number: revision.revision_number,
         generated_at: revision.generated_at&.iso8601,
-        content_blocks: revision.content_blocks
+        content_blocks: revision.content_blocks.map { |block| resolved_content_block(block) }
       }
+    end
+
+    def resolved_content_block(block)
+      block = block.is_a?(Hash) ? block.deep_stringify_keys : {}
+      return block unless %w[image artifact].include?(block["kind"].to_s)
+
+      payload = block["payload"].is_a?(Hash) ? block["payload"] : {}
+      artifact = artifact_for(payload["workflow_id"], payload["type"])
+      block.merge("payload" => payload.merge("artifact" => artifact))
+    end
+
+    def artifact_for(workflow_id, artifact_type)
+      workflow_id = workflow_id.to_i
+      return nil if workflow_id <= 0 || artifact_type.blank?
+
+      artifacts_by_workflow.fetch(workflow_id, []).find { |entry| entry["type"] == artifact_type.to_s || entry["original_type"] == artifact_type.to_s }
+    end
+
+    def artifacts_by_workflow
+      @artifacts_by_workflow ||= begin
+        workflow_ids = all_serialized_briefings.flat_map do |briefing|
+          Array(latest_revisions[briefing.id]&.content_blocks).filter_map do |block|
+            payload = block.is_a?(Hash) ? (block["payload"] || block[:payload]) : nil
+            payload = payload.is_a?(Hash) ? payload.stringify_keys : {}
+            payload["workflow_id"] if %w[image artifact].include?((block["kind"] || block[:kind]).to_s)
+          end
+        end.map(&:to_i).select(&:positive?).uniq
+        ::Workflow.joins(:job)
+          .where(id: workflow_ids, jobs: { repository_id: enabled_repository_ids })
+          .each_with_object({}) do |workflow, index|
+            index[workflow.id] = TypedArtifactRenderer.enrich(Array(workflow.artifact("typed_artifacts")))
+          end
+      end
     end
 
     def job_payload(job)

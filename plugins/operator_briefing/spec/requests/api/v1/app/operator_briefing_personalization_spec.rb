@@ -61,4 +61,49 @@ RSpec.describe "Operator briefing personalization API", type: :request do
     expect(feedback.memory_entry).to be_present
     expect(response.parsed_body.dig("feedback", "memory_entry_id")).to eq(feedback.memory_entry_id)
   end
+
+  it "starts a briefing dive workflow with the selected text context" do
+    allow(WorkUnits::Launcher).to receive(:create_and_start!) do |kind:, job:, artifacts:, **|
+      workflow = OperatorBriefing::DiveWorkflow.instantiate(job: job, artifacts: artifacts)
+      instance_double(WorkUnits::Launcher::Result, workflow: workflow, status: "started")
+    end
+
+    post "/api/v1/app/briefing/#{briefing.id}/dive",
+         params: {
+           dive: {
+             selected_text: "architecture change",
+             prompt: "Explain this",
+             evidence: [ { workflow_id: 123 } ]
+           }
+         },
+         as: :json
+
+    expect(response).to have_http_status(:created)
+    expect(WorkUnits::Launcher).to have_received(:create_and_start!).with(
+      kind: "briefing_dive",
+      job: job,
+      artifacts: hash_including(
+        "briefing_dive_context" => hash_including(
+          "briefing_id" => briefing.id,
+          "selected_text" => "architecture change",
+          "prompt" => "Explain this",
+          "evidence" => [ { "workflow_id" => 123 } ]
+        )
+      )
+    )
+  end
+
+  it "opens a briefing discussion chat with context" do
+    allow(User).to receive(:chat_providers).and_return(%w[claude])
+
+    expect {
+      post "/api/v1/app/briefing/#{briefing.id}/discuss", as: :json
+    }.to change(ChatSession, :count).by(1)
+      .and change(ChatMessage, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    chat = ChatSession.last
+    expect(response.parsed_body.fetch("redirect_to")).to eq("/chats/#{chat.id}")
+    expect(chat.messages.sole.content.fetch("text")).to include("Context: discuss the Operator Briefing for #{repository.slug}.")
+  end
 end

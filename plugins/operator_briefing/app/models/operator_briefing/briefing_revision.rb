@@ -2,7 +2,9 @@ module OperatorBriefing
   class BriefingRevision < ApplicationRecord
     self.table_name = "operator_briefing_revisions"
 
-    BLOCK_KINDS = %w[narrative link_card].freeze
+    BLOCK_KINDS = %w[narrative chart image artifact link_card].freeze
+    CHART_TYPES = %w[count_by_severity count_by_state].freeze
+    MAX_DIVE_CANDIDATES = 5
 
     belongs_to :briefing, class_name: "OperatorBriefing::Briefing"
     belongs_to :generation_run, class_name: "Run", optional: true
@@ -40,7 +42,12 @@ module OperatorBriefing
       hash = block.is_a?(Hash) ? block.deep_stringify_keys : {}
       hash.slice("kind", "payload").tap do |normalized|
         normalized["payload"] = normalized["payload"].is_a?(Hash) ? normalized["payload"] : {}
+        normalized["payload"] = normalize_payload(normalized["kind"], normalized["payload"])
       end
+    end
+
+    def normalize_payload(kind, payload)
+      BlockPayloadNormalizers::Base.for(kind).normalize(payload)
     end
 
     def broadcast_block(block)

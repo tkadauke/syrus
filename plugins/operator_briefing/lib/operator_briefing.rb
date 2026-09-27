@@ -24,7 +24,10 @@ module OperatorBriefing
              mcp_tool_set: "OperatorBriefing::McpToolSet"
     tick_interval 1.minute
     route :get, "/api/v1/app/briefing", to: "api/v1/app/operator_briefing/briefings#show"
+    route :get, "/api/v1/app/briefing/topics/:id", to: "api/v1/app/operator_briefing/topics#show"
     route :post, "/api/v1/app/briefing/repositories/:repository_id/regenerate", to: "api/v1/app/operator_briefing/briefings#regenerate"
+    route :post, "/api/v1/app/briefing/:id/dive", to: "api/v1/app/operator_briefing/briefings#dive"
+    route :post, "/api/v1/app/briefing/:id/discuss", to: "api/v1/app/operator_briefing/briefings#discuss"
     route :patch, "/api/v1/app/briefing/subscriptions/:id", to: "api/v1/app/operator_briefing/subscriptions#update"
     route :patch, "/api/v1/app/briefing/source_preferences/:id", to: "api/v1/app/operator_briefing/source_preferences#update"
     route :post, "/api/v1/app/briefing/source_preferences/:id/confirm", to: "api/v1/app/operator_briefing/source_preferences#confirm"

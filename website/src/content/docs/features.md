@@ -1502,10 +1502,17 @@ the previous closed briefing; manual regeneration always runs. Starting a new
 briefing supersedes the previous live briefing for that repository and keeps
 older revisions browsable as read-only history.
 
-The first briefing view renders narrative blocks and link cards that point back
-to the Jobs and Workflows behind the summary. Later plugin phases can add richer
-block types without changing the live/archive model, which remains the wrapped
-Job's open or closed state.
+Briefing revisions render typed content blocks: narrative, small fixed-shape
+charts, image and artifact references to existing typed artifacts, and link
+cards that point back to the Jobs and Workflows behind the summary. Artifact
+blocks are read-only references to artifacts already captured by the summarized
+Workflow.
+
+Narrative spans can start wiki-style dives. The briefing can seed a small set
+of "worth a closer look" spans, and operators can also select arbitrary text
+and click "More info." Both paths start a `briefing_dive` follow-up Workflow on
+the same live Briefing Job and produce or revise a durable repository-scoped
+topic page.
 
 ## Mockups
 
