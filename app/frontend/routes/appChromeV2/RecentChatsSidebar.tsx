@@ -49,6 +49,7 @@ const SIDEBAR_ACTION_BUTTON_CLASS = "flex w-full items-center gap-2 px-3 py-1.5 
 const SIDEBAR_DANGER_BUTTON_CLASS = "flex w-full items-center gap-2 px-3 py-2 text-left text-danger-text hover:bg-danger-surface disabled:cursor-not-allowed disabled:opacity-60"
 const SIDEBAR_DIVIDER_CLASS = "my-1 border-t border-border"
 const SIDEBAR_DIALOG_CLOSE_CLASS = "rounded p-1 text-text-secondary hover:bg-surface-subtle hover:text-text-primary"
+const RECENT_CHATS_ICON_BUTTON_CLASS = "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded p-0 text-gray-500 hover:bg-gray-100 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-400 dark:hover:bg-gray-800"
 
 // Recent-chats sidebar extracted from AppChromeV2.tsx: the recent-chats list
 // (RecentChatsSidebar) with its activity marker and per-chat actions menu.
@@ -401,6 +402,8 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
           const visibleChats = collapsed ? [] : section.chats
           const canShowMore = !collapsed && section.has_more
           const canShowLess = !collapsed && Boolean(loaded)
+          const quickStartRepositoryId = section.group_by === "repository" ? section.repository_id : undefined
+          const showQuickStart = section.group_by === "repository" && Boolean(onStartChat)
 
           return (
             <section className="space-y-1" key={section.key}>
@@ -414,12 +417,12 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                   <ChevronDownIcon className={collapsed ? "-rotate-90" : ""} />
                   <span className="min-w-0 flex-1 truncate">{section.label}</span>
                 </button>
-                {section.group_by === "repository" && section.repository_id != null && onStartChat ? (
+                {showQuickStart ? (
                   <button
                     aria-label={`New chat in ${section.label}`}
-                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-400 dark:hover:bg-gray-800"
+                    className={RECENT_CHATS_ICON_BUTTON_CLASS}
                     disabled={startingChat}
-                    onClick={() => onStartChat(section.repository_id)}
+                    onClick={() => onStartChat?.(quickStartRepositoryId)}
                     title={`New chat in ${section.label}`}
                     type="button"
                   >
@@ -598,7 +601,7 @@ function RecentChatsSettingsMenu({ availableChatTypes, chatTypeFeatureVisible, s
       <button
         aria-expanded={open}
         aria-label={t("recent_chats_settings")}
-        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-400 dark:hover:bg-gray-800"
+        className={RECENT_CHATS_ICON_BUTTON_CLASS}
         onClick={() => setOpen((value) => !value)}
         title={t("recent_chats_settings")}
         type="button"

@@ -225,10 +225,11 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     if (normalizedPath === "/chats/new") return
     if (startingChat) return
 
+    const useDefaultRepository = repositoryId === undefined
     setStartingChat(true)
     setDrawerOpen(false)
     try {
-      const unstartedChat = repositoryId == null ? firstUnstartedChat(queryClient.getQueryData<ChatsIndexPayload>(recentChatsQueryKey())) : null
+      const unstartedChat = useDefaultRepository ? firstUnstartedChat(queryClient.getQueryData<ChatsIndexPayload>(recentChatsQueryKey())) : null
       if (unstartedChat) {
         navigate(withRoutePrefix(unstartedChat.chat_path, prefix))
         return
@@ -237,7 +238,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       const newChat = await fetchNewChat()
       const configuredProviders = configuredChatProviderOptions(newChat.chat_provider_options)
       const defaultProvider = defaultNewChatProvider(newChat, configuredProviders)
-      const selectedRepositoryId = repositoryId ?? newChat.default_repository_id
+      const selectedRepositoryId = useDefaultRepository ? newChat.default_repository_id : repositoryId
       const created = defaultProvider
         ? await createEmptyChat(selectedRepositoryId, defaultProvider)
         : await createEmptyChat(selectedRepositoryId)

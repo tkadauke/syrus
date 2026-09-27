@@ -910,6 +910,60 @@ describe("AppChromeV2", () => {
     expect(queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])?.groups[0].chats[0].id).toBe(14)
   })
 
+  it("creates a repositoryless empty chat from the General recent-chat quick-start", async () => {
+    vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({ default_repository_id: 7 })
+    vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
+      message: "Chat created.",
+      redirect_to: "/chats/14",
+      chat: chatNav({
+        id: 14,
+        title: null,
+        title_pending: false,
+        chat_path: "/chats/14",
+        last_message_at: null
+      }) as chatsApi.ChatRecord
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [
+        chatGroup({
+          key: "general",
+          label: "General",
+          repository_id: null,
+          group_by: "repository",
+          group_value: null,
+          chats: [
+            chatNav({
+              id: 12,
+              title: null,
+              title_pending: true,
+              chat_path: "/chats/12",
+              current: false,
+              last_message_at: null,
+              created_at: "2026-06-01T00:00:00Z",
+              updated_at: "2026-06-01T00:00:00Z"
+            })
+          ]
+        })
+      ]
+    }))
+
+    renderAppChrome(<LocationProbe />, {
+      initialEntries: ["/app-shell/dashboard/jobs"],
+      queryClient,
+      routeWrapper: true
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "New chat in General" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14")
+    })
+    expect(chatsApi.fetchNewChat).toHaveBeenCalledTimes(1)
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledTimes(1)
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(null)
+  })
+
   it("creates an empty chat directly when only one chat provider is configured", async () => {
     vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({
       default_repository_id: 7,
