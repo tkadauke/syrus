@@ -76,8 +76,6 @@ module DesignDocs
 
     private
 
-    BLOCK_MARKER_PATTERN = /\A\s{0,3}(\#{1,6}\s+|[-*+]\s+|\d+\.\s+|>\s?|```|~~~)/
-
     attr_reader :design_doc, :user, :attributes, :actor_kind
 
     def create_autosave_suggestion(base_version)
@@ -210,10 +208,11 @@ module DesignDocs
       return if start_offset == end_offset
       return if block_boundary?(visible, start_offset) && block_boundary?(visible, end_offset)
 
-      selected = visible[start_offset...end_offset].to_s
-      return unless selected.match?(BLOCK_MARKER_PATTERN) || cuts_block_marker?(visible, start_offset) || cuts_block_marker?(visible, end_offset)
+      return unless range_starts_with_block_marker?(visible, start_offset) || cuts_block_marker?(visible, start_offset) || cuts_block_marker?(visible, end_offset)
 
-      raise_invalid_suggestion!("Suggestions cannot select only part of Markdown block syntax. Select the whole heading, list item, quote, or code fence block.")
+      raise_invalid_suggestion!(
+        "Suggestions cannot select only part of Markdown block syntax. Select the whole heading, list item, quote, or code fence block. #{valid_range_hint(visible, start_offset, end_offset)}"
+      )
     end
 
     def validate_original_markdown!(visible, start_offset, end_offset)
@@ -252,18 +251,15 @@ module DesignDocs
       text = markdown.to_s
       return false if text.include?("\n")
 
-      !text.match?(BLOCK_MARKER_PATTERN)
+      !starts_with_block_marker?(text)
     end
 
     def cuts_block_marker?(visible, offset)
-      line_start = visible.rindex("\n", [ offset - 1, 0 ].max)&.+(1) || 0
-      line_end = visible.index("\n", offset) || visible.length
-      line = visible[line_start...line_end].to_s
-      marker = BLOCK_MARKER_PATTERN.match(line)
-      return false unless marker
+      line = DesignDocs::MarkdownBlocks.line_at(visible, offset)
+      return false unless line&.block_marker?
 
-      marker_end = line_start + marker[0].length
-      offset > line_start && offset < marker_end
+      marker_end = line.start_offset + line.text.match(DesignDocs::MarkdownBlocks::BLOCK_MARKER_PATTERN)[0].length
+      offset > line.start_offset && offset < marker_end
     end
 
     def block_boundary?(visible, offset)
@@ -277,8 +273,40 @@ module DesignDocs
     end
 
     def line_starts_with_block_marker?(visible, offset)
-      line_end = visible.index("\n", offset) || visible.length
-      visible[offset...line_end].to_s.match?(BLOCK_MARKER_PATTERN)
+      DesignDocs::MarkdownBlocks.line_at(visible, offset)&.block_marker?
+    end
+
+    def range_starts_with_block_marker?(visible, offset)
+      line = DesignDocs::MarkdownBlocks.line_at(visible, offset)
+      line&.block_marker? && offset == line.start_offset
+    end
+
+    def starts_with_block_marker?(markdown)
+      first_line = markdown.to_s.each_line.first.to_s
+      DesignDocs::MarkdownBlocks.marker_at_line(first_line).present?
+    end
+
+    def valid_range_hint(visible, start_offset, end_offset)
+      if (section = containing_heading_section(visible, start_offset, end_offset))
+        return "The containing heading section \"#{section.text}\" runs from offset #{section.start_offset} to #{section.end_offset}; retry with start_offset #{section.start_offset} and end_offset #{section.end_offset}, or supply original_markdown and let the tool resolve it for you."
+      end
+
+      range_start, range_end = nearest_block_boundary_range(visible, start_offset, end_offset)
+      "The nearest valid block boundary range runs from offset #{range_start} to #{range_end}; retry with start_offset #{range_start} and end_offset #{range_end}, or supply original_markdown and let the tool resolve it for you."
+    end
+
+    def containing_heading_section(visible, start_offset, end_offset)
+      DesignDocs::MarkdownBlocks.heading_sections(visible)
+        .select { |section| section.start_offset <= start_offset && section.end_offset >= end_offset }
+        .min_by { |section| [ section.end_offset - section.start_offset, -section.level ] }
+    end
+
+    def nearest_block_boundary_range(visible, start_offset, end_offset)
+      boundaries = (0..visible.length).select { |offset| block_boundary?(visible, offset) }
+      [
+        boundaries.select { |offset| offset <= start_offset }.max || 0,
+        boundaries.find { |offset| offset >= end_offset } || visible.length
+      ]
     end
 
     def raise_invalid_suggestion!(message)

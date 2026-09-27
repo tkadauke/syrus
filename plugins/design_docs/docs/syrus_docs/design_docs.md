@@ -214,6 +214,16 @@ toolbar does not offer `Edit`, their in-flight edits autosave as pending
 suggestions, the save action is labeled as suggestion creation, and
 accept/reject controls render as pending owner review.
 
+## MCP tools
+
+Chat agents can list, read, propose, comment on, suggest changes to, archive,
+and inspect the section outline of visible design docs. Workflow agents get the
+read-only subset scoped to docs linked to the run repository. The
+`list_design_doc_sections` tool returns every Markdown heading in the current
+rendered Markdown, with its level, text, start offset, and section end offset,
+so agents can target `suggest_design_doc_change` without hand-parsing the full
+document body.
+
 ## Thread Mentions
 
 Users who can comment/suggest on a Design Doc can invoke a lightweight Design
@@ -303,6 +313,13 @@ Chat agents can read docs with `list_design_docs` and `read_design_doc`, create
 new docs with `propose_design_doc`, add anchored discussion with
 `comment_on_design_doc`, suggest edits with `suggest_design_doc_change`, and
 archive docs with `delete_design_doc`.
+
+`read_design_doc` defaults to `detail: "full"`, preserving the complete payload
+with capped Markdown, rendered Markdown, permissions, threads, comments, and
+suggestions. Callers that only need routing or freshness metadata can pass
+`detail: "summary"` to receive just DOC reference, title, state, visibility,
+current version number, pending suggestion count, open thread count, and update
+timestamp.
 
 `suggest_design_doc_change` requires `base_version_number`, copied from the
 `current_version_number` field returned by the `read_design_doc` call that

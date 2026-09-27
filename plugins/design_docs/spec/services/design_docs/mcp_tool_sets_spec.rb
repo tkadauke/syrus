@@ -76,6 +76,22 @@ RSpec.describe "DesignDocs MCP tool sets" do
     JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
   end
 
+  def response_text(response)
+    response.dig(:result, :content, 0, :text)
+  end
+
+  def capture_sql
+    queries = []
+    callback = ->(_name, _started, _finished, _id, payload) do
+      next if payload[:name].to_s.match?(/\ASCHEMA|TRANSACTION\z/)
+
+      queries << payload[:sql].to_s
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   def workflow_run
     job = Factories.job(repository: repository)
     step = job.workflows.last.steps.find_by!(kind: "implement")
@@ -92,12 +108,13 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(chat_names).to include(
       "list_design_docs",
       "read_design_doc",
+      "list_design_doc_sections",
       "propose_design_doc",
       "comment_on_design_doc",
       "suggest_design_doc_change",
       "delete_design_doc"
     )
-    expect(workflow_names).to contain_exactly("list_design_docs", "read_design_doc")
+    expect(workflow_names).to contain_exactly("list_design_docs", "read_design_doc", "list_design_doc_sections")
   end
 
   it "archives a fresh empty v1 design doc immediately without physical deletion" do
@@ -260,12 +277,193 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(suggest.fetch(:description)).to include("suggestion-only")
     expect(suggest.fetch(:description)).to include("never directly mutates canonical Markdown")
     expect(suggest.fetch(:description)).to include("re-read the Design Doc")
+    expect(read.dig(:input_schema, :properties, :detail, :enum)).to eq(%w[full summary])
     expect(suggest.dig(:input_schema, :properties, :base_version_number, :description)).to include("current_version_number")
     expect(suggest.dig(:input_schema, :properties, :original_markdown, :description)).to include("must be unique")
     expect(suggest.dig(:input_schema, :properties, :start_offset, :description)).to include("blank-line boundary")
     expect(suggest.dig(:input_schema, :properties, :occurrence_index, :description)).to include("1-based occurrence")
     expect(suggest.dig(:input_schema, :required)).to include("base_version_number")
     expect(suggest.dig(:input_schema, :required)).not_to include("start_offset", "end_offset")
+  end
+
+  it "returns a heading outline with offsets and nested section ranges" do
+    markdown = <<~MARKDOWN
+      # Overview
+
+      Intro text.
+
+      ## Goals
+
+      Goal text.
+
+      ### Details
+
+      Detail text.
+
+      ## Risks
+
+      Risk text.
+
+      # Appendix
+
+      Tail text.
+    MARKDOWN
+    doc = create_design_doc(markdown: markdown)
+
+    response = call_tool(chat_server, "list_design_doc_sections", doc_ref: doc.display_id)
+    payload = response_payload(response)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload).to include(read_only: false, reference_format: doc.display_id)
+    expect(payload.dig(:design_doc, :doc_ref)).to eq(doc.display_id)
+    expect(payload.fetch(:sections)).to eq([
+      { text: "Overview", level: 1, start_offset: markdown.index("# Overview"), end_offset: markdown.index("# Appendix") },
+      { text: "Goals", level: 2, start_offset: markdown.index("## Goals"), end_offset: markdown.index("## Risks") },
+      { text: "Details", level: 3, start_offset: markdown.index("### Details"), end_offset: markdown.index("## Risks") },
+      { text: "Risks", level: 2, start_offset: markdown.index("## Risks"), end_offset: markdown.index("# Appendix") },
+      { text: "Appendix", level: 1, start_offset: markdown.index("# Appendix"), end_offset: markdown.length }
+    ])
+  end
+
+  it "returns an empty heading outline for an empty document" do
+    doc = create_design_doc(markdown: "Temporary body")
+    doc.current_version.update_columns(markdown: "")
+    doc.update_columns(markdown: "")
+
+    response = call_tool(chat_server, "list_design_doc_sections", doc_ref: doc.display_id)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(response_payload(response).fetch(:sections)).to eq([])
+  end
+
+  it "ignores heading-like text inside fenced code blocks" do
+    markdown = <<~MARKDOWN
+      # Visible
+
+      `````markdown
+      ````ruby
+      # not a heading
+      ## also not a heading
+      ````
+      ## still not a heading
+      `````
+
+      ## Real section
+
+      Text.
+    MARKDOWN
+    doc = create_design_doc(markdown: markdown)
+
+    response = call_tool(chat_server, "list_design_doc_sections", doc_ref: doc.display_id)
+    sections = response_payload(response).fetch(:sections)
+
+    expect(sections.pluck(:text)).to eq([ "Visible", "Real section" ])
+    expect(sections.first).to include(
+      level: 1,
+      start_offset: markdown.index("# Visible"),
+      end_offset: markdown.length
+    )
+    expect(sections.second).to include(
+      level: 2,
+      start_offset: markdown.index("## Real section"),
+      end_offset: markdown.length
+    )
+  end
+
+  it "keeps read_design_doc default payload identical to the existing full detail payload" do
+    doc = create_design_doc(markdown: "Default full payload")
+    server = chat_server
+
+    omitted_response = call_tool(server, "read_design_doc", doc_ref: doc.display_id)
+    full_response = call_tool(server, "read_design_doc", doc_ref: doc.display_id, detail: "full")
+
+    expect(response_text(omitted_response)).to eq(response_text(full_response))
+    expect(response_text(omitted_response)).to eq(
+      JSON.generate(
+        design_doc: DesignDocs::ReadDesignDocTool.detail_payload(
+          doc.reload,
+          context: McpToolContext.from_server_context(chat_session: chat_session)
+        ),
+        read_only: false,
+        reference_format: doc.display_id
+      )
+    )
+    expect(response_payload(omitted_response).fetch(:design_doc)).to eq(
+      DesignDocs::ReadDesignDocTool.detail_payload(
+        doc.reload,
+        context: McpToolContext.from_server_context(chat_session: chat_session)
+      )
+    )
+  end
+
+  it "returns only design doc metadata from read_design_doc summary mode" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { body: "Keep this", start_offset: 0, end_offset: 5, selected_markdown: "Alpha" }
+    )
+    DesignDocs::CreateSuggestion.call(
+      design_doc: doc.reload,
+      user: owner,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "delta" }
+    )
+
+    response = call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id, detail: "summary")
+    design_doc = response_payload(response).fetch(:design_doc)
+
+    expect(design_doc.keys).to contain_exactly(
+      :doc_ref,
+      :title,
+      :state,
+      :visibility,
+      :current_version_number,
+      :pending_suggestions_count,
+      :open_threads_count,
+      :updated_at
+    )
+    expect(design_doc).to include(
+      doc_ref: doc.display_id,
+      title: "Checkout design",
+      state: "draft",
+      visibility: "public",
+      current_version_number: doc.reload.current_version.version_number,
+      pending_suggestions_count: 1,
+      open_threads_count: 2,
+      updated_at: doc.updated_at.iso8601
+    )
+  end
+
+  it "does not load discussion associations for read_design_doc summary metadata" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { body: "Keep this", start_offset: 0, end_offset: 5, selected_markdown: "Alpha" }
+    )
+    DesignDocs::CreateSuggestion.call(
+      design_doc: doc.reload,
+      user: owner,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "delta" }
+    )
+    fresh_doc = DesignDocs::DesignDoc.find(doc.id)
+
+    expect(fresh_doc.association(:threads)).not_to be_loaded
+    expect(fresh_doc.association(:suggestions)).not_to be_loaded
+
+    DesignDocs::ReadDesignDocTool.metadata_payload(fresh_doc)
+
+    expect(fresh_doc.association(:threads)).not_to be_loaded
+    expect(fresh_doc.association(:suggestions)).not_to be_loaded
+
+    queries = capture_sql do
+      response = call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id, detail: "summary")
+      expect(response.dig(:result, :isError)).to be_falsey
+    end
+
+    expect(queries.grep(/\bFROM [`"]?design_doc_comments[`"]?/i)).to be_empty
+    expect(queries.grep(/\bSELECT\b(?!\s+COUNT\b).*?\bFROM [`"]?design_doc_threads[`"]?/im)).to be_empty
+    expect(queries.grep(/\bSELECT\b(?!\s+COUNT\b).*?\bFROM [`"]?design_doc_suggestions[`"]?/im)).to be_empty
   end
 
   it "scopes workflow reads to design docs visible through the run repository" do
@@ -499,6 +697,33 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(suggestion).to have_attributes(original_markdown: "beta", suggested_markdown: "BETTA")
   end
 
+  it "allows marker-looking lines inside fenced code blocks" do
+    markdown = "```\n# code\n```\n\nBody"
+    doc = create_design_doc(markdown: markdown)
+    server = chat_server
+    start_offset = markdown.index("# code")
+    end_offset = start_offset + "# code".length
+
+    expect {
+      response = call_tool(
+        server,
+        "suggest_design_doc_change",
+        doc_ref: doc.display_id,
+        start_offset: start_offset,
+        end_offset: end_offset,
+        base_version_number: doc.current_version.version_number,
+        original_markdown: "# code",
+        proposed_markdown: "# still code"
+      )
+
+      expect(response.dig(:result, :isError)).to be_falsey
+    }.to change(DesignDocs::DesignDocSuggestion, :count).by(1)
+
+    suggestion = DesignDocs::DesignDocSuggestion.last
+    expect(suggestion.anchor).to have_attributes(start_offset: start_offset, end_offset: end_offset)
+    expect(suggestion).to have_attributes(original_markdown: "# code", suggested_markdown: "# still code")
+  end
+
   it "keeps block-boundary validation active for original_markdown-resolved ranges" do
     doc = create_design_doc(markdown: "## Heading\n\nBody")
     server = chat_server
@@ -514,7 +739,11 @@ RSpec.describe "DesignDocs MCP tool sets" do
       )
 
       expect(response.dig(:result, :isError)).to be true
-      expect(response.dig(:result, :content, 0, :text)).to include("Suggestions cannot select only part of Markdown block syntax")
+      text = response.dig(:result, :content, 0, :text)
+      expect(text).to include("Suggestions cannot select only part of Markdown block syntax")
+      expect(text).to include("The containing heading section \"Heading\" runs from offset 0 to #{doc.markdown.length}")
+      expect(text).to include("retry with start_offset 0 and end_offset #{doc.markdown.length}")
+      expect(text).to include("supply original_markdown and let the tool resolve it for you")
     }.not_to change(DesignDocs::DesignDocSuggestion, :count)
   end
 
@@ -709,7 +938,7 @@ RSpec.describe "DesignDocs MCP tool sets" do
 
     run = workflow_run
     server = workflow_server(run)
-    expect(tool_names(server)).to contain_exactly("list_design_docs", "read_design_doc")
+    expect(tool_names(server)).to contain_exactly("list_design_docs", "read_design_doc", "list_design_doc_sections")
 
     read_response = call_tool(server, "read_design_doc", doc_ref: doc.display_id)
     expect(response_payload(read_response).dig(:design_doc, :rendered_markdown)).to eq("Alpha beta delta")
