@@ -344,7 +344,7 @@ export function JobDetailView({
           <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
           <PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} />
         </PageHeading>
-        <div className="flex min-w-0 flex-col items-start gap-x-6 gap-y-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-row flex-wrap items-center justify-between gap-x-3 gap-y-3 sm:gap-x-6" data-testid="job-header-toolbar">
           <HeaderMetadataList
             items={[
               { node: <JobStateBadge state={payload.job.summary_state} />, className: "hidden sm:inline-flex" },
@@ -377,7 +377,7 @@ export function JobDetailView({
                 : null
             ]}
           />
-          <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center justify-end gap-3 sm:w-auto" data-testid="job-header-actions">
+          <div className="flex w-auto min-w-0 shrink-0 flex-wrap items-center justify-end gap-3" data-testid="job-header-actions">
             <HeaderActions
               command={command}
               onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
@@ -480,7 +480,7 @@ function HeaderMetadataList({ items }: { items: HeaderMetadataItem[] }) {
 
   return (
     <div
-      className="flex w-full min-w-0 flex-none flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 dark:text-gray-300 sm:flex-1"
+      className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 dark:text-gray-300"
       data-testid="job-header-metadata"
     >
       {visibleItems.map((item, index) => (
@@ -541,13 +541,15 @@ function HeaderChatAffordance({
   if (payload.actions.can_start_chat) {
     return (
       <button
+        aria-label={t("chat_about_this")}
         className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
         disabled={command.isPending}
         onClick={() => command.mutate({ method: "post", path: payload.paths.app_start_chat_path })}
         type="button"
       >
         <ChatBubbleIcon />
-        <span>{t("chat_about_this")}</span>
+        <span aria-hidden="true" className="sm:hidden">{t("chat")}</span>
+        <span aria-hidden="true" className="hidden sm:inline">{t("chat_about_this")}</span>
       </button>
     )
   }

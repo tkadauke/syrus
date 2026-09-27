@@ -5,6 +5,7 @@
   "command_error": "Job command failed.",
   "feedback_submitted": "Feedback submitted — a new workflow will start shortly.",
   "view_in_chat": "View in chat",
+  "chat": "Chat",
   "chat_about_this": "Chat about this",
   "prepare_skipped": "prepare skipped",
   "deployment_stages_label": "Deployment stages",
