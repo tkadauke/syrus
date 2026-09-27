@@ -472,7 +472,7 @@ describe("ReviewWorkspace", () => {
     })
   })
 
-  it("creates a comment from non-empty text then submits the whole review when Submit feedback is clicked", async () => {
+  it("creates a comment from non-empty text then submits the whole review when Submit is clicked", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ id: 1 })]))
     vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([
@@ -488,7 +488,7 @@ describe("ReviewWorkspace", () => {
 
     await screen.findByText("Please add a regression spec.")
     fireEvent.change(screen.getByLabelText("Whole-review comment"), { target: { value: "One more thing." } })
-    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
 
     await waitFor(() => {
       expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
@@ -823,7 +823,7 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findByText("Please add a regression spec.")
-    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
 
     await waitFor(() => {
       expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1], 100)
@@ -854,7 +854,7 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findByText("1 handled")
-    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
 
     await waitFor(() => {
       expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100)
@@ -1415,7 +1415,7 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findByText("Please add a regression spec.")
-    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
 
     await waitFor(() => {
       expect(fetchDiffReviewComments).toHaveBeenCalledWith(42, "?surface=job_review_workspace&all_versions=1")
