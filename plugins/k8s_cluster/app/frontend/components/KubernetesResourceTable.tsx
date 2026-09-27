@@ -13,6 +13,7 @@ type KubernetesResourceTableProps<TRow> = {
   defaultSort: { column: string; direction?: "asc" | "desc" }
   empty: ReactNode
   getRowKey: (row: TRow) => string | number
+  renderExpanded?: (row: TRow) => ReactNode
   rows: TRow[]
   storageKey: string
   summary: ReactNode
@@ -20,9 +21,16 @@ type KubernetesResourceTableProps<TRow> = {
 
 const SEARCH_FIELD = "resource_query"
 
-export function KubernetesResourceTable<TRow>(
-  { columns, defaultSort, empty, getRowKey, rows, storageKey, summary }: KubernetesResourceTableProps<TRow>
-) {
+export function KubernetesResourceTable<TRow>({
+  columns,
+  defaultSort,
+  empty,
+  getRowKey,
+  renderExpanded,
+  rows,
+  storageKey,
+  summary
+}: KubernetesResourceTableProps<TRow>) {
   const { t } = useT("k8s_cluster")
   const location = useLocation()
   const filterSchema = useMemo(() => resourceFilterSchema(t, columns, rows), [columns, rows, t])
@@ -50,6 +58,7 @@ export function KubernetesResourceTable<TRow>(
         getRowKey={getRowKey}
         localSort
         panel={{ summary, meta }}
+        renderExpanded={renderExpanded}
         rows={filteredRows}
         storageKey={storageKey}
       />

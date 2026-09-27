@@ -3,6 +3,7 @@ import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesEvents, type KubernetesEventRow } from "../../api/kubernetesResources"
+import { formatAge } from "../../lib/k8sFormat"
 import { KubernetesResourceTable, type KubernetesResourceTableColumn } from "../KubernetesResourceTable"
 import { StatusBadge } from "../StatusBadge"
 import { SearchNoMatches, TableSearch, TruncatedNotice, matchesSearch, useTableSearch } from "../TableTools"
@@ -100,9 +101,19 @@ function eventColumns(t: ReturnType<typeof useT>["t"]): Array<KubernetesResource
       header: t("col_last_seen"),
       className: "text-gray-700 dark:text-gray-300",
       filterValue: (event) => event.last_timestamp || event.first_timestamp,
-      render: (event) => event.last_timestamp || event.first_timestamp || "-",
+      render: (event) => <EventAge timestamp={event.last_timestamp || event.first_timestamp} />,
       sort: "last_timestamp",
       sortValue: (event) => event.last_timestamp || event.first_timestamp
     }
   ]
+}
+
+function EventAge({ timestamp }: { timestamp: string | null | undefined }) {
+  if (!timestamp) return <>-</>
+
+  return (
+    <span className="cursor-help" title={timestamp}>
+      {formatAge(timestamp)}
+    </span>
+  )
 }
