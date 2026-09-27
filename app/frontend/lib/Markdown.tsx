@@ -313,7 +313,7 @@ function renderTable(lines: string[], index: number, key: number, options: Rende
   return {
     nextIndex: index,
     node: (
-      <div key={`block-${key}`} className="overflow-x-auto"><table>
+      <div key={`block-${key}`} className="chat-prose-table-wrap overflow-x-auto"><table>
         <thead>
           <tr>{headers.map((header, cellIndex) => <th key={cellIndex}>{renderInline(header, options)}</th>)}</tr>
         </thead>
