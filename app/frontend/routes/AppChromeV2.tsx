@@ -46,12 +46,16 @@ import { recentChatsQueryKey, updateRecentChatCache } from "../lib/chatCache"
 import { ParticipantPickerModal } from "./chat/ParticipantPicker"
 import { firstUnstartedChat } from "../lib/unstartedChat"
 import { useResizableSplitter } from "./chat/useResizableSplitter"
+import { MobileChatHeaderContext } from "./chat/MobileChatHeaderContext"
 
 export const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
 const SYSTEM_ALERT_DISMISSALS_KEY = "syrus.system_alert_dismissals"
 const MAINTENANCE_SIDEBAR_STATE_KEY = "syrus.maintenance_sidebar.state"
 const EMPTY_SIDEBAR_NAV_ORDER: string[] = []
 const SETTINGS_POPUP_MENU_CLASS = "absolute bottom-full left-0 z-30 mb-2 w-60 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950"
+const HIDDEN_MOBILE_CHAT_HEADER_BUTTON_LAYOUT_CLASS = "fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] z-30 inline-flex h-11 w-11 items-center justify-center rounded-full"
+const HIDDEN_MOBILE_CHAT_HEADER_BUTTON_TONE_CLASS = "border border-white/80 bg-gray-950 text-white shadow-lg ring-1 ring-gray-950/20 hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-gray-700 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100"
+const MOBILE_CHAT_HEADER_HIDE_DISTANCE = 72
 type MaintenanceSidebarState = { collapsed: boolean; hasTaskSnapshot: boolean; taskKeys: string[] }
 
 function randomPubliliusSyrusQuote() {
@@ -112,9 +116,11 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const onboardingChatStarted = Boolean(data?.setup?.chat_started)
   const tabsHidden = inOnboarding && !onboardingChatStarted
   const isDesktopSidebarViewport = useMediaQuery("(min-width: 1024px)", true)
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)", false)
   const activeChatId = activeChatIdFromPath(location.pathname)
   const isMobileChatPage = activeChatId != null && !isDesktopSidebarViewport
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [mobileChatHeaderOffset, setMobileChatHeaderOffset] = useState(0)
   const sidebarSplitter = useResizableSplitter({
     widthKey: SIDEBAR_WIDTH_KEY,
     collapsedKey: SIDEBAR_COLLAPSED_KEY,
@@ -182,6 +188,32 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     smartFolderAllLink: item.smartFolderAllLink,
     ...(navBadges[item.id] === undefined ? {} : { badge: navBadges[item.id] })
   })), [mergedSidebarNavItems, navBadges, normalizedPath, prefix])
+  const mobileChatHeaderAutoHideActive = Boolean(user?.mobile_chat_auto_hide_header && isMobileChatPage && !drawerOpen && !inOnboarding)
+  const mobileChatHeaderHidden = mobileChatHeaderOffset >= MOBILE_CHAT_HEADER_HIDE_DISTANCE - 1
+  const revealMobileChatHeader = useCallback(() => {
+    setMobileChatHeaderOffset(0)
+  }, [])
+  const reportMobileChatScrollDelta = useCallback((delta: number) => {
+    if (!mobileChatHeaderAutoHideActive || !Number.isFinite(delta) || Math.abs(delta) < 1) return
+
+    const cappedDelta = Math.max(-24, Math.min(24, delta))
+    setMobileChatHeaderOffset((current) => Math.max(0, Math.min(MOBILE_CHAT_HEADER_HIDE_DISTANCE, current + cappedDelta)))
+  }, [mobileChatHeaderAutoHideActive])
+  const mobileChatHeaderContext = useMemo(() => ({
+    autoHideEnabled: mobileChatHeaderAutoHideActive,
+    offset: mobileChatHeaderOffset,
+    reportScrollDelta: reportMobileChatScrollDelta,
+    revealHeader: revealMobileChatHeader
+  }), [mobileChatHeaderAutoHideActive, mobileChatHeaderOffset, reportMobileChatScrollDelta, revealMobileChatHeader])
+
+  useEffect(() => {
+    if (!mobileChatHeaderAutoHideActive) setMobileChatHeaderOffset(0)
+  }, [mobileChatHeaderAutoHideActive])
+
+  useEffect(() => {
+    setMobileChatHeaderOffset(0)
+  }, [activeChatId, isDesktopSidebarViewport])
+
   const navItems: SidebarNavItem[] = useMemo(() => (
     user ? [
       ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, rawTo: "/onboarding", active: normalizedPath === "/onboarding", icon: <SetupIcon />, smartFolderApiPath: null, smartFolderSubject: null, smartFolderAllLink: undefined }] : []),
@@ -386,7 +418,28 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           a <main> here nested a second one inside it on every page, which is
           invalid and made locator("main") ambiguous. */}
       <div className={`min-w-0 flex-1 ${isMobileChatPage ? "flex flex-col overflow-hidden" : "overflow-auto"}`} data-testid="app-scroll-pane">
-        <div className="sticky left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden">
+        {mobileChatHeaderAutoHideActive && mobileChatHeaderHidden ? (
+          <button
+            aria-label={t("nav:open_sidebar")}
+            className={`${HIDDEN_MOBILE_CHAT_HEADER_BUTTON_LAYOUT_CLASS} ${HIDDEN_MOBILE_CHAT_HEADER_BUTTON_TONE_CLASS}`}
+            data-testid="mobile-chat-hidden-header-sidebar-button"
+            onClick={() => {
+              revealMobileChatHeader()
+              setDrawerOpen(true)
+            }}
+            type="button"
+          >
+            <MenuIcon />
+          </button>
+        ) : null}
+        <div
+          className={`sticky left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden ${mobileChatHeaderAutoHideActive && !reducedMotion ? "transition-[transform,margin-bottom] duration-150 ease-out" : ""}`}
+          data-testid="mobile-app-header"
+          style={mobileChatHeaderAutoHideActive ? {
+            marginBottom: `-${mobileChatHeaderOffset}px`,
+            transform: `translateY(-${mobileChatHeaderOffset}px)`
+          } : undefined}
+        >
           <div className="flex min-w-0 items-center gap-2">
             <button
               aria-label={t("nav:open_sidebar")}
@@ -408,7 +461,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         <FlashBanner flash={data?.flash} />
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
         {isMobileChatPage ? (
-          <div className="flex min-h-0 flex-1 flex-col">{pageContent}</div>
+          <MobileChatHeaderContext.Provider value={mobileChatHeaderContext}>
+            <div className="flex min-h-0 flex-1 flex-col">{pageContent}</div>
+          </MobileChatHeaderContext.Provider>
         ) : showAdminSubnav ? (
           <div className="flex min-h-full min-w-0">
             <AdminNav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix}>
@@ -1658,7 +1713,7 @@ function ColorThemePicker() {
         type="button"
       >
         <span aria-hidden="true" className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: current.tokens.light.brand }} />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700 dark:text-gray-300">{current.name}</span>
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-primary">{current.name}</span>
         <ChevronDownIcon className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${expanded ? "rotate-180" : ""}`} />
       </button>
       <div

@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
-import { mergeChatPayloadUpdate, updateRecentChatCache } from "./chatCache"
+import { mergeChatPayloadUpdate, updateChatUnread, updateRecentChatCache } from "./chatCache"
 import type { ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../api/chats"
 
 describe("mergeChatPayloadUpdate", () => {
@@ -17,9 +17,7 @@ describe("mergeChatPayloadUpdate", () => {
     expect(merged.message).toBe("Chat pinned")
     expect(merged.chat.pinned).toBe(true)
     expect(merged.chat.chat_model).toBe("claude-sonnet-4-6")
-    expect(merged.messages).toEqual([
-      expect.objectContaining({ id: 101, role: "user" })
-    ])
+    expect(merged.messages).toEqual([expect.objectContaining({ id: 101, role: "user" })])
     expect(queryClient.getQueryData<ChatPayload>(queryKey)).toEqual(merged)
   })
 })
@@ -84,7 +82,79 @@ describe("updateRecentChatCache", () => {
   })
 })
 
-function chatRecord({ id, title, lastMessageAt, updatedAt }: { id: number; title: string; lastMessageAt: string | null; updatedAt?: string }): ChatNavRecord {
+describe("updateChatUnread", () => {
+  it("moves read chats out of the unread status group", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "recent", "active", "status", "last_activity", false, 10], {
+      repositories: [],
+      groups: [
+        statusGroup("status-unread", { chats: [chatRecord({ id: 1, title: "Unread", lastMessageAt: "2026-06-25T11:00:00Z", unread: true })] }),
+        statusGroup("status-active", { chats: [chatRecord({ id: 2, title: "Read", lastMessageAt: "2026-06-25T10:00:00Z" })] })
+      ]
+    })
+
+    updateChatUnread(queryClient, 1, false)
+
+    const updated = queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent", "active", "status", "last_activity", false, 10])
+    expect(updated?.groups.map((group) => group.key)).toEqual(["status-unread", "status-active"])
+    expect(updated?.groups[0].chats).toEqual([])
+    expect(updated?.groups[1].chats.map((chat) => [chat.id, chat.unread])).toEqual([
+      [1, false],
+      [2, false]
+    ])
+  })
+
+  it("creates the unread status group when a read chat is marked unread", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "recent", "active", "status", "last_activity", false, 10], {
+      repositories: [],
+      groups: [statusGroup("status-active", { chats: [chatRecord({ id: 1, title: "Read", lastMessageAt: "2026-06-25T11:00:00Z" })] })]
+    })
+
+    updateChatUnread(queryClient, 1, true)
+
+    const updated = queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent", "active", "status", "last_activity", false, 10])
+    expect(updated?.groups.map((group) => group.key)).toEqual(["status-unread", "status-active"])
+    expect(updated?.groups[0]).toEqual(
+      expect.objectContaining({
+        key: "status-unread",
+        label: "Unread",
+        group_by: "status",
+        group_value: "unread"
+      })
+    )
+    expect(updated?.groups[0].chats.map((chat) => [chat.id, chat.unread])).toEqual([[1, true]])
+    expect(updated?.groups[1].chats).toEqual([])
+  })
+
+  it("keeps hidden status chats in the hidden group when their unread flag changes", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "recent", "hidden", "status", "last_activity", false, 10], {
+      repositories: [],
+      groups: [statusGroup("status-hidden", { chats: [chatRecord({ id: 1, title: "Hidden", lastMessageAt: "2026-06-25T11:00:00Z" })] })]
+    })
+
+    updateChatUnread(queryClient, 1, true)
+
+    const updated = queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent", "hidden", "status", "last_activity", false, 10])
+    expect(updated?.groups.map((group) => group.key)).toEqual(["status-hidden"])
+    expect(updated?.groups[0].chats.map((chat) => [chat.id, chat.unread])).toEqual([[1, true]])
+  })
+})
+
+function chatRecord({
+  id,
+  title,
+  lastMessageAt,
+  unread = false,
+  updatedAt
+}: {
+  id: number
+  title: string
+  lastMessageAt: string | null
+  unread?: boolean
+  updatedAt?: string
+}): ChatNavRecord {
   return {
     id,
     title,
@@ -100,11 +170,26 @@ function chatRecord({ id, title, lastMessageAt, updatedAt }: { id: number; title
     cumulative_cost_usd: 0,
     current: false,
     last_message_at: lastMessageAt,
-    unread: false,
+    unread,
     pending_proposal_count: 0,
     scratchpad_items_count: 0,
     created_at: "2026-06-20T10:00:00Z",
     updated_at: updatedAt || lastMessageAt || "2026-06-20T10:00:00Z"
+  }
+}
+
+function statusGroup(key: "status-unread" | "status-active" | "status-hidden", overrides: Partial<ChatsIndexPayload["groups"][number]> = {}) {
+  const value = key.replace("status-", "")
+
+  return {
+    key,
+    label: value === "unread" ? "Unread" : value === "hidden" ? "Hidden" : "Active",
+    repository_id: null,
+    group_by: "status" as const,
+    group_value: value,
+    chats: [],
+    has_more: false,
+    ...overrides
   }
 }
 

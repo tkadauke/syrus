@@ -6,7 +6,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { DEFAULT_CHAT_SIDEBAR_SETTINGS, cancelCodingCheckout, deleteChat, fetchChat, fetchChatGroupsPage, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatGroupRecord, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatSidebarGroupBy, type ChatSidebarPerGroup, type ChatSidebarSettings, type ChatSidebarSortBy, type ChatSidebarStatus, type ChatsIndexPayload } from "../../api/chats"
+import { DEFAULT_CHAT_SIDEBAR_SETTINGS, cancelCodingCheckout, deleteChat, fetchChat, fetchChatGroupsPage, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatGroupRecord, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatSidebarGroupBy, type ChatSidebarPerGroup, type ChatSidebarSettings, type ChatSidebarSortBy, type ChatSidebarStatus, type ChatType, type ChatsIndexPayload } from "../../api/chats"
 import { ApiError } from "../../api/client"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -30,7 +30,13 @@ const GROUP_BY_OPTIONS: Array<{ value: ChatSidebarGroupBy; label: string }> = [
   { value: "date", label: "Date" },
   { value: "repository", label: "Repository" },
   { value: "status", label: "Status" },
-  { value: "mode", label: "Mode" }
+  { value: "mode", label: "Mode" },
+  { value: "chat_type", label: "Chat type" }
+]
+const CHAT_TYPE_OPTIONS: Array<{ value: ChatType; label: string }> = [
+  { value: "agent", label: "Agent chats" },
+  { value: "group", label: "Group chats" },
+  { value: "external", label: "External chats" }
 ]
 const SORT_BY_OPTIONS: Array<{ value: ChatSidebarSortBy; label: string }> = [
   { value: "name", label: "Name" },
@@ -80,23 +86,30 @@ function writeSidebarSettings(settings: ChatSidebarSettings) {
   }
 }
 
-function normalizeSidebarSettings(settings: Partial<ChatSidebarSettings>): ChatSidebarSettings {
+function normalizeSidebarSettings(settings: Partial<ChatSidebarSettings>, availableChatTypes?: ChatType[]): ChatSidebarSettings {
+  const availableTypes = availableChatTypes ?? []
+  const chatTypeFeatureVisible = availableTypes.length > 1
   const status = STATUS_OPTIONS.some((option) => option.value === settings.status) ? settings.status as ChatSidebarStatus : DEFAULT_SIDEBAR_SETTINGS.status
-  const groupBy = GROUP_BY_OPTIONS.some((option) => option.value === settings.group_by) ? settings.group_by as ChatSidebarGroupBy : DEFAULT_SIDEBAR_SETTINGS.group_by
+  const groupByCandidate = GROUP_BY_OPTIONS.some((option) => option.value === settings.group_by) ? settings.group_by as ChatSidebarGroupBy : DEFAULT_SIDEBAR_SETTINGS.group_by
+  const groupBy = groupByCandidate === "chat_type" && !chatTypeFeatureVisible ? DEFAULT_SIDEBAR_SETTINGS.group_by : groupByCandidate
+  const rawChatTypes = Array.isArray(settings.chat_types) ? settings.chat_types : DEFAULT_SIDEBAR_SETTINGS.chat_types
+  const selectedChatTypes = rawChatTypes.filter((value): value is ChatType => CHAT_TYPE_OPTIONS.some((option) => option.value === value) && (availableTypes.length === 0 || availableTypes.includes(value)))
+  const chatTypes = chatTypeFeatureVisible && selectedChatTypes.length === 0 ? availableTypes : chatTypeFeatureVisible ? selectedChatTypes : []
   const sortBy = SORT_BY_OPTIONS.some((option) => option.value === settings.sort_by) ? settings.sort_by as ChatSidebarSortBy : DEFAULT_SIDEBAR_SETTINGS.sort_by
   const perGroup = PER_GROUP_OPTIONS.includes(settings.per_group as ChatSidebarPerGroup) ? settings.per_group as ChatSidebarPerGroup : DEFAULT_SIDEBAR_SETTINGS.per_group
 
   return {
     status,
     group_by: groupBy,
+    chat_types: chatTypes,
     sort_by: sortBy,
     show_empty_groups: groupBy === "date" ? false : settings.show_empty_groups === true,
     per_group: perGroup
   }
 }
 
-function updateSidebarSettings(current: ChatSidebarSettings, patch: Partial<ChatSidebarSettings>) {
-  return normalizeSidebarSettings({ ...current, ...patch })
+function updateSidebarSettings(current: ChatSidebarSettings, patch: Partial<ChatSidebarSettings>, availableChatTypes?: ChatType[]) {
+  return normalizeSidebarSettings({ ...current, ...patch }, availableChatTypes)
 }
 
 export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onStartChat, prefix, startingChat = false, userPresent }: {
@@ -137,6 +150,18 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
   const settingsKey = useMemo(() => JSON.stringify(sidebarSettings), [sidebarSettings])
   const sections = useMemo(() => chatSectionsFromPayload(chats.data?.groups || [], loadedSections), [chats.data?.groups, loadedSections])
   const canLoadMoreGroups = Boolean(chats.data?.groups_has_more && chats.data.groups_next_offset != null)
+  const availableChatTypes = useMemo(() => chats.data?.available_chat_types ?? [], [chats.data?.available_chat_types])
+  const availableChatTypesKey = availableChatTypes.join(",")
+  const chatTypeFeatureVisible = availableChatTypes.length > 1
+
+  useEffect(() => {
+    if (!chats.data) return
+
+    setSidebarSettings((current) => {
+      const normalized = normalizeSidebarSettings(current, availableChatTypes)
+      return JSON.stringify(normalized) === JSON.stringify(current) ? current : normalized
+    })
+  }, [availableChatTypes, availableChatTypesKey, chats.data])
 
   useEffect(() => {
     writeSidebarSettings(sidebarSettings)
@@ -366,7 +391,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
     >
       <div className="mb-2 flex items-center justify-between gap-2 px-2">
         <div className="min-w-0 text-2xs font-semibold uppercase tracking-normal text-gray-500 dark:text-gray-400">{t("nav:recent_chats_aria")}</div>
-        <RecentChatsSettingsMenu settings={sidebarSettings} setSettings={setSidebarSettings} />
+        <RecentChatsSettingsMenu availableChatTypes={availableChatTypes} chatTypeFeatureVisible={chatTypeFeatureVisible} settings={sidebarSettings} setSettings={setSidebarSettings} />
       </div>
       <nav aria-label={t("nav:recent_chats_aria")} className="space-y-4">
         {sections.map((section) => {
@@ -521,13 +546,15 @@ function appendUniqueChatGroups(current: ChatGroupRecord[], incoming: ChatGroupR
   ]
 }
 
-function RecentChatsSettingsMenu({ settings, setSettings }: {
+function RecentChatsSettingsMenu({ availableChatTypes, chatTypeFeatureVisible, settings, setSettings }: {
+  availableChatTypes: ChatType[]
+  chatTypeFeatureVisible: boolean
   settings: ChatSidebarSettings
   setSettings: (updater: (current: ChatSidebarSettings) => ChatSidebarSettings) => void
 }) {
   const { t } = useTranslation("nav")
   const [open, setOpen] = useState(false)
-  const [submenu, setSubmenu] = useState<"root" | "status" | "group_by" | "sort_by" | "per_group">("root")
+  const [submenu, setSubmenu] = useState<"root" | "status" | "chat_type" | "group_by" | "sort_by" | "per_group">("root")
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const { floatingStyles, refs: floatingRefs } = useFloating({
     middleware: [
@@ -544,11 +571,21 @@ function RecentChatsSettingsMenu({ settings, setSettings }: {
   }, [floatingRefs.floating])
   const referenceRef = useMergeRefs([menuRef, floatingRefs.setReference])
   const statusLabel = optionLabel(STATUS_OPTIONS, settings.status)
-  const groupByLabel = optionLabel(GROUP_BY_OPTIONS, settings.group_by)
+  const visibleGroupByOptions = useMemo(() => GROUP_BY_OPTIONS.filter((option) => option.value !== "chat_type" || chatTypeFeatureVisible), [chatTypeFeatureVisible])
+  const visibleChatTypeOptions = useMemo(() => CHAT_TYPE_OPTIONS.filter((option) => availableChatTypes.includes(option.value)), [availableChatTypes])
+  const groupByLabel = optionLabel(visibleGroupByOptions, settings.group_by)
+  const chatTypeLabel = settings.chat_types.length === availableChatTypes.length ? "All" : settings.chat_types.map((value) => optionLabel(CHAT_TYPE_OPTIONS, value)).join(", ")
   const sortByLabel = optionLabel(SORT_BY_OPTIONS, settings.sort_by)
 
   function apply(patch: Partial<ChatSidebarSettings>) {
-    setSettings((current) => updateSidebarSettings(current, patch))
+    setSettings((current) => updateSidebarSettings(current, patch, availableChatTypes))
+  }
+
+  function toggleChatType(chatType: ChatType) {
+    const selected = settings.chat_types.includes(chatType)
+      ? settings.chat_types.filter((value) => value !== chatType)
+      : [...settings.chat_types, chatType]
+    apply({ chat_types: selected })
   }
 
   function closeMenu() {
@@ -593,6 +630,9 @@ function RecentChatsSettingsMenu({ settings, setSettings }: {
               {submenu === "root" ? (
                 <>
                   <SettingsParentRow current={statusLabel} label="Status" onClick={() => setSubmenu("status")} />
+                  {chatTypeFeatureVisible ? (
+                    <SettingsParentRow current={chatTypeLabel} label="Chat type" onClick={() => setSubmenu("chat_type")} />
+                  ) : null}
                   <SettingsParentRow current={groupByLabel} label="Group by" onClick={() => setSubmenu("group_by")} />
                   <SettingsParentRow current={sortByLabel} label="Sort by" onClick={() => setSubmenu("sort_by")} />
                   {settings.group_by !== "date" ? (
@@ -626,8 +666,17 @@ function RecentChatsSettingsMenu({ settings, setSettings }: {
                   label="Group by"
                   onBack={() => setSubmenu("root")}
                   onSelect={(value) => apply({ group_by: value as ChatSidebarGroupBy })}
-                  options={GROUP_BY_OPTIONS}
+                  options={visibleGroupByOptions}
                   value={settings.group_by}
+                />
+              ) : null}
+              {submenu === "chat_type" ? (
+                <SettingsCheckboxList
+                  label="Chat type"
+                  onBack={() => setSubmenu("root")}
+                  onToggle={toggleChatType}
+                  options={visibleChatTypeOptions}
+                  values={settings.chat_types}
                 />
               ) : null}
               {submenu === "sort_by" ? (
@@ -682,6 +731,31 @@ function SettingsOptionList<T extends string>({ label, onBack, onSelect, options
           type="button"
         >
           <CheckIcon visible={option.value === value} />
+          <span>{option.label}</span>
+        </button>
+      ))}
+    </>
+  )
+}
+
+function SettingsCheckboxList<T extends string>({ label, onBack, onToggle, options, values }: { label: string; onBack: () => void; onToggle: (value: T) => void; options: Array<{ value: T; label: string }>; values: T[] }) {
+  return (
+    <>
+      <button className={`${SIDEBAR_MENU_ROW_CLASS} font-semibold`} onClick={onBack} type="button">
+        <ChevronRightIcon className="rotate-180" />
+        {label}
+      </button>
+      <div className={SIDEBAR_DIVIDER_CLASS} />
+      {options.map((option) => (
+        <button
+          aria-checked={values.includes(option.value)}
+          className={SIDEBAR_MENU_ROW_CLASS}
+          key={option.value}
+          onClick={() => onToggle(option.value)}
+          role="checkbox"
+          type="button"
+        >
+          <CheckIcon visible={values.includes(option.value)} />
           <span>{option.label}</span>
         </button>
       ))}

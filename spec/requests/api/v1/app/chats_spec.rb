@@ -589,6 +589,112 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(group["chats"].map { |chat| chat["id"] }).to contain_exactly(active_chat.id, hidden_chat.id)
   end
 
+  it "filters recent sidebar chats by derived chat type" do
+    sign_in_as(user)
+    Factories.user
+    allow_any_instance_of(PlatformIdentity::PlatformConfig::Telegram).to receive(:configured?).and_return(true)
+    PlatformIdentity.create!(user: user, platform: "telegram", external_id: "tg-1", external_handle: "user", linked_at: Time.current)
+    agent_chat = ChatSession.create!(user: user, title: "Agent chat", conversation_kind: "direct", last_message_at: 1.minute.ago)
+    group_chat = ChatSession.create!(user: user, title: "Group chat", conversation_kind: "group", last_message_at: 2.minutes.ago)
+    external_chat = ChatSession.create!(user: user, title: "External chat", origin_platform: "telegram", last_message_at: 3.minutes.ago)
+
+    get "/api/v1/app/chats", params: { chat_types: "agent,external", group_by: "chat_type" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["available_chat_types"]).to eq(%w[agent group external])
+    groups = parse_body["groups"].index_by { |group| group["key"] }
+    expect(groups.keys).to eq(%w[chat_type-agent chat_type-external])
+    expect(groups.fetch("chat_type-agent")["chats"].map { |chat| chat["id"] }).to eq([ agent_chat.id ])
+    expect(groups.fetch("chat_type-agent")["chats"].first).to include(
+      "conversation_kind" => "direct",
+      "origin_platform" => nil,
+      "chat_type" => "agent"
+    )
+    expect(groups.fetch("chat_type-external")["chats"].map { |chat| chat["id"] }).to eq([ external_chat.id ])
+    expect(parse_body.to_s).not_to include(group_chat.title)
+  end
+
+  it "groups recent sidebar chats by chat type in stable order with optional empty groups" do
+    sign_in_as(user)
+    Factories.user
+    allow_any_instance_of(PlatformIdentity::PlatformConfig::Telegram).to receive(:configured?).and_return(true)
+    PlatformIdentity.create!(user: user, platform: "telegram", external_id: "tg-2", linked_at: Time.current)
+    group_chat = ChatSession.create!(user: user, title: "Group chat", conversation_kind: "group", last_message_at: 1.minute.ago)
+    external_chat = ChatSession.create!(user: user, title: "External chat", origin_platform: "telegram", last_message_at: 2.minutes.ago)
+
+    get "/api/v1/app/chats", params: { group_by: "chat_type", chat_types: "agent,group,external", show_empty_groups: "1" }
+
+    expect(response).to have_http_status(:ok)
+    groups = parse_body["groups"]
+    expect(groups.map { |group| group["key"] }).to eq(%w[chat_type-agent chat_type-group chat_type-external])
+    expect(groups.map { |group| group["label"] }).to eq([ "Agent chats", "Group chats", "External chats" ])
+    expect(groups[0]["chats"]).to eq([])
+    expect(groups[1]["chats"].map { |chat| chat["id"] }).to eq([ group_chat.id ])
+    expect(groups[2]["chats"].map { |chat| chat["id"] }).to eq([ external_chat.id ])
+  end
+
+  it "classifies external chats as external even when their conversation kind is group" do
+    sign_in_as(user)
+    Factories.user
+    allow_any_instance_of(PlatformIdentity::PlatformConfig::Telegram).to receive(:configured?).and_return(true)
+    PlatformIdentity.create!(user: user, platform: "telegram", external_id: "tg-3", linked_at: Time.current)
+    external_group_chat = ChatSession.create!(user: user, title: "External group", conversation_kind: "group", origin_platform: "telegram", last_message_at: 1.minute.ago)
+
+    get "/api/v1/app/chats", params: { chat_types: "external" }
+
+    expect(response).to have_http_status(:ok)
+    chat = parse_body.dig("groups", 0, "chats", 0)
+    expect(chat).to include(
+      "id" => external_group_chat.id,
+      "conversation_kind" => "group",
+      "origin_platform" => "telegram",
+      "chat_type" => "external"
+    )
+  end
+
+  it "does not expose group chat type on a single-user instance" do
+    sign_in_as(user)
+    agent_chat = ChatSession.create!(user: user, title: "Agent chat", conversation_kind: "direct", last_message_at: 2.minutes.ago)
+    group_chat = ChatSession.create!(user: user, title: "Group chat", conversation_kind: "group", last_message_at: 1.minute.ago)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["available_chat_types"]).to eq([ "agent" ])
+    expect(parse_body.dig("groups", 0, "chats").map { |chat| chat["id"] }).to eq([ group_chat.id, agent_chat.id ])
+
+    get "/api/v1/app/chats", params: { group_by: "chat_type", chat_types: "group" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["available_chat_types"]).not_to include("external")
+    expect(parse_body["groups"].map { |group| group["group_by"] }).to eq([ "repository" ])
+    expect(parse_body.dig("groups", 0, "chats").map { |chat| chat["id"] }).to eq([ agent_chat.id ])
+    expect(parse_body.to_s).not_to include(group_chat.title)
+  end
+
+  it "requires both configured platform and current-user identity before exposing external chat type" do
+    sign_in_as(user)
+    allow_any_instance_of(PlatformIdentity::PlatformConfig::Telegram).to receive(:configured?).and_return(false)
+    ChatSession.create!(user: user, title: "External chat", origin_platform: "telegram", last_message_at: 1.minute.ago)
+
+    get "/api/v1/app/chats"
+
+    expect(parse_body["available_chat_types"]).not_to include("external")
+
+    allow_any_instance_of(PlatformIdentity::PlatformConfig::Telegram).to receive(:configured?).and_return(true)
+    PlatformIdentity.create!(user: Factories.user, platform: "telegram", external_id: "tg-foreign", linked_at: Time.current)
+
+    get "/api/v1/app/chats"
+
+    expect(parse_body["available_chat_types"]).not_to include("external")
+
+    PlatformIdentity.create!(user: user, platform: "telegram", external_id: "tg-current", linked_at: Time.current)
+
+    get "/api/v1/app/chats"
+
+    expect(parse_body["available_chat_types"]).to eq(%w[agent group external])
+  end
+
   it "groups recent sidebar chats by status and includes empty status groups when requested" do
     sign_in_as(user)
     ChatSession.create!(user: user, title: "Only hidden", hidden_at: Time.current, last_message_at: 1.hour.ago)
@@ -597,7 +703,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     groups = parse_body["groups"].index_by { |group| group["key"] }
-    expect(groups.keys).to include("status-active", "status-hidden")
+    expect(groups.keys).to include("status-unread", "status-active", "status-hidden")
+    expect(groups.fetch("status-unread")["label"]).to eq("Unread")
     expect(groups.fetch("status-active")["chats"]).to eq([])
     expect(groups.fetch("status-hidden")["chats"].map { |chat| chat["title"] }).to eq([ "Only hidden" ])
   end
@@ -615,6 +722,66 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(groups.fetch("repository-#{repository.id}")["chats"]).to eq([])
     expect(parse_body["groups_has_more"]).to eq(false)
     expect(parse_body["groups_next_offset"]).to be_nil
+  end
+
+  it "puts unread sidebar chats in a separate status group before active and hidden groups" do
+    sign_in_as(user)
+    unread_chat = ChatSession.create!(
+      user: user,
+      title: "Unread chat",
+      last_message_at: 1.minute.ago,
+      last_read_at: 1.hour.ago
+    )
+    read_chat = ChatSession.create!(
+      user: user,
+      title: "Read chat",
+      last_message_at: 2.minutes.ago,
+      last_read_at: Time.current
+    )
+    hidden_chat = ChatSession.create!(
+      user: user,
+      title: "Hidden chat",
+      hidden_at: Time.current,
+      last_message_at: 3.minutes.ago,
+      last_read_at: Time.current
+    )
+
+    get "/api/v1/app/chats", params: { status: "all", group_by: "status" }
+
+    expect(response).to have_http_status(:ok)
+    groups = parse_body["groups"]
+    expect(groups.map { |group| group["key"] }).to eq(%w[status-unread status-active status-hidden])
+    expect(groups.first["chats"].map { |chat| chat["id"] }).to eq([ unread_chat.id ])
+    expect(groups.second["chats"].map { |chat| chat["id"] }).to eq([ read_chat.id ])
+    expect(groups.third["chats"].map { |chat| chat["id"] }).to eq([ hidden_chat.id ])
+  end
+
+  it "pages additional unread sidebar chats within the status group" do
+    sign_in_as(user)
+    unread_chats = 7.times.map do |index|
+      chat = ChatSession.create!(
+        user: user,
+        title: "Unread #{index}",
+        last_message_at: (index + 1).minutes.ago,
+        last_read_at: nil
+      )
+      chat.update_columns(created_at: chat.last_message_at, updated_at: chat.last_message_at)
+      chat
+    end
+    ChatSession.create!(user: user, title: "Read", last_message_at: 30.minutes.ago, last_read_at: Time.current)
+
+    get "/api/v1/app/chats", params: { group_by: "status", per_group: "5" }
+
+    expect(response).to have_http_status(:ok)
+    group = parse_body["groups"].find { |candidate| candidate["key"] == "status-unread" }
+    expect(group["chats"].map { |chat| chat["id"] }).to eq(unread_chats.first(5).map(&:id))
+    expect(group["has_more"]).to eq(true)
+
+    get "/api/v1/app/chats/more", params: { group_by: "status", group_key: "unread", before_id: group["chats"].last["id"], per_group: "5" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["chats"].map { |chat| chat["id"] }).to eq(unread_chats.last(2).map(&:id))
+    expect(parse_body["has_more"]).to eq(false)
   end
 
   it "sorts sidebar chats by name within pinned bands" do

@@ -96,38 +96,36 @@ class MuseInvocation
       prompt_path = File.join(tmpdir, "prompt.txt")
       File.write(prompt_path, prompt)
       write_muse_settings!(muse_home: @muse_home, mcp_server: @mcp_server, log_sink: log_sink)
-      if (rules_failure = oversized_muse_rules_failure(workspace_path, session_id, log_sink))
-        return rules_failure
+      runner_result = with_muse_rules_context_fit(workspace_path, log_sink) do
+        ProcessRunner.new(
+          env: muse_env(workspace_path, muse_home: @muse_home),
+          command: muse_exec_command(
+            workspace_path: workspace_path,
+            prompt_path: prompt_path,
+            session_id: session_id,
+            model: model,
+            reasoning_effort: reasoning_effort,
+            max_model_steps: max_model_steps
+          ),
+          stdin_data: api_key,
+          chdir: workspace_path,
+          timeout: timeout,
+          silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,
+          kind: "agent",
+          run: current_run,
+          workflow: current_run&.workflow,
+          chat_session: current_chat_session,
+          agent: current_agent,
+          stop_requested: -> { stop_requested.call || @required_mcp_failed },
+          on_spawned_process: process_started,
+          on_output_line: ->(line) do
+            exec_jsonl << line
+            exec_jsonl << "\n" unless line.end_with?("\n")
+            update = process_event(line, log_sink)
+            metadata.merge!(update.compact) if update
+          end
+        ).run
       end
-
-      runner_result = ProcessRunner.new(
-        env: muse_env(workspace_path, muse_home: @muse_home),
-        command: muse_exec_command(
-          workspace_path: workspace_path,
-          prompt_path: prompt_path,
-          session_id: session_id,
-          model: model,
-          reasoning_effort: reasoning_effort,
-          max_model_steps: max_model_steps
-        ),
-        stdin_data: api_key,
-        chdir: workspace_path,
-        timeout: timeout,
-        silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,
-        kind: "agent",
-        run: current_run,
-        workflow: current_run&.workflow,
-        chat_session: current_chat_session,
-        agent: current_agent,
-        stop_requested: -> { stop_requested.call || @required_mcp_failed },
-        on_spawned_process: process_started,
-        on_output_line: ->(line) do
-          exec_jsonl << line
-          exec_jsonl << "\n" unless line.end_with?("\n")
-          update = process_event(line, log_sink)
-          metadata.merge!(update.compact) if update
-        end
-      ).run
 
       apply_missing_terminal_failure!(metadata, runner_result) if metadata[:outcome].blank?
       apply_required_mcp_failure!(metadata, log_sink)
@@ -238,29 +236,61 @@ class MuseInvocation
     end
   end
 
-  def oversized_muse_rules_failure(workspace_path, session_id, log_sink)
+  def with_muse_rules_context_fit(workspace_path, log_sink)
     rules_path = File.join(workspace_path, "AGENTS.md")
-    return nil unless File.exist?(rules_path) || File.symlink?(rules_path)
+    return yield unless File.exist?(rules_path) || File.symlink?(rules_path)
 
     rules_size = File.size(rules_path)
-    return nil if rules_size <= MUSE_RULES_CONTEXT_LIMIT_BYTES
+    return yield if rules_size <= MUSE_RULES_CONTEXT_LIMIT_BYTES
 
-    message = "Muse workspace rules file AGENTS.md is #{rules_size} bytes, " \
-      "which exceeds Muse's #{MUSE_RULES_CONTEXT_LIMIT_BYTES}-byte startup context limit. " \
-      "Shorten AGENTS.md or CLAUDE.md for Muse before retrying."
+    original = muse_rules_original_state(rules_path)
+    temporary_rules = truncated_muse_rules(File.binread(rules_path), original: rules_size)
+
     log_sink.call(
-      "[muse rules] #{message}",
+      "[muse rules] AGENTS.md is #{rules_size} bytes, which exceeds Muse's " \
+        "#{MUSE_RULES_CONTEXT_LIMIT_BYTES}-byte startup context limit; using a temporary " \
+        "truncated rules file for this invocation and restoring the checkout afterward.",
       kind: "system"
     )
-    AgentInvocation::Result.new(
-      turns: nil,
-      exit_status: 1,
-      timed_out: false,
-      is_error: true,
-      outcome: MUSE_RULES_CONTEXT_OUTCOME,
-      final_text: message,
-      session_id: session_id
-    )
+
+    FileUtils.rm_f(rules_path)
+    File.binwrite(rules_path, temporary_rules)
+    yield
+  ensure
+    restore_muse_rules!(rules_path, original) if original
+  end
+
+  def muse_rules_original_state(rules_path)
+    if File.symlink?(rules_path)
+      { type: :symlink, target: File.readlink(rules_path) }
+    else
+      { type: :file, content: File.binread(rules_path) }
+    end
+  end
+
+  def truncated_muse_rules(content, original:)
+    notice = "\n\n[Muse note: AGENTS.md was #{original} bytes, exceeding Muse's " \
+      "#{MUSE_RULES_CONTEXT_LIMIT_BYTES}-byte startup rules limit. Syrus provided this " \
+      "temporary prefix-only copy for Muse; consult CLAUDE.md from the workspace when " \
+      "you need details beyond this truncated guide.]\n"
+    budget = [ MUSE_RULES_CONTEXT_LIMIT_BYTES - notice.bytesize, 0 ].max
+    loop do
+      snippet = content.byteslice(0, budget).to_s
+      rules = "#{snippet.force_encoding(Encoding::UTF_8).scrub}#{notice}"
+      return rules if rules.bytesize <= MUSE_RULES_CONTEXT_LIMIT_BYTES
+
+      budget -= rules.bytesize - MUSE_RULES_CONTEXT_LIMIT_BYTES
+    end
+  end
+
+  def restore_muse_rules!(rules_path, original)
+    FileUtils.rm_f(rules_path)
+    case original[:type]
+    when :symlink
+      File.symlink(original[:target], rules_path)
+    when :file
+      File.binwrite(rules_path, original[:content])
+    end
   end
 
   def required_mcp_state(metadata)

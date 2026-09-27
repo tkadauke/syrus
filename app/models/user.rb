@@ -394,6 +394,14 @@ class User < ApplicationRecord
     update!(ui_preferences: ui_preferences.merge("sidebar_nav_order" => Array(order).map(&:to_s).uniq))
   end
 
+  def mobile_chat_auto_hide_header?
+    ActiveModel::Type::Boolean.new.cast(ui_preferences["mobile_chat_auto_hide_header"])
+  end
+
+  def mobile_chat_auto_hide_header=(value)
+    write_attribute(:ui_preferences, ui_preferences.merge("mobile_chat_auto_hide_header" => ActiveModel::Type::Boolean.new.cast(value)))
+  end
+
   def review_diff_settings
     ReviewDiffSettings.normalize(ui_preferences["review_diff_settings"])
   end

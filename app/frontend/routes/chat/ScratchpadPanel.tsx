@@ -7,6 +7,7 @@ import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
 import { Input } from "../../components/Input"
+import { SendIcon } from "../../components/SendIcon"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
@@ -30,6 +31,7 @@ export function ScratchpadPanel({
   reorderPath,
   text,
   attachments,
+  agentActive,
   onDismiss,
   onLoadToInput
 }: {
@@ -41,6 +43,7 @@ export function ScratchpadPanel({
   reorderPath: string
   text: string
   attachments: ChatMessageAttachmentInput[]
+  agentActive: boolean
   onDismiss?: () => void
   onLoadToInput: (draft: ChatDraftMessage) => void
 }) {
@@ -162,6 +165,7 @@ export function ScratchpadPanel({
                   queryKey={queryKey}
                   text={text}
                   attachments={attachments}
+                  agentActive={agentActive}
                   onDragEnd={handleDragEnd}
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDragStart={() => handleDragStart(index)}
@@ -215,6 +219,7 @@ function ScratchpadItemRow({
   dragTarget,
   enqueuePath,
   attachments,
+  agentActive,
   isDragging,
   item,
   queryKey,
@@ -229,6 +234,7 @@ function ScratchpadItemRow({
   dragTarget: boolean
   enqueuePath: string
   attachments: ChatMessageAttachmentInput[]
+  agentActive: boolean
   index: number
   isDragging: boolean
   item: ChatScratchpadItem
@@ -246,6 +252,7 @@ function ScratchpadItemRow({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.content)
   const itemDraft: ChatDraftMessage = { text: item.text ?? item.content, attachments: item.attachments || [] }
+  const queueActionLabel = agentActive ? t("scratchpad_queue_item") : t("send_message")
   const [loadPending, setLoadPending] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -356,14 +363,14 @@ function ScratchpadItemRow({
 
         <div className="flex shrink-0 items-center gap-0.5">
           <button
-            aria-label={t("scratchpad_queue_item")}
+            aria-label={queueActionLabel}
             className="rounded p-0.5 text-gray-400 hover:bg-white hover:text-brand disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:disabled:text-gray-700"
             disabled={queue.isPending || update.isPending || remove.isPending}
             onClick={() => queue.mutate()}
-            title={t("scratchpad_queue_item")}
+            title={queueActionLabel}
             type="button"
           >
-            <EnqueueIcon className="h-3.5 w-3.5" />
+            {agentActive ? <EnqueueIcon className="h-3.5 w-3.5" /> : <SendIcon className="h-3.5 w-3.5" />}
           </button>
           <button
             aria-label={t("scratchpad_edit_item")}

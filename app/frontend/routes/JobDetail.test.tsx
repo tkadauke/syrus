@@ -162,6 +162,49 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("img", { name: /Codex usage is low \(8% remaining; threshold 10%\)/ })).toBeInTheDocument()
   })
 
+  it("keeps noisy header metadata desktop-only while preserving chat on mobile", () => {
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          source_chat: {
+            chat_id: 4,
+            chat_title: "Roadmap chat",
+            proposal_id: 9,
+            proposal_kind: "syrus_issue",
+            message_id: 12,
+            path: "/chats/4#message-12",
+            label: "Job proposal in Roadmap chat"
+          }
+        }
+      })
+    )
+
+    expect(screen.getByTestId("job-header-title")).toHaveClass("text-xl", "sm:text-2xl")
+
+    const metadata = screen.getByTestId("job-header-metadata")
+    const metadataItems = Array.from(metadata.children)
+    expect(metadataItems[0]).toHaveClass("hidden", "sm:inline-flex")
+    expect(within(metadataItems[0] as HTMLElement).getByText("running")).toBeInTheDocument()
+    expect(metadataItems[1]).toHaveClass("hidden", "sm:inline-flex")
+    expect(within(metadataItems[1] as HTMLElement).getByRole("link", { name: "acme/widgets" })).toBeInTheDocument()
+    expect(metadataItems[2]).toHaveClass("hidden", "sm:inline-flex")
+    expect(within(metadataItems[2] as HTMLElement).getByText("codex")).toBeInTheDocument()
+    expect(metadataItems[3]).not.toHaveClass("hidden")
+    expect(within(metadataItems[3] as HTMLElement).getByRole("link", { name: "Roadmap chat" })).toBeInTheDocument()
+  })
+
+  it("does not render an empty chat metadata item when no chat affordance is available", () => {
+    renderJobDetail(jobPayload())
+
+    const metadata = screen.getByTestId("job-header-metadata")
+    const metadataItems = Array.from(metadata.children)
+    expect(metadataItems).toHaveLength(3)
+    expect(metadataItems[0]).toHaveTextContent("running")
+    expect(metadataItems[1]).toHaveTextContent("acme/widgets")
+    expect(metadataItems[2]).toHaveTextContent("codex")
+  })
+
   it("shows automatic provider failover as a tooltip on the provider pill in the job detail header", () => {
     renderJobDetail(
       jobPayload({
@@ -1663,6 +1706,27 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("button", { name: "Chat about this" })).toBeInTheDocument()
   })
 
+  it("keeps the mobile chat affordance compact and on the same row as header actions", () => {
+    const payload = jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" },
+      actions: { ...jobPayload().actions, can_start_chat: true, can_approve: true }
+    })
+
+    renderJobDetail(payload)
+
+    const chatButton = screen.getByRole("button", { name: "Chat about this" })
+    const toolbar = screen.getByTestId("job-header-toolbar")
+    const actionSlot = screen.getByTestId("job-header-actions")
+
+    expect(toolbar).toContainElement(chatButton)
+    expect(toolbar).toContainElement(actionSlot)
+    expect(toolbar).toHaveClass("flex-row", "flex-wrap", "items-center", "justify-between")
+    expect(actionSlot).toHaveClass("w-auto")
+    expect(within(chatButton).getByText("Chat")).toHaveClass("sm:hidden")
+    expect(within(chatButton).getByText("Chat about this")).toHaveClass("hidden", "sm:inline")
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument()
+  })
+
   it("hides 'Chat about this' once a discussion chat is linked, showing a link to it instead", () => {
     const payload = jobPayload({
       job: { ...baseJob(), discussion_chat: { chat_id: 9, chat_title: "Bug triage", path: "/chats/9" } },
@@ -1738,6 +1802,41 @@ describe("JobDetailView", () => {
     expect(within(panel as HTMLElement).getByText("JobDetail").tagName).toBe("CODE")
     expect(within(panel as HTMLElement).getByRole("link", { name: "the docs" })).toHaveAttribute("href", "/docs")
     expect(within(panel as HTMLElement).getByText("Render markdown")).toBeInTheDocument()
+  })
+
+  it("clamps issue and agent summary prose on mobile with accessible expand controls", () => {
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          issue_body: "First issue line.\n\nSecond issue line.\n\nThird issue line.\n\nFourth issue line.\n\nFifth issue line.\n\nSixth issue line."
+        },
+        summary: {
+          run_id: 1,
+          text: "First summary line.\n\nSecond summary line.\n\nThird summary line.\n\nFourth summary line.\n\nFifth summary line.\n\nSixth summary line.",
+          finished_at: "2026-08-01T12:00:00Z"
+        }
+      })
+    )
+
+    const issuePanel = screen.getByRole("heading", { name: "Issue" }).closest("section") as HTMLElement
+    const summaryPanel = screen.getByRole("heading", { name: "Agent summary" }).closest("section") as HTMLElement
+    const issueContent = within(issuePanel).getByText("First issue line.").closest("[id^='job-prose']") as HTMLElement
+    const summaryContent = within(summaryPanel).getByText("First summary line.").closest("[id^='job-prose']") as HTMLElement
+    const issueToggle = within(issuePanel).getByRole("button", { name: "Show more" })
+    const summaryToggle = within(summaryPanel).getByRole("button", { name: "Show more" })
+
+    expect(issueContent).toHaveClass("line-clamp-5", "sm:line-clamp-none")
+    expect(summaryContent).toHaveClass("line-clamp-5", "sm:line-clamp-none")
+    expect(issueToggle).toHaveAttribute("aria-controls", issueContent.id)
+    expect(issueToggle).toHaveAttribute("aria-expanded", "false")
+    expect(summaryToggle).toHaveAttribute("aria-controls", summaryContent.id)
+
+    fireEvent.click(issueToggle)
+
+    expect(issueContent).not.toHaveClass("line-clamp-5")
+    expect(within(issuePanel).getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true")
+    expect(summaryContent).toHaveClass("line-clamp-5")
   })
 
   it("constrains the Summary tab grid columns so a wide code block scrolls instead of widening the page", () => {
@@ -2339,7 +2438,7 @@ describe("JobDetailRoute", () => {
 
     const header = main.querySelector("header")
     expect(header).toHaveClass("px-4", "sm:px-0", "block", "space-y-3")
-    expect(screen.getByTestId("job-header-actions").parentElement).toHaveClass("flex", "flex-col", "items-start", "sm:flex-row", "sm:items-center", "sm:justify-between", "gap-x-6", "gap-y-3")
+    expect(screen.getByTestId("job-header-actions").parentElement).toHaveClass("flex", "flex-row", "flex-wrap", "items-center", "justify-between", "gap-x-3", "gap-y-3", "sm:gap-x-6")
 
     const tabChrome = screen.getByRole("navigation", { name: "Job sections" }).parentElement
     expect(tabChrome).toHaveClass("px-4", "sm:px-0")
@@ -3459,9 +3558,10 @@ describe("Job detail tour", () => {
     expect(secondLine?.parentElement).toBe(header)
     expect(secondLine?.firstElementChild).toBe(metadata)
     expect(secondLine?.lastElementChild).toBe(actionSlot)
-    expect(secondLine).toHaveClass("flex-col", "sm:flex-row", "sm:justify-between")
-    expect(metadata).toHaveClass("w-full", "sm:flex-1")
-    expect(actionSlot).toHaveClass("w-full", "sm:w-auto", "justify-end", "shrink-0")
+    expect(secondLine).toHaveClass("flex-row", "flex-wrap", "items-center", "justify-between")
+    expect(metadata).toHaveClass("flex-1")
+    expect(metadata).not.toHaveClass("w-full")
+    expect(actionSlot).toHaveClass("w-auto", "justify-end", "shrink-0")
     expect(actionSlot).toContainElement(screen.getByRole("button", { name: "More actions" }))
     const navigation = screen.getByLabelText("Job navigation")
     expect(actionSlot).toContainElement(navigation)

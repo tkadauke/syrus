@@ -9,9 +9,15 @@
 # mix straight back in with no behavior change. Kept private on include.
 module ChatIndexPayload
   CHAT_INDEX_STATUS_OPTIONS = %w[active hidden all].freeze
-  CHAT_INDEX_GROUP_BY_OPTIONS = %w[date repository status mode].freeze
+  CHAT_INDEX_GROUP_BY_OPTIONS = %w[date repository status mode chat_type].freeze
   CHAT_INDEX_SORT_BY_OPTIONS = %w[name date_created last_activity].freeze
   CHAT_INDEX_PER_GROUP_OPTIONS = [ 5, 10, 15, 20 ].freeze
+  CHAT_INDEX_CHAT_TYPE_OPTIONS = %w[agent group external].freeze
+  CHAT_INDEX_CHAT_TYPE_LABELS = {
+    "agent" => "Agent chats",
+    "group" => "Group chats",
+    "external" => "External chats"
+  }.freeze
   CHAT_INDEX_GROUP_PAGE_SIZE = 24
   CHAT_INDEX_MODE_LABELS = {
     "planning" => "Planning",
@@ -33,6 +39,8 @@ module ChatIndexPayload
     @chat_index_settings ||= begin
       status = chat_index_param(:status, CHAT_INDEX_STATUS_OPTIONS, "active")
       group_by = chat_index_param(:group_by, CHAT_INDEX_GROUP_BY_OPTIONS, "repository")
+      group_by = "repository" if group_by == "chat_type" && !chat_type_feature_visible?
+      chat_types = chat_index_chat_types_param
       sort_by = chat_index_param(:sort_by, CHAT_INDEX_SORT_BY_OPTIONS, "last_activity")
       per_group = Integer(params[:per_group], exception: false)
       if params.key?(:per_group) && !CHAT_INDEX_PER_GROUP_OPTIONS.include?(per_group)
@@ -48,6 +56,8 @@ module ChatIndexPayload
       {
         status: status,
         group_by: group_by,
+        chat_types: chat_types,
+        apply_chat_type_filter: chat_type_feature_visible? || params.key?(:chat_types),
         sort_by: sort_by,
         per_group: per_group,
         group_offset: group_offset,
@@ -66,6 +76,34 @@ module ChatIndexPayload
 
   def chat_index_group_size
     chat_index_settings.fetch(:per_group)
+  end
+
+  def chat_index_available_chat_types
+    @chat_index_available_chat_types ||= begin
+      options = [ "agent" ]
+      options << "group" if User.count > 1
+      options << "external" if chat_index_external_chat_type_available?
+      options
+    end
+  end
+
+  def chat_type_feature_visible?
+    chat_index_available_chat_types.size > 1
+  end
+
+  def chat_index_chat_types_param
+    available = chat_index_available_chat_types
+    values = Array(params[:chat_types]).flat_map { |value| value.to_s.split(",") }.map(&:presence).compact.uniq
+    return available if values.empty?
+
+    invalid = values - CHAT_INDEX_CHAT_TYPE_OPTIONS
+    if invalid.any?
+      @chat_index_param_error ||= "chat_types must contain only: #{CHAT_INDEX_CHAT_TYPE_OPTIONS.join(", ")}."
+      return available
+    end
+
+    selected = values & available
+    selected.presence || available
   end
 
   def chat_index_group_offset
@@ -129,6 +167,9 @@ module ChatIndexPayload
         chat_provider_options: context.fetch(:chat_provider_options),
         chat_model: chat_session.chat_model,
         available_chat_models: context.fetch(:available_chat_models).fetch(effective_provider, []),
+        conversation_kind: chat_session.conversation_kind,
+        origin_platform: chat_session.origin_platform,
+        chat_type: chat_index_chat_type_for(chat_session),
         mode: chat_session.mode,
         local_daemon_state: chat_session.local_daemon_state,
         local_daemon_repo: chat_session.local_daemon_repo,
@@ -330,6 +371,11 @@ module ChatIndexPayload
         "WHEN #{ActiveRecord::Base.connection.quote(mode)} THEN #{index}"
       end.join(" ")
       "CASE group_key #{mode_order} ELSE 9 END ASC"
+    when "chat_type"
+      chat_type_order = CHAT_INDEX_CHAT_TYPE_OPTIONS.each_with_index.map do |chat_type, index|
+        "WHEN #{ActiveRecord::Base.connection.quote(chat_type)} THEN #{index}"
+      end.join(" ")
+      "CASE group_key #{chat_type_order} ELSE 9 END ASC"
     else
       "group_key ASC"
     end
@@ -368,7 +414,9 @@ module ChatIndexPayload
       scope.visible
     end
 
-    scope
+    return scope unless chat_index_settings.fetch(:apply_chat_type_filter)
+
+    scope.where("#{chat_index_chat_type_sql} IN (?)", chat_index_settings.fetch(:chat_types))
   end
 
   def chat_index_group_spec_for(group_key, repository_id:, repositories_by_id:)
@@ -403,10 +451,14 @@ module ChatIndexPayload
       end
       [ { key: "general", label: "General", repository_id: nil, group_by: "repository", group_value: "general", chats: [], has_more: false }, *repository_specs ]
     when "status"
-      statuses = chat_index_settings.fetch(:status) == "all" ? %w[active hidden] : [ chat_index_settings.fetch(:status) ]
+      statuses = chat_index_empty_status_groups
       statuses.map { |status| { key: "status-#{status}", label: chat_index_group_label("status", status), repository_id: nil, group_by: "status", group_value: status, chats: [], has_more: false } }
     when "mode"
       ChatSession::MODES.map { |mode| { key: "mode-#{mode}", label: chat_index_group_label("mode", mode), repository_id: nil, group_by: "mode", group_value: mode, chats: [], has_more: false } }
+    when "chat_type"
+      chat_index_settings.fetch(:chat_types).map do |chat_type|
+        { key: "chat_type-#{chat_type}", label: chat_index_group_label("chat_type", chat_type), repository_id: nil, group_by: "chat_type", group_value: chat_type, chats: [], has_more: false }
+      end
     else
       []
     end
@@ -417,9 +469,11 @@ module ChatIndexPayload
     when "date"
       chat_index_date_label(group_key)
     when "status"
-      group_key == "hidden" ? "Hidden" : "Active"
+      { "unread" => "Unread", "hidden" => "Hidden", "active" => "Active" }.fetch(group_key, group_key.to_s.titleize)
     when "mode"
       CHAT_INDEX_MODE_LABELS.fetch(group_key, group_key.to_s.titleize)
+    when "chat_type"
+      CHAT_INDEX_CHAT_TYPE_LABELS.fetch(group_key, group_key.to_s.titleize)
     else
       group_key
     end
@@ -441,10 +495,13 @@ module ChatIndexPayload
     when "repository"
       groups.sort_by { |group| [ group.fetch(:chats).empty? ? 1 : 0, -(group.delete(:active_at)&.to_i || 0), group.fetch(:label).downcase ] }
     when "status"
-      order = { "status-active" => 0, "status-hidden" => 1 }
+      order = { "status-unread" => 0, "status-active" => 1, "status-hidden" => 2 }
       groups.sort_by { |group| [ order.fetch(group.fetch(:key), 9), group.fetch(:chats).empty? ? 1 : 0 ] }
     when "mode"
       order = ChatSession::MODES.each_with_index.to_h { |mode, index| [ "mode-#{mode}", index ] }
+      groups.sort_by { |group| [ order.fetch(group.fetch(:key), 9), group.fetch(:chats).empty? ? 1 : 0 ] }
+    when "chat_type"
+      order = CHAT_INDEX_CHAT_TYPE_OPTIONS.each_with_index.to_h { |chat_type, index| [ "chat_type-#{chat_type}", index ] }
       groups.sort_by { |group| [ order.fetch(group.fetch(:key), 9), group.fetch(:chats).empty? ? 1 : 0 ] }
     else
       groups.sort_by { |group| group.fetch(:key) }.reverse
@@ -456,8 +513,9 @@ module ChatIndexPayload
     {
       "date" => "DATE(#{chat_activity_order_sql})",
       "repository" => "COALESCE(CAST(chat_attachments.attachable_id AS CHAR), 'general')",
-      "status" => "CASE WHEN chat_sessions.hidden_at IS NULL THEN 'active' ELSE 'hidden' END",
-      "mode" => "COALESCE(chat_sessions.mode, 'planning')"
+      "status" => "CASE WHEN chat_sessions.hidden_at IS NOT NULL THEN 'hidden' WHEN #{chat_index_unread_sql} THEN 'unread' ELSE 'active' END",
+      "mode" => "COALESCE(chat_sessions.mode, 'planning')",
+      "chat_type" => chat_index_chat_type_sql
     }.fetch(chat_index_settings.fetch(:group_by))
   end
 
@@ -465,13 +523,46 @@ module ChatIndexPayload
     {
       "date" => "DATE(#{chat_activity_order_sql}) = ?",
       "repository" => "COALESCE(CAST(chat_attachments.attachable_id AS CHAR), 'general') = ?",
-      "status" => "CASE WHEN chat_sessions.hidden_at IS NULL THEN 'active' ELSE 'hidden' END = ?",
-      "mode" => "COALESCE(chat_sessions.mode, 'planning') = ?"
+      "status" => "CASE WHEN chat_sessions.hidden_at IS NOT NULL THEN 'hidden' WHEN #{chat_index_unread_sql} THEN 'unread' ELSE 'active' END = ?",
+      "mode" => "COALESCE(chat_sessions.mode, 'planning') = ?",
+      "chat_type" => "#{chat_index_chat_type_sql} = ?"
     }.fetch(group_by)
+  end
+
+  def chat_index_chat_type_sql
+    "CASE WHEN COALESCE(chat_sessions.origin_platform, '') <> '' THEN 'external' WHEN chat_sessions.conversation_kind = 'group' THEN 'group' ELSE 'agent' END"
+  end
+
+  def chat_index_chat_type_for(chat_session)
+    return "external" if chat_session.origin_platform.present?
+    return "group" if chat_session.conversation_kind == "group"
+
+    "agent"
+  end
+
+  def chat_index_external_chat_type_available?
+    configured_platforms = PlatformIdentity.available_platforms.select do |platform|
+      PlatformIdentity::PlatformConfig::Base.for(platform).configured?
+    end
+    return false if configured_platforms.empty?
+
+    Current.user.platform_identities.where(platform: configured_platforms).exists?
   end
 
   def chat_index_order_sql
     "chat_sessions.pinned DESC, #{chat_index_sort_sql}, chat_sessions.id DESC"
+  end
+
+  def chat_index_empty_status_groups
+    return %w[unread active hidden] if chat_index_settings.fetch(:status) == "all"
+
+    [ "unread", chat_index_settings.fetch(:status) ].uniq
+  end
+
+  def chat_index_unread_sql
+    "chat_sessions.last_message_at IS NOT NULL " \
+      "AND (COALESCE(chat_participants.last_read_at, chat_sessions.last_read_at) IS NULL " \
+      "OR chat_sessions.last_message_at > COALESCE(chat_participants.last_read_at, chat_sessions.last_read_at))"
   end
 
   def chat_index_sort_sql

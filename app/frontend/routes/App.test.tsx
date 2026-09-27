@@ -11950,6 +11950,150 @@ describe("App", () => {
     }
   })
 
+  it("auto-hides the mobile chat header from real chat scrolling and ignores interactive content taps", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const bootstrap = bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        mobile_chat_auto_hide_header: true
+      }
+    })
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrap)
+    document.body.appendChild(script)
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const path = String(input)
+      if (path.endsWith("/api/v1/app/bootstrap")) return new Response(JSON.stringify(bootstrap), { status: 200, headers: { "Content-Type": "application/json" } })
+
+      return new Response(JSON.stringify(chatPayload({
+        messages: [{
+          type: "message",
+          id: 9,
+          role: "assistant",
+          tool_name: null,
+          content: { text: "Read [Example](https://example.com)." },
+          text: "Read [Example](https://example.com).",
+          bookmarkable: true
+        }]
+      })), { status: 200, headers: { "Content-Type": "application/json" } })
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const stream = await screen.findByTestId("chat-message-stream")
+      const header = screen.getByTestId("mobile-app-header")
+      const mobileTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
+      const mobileTabsShell = screen.getByTestId("mobile-chat-tabs-shell")
+      fireEvent.scroll(stream, { target: { scrollTop: 100 } })
+      expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-0px)" })
+
+      fireEvent.touchMove(stream)
+      fireEvent.scroll(stream, { target: { scrollTop: 200 } })
+      fireEvent.touchMove(stream)
+      fireEvent.scroll(stream, { target: { scrollTop: 300 } })
+      fireEvent.touchMove(stream)
+      fireEvent.scroll(stream, { target: { scrollTop: 400 } })
+
+      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-44px)", marginBottom: "-44px" })
+      expect(screen.getByTestId("mobile-chat-hidden-header-sidebar-button")).toHaveAccessibleName("Open sidebar")
+      expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("border-brand")
+
+      fireEvent.click(screen.getByRole("link", { name: "Example" }))
+      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-44px)" })
+
+      fireEvent.click(stream)
+      expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-0px)" })
+    } finally {
+      restoreMedia()
+      script.remove()
+    }
+  })
+
+  it("keeps mobile workspace tabs stable off the Chat tab and reveals them when switching tabs", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const bootstrap = bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        mobile_chat_auto_hide_header: true
+      }
+    })
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrap)
+    document.body.appendChild(script)
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const path = String(input)
+      if (path.endsWith("/api/v1/app/bootstrap")) return new Response(JSON.stringify(bootstrap), { status: 200, headers: { "Content-Type": "application/json" } })
+
+      return new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const stream = await screen.findByTestId("chat-message-stream")
+      const header = screen.getByTestId("mobile-app-header")
+      const mobileTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
+      const mobileTabsShell = screen.getByTestId("mobile-chat-tabs-shell")
+
+      fireEvent.touchMove(stream)
+      fireEvent.scroll(stream, { target: { scrollTop: 200 } })
+      fireEvent.touchMove(stream)
+      fireEvent.scroll(stream, { target: { scrollTop: 300 } })
+      fireEvent.touchMove(stream)
+      fireEvent.scroll(stream, { target: { scrollTop: 400 } })
+
+      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-44px)" })
+
+      fireEvent.click(within(mobileTabs).getByRole("button", { name: "Whiteboard" }))
+      await waitFor(() => {
+        expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+        expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
+      })
+      expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toHaveClass("border-brand")
+      expect(screen.getByRole("complementary", { name: "Chat workspace" })).toBeInTheDocument()
+      expect(screen.queryByTestId("mobile-chat-hidden-header-sidebar-button")).not.toBeInTheDocument()
+
+      fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chat" }))
+      const restoredStream = await screen.findByTestId("chat-message-stream")
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-0px)" })
+
+      fireEvent.touchMove(restoredStream)
+      fireEvent.scroll(restoredStream, { target: { scrollTop: 500 } })
+      fireEvent.touchMove(restoredStream)
+      fireEvent.scroll(restoredStream, { target: { scrollTop: 600 } })
+      fireEvent.touchMove(restoredStream)
+      fireEvent.scroll(restoredStream, { target: { scrollTop: 700 } })
+
+      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-44px)" })
+    } finally {
+      restoreMedia()
+      script.remove()
+    }
+  })
+
   it("truncates a long preview-panel tab title in the mobile tab strip instead of stretching it", async () => {
     const restoreMedia = mockMediaQuery(false)
     const longTitle = "A very long preview panel title that should never be allowed to stretch the tab strip or wrap onto a second line"
@@ -12688,15 +12832,12 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     await screen.findByText("Provider")
-    fireEvent.change(screen.getByLabelText("Chat provider"), { target: { value: "codex" } })
-
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+    expect(screen.getByText("Claude")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalledWith(
       "/api/v1/app/chats/8/switch_provider",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ provider: "codex" })
-      })
-    ))
+      expect.anything()
+    )
   })
 
   it("opens the bug report dialog from the /report slash command with transcript opt-in", async () => {

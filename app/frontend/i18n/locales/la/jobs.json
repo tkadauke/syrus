@@ -5,6 +5,7 @@
   "command_error": "Mandatum operis defecit.",
   "feedback_submitted": "Responsum missum est — novus cursus mox incipiet.",
   "view_in_chat": "Vide in colloquio",
+  "chat": "Colloquium",
   "chat_about_this": "Colloquere de hoc",
   "prepare_skipped": "praeparatio omissa",
   "deployment_stages_label": "Gradus deploymenti",

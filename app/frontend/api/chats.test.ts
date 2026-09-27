@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
-import { createChat, createEmptyChat } from "./chats"
+import { createChat, createEmptyChat, fetchChats } from "./chats"
 
 describe("chat API", () => {
   afterEach(() => {
@@ -39,6 +39,24 @@ describe("chat API", () => {
           chat_provider: "claude"
         })
       })
+    )
+  })
+
+  it("adds selected chat type filters to the recent chats query string", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ groups: [], repositories: [] }))
+
+    await fetchChats({
+      status: "active",
+      group_by: "repository",
+      chat_types: ["agent", "external"],
+      sort_by: "last_activity",
+      show_empty_groups: false,
+      per_group: 10
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/app/chats?chat_types=agent%2Cexternal",
+      expect.anything()
     )
   })
 })

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import type { Step } from "react-joyride"
-import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode, UIEvent } from "react"
+import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode, UIEvent, WheelEvent as ReactWheelEvent } from "react"
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -127,8 +127,25 @@ import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
 import { normalizeChatPayload } from "../lib/entityStore"
 import { subscribeToChatResourceEvents } from "../lib/actionCable"
+import { useMobileChatHeaderControls } from "./chat/MobileChatHeaderContext"
 const ChatWorkspacePanel = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatWorkspacePanel })))
 const ChatSettingsDialog = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatSettingsDialog })))
+
+const NON_INTERACTIVE_CHAT_TAP_SELECTOR = [
+  "a",
+  "button",
+  "input",
+  "textarea",
+  "select",
+  "summary",
+  "[role='button']",
+  "[role='menu']",
+  "[role='menuitem']",
+  "[role='tab']",
+  "[contenteditable='true']",
+  "[data-chat-interactive]"
+].join(",")
+const USER_SCROLL_INTENT_WINDOW_MS = 700
 
 function UsageOverlay({ payload }: { payload: ChatPayload }) {
   return (
@@ -407,7 +424,10 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
+  const mobileHeader = useMobileChatHeaderControls()
   const streamRef = useRef<HTMLDivElement | null>(null)
+  const lastScrollTopRef = useRef(0)
+  const lastUserScrollIntentAtRef = useRef(0)
   const atBottomRef = useRef(true)
   const streamChatIdRef = useRef(payload.chat.id)
   const maxPayloadMessageIdRef = useRef(maxMessageId(payload.messages))
@@ -471,6 +491,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
 
   const scrollToBottom = useCallback(() => {
     scrollMessageStreamToBottom(streamRef.current, { smooth: true })
+    lastScrollTopRef.current = streamRef.current?.scrollTop ?? 0
     atBottomRef.current = true
     setNewMessageCount(0)
   }, [])
@@ -500,14 +521,39 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
     onCanLoadOlderChange?.(hasMoreOlder && oldestId != null && !loadOlder.isPending)
   }, [hasMoreOlder, loadOlder.isPending, oldestId, onCanLoadOlderChange])
 
+  const markUserScrollIntent = useCallback(() => {
+    lastUserScrollIntentAtRef.current = Date.now()
+  }, [])
+
+  const handleWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    if (event.deltaY !== 0) markUserScrollIntent()
+  }, [markUserScrollIntent])
+
+  const handleTouchMove = useCallback(() => {
+    markUserScrollIntent()
+  }, [markUserScrollIntent])
+
   const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    const delta = event.currentTarget.scrollTop - lastScrollTopRef.current
+    lastScrollTopRef.current = event.currentTarget.scrollTop
+    if (Date.now() - lastUserScrollIntentAtRef.current <= USER_SCROLL_INTENT_WINDOW_MS) {
+      mobileHeader.reportScrollDelta(delta)
+    }
     const atBottom = isMessageStreamAtBottom(event.currentTarget)
     atBottomRef.current = atBottom
     if (atBottom) setNewMessageCount(0)
     if (isMessageStreamNearTop(event.currentTarget)) {
       requestOlderMessages({ preserveScroll: true })
     }
-  }, [requestOlderMessages])
+  }, [mobileHeader, requestOlderMessages])
+
+  const handleStreamClick = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!mobileHeader.autoHideEnabled) return
+    if (event.defaultPrevented) return
+    if (event.target instanceof Element && event.target.closest(NON_INTERACTIVE_CHAT_TAP_SELECTOR)) return
+
+    mobileHeader.revealHeader()
+  }, [mobileHeader])
 
   useEffect(() => {
     setOlderMessages([])
@@ -515,6 +561,8 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
     setHasMoreOlder(payload.has_more_older)
     setNewMessageCount(0)
     atBottomRef.current = true
+    lastScrollTopRef.current = 0
+    lastUserScrollIntentAtRef.current = 0
     streamChatIdRef.current = payload.chat.id
     maxPayloadMessageIdRef.current = maxMessageId(payload.messages)
     entranceBaselineMessageIdRef.current = maxMessageId(payload.messages)
@@ -541,7 +589,10 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
   }, [payload.chat.id, payloadMessageIdsSignature, showSystemMessages])
 
   useEffect(() => {
-    if (atBottomRef.current) scrollMessageStreamToBottom(streamRef.current)
+    if (!atBottomRef.current) return
+
+    scrollMessageStreamToBottom(streamRef.current)
+    lastScrollTopRef.current = streamRef.current?.scrollTop ?? 0
   }, [agentActive, visibleItemsSignature])
 
   useLayoutEffect(() => {
@@ -550,6 +601,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
     if (!snapshot || !stream) return
 
     stream.scrollTop = stream.scrollHeight - snapshot.scrollHeight + snapshot.scrollTop
+    lastScrollTopRef.current = stream.scrollTop
     preserveScrollAfterOlderLoadRef.current = null
   }, [visibleItemsSignature])
 
@@ -601,7 +653,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
 
   if (displayedItems.length === 0 && payload.pending_actions.length === 0 && pendingActionGroups.length === 0) {
     return (
-      <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
+      <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream" onClick={handleStreamClick} onScroll={handleScroll} onTouchMove={handleTouchMove} onWheel={handleWheel} ref={streamRef}>
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <div>{payload.chat.repository ? t("empty_with_repo") : t("empty_without_repo")}</div>
           <ChatTurnIndicator payload={payload} agentActive={agentActive} />
@@ -623,7 +675,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
         // keeps the default (pre-measurement, or composer shorter than
         // assumed) case unchanged.
       }
-      <div className="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain p-2 pt-12 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pt-12 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))]" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
+      <div className="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain p-2 pt-12 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pt-12 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))]" data-testid="chat-message-stream" onClick={handleStreamClick} onScroll={handleScroll} onTouchMove={handleTouchMove} onWheel={handleWheel} ref={streamRef}>
         {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">{t("loading_older_messages")}</div> : null}
         {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div> : null}
         {hiddenSystemMessageCount > 0 ? (
@@ -749,10 +801,13 @@ function ChatWorkspace({
   // Wider than AppChromeV2's own sidebar breakpoint — see CHAT_WORKSPACE_SPLIT_MIN_WIDTH.
   const isDesktop = useMediaQuery(`(min-width: ${CHAT_WORKSPACE_SPLIT_MIN_WIDTH}px)`, true)
   const { t } = useT("chat")
+  const { autoHideEnabled: mobileHeaderAutoHideEnabled, offset: mobileHeaderOffset, revealHeader } = useMobileChatHeaderControls()
   const hasPins = useHasPins(payload.chat.id, queryKey[2])
   const availableTabs = availableWorkspaceTabs(payload, hasPins)
   const showMobileWorkspaceTabs = mobileWorkspaceTabsVisible(payload)
   const showMobileChatColumn = activeMobileTab === "chat" || !showMobileWorkspaceTabs
+  const mobileTabsAutoHideActive = !isDesktop && showMobileWorkspaceTabs && activeMobileTab === "chat" && mobileHeaderAutoHideEnabled
+  const mobileTabsOffset = mobileTabsAutoHideActive ? Math.min(44, mobileHeaderOffset) : 0
 
   useEffect(() => {
     if (activeTab === null || !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload))
@@ -762,6 +817,13 @@ function ChatWorkspace({
   useEffect(() => {
     if (!showMobileWorkspaceTabs && activeMobileTab !== "chat") setActiveMobileTab("chat")
   }, [activeMobileTab, showMobileWorkspaceTabs])
+
+  useEffect(() => {
+    if (isDesktop) return
+    if (showMobileWorkspaceTabs && activeMobileTab === "chat") return
+
+    revealHeader()
+  }, [activeMobileTab, isDesktop, revealHeader, showMobileWorkspaceTabs])
 
   // Confirming a job/epic proposal optimistically patches the chat query
   // cache so the "jobs" tab becomes available, but that cache update lands
@@ -860,17 +922,26 @@ function ChatWorkspace({
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
         {showMobileWorkspaceTabs ? (
-          <UnderlineTabs
-            activeKey={activeMobileTab}
-            ariaLabel={t("aria_mobile_tabs")}
-            className="flex min-h-[44px] shrink-0 overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-2 text-sm font-medium dark:border-gray-700"
-            itemClassName="max-w-[33vw] truncate px-3 py-2"
-            items={(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => ({
-              key: tab,
-              label: mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs)
-            }))}
-            onSelect={selectMobileTab}
-          />
+          <div
+            className="shrink-0"
+            data-testid="mobile-chat-tabs-shell"
+            style={mobileTabsAutoHideActive ? {
+              marginBottom: `-${mobileTabsOffset}px`,
+              transform: `translateY(-${mobileTabsOffset}px)`
+            } : undefined}
+          >
+            <UnderlineTabs
+              activeKey={activeMobileTab}
+              ariaLabel={t("aria_mobile_tabs")}
+              className="flex min-h-[44px] overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-2 text-sm font-medium dark:border-gray-700"
+              itemClassName="max-w-[33vw] truncate px-3 py-2"
+              items={(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => ({
+                key: tab,
+                label: mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs)
+              }))}
+              onSelect={selectMobileTab}
+            />
+          </div>
         ) : null}
         <div className="flex min-h-0 w-full flex-1">
           {showMobileChatColumn ? (
