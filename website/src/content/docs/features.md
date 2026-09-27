@@ -777,9 +777,8 @@ move the conversation between providers. When multiple providers are
 configured, a new chat's composer shows an inline provider dropdown next to
 the mode/model controls until the first message is sent; picking a different
 provider there switches the still-unstarted chat immediately, with no
-separate dialog. Operators can still explicitly choose among configured
-providers from chat settings once a chat is underway; explicit provider
-switching uses the normal rehydration flow. Branched chats preserve the stored provider
+separate dialog. Once a chat is underway, settings shows the stored provider
+without offering an in-place switch. Branched chats preserve the stored provider
 choice, and stored agent sessions only resume when the next turn uses the same
 provider. Chat may
 read, search, list, and refresh checkouts for context, but code changes must

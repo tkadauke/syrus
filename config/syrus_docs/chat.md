@@ -226,19 +226,23 @@ gate above without attempting to predict it from `conversation_kind` alone
 (a group can be talked down to a single remaining human, at which point the
 gate — and the hint — turn off).
 
-Operators can intentionally switch an existing chat through the chat provider
-switch endpoint. That path enqueues `SwitchChatProviderJob`, rehydrates
-provider-specific session state, rewrites the stored session metadata, and
-updates `chat_provider` deliberately. Direct chat updates cannot change
-`chat_provider`; user-level chat/agent provider settings remain defaults for
-future chats only.
+The normal UI only offers chat provider selection before a chat has started;
+after the first message, chat settings show the stored provider as read-only.
+Operators can still intentionally switch an existing chat through the chat
+provider switch endpoint. That path enqueues `SwitchChatProviderJob`,
+rehydrates provider-specific session state, rewrites the stored session
+metadata, and updates `chat_provider` deliberately. Direct chat updates cannot
+change `chat_provider`; user-level chat/agent provider settings remain
+defaults for future chats only.
 
 When the current user's usage is exhausted for a provider, chats whose effective
 provider matches that provider include `provider_availability` in list/detail
 payloads and show a red triangle warning in the sidebar, header, and chat
-settings. Switching the chat to another configured provider clears the warning
-for that chat immediately. Transient provider circuits are not treated as usage
-exhaustion and keep their existing non-red UI.
+settings. Starting a new chat on another configured provider avoids the warning
+for that new conversation; an existing chat only clears it after the explicit
+provider switch endpoint updates that chat's stored provider. Transient
+provider circuits are not treated as usage exhaustion and keep their existing
+non-red UI.
 
 Scoped chat events can be evaluated before a live chat turn is woken.
 `ChatScopedEventEvaluatorJob` runs a disposable provider session with a fresh
