@@ -17,7 +17,7 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
   return {
     settings: {
       signups_open: false,
-      max_concurrent_agent_runs: 0,
+      max_concurrent_agent_runs: 3,
       proactive_rebase_commit_threshold: 1,
       show_work_unit_debug: false,
       rebase_failure_cooldown_minutes: 60,
