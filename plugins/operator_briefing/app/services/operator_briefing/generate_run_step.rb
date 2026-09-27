@@ -21,27 +21,33 @@ module OperatorBriefing
     end
 
     def content_blocks(briefing)
+      preferences = source_preferences(briefing)
       [
-        narrative_block(briefing),
-        *recent_job_cards(briefing),
-        *notable_change_cards(briefing)
+        narrative_block(briefing, preferences),
+        *recent_job_cards(briefing, preferences),
+        *notable_change_cards(briefing, preferences)
       ]
     end
 
-    def narrative_block(briefing)
-      changes_count = notable_changes_scope(briefing).count
-      review_count = review_findings_scope(briefing).count
-      jobs_count = recent_jobs_scope(briefing).count
+    def narrative_block(briefing, preferences)
+      changes_count = source_enabled?(preferences, "notable_changes") ? notable_changes_scope(briefing).count : 0
+      review_count = source_enabled?(preferences, "review_findings") ? review_findings_scope(briefing).count : 0
+      jobs_count = source_enabled?(preferences, "jobs") ? recent_jobs_scope(briefing).count : 0
       text = if changes_count.zero? && review_count.zero? && jobs_count.zero?
         "No notable activity was found for #{repository.slug} in this briefing window."
       else
         "Briefing window for #{repository.slug}: #{jobs_count} recent Jobs, #{changes_count} notable workflow changes, and #{review_count} review findings."
       end
 
-      { "kind" => "narrative", "payload" => { "text" => text } }
+      payload = { "text" => text }
+      memory_context = personalization_memory_context(briefing)
+      payload["personalization_memory_context"] = memory_context if memory_context.present?
+      { "kind" => "narrative", "payload" => payload }
     end
 
-    def recent_job_cards(briefing)
+    def recent_job_cards(briefing, preferences)
+      return [] unless source_enabled?(preferences, "jobs")
+
       recent_jobs_scope(briefing).limit(RECENT_JOB_LIMIT).map do |recent_job|
         link_card(
           entity_type: "job",
@@ -53,7 +59,9 @@ module OperatorBriefing
       end
     end
 
-    def notable_change_cards(briefing)
+    def notable_change_cards(briefing, preferences)
+      return [] unless source_enabled?(preferences, "notable_changes")
+
       notable_changes_scope(briefing).limit(NOTABLE_CHANGE_LIMIT).map do |change|
         link_card(
           entity_type: "workflow",
@@ -63,6 +71,18 @@ module OperatorBriefing
           description: change.severity.humanize
         )
       end
+    end
+
+    def source_preferences(briefing)
+      SourcePreference.effective_for_user(briefing.owner_user)
+    end
+
+    def source_enabled?(preferences, source_key)
+      preferences.fetch(source_key).enabled?
+    end
+
+    def personalization_memory_context(briefing)
+      AgentMemory::PromptContext.new(user: briefing.owner_user, repository_ids: [ repository.id ]).to_s
     end
 
     def link_card(entity_type:, entity_id:, title:, path:, description:)

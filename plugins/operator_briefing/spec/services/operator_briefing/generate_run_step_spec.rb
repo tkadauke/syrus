@@ -9,6 +9,7 @@ RSpec.describe OperatorBriefing::GenerateRunStep do
   let(:run) { Run.create!(job: job, user: user, step: step, trigger_kind: "briefing_generate", agent_provider: user.agent_provider) }
 
   before do
+    PluginRecord.find_or_create_by!(name: "agent_memory").update!(enabled: true, disableable: true)
     PluginRecord.find_or_create_by!(name: "operator_briefing").update!(enabled: true, disableable: true)
     @briefing = OperatorBriefing::Briefing.create!(
       job: job,
@@ -38,5 +39,41 @@ RSpec.describe OperatorBriefing::GenerateRunStep do
     expect(revision.generation_run).to eq(run)
     expect(revision.content_blocks.map { |block| block.fetch("kind") }).to include("narrative", "link_card")
     expect(revision.content_blocks.to_json).to include("Refine auth", "Schema changed")
+  end
+
+  it "omits cards and counts for disabled sources" do
+    OperatorBriefing::SourcePreference.seed_for_user!(user)
+    OperatorBriefing::SourcePreference.create!(
+      user: user,
+      source_key: "jobs",
+      enabled: false,
+      weight: 1.0,
+      suggested_by: "user",
+      confirmed_at: Time.current
+    )
+    Job.create!(user: user, owner_user: user, repository: repository, kind: "direct", issue_number: nil, issue_title: "Refine auth", priority: "low")
+
+    described_class.new(run).call
+
+    revision = @briefing.revisions.sole
+    expect(revision.content_blocks.to_json).not_to include("Refine auth")
+    expect(revision.content_blocks.first.dig("payload", "text")).to include("No notable activity")
+    expect(revision.content_blocks.first.dig("payload", "text")).not_to include("1 recent Jobs")
+  end
+
+  it "loads user preference memories into the generation payload" do
+    AgentMemory::Entry.create!(
+      user: user,
+      kind: "user_pref",
+      scope: "global",
+      content: "Operator prefers fewer spend items.",
+      confidence: 0.9
+    )
+
+    described_class.new(run).call
+
+    revision = @briefing.revisions.sole
+    expect(revision.content_blocks.first.dig("payload", "personalization_memory_context"))
+      .to include("Operator prefers fewer spend items.")
   end
 end
