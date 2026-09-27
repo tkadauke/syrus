@@ -170,6 +170,10 @@ RSpec.describe PollPullRequestJob, :ci_only do
 
     it "clears approval when fresh PR feedback is queued after an APPROVED review" do
       repository.update!(auto_merge_enabled: false)
+      user.update!(github_handle: "reviewer")
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
       stub_pr
       stub_reviews([
         { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601, html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1", user: { login: "reviewer" } }
@@ -285,6 +289,8 @@ RSpec.describe PollPullRequestJob, :ci_only do
       allow(PrCommentClassifier).to receive(:call).and_return(
         PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
       )
+      reviewer = Factories.user(github_handle: "reviewer")
+      repository.repository_memberships.find_or_create_by!(user: reviewer) { |membership| membership.role = "read" }
     end
 
     it "instantiates a PrFeedback workflow and stashes comments as artifacts" do
@@ -504,6 +510,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
     end
 
     it "DOES process operator-authored comments (Syrus runs under the operator's PAT today; the operator IS the reviewer)" do
+      user.update!(github_handle: "operator")
       stub_issue_comments([
         { id: 1, body: "extract this into a helper",
           user: { login: "operator" }, created_at: t1.iso8601 }
@@ -655,7 +662,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
 
       record = PrReviewComment.last
       expect(record.actionable).to be false
-      expect(record.attributed_to).to eq("external")
+      expect(record.attributed_to).to eq("member")
       expect(record.actioned_at).to be_nil
     end
 
@@ -1681,6 +1688,10 @@ RSpec.describe PollPullRequestJob, :ci_only do
     end
 
     it "records the user as gh_api_blocked when check-runs returns 403, and still processes new comments" do
+      user.update!(github_handle: "reviewer")
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
       stub_request(:get, check_runs_url).with(query: hash_including({})).to_return(
         status: 403,
         headers: { "Content-Type" => "application/json" },

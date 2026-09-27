@@ -481,13 +481,14 @@ manual actions choose their own trigger-specific templates.
 ## Feedback Policies
 
 The `feedback_policy` setting on each repository controls whether PR comments
-from team members and external reviewers are acted on automatically or require
-confirmation.
+from repository members are acted on automatically or require confirmation.
+External reviewers always require confirmation before Syrus spends an owner-billed
+workflow on their comment.
 
 | Policy | Behavior |
 | --- | --- |
 | `confirm` (default) | Only the job owner's actionable comments trigger automatic implementation; team member and external actionable comments are recorded but do not queue a workflow until confirmed by the operator |
-| `auto` | Actionable comments from all commenter categories queue an implementation workflow automatically |
+| `auto` | Actionable comments from the job owner and repository members queue an implementation workflow automatically; external comments are recorded for operator review |
 
 ### Comment attribution
 
@@ -495,7 +496,7 @@ Syrus classifies each new PR comment by commenter:
 
 - **Job owner** — the GitHub handle matches the job's owner user. Owner comments always queue automatically regardless of `feedback_policy`.
 - **Team member** — the handle matches a repository membership. Member comments respect `feedback_policy`.
-- **External** — the handle is not found in memberships and is not the owner. External comments respect `feedback_policy`.
+- **External** — the handle is not found in memberships and is not the owner. External comments require operator confirmation.
 
 Syrus also passes each comment through an LLM classifier to determine whether it contains actionable feedback (requests a code change, correction, or improvement) or is a discussion remark, question, or acknowledgement. Non-actionable comments are stored in the `pr_review_comments` audit log but never trigger a workflow.
 

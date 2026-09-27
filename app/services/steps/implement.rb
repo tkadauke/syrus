@@ -87,7 +87,8 @@ module Steps
       {
         "author" => comment.user&.login,
         "body" => comment.body,
-        "created_at" => comment.created_at&.iso8601
+        "created_at" => comment.created_at&.iso8601,
+        "attributed_to" => PrCommentAttributor.call(github_handle: comment.user&.login.to_s, job: job)
       }
     end
 

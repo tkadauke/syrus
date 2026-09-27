@@ -102,9 +102,9 @@ module Steps
     # as a generic string.
     def hydrate_comments(raw)
       raw.map do |c|
-        Struct.new(:user, :body, :path, :line, :diff_hunk, :created_at).new(
+        Struct.new(:user, :body, :path, :line, :diff_hunk, :created_at, :attributed_to).new(
           Struct.new(:login).new(c["author"] || "reviewer"),
-          c["body"], c["path"], c["line"], c["diff_hunk"], c["created_at"]
+          c["body"], c["path"], c["line"], c["diff_hunk"], c["created_at"], c["attributed_to"]
         )
       end
     end
