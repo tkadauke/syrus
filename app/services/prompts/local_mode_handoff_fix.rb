@@ -1,7 +1,10 @@
 module Prompts
   # Prompt for a fresh workflow agent repairing Local Mode handoff grader
   # failures. Later loop iterations append Prompts::GradeFailureFeedback.
+  # GitHub-sourced content trust boundary
   class LocalModeHandoffFix
+    include GithubContentTrust
+
     def initialize(issue:, repo_slug:, branch_name:, recent_commits: [], epic: nil, job: nil)
       @issue = issue
       @repo_slug = repo_slug
@@ -13,6 +16,7 @@ module Prompts
 
     def to_s
       sections = [
+        github_content_trust_boundary,
         context_section,
         issue_section,
         epic_context,

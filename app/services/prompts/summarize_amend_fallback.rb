@@ -2,7 +2,10 @@ module Prompts
   # Fallback summarize-amend prompt for the rare case where the upstream
   # provider session is unavailable to resume. It gives the agent durable job
   # context plus the follow-up diff so it can submit commit metadata only.
+  # GitHub-sourced content trust boundary
   class SummarizeAmendFallback
+    include GithubContentTrust
+
     MAX_BODY_BYTES = 16 * 1024
     MAX_SUMMARY_BYTES = 8 * 1024
     MAX_DIFF_BYTES = Prompts::PullRequestSummary::MAX_DIFF_BYTES
@@ -16,6 +19,8 @@ module Prompts
 
     def to_s
       <<~PROMPT.strip
+        #{github_content_trust_boundary}
+
         You just finished addressing follow-up work for this Syrus job, but the
         original agent session is not available to resume. Use this bounded
         durable context instead.

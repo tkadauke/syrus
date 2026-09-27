@@ -1,5 +1,8 @@
 module Prompts
+  # GitHub-sourced content trust boundary
   class VisualReview
+    include GithubContentTrust
+
     FEEDBACK_KIND_LABELS = {
       chat_feedback: { context: "chat feedback",       history: "Chat feedback being addressed" },
       pr_comment:    { context: "PR comment feedback", history: "PR comments being addressed"   }
@@ -46,6 +49,7 @@ module Prompts
     def to_s
       [
         "You are running the visual_review step for Syrus.",
+        github_content_trust_boundary,
         independence,
         workflow_context,
         job_context,
