@@ -650,6 +650,8 @@ export const DEFAULT_CHAT_SIDEBAR_SETTINGS: ChatSidebarSettings = {
 
 export type ChatsIndexPayload = {
   groups: ChatGroupRecord[]
+  groups_has_more?: boolean
+  groups_next_offset?: number | null
   repositories: ChatRepository[]
 }
 
@@ -989,8 +991,9 @@ export function unhideChat(path: string) {
   return patchJson<{ message: string; chat: ChatNavRecord }>(path)
 }
 
-function chatSidebarSearchParams(settings?: Partial<ChatSidebarSettings>) {
+function chatSidebarSearchParams(settings?: Partial<ChatSidebarSettings>, groupOffset?: number | null) {
   const search = new URLSearchParams()
+  if (groupOffset != null && groupOffset > 0) search.set("group_offset", String(groupOffset))
   if (!settings) return search
 
   if (settings.status && settings.status !== "active") search.set("status", settings.status)
@@ -1003,6 +1006,11 @@ function chatSidebarSearchParams(settings?: Partial<ChatSidebarSettings>) {
 
 export function fetchChats(settings?: Partial<ChatSidebarSettings>) {
   const search = chatSidebarSearchParams(settings).toString()
+  return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`)
+}
+
+export function fetchChatGroupsPage(settings: Partial<ChatSidebarSettings>, groupOffset: number) {
+  const search = chatSidebarSearchParams(settings, groupOffset).toString()
   return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`)
 }
 
