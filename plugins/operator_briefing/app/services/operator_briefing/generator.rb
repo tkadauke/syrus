@@ -20,19 +20,21 @@ module OperatorBriefing
     end
 
     def generate!
-      return skipped("no_activity") unless on_demand? || activity_since_last_closed?
+      return regenerate_current_briefing! if on_demand? && current_live_briefing
+      return skipped("no_activity") unless on_demand? || activity_since_last_generation?
 
       budget = BudgetGate.evaluate(settings)
       return skipped("budget") if scheduled? && budget.skip
 
+      window_start = activity_anchor_at || FALLBACK_WINDOW.ago(now)
       Job.transaction do
         close_current_live_briefings!
-        create_briefing_job!
+        create_briefing_job!(window_start: window_start)
       end
     end
 
-    def activity_since_last_closed?
-      ActivityGate.new(user: user, repository: repository, since: last_closed_at).activity?
+    def activity_since_last_generation?
+      ActivityGate.new(user: user, repository: repository, since: activity_anchor_at).activity?
     end
 
     def last_closed_at
@@ -54,6 +56,20 @@ module OperatorBriefing
       @settings ||= BriefingSettings.for_user(user)
     end
 
+    def activity_anchor_at
+      current_live_briefing&.window_end || last_closed_at
+    end
+
+    def current_live_briefing
+      @current_live_briefing ||= Briefing
+        .joins(:job)
+        .where(owner_user: user, repository: repository)
+        .where.not(jobs: { state: Job::TERMINAL_STATES })
+        .includes(:job)
+        .order(created_at: :desc, id: :desc)
+        .first
+    end
+
     def skipped(reason)
       Result.new(job: nil, briefing: nil, status: "skipped", reason: reason)
     end
@@ -70,7 +86,7 @@ module OperatorBriefing
         end
     end
 
-    def create_briefing_job!
+    def create_briefing_job!(window_start:)
       job = user.jobs.create!(
         repository: repository,
         kind: "briefing_generate",
@@ -84,15 +100,26 @@ module OperatorBriefing
         job: job,
         repository: repository,
         owner_user: user,
-        window_start: last_closed_at || FALLBACK_WINDOW.ago(now),
+        window_start: window_start,
         window_end: now
       )
+      launch_generation!(job)
+      Result.new(job: job, briefing: briefing, status: "created", reason: nil)
+    end
+
+    def regenerate_current_briefing!
+      briefing = current_live_briefing
+      briefing.update!(window_end: now)
+      launch_generation!(briefing.job)
+      Result.new(job: briefing.job, briefing: briefing, status: "created", reason: nil)
+    end
+
+    def launch_generation!(job)
       WorkUnits::Launcher.create_and_start!(
         kind: "briefing_generate",
         job: job,
         agent_provider: settings.agent_provider.presence
       )
-      Result.new(job: job, briefing: briefing, status: "created", reason: nil)
     end
   end
 end

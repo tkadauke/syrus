@@ -21,6 +21,11 @@ RSpec.describe OperatorBriefing::Payload do
     live.revisions.create!(
       revision_number: 1,
       generated_at: Time.current,
+      content_blocks: [ { "kind" => "narrative", "payload" => { "text" => "Old live text" } } ]
+    )
+    live.revisions.create!(
+      revision_number: 2,
+      generated_at: Time.current,
       content_blocks: [ { "kind" => "narrative", "payload" => { "text" => "Live text" } } ]
     )
 
@@ -33,9 +38,12 @@ RSpec.describe OperatorBriefing::Payload do
       content_blocks: [ { "kind" => "narrative", "payload" => { "text" => "Old text" } } ]
     )
 
+    expect_any_instance_of(OperatorBriefing::Briefing).not_to receive(:latest_revision)
+
     repo_payload = described_class.new(user: user).as_json[:repositories].sole
 
     expect(repo_payload[:current][:id]).to eq(live.id)
+    expect(repo_payload[:current][:latest_revision][:revision_number]).to eq(2)
     expect(repo_payload[:current][:latest_revision][:content_blocks].first.dig("payload", "text")).to eq("Live text")
     expect(repo_payload[:history].first[:id]).to eq(archived.id)
   end
