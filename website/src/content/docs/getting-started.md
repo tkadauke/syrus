@@ -249,7 +249,10 @@ Once the Jobs run, the GitHub loop is the same as for any Job. You can also
 file work directly: create or edit a GitHub issue in the registered
 repository and add the trigger label, or create a **direct Job** from the
 web UI. Syrus polls GitHub instead of receiving inbound webhooks, so a
-labelled issue's Job may not appear immediately.
+labelled issue's Job may take up to about five minutes to appear. See
+[Issue Authoring](/docs/issue-authoring) for the full GitHub issue syntax,
+including Epics, dependencies, skip labels, delivery-track labels, and
+reference gotchas.
 
 ### 5. Watch the Job, Workflow, and Run
 
@@ -290,8 +293,9 @@ for diagnosis.
 Open the PR from the Job page. Review it like any other pull request:
 read the diff, check CI, comment, request changes, approve, or merge.
 
-If you comment on the PR, Syrus can pick up feedback on a later PR poll
-and create a follow-up Workflow on the same Job. If CI failures are
+If you comment on the PR, Syrus can pick up feedback on a later PR poll,
+which runs about every five minutes, and create a follow-up Workflow on the
+same Job. If CI failures are
 enabled for your installation, failing checks can also create repair
 Workflows on Syrus-owned PRs; those repairs run configured graders, using
 `.syrus.yml` graders in the `ci` phase, before pushing a fix. A Job remains in the landing queue — and

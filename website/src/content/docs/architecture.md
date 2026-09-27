@@ -37,8 +37,9 @@ Syrus uses external polling instead of inbound GitHub callbacks so a self-hosted
 does not need a public inbound HTTP endpoint. That keeps the deployment
 story simple for homelabs, private clusters, and small teams behind NAT.
 The trade-off is that reactions happen on poll cadence rather than at
-callback speed, but the architecture stays portable and avoids exposing the
-operator's network.
+callback speed. GitHub issue, PR feedback, merge-state, and related pollers
+run about every five minutes by default. The architecture stays portable and
+avoids exposing the operator's network.
 
 ## MCP Sidecar
 
