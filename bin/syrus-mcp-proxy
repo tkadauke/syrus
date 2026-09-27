@@ -1,0 +1,56 @@
+#!/usr/bin/env ruby
+# Secret-free stdio-to-HTTP MCP bridge. Agent CLIs that only support stdio
+# spawn this process; it forwards JSON-RPC requests to the worker-owned
+# PersistentMcpDaemon with a short-lived invocation token.
+require "json"
+require "net/http"
+require "optparse"
+require "uri"
+
+url = ENV["SYRUS_MCP_PROXY_URL"]
+token = ENV["SYRUS_MCP_PROXY_INVOCATION_CONTEXT"]
+
+OptionParser.new do |opts|
+  opts.on("--url URL") { |value| url = value }
+  opts.on("--token TOKEN") { |value| token = value }
+end.parse!(ARGV)
+
+abort("usage: syrus-mcp-proxy --url URL --token TOKEN") if url.to_s.empty? || token.to_s.empty?
+
+uri = URI(url)
+
+def request_id(json)
+  JSON.parse(json)["id"]
+rescue JSON::ParserError
+  nil
+end
+
+def error_response(id, code, message)
+  { jsonrpc: "2.0", id: id, error: { code: code, message: message } }.to_json
+end
+
+STDIN.each_line do |line|
+  body = line.strip
+  next if body.empty?
+
+  id = request_id(body)
+  request = Net::HTTP::Post.new(uri)
+  request["Content-Type"] = "application/json"
+  request["Accept"] = "application/json, text/event-stream"
+  request["X-Syrus-Invocation-Context"] = token
+  request.body = body
+
+  response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == "https", open_timeout: 5, read_timeout: 60) do |http|
+    http.request(request)
+  end
+
+  if response.is_a?(Net::HTTPSuccess)
+    STDOUT.puts(response.body)
+  else
+    STDOUT.puts(error_response(id, -32_603, "MCP proxy upstream HTTP #{response.code}"))
+  end
+  STDOUT.flush
+rescue StandardError => e
+  STDOUT.puts(error_response(id, -32_603, "MCP proxy error: #{e.class}: #{e.message}"))
+  STDOUT.flush
+end

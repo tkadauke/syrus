@@ -38,9 +38,13 @@ stop, and aliveness supervision as the outer control plane.
 
 Antigravity reads MCP servers from `~/.gemini/config/mcp_config.json`. Syrus
 writes that file inside the isolated per-run or per-chat Antigravity home and
-uses stdio sidecars for workflow and chat tools. Persistent HTTP MCP routing is
-not wired for Antigravity yet; any persistent decision is downgraded to stdio
-with a `provider_unsupported` diagnostic.
+uses stdio MCP entries for workflow and chat tools. For workflow runs, when
+the persistent MCP daemon is healthy and advertises workflow tools, Syrus
+writes a stdio entry for `bin/syrus-mcp-proxy` instead of the Rails-booting
+sidecar. The proxy forwards JSON-RPC to the worker-local daemon with a
+short-lived signed run token and does not receive Rails/database/storage
+secrets. Chat turns still use the existing chat stdio sidecars unless their
+provider supports the daemon's HTTP transport directly.
 
 Tool names in Antigravity init events use the `mcp(server/tool)` shape, so Syrus
 normalizes them back to MCP-style names when logging tool calls and validating

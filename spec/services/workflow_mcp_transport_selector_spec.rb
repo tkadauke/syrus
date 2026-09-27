@@ -85,7 +85,7 @@ RSpec.describe WorkflowMcpTransportSelector do
         decision = select
 
         expect(decision.stdio?).to be true
-        expect(decision.reason).to eq("daemon_incompatible: workflow tool dispatch not yet supported (capabilities=none)")
+        expect(decision.reason).to eq("daemon_incompatible: missing workflow_tools capability (capabilities=none)")
       end
 
       it "selects the persistent transport when the daemon is healthy and advertises workflow_tools" do
