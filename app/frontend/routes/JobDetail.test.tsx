@@ -162,6 +162,38 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("img", { name: /Codex usage is low \(8% remaining; threshold 10%\)/ })).toBeInTheDocument()
   })
 
+  it("keeps noisy header metadata desktop-only while preserving chat on mobile", () => {
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          source_chat: {
+            chat_id: 4,
+            chat_title: "Roadmap chat",
+            proposal_id: 9,
+            proposal_kind: "syrus_issue",
+            message_id: 12,
+            path: "/chats/4#message-12",
+            label: "Job proposal in Roadmap chat"
+          }
+        }
+      })
+    )
+
+    expect(screen.getByTestId("job-header-title")).toHaveClass("text-xl", "sm:text-2xl")
+
+    const metadata = screen.getByTestId("job-header-metadata")
+    const metadataItems = Array.from(metadata.children)
+    expect(metadataItems[0]).toHaveClass("hidden", "sm:inline-flex")
+    expect(within(metadataItems[0] as HTMLElement).getByText("running")).toBeInTheDocument()
+    expect(metadataItems[1]).toHaveClass("hidden", "sm:inline-flex")
+    expect(within(metadataItems[1] as HTMLElement).getByRole("link", { name: "acme/widgets" })).toBeInTheDocument()
+    expect(metadataItems[2]).toHaveClass("hidden", "sm:inline-flex")
+    expect(within(metadataItems[2] as HTMLElement).getByText("codex")).toBeInTheDocument()
+    expect(metadataItems[3]).not.toHaveClass("hidden")
+    expect(within(metadataItems[3] as HTMLElement).getByRole("link", { name: "Roadmap chat" })).toBeInTheDocument()
+  })
+
   it("shows automatic provider failover as a tooltip on the provider pill in the job detail header", () => {
     renderJobDetail(
       jobPayload({
@@ -1738,6 +1770,41 @@ describe("JobDetailView", () => {
     expect(within(panel as HTMLElement).getByText("JobDetail").tagName).toBe("CODE")
     expect(within(panel as HTMLElement).getByRole("link", { name: "the docs" })).toHaveAttribute("href", "/docs")
     expect(within(panel as HTMLElement).getByText("Render markdown")).toBeInTheDocument()
+  })
+
+  it("clamps issue and agent summary prose on mobile with accessible expand controls", () => {
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          issue_body: "First issue line.\n\nSecond issue line.\n\nThird issue line.\n\nFourth issue line.\n\nFifth issue line.\n\nSixth issue line."
+        },
+        summary: {
+          run_id: 1,
+          text: "First summary line.\n\nSecond summary line.\n\nThird summary line.\n\nFourth summary line.\n\nFifth summary line.\n\nSixth summary line.",
+          finished_at: "2026-08-01T12:00:00Z"
+        }
+      })
+    )
+
+    const issuePanel = screen.getByRole("heading", { name: "Issue" }).closest("section") as HTMLElement
+    const summaryPanel = screen.getByRole("heading", { name: "Agent summary" }).closest("section") as HTMLElement
+    const issueContent = within(issuePanel).getByText("First issue line.").closest("[id^='job-prose']") as HTMLElement
+    const summaryContent = within(summaryPanel).getByText("First summary line.").closest("[id^='job-prose']") as HTMLElement
+    const issueToggle = within(issuePanel).getByRole("button", { name: "Show more" })
+    const summaryToggle = within(summaryPanel).getByRole("button", { name: "Show more" })
+
+    expect(issueContent).toHaveClass("line-clamp-5", "sm:line-clamp-none")
+    expect(summaryContent).toHaveClass("line-clamp-5", "sm:line-clamp-none")
+    expect(issueToggle).toHaveAttribute("aria-controls", issueContent.id)
+    expect(issueToggle).toHaveAttribute("aria-expanded", "false")
+    expect(summaryToggle).toHaveAttribute("aria-controls", summaryContent.id)
+
+    fireEvent.click(issueToggle)
+
+    expect(issueContent).not.toHaveClass("line-clamp-5")
+    expect(within(issuePanel).getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true")
+    expect(summaryContent).toHaveClass("line-clamp-5")
   })
 
   it("constrains the Summary tab grid columns so a wide code block scrolls instead of widening the page", () => {
