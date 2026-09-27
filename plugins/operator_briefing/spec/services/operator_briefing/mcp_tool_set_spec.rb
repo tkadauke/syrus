@@ -53,7 +53,7 @@ RSpec.describe OperatorBriefing::McpToolSet do
       ]
     )
     briefing.items.create!(
-      severity: "high",
+      severity: "decision_required",
       narrative: "The migration window needs a closer look.",
       evidence: [ { "workflow_id" => workflow.id } ]
     )
@@ -81,7 +81,7 @@ RSpec.describe OperatorBriefing::McpToolSet do
     expect(result.dig("briefing", "job", "slug")).to eq(job.slug)
     expect(result.dig("briefing", "latest_revision", "content_blocks").first.dig("payload", "text")).to eq("Full narrative context")
     expect(result.dig("briefing", "items").sole).to include(
-      "severity" => "high",
+      "severity" => "decision_required",
       "narrative" => "The migration window needs a closer look.",
       "evidence" => [ { "workflow_id" => workflow.id } ]
     )
