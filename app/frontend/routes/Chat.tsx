@@ -589,7 +589,10 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
   }, [payload.chat.id, payloadMessageIdsSignature, showSystemMessages])
 
   useEffect(() => {
-    if (atBottomRef.current) scrollMessageStreamToBottom(streamRef.current)
+    if (!atBottomRef.current) return
+
+    scrollMessageStreamToBottom(streamRef.current)
+    lastScrollTopRef.current = streamRef.current?.scrollTop ?? 0
   }, [agentActive, visibleItemsSignature])
 
   useLayoutEffect(() => {
