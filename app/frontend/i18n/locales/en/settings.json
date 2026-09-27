@@ -458,6 +458,8 @@
     "polling_enabled": "enabled",
     "polling_paused": "paused",
     "poll_failed": "failed",
+    "poll_quarantined_one": "1 issue quarantined",
+    "poll_quarantined_other": "{{count}} issues quarantined",
     "poll_ok": "ok"
   },
   "repository": {
@@ -470,6 +472,8 @@
     "count_failed_7d": "failed 7d",
     "polling_enabled": "polling enabled",
     "polling_paused": "polling paused",
+    "poll_quarantined_one": "1 issue quarantined",
+    "poll_quarantined_other": "{{count}} issues quarantined",
     "recommended_actions": "Recommended actions",
     "recommendation_job_created": "Recommendation job created.",
     "tip_position": "Tip {{index}} of {{count}}",
@@ -486,6 +490,7 @@
     "syrus_owner": "Syrus owner",
     "added": "Added",
     "github_quota": "GitHub quota",
+    "poll_issue_errors": "Poll issue errors",
     "credential": "Credential",
     "syrus_app_via": "Syrus App via {{account}}",
     "new_job": "New job",

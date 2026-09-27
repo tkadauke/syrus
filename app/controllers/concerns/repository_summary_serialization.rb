@@ -36,7 +36,8 @@ module RepositorySummarySerialization
       main_branch_repair_blocks_work: repository_main_branch_repair_blocks_work?(repository),
       main_branch_repair_auto_approve: repository.main_branch_repair_auto_approve?,
       treat_grader_timeouts_as_failures: repository.treat_grader_timeouts_as_failures?,
-      last_health_checked_sha: repository.last_health_checked_sha
+      last_health_checked_sha: repository.last_health_checked_sha,
+      poll_issue_errors: repository.poll_issue_errors || []
     }
   end
 
