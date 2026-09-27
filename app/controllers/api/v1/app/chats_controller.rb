@@ -35,6 +35,7 @@ module Api
               groups: groups_payload.fetch(:groups),
               groups_has_more: groups_payload.fetch(:has_more),
               groups_next_offset: groups_payload.fetch(:next_offset),
+              available_chat_types: chat_index_available_chat_types,
               repositories: PerformanceLogging.phase("chats_index.repositories") { Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) } }
             }
           }
