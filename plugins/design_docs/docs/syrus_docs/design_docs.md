@@ -305,11 +305,22 @@ new docs with `propose_design_doc`, add anchored discussion with
 archive docs with `delete_design_doc`.
 
 `suggest_design_doc_change` requires `base_version_number`, copied from the
-`current_version_number` field returned by the `read_design_doc` call used to
-compute `start_offset` and `end_offset`. A successful suggestion inserts anchor
-markers and creates a new document version, so agents must re-read the Design
-Doc before creating another offset-based suggestion. Stale version submissions
-are rejected before exact selected-text matching or marker insertion.
+`current_version_number` field returned by the `read_design_doc` call that
+observed the content being edited. The preferred locator is
+`original_markdown`: when `start_offset` and `end_offset` are omitted, the tool
+searches the current rendered Markdown for that exact text and resolves offsets
+only when the match is unique. If the text appears a few times, the error
+numbers each occurrence with surrounding context and computed offsets; retry
+with `occurrence_index: N` or include more surrounding text in
+`original_markdown` to make the selection unique. If it appears too many times,
+the tool returns a short narrowing error instead of listing every occurrence.
+Offset-based suggestions remain supported for callers that already have exact
+ranges. When offsets and `original_markdown` are both supplied, the tool
+validates that the live text at the supplied range still matches. A successful
+suggestion inserts anchor markers and creates a new document version, so agents
+must re-read the Design Doc before creating another suggestion. Stale version
+submissions are rejected before exact selected-text matching or marker
+insertion.
 
 `delete_design_doc` archives by setting `state: archived`; it is intentionally
 not physical deletion. Versions, comments, threads, suggestions, anchors, and
