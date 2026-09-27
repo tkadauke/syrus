@@ -149,7 +149,7 @@ class Step
                 resource_profile_fallback_step_kinds: %w[implement],
                 review_gate: {
                   artifact_key: "adversarial_review_iterations",
-                  exit_verdicts: %w[approved],
+                  exit_verdicts: %w[approved skipped],
                   cancellation_reason: "adversarial_review_approved"
                 }),
       # Three verdicts rather than two: "skipped" (not visually testable, or
