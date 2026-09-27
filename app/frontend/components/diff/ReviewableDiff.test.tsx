@@ -320,6 +320,83 @@ describe("ReviewableDiff", () => {
     }
   })
 
+  it("collapses mobile unified line-number gutters into the changed-version line number", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      const file = {
+        additions: 1,
+        deletions: 1,
+        patch: [
+          "diff --git a/app/models/mobile.rb b/app/models/mobile.rb",
+          "--- a/app/models/mobile.rb",
+          "+++ b/app/models/mobile.rb",
+          "@@ -10,2 +20,2 @@",
+          " shared",
+          "-removed",
+          "+added"
+        ].join("\n"),
+        path: "app/models/mobile.rb",
+        status: "modified"
+      }
+      const { container } = render(<ReviewableDiff files={[file]} mode="continuous" reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, line_numbers: true }} />)
+
+      const contextCells = Array.from(container.querySelector('tr[data-diff-kind="context"]')?.querySelectorAll("td") ?? [])
+      const deleteCells = Array.from(container.querySelector('tr[data-diff-kind="delete"]')?.querySelectorAll("td") ?? [])
+      const addCells = Array.from(container.querySelector('tr[data-diff-kind="add"]')?.querySelectorAll("td") ?? [])
+
+      expect(contextCells).toHaveLength(4)
+      expect(contextCells[0]).toHaveTextContent("20")
+      expect(deleteCells).toHaveLength(4)
+      expect(deleteCells[0]).toHaveTextContent("11")
+      expect(addCells).toHaveLength(4)
+      expect(addCells[0]).toHaveTextContent("21")
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
+  it("keeps mobile wrap-mode unified diffs constrained to the viewport width", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      render(<ReviewableDiff files={[wideLineFile()]} mode="continuous" reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, line_wrapping: "wrap", line_numbers: true }} />)
+
+      const scroller = screen.getByTestId("diff-file-scroll")
+      const table = screen.getByRole("table")
+      const cols = Array.from(table.querySelectorAll("col"))
+      const codeCell = getCodeCellText("x".repeat(240))
+      const hunkCell = screen.getByText("@@ -1,1 +1,2 @@")
+
+      expect(scroller).toHaveClass("w-full", "min-w-0", "max-w-full", "overflow-x-hidden")
+      expect(table).toHaveAttribute("data-review-diff-view", "unified")
+      expect(table).toHaveClass("w-full", "table-fixed")
+      expect(table).not.toHaveClass("min-w-full")
+      expect(cols.map((col) => col.getAttribute("style"))).toEqual([
+        "width: 3rem;",
+        "width: 1.5rem;",
+        null,
+        "width: 1.5rem;"
+      ])
+      expect(codeCell).toHaveClass("min-w-0", "max-w-0", "overflow-hidden", "whitespace-pre-wrap", "break-words", "[&_span]:break-words")
+      expect(codeCell).not.toHaveClass("min-w-[40rem]")
+      expect(hunkCell).toHaveClass("min-w-0", "max-w-0", "overflow-hidden", "whitespace-pre-wrap", "break-words")
+      expect(hunkCell).not.toHaveClass("min-w-[40rem]")
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
   it("renders visible whitespace when enabled", () => {
     render(
       <ReviewableDiff
@@ -1257,6 +1334,33 @@ describe("hidden-context expansion", () => {
     expect(onLoadFileContext).toHaveBeenCalledTimes(1)
     expect(getCodeCellText("line 4")).toBeInTheDocument()
     expect(screen.queryByLabelText("Load 20 more lines above")).not.toBeInTheDocument()
+  })
+
+  it("keeps both hunk context controls in the collapsed mobile gutter", async () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join("\n"))
+      const { container } = render(<ReviewableDiff files={[fileWithHunkAt(5)]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
+      const hunkCells = Array.from(container.querySelector('tr[data-diff-kind="hunk"]')?.querySelectorAll("td") ?? [])
+
+      expect(hunkCells).toHaveLength(4)
+      expect(within(hunkCells[0]).getByLabelText("Load 20 more lines above")).toBeInTheDocument()
+      expect(within(hunkCells[0]).getByLabelText("Load 20 more lines below")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByLabelText("Load 20 more lines above"))
+
+      await findCodeCellText("line 1")
+      expect(onLoadFileContext).toHaveBeenCalledTimes(1)
+      expect(getCodeCellText("line 4")).toBeInTheDocument()
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
   })
 
   it("preserves existing line-comment anchors after expanding context above them", async () => {
