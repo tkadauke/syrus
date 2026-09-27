@@ -1253,7 +1253,11 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     }.not_to change(DesignDocSuggestion, :count)
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to include("cannot select only part of Markdown block syntax")
+    message = parse_body.dig("error", "message")
+    expect(message).to include("cannot select only part of Markdown block syntax")
+    expect(message).to include("The containing heading section \"Network-Transparent MCP Tools for Local Mode\" runs from offset 0 to #{original_markdown.length}")
+    expect(message).to include("retry with start_offset 0 and end_offset #{original_markdown.length}")
+    expect(message).to include("supply original_markdown and let the tool resolve it for you")
     expect(doc.reload.markdown).to eq(original_markdown)
   end
 
