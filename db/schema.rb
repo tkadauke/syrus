@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_062000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_223533) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -183,7 +183,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_062000) do
     t.boolean "main_branch_health_check_archive_before_delete", default: false, null: false
     t.integer "main_branch_health_check_retention_days", default: 7, null: false
     t.integer "main_concern_report_threshold", default: 2, null: false
-    t.integer "max_concurrent_agent_runs", default: 0, null: false
+    t.integer "max_concurrent_agent_runs", default: 3, null: false
     t.integer "max_job_failures", default: 3, null: false
     t.boolean "merge_train_enabled", default: false, null: false
     t.integer "merge_train_max_size", default: 20, null: false
@@ -211,7 +211,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_062000) do
     t.text "telegram_bot_token"
     t.integer "telegram_update_offset", default: 0
     t.datetime "updated_at", null: false
-    t.integer "user_daily_spend_budget_usd", default: 0, null: false
+    t.integer "user_daily_spend_budget_usd", default: 10, null: false
     t.integer "video_retention_days", default: 7, null: false
     t.integer "video_storage_budget_mb", default: 2048, null: false
     t.boolean "work_engine_reconciler_activity_archive_before_delete", default: false, null: false

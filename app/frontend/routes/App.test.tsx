@@ -7894,7 +7894,7 @@ describe("App", () => {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              settings: { signups_open: true, video_retention_days: 7, video_storage_budget_mb: 2048, max_concurrent_agent_runs: 0, proactive_rebase_commit_threshold: 20, rebase_failure_cooldown_minutes: 60, clearable_secrets: [] },
+              settings: { signups_open: true, video_retention_days: 7, video_storage_budget_mb: 2048, max_concurrent_agent_runs: 3, proactive_rebase_commit_threshold: 20, rebase_failure_cooldown_minutes: 60, clearable_secrets: [] },
               message: "Settings updated."
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
@@ -7905,7 +7905,7 @@ describe("App", () => {
       return Promise.resolve(
         new Response(
           JSON.stringify({
-            settings: { signups_open: false, video_retention_days: 7, video_storage_budget_mb: 2048, max_concurrent_agent_runs: 0, proactive_rebase_commit_threshold: 20, rebase_failure_cooldown_minutes: 60, clearable_secrets: [] }
+            settings: { signups_open: false, video_retention_days: 7, video_storage_budget_mb: 2048, max_concurrent_agent_runs: 3, proactive_rebase_commit_threshold: 20, rebase_failure_cooldown_minutes: 60, clearable_secrets: [] }
           }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         )
@@ -7937,7 +7937,7 @@ describe("App", () => {
             "Content-Type": "application/json"
           }),
           body: JSON.stringify({
-            app_setting: { signups_open: true, video_retention_days: 7, video_storage_budget_mb: 2048, max_concurrent_agent_runs: 0, proactive_rebase_commit_threshold: 20, rebase_failure_cooldown_minutes: 60 }
+            app_setting: { signups_open: true, video_retention_days: 7, video_storage_budget_mb: 2048, max_concurrent_agent_runs: 3, proactive_rebase_commit_threshold: 20, rebase_failure_cooldown_minutes: 60 }
           })
         })
       )

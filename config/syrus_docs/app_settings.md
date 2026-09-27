@@ -80,9 +80,15 @@ On self-hosted instances, set this to the `owner/name` of your own Syrus fork. I
 
 ### max_concurrent_agent_runs
 
-**Type:** integer · **Default:** 0 (unlimited)
+**Type:** integer · **Default:** 3 · `0` = unlimited
 
 Global, cluster-wide cap on how many `:runs` queue Runs execute at once, across **all** worker pods. `RunJob` enforces it with a best-effort defer-and-re-enqueue gate (DB-counted, so it holds across pods). Set this when running multiple worker pods so total compute concurrency — and Claude/Codex cost and rate-limit exposure — does not scale with pod count; each pod's `JOB_CONCURRENCY` only bounds that single pod. `0` means no global cap. Main-branch grader Runs are on `:runs` and are counted; landing/merge Runs (`:merges` queue) are not counted, so they can't be starved by a saturated agent cap.
+
+### user_daily_spend_budget_usd
+
+**Type:** integer · **Default:** 10 · `0` = unlimited
+
+Per-user daily spend ceiling across workflow Runs and chat turns, measured in USD. `RunJob` checks the budget before starting agentic work and defers queued work until the next day once the user has reached the ceiling; it does not fail the Job. Run spend uses `Run#cost_usd`, including Syrus-estimated token pricing when a provider reports token usage without a dollar cost, and chat spend uses each chat session's daily cost counter.
 
 ## GitHub App
 
