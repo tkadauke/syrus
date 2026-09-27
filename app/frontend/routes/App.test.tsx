@@ -9825,7 +9825,7 @@ describe("App", () => {
     })
     expect(await screen.findByText("digging trench")).toBeInTheDocument()
     expect(screen.getByText("Agent")).toBeInTheDocument()
-    expect(screen.getByTestId("run-transcript-log-stream")).toHaveClass("divide-border")
+    expect(screen.getByTestId("run-transcript-log-stream")).toHaveClass("min-w-0", "overflow-x-hidden")
     expect(screen.getByText("Tool")).toBeInTheDocument()
     expect(screen.queryByText("assistant_text")).not.toBeInTheDocument()
     expect(screen.queryByText("tool_call")).not.toBeInTheDocument()
