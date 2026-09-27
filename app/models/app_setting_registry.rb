@@ -216,7 +216,7 @@ class AppSettingRegistry
     Definition.new(
       key: :max_concurrent_agent_runs,
       type: :integer,
-      default: 0,
+      default: 3,
       min: 0,
       max: nil,
       category: "Instance operations",
@@ -228,7 +228,7 @@ class AppSettingRegistry
     Definition.new(
       key: :user_daily_spend_budget_usd,
       type: :integer,
-      default: 0,
+      default: 10,
       min: 0,
       max: nil,
       category: "Instance operations",
