@@ -19,7 +19,7 @@ module DesignDocs
           offset += line.length
           line_end = offset
           opening_fence = fence_state.nil? && fence_marker?(marker)
-          closing_fence = fence_state && closing_fence_marker?(marker, fence_state)
+          closing_fence = fence_state.present? && closing_fence_marker?(marker, fence_state)
           fenced_code_line = fence_state.present? && !closing_fence
           fence_state = fence_info(marker) if opening_fence
           fence_state = nil if closing_fence
