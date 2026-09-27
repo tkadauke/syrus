@@ -37,7 +37,8 @@ module OperatorBriefing
              domain_subscriber: "OperatorBriefing::Subscribers",
              workflow_kinds: "OperatorBriefing::WorkflowKinds",
              sidebar_page: "OperatorBriefing::SidebarPages",
-             callbacks: "OperatorBriefing::Callbacks"
+             callbacks: "OperatorBriefing::Callbacks",
+             mcp_tool_set: "OperatorBriefing::McpToolSet"
     tick_interval 1.minute
     route :get, "/api/v1/app/briefing", to: "api/v1/app/operator_briefing/briefings#show"
     route :post, "/api/v1/app/briefing/repositories/:repository_id/regenerate", to: "api/v1/app/operator_briefing/briefings#regenerate"

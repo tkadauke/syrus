@@ -2,10 +2,22 @@ module OperatorBriefing
   class GenerateRunStep < ::Steps::Base
     RECENT_JOB_LIMIT = 5
     NOTABLE_CHANGE_LIMIT = 10
+    GENERATION_TURN_BUDGET = 25
 
     def call
+      workspace.setup
       briefing = Briefing.find_by!(job: job)
       revision = create_revision!(briefing)
+      persist_prompt_if_needed(briefing)
+
+      log("invoking agent for operator briefing revision #{revision.revision_number} (#{workflow.slug})")
+      run_agent(
+        prompt: run.prompt,
+        max_turns: GENERATION_TURN_BUDGET,
+        required_mcp_tools: %w[submit_briefing_block]
+      )
+
+      verify_blocks_submitted!(revision)
       log("created operator briefing revision #{revision.revision_number} for #{repository.slug}")
     end
 
@@ -16,8 +28,48 @@ module OperatorBriefing
         revision_number: briefing.revisions.maximum(:revision_number).to_i + 1,
         generated_at: Time.current,
         generation_run: run,
-        content_blocks: content_blocks(briefing)
+        content_blocks: []
       )
+    end
+
+    def persist_prompt_if_needed(briefing)
+      return if run.prompt.present?
+
+      run.update!(prompt: generation_prompt(briefing))
+    end
+
+    def generation_prompt(briefing)
+      <<~PROMPT
+        You are generating the live Operator Briefing for #{repository.slug}.
+
+        The page is watching for streamed briefing blocks. Do not wait until the
+        end and do not return the briefing as your final answer. For each section
+        you produce, call `submit_briefing_block` immediately with that section's
+        typed block.
+
+        Use only these supported block kinds:
+        - `narrative` with payload `{ "text": "..." }`
+        - `link_card` with payload fields for `entity_type`, `entity_id`,
+          `title`, `path`, and `description`
+
+        The current deterministic source pass found these candidate blocks. You
+        may tighten wording, reorder, or omit low-value blocks, but preserve the
+        structured link_card references when you mention those entities.
+
+        ```json
+        #{JSON.pretty_generate(content_blocks(briefing))}
+        ```
+
+        Call `submit_briefing_block` once per final block, in display order. When
+        all blocks have been submitted, stop.
+      PROMPT
+    end
+
+    def verify_blocks_submitted!(revision)
+      return if revision.reload.content_blocks.any?
+
+      capture_mcp_sidecar_stderr
+      raise StepFailed, "agent didn't call submit_briefing_block"
     end
 
     def content_blocks(briefing)
