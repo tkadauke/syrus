@@ -22,7 +22,7 @@ groups:
       - alert: SyrusRecurringJobStale
         expr: |
           syrus_recurring_job_last_success_seconds{job="process_landing_queue"} > 60
-          or syrus_recurring_job_last_success_seconds{job=~"plugin_ticks|poll_scheduled_chat_messages|flush_observability_events|sample_global_metrics|reap_stale_runs|refresh_data_root_disk_usage|reap_orphaned_spawned_processes|reap_stale_instance_versions|sample_worker_host_health"} > 120
+          or syrus_recurring_job_last_success_seconds{job=~"plugin_ticks|poll_scheduled_chat_messages|flush_observability_events|sample_global_metrics|deliver_system_alerts|reap_stale_runs|refresh_data_root_disk_usage|reap_orphaned_spawned_processes|reap_stale_instance_versions|sample_worker_host_health"} > 120
           or syrus_recurring_job_last_success_seconds{job=~"poll_repositories|poll_input_sources|poll_main_branch_health|poll_pull_requests|poll_external_open_prs|poll_merge_states|poll_hotfix_syncs|poll_deployment_stages|sync_github_permissions|watch_platform_connectors|discover_maintenance_tasks|retry_failed_chat_scoped_event_evaluators|check_worker_host_health_telemetry_gap|check_polling_queue_coverage"} > 600
           or syrus_recurring_job_last_success_seconds{job=~"prune_operational_logs|prune_auto_retry_attempts"} > 1200
           or syrus_recurring_job_last_success_seconds{job="sync_enabled_forks"} > 1800
