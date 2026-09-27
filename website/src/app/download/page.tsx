@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Nav } from "../../../components/nav";
 import { Footer } from "../../../components/footer";
 import { ButtonLink } from "../../../components/button";
-import { AppleIcon, WindowsIcon, DownloadIcon } from "../../../components/icons";
+import { AppleIcon, DownloadIcon } from "../../../components/icons";
 import {
   downloads,
   humanSize,
@@ -15,7 +15,7 @@ import {
 export const metadata: Metadata = {
   title: "Download",
   description:
-    "Download the Syrus desktop app for macOS (Apple Silicon & Intel) and Windows.",
+    "Download the Syrus desktop app for macOS (Apple Silicon & Intel).",
   alternates: { canonical: "/download" },
 };
 
@@ -23,7 +23,7 @@ function PlatformIcon({ id }: { id: Platform }) {
   return id === "mac" ? (
     <AppleIcon className="size-7 text-cream" />
   ) : (
-    <WindowsIcon className="size-6 text-cream" />
+    <DownloadIcon className="size-6 text-cream" />
   );
 }
 
@@ -72,9 +72,9 @@ export default function DownloadPage() {
           Download Syrus
         </h1>
         <p className="mt-4 text-pretty text-[1.02rem] leading-relaxed text-cream-dim">
-          The Syrus desktop app for macOS and Windows — it sets up a complete
-          local Syrus (Docker included) or connects to your team&apos;s
-          instance. The macOS build is universal: one download runs natively on
+          The Syrus desktop app for macOS sets up a complete local Syrus
+          (Docker included) or connects to your team&apos;s instance. The build
+          is universal: one download runs natively on
           both Apple&nbsp;Silicon and Intel Macs.
         </p>
 
@@ -93,11 +93,6 @@ export default function DownloadPage() {
           >
             Browse all releases →
           </a>
-        </p>
-        <p className="mt-4 text-[0.85rem] text-cream-faint">
-          The Windows build is in beta and not yet code-signed — expect a
-          SmartScreen prompt on first run. Prefer the terminal? Syrus also
-          ships a CLI for macOS and Linux.
         </p>
       </main>
       <Footer />

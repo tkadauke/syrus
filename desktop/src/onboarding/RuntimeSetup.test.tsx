@@ -45,8 +45,7 @@ describe("RuntimeSetup on Windows", () => {
 
   it("recommends Docker Desktop and never mentions Podman", () => {
     // Shipped product decision: Podman compose is unsupported, so the guided
-    // setup must not suggest installing it (install.ps1's exit-10 copy pins
-    // the same rule in install_parity_spec).
+    // setup must not suggest installing it.
     renderRuntimeSetup({ wslMissing: true })
 
     expect(screen.getByRole("button", { name: "Install Docker Desktop" })).toBeTruthy()

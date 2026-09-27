@@ -15,15 +15,11 @@ require "spec_helper"
 # settings. Anything that could not be removed or verified is reported
 # honestly — failed step events and exit code 3 — never as false success.
 # Dynamic examples run the real script against a sandboxed $HOME and stubbed
-# `docker`/`uname` binaries — no daemon, no side effects, fast. uninstall.ps1
-# is its Windows port; PowerShell isn't available on the mac/linux CI hosts,
-# so its section is a static parity contract in the style of
-# install_parity_spec.rb.
+# `docker`/`uname` binaries — no daemon, no side effects, fast.
 RSpec.describe "uninstall scripts", :ci_only do
   let(:repo_root) { File.expand_path("../..", __dir__) }
   let(:script) { File.join(repo_root, "uninstall.sh") }
   let(:script_text) { File.read(script, encoding: "UTF-8") }
-  let(:ps1) { File.read(File.join(repo_root, "uninstall.ps1"), encoding: "UTF-8") }
 
   def run_uninstall(*args, home:, stub_dir: nil)
     path = [stub_dir, "/usr/bin", "/bin"].compact.join(":")
@@ -521,166 +517,6 @@ RSpec.describe "uninstall scripts", :ci_only do
       expect(script_text).to include("NOT touched: Docker Desktop / OrbStack / Colima, Homebrew, rbenv")
       %w[brew rbenv colima].each do |tool|
         expect(script_text.scan(/^\s*#{tool}\b/)).to be_empty, "uninstall.sh must not invoke #{tool}"
-      end
-    end
-  end
-
-  describe "uninstall.ps1 parity" do
-    it "emits the same NDJSON event vocabulary and shared step ids" do
-      ps_events = ps1.scan(/\bevent = "(\w+)"/).flatten.uniq.sort
-      expect(ps_events).to eq(%w[done error log start step])
-      sh_steps = script_text.scan(/^\s*emit_step (\w+)/).flatten +
-                 script_text.scan(/^\s*remove_step (\w+)/).flatten
-      ps_steps = ps1.scan(/(?:Emit-Step|Remove-PathStep) "(\w+)"/).flatten.uniq.sort
-      expect(sh_steps.uniq.sort).to eq(
-        %w[app_settings cli credentials desktop_app desktop_app_custom docker_down docker_images skill state_dir]
-      )
-      # Windows never removes an --app-path bundle (the NSIS uninstaller owns
-      # the app there) but adds the HKCU PATH surgery and the RunOnce cleanup.
-      expect(ps_steps).to eq(((sh_steps - %w[desktop_app_custom]) + %w[path_cleanup runonce]).uniq.sort)
-    end
-
-    it "offers the same flag surface and confirmation gate" do
-      %w[--yes --keep-data --json --app-path --help].each do |flag|
-        expect(script_text).to include(flag)
-        expect(ps1).to include(flag)
-      end
-      expect(ps1).to include('Read-Host "Remove Syrus from this machine? [y/N]"')
-      expect(ps1).to include("Not an interactive shell. Pass --yes (or --json) to confirm removal.")
-      expect(script_text).to include("Not an interactive shell. Pass --yes (or --json) to confirm removal.")
-      # --json implies --yes in both (a GUI does its own confirmation).
-      expect(script_text).to include("JSON=1; ASSUME_YES=1")
-      expect(ps1).to include('$script:Json = $true; $script:AssumeYes = $true')
-    end
-
-    it "accepts --app-path in both scripts — validated on macOS, parsed-and-ignored on Windows" do
-      # sh validation contract: absolute, /<bundle>.app leaf (channel-specific,
-      # matched against $APP_BUNDLE_NAME), resolved (symlinks followed) under
-      # /Applications or $HOME/Applications; anything else is ignored.
-      expect(script_text).to include("--app-path=*)")
-      expect(script_text).to include('/*/"$APP_BUNDLE_NAME")')
-      expect(script_text).to include("/Applications/*")
-      expect(script_text).to include('"$home_apps"/*')
-      # ps1 parses the flag so passing it is never a usage error, and ignores
-      # it: the NSIS uninstaller owns app removal on Windows.
-      expect(ps1).to include('"--app-path"')
-      expect(ps1).to include('$arg.StartsWith("--app-path=")')
-    end
-
-    it "removes only the requested channel's install via --channel" do
-      # A test build's uninstall must touch ONLY the test stack, never
-      # production. Both scripts flip every channel-derived resource off one
-      # --channel flag.
-      expect(script_text).to include("--channel)")
-      expect(script_text).to include('CHANNEL="stable"')
-      expect(script_text).to include('PROJECT="syrus-test"')
-      expect(script_text).to include(".syrus/local-test")
-      expect(script_text).to include(".syrus/credentials.test")
-      expect(script_text).to include(".local/bin/syrus-test")
-      expect(script_text).to include('APP_BUNDLE_NAME="Syrus Test.app"')
-
-      expect(ps1).to include('$script:Channel = "stable"')
-      expect(ps1).to include('$project = "syrus-test"')
-      expect(ps1).to include('"local-test"')
-      expect(ps1).to include('"credentials.test"')
-      expect(ps1).to include("syrus-test.exe")
-      expect(ps1).to include('"Syrus Test\bin"')
-      # The Claude skill is stable-only; a test uninstall must not remove it.
-      expect(script_text).to include("not applicable on the test channel")
-      expect(ps1).to include("not applicable on the test channel")
-    end
-
-    it "tears down the same docker inventory — by compose label, verified, exact-basename images" do
-      # Project name and volumes are parameterized so a test stack tears down
-      # its own isolated set; the stable default stays "syrus".
-      expect(script_text).to include('-p "$PROJECT"')
-      expect(script_text).to include('COMPOSE_LABEL_FILTER="label=com.docker.compose.project=$PROJECT"')
-      expect(script_text).to include('KNOWN_VOLUMES="${PROJECT}_syrus-data ${PROJECT}_syrus-search ${PROJECT}_syrus-mise-cache"')
-      expect(ps1).to include('@("-p", $project')
-      expect(ps1).to include('"label=com.docker.compose.project=$project"')
-      expect(ps1).to include('@("${project}_syrus-data", "${project}_syrus-search", "${project}_syrus-mise-cache")')
-      ["--remove-orphans"].each do |token|
-        expect(script_text).to include(token), "uninstall.sh: missing #{token.inspect}"
-        expect(ps1).to include(token), "uninstall.ps1: missing #{token.inspect}"
-      end
-      # Containers are enumerated by compose label (v1 syrus_web_1 and v2
-      # syrus-web-1 both carry it) — never by hardcoded container names that
-      # miss one naming scheme.
-      %w[syrus-web-1 syrus-worker-1 syrus-setup-1].each do |name|
-        expect(script_text).not_to include(name), "uninstall.sh: hardcoded container name #{name}"
-        expect(ps1).not_to include(name), "uninstall.ps1: hardcoded container name #{name}"
-      end
-      # Image matching is by exact repository basename (the documented
-      # imageCleanup.ts semantics): a suffix glob would eat my-syrus-backend.
-      expect(script_text).to include("syrus-backend|syrus-local|syrus-plugin-*)")
-      expect(ps1).to include('-not $repoBasename.StartsWith("syrus-plugin-")')
-      expect(ps1).to include('-ne "syrus-backend"')
-      expect(ps1).to include('-ne "syrus-local"')
-      expect(script_text).not_to include("*syrus-backend")
-      expect(ps1).not_to include("*syrus-backend")
-      # rmi is never forced: -f untags every tag sharing the image ID.
-      expect(script_text).not_to include("rmi -f")
-      expect(ps1).not_to include('"rmi", "-f"')
-    end
-
-    it "exits 3 on partial teardown in both scripts, gated on verified volume removal" do
-      expect(script_text).to include("exit 3")
-      expect(ps1).to include("exit 3")
-      # Both scripts delete the encryption keys only once the data volumes
-      # are verifiably gone, and report the kept state dir as a failed step.
-      expect(script_text).to include("volumes_verified_gone")
-      expect(ps1).to include("VolumesVerifiedGone")
-      expect(script_text).to include('emit_step state_dir failed "kept: data volumes not verifiably removed"')
-      expect(ps1).to include('Emit-Step "state_dir" "failed" "kept: data volumes not verifiably removed"')
-      # Partial runs end with an error event (code 3) instead of done.
-      expect(script_text).to include('\"event\":\"error\",\"code\":3')
-      expect(ps1).to include('event = "error"; code = 3')
-      # File removals are verified too — a silently failed removal must not
-      # report ok (Remove-Item -ErrorAction SilentlyContinue swallows errors).
-      expect(script_text).to include("could not remove")
-      expect(ps1).to include("could not remove")
-      expect(ps1).to include("Add-Partial")
-    end
-
-    it "removes the Windows-only artifacts the desktop app creates" do
-      expect(ps1).to include('Join-Path $localAppData "Syrus\bin"')
-      expect(ps1).to include('"syrus.exe"')
-      expect(ps1).to include('"syrus.exe.old"')
-      expect(ps1).to include('.claude\skills\syrus')
-      expect(ps1).to include("SyrusResumeSetup")
-      expect(ps1).to include('Programs\syrus-desktop')
-      # NSIS uninstaller runs silently and LAST (it can take the console's
-      # context down with it).
-      expect(ps1).to include('"Uninstall*.exe"')
-      expect(ps1).to include('-ArgumentList "/S"')
-      expect(ps1.index('-ArgumentList "/S"')).to be > ps1.index("SyrusResumeSetup")
-    end
-
-    it "reverses the desktop app's HKCU PATH surgery, kind-preserving, with a settings broadcast" do
-      # Mirror of addToWindowsUserPath (desktop/electron/main.ts): raw value
-      # read with expansion disabled, same value kind written back, and a
-      # WM_SETTINGCHANGE broadcast; setx would truncate and rewrite the kind.
-      expect(ps1).to include("DoNotExpandEnvironmentNames")
-      expect(ps1).to include("GetValueKind")
-      expect(ps1).to include("SendMessageTimeout")
-      expect(ps1).not_to match(/^\s*setx\b/)
-    end
-
-    describe "PowerShell 5.1 safety" do
-      it "keeps stdout protocol-only: console writers plus compact JSON, never host writers" do
-        expect(ps1).to include("[Console]::Out.WriteLine")
-        expect(ps1).to include("[Console]::Error.WriteLine")
-        expect(ps1).to include("ConvertTo-Json -Compress")
-        expect(ps1).not_to include("Write-Host")
-      end
-
-      it "sets a UTF-8 console encoding before emitting protocol output" do
-        expect(ps1).to include("[Console]::OutputEncoding")
-      end
-
-      it "stays pure ASCII because PS 5.1 parses BOM-less files with the ANSI codepage" do
-        non_ascii = ps1.bytes.reject { |b| b < 128 }
-        expect(non_ascii).to be_empty
       end
     end
   end

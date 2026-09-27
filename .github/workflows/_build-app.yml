@@ -1,12 +1,12 @@
 # The shared build spine for BOTH the Release (release.yml) and Test build
 # (test-build.yml) pipelines. Those two entry points were ~90% identical — they
-# build and sign every shippable component (backend image, CLI, macOS + Windows
-# desktop apps) the same way — so that spine lives here ONCE, as a reusable
+# build and sign every shippable component (backend image, CLI, macOS desktop
+# app) the same way — so that spine lives here ONCE, as a reusable
 # `workflow_call` workflow, and each caller is a thin wrapper that computes its
 # version and passes inputs.
 #
 # What this module owns: build-backend (native per-arch matrix, NO QEMU) →
-# merge-backend (multi-arch manifest) plus build-cli, build-mac, build-windows
+# merge-backend (multi-arch manifest) plus build-cli and build-mac
 # (all parallel with the backend). What it does NOT own: version computation
 # (the callers' `prepare` job) and publishing (release.yml's `publish` /
 # `publish-website`). It stages artifacts by name; the callers consume them.
@@ -26,8 +26,6 @@
 #   artifact_prefix          | staged                        | test-staged
 #   artifact_retention_days  | 7                             | 14
 #   run_integration_tests    | true                          | run_integration_tests input
-#   build_windows            | true                          | build_windows input
-#
 # Signing runs identically on both (guards + preflights included) — rehearsing
 # the fragile part is the whole point of a dry-run release and half the value of
 # a test build. Attacker-influenceable values (version/tags) reach `run:` bodies
@@ -66,7 +64,7 @@ on:
         type: boolean
         default: false
       artifact_prefix:
-        description: "Prefix for staged run artifacts: <prefix>-mac / <prefix>-windows / <prefix>-cli."
+        description: "Prefix for staged run artifacts: <prefix>-mac / <prefix>-cli."
         type: string
         required: true
       artifact_retention_days:
@@ -75,10 +73,6 @@ on:
         default: 7
       run_integration_tests:
         description: "Run bin/test-docker against each built arch (false maps to bin/publish-image --skip-tests)."
-        type: boolean
-        default: true
-      build_windows:
-        description: "Also build + sign the Windows installer."
         type: boolean
         default: true
       channel:
@@ -581,203 +575,6 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact_prefix }}-mac
-          path: ${{ runner.temp }}/staged/
-          if-no-files-found: error
-          retention-days: ${{ inputs.artifact_retention_days }}
-
-  # ---------------------------------------------------------------------------
-  # Windows: Azure Trusted Signing, then STAGE. Runs in parallel with macOS and
-  # the backend. Skippable via the build_windows input.
-  # ---------------------------------------------------------------------------
-  build-windows:
-    if: inputs.build_windows
-    runs-on: windows-latest
-    timeout-minutes: 60
-    # Channel identity (see build-mac). A test build forks product/appId/icon
-    # + the NSIS shortcut name so Syrus Test installs beside a release. PKG_NAME
-    # forks the electron-builder package NAME too: the one-click per-user NSIS
-    # installer derives its install directory (%LocalAppData%\Programs\<name>)
-    # from the package name, NOT productName — without this the test installer
-    # would extract into the production install dir and clobber it.
-    env:
-      PRODUCT: ${{ inputs.channel == 'test' && 'Syrus Test' || 'Syrus' }}
-      APP_ID: ${{ inputs.channel == 'test' && 'app.syrus.desktop.test' || 'app.syrus.desktop' }}
-      WIN_ICON: ${{ inputs.channel == 'test' && 'build/icon-test.ico' || 'build/icon.ico' }}
-      PKG_NAME: ${{ inputs.channel == 'test' && 'syrus-test-desktop' || 'syrus-desktop' }}
-    steps:
-      - uses: actions/checkout@v7
-
-      # Azure signing runs on dry runs and test builds too (it's the fragile
-      # part worth rehearsing); push_image only gates the image push.
-      - name: "Guard: Azure signing configuration present"
-        shell: bash
-        env:
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_SIGN_ENDPOINT: ${{ secrets.AZURE_SIGN_ENDPOINT || vars.AZURE_SIGN_ENDPOINT }}
-          AZURE_SIGN_ACCOUNT_NAME: ${{ secrets.AZURE_SIGN_ACCOUNT_NAME || vars.AZURE_SIGN_ACCOUNT_NAME }}
-          AZURE_SIGN_CERT_PROFILE: ${{ secrets.AZURE_SIGN_CERT_PROFILE || vars.AZURE_SIGN_CERT_PROFILE }}
-          AZURE_SIGN_PUBLISHER_NAME: ${{ secrets.AZURE_SIGN_PUBLISHER_NAME || vars.AZURE_SIGN_PUBLISHER_NAME }}
-        run: |
-          missing=()
-          for var in AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_SIGN_ENDPOINT AZURE_SIGN_ACCOUNT_NAME AZURE_SIGN_CERT_PROFILE AZURE_SIGN_PUBLISHER_NAME; do
-            if [ -z "${!var}" ]; then missing+=("$var"); fi
-          done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            echo "::error::Azure signing configuration missing: ${missing[*]} — see docs/windows-signing.md. A signed build is required — set them in repo secrets/variables (dry runs sign too)."
-            exit 1
-          fi
-
-      # A 401 here is a credential problem; a 403 later at sign time is a
-      # role/profile problem (different fixes — see the runbook).
-      - name: "Preflight: Azure credentials"
-        shell: pwsh
-        env:
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-        run: |
-          $body = @{
-            grant_type    = "client_credentials"
-            client_id     = $env:AZURE_CLIENT_ID
-            client_secret = $env:AZURE_CLIENT_SECRET
-            scope         = "https://codesigning.azure.net/.default"
-          }
-          try {
-            $null = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$($env:AZURE_TENANT_ID)/oauth2/v2.0/token" -Body $body
-            Write-Host "Azure token acquisition OK"
-          } catch {
-            Write-Host "::error::Azure credential preflight failed: $($_.Exception.Message). Check AZURE_TENANT_ID/AZURE_CLIENT_ID/AZURE_CLIENT_SECRET (single-tenant app registration; secrets expire)."
-            exit 1
-          }
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-
-      # windows-latest runners usually ship Go, but pin it anyway — parity
-      # with build-mac/build-cli and determinism over runner-image drift. The
-      # desktop build needs it to bundle the CLI (stage-cli.mjs hard-fails
-      # without it under SYRUS_RELEASE_BUILD=1).
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: cli/go.mod
-          # setup-go's default cache lookup expects go.sum at the repo ROOT;
-          # ours lives under cli/, so without this the cache step warns and
-          # caches nothing on every run.
-          cache-dependency-path: cli/go.sum
-
-      - name: Install dependencies
-        run: npm ci --prefix desktop
-
-      - name: Set version
-        shell: bash
-        env:
-          VERSION: ${{ inputs.version }}
-        run: npm --prefix desktop version "$VERSION" --no-git-tag-version --allow-same-version
-
-      # electron-builder installs the TrustedSigning module on first use; do it
-      # once here (with retries) to dodge transient gallery failures.
-      - name: "Preflight: TrustedSigning module"
-        shell: pwsh
-        run: |
-          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-          $attempts = 0
-          while ($true) {
-            try {
-              Install-Module -Name TrustedSigning -Force -Scope CurrentUser -ErrorAction Stop
-              break
-            } catch {
-              $attempts += 1
-              if ($attempts -ge 3) { Write-Host "::error::Could not install the TrustedSigning module: $($_.Exception.Message)"; exit 1 }
-              Start-Sleep -Seconds 20
-            }
-          }
-
-      # win.azureSignOptions is intentionally NOT in the checked-in
-      # electron-builder.yml (its mere presence forces signing on every unsigned
-      # dev cross-build). Inject it here, only in a job that has the credentials.
-      # SYRUS_BACKEND_IMAGE pins the backend tag into the installer's
-      # manifest.json (see build-mac's comment).
-      - name: Build and sign
-        timeout-minutes: 45
-        shell: bash
-        env:
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_SIGN_ENDPOINT: ${{ secrets.AZURE_SIGN_ENDPOINT || vars.AZURE_SIGN_ENDPOINT }}
-          AZURE_SIGN_ACCOUNT_NAME: ${{ secrets.AZURE_SIGN_ACCOUNT_NAME || vars.AZURE_SIGN_ACCOUNT_NAME }}
-          AZURE_SIGN_CERT_PROFILE: ${{ secrets.AZURE_SIGN_CERT_PROFILE || vars.AZURE_SIGN_CERT_PROFILE }}
-          AZURE_SIGN_PUBLISHER_NAME: ${{ secrets.AZURE_SIGN_PUBLISHER_NAME || vars.AZURE_SIGN_PUBLISHER_NAME }}
-          SYRUS_RELEASE_BUILD: "1"
-          SYRUS_BACKEND_IMAGE: ${{ inputs.backend_image_pin }}
-        run: |
-          AZURE_SIGN_ENDPOINT="${AZURE_SIGN_ENDPOINT%/}"
-          npm --prefix desktop run build -- --win --publish never \
-            -c.forceCodeSigning=true \
-            -c.productName="$PRODUCT" \
-            -c.appId="$APP_ID" \
-            -c.extraMetadata.name="$PKG_NAME" \
-            -c.win.icon="$WIN_ICON" \
-            -c.nsis.shortcutName="$PRODUCT" \
-            "-c.win.azureSignOptions.publisherName=${AZURE_SIGN_PUBLISHER_NAME}" \
-            "-c.win.azureSignOptions.endpoint=${AZURE_SIGN_ENDPOINT}" \
-            "-c.win.azureSignOptions.certificateProfileName=${AZURE_SIGN_CERT_PROFILE}" \
-            "-c.win.azureSignOptions.codeSigningAccountName=${AZURE_SIGN_ACCOUNT_NAME}"
-
-      - name: Verify signatures, update feed, and backend pin
-        shell: pwsh
-        env:
-          BACKEND_IMAGE: ${{ inputs.backend_image_pin }}
-        run: |
-          $exes = Get-ChildItem -Path desktop/out -Filter "$env:PRODUCT-Setup-*.exe"
-          if ($exes.Count -eq 0) { throw "No $env:PRODUCT-Setup-*.exe artifacts found under desktop/out" }
-          foreach ($exe in $exes) {
-            $sig = Get-AuthenticodeSignature -FilePath $exe.FullName
-            Write-Host "$($exe.Name): $($sig.Status) ($($sig.SignerCertificate.Subject))"
-            if ($sig.Status -ne "Valid") { throw "$($exe.Name) is not validly signed (status: $($sig.Status))" }
-          }
-          if (-not (Test-Path "desktop/out/latest.yml")) { throw "latest.yml missing - Windows auto-update feed would be broken" }
-          # The bundled CLI must be in the packaged resources (win-unpacked is
-          # what NSIS wraps). Same 0.1.1/0.1.2 failure mode as macOS: stage-cli
-          # soft-skipping without Go shipped installers with no CLI to install.
-          if (-not (Test-Path "desktop/out/win-unpacked/resources/cli/syrus-win32-x64.exe")) { throw "Bundled CLI missing - desktop/out/win-unpacked/resources/cli/syrus-win32-x64.exe not found (stage-cli must have been skipped)" }
-          # The sealed manifest must pin the exact backend tag this run targets.
-          $manifest = Get-Content "desktop/out/win-unpacked/resources/backend/manifest.json" -Raw | ConvertFrom-Json
-          if ($manifest.image -ne $env:BACKEND_IMAGE) { throw "manifest.json pins '$($manifest.image)' instead of '$($env:BACKEND_IMAGE)'" }
-
-      # A release stages the auto-update feed (the versioned .exe + its blockmap
-      # for deltas + latest.yml) and the stable Syrus-Setup.exe website
-      # permalink. Windows auto-update rides the versioned installer itself, so
-      # unlike macOS the versioned .exe stays either way. A test build stages
-      # ONLY the versioned installer — no stable alias, no latest.yml.
-      - name: Stage Windows artifacts
-        shell: bash
-        env:
-          VERSION: ${{ inputs.version }}
-          STAGE_FEED: ${{ inputs.stage_update_feed }}
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/staged"
-          if [ "$STAGE_FEED" = "true" ]; then
-            # Feed staging is release-only (stable channel), so $PRODUCT is
-            # "Syrus" and the alias is the website's Syrus-Setup.exe permalink.
-            cp "desktop/out/$PRODUCT-Setup-$VERSION-x64.exe" "$RUNNER_TEMP/staged/" 2>/dev/null || true
-            cp "desktop/out/$PRODUCT-Setup-$VERSION-x64.exe.blockmap" "$RUNNER_TEMP/staged/" 2>/dev/null || true
-            cp desktop/out/latest.yml "$RUNNER_TEMP/staged/" 2>/dev/null || true
-            # x64 only — runs natively on x64 and via emulation on arm64 Windows.
-            cp "desktop/out/$PRODUCT-Setup-$VERSION-x64.exe" "$RUNNER_TEMP/staged/$PRODUCT-Setup.exe"
-          else
-            cp "desktop/out/$PRODUCT-Setup-$VERSION-x64.exe" "$RUNNER_TEMP/staged/"
-          fi
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ${{ inputs.artifact_prefix }}-windows
           path: ${{ runner.temp }}/staged/
           if-no-files-found: error
           retention-days: ${{ inputs.artifact_retention_days }}

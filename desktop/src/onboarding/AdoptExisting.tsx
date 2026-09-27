@@ -15,8 +15,7 @@ type AdoptExistingProps = {
 export function AdoptExisting({ error = null, onLocateEnv, onWipe, onBack }: AdoptExistingProps) {
   const [confirmation, setConfirmation] = useState("")
   const wipeArmed = confirmation.trim().toLowerCase() === "delete"
-  const installScript =
-    (window.syrusDesktop?.platform ?? "darwin") === "win32" ? "install.ps1" : "install.sh"
+  const installScript = "install.sh"
 
   return (
     <OnboardingScreen title={t("adopt_existing.title")}>

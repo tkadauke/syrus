@@ -19,14 +19,13 @@ RSpec.describe "desktop CLI install" do
     File.read(File.join(desktop_root, relative_path), encoding: "UTF-8")
   end
 
-  it "stages darwin AND windows CLI binaries with platform-filtered bundling" do
+  it "stages darwin CLI binaries with platform-filtered bundling" do
     stage = read("scripts/stage-cli.mjs")
     expect(stage).to include('CGO_ENABLED: "0"')
     expect(stage).to match(/for \(const arch of \["arm64", "amd64"\]\)/)
     # Naming mirrors Electron's process.platform/process.arch so main.ts can
-    # derive the bundled source; windows binaries carry .exe.
+    # derive the bundled source.
     expect(stage).to match(/goos: "darwin", platform: "darwin", suffix: ""/)
-    expect(stage).to match(/goos: "windows", platform: "win32", suffix: "\.exe"/)
     # Missing Go must degrade to a notice in DEV builds, not break packaging.
     expect(stage).to include("skipping CLI bundling")
     # ...but RELEASE builds hard-fail: 0.1.1/0.1.2 shipped with an empty
@@ -40,10 +39,8 @@ RSpec.describe "desktop CLI install" do
     expect(release_guard.index("process.exit(1)")).to be < release_guard.index("process.exit(0)")
 
     config = read("electron-builder.yml")
-    # Per-platform filters: mac DMGs must not ship ~40 MB of windows exes and
-    # vice versa.
+    # Per-platform filter: mac DMGs carry only darwin binaries.
     expect(config).to match(%r{mac:[\s\S]{0,1400}- from: resources/cli\s+to: cli\s+filter: \["syrus-darwin-\*"\]})
-    expect(config).to match(%r{win:[\s\S]{0,400}- from: resources/cli\s+to: cli\s+filter: \["syrus-win32-x64\*"\]})
 
     package = JSON.parse(read("package.json"))
     expect(package.dig("scripts", "build")).to include("stage:cli")
@@ -55,12 +52,9 @@ RSpec.describe "desktop CLI install" do
     # `syrus-test` (which the Go CLI's argv[0] profile resolution targets at
     # credentials.test) beside production's `syrus`, instead of overwriting it.
     expect(main).to include('const cliBinaryName = () => (currentChannel() === "test" ? "syrus-test" : "syrus")')
-    # The probe/install target: ~/.local/bin on macOS; %LocalAppData%\<app>\bin
-    # on Windows — deliberately OUTSIDE the NSIS $INSTDIR, which the updater
-    # replaces wholesale on every auto-update.
+    # The probe/install target: ~/.local/bin on macOS.
     probe = main[/const localBinSyrus =[\s\S]{0,600}/]
     expect(probe).to include('path.join(os.homedir(), ".local", "bin", name)')
-    expect(probe).to include('`${name}.exe`')
 
     install = main[/const performCliInstall[\s\S]{0,3600}/]
     # The bundled-source path derivation lives in bundledCliPath so the
@@ -74,8 +68,6 @@ RSpec.describe "desktop CLI install" do
     expect(install).to include("const signedIn = cachedCredentials !== null")
     # The availability cache must be re-probed after install.
     expect(install).to include("cachedCliAvailable = null")
-    # A running syrus.exe can't be overwritten on Windows, but it can be renamed.
-    expect(install).to match(/fs\.rename\(target, `\$\{target\}\.old`\)/)
     # The IPC handler delegates so the tray banner, Preferences, and the
     # post-setup dialog share one install path — forcing the skill off on the
     # test channel so a test build can't overwrite the shared production skill
@@ -103,18 +95,6 @@ RSpec.describe "desktop CLI install" do
     # ...and the stage script must agree on that staging dir.
     stage = read("scripts/stage-cli.mjs")
     expect(stage).to include('path.join(desktopRoot, "resources", "cli")')
-  end
-
-  it "adds the Windows per-user PATH entry safely (registry, not setx)" do
-    main = read("electron/main.ts")
-    path_helper = main[/const addToWindowsUserPath[\s\S]{0,2200}/]
-    # Raw registry read with expansion disabled preserves other entries'
-    # %VARS%; setx would truncate at 1024 chars and flatten REG_EXPAND_SZ.
-    expect(path_helper).to include("DoNotExpandEnvironmentNames")
-    expect(path_helper).to include("SendMessageTimeout")
-    expect(main).not_to match(/execFileAsync\("setx"/)
-    # A failed PATH write must not fail the install (absolute path still works).
-    expect(read("electron/main.ts")).to match(/addToWindowsUserPath\(binDir\)\.catch/)
   end
 
   it "installs the Claude Code skill through the CLI itself" do
