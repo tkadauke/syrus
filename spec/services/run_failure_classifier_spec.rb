@@ -81,6 +81,37 @@ RSpec.describe RunFailureClassifier, :ci_only do
     )
   end
 
+  it "classifies cgroup oom_kill evidence as a process memory limit over host pressure" do
+    run.update!(state: "failed", agent_outcome: "worker_died", finished_at: Time.current)
+    create_resource_summary!(run: run, host_pressure_level: "critical", host_pressure_reasons: [ "CPU pressure 55.0% >= 50%" ])
+    SpawnedProcess.create!(
+      run: run,
+      workflow: run.workflow,
+      kind: "agent",
+      command: "agent",
+      hostname: "worker-1",
+      started_at: 5.minutes.ago,
+      finished_at: 4.minutes.ago,
+      outcome: "failed",
+      resource_attribution: {
+        "cgroup" => {
+          "state" => "applied",
+          "memory_max_bytes" => 268_435_456,
+          "memory_events" => { "oom_kill" => 1 }
+        }
+      }
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("process_memory_limit_exceeded")
+    expect(result.retryable).to eq(true)
+    expect(result.classifier_inputs).to include(
+      "spawned_process_cgroup_states" => [ "applied" ],
+      "spawned_process_cgroup_oom_kills" => 1
+    )
+  end
+
   it "classifies source snapshot metadata failures as infrastructure state" do
     run.update!(state: "failed")
     diagnostic(
@@ -711,6 +742,33 @@ RSpec.describe RunFailureClassifier, :ci_only do
 
     expect(result.classification).to eq("grader_failure")
     expect(result.retryable).to eq(false)
+  end
+
+  it "classifies cgroup oom_kill evidence before grader failure diagnostics" do
+    run.step.update!(kind: "grader")
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::StepFailed", "grader rspec failed (exit 1)")
+    SpawnedProcess.create!(
+      run: run,
+      workflow: run.workflow,
+      kind: "grader",
+      command: "bin/rspec",
+      hostname: "worker-1",
+      started_at: 5.minutes.ago,
+      finished_at: 4.minutes.ago,
+      outcome: "failed",
+      resource_attribution: {
+        "cgroup" => {
+          "state" => "applied",
+          "memory_events" => { "oom_kill" => 1 }
+        }
+      }
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("process_memory_limit_exceeded")
+    expect(result.retryable).to eq(true)
   end
 
   it "refreshes an existing worker-death classification when a late grader diagnostic arrives" do

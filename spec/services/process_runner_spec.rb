@@ -323,6 +323,118 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(spawned_processes.first.resource_attribution).to include("method" => "linux_proc_process_group")
   end
 
+  it "records that per-spawn cgroup enforcement was disabled when the flag is off" do
+    Feature.find_or_create_by!(slug: "per_spawn_resource_limits") do |feature|
+      feature.category = "Operations"
+      feature.name = "Per-spawn resource limits"
+      feature.enabled = false
+    end
+    Feature.find_by!(slug: "per_spawn_resource_limits").update!(enabled: false)
+    Feature.clear_enabled_cache!("per_spawn_resource_limits")
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      chdir: @dir,
+      timeout: 5,
+      kind: "agent"
+    ).run
+
+    cgroup = SpawnedProcess.find(result.spawned_process_id).resource_attribution.fetch("cgroup")
+    expect(cgroup).to include(
+      "state" => "disabled",
+      "reason" => "per_spawn_resource_limits feature flag is disabled"
+    )
+  end
+
+  it "applies a cgroup v2 memory ceiling and records exit counters" do
+    Feature.find_or_create_by!(slug: "per_spawn_resource_limits") do |feature|
+      feature.category = "Operations"
+      feature.name = "Per-spawn resource limits"
+    end.update!(enabled: true)
+    Feature.clear_enabled_cache!("per_spawn_resource_limits")
+    cgroup_parent = Dir.mktmpdir("process-runner-cgroup")
+    previous_env = ENV.to_h
+    ENV["SYRUS_SPAWN_CGROUP_PARENT"] = cgroup_parent
+    ENV["SYRUS_SPAWN_MEMORY_MAX_BYTES"] = "268435456"
+    ENV["SYRUS_SPAWN_MEMORY_HIGH_BYTES"] = "201326592"
+    ENV["SYRUS_SPAWN_MEMORY_SWAP_MAX_BYTES"] = "0"
+    File.write(File.join(cgroup_parent, "cgroup.controllers"), "memory cpu io\n")
+    allow(SpawnedProcessCgroup).to receive(:sleep)
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      chdir: @dir,
+      timeout: 5,
+      kind: "agent"
+    ).run
+
+    process = SpawnedProcess.find(result.spawned_process_id)
+    cgroup = process.resource_attribution.fetch("cgroup")
+    expect(cgroup).to include(
+      "state" => "applied",
+      "memory_max_bytes" => 268_435_456,
+      "memory_high_bytes" => 201_326_592,
+      "memory_swap_max_bytes" => 0,
+      "memory_oom_group" => true,
+      "cleanup" => "removed"
+    )
+    expect(cgroup.fetch("path")).to match(/\Asyrus-spawned-process-#{process.id}-/)
+    expect(Dir.glob(File.join(cgroup_parent, "syrus-spawned-process-*"))).to be_empty
+  ensure
+    ENV.replace(previous_env) if previous_env
+    FileUtils.rm_rf(cgroup_parent) if cgroup_parent
+    Feature.find_by(slug: "per_spawn_resource_limits")&.update!(enabled: false)
+    Feature.clear_enabled_cache!("per_spawn_resource_limits")
+  end
+
+  it "samples cgroup exit counters after the subprocess is reaped even when stdio closes early" do
+    Feature.find_or_create_by!(slug: "per_spawn_resource_limits") do |feature|
+      feature.category = "Operations"
+      feature.name = "Per-spawn resource limits"
+    end.update!(enabled: true)
+    Feature.clear_enabled_cache!("per_spawn_resource_limits")
+    cgroup_parent = Dir.mktmpdir("process-runner-cgroup")
+    previous_env = ENV.to_h
+    ENV["SYRUS_SPAWN_CGROUP_PARENT"] = cgroup_parent
+    ENV["SYRUS_SPAWN_MEMORY_MAX_BYTES"] = "268435456"
+    File.write(File.join(cgroup_parent, "cgroup.controllers"), "memory cpu io\n")
+
+    runner_thread = Thread.new do
+      described_class.new(
+        env: {},
+        command: [ ruby, "-e", "STDOUT.close; STDERR.close; sleep 0.4" ],
+        chdir: @dir,
+        timeout: 5,
+        kind: "agent"
+      ).run
+    end
+
+    cgroup_dir = nil
+    Timeout.timeout(2) do
+      loop do
+        cgroup_dir = Dir.glob(File.join(cgroup_parent, "syrus-spawned-process-*")).first
+        break if cgroup_dir
+
+        sleep 0.01
+      end
+    end
+    sleep 0.1
+    File.write(File.join(cgroup_dir, "memory.events"), "oom_kill 1\n")
+
+    result = runner_thread.value
+
+    cgroup = SpawnedProcess.find(result.spawned_process_id).resource_attribution.fetch("cgroup")
+    expect(cgroup.fetch("memory_events")).to include("oom_kill" => 1)
+  ensure
+    runner_thread&.kill if runner_thread&.alive?
+    ENV.replace(previous_env) if previous_env
+    FileUtils.rm_rf(cgroup_parent) if cgroup_parent
+    Feature.find_by(slug: "per_spawn_resource_limits")&.update!(enabled: false)
+    Feature.clear_enabled_cache!("per_spawn_resource_limits")
+  end
+
   it "attributes the spawned process row to a chat session when given one" do
     chat_session = ChatSession.create!(user: Factories.user)
 
