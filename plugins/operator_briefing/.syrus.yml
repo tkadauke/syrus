@@ -1,0 +1,12 @@
+project:
+  id: operator_briefing
+  label: "operator_briefing plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//plugins/agent_memory:grade/rspec"
+      - "//plugins/design_docs:grade/rspec"
+      - "//:plugin-api"
+  - type: vitest
