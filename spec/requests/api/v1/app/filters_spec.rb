@@ -288,6 +288,26 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
     expect(suggestions.map { |suggestion| suggestion.dig("filter", "value") }).not_to include(other_repo.id)
   end
 
+  it "suggests repository filters for chat messages" do
+    other_repo = Factories.repository(user: Factories.user, owner: "tkadauke", name: "syrus-private")
+    user = Factories.user
+    repo = Factories.repository(user:, owner: "tkadauke", name: "syrus")
+    sign_in_as(user)
+
+    get "/api/v1/app/filters/suggestions", params: { surface: "dashboard", subject: "chat_message", q: "syrus" }
+
+    expect(response).to have_http_status(:ok)
+    suggestions = parse_body.fetch("suggestions")
+    expect(suggestions).to include(
+      include(
+        "label" => "Repository is tkadauke/syrus",
+        "filter" => { "field" => "repository_id", "op" => "is", "value" => repo.id },
+        "source" => "value"
+      )
+    )
+    expect(suggestions.map { |suggestion| suggestion.dig("filter", "value") }).not_to include(other_repo.id)
+  end
+
   it "ranks learned matching filters ahead of generated value suggestions" do
     user = Factories.user
     sign_in_as(user)

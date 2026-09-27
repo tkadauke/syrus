@@ -81,25 +81,26 @@ export function SearchRoute() {
           <PageHeading>{t("search.heading")}</PageHeading>
           <Page.Description>{query ? `Results for "${query}"` : "Search jobs, epics, chats, and tests."}</Page.Description>
         </div>
-        <nav aria-label={t("search_type_filters_aria")} className="flex flex-wrap gap-2">
-          {filters.map((filter) => (
-            <Link className={filterChipClass(activeFilter === filter.type)} key={filter.type} to={filterPath(location.pathname, location.search, filter.type)}>
-              {filter.label}
-            </Link>
-          ))}
-        </nav>
-        {search.data ? (
-          <Section.Root>
+        <div className="space-y-3">
+          <nav aria-label={t("search_type_filters_aria")} className="flex flex-wrap gap-2">
+            {filters.map((filter) => (
+              <Link className={filterChipClass(activeFilter === filter.type)} key={filter.type} to={filterPath(location.pathname, location.search, filter.type)}>
+                {filter.label}
+              </Link>
+            ))}
+          </nav>
+          {search.data ? (
             <FilterBar
               buildLink={searchFilterLink}
+              className="space-y-2"
               filter={search.data.filter}
               filterSchema={search.data.controls.filter_schema}
               pathname={location.pathname}
               search={location.search}
-              suggestionSearch={activeFilter === "job" || activeFilter === "epic" ? { surface: "dashboard", subject: activeFilter } : undefined}
+              suggestionSearch={suggestionSearchForFilter(activeFilter)}
             />
-          </Section.Root>
-        ) : null}
+          ) : null}
+        </div>
       </Page.Header>
 
       {query.length === 0 ? (
@@ -292,6 +293,11 @@ function filterPath(pathname: string, search: string, filter: SearchFilter) {
   if (filter !== "all") params.append("types[]", filter)
   const query = params.toString()
   return query ? `${pathname}?${query}` : pathname
+}
+
+function suggestionSearchForFilter(filter: SearchFilter) {
+  const subject = filter === "chat" ? "chat_message" : filter === "job" || filter === "epic" ? filter : null
+  return subject ? { surface: "dashboard", subject } : undefined
 }
 
 const searchFilterLink: FilterLinkBuilder = (pathname, search, updates) => {
