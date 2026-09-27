@@ -21,6 +21,7 @@ recipes needed to run Syrus without reading the Rails source.
 | --- | --- |
 | Understand the product in a few minutes | [What is Syrus?](/docs/what-is-syrus) |
 | Decide whether Syrus is the right fit | [Why use Syrus?](/docs/why-use-syrus) |
+| See Syrus's self-built PR record | [Dogfooding](/docs/dogfooding) |
 | Get to a first successful PR | [Getting Started](/docs/getting-started) |
 | Choose a deployment path | [Deployment](/docs/deployment) |
 
