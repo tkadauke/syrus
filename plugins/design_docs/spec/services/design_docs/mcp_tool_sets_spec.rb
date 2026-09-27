@@ -599,7 +599,11 @@ RSpec.describe "DesignDocs MCP tool sets" do
       )
 
       expect(response.dig(:result, :isError)).to be true
-      expect(response.dig(:result, :content, 0, :text)).to include("Suggestions cannot select only part of Markdown block syntax")
+      text = response.dig(:result, :content, 0, :text)
+      expect(text).to include("Suggestions cannot select only part of Markdown block syntax")
+      expect(text).to include("The containing heading section \"Heading\" runs from offset 0 to #{doc.markdown.length}")
+      expect(text).to include("retry with start_offset 0 and end_offset #{doc.markdown.length}")
+      expect(text).to include("supply original_markdown and let the tool resolve it for you")
     }.not_to change(DesignDocs::DesignDocSuggestion, :count)
   end
 
