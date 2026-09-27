@@ -7,9 +7,9 @@ class CreateMcpStartupPhaseEvents < ActiveRecord::Migration[8.1]
       t.string :provider
       t.string :server_name
       t.string :tier
-      t.references :chat_session
-      t.references :chat_message
-      t.references :run
+      t.references :chat_session, foreign_key: false
+      t.references :chat_message, foreign_key: false
+      t.references :run, foreign_key: false
       t.string :hostname
       t.integer :pid
       t.string :app_revision
