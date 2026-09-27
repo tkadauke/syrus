@@ -44,6 +44,7 @@ describe("queryKeysFor", () => {
     expect(queryKeysFor(event("epic", 5))).toEqual([["dashboard"], ["epics"], ["epics", "5"]])
     expect(queryKeysFor(event("repository", 3))).toEqual([["dashboard"], ["repositories"], ["repositories", "3"]])
     expect(queryKeysFor(event("design_doc", 19))).toEqual([["design_docs"], ["design_docs", "detail", "19"]])
+    expect(queryKeysFor(event("operator_briefing", 2))).toEqual([["operator_briefing"]])
     expect(queryKeysFor(event("chat", 5))).toEqual([["chats"], ["chats", "5"]])
     expect(queryKeysFor({ ...event("chat", 5), changed: ["media"] })).toEqual([["chats"], ["chats", "5"], ["chat_media", "5"], ["whiteboard_snapshots", "5"]])
     expect(queryKeysFor(event("provider_availability", "codex"))).toEqual([["bootstrap"], ["dashboard"], ["chats"]])
@@ -74,6 +75,26 @@ describe("applyAppEvent", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs"] })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
+  })
+
+  it("invalidates the operator briefing query when a briefing block is submitted", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, {
+      type: "operator_briefing.block_submitted",
+      resource: "operator_briefing",
+      id: 2,
+      changed: ["blocks"],
+      payload: {
+        block: {
+          key: "overview",
+          title: "Overview"
+        }
+      }
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["operator_briefing"], exact: true })
   })
 
   it("updates and invalidates notification cache when a notification is created", () => {

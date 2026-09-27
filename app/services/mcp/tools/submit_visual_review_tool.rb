@@ -44,15 +44,26 @@ module Mcp::Tools
 
         workflow = run.workflow
         iterations = Array(workflow.artifact("visual_review_iterations"))
+        artifacts = visual_artifacts_for_run(workflow, run)
         iterations << {
           "iteration" => run.step.iteration,
           "step_id" => run.step_id,
           "run_id" => run.id,
           "critique" => normalized_critique,
           "verdict" => normalized_verdict,
-          "artifacts" => visual_artifacts_for_run(workflow, run)
+          "artifacts" => artifacts
         }
         workflow.set_artifact!("visual_review_iterations", iterations)
+        ReviewFindingEvents.record(
+          workflow: workflow,
+          step: run.step,
+          run: run,
+          review_kind: "visual",
+          iteration: run.step.iteration,
+          verdict: normalized_verdict,
+          critique: normalized_critique,
+          skipped: normalized_verdict == "skipped"
+        )
         Mcp::Tools.write_log(run, "[mcp] submit_visual_review received: #{normalized_verdict}")
 
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])

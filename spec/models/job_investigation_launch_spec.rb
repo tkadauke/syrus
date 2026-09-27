@@ -26,13 +26,23 @@ RSpec.describe Job do
     it "rejects investigation on an issue Job" do
       job = Job.new(user: user, repository: repository, kind: "issue", issue_number: 1, investigation: true)
       expect(job).not_to be_valid
-      expect(job.errors[:investigation]).to include("requires kind=direct")
+      expect(job.errors[:investigation]).to include("requires an investigable Job kind")
     end
 
     it "allows investigation on a direct Job" do
       job = Job.new(user: user, repository: repository, kind: "direct", issue_number: nil, investigation: true)
       job.valid?
       expect(job.errors[:investigation]).to be_empty
+    end
+
+    it "allows investigation on a briefing generation Job without changing launch dispatch" do
+      PluginRecord.find_or_create_by!(name: "operator_briefing").update!(enabled: true, disableable: true)
+      job = Job.new(user: user, repository: repository, kind: "briefing_generate", issue_number: nil, investigation: true)
+
+      job.valid?
+
+      expect(job.errors[:investigation]).to be_empty
+      expect(job.investigation_launch?).to eq(false)
     end
 
     it "rejects investigation combined with a skill_name" do

@@ -9,10 +9,10 @@ class Job
   # pass validation. Plugins now contribute kinds through :workflow_kinds
   # alongside the trigger/step kinds of the workflow those Jobs run.
   module Kind
-    Entry = Data.define(:kind, :infrastructure, :issueless) do
+    Entry = Data.define(:kind, :infrastructure, :issueless, :investigable) do
       # Both flags default off, so a plugin contributing an ordinary
       # operator-facing kind only has to name it.
-      def initialize(kind:, infrastructure: false, issueless: false)
+      def initialize(kind:, infrastructure: false, issueless: false, investigable: false)
         super
       end
     end
@@ -20,7 +20,7 @@ class Job
     BUILT_IN_ENTRIES = [
       Entry.new(kind: "issue"),
       Entry.new(kind: "cron",        issueless: true),
-      Entry.new(kind: "direct",      issueless: true),
+      Entry.new(kind: "direct",      issueless: true, investigable: true),
       Entry.new(kind: "main_grader", issueless: true, infrastructure: true),
       Entry.new(kind: "external_pr", issueless: true),
       Entry.new(kind: "deploy",      issueless: true, infrastructure: true)
@@ -53,6 +53,14 @@ class Job
 
     def issueless?(kind)
       issueless_values.include?(kind.to_s)
+    end
+
+    def investigable_values
+      entries.select(&:investigable).map(&:kind).freeze
+    end
+
+    def investigable?(kind)
+      investigable_values.include?(kind.to_s)
     end
   end
 end

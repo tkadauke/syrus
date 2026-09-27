@@ -22,11 +22,12 @@ RSpec.describe "StepDispatcher names no specific step kind" do
     end
   end
 
-  # "skipped" means not visually testable, which exits the loop the same way
-  # "approved" does -- there is nothing for another iteration to address.
-  it "lets visual review exit on skipped as well as approved" do
+  # "skipped" means the reviewer could not produce an actionable review, which
+  # exits the loop the same way "approved" does -- there is nothing for another
+  # iteration to address.
+  it "lets reviewer steps exit on skipped as well as approved" do
     expect(Step::Kind.review_gate_for("visual_review")[:exit_verdicts]).to contain_exactly("approved", "skipped")
-    expect(Step::Kind.review_gate_for("adversarial_review")[:exit_verdicts]).to contain_exactly("approved")
+    expect(Step::Kind.review_gate_for("adversarial_review")[:exit_verdicts]).to contain_exactly("approved", "skipped")
   end
 
   it "returns no gate for a step kind that is not a reviewer" do

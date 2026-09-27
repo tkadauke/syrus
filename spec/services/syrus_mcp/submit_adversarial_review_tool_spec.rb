@@ -16,6 +16,16 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
   end
 
   it "accepts a run_id-only sidecar context" do
+    expect(ReviewFindingEvents).to receive(:record).with(
+      workflow: run.workflow,
+      step: run.step,
+      run: run,
+      review_kind: "adversarial",
+      iteration: run.step.iteration,
+      verdict: "approved",
+      critique: "No blocking issues found."
+    )
+
     described_class.call(
       critique: "No blocking issues found.",
       verdict: "approved",
@@ -25,6 +35,8 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
     expect(run.workflow.reload.artifact("adversarial_review_iterations")).to eq([
       {
         "iteration" => run.step.iteration,
+        "step_id" => run.step_id,
+        "run_id" => run.id,
         "critique" => "No blocking issues found.",
         "verdict" => "approved"
       }
@@ -40,7 +52,7 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
 
     expect(run.workflow.reload.artifact("adversarial_review_iterations")).to eq([
       { "iteration" => 1, "critique" => "First pass.", "verdict" => "needs_work" },
-      { "iteration" => run.step.iteration, "critique" => "Second pass is clean.", "verdict" => "approved" }
+      { "iteration" => run.step.iteration, "step_id" => run.step_id, "run_id" => run.id, "critique" => "Second pass is clean.", "verdict" => "approved" }
     ])
   end
 

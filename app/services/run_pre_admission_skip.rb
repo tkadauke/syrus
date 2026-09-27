@@ -101,18 +101,17 @@ class RunPreAdmissionSkip
       return pass if changed_files.any? { |file| patterns.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) } }
 
       iterations = Array(workflow.artifact("visual_review_iterations"))
+      review_iteration = {
+        "iteration" => step.iteration,
+        "step_id" => step.id,
+        "run_id" => run.id,
+        "critique" => VISUAL_REVIEW_PREFILTER_MESSAGE,
+        "verdict" => "skipped"
+      }
       skip(
         "visual_review_when_files_changed_no_match",
         "[visual_review] skipped: no changed files match visual_review.when_files_changed",
-        "visual_review_iterations" => iterations + [
-          {
-            "iteration" => step.iteration,
-            "step_id" => step.id,
-            "run_id" => run.id,
-            "critique" => VISUAL_REVIEW_PREFILTER_MESSAGE,
-            "verdict" => "skipped"
-          }
-        ]
+        { "visual_review_iterations" => iterations + [ review_iteration ] }
       )
     rescue SyrusYml::ParseError, Errno::ENOENT, GitRunner::GitError
       pass

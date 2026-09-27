@@ -220,6 +220,8 @@ RSpec.describe Mcp::Sidecar do
       expect(review_run.workflow.reload.artifact("adversarial_review_iterations")).to eq([
         {
           "iteration" => review_run.step.iteration,
+          "step_id" => review_run.step_id,
+          "run_id" => review_run.id,
           "critique" => "No blocking issues found.",
           "verdict" => "approved"
         }
