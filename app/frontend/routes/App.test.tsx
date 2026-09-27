@@ -2584,6 +2584,28 @@ describe("App", () => {
             action: "delay",
             next_check_at: "2026-06-05T12:05:00Z",
             estimated_remaining_cost: 2.5,
+            details: {
+              worker_pressure_scope: "localized",
+              pressured_worker_storage_keys: [
+                {
+                  storage_key: "storage-critical",
+                  hostnames: ["worker-compute-critical", "worker-home-critical"],
+                  health_level: "critical"
+                }
+              ],
+              healthy_alternative_worker_storage_keys: [
+                {
+                  storage_key: "storage-healthy-a",
+                  hostnames: ["worker-compute-ok"],
+                  health_level: "ok"
+                },
+                {
+                  storage_key: "storage-healthy-b",
+                  hostnames: ["worker-home-ok"],
+                  health_level: "ok"
+                }
+              ]
+            },
             job: { id: 7, slug: "JOB-7", path: "/jobs/7" }
           }
         ],
@@ -2647,6 +2669,10 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Resource admission diagnostics" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Resource admission", level: 1 })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-7" })).toHaveAttribute("href", "/app-shell/jobs/7?tab=workflows#workflow-12")
+    expect(screen.getByText(/Localized worker pressure: storage-critical/)).toBeInTheDocument()
+    expect(screen.getByText(/worker-compute-critical/)).toBeInTheDocument()
+    expect(screen.getByText(/Healthy alternatives: storage-healthy-a/)).toBeInTheDocument()
+    expect(screen.getByText(/storage-healthy-b/)).toBeInTheDocument()
 
     first.unmount()
 

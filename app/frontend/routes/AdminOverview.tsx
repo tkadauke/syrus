@@ -2,7 +2,7 @@ import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { fetchAdminOverview, type AdminOverviewPayload, type ResourceAdmissionDiagnosticsPayload } from "../api/adminOverview"
+import { fetchAdminOverview, type AdminOverviewPayload, type ResourceAdmissionDelayedWork, type ResourceAdmissionDiagnosticsPayload, type ResourceAdmissionWorkerPressureKey } from "../api/adminOverview"
 import { SectionHeading } from "../components/Heading"
 import { Page } from "../components/ui"
 import { useT } from "../hooks/useT"
@@ -161,6 +161,7 @@ function ResourceAdmissionSection({ data, prefix }: { data: ResourceAdmissionDia
               key={`delayed-${item.workflow_id}`}
               primary={item.job?.slug || `WF-${item.workflow_id}`}
               secondary={[item.reason, item.action, item.next_check_at ? t("overview.resource_next_check", { time: formatShortDate(item.next_check_at) }) : null].filter(Boolean).join(" · ")}
+              detail={formatWorkerPressureDetail(item, t)}
               href={item.workflow_path || item.job?.path}
               prefix={prefix}
               metric={formatCost(item.estimated_remaining_cost)}
@@ -218,6 +219,7 @@ function ResourceAdmissionSection({ data, prefix }: { data: ResourceAdmissionDia
               <li className="text-xs text-amber-900 dark:text-amber-100" key={`override-${item.workflow_id}`}>
                 <ResourceLink href={item.workflow_path || item.job?.path} prefix={prefix}>{item.job?.slug || `WF-${item.workflow_id}`}</ResourceLink>
                 <span className="ml-2">{[item.reason, item.details?.job_priority ? t("overview.resource_priority", { priority: String(item.details.job_priority) }) : null, item.decided_at ? formatShortDate(item.decided_at) : null].filter(Boolean).join(" · ")}</span>
+                <WorkerPressureDetail detail={formatWorkerPressureDetail(item, t)} />
               </li>
             ))}
           </ul>
@@ -239,16 +241,23 @@ function ResourceList({ title, empty, children }: { title: string; empty: string
   )
 }
 
-function ResourceAdmissionRow({ primary, secondary, metric, href, prefix }: { primary: string; secondary?: string; metric?: string; href?: string; prefix?: string }) {
+function ResourceAdmissionRow({ primary, secondary, detail, metric, href, prefix }: { primary: string; secondary?: string; detail?: string | null; metric?: string; href?: string; prefix?: string }) {
   return (
     <li className="grid gap-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto]">
       <div className="min-w-0">
         <ResourceLink href={href} prefix={prefix}>{primary}</ResourceLink>
         {secondary ? <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">{secondary}</p> : null}
+        <WorkerPressureDetail detail={detail} />
       </div>
       {metric ? <span className="self-start rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{metric}</span> : null}
     </li>
   )
+}
+
+function WorkerPressureDetail({ detail }: { detail?: string | null }) {
+  if (!detail) return null
+
+  return <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">{detail}</p>
 }
 
 function ResourceLink({ href, prefix = "", children }: { href?: string; prefix?: string; children: ReactNode }) {
@@ -365,7 +374,7 @@ function EventLinks({ event, prefix }: { event: NonNullable<AdminOverviewPayload
   if (event.epic) links.push(<Link className="underline hover:no-underline" key="epic" to={withRoutePrefix(event.epic.path, prefix)}>{event.epic.slug}</Link>)
   if (event.repository) links.push(<span key="repo">{event.repository.slug}</span>)
 
-  return <span className="text-gray-600 dark:text-gray-300">{links.length > 0 ? intersperse(links, " · ") : `event ${event.id}`}</span>
+  return <span className="text-text-secondary">{links.length > 0 ? intersperse(links, " · ") : `event ${event.id}`}</span>
 }
 
 function DecisionPill({ label, value, tone = "idle" }: { label: string; value: number | string; tone?: "idle" | "alarm" }) {
@@ -455,6 +464,42 @@ function formatPressure(pressure?: { cpu_pressure?: number | null; io_pressure?:
     io_pressure: pressure.io_pressure,
     memory_used_percent: pressure.memory_used_percent
   })
+}
+
+function formatWorkerPressureDetail(item: ResourceAdmissionDelayedWork, t: (key: string, opts?: Record<string, unknown>) => string) {
+  const pressured = workerPressureKeys(
+    item.details?.pressured_worker_storage_keys,
+    item.pressure?.host?.locality?.pressured_storage_keys
+  )
+  const healthy = workerPressureKeys(
+    item.details?.healthy_alternative_worker_storage_keys,
+    item.pressure?.host?.locality?.healthy_alternative_storage_keys
+  )
+  if (pressured.length === 0 && healthy.length === 0) return null
+
+  return [
+    pressured.length > 0 ? t("overview.resource_worker_pressure_localized", { workers: formatWorkerPressureKeys(pressured) }) : null,
+    healthy.length > 0 ? t("overview.resource_worker_pressure_alternatives", { workers: formatWorkerPressureKeys(healthy) }) : null
+  ].filter(Boolean).join(" · ")
+}
+
+function workerPressureKeys(...candidates: unknown[]): ResourceAdmissionWorkerPressureKey[] {
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate.filter(isWorkerPressureKey)
+  }
+
+  return []
+}
+
+function isWorkerPressureKey(candidate: unknown): candidate is ResourceAdmissionWorkerPressureKey {
+  return Boolean(candidate && typeof candidate === "object" && "storage_key" in candidate && typeof (candidate as { storage_key?: unknown }).storage_key === "string")
+}
+
+function formatWorkerPressureKeys(keys: ResourceAdmissionWorkerPressureKey[]) {
+  return keys.map((key) => {
+    const hosts = key.hostnames?.filter(Boolean) ?? []
+    return hosts.length > 0 ? `${key.storage_key} (${hosts.join(", ")})` : key.storage_key
+  }).join("; ")
 }
 
 function formatShortDate(value: string) {
