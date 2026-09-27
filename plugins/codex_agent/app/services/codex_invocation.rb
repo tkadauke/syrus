@@ -311,7 +311,7 @@ class CodexInvocation
         "tool_timeout_sec = #{server.fetch(:tool_timeout_sec, MCP_TOOL_TIMEOUT_SECONDS)}"
       ]
 
-      env = server.fetch(:env, {}).compact
+      env = AgentSidecarEnvironment.filter(server.fetch(:env, {}))
       if env.any?
         lines << ""
         lines << "[mcp_servers.#{name}.env]"

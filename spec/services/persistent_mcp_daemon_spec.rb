@@ -21,13 +21,14 @@ RSpec.describe PersistentMcpDaemon do
     Feature.clear_enabled_cache!("persistent_mcp_sidecar")
   end
 
-  def call(path, method: "GET", body: nil)
+  def call(path, method: "GET", body: nil, headers: {})
     env = Rack::MockRequest.env_for(
       path,
       method: method,
       input: body,
       "CONTENT_TYPE" => "application/json",
-      "HTTP_ACCEPT" => "application/json, text/event-stream"
+      "HTTP_ACCEPT" => "application/json, text/event-stream",
+      **headers
     )
     daemon.call(env)
   end
@@ -44,8 +45,13 @@ RSpec.describe PersistentMcpDaemon do
         expect(response[0]).to eq(200)
         body = json_body(response)
         expect(body["status"]).to eq("ok")
-        expect(body["tools"]).to include("daemon_ping", "daemon_invocation_context", "list_jobs", "read_workflow")
-        expect(body["tools"].size).to eq(McpToolRegistry.tools(surface: :chat).uniq.size + 2)
+        expect(body["tools"]).to include("daemon_ping", "daemon_invocation_context", "list_jobs", "read_workflow", "read_live_state")
+        expected_tool_count = (
+          McpToolRegistry.tools(surface: :chat) +
+          McpToolRegistry.tools(surface: :workflow) +
+          McpToolPolicy.ref_movement_tools
+        ).uniq { |tool| tool.name_value }.size + 2
+        expect(body["tools"].size).to eq(expected_tool_count)
         expect(body["ping_ok"]).to be true
         expect(body["identity"]).to include(
           "worker_id" => WorkerStorageIdentity.key(data_root: data_root),
@@ -54,12 +60,11 @@ RSpec.describe PersistentMcpDaemon do
         )
       end
 
-      it "advertises chat_tools but not workflow_tools until the real workflow tool set is wired in" do
+      it "advertises chat_tools and workflow_tools" do
         response = call("/healthz")
 
-        expect(json_body(response)["capabilities"]).to eq([ "chat_tools" ])
-        expect(described_class::CAPABILITIES).to eq([ "chat_tools" ])
-        expect(described_class::CAPABILITIES).not_to include(described_class::WORKFLOW_TOOLS_CAPABILITY)
+        expect(json_body(response)["capabilities"]).to eq([ "chat_tools", "workflow_tools" ])
+        expect(described_class::CAPABILITIES).to eq([ "chat_tools", "workflow_tools" ])
       end
 
       it "returns 503 when the no-op ping round trip does not succeed" do
@@ -125,16 +130,6 @@ RSpec.describe PersistentMcpDaemon do
           }.to_json,
           headers: { "HTTP_X_SYRUS_INVOCATION_CONTEXT" => token }
         )
-      end
-
-      def call(path, method: "GET", body: nil, headers: {})
-        env = Rack::MockRequest.env_for(
-          path, method: method, input: body,
-          "CONTENT_TYPE" => "application/json",
-          "HTTP_ACCEPT" => "application/json, text/event-stream",
-          **headers
-        )
-        daemon.call(env)
       end
 
       it "dispatches an ordinary essential-tier chat tool for a ChatMcpTransportSelector-selected turn" do
@@ -243,6 +238,47 @@ RSpec.describe PersistentMcpDaemon do
             error_class: "McpInvocationContext::Expired"
           )
         end
+      end
+    end
+
+    describe "workflow tool dispatch over /mcp (PersistentMcpDaemon::WorkflowToolDispatch)" do
+      let(:user) { Factories.user }
+      let(:job) { Factories.job_with_run(user: user) }
+      let(:run) { job.runs.first }
+      let(:worker_id) { WorkerStorageIdentity.key(data_root: data_root) }
+
+      def call_tool(name, token:, arguments: {})
+        call(
+          "/mcp",
+          method: "POST",
+          body: {
+            jsonrpc: "2.0", id: 1, method: "tools/call",
+            params: { name: name, arguments: arguments }
+          }.to_json,
+          headers: { "HTTP_X_SYRUS_INVOCATION_CONTEXT" => token }
+        )
+      end
+
+      it "dispatches an allowed workflow tool for the signed run context" do
+        token = McpInvocationContext.issue_for_run(run, worker_id: worker_id, provider: "codex")
+
+        response = call_tool("read_live_state", token: token)
+
+        expect(response[0]).to eq(200)
+        result = json_body(response)["result"]
+        expect(result["isError"]).to be_falsey
+        payload = JSON.parse(result.dig("content", 0, "text"))
+        expect(payload.dig("run", "id")).to eq(run.id)
+      end
+
+      it "denies a workflow tool that is outside this run's step policy" do
+        token = McpInvocationContext.issue_for_run(run, worker_id: worker_id, provider: "codex")
+
+        response = call_tool("admin_overview", token: token)
+
+        result = json_body(response)["result"]
+        expect(result["isError"]).to be true
+        expect(JSON.parse(result.dig("content", 0, "text"))["error"]).to eq("not_authorized")
       end
     end
 

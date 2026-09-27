@@ -443,14 +443,22 @@ RSpec.describe ChatTurnJob, :ci_only do
       "SYRUS_SQLITE" => "1",
       "SYRUS_DATA_ROOT" => "/home/rails/.syrus",
       "BUNDLE_PATH" => "/usr/local/bundle",
-      "PATH" => "/opt/ruby/bin:/usr/local/bin:/usr/bin:/bin",
+      "PATH" => "/opt/ruby/bin:/usr/local/bin:/usr/bin:/bin"
+    }
+    secret_env = {
+      "RAILS_MASTER_KEY" => "deadbeef",
       "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY" => "primary",
       "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY" => "deterministic",
       "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT" => "salt",
+      "DATABASE_URL" => "mysql2://syrus:secret@syrus-mysql/syrus_production",
+      "SYRUS_DATABASE_PASSWORD" => "database-password",
+      "S3_ACCESS_KEY_ID" => "ak",
+      "S3_SECRET_ACCESS_KEY" => "sk",
       "SYRUS_GIT_MIRROR_TOKEN" => "mirror-token"
     }
-    saved = ENV.to_h.slice(*host_env.keys)
-    host_env.each { |key, value| ENV[key] = value }
+    env_values = host_env.merge(secret_env)
+    saved = ENV.to_h.slice(*env_values.keys)
+    env_values.each { |key, value| ENV[key] = value }
     received = {}
     ChatTurnJob.agent_runner = ->(**kwargs) {
       received.merge!(kwargs)
@@ -465,6 +473,8 @@ RSpec.describe ChatTurnJob, :ci_only do
       expect(essential.dig("env", "SYRUS_CHAT_MCP_SERVER_NAME")).to eq("syrus-chat-sidecar")
       expect(essential["env"]).to include(host_env)
       expect(essential["env"]).to include("GEM_HOME" => "/usr/local/bundle", "GEM_PATH" => "/usr/local/bundle")
+      expect(essential["env"]).not_to include(*secret_env.keys)
+      expect(essential["env"].values).not_to include(*secret_env.values)
       expect(essential["alwaysLoad"]).to eq(true)
       expect(deferred["command"]).to eq(Rails.root.join("bin/syrus-chat-deferred-sidecar").to_s)
       expect(deferred["args"]).to be_nil
@@ -472,6 +482,8 @@ RSpec.describe ChatTurnJob, :ci_only do
       expect(deferred.dig("env", "SYRUS_CHAT_CURRENT_MESSAGE_ID")).to eq(user_message.id.to_s)
       expect(deferred.dig("env", "SYRUS_CHAT_MCP_TOOL_TIER")).to eq("deferred")
       expect(deferred.dig("env", "SYRUS_CHAT_MCP_SERVER_NAME")).to eq("syrus-chat-deferred-sidecar")
+      expect(deferred["env"]).not_to include(*secret_env.keys)
+      expect(deferred["env"].values).not_to include(*secret_env.values)
       expect(deferred["alwaysLoad"]).to eq(false)
 
       kwargs[:log_sink].call("Here is the shape of it.", kind: "assistant_text")
@@ -527,7 +539,7 @@ RSpec.describe ChatTurnJob, :ci_only do
       normalized_messages: []
     )
   ensure
-    host_env&.keys&.each { |key| ENV.delete(key) }
+    env_values&.keys&.each { |key| ENV.delete(key) }
     saved&.each { |key, value| ENV[key] = value }
   end
 

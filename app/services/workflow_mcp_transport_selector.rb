@@ -8,10 +8,9 @@ require "net/http"
 # outcome carries a `reason` string so callers can log actionable diagnostics
 # instead of silently falling back (see AgentProviders::Base#log_mcp_transport_decision!).
 #
-# PersistentMcpDaemon::CAPABILITIES is empty until a later milestone
-# wires the real workflow tool set onto the daemon, so #select always returns
-# :stdio in production today; tests exercise the :persistent branch by
-# stubbing a health response that includes the capability.
+# Workflow tools are served by the persistent daemon. Providers whose CLIs
+# cannot speak HTTP MCP directly use bin/syrus-mcp-proxy as a secret-free
+# stdio bridge to the daemon.
 class WorkflowMcpTransportSelector
   Decision = Struct.new(:transport, :reason, :daemon_identity, keyword_init: true) do
     def persistent? = transport == :persistent
@@ -38,6 +37,7 @@ class WorkflowMcpTransportSelector
   def select
     return stdio_decision("feature_disabled") unless Feature.persistent_mcp_sidecar_enabled?
 
+    PersistentMcpDaemon.ensure_started
     health = fetch_health
     return stdio_decision(health[:reason]) unless health[:ok]
     return stdio_decision(incompatibility_reason(health[:body])) unless workflow_tools_supported?(health[:body])
@@ -59,7 +59,7 @@ class WorkflowMcpTransportSelector
 
   def incompatibility_reason(body)
     capabilities = Array(body["capabilities"]).join(",").presence || "none"
-    "daemon_incompatible: workflow tool dispatch not yet supported (capabilities=#{capabilities})"
+    "daemon_incompatible: missing workflow_tools capability (capabilities=#{capabilities})"
   end
 
   def fetch_health

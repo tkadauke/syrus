@@ -40,6 +40,7 @@ class ChatMcpTransportSelector
   def select
     return stdio_decision("feature_disabled") unless Feature.persistent_mcp_sidecar_enabled?
 
+    PersistentMcpDaemon.ensure_started
     health = fetch_health
     return stdio_decision(health[:reason]) unless health[:ok]
     return stdio_decision(incompatibility_reason(health[:body])) unless chat_tools_supported?(health[:body])
@@ -61,7 +62,7 @@ class ChatMcpTransportSelector
 
   def incompatibility_reason(body)
     capabilities = Array(body["capabilities"]).join(",").presence || "none"
-    "daemon_incompatible: chat tool dispatch not yet supported (capabilities=#{capabilities})"
+    "daemon_incompatible: missing chat_tools capability (capabilities=#{capabilities})"
   end
 
   def fetch_health

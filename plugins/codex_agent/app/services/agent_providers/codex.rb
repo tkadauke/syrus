@@ -132,7 +132,7 @@ module AgentProviders
 
     def invoke(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:,
               model: nil, effort_level: nil, **_ignored)
-      log_mcp_transport_decision!(effective_mcp_transport_decision) if mcp
+      log_mcp_transport_decision!(effective_stdio_mcp_transport_decision) if mcp
 
       invoke_with_auth(
         workspace_path: workspace_path,
@@ -143,25 +143,6 @@ module AgentProviders
         resume_session_id: resume_session_id,
         model: model,
         effort_level: effort_level
-      )
-    end
-
-    # Codex's MCP config (config.toml, see #mcp_server / #codex_config_toml)
-    # only models stdio servers -- there's no verified remote/HTTP MCP
-    # transport wiring for the codex CLI in this codebase, so Codex always
-    # stays on the existing stdio sidecar regardless of what
-    # WorkflowMcpTransportSelector would otherwise pick. The selector still
-    # runs (so its decision -- and, when it would have gone persistent, an
-    # explicit provider_unsupported fallback reason -- lands in the same
-    # run/job diagnostics as Claude) rather than being skipped outright.
-    def effective_mcp_transport_decision
-      decision = mcp_transport_decision
-      return decision unless decision&.persistent?
-
-      WorkflowMcpTransportSelector::Decision.new(
-        transport: :stdio,
-        reason: "provider_unsupported: codex has no persistent MCP HTTP transport wiring yet",
-        daemon_identity: nil
       )
     end
 
@@ -193,11 +174,7 @@ module AgentProviders
     end
 
     def mcp_server
-      {
-        command: sidecar_command,
-        args: sidecar_args,
-        env: sidecar_env
-      }
+      stdio_mcp_server_config
     end
 
     def resume_transcript_jsonl(session_id)
