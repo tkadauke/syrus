@@ -189,6 +189,13 @@
   "broken_main_repair_start_failed": "Reparatur konnte nicht gestartet werden.",
   "broken_main_dismiss": "Ausblenden",
   "needs_attention_aria": "Benötigt Aufmerksamkeit",
+  "attention_reason": {
+    "fork_pr_closed": "Fork-PR geschlossen",
+    "fork_pr_changes_requested": "Änderungen angefordert",
+    "unread_pr_feedback": "Ungelesenes PR-Feedback",
+    "upstream_pr_closed": "PR geschlossen",
+    "upstream_pr_changes_requested": "Änderungen angefordert"
+  },
   "delivery_status": {
     "waiting_for_local_approval": "Wartet auf lokale Freigabe",
     "approved_for_local_landing": "Freigegeben zum lokalen Landen",

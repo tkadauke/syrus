@@ -189,6 +189,13 @@
   "broken_main_repair_start_failed": "Reparatio incipi non potuit.",
   "broken_main_dismiss": "Dimitte",
   "needs_attention_aria": "Attentionem requirit",
+  "attention_reason": {
+    "fork_pr_closed": "PR furcae clausa",
+    "fork_pr_changes_requested": "Mutationes petitae",
+    "unread_pr_feedback": "Responsum PR non lectum",
+    "upstream_pr_closed": "PR clausa",
+    "upstream_pr_changes_requested": "Mutationes petitae"
+  },
   "delivery_status": {
     "waiting_for_local_approval": "Probationem localem exspectat",
     "approved_for_local_landing": "Ad applicationem localem probata",
