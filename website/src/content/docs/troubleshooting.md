@@ -10,9 +10,10 @@ each Run, the live transcript, and the diff Syrus captured.
 
 ## The poller never picks up my issue
 
-Repository issue polling is scheduled every 5 minutes by default, so a newly
-labelled issue may not appear immediately. If it still has not appeared after
-the next poll, check these in order:
+Syrus polls GitHub issues about every five minutes, so first wait one poll
+cycle unless you used **Poll now** or delegated the issue from Syrus.
+
+Check these in order:
 
 1. The repository is registered in Syrus under the same owner/name as
    the GitHub repo.
@@ -22,16 +23,21 @@ the next poll, check these in order:
 4. The issue has the repository's trigger label. The default is `syrus`,
    but each repo can use a different label.
 5. The issue does not have `syrus-skip`.
-6. The user's GitHub token is present and can read the repository.
-7. The GitHub credential is not currently rate-limited. Syrus delays
+6. If the issue uses `epic:` or `depends on:` / `blocked by:` markers,
+   references include `#` (`epic: #123`, not `epic: 123`).
+7. The user's GitHub token is present and can read the repository.
+8. The GitHub credential is not currently rate-limited. Syrus delays
    autonomous repository polls until GitHub's reset time when quota is
    exhausted.
-8. A worker is running the default queue, where
+9. A worker is running the default queue, where
    `PollAllRepositoriesJob` and `PollRepositoryJob` run.
 
 To force a quick check from the UI, open the repository in Syrus and use
 the GitHub issues panel to delegate the issue. That adds the configured
 trigger label through the same GitHub token Syrus will later use.
+
+See [Issue Authoring](/docs/issue-authoring) for the complete label, Epic,
+dependency, and pending-reference contract.
 
 In Kubernetes, check the worker logs:
 

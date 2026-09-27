@@ -22,6 +22,7 @@ const preferredOrder = [
   "video-walkthroughs",
   "concepts",
   "workflows",
+  "issue-authoring",
   "landing",
   "tests-and-graders",
   "previews",
