@@ -92,6 +92,19 @@ serve many concurrent runs/chats, so it cannot reuse that pattern — ENV and
 any daemon-wide "current run"/"current chat" attribute would leak across
 concurrent dispatches.
 
+Generated MCP configs are agent-visible, so stdio entries must not carry
+instance secrets. `AgentSidecarEnvironment` forwards only non-secret boot
+hints (Rails env, data root, Bundler path, host/storage bucket names, and
+the per-invocation ids above). It deliberately excludes `RAILS_MASTER_KEY`,
+Active Record encryption keys, database credentials, and S3 secret keys.
+
+Deployments whose stdio sidecar still needs Rails boot secrets must provide
+them outside the agent-readable config surface, using a file readable by the
+sidecar boundary but not by the coding agent. `SyrusSidecarBootstrap` will
+load the first existing protected env file at `/run/syrus/sidecar.env` or
+`/run/secrets/syrus_sidecar_env` before booting Rails. The file is simple
+`KEY=value` syntax only; it is parsed directly and not shell-evaluated.
+
 `McpInvocationContext` is a short-lived signed context envelope instead:
 `.issue_for_run` / `.issue_for_chat` mint a token (via
 `Rails.application.message_verifier(:mcp_invocation)`) carrying only the

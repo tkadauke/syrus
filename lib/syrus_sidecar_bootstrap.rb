@@ -2,15 +2,53 @@ require "fileutils"
 
 module SyrusSidecarBootstrap
   BUNDLE_ENV_KEYS = %w[BUNDLE_APP_CONFIG BUNDLE_USER_HOME BUNDLE_USER_CACHE BUNDLE_BIN_PATH RUBYOPT].freeze
+  SECRET_ENV_FILE_PATHS = %w[
+    /run/syrus/sidecar.env
+    /run/secrets/syrus_sidecar_env
+  ].freeze
   ISO_TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
   module_function
 
   def prepare_bundle!(sidecar_env_key:)
+    load_secret_env_file!
     ENV["BUNDLE_GEMFILE"] = File.expand_path("../Gemfile", __dir__)
     ENV[sidecar_env_key] = "1" if sidecar_env_key.to_s != ""
     ENV.delete("SYRUS_ROLE")
     BUNDLE_ENV_KEYS.each { |key| ENV.delete(key) }
+  end
+
+  def load_secret_env_file!
+    path = SECRET_ENV_FILE_PATHS.find { |candidate| File.file?(candidate) }
+    return unless path
+
+    File.foreach(path) do |line|
+      key, value = parse_env_line(line)
+      ENV[key] = value if key
+    end
+  rescue StandardError => e
+    warn "[syrus-sidecar-bootstrap] failed to load sidecar env file: #{e.class}: #{e.message}"
+  end
+
+  def parse_env_line(line)
+    stripped = line.to_s.strip
+    return nil if stripped.empty? || stripped.start_with?("#")
+
+    key, value = stripped.split("=", 2)
+    return nil unless key&.match?(/\A[A-Za-z_][A-Za-z0-9_]*\z/) && !value.nil?
+
+    [ key, unquote_env_value(value) ]
+  end
+
+  def unquote_env_value(value)
+    value = value.strip
+    if value.length >= 2 && value.start_with?('"') && value.end_with?('"')
+      value[1...-1].gsub('\n', "\n").gsub('\"', '"').gsub("\\\\", "\\")
+    elsif value.length >= 2 && value.start_with?("'") && value.end_with?("'")
+      value[1...-1]
+    else
+      value
+    end
   end
 
   def open_run_stderr!(run_id:, server_name:)

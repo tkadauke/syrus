@@ -119,4 +119,48 @@ RSpec.describe "bin/syrus-mcp-sidecar" do
     expect(status).to be_success, stderr
     expect(stderr).not_to include("To use retry middleware with Faraday v2.0+")
   end
+
+  it "loads sidecar-only secret env files without shell evaluation" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "sidecar.env")
+      File.write(env_file, <<~ENV)
+        # ignored
+        RAILS_MASTER_KEY=from-env-file
+        ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY="quoted-primary"
+        ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY='single-quoted-deterministic'
+        INVALID-NAME=ignored
+        S3_SECRET_ACCESS_KEY=literal;echo not-run
+      ENV
+
+      script = <<~RUBY
+        require_relative "lib/syrus_sidecar_bootstrap"
+        SyrusSidecarBootstrap.send(:remove_const, :SECRET_ENV_FILE_PATHS)
+        SyrusSidecarBootstrap.const_set(:SECRET_ENV_FILE_PATHS, [#{env_file.inspect}].freeze)
+        SyrusSidecarBootstrap.prepare_bundle!(sidecar_env_key: "SYRUS_MCP_SIDECAR")
+
+        expected = {
+          "RAILS_MASTER_KEY" => "from-env-file",
+          "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY" => "quoted-primary",
+          "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY" => "single-quoted-deterministic",
+          "S3_SECRET_ACCESS_KEY" => "literal;echo not-run",
+          "SYRUS_MCP_SIDECAR" => "1"
+        }
+        expected.each do |key, value|
+          abort "\#{key}=\#{ENV[key].inspect}" unless ENV[key] == value
+        end
+        abort "invalid key loaded" if ENV.key?("INVALID-NAME")
+      RUBY
+
+      _stdout, stderr, status = Open3.capture3(
+        clean_env,
+        RbConfig.ruby,
+        "-e",
+        script,
+        chdir: root,
+        unsetenv_others: true
+      )
+
+      expect(status).to be_success, stderr
+    end
+  end
 end
