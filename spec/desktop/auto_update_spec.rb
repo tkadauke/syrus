@@ -280,7 +280,6 @@ RSpec.describe "desktop auto-update and release pipeline" do
     mac_verify = build_workflow[/name: Verify signature, notarization, update feed, and backend pin[\s\S]{0,1800}/]
     expect(mac_verify).to include('test -x "$APP/Contents/Resources/cli/syrus-darwin-arm64"')
     expect(mac_verify).to include('test -x "$APP/Contents/Resources/cli/syrus-darwin-x64"')
-
   end
 
   it "release workflow verifies the signature, stapling, and stable download aliases" do

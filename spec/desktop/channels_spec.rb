@@ -103,7 +103,6 @@ RSpec.describe "desktop channels" do
       # back to 3000; gate it, and use restampEnvPort which APPENDS a missing line.
       expect(installer_driver).to match(/identity\.channel === "test"[\s\S]{0,200}restampEnvPort\(contents, identity\.defaultPort\)/)
     end
-
   end
 
   describe "packaging assets" do
