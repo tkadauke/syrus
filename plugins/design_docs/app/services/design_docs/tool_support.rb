@@ -91,6 +91,19 @@ module DesignDocs
       )
     end
 
+    def metadata_payload(design_doc)
+      {
+        doc_ref: design_doc.display_id,
+        title: design_doc.title,
+        state: design_doc.state,
+        visibility: design_doc.visibility,
+        current_version_number: DesignDocs::DesignDocVersion.where(id: design_doc.current_version_id).pick(:version_number),
+        pending_suggestions_count: DesignDocs::DesignDocSuggestion.where(design_doc_id: design_doc.id, state: "pending").count,
+        open_threads_count: DesignDocs::DesignDocThread.where(design_doc_id: design_doc.id, state: "open").count,
+        updated_at: design_doc.updated_at.iso8601
+      }
+    end
+
     def suggestion_payload(result)
       {
         design_doc: list_payload(result.design_doc),

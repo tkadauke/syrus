@@ -76,6 +76,22 @@ RSpec.describe "DesignDocs MCP tool sets" do
     JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
   end
 
+  def response_text(response)
+    response.dig(:result, :content, 0, :text)
+  end
+
+  def capture_sql
+    queries = []
+    callback = ->(_name, _started, _finished, _id, payload) do
+      next if payload[:name].to_s.match?(/\ASCHEMA|TRANSACTION\z/)
+
+      queries << payload[:sql].to_s
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   def workflow_run
     job = Factories.job(repository: repository)
     step = job.workflows.last.steps.find_by!(kind: "implement")
@@ -260,12 +276,109 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(suggest.fetch(:description)).to include("suggestion-only")
     expect(suggest.fetch(:description)).to include("never directly mutates canonical Markdown")
     expect(suggest.fetch(:description)).to include("re-read the Design Doc")
+    expect(read.dig(:input_schema, :properties, :detail, :enum)).to eq(%w[full summary])
     expect(suggest.dig(:input_schema, :properties, :base_version_number, :description)).to include("current_version_number")
     expect(suggest.dig(:input_schema, :properties, :original_markdown, :description)).to include("must be unique")
     expect(suggest.dig(:input_schema, :properties, :start_offset, :description)).to include("blank-line boundary")
     expect(suggest.dig(:input_schema, :properties, :occurrence_index, :description)).to include("1-based occurrence")
     expect(suggest.dig(:input_schema, :required)).to include("base_version_number")
     expect(suggest.dig(:input_schema, :required)).not_to include("start_offset", "end_offset")
+  end
+
+  it "keeps read_design_doc default payload identical to the existing full detail payload" do
+    doc = create_design_doc(markdown: "Default full payload")
+    server = chat_server
+
+    omitted_response = call_tool(server, "read_design_doc", doc_ref: doc.display_id)
+    full_response = call_tool(server, "read_design_doc", doc_ref: doc.display_id, detail: "full")
+
+    expect(response_text(omitted_response)).to eq(response_text(full_response))
+    expect(response_text(omitted_response)).to eq(
+      JSON.generate(
+        design_doc: DesignDocs::ReadDesignDocTool.detail_payload(
+          doc.reload,
+          context: McpToolContext.from_server_context(chat_session: chat_session)
+        ),
+        read_only: false,
+        reference_format: doc.display_id
+      )
+    )
+    expect(response_payload(omitted_response).fetch(:design_doc)).to eq(
+      DesignDocs::ReadDesignDocTool.detail_payload(
+        doc.reload,
+        context: McpToolContext.from_server_context(chat_session: chat_session)
+      )
+    )
+  end
+
+  it "returns only design doc metadata from read_design_doc summary mode" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { body: "Keep this", start_offset: 0, end_offset: 5, selected_markdown: "Alpha" }
+    )
+    DesignDocs::CreateSuggestion.call(
+      design_doc: doc.reload,
+      user: owner,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "delta" }
+    )
+
+    response = call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id, detail: "summary")
+    design_doc = response_payload(response).fetch(:design_doc)
+
+    expect(design_doc.keys).to contain_exactly(
+      :doc_ref,
+      :title,
+      :state,
+      :visibility,
+      :current_version_number,
+      :pending_suggestions_count,
+      :open_threads_count,
+      :updated_at
+    )
+    expect(design_doc).to include(
+      doc_ref: doc.display_id,
+      title: "Checkout design",
+      state: "draft",
+      visibility: "public",
+      current_version_number: doc.reload.current_version.version_number,
+      pending_suggestions_count: 1,
+      open_threads_count: 2,
+      updated_at: doc.updated_at.iso8601
+    )
+  end
+
+  it "does not load discussion associations for read_design_doc summary metadata" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { body: "Keep this", start_offset: 0, end_offset: 5, selected_markdown: "Alpha" }
+    )
+    DesignDocs::CreateSuggestion.call(
+      design_doc: doc.reload,
+      user: owner,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "delta" }
+    )
+    fresh_doc = DesignDocs::DesignDoc.find(doc.id)
+
+    expect(fresh_doc.association(:threads)).not_to be_loaded
+    expect(fresh_doc.association(:suggestions)).not_to be_loaded
+
+    DesignDocs::ReadDesignDocTool.metadata_payload(fresh_doc)
+
+    expect(fresh_doc.association(:threads)).not_to be_loaded
+    expect(fresh_doc.association(:suggestions)).not_to be_loaded
+
+    queries = capture_sql do
+      response = call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id, detail: "summary")
+      expect(response.dig(:result, :isError)).to be_falsey
+    end
+
+    expect(queries.grep(/\bFROM [`"]?design_doc_comments[`"]?/i)).to be_empty
+    expect(queries.grep(/\bSELECT\b(?!\s+COUNT\b).*?\bFROM [`"]?design_doc_threads[`"]?/im)).to be_empty
+    expect(queries.grep(/\bSELECT\b(?!\s+COUNT\b).*?\bFROM [`"]?design_doc_suggestions[`"]?/im)).to be_empty
   end
 
   it "scopes workflow reads to design docs visible through the run repository" do
