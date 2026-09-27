@@ -1611,6 +1611,11 @@ and approval behavior. The repository issues panel can list GitHub issues
 and delegate work by adding the trigger label through the same credential
 path Syrus uses for polling.
 
+GitHub issue ingestion is polling-based and runs about every five minutes by
+default. The issue body can declare Epics, attach child Jobs, and express
+dependencies with `epic:`, `depends on:`, and `blocked by:` markers; see
+[Issue Authoring](/docs/issue-authoring) for the full contract and examples.
+
 Polling also tracks how many open GitHub issues on each repository are
 **not** carrying the trigger label — issues Syrus never ingests because no
 one labeled them. The Dashboard's Jobs view surfaces this as a dismissible
