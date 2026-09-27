@@ -16,15 +16,24 @@ export type UiSlotPanel = {
   label_key?: string
 }
 
-const panelModules = import.meta.glob<PluginModule>("../../plugins/*/app/frontend/ui_slots/*.tsx")
+const corePanelModules = import.meta.glob<PluginModule>("./ui_slots/*.tsx")
+const pluginPanelModules = import.meta.glob<PluginModule>("../../plugins/*/app/frontend/ui_slots/*.tsx")
 
 const componentLoaders = Object.fromEntries(
-  Object.entries(panelModules).map(([path, loader]) => {
-    const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/ui_slots\/([^/.]+)\.tsx$/)
-    if (!match) return []
+  [
+    ...Object.entries(corePanelModules).map(([path, loader]) => {
+      const match = path.match(/^\.\/ui_slots\/([^/.]+)\.tsx$/)
+      if (!match) return []
 
-    return [ `${match[1]}/${match[2]}`, loader ]
-  }).filter((entry): entry is [ string, () => Promise<PluginModule> ] => entry.length === 2)
+      return [ `core/${match[1]}`, loader ]
+    }),
+    ...Object.entries(pluginPanelModules).map(([path, loader]) => {
+      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/ui_slots\/([^/.]+)\.tsx$/)
+      if (!match) return []
+
+      return [ `${match[1]}/${match[2]}`, loader ]
+    })
+  ].filter((entry): entry is [ string, () => Promise<PluginModule> ] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType<Record<string, unknown>>>()
@@ -50,7 +59,7 @@ export function pluginUiSlotComponentFor(key: string | null | undefined) {
   return Component
 }
 
-// Renders whatever plugins contributed to one slot on a core page. A panel
+// Renders whatever core or plugin code contributed to one slot on a page. A panel
 // whose component is missing from the bundle is skipped rather than throwing,
 // so a stale server-side registration cannot blank the page around it.
 export function PluginUiSlot({ panels, props }: { panels: UiSlotPanel[] | undefined; props?: Record<string, unknown> }) {

@@ -12,7 +12,7 @@ RSpec.describe SystemAlerts do
       expect(described_class.active_for(user: nil)).to eq([])
     end
 
-    it "surfaces urgent operator attention items to admins" do
+    it "does not surface urgent operator attention items as global alerts" do
       user = Factories.user(admin: true)
       job = Factories.job(user: user)
       AttentionItem.create!(
@@ -28,13 +28,7 @@ RSpec.describe SystemAlerts do
       )
       allow(DataRootDiskUsage).to receive(:current).and_return(nil)
 
-      alert = described_class.active_for(user: user).find { |candidate| candidate.id == "urgent_attention_items" }
-
-      expect(alert).to have_attributes(
-        severity: :warn,
-        title: "1 urgent operator attention item open.",
-        cta: { text: "Open Attention Items", path: "/admin/attention_items" }
-      )
+      expect(described_class.active_for(user: user).map(&:id)).not_to include("urgent_attention_items")
     end
 
     it "surfaces a github-token-blocked alert when the user is flagged" do
