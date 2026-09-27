@@ -3353,7 +3353,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
-  it "does not cancel a persisted running Step whose latest Run is already terminal" do
+  it "cancels a persisted running Step under a terminal Workflow even when its latest Run is already terminal" do
     isolated_workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed", finished_at: 10.minutes.ago)
     isolated_step = Step.create!(
       workflow: isolated_workflow,
@@ -3363,12 +3363,34 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       started_at: 15.minutes.ago,
       finished_at: nil
     )
-    Run.create!(job: job, step: isolated_step, trigger_kind: "initial", state: "failed", finished_at: 10.minutes.ago)
+    isolated_run = Run.create!(job: job, step: isolated_step, trigger_kind: "initial", state: "cancelled", finished_at: 10.minutes.ago)
 
-    result = reconcile(workflow_id: isolated_workflow.id)
+    result = reconcile_and_execute(workflow_id: isolated_workflow.id)
+    issue = kind(result, :cleanup_blocked_by_active_descendants)
 
-    expect(kind(result, :cleanup_blocked_by_active_descendants)).to be_nil
-    expect(isolated_step.reload).to be_running
+    expect(issue).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "cancel_terminal_workflow_active_descendants"
+    )
+    expect(issue.affected_ids[:step_ids]).to eq([ isolated_step.id ])
+    expect(issue.affected_ids[:run_ids]).to eq([])
+    expect(plan(result, :cancel_terminal_workflow_active_descendants)).to have_attributes(
+      auto_executable: true,
+      target_type: "Workflow",
+      target_id: isolated_workflow.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("cancelled active descendants for terminal #{isolated_workflow.slug}")
+    expect(isolated_step.reload).to have_attributes(
+      state: "cancelled",
+      cancellation_reason: "cancel_terminal_workflow_active_descendants"
+    )
+    expect(isolated_step.details).to include(
+      "cancelled_by" => "terminal_workflow_cleanup",
+      "cancelled_reason" => "cancel_terminal_workflow_active_descendants",
+      "cancelled_workflow_id" => isolated_workflow.id,
+      "cancelled_workflow_state" => "failed"
+    )
+    expect(isolated_run.reload).to be_cancelled
   end
 
   it "does not surface a terminal-workflow-with-active-descendants issue from an unrelated Job on a job-scoped reconcile" do

@@ -201,6 +201,10 @@ class Workflow < ApplicationRecord
     runs.active.exists? || projected_active_steps.any?
   end
 
+  def terminal_cleanup_active_descendants?
+    runs.active.exists? || persisted_active_steps.exists?
+  end
+
   def live_descendants?
     runs.active.exists? || projected_running_steps.any? || active_spawned_processes?
   end
@@ -232,6 +236,14 @@ class Workflow < ApplicationRecord
 
   def projected_running_step_ids
     projected_running_steps.map(&:id)
+  end
+
+  def persisted_active_step_ids
+    persisted_active_steps.pluck(:id)
+  end
+
+  def persisted_active_steps
+    steps.active
   end
 
   ProjectedStep = Data.define(:step, :projection)
@@ -360,7 +372,7 @@ class Workflow < ApplicationRecord
   def cancel_active_descendants!(reason: "terminal_workflow_active_descendants")
     request_live_process_kill!
     Step.suppress_cancel_cascade do
-      active_steps = projected_active_steps
+      active_steps = persisted_active_steps.to_a
       cancellation_details = active_descendant_cancellation_details(reason)
 
       runs.active.find_each do |run|
