@@ -12,9 +12,12 @@ behind the Settings modal, and archived briefings live at `/briefing/history`.
 
 The generation pipeline creates one `Briefing` wrapper per
 `briefing_generate` Job and one `BriefingRevision` per generation Workflow.
-The current live/archived state is the Job state: live briefings are open
-Jobs, and archived briefings are closed Jobs. Creating a new briefing for the
-same operator and repository closes any previous live briefing with
+Generation appends blocks progressively through `submit_briefing_block` and
+broadcasts each block over `AppUserChannel`, so the `/briefing` page refetches
+and assembles the new revision while regeneration is still running. The current
+live/archived state is the Job state: live briefings are open Jobs, and
+archived briefings are closed Jobs. Creating a new briefing for the same
+operator and repository closes any previous live briefing with
 `briefing_superseded`, freezing its latest revision into history.
 
 Scheduled generation is activity-gated. A scheduled pass only creates a new

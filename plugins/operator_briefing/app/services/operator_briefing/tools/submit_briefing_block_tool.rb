@@ -8,20 +8,21 @@ module OperatorBriefing
       tool_name "submit_briefing_block"
 
       description <<~DESC
-        Append a structured content block to the current Operator Briefing revision.
-        This phase accepts narrative and link_card blocks only.
+        Appends one typed content block to the current Operator Briefing revision
+        and streams it to the live /briefing page. Call once per completed
+        section instead of waiting to submit the whole briefing.
       DESC
 
       input_schema(
         properties: {
           kind: {
             type: "string",
-            enum: KINDS,
-            description: "Block kind: narrative or link_card."
+            enum: BriefingRevision::BLOCK_KINDS,
+            description: "Typed block kind to append."
           },
           payload: {
             type: "object",
-            description: "For narrative: {text}. For link_card: {entity_type, entity_id, title, path, description}."
+            description: "Block payload matching the selected kind."
           }
         },
         required: %w[kind payload]
@@ -30,23 +31,30 @@ module OperatorBriefing
       class << self
         def call(kind:, payload:, server_context:)
           run = Mcp::Tools.run_from_context(server_context)
-          briefing = Briefing.find_by!(job: run.job)
-          revision = BriefingRevision.find_by!(briefing: briefing, generation_run: run)
+          unless run.step&.kind == "briefing_generate_run"
+            return Mcp::Tools.invalid("submit_briefing_block is only available from briefing_generate_run")
+          end
+
+          revision = BriefingRevision.find_by!(generation_run: run)
           normalized = normalize_block(kind, payload)
           return normalized if normalized.is_a?(MCP::Tool::Response)
 
-          revision.with_lock do
-            revision.content_blocks = Array(revision.content_blocks) + [ normalized ]
-            revision.save!
-          end
+          block = revision.append_block!(normalized)
           run.workflow.set_artifact!("briefing_revision_id", revision.id)
-          Mcp::Tools.write_log(run, "[mcp] submit_briefing_block: #{normalized.fetch('kind')}")
+          Mcp::Tools.write_log(run, "[mcp] submit_briefing_block: #{block.fetch('kind')}")
 
-          MCP::Tool::Response.new([ { type: "text", text: "Briefing block saved to revision #{revision.revision_number}." } ])
-        rescue ActiveRecord::RecordNotFound => e
-          Mcp::Tools.invalid(e.message)
+          Mcp::Tools.success(
+            briefing_id: revision.briefing_id,
+            revision_id: revision.id,
+            revision_number: revision.revision_number,
+            block_count: revision.reload.content_blocks.size
+          )
+        rescue ActiveRecord::RecordNotFound
+          Mcp::Tools.invalid("no active Operator Briefing revision exists for this run")
+        rescue ActiveRecord::RecordInvalid => e
+          Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
         rescue StandardError => e
-          Rails.logger.error("[OperatorBriefing::SubmitBriefingBlockTool] #{e.class}: #{e.message}")
+          Rails.logger.error("[OperatorBriefing::Tools::SubmitBriefingBlockTool] #{e.class}: #{e.message}")
           MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
         end
 

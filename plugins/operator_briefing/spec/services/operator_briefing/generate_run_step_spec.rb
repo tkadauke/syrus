@@ -20,9 +20,10 @@ RSpec.describe OperatorBriefing::GenerateRunStep do
     )
   end
 
-  it "creates an empty revision and invokes the agent with briefing instructions" do
+  it "creates a revision and invokes the agent with briefing instructions" do
     step_handler = described_class.new(run)
     allow(step_handler).to receive(:run_agent)
+    allow(step_handler).to receive(:verify_blocks_submitted!)
     allow(step_handler).to receive(:workspace).and_return(double(setup: true))
 
     step_handler.call
@@ -31,7 +32,11 @@ RSpec.describe OperatorBriefing::GenerateRunStep do
     expect(revision.generation_run).to eq(run)
     expect(revision.content_blocks).to eq([])
     expect(run.reload.prompt).to include("read_briefing_git_diff", "list_briefing_recent_workflows", "submit_briefing_block")
-    expect(step_handler).to have_received(:run_agent).with(prompt: run.prompt, required_mcp_tools: %w[submit_briefing_block])
+    expect(step_handler).to have_received(:run_agent).with(
+      prompt: run.prompt,
+      max_turns: described_class::GENERATION_TURN_BUDGET,
+      required_mcp_tools: %w[submit_briefing_block]
+    )
   end
 
   it "includes source preferences in the generation prompt" do
@@ -46,6 +51,7 @@ RSpec.describe OperatorBriefing::GenerateRunStep do
     )
     step_handler = described_class.new(run)
     allow(step_handler).to receive(:run_agent)
+    allow(step_handler).to receive(:verify_blocks_submitted!)
     allow(step_handler).to receive(:workspace).and_return(double(setup: true))
 
     step_handler.call
@@ -65,10 +71,20 @@ RSpec.describe OperatorBriefing::GenerateRunStep do
     )
     step_handler = described_class.new(run)
     allow(step_handler).to receive(:run_agent)
+    allow(step_handler).to receive(:verify_blocks_submitted!)
     allow(step_handler).to receive(:workspace).and_return(double(setup: true))
 
     step_handler.call
 
     expect(run.reload.prompt).to include("Operator prefers fewer spend items.")
+  end
+
+  it "fails if the synthesis agent does not stream any blocks" do
+    step_handler = described_class.new(run)
+    allow(step_handler).to receive(:run_agent)
+    allow(step_handler).to receive(:workspace).and_return(double(setup: true))
+
+    expect { step_handler.call }
+      .to raise_error(Steps::Base::StepFailed, "agent didn't call submit_briefing_block")
   end
 end
