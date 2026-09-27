@@ -338,62 +338,42 @@ export function JobDetailView({
     <>
       <SyrusTour onEvent={(data) => handleJoyrideCallback(data)} run={tourRun} steps={tourSteps} />
       <Page.Header className="gap-3" layout="stacked">
-        <PageHeading className="break-words" data-testid="job-header-title">
+        <PageHeading className="break-words text-xl leading-tight sm:text-2xl sm:leading-normal" data-testid="job-header-title">
           <CopyableSlug slug={jobSlug(payload.job.id)} />
           <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
           <PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} />
         </PageHeading>
         <div className="flex min-w-0 flex-col items-start gap-x-6 gap-y-3 sm:flex-row sm:items-center sm:justify-between">
-          <HeaderMetadataList>
-            <JobStateBadge state={payload.job.summary_state} />
-            <span className="min-w-0 break-words">
-              <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
-                {payload.repository.slug}
-              </Link>
-            </span>
-            {providerLabel ? (
-              <span className="inline-flex items-center gap-1">
-                <span title={providerFailoverTooltip(payload.job.provider_failover)}>{providerLabel}</span>
-                <ProviderAvailabilityWarning availability={payload.job.provider_availability} />
-              </span>
-            ) : null}
-            {payload.job.source_chat ? (
-              <span className="inline-flex min-w-0 items-center gap-1">
-                <SlugHoverCard id={payload.job.source_chat.chat_id} kind="chat">
-                  <CopyableSlug className="text-xs" slug={`CHAT-${payload.job.source_chat.chat_id}`} />
-                </SlugHoverCard>
-                <Link className="min-w-0 break-words font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>
-                  {payload.job.source_chat.chat_title || t("chat:new_title")}
-                </Link>
-              </span>
-            ) : payload.origin_chat ? (
-              <Link
-                className="inline-flex min-w-0 items-center gap-1 font-medium text-brand hover:underline"
-                to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}
-              >
-                <ChatBubbleIcon />
-                <span>{t("view_in_chat")}</span>
-              </Link>
-            ) : payload.job.discussion_chat ? (
-              <Link
-                className="inline-flex min-w-0 items-center gap-1 font-medium text-brand hover:underline"
-                to={withRoutePrefix(payload.job.discussion_chat.path, prefix)}
-              >
-                <ChatBubbleIcon />
-                <span className="min-w-0 break-words">{payload.job.discussion_chat.chat_title || t("chat_about_this")}</span>
-              </Link>
-            ) : payload.actions.can_start_chat ? (
-              <button
-                className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={command.isPending}
-                onClick={() => command.mutate({ method: "post", path: payload.paths.app_start_chat_path })}
-                type="button"
-              >
-                <ChatBubbleIcon />
-                <span>{t("chat_about_this")}</span>
-              </button>
-            ) : null}
-          </HeaderMetadataList>
+          <HeaderMetadataList
+            items={[
+              { node: <JobStateBadge state={payload.job.summary_state} />, className: "hidden sm:inline-flex" },
+              {
+                node: (
+                  <span className="min-w-0 break-words">
+                    <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
+                      {payload.repository.slug}
+                    </Link>
+                  </span>
+                ),
+                className: "hidden sm:inline-flex"
+              },
+              providerLabel
+                ? {
+                    node: (
+                      <span className="inline-flex items-center gap-1">
+                        <span title={providerFailoverTooltip(payload.job.provider_failover)}>{providerLabel}</span>
+                        <ProviderAvailabilityWarning availability={payload.job.provider_availability} />
+                      </span>
+                    ),
+                    className: "hidden sm:inline-flex"
+                  }
+                : null,
+              {
+                node: <HeaderChatAffordance command={command} payload={payload} prefix={prefix} />,
+                separatorClassName: "hidden sm:inline"
+              }
+            ]}
+          />
           <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center justify-end gap-3 sm:w-auto" data-testid="job-header-actions">
             <HeaderActions
               command={command}
@@ -489,19 +469,87 @@ export function JobDetailView({
   )
 }
 
-function HeaderMetadataList({ children }: { children: ReactNode }) {
-  const items = Array.isArray(children) ? children.filter(Boolean) : [children].filter(Boolean)
+type HeaderMetadataItem = { node: ReactNode; className?: string; separatorClassName?: string } | null | false | undefined
+
+function HeaderMetadataList({ items }: { items: HeaderMetadataItem[] }) {
+  const visibleItems = items.filter((item): item is Exclude<HeaderMetadataItem, null | false | undefined> => Boolean(item?.node))
+  if (visibleItems.length === 0) return null
 
   return (
-    <div className="flex w-full min-w-0 flex-none flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 dark:text-gray-300 sm:flex-1" data-testid="job-header-metadata">
-      {items.map((item, index) => (
-        <span key={index} className="inline-flex min-w-0 items-center gap-2">
-          {index > 0 ? <span className="shrink-0 text-gray-300 dark:text-gray-600">·</span> : null}
-          {item}
+    <div
+      className="flex w-full min-w-0 flex-none flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 dark:text-gray-300 sm:flex-1"
+      data-testid="job-header-metadata"
+    >
+      {visibleItems.map((item, index) => (
+        <span key={index} className={[item.className ?? "inline-flex", "min-w-0 items-center gap-2"].join(" ")}>
+          {index > 0 ? <span className={["shrink-0 text-gray-300 dark:text-gray-600", item.separatorClassName].filter(Boolean).join(" ")}>·</span> : null}
+          {item.node}
         </span>
       ))}
     </div>
   )
+}
+
+function HeaderChatAffordance({
+  payload,
+  prefix,
+  command
+}: {
+  payload: JobDetailPayload
+  prefix: string
+  command: ReturnType<typeof useJobCommand>
+}) {
+  const { t } = useT("jobs")
+
+  if (payload.job.source_chat) {
+    return (
+      <span className="inline-flex min-w-0 items-center gap-1">
+        <SlugHoverCard id={payload.job.source_chat.chat_id} kind="chat">
+          <CopyableSlug className="text-xs" slug={`CHAT-${payload.job.source_chat.chat_id}`} />
+        </SlugHoverCard>
+        <Link className="min-w-0 break-words font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>
+          {payload.job.source_chat.chat_title || t("chat:new_title")}
+        </Link>
+      </span>
+    )
+  }
+
+  if (payload.origin_chat) {
+    return (
+      <Link
+        className="inline-flex min-w-0 items-center gap-1 font-medium text-brand hover:underline"
+        to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}
+      >
+        <ChatBubbleIcon />
+        <span>{t("view_in_chat")}</span>
+      </Link>
+    )
+  }
+
+  if (payload.job.discussion_chat) {
+    return (
+      <Link className="inline-flex min-w-0 items-center gap-1 font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.discussion_chat.path, prefix)}>
+        <ChatBubbleIcon />
+        <span className="min-w-0 break-words">{payload.job.discussion_chat.chat_title || t("chat_about_this")}</span>
+      </Link>
+    )
+  }
+
+  if (payload.actions.can_start_chat) {
+    return (
+      <button
+        className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={command.isPending}
+        onClick={() => command.mutate({ method: "post", path: payload.paths.app_start_chat_path })}
+        type="button"
+      >
+        <ChatBubbleIcon />
+        <span>{t("chat_about_this")}</span>
+      </button>
+    )
+  }
+
+  return null
 }
 
 function JobNavigationControl({ context, currentJobId, prefix }: { context: JobNavigationContext | null; currentJobId: number; prefix: string }) {
@@ -745,22 +793,8 @@ function SummaryTab({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[62%_38%]">
         <div className="min-w-0 space-y-4">
-          <Section.Root className="min-w-0 overflow-x-auto">
-            <SectionHeading>{t("section_issue")}</SectionHeading>
-            {payload.job.issue_body ? (
-              <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} />
-            ) : (
-              <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_issue_body")}</p>
-            )}
-          </Section.Root>
-          <Section.Root className="min-w-0 overflow-x-auto">
-            <SectionHeading>{t("section_agent_summary")}</SectionHeading>
-            {payload.summary ? (
-              <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} />
-            ) : (
-              <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>
-            )}
-          </Section.Root>
+          <CollapsibleMarkdownSection emptyText={t("no_issue_body")} text={payload.job.issue_body} title={t("section_issue")} />
+          <CollapsibleMarkdownSection emptyText={t("no_summary")} text={payload.summary?.text ?? null} title={t("section_agent_summary")} />
 
           <TestPlanPanel testPlan={payload.test_plan} />
 
@@ -895,6 +929,36 @@ function SummaryTab({
         </div>
       </div>
     </div>
+  )
+}
+
+function CollapsibleMarkdownSection({ title, text, emptyText }: { title: string; text: string | null | undefined; emptyText: string }) {
+  const { t } = useT("common")
+  const [expanded, setExpanded] = useState(false)
+  const contentId = useMemo(() => `job-prose-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, [title])
+
+  return (
+    <Section.Root className="min-w-0 overflow-x-auto">
+      <SectionHeading>{title}</SectionHeading>
+      {text ? (
+        <>
+          <div className={`mt-2 ${expanded ? "" : "line-clamp-5 sm:line-clamp-none"}`} id={contentId}>
+            <Markdown className="chat-prose text-sm text-gray-700 dark:text-gray-300" text={text} />
+          </div>
+          <button
+            aria-controls={contentId}
+            aria-expanded={expanded}
+            className="mt-3 text-sm font-medium text-brand hover:underline sm:hidden"
+            onClick={() => setExpanded((current) => !current)}
+            type="button"
+          >
+            {expanded ? t("show_less") : t("show_more")}
+          </button>
+        </>
+      ) : (
+        <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{emptyText}</p>
+      )}
+    </Section.Root>
   )
 }
 
