@@ -14,6 +14,8 @@ module PluginRuntime
   # Disabled plugins drop out of this set the same way DesiredServices works:
   # the reconciler removes any managed privileged service no longer listed.
   class DesiredPrivilegedServices
+    extend DesiredServiceCollection
+
     POINT = "plugin_runtime:privileged_service".freeze
 
     # The only plugins allowed to reach the privileged lane at all. Adding a
@@ -21,41 +23,12 @@ module PluginRuntime
     # something a plugin's own manifest can opt into.
     FIRST_PARTY_PRIVILEGED_PLUGINS = %w[tailscale].freeze
 
-    Entry = Data.define(:name, :plugin, :provider)
+    Entry = DesiredServiceCollection::Entry
 
-    def self.all
-      entries = Syrus::PluginRegistry.all_plugins.select(&:enabled?).flat_map do |manifest|
-        next [] unless FIRST_PARTY_PRIVILEGED_PLUGINS.include?(manifest.name)
-
-        Array(manifest.provides[POINT] || manifest.provides[POINT.to_sym]).filter_map do |ref|
-          entry_for(manifest.name, ref)
-        end
-      end
-      deduplicate(entries)
-    end
-
-    def self.entry_for(plugin, ref)
-      provider = ref.is_a?(String) ? ref.safe_constantize : ref
-      unless provider && PrivilegedService.implemented_by?(provider)
-        Rails.logger.warn("[PluginRuntime] #{plugin} contributes #{ref.inspect} to #{POINT}, which does not implement the privileged service contract")
-        return nil
-      end
-      Entry.new(name: provider.privileged_service_name.to_s, plugin: plugin, provider: provider)
-    rescue StandardError => e
-      Rails.logger.warn("[PluginRuntime] #{plugin} privileged service #{ref.inspect} could not be read: #{e.class}: #{e.message}")
-      nil
-    end
-
-    # Two plugins claiming one service name would fight over one container,
-    # each replacing the other's spec every tick. The first claim wins and the
-    # conflict is logged, so it is stable and visible instead.
-    def self.deduplicate(entries)
-      entries.group_by(&:name).map do |name, claims|
-        if claims.size > 1
-          Rails.logger.warn("[PluginRuntime] privileged service #{name} is claimed by #{claims.map(&:plugin).join(', ')}; using #{claims.first.plugin}")
-        end
-        claims.first
-      end
-    end
+    def self.point = POINT
+    def self.contract = PrivilegedService
+    def self.label = "privileged service"
+    def self.public_name_for(provider) = provider.privileged_service_name
+    def self.eligible_manifest?(manifest) = FIRST_PARTY_PRIVILEGED_PLUGINS.include?(manifest.name)
   end
 end
