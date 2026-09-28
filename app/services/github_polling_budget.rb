@@ -18,6 +18,48 @@ class GithubPollingBudget
   MERGE_STATE_URGENT_STATES = %w[ landing approved ].freeze
   DEFAULT_URGENT_STATES = %w[ landing approved running ].freeze
 
+  class PollingKind
+    class << self
+      def for(kind)
+        REGISTRY.fetch(kind.to_sym, DEFAULT)
+      end
+    end
+
+    def interval = 30.minutes
+    def urgent_states = DEFAULT_URGENT_STATES
+  end
+
+  class Default < PollingKind
+  end
+
+  class PullRequestFeedback < PollingKind
+    def self.kind = :pr_feedback
+  end
+
+  class MergeState < PollingKind
+    def self.kind = :merge_state
+    def interval = 15.minutes
+    def urgent_states = MERGE_STATE_URGENT_STATES
+  end
+
+  class ExternalPullRequest < PollingKind
+    def self.kind = :external_pr
+    def interval = 15.minutes
+  end
+
+  class ForkReview < PollingKind
+    def self.kind = :fork_review
+    def interval = 15.minutes
+  end
+
+  DEFAULT = Default.new
+  REGISTRY = [
+    PullRequestFeedback,
+    MergeState,
+    ExternalPullRequest,
+    ForkReview
+  ].to_h { |klass| [ klass.kind, klass.new ] }.freeze
+
   class << self
     def ordered_jobs(scope)
       scope.order(Arel.sql(<<~SQL.squish), updated_at: :desc, id: :asc)
@@ -54,20 +96,19 @@ class GithubPollingBudget
     private
 
     def urgent?(job, kind:)
-      urgent_states_for(kind).include?(job.state)
+      polling_kind_for(kind).urgent_states.include?(job.state)
     end
 
     def urgent_states_for(kind)
-      kind.to_sym == :merge_state ? MERGE_STATE_URGENT_STATES : DEFAULT_URGENT_STATES
+      polling_kind_for(kind).urgent_states
     end
 
     def interval_for(kind)
-      case kind.to_sym
-      when :pr_feedback then 30.minutes
-      when :merge_state then 15.minutes
-      when :external_pr, :fork_review then 15.minutes
-      else 30.minutes
-      end
+      polling_kind_for(kind).interval
+    end
+
+    def polling_kind_for(kind)
+      PollingKind.for(kind)
     end
   end
 end
