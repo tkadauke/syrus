@@ -249,7 +249,9 @@ Once the Jobs run, the GitHub loop is the same as for any Job. You can also
 file work directly: create or edit a GitHub issue in the registered
 repository and add the trigger label, or create a **direct Job** from the
 web UI. Syrus polls GitHub instead of receiving inbound webhooks, so a
-labelled issue's Job may not appear immediately.
+labelled issue's Job may take up to the next 5-minute repository poll to
+appear. You can also start work from [chat proposals](/docs/features#chats)
+or [video walkthroughs](/docs/video-walkthroughs).
 
 ### 5. Watch the Job, Workflow, and Run
 
