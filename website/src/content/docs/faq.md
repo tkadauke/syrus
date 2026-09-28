@@ -52,8 +52,9 @@ credentials, data retention, and model choice.
 ## What does Syrus cost?
 
 Syrus itself is free and MIT-licensed. Your real cost is the model bill:
-Anthropic for Claude runs, OpenAI for Codex runs, or whatever provider a
-future adapter uses.
+Anthropic for Claude runs, OpenAI for Codex runs, Google/Gemini for
+Antigravity runs, Meta for Muse runs, or whatever provider another adapter
+uses.
 
 You also pay your own infrastructure cost. For a small team, that can be
 a Docker Compose box. For a production deployment, it is your database,
@@ -76,10 +77,10 @@ PRs like you would review work from a human contributor.
 
 ## Can I use a model other than Claude?
 
-Yes. Syrus has provider abstractions and supports Codex in addition to
-Claude. Users choose a default provider for Jobs and future chats; repositories
-can override Job provider selection, and retry actions can use any provider the
-user has configured.
+Yes. Syrus has plugin-backed provider adapters for Claude, Codex,
+Antigravity, and Muse. Users choose a default provider for Jobs and future
+chats; repositories can override Job provider selection, and retry actions can
+use any provider the user has configured.
 
 Community providers are possible as long as they can fit the same shape:
 run in a workspace, stream logs, return a result, and let Syrus capture

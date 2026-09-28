@@ -109,7 +109,7 @@ export const features = [
   {
     id: "keys",
     title: "Stay in control, on your terms",
-    body: "Self-hosted on your infrastructure, and your code goes only to the model provider you choose — Claude or Codex, on your own credentials. Syrus only ever calls out: no inbound webhooks, no public endpoint to expose. Your issues, reviews, and merges stay in GitHub.",
+    body: "Self-hosted on your infrastructure, and your code goes only to the plugin-backed model provider you choose, on your own credentials. Syrus only ever calls out: no inbound webhooks, no public endpoint to expose. Your issues, reviews, and merges stay in GitHub.",
   },
 ] as const;
 

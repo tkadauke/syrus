@@ -329,11 +329,12 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | Profile | Display name, name fields, company, location, website, GitHub handle, avatar URL, and bio on `/profile` |
 | Role | User-facing role, either `developer` or `product_owner`; users can set their own role on `/profile`, and admins can override it from `/admin/users` |
 | GitHub token | Used to list issues, read PRs, push branches, open PRs, and post updates for that user's repositories; configured on `/credentials` |
-| Agent provider | Default provider for new Jobs: `claude`, `codex`, or `muse`; configured on `/settings/agent` |
+| Agent provider | Default provider for new Jobs, selected from enabled agent-provider plugins such as `claude`, `codex`, `agy`, or `muse`; configured on `/settings/agent` |
 | Agent provider failover | Disabled-by-default ordered list of alternate agent providers plus eligible causes (`usage_exhausted`, `usage_low`, `rate_limited`, `provider_transient`, `auth_error`); configured on `/settings/agent` |
-| Chat provider | Optional provider override for chat turns: `claude`, `codex`, or `muse`; when blank, chat follows the user's default agent provider |
+| Chat provider | Optional provider override for chat turns, selected from enabled chat-provider plugins such as `claude`, `codex`, `agy`, or `muse`; when blank, chat follows the user's default agent provider |
 | Claude credential | Encrypted long-lived Claude OAuth token from the Claude authorization flow or `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN`; configured on `/credentials` |
 | Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode; configured on `/credentials` |
+| Antigravity credential | Encrypted Gemini API key shared by Antigravity and Gemini-backed features such as walkthrough-video analysis; configured on `/credentials` |
 | Muse credential | Encrypted Muse API key, passed to Muse Code on stdin for probes and agent runs; created at [ai.developer.meta.com](https://ai.developer.meta.com/) under API keys and configured on `/credentials` |
 | Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag; configured on `/settings/agent` |
 | Theme | Light or dark app chrome, toggled from the account area and persisted per user |
@@ -345,9 +346,10 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 
 The **Credentials** page includes a per-credential **Test** action after a
 secret is saved. GitHub PAT tests call GitHub as the user and report the
-authenticated login plus token scopes. Claude, Codex, and Muse tests run short
-CLI auth probes through the same credential paths used by Jobs and chats, so
-expired or mis-shaped agent credentials surface before a downstream run fails.
+authenticated login plus token scopes. Claude, Codex, Antigravity, and Muse
+tests run short CLI auth probes through the same credential paths used by Jobs
+and chats, so expired or mis-shaped agent credentials surface before a
+downstream run fails.
 
 Muse keys begin with `LLM|` and are shown only once at creation, with no later
 reveal or rotation. If you signed in with a Muse subscription through `muse

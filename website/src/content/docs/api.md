@@ -461,10 +461,10 @@ curl -X PATCH https://syrus.example.com/api/v1/app/chats/123 \
 
 Chat providers are pinned when a chat is created. Switching an existing chat to
 another configured provider uses `POST /api/v1/app/chats/:id/switch_provider`
-with `{ "provider": "codex" }`, `"claude"`, or `"muse"` so Syrus can run the
-provider rehydration flow before updating the stored provider. A provider is
-eligible only when its plugin is enabled and the authenticated user has the
-required credentials saved.
+with `{ "provider": "codex" }` or another enabled provider slug such as
+`"claude"`, `"agy"`, or `"muse"` so Syrus can run the provider rehydration flow
+before updating the stored provider. A provider is eligible only when its plugin
+is enabled and the authenticated user has the required credentials saved.
 
 ## Branch a Chat
 
