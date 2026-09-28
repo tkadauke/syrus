@@ -29,6 +29,14 @@ RSpec.describe GithubPollingBudget do
   end
 
   describe ".poll_job_now?" do
+    it "keeps polling-kind cadence policy explicit" do
+      expect(described_class.send(:interval_for, :pr_feedback)).to eq(30.minutes)
+      expect(described_class.send(:interval_for, :merge_state)).to eq(15.minutes)
+      expect(described_class.send(:interval_for, :external_pr)).to eq(15.minutes)
+      expect(described_class.send(:interval_for, :fork_review)).to eq(15.minutes)
+      expect(described_class.send(:interval_for, :unknown_kind)).to eq(30.minutes)
+    end
+
     %w[ landing approved ].each do |state|
       it "always polls #{state} Jobs for merge_state, regardless of rotation slot" do
         job = job_in_state(state)
