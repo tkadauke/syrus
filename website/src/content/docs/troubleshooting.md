@@ -10,7 +10,9 @@ each Run, the live transcript, and the diff Syrus captured.
 
 ## The poller never picks up my issue
 
-Check these in order:
+Repository issue polling is scheduled every 5 minutes by default, so a newly
+labelled issue may not appear immediately. If it still has not appeared after
+the next poll, check these in order:
 
 1. The repository is registered in Syrus under the same owner/name as
    the GitHub repo.
