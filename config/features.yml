@@ -84,5 +84,5 @@ features:
   - slug: execution_request_assertions
     category: "Operations"
     name: "Execution request assertions"
-    description: "Checks local ProcessRunner executions against their declared mount request before container execution backends depend on that contract."
+    description: "Checks local ProcessRunner executions against declared mount and network requests before container execution backends depend on that contract."
     default: false

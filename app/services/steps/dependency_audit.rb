@@ -73,6 +73,7 @@ module Steps
         env: env,
         command: [ "bash", "-c", cmd ],
         mounts: ProcessRunner.mounts(workspace.path),
+        network: "prepare",
         timeout: PER_COMMAND_TIMEOUT,
         kind: "dependency_audit",
         run: run,

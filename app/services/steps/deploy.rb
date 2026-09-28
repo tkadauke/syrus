@@ -47,6 +47,7 @@ module Steps
         env: env,
         command: [ "bash", "-c", cmd ],
         mounts: ProcessRunner.mounts(workspace.path),
+        network: "agent",
         timeout: PER_COMMAND_TIMEOUT,
         kind: "deploy",
         run: run,

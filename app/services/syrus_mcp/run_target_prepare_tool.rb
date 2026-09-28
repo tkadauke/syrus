@@ -108,6 +108,7 @@ module SyrusMcp
             env: process_env(run.workflow),
             command: [ "bash", "-c", command ],
             mounts: ProcessRunner.mounts(workdir.to_s, read_write: WorkflowWorkspace.path_for(run.workflow)),
+            network: "prepare",
             timeout: Steps::Prepare::PER_COMMAND_TIMEOUT,
             kind: "prepare",
             run: run,
