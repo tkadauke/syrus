@@ -1,0 +1,13 @@
+WEBVTT
+
+00:00.000 --> 00:02.400
+A narrated screen recording is attached in Syrus chat.
+
+00:02.400 --> 00:04.500
+Syrus analyzes the video and turns the repro into a tracked Job.
+
+00:04.500 --> 00:06.600
+Related Jobs stay ordered through epics and the merge train.
+
+00:06.600 --> 00:08.900
+Every run keeps its transcript, diff, and model cost visible.
