@@ -722,8 +722,8 @@ other agent provider the operator has configured. That retry-with-provider
 choice is one-shot for the retry workflow. The Job detail page also has a
 provider selector for future workflows: leave it on Default to resolve the
 current repository/user provider each time a new workflow is created, or choose
-a concrete provider such as Claude Code or Codex for later feedback, rebase, and
-retry workflows on that Job. Existing workflow pins are not rewritten.
+a concrete enabled provider for later feedback, rebase, and retry workflows on
+that Job. Existing workflow pins are not rewritten.
 Dashboard and repository bulk retry choose a narrower recovery path first:
 resume a failed agentic step when possible, retry the failed step while its
 workspace remains available, retry or rebuild landing workflows for landing
@@ -769,11 +769,11 @@ reason and a retry action. Retrying reuses the stored comment and workflow
 artifacts; the operator does not need to add another GitHub comment.
 
 Attached repository checkouts are read-only for the chat agent. Chat can run
-through Claude, Codex, or Muse when the corresponding plugin and user
-credentials are configured. Syrus stores a concrete provider on each chat when
-it is created, seeded from the operator's current chat provider setting and
-then the default agent provider, so later user-default changes do not silently
-move the conversation between providers. When multiple providers are
+through Claude, Codex, Antigravity, or Muse when the corresponding plugin and
+user credentials are configured. Syrus stores a concrete provider on each chat
+when it is created, seeded from the operator's current chat provider setting
+and then the default agent provider, so later user-default changes do not
+silently move the conversation between providers. When multiple providers are
 configured, a new chat's composer shows an inline provider dropdown next to
 the mode/model controls until the first message is sent; picking a different
 provider there switches the still-unstarted chat immediately, with no
@@ -1478,8 +1478,7 @@ The spending dashboard at `/insights/spending` rolls up captured
 lifetime, average Job, and average merged-PR totals, plus breakdowns by
 Epic, user, repository, trigger kind, a daily trend chart, and the most
 expensive individual Runs. When spending exists across multiple agent
-providers, the dashboard can filter those views by model provider such as
-Claude Code or Codex.
+providers, the dashboard can filter those views by model provider.
 
 Chat can query the same spending data for 7-, 30-, or 90-day windows,
 optionally narrowed to a repository or Epic, and returns the daily trend,
