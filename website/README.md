@@ -38,7 +38,9 @@ release (`release.yml` → `publish-website`).
   serve the newest release with no rebuild. The version + file sizes shown on
   `/download` are display-only, baked into `lib/release.json` by
   `npm run sync-release` (the workflow runs it each build).
-- **Demo form** (`components/demo.tsx`) POSTs to a self-hosted SMTP endpoint at
+- **Product demo** (`components/product-media.tsx`) leads the homepage with the
+  generated screencast from `public/media/syrus-product-screencast.*`.
+- **Guided help form** (`components/demo.tsx`) POSTs to a self-hosted SMTP endpoint at
   `NEXT_PUBLIC_API_BASE` (default `https://api.syrus-ai.dev`), which sends the
   branded confirmation + team notification. If that endpoint is unreachable,
   the form falls back to a `mailto:` — the site itself stays fully static.
@@ -59,10 +61,11 @@ The current static site is intentionally small:
 
 | Page/section | Path | Purpose |
 | --- | --- | --- |
-| Home | `src/app/page.tsx` | Marketing landing page assembled from hero, workflow, feature, entry-point, and demo sections |
+| Home | `src/app/page.tsx` | Marketing landing page assembled from hero, product video, workflow, feature, entry-point, and guided-help sections |
 | Download | `src/app/download/page.tsx` | Desktop and CLI release downloads |
 | Docs | `src/app/docs/**`, `src/content/docs/**` | Public documentation rendered from canonical markdown files |
-| Request a demo | `components/demo.tsx` | Demo/contact form with mailto fallback |
+| Product video | `components/product-media.tsx` | Embedded screencast and screenshots for the homepage demo |
+| Guided help | `components/demo.tsx` | Secondary contact form with mailto fallback |
 | Product copy | `lib/site.ts` | Source of truth for hero copy, workflow steps, feature pillars, and entry points |
 
 Copy lives in `lib/site.ts`. Prefer updating that shared copy over scattering

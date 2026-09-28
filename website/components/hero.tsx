@@ -10,9 +10,9 @@ import { hero, site } from "../lib/site";
 const ease = [0.22, 1, 0.36, 1] as const;
 
 const chips = [
-  "More shipped per sprint",
+  "MIT open source",
+  "Self-hosted on your infra",
   "Human review on every merge",
-  "Epics, tickets & cost, fully tracked",
 ];
 
 export function Hero({
@@ -100,12 +100,12 @@ export function Hero({
           >
             <DownloadCTA size="lg" />
             <ButtonLink
-              href="/#demo"
+              href="/#walkthrough-demo"
               variant="secondary"
               size="lg"
               className="w-full sm:w-auto"
             >
-              Request a demo
+              Watch the product demo
               <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
             </ButtonLink>
           </motion.div>

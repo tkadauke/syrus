@@ -3,12 +3,12 @@ import { MotionProvider } from "../../components/motion-provider";
 import "./globals.css";
 
 const description =
-  "Syrus lets product, project, and application owners put AI to work from goal to merged pull request — conversations become tracked epics and tickets, AI does the heavy lifting, and a human review gates every merge. You ship more each sprint, with full visibility into what's built and what it cost.";
+  "Syrus is an open-source, self-hosted automation harness for developers: turn issues, chats, and video walkthroughs into tracked pull requests while keeping your repos, checks, review policy, and merge queue under your control.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://syrus-ai.dev"),
   title: {
-    default: "Syrus — ship more of your roadmap, fully in control",
+    default: "Syrus — self-hosted AI coding agents for developers",
     template: "%s · Syrus",
   },
   description,
@@ -27,13 +27,13 @@ export const metadata: Metadata = {
     type: "website",
     url: "https://syrus-ai.dev",
     siteName: "Syrus",
-    title: "Syrus — ship more of your roadmap, fully in control",
+    title: "Syrus — self-hosted AI coding agents for developers",
     description,
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Syrus — ship more of your roadmap, fully in control" }],
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Syrus — self-hosted AI coding agents for developers" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Syrus — ship more of your roadmap, fully in control",
+    title: "Syrus — self-hosted AI coding agents for developers",
     description,
     images: ["/og.png"],
   },
