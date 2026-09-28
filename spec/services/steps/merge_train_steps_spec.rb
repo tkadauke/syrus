@@ -1148,7 +1148,8 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
       expect(client).to have_received(:create_pull_request)
         .with("acme/widgets", hash_including(base: "master", head: train.integration_branch))
-      expect(client).to have_received(:merge_pull_request).with("acme/widgets", 777, hash_including(merge_method: "merge"))
+      expect(client).to have_received(:merge_pull_request)
+        .with("acme/widgets", 777, hash_including(merge_method: "merge", sha: "intsha999"))
       expect(client).to have_received(:close_pull_request).with("acme/widgets", a.pr_number)
       expect(client).to have_received(:close_pull_request).with("acme/widgets", b.pr_number)
       expect(a.reload).to be_closed

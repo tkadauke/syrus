@@ -98,12 +98,12 @@ module Steps
     end
 
     def publish_via_pull_request!(mode:, auto_merge:)
-      push_integration_branch!
+      expected_sha = push_integration_branch!
       pr_number = open_or_update_pr!
       record_promotion_link!(pr_number: pr_number, pr_state: "open")
 
       if auto_merge
-        merge_pull_request!(pr_number: pr_number)
+        merge_pull_request!(pr_number: pr_number, expected_sha: expected_sha)
       else
         log("promotion_publish: opened PR ##{pr_number} for #{source_branch} -> #{target_branch}; awaiting manual merge (mode=#{mode})")
       end
@@ -114,6 +114,7 @@ module Steps
       GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_promotion_push", log: method(:log)) do |push_url|
         git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}", chdir: workspace.path.to_s)
       end
+      git.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
     end
 
     def open_or_update_pr!
@@ -141,13 +142,14 @@ module Steps
       job.pr_links.find_by(role: JobPrLink::ROLE_PROMOTION)&.pr_number
     end
 
-    def merge_pull_request!(pr_number:)
+    def merge_pull_request!(pr_number:, expected_sha:)
       client = GithubClient.for(repository: repository, user: job.user)
       merge = client.merge_pull_request(
         repository.slug,
         pr_number,
         commit_title: "Promote #{source_branch} into #{target_branch} via Syrus",
-        merge_method: "merge"
+        merge_method: "merge",
+        sha: expected_sha
       )
       merged = merge.respond_to?(:merged) ? merge.merged : merge[:merged]
       raise StepFailed, "promotion_publish: GitHub did not report PR ##{pr_number} as merged" unless merged

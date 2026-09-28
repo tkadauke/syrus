@@ -71,6 +71,37 @@ RSpec.describe "MySQL fresh install compatibility", :ci_only do
     expect(schema).not_to include("add_foreign_key")
   end
 
+  it "does not dump defaults on JSON columns" do
+    schema = Rails.root.join("db/schema.rb").read
+    offenders = schema.each_line.filter_map.with_index(1) do |line, line_number|
+      next unless line.match?(/^\s*t\.json\b/)
+      next unless line.include?("default:")
+
+      "db/schema.rb:#{line_number}: #{line.strip}"
+    end
+
+    expect(offenders).to be_empty
+  end
+
+  it "keeps the structural liabilities documented in the debt register" do
+    register = Rails.root.join("docs/technical-debt.md").read
+    headings = [
+      "Job God Object",
+      "WorkEngine Reconciler Monolith",
+      "Desktop And Web View-Model Duplication",
+      "MySQL-Incompatible Ruby Schema Dump",
+      "MySQL Partial-Index Fiction",
+      "Dual Runtime Lifecycle Layers"
+    ]
+
+    headings.each do |heading|
+      entry = register[/^## #{Regexp.escape(heading)}\n(?<body>.*?)(?=^## |\z)/m, :body]
+
+      expect(entry).to include("**Owner area:**")
+      expect(entry).to include("**Removal condition:**")
+    end
+  end
+
   it "does not add new foreign key declarations after the no-FK policy migration" do
     offenders = migration_sources.filter_map do |filename, source|
       next if filename < "20260820010000"

@@ -424,6 +424,21 @@
 .dark .chat-prose:not(.chat-prose-invert) th { background: #1f2937; }
 
 /* User bubble: dark background → swap link + code colors. */
+.chat-prose-invert {
+  --shiki-foreground: #f8fafc;
+  --shiki-token-keyword: #fde68a;
+  --shiki-token-string: #bbf7d0;
+  --shiki-token-string-expression: #bfdbfe;
+  --shiki-token-comment: #cbd5e1;
+  --shiki-token-constant: #fed7aa;
+  --shiki-token-function: #fbcfe8;
+  --shiki-token-parameter: #f8fafc;
+  --shiki-token-punctuation: #e2e8f0;
+  --shiki-token-link: #bfdbfe;
+  --shiki-token-inserted: #bbf7d0;
+  --shiki-token-deleted: #fecaca;
+  --shiki-token-changed: #fde68a;
+}
 .chat-prose-invert a { color: #bfdbfe; }
 .chat-prose-invert code { background: rgba(255,255,255,0.15); }
 .chat-prose-invert pre {

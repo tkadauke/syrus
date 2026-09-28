@@ -78,6 +78,28 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("propose_epic")
     expect(out).to include("propose_epic_with_jobs")
     expect(out).to include("submit_chat_feedback")
+    expect(out).to include("Avoid proposing a single-child-Job Epic.")
+    expect(out).to include("When a piece of work\nonly decomposes into one Job, use `propose_job` directly")
+    expect(out).to include("Reserve `propose_epic_with_jobs` for real multi-Job\ndecompositions.")
+    expect(out).to include("`MIN_BUNDLE_SIZE = 2`")
+  end
+
+  it "states that implementation Jobs cannot dogfood or observe future production behavior" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("What an implementation Job can finish:")
+    expect(out).to include("runs one bounded Workflow attempt against")
+    expect(out).to include("it writes a diff, runs configured graders/tests")
+    expect(out).to include("cannot enable something in\na live repository and watch it over time")
+    expect(out).to include("cannot wait for future events")
+    expect(out).to include("Do not write a Job description asking it to dogfood, burn in,")
+    expect(out).to include("monitor for a period, or verify in production")
+    expect(out).to include("something finishable inside one session")
+    expect(out).to include("a later Job/`submit_chat_feedback` filed once")
+    expect(out).to include("The two exceptions are Coding Mode")
+    expect(out).to include("`investigation: true` Jobs")
   end
 
   it "tells Local Mode chats to route local job phrases to create_coding_job" do
@@ -94,6 +116,7 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).not_to include("The durable products of this session are proposals")
     expect(out).not_to include("Use `propose_job` for direct Syrus Job creation")
     expect(out).not_to include("What \"proposing\" means:")
+    expect(out).not_to include("What an implementation Job can finish:")
     expect(out).not_to include("draft proposals, schedules, bookmarks, or whiteboard edits")
   end
 

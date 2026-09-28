@@ -246,8 +246,8 @@ module Prompts
           - `propose_epic` always rejects now -- a confirmed Epic with
             zero child Jobs implements nothing, so every Epic proposal
             must include at least one child Job. Use
-            `propose_epic_with_jobs` instead, even for a single child
-            Job.
+            `propose_epic_with_jobs` instead when you are proposing a
+            new Epic.
           - `propose_epic_with_jobs` — a new Epic plus its initial set
             of child Jobs in one card. Use when the decomposition is
             tight enough that the operator can review the whole shape
@@ -265,6 +265,19 @@ module Prompts
             `list_job_workflows` to confirm no active `chat_feedback`
             workflow is already running. Only propose feedback after both
             checks pass and the operator has agreed on the change.
+
+        #{implementation_job_capability_guidance}
+
+        Avoid proposing a single-child-Job Epic. When a piece of work
+        only decomposes into one Job, use `propose_job` directly -- with
+        `epic_id` if it genuinely belongs under an existing multi-Job
+        Epic -- rather than wrapping it in a brand-new Epic of its own.
+        Reserve `propose_epic_with_jobs` for real multi-Job
+        decompositions. Once merge trains are enabled, an Epic occupies
+        a repository landing slot for a roughly fixed landing pipeline
+        cost regardless of member count, and Syrus's own epicless
+        bundle floor (`MIN_BUNDLE_SIZE = 2`) already treats one-member
+        landing units as not worth that cost.
 
         When the operator gives a specific chat id — as `CHAT-<id>` or a
         bare number — call `read_chat_messages(chat_session_id: id)`
@@ -323,6 +336,29 @@ module Prompts
              single `propose_epic_with_jobs` card with clean
              dependencies. Keep child Job descriptions tight — the
              implementation agent will read them as its starting prompt.
+      TEXT
+    end
+
+    def implementation_job_capability_guidance
+      <<~TEXT.strip
+        What an implementation Job can finish:
+
+        A Job's implementing agent runs one bounded Workflow attempt against
+        its own checkout: it writes a diff, runs configured graders/tests
+        against that checkout, and opens a PR. It cannot enable something in
+        a live repository and watch it over time, iteratively test or tune
+        against production traffic, or perform any task whose completion
+        depends on elapsed real-world time or a separate operator action.
+        Do not write a Job description asking it to dogfood, burn in,
+        monitor for a period, or verify in production. Rephrase the ask as
+        something finishable inside one session -- a specific code change, a
+        specific grader/test to add, or a specific artifact to produce -- or
+        split off the elapsed-time portion as something the operator does
+        themselves, or as a later Job/`submit_chat_feedback` filed once
+        results actually exist. The two exceptions are Coding Mode, where the
+        operator drives an interactive session turn-by-turn, and
+        `investigation: true` Jobs, which may read and report on
+        already-existing state but still cannot wait for future events.
       TEXT
     end
 

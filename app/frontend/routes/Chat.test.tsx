@@ -331,6 +331,48 @@ describe("ChatWorkspace split breakpoint", () => {
     expect(screen.getByRole("button", { name: "Open workspace panel" })).toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Chat mobile tabs" })).not.toBeInTheDocument()
   })
+
+  it("returns to the Chat tab when mobile route navigation opens another chat that already has media", async () => {
+    mockMobileViewport()
+    const firstChat = chatPayload({ chat: { chat_image_count: 1 } })
+    const secondChat = chatPayload({
+      chat: { id: 9, title: "Canal planning", chat_image_count: 3 },
+      messages: [{
+        type: "message",
+        id: 19,
+        role: "assistant",
+        tool_name: null,
+        content: { text: "Discuss canals." },
+        text: "Discuss canals.",
+        bookmarkable: true
+      }]
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/mark_read") && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/9") return Promise.resolve(jsonResponse(secondChat))
+
+      return Promise.resolve(jsonResponse(firstChat))
+    })
+
+    renderRouteWithChatSwitch()
+
+    const mobileTabs = await screen.findByRole("navigation", { name: "Chat mobile tabs" })
+    fireEvent.click(within(mobileTabs).getByRole("button", { name: "Media" }))
+    expect(within(mobileTabs).getByRole("button", { name: "Media" })).toHaveClass("text-brand")
+    expect(screen.queryByTestId("chat-message-stream")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("link", { name: "Open canal chat" }))
+
+    expect(await screen.findByText("Discuss canals.")).toBeInTheDocument()
+    const updatedTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
+    expect(within(updatedTabs).getByRole("button", { name: "Chat" })).toHaveClass("text-brand")
+    expect(within(updatedTabs).getByRole("button", { name: "Media" })).not.toHaveClass("text-brand")
+    expect(screen.getByTestId("chat-message-stream")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+  })
 })
 
 describe("chat message tail refetch", () => {
@@ -5697,10 +5739,31 @@ function renderRouteWithAwayLink() {
   )
 }
 
+function renderRouteWithChatSwitch() {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+        <Routes>
+          <Route element={<ChatRouteWithChatSwitch />} path="/app-shell/chats/:id" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
 function ChatRouteWithAwayLink() {
   return (
     <>
       <Link to="/app-shell/away">Go away</Link>
+      <ChatRoute />
+    </>
+  )
+}
+
+function ChatRouteWithChatSwitch() {
+  return (
+    <>
+      <Link to="/app-shell/chats/9">Open canal chat</Link>
       <ChatRoute />
     </>
   )

@@ -1468,7 +1468,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
 
   create_table "jobs", force: :cascade do |t|
     t.string "agent_provider", null: false
-    t.json "approval_evidence", default: {}, null: false
+    t.json "approval_evidence", null: false
     t.datetime "approved_at"
     t.integer "approved_by_user_id"
     t.string "approved_via"
@@ -2920,7 +2920,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
 
   create_table "smart_folders", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.json "filter", default: {}, null: false
+    t.json "filter", null: false
     t.string "kind", null: false
     t.string "name", null: false
     t.integer "position", default: 0, null: false
@@ -3325,7 +3325,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", default: {"elements" => []}, null: false
+    t.json "scene_json", null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboard_boards_on_chat_session_id", unique: true
