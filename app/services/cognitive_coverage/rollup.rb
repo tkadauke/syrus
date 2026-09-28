@@ -1,0 +1,1 @@
+require_dependency "cognitive_coverage/snapshot"
