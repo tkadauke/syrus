@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-08-31._
+_Last reviewed: 2026-09-28._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -54,13 +54,11 @@ domain concepts. File paths are repo-relative.
 - **AASM** for state machines on `Job`, `Workflow`, `Step`, and `Run`
 - **Claude Code** and **Codex** as agent providers (subprocesses behind
   `AgentProviders::*`; see [Per-Workflow pipeline](#per-workflow-pipeline))
-- **Plugin system** — `Syrus::PluginRegistry` with two dozen extension points;
-  bundled plugins (claude_agent, codex_agent, github_source, linear_source,
-  rails, ruby, javascript, python, go, django, syrus_dev, browser,
-  mockups, design_docs, spending_insights, worker_timeline,
-  admin_mysql, mysql_db_browser, git_history, whiteboard,
-  theming_tools, discord, tailscale) ship in `plugins/`; third-party
-  plugins are ordinary Rails Engine gems
+- **Plugin system** — `Syrus::PluginRegistry` with a broad extension-point
+  surface for providers, source control, repository-content reads, workflow
+  kinds, sidebars/tabs, MCP tools, runtime services, memory, search, and
+  domain events. Bundled plugins ship in `plugins/`; third-party plugins are
+  ordinary Rails Engine gems.
 - **Playwright** (via the bundled `browser` plugin's `@playwright/mcp`
   subprocess) drives a headless Chromium browser for the `visual_review`
   agent step and other agentic steps; navigation is hard-restricted to the
@@ -162,6 +160,12 @@ source links for work created from chat. `App::JobSourceChat` uses the
 direct Job proposal when present, or falls back to the Epic proposal for
 bundled child Jobs, so dashboard and Job detail payloads can link back
 to the originating chat message.
+
+Plugins can contribute additional Job kinds through the `:workflow_kinds`
+extension point. For example, `operator_briefing` adds the issueless
+infrastructure `briefing_generate` kind for per-repository briefings and
+the matching WorkDefinitions/Workflow templates that run the generation
+and follow-up dive flows.
 
 `JobApproval` rows track which users have approved a Job (one row per
 user, with `approved_at` timestamp). Approval eligibility is governed
@@ -1288,6 +1292,18 @@ Policy and pipeline glue:
 | `ScheduledTaskFire` | Encapsulates the "fire a due ScheduledTask" decision: pile-up policy, prompt rendering, Job + Run creation, watermark bumping. |
 | `ProviderCircuitBreaker` / `WorkEngine::RepairExecutor` | Suppress automatic work during provider-wide outages and schedule retry attempts with bounded backoff through `AutoRetryAttempt` + `AutoRetryJob`. |
 
+Plugin-owned infrastructure workflows use the same machinery. The
+`operator_briefing` plugin's scheduler creates `briefing_generate` Jobs
+for opted-in repositories when new activity exists since the last closed
+briefing (manual regeneration bypasses that gate). Its
+`briefing_generate` Workflow is `prepare → briefing_generate_run`; the
+agentic generation step is read-only and must stream typed blocks through
+`submit_briefing_block`, which updates the live `/briefing` page as the
+revision is produced. "More info" dives run
+`prepare → briefing_dive_investigate → submit_dive_report` on the same
+Briefing Job, reading the existing briefing/topic corpus before creating
+or revising a wiki-style topic.
+
 ### Rebase and landing
 
 Most rebases are mechanical: PR was opened, base branch moved, no
@@ -1380,14 +1396,17 @@ UI's preview log view.
 
 `Syrus::PluginRegistry` (`lib/syrus/plugin_registry.rb`) is the central
 runtime registry for all plugin capabilities. Plugins are ordinary
-Rails Engines that call `Syrus::PluginRegistry.register(...)` in their
-`config.after_initialize` block. Bundled plugins live under `plugins/`
-and are loaded as path gems. Third-party plugins are added to `Gemfile`
-and installed the same way.
+Rails Engines that use `Syrus::PluginApi#syrus_plugin` from their
+`lib/<plugin>.rb` manifest; the Engine initializer installs that manifest
+into the registry. Bundled plugins live under `plugins/` and are loaded
+as path gems. Third-party plugins are added to `Gemfile` and installed
+the same way.
 
 ### Extension points
 
-The registry defines twenty-four extension points:
+The registry defines these core extension points, plus hosted extension
+points declared by plugin hosts (for example `global_search:source` and
+`plugin_runtime:service`):
 
 | Extension point | Purpose |
 |---|---|
@@ -1398,52 +1417,98 @@ The registry defines twenty-four extension points:
 | `:input_source` | Issue / work-item sources (GitHub, Linear, …) |
 | `:source_control_provider` | Git host operations — branches, PRs, merges |
 | `:prompt_injector` | Inject repository-specific context into agent prompts |
+| `:chat_prompt_injector` | Inject context into chat session prompts |
+| `:chat_turn_orientation` | Rewrite/orient a specific incoming chat message before provider invocation |
+| `:adjudicator` | Plugin-owned judgment adapters |
 | `:preview_provider` | Configure preview-app startup for the agent preview MCP tools |
 | `:artifact_renderer` | Map typed artifact types to UI renderer kinds |
-| `:test_result_parser` | Parse provider-specific test output (RSpec, pytest, …) |
 | `:coverage_analyzer` | Parse coverage artifacts (lcov, SimpleCov, Cobertura, …) |
+| `:chat_media_source` | Contribute media/library results available to chat |
+| `:chat_payload_contributor` | Add plugin-owned fields to chat payloads |
 | `:admin_page` | Register admin-only pages with routes and frontend components |
 | `:repo_page_tab` | Register repository-detail tabs with routes/frontend components |
 | `:sidebar_page` | Register primary sidebar pages backed by plugin frontend routes |
 | `:workspace_tab` | Register chat workspace tabs |
+| `:ui_slot` | Inject plugin panels into existing host pages |
 | `:grader_augmentor` | Extract/augment grader output (e.g. structured RSpec JSON failure logging) |
 | `:ci_log_parser` | Claim/parse a CI failure log in a provider-specific format before the built-in `CiLogParser` fallback chain runs; no bundled plugin registers one yet |
 | `:prepare_detector` | Guess safe setup commands from repository files when `.syrus.yml` leaves `prepare` unspecified |
+| `:grade_detector` | Detect framework/language grader commands |
+| `:grader_type` | Register typed grader execution behavior |
 | `:review_criteria_provider` | Add repository-aware review checklist items to adversarial/visual review prompts |
 | `:autofix_command` | Provide handler-level default formatting commands for a materialized `format` Step when `.syrus.yml` has `formatters: []` |
 | `:dependency_audit_command` | Claim lockfile changes and run ecosystem-specific dependency audits |
 | `:affected_test_analyzer` | Expand changed-file sets with dependency/import analysis before diff-scoped grader matching |
+| `:focused_test_command` | Suggest focused rerun commands for touched tests |
 | `:callbacks` | Generic plugin lifecycle callback hooks (e.g. connectivity daemon start/stop). `Syrus::Plugin::EffectRegistry` (via `Callbacks#effect(&cleanup)`) lets a callback register a cleanup proc right where it takes a side effect, drained most-recently-registered-first on disable — the `tailscale` plugin's `Callbacks` uses this to clear its `config.hosts` allowlist additions instead of a hand-written teardown method |
 | `:platform_delivery` | Send/receive chat messages over an external platform (Discord, …); see [External platform chat](#external-platform-chat) |
+| `:domain_subscriber` | Subscribe to internal domain events while the plugin is enabled |
+| `:step_environment` | Add plugin-owned environment variables to step subprocesses |
+| `:workflow_kinds` | Contribute Job kinds, Workflow trigger kinds, Step kinds, and WorkDefinitions |
+| `:job_origin` | Explain plugin-owned Job origins in UI/API payloads |
+| `:preview_panel_viewer` | Register renderers for preview-panel file types |
+| `:repository_recommendation` | Suggest plugin enablement from repository signals |
+| `:memory_store` | Back durable agent memory reads/writes |
+| `:test_evidence` | Add plugin-owned test evidence to workflow context |
+| `:runtime_session_provider` | Provide chat RuntimeSession adapters for coding-mode tools |
+| `:build_system_graph_provider` | Supply build-system target graph data |
+| `:retention_policy` | Contribute plugin-owned data retention policy |
+| `:repository_content_provider` | Read repository trees/files/diffs without cloning, with fallthrough across providers |
+| `:purge_contributor` | Report and purge plugin-owned external state during removal |
+| `:workspace_git_transport` | Provide clone/fetch transports for workflow and chat workspaces |
 
 ### Bundled plugins
 
-| Plugin | Gem directory | Provides | Default state |
+The table summarizes the main extension points each bundled plugin
+contributes. It is intentionally not a full manifest dump; plugin-hosted
+points such as `"test_insights:parser"` and `"metrics_dashboard:tab"` are
+called out only where they explain an architectural dependency.
+
+| Plugin | Gem directory | Selected providers | Default state |
 |---|---|---|---|
-| `claude_agent` | `plugins/claude_agent` | `:agent_provider`, `:chat_provider` | enabled |
-| `codex_agent` | `plugins/codex_agent` | `:agent_provider`, `:chat_provider` | enabled |
+| `admin_mysql` | `plugins/admin_mysql` | `:admin_page`, `:chat_mcp_tool_set`, `:mcp_tool_set` | disabled by default |
+| `agent_activity` | `plugins/agent_activity` | `:sidebar_page`, `:admin_page` | enabled |
+| `agent_insights` | `plugins/agent_insights` | `:workflow_kinds`, `:domain_subscriber` | disabled by default |
+| `agent_memory` | `plugins/agent_memory` | `:memory_store` | enabled |
+| `agy_agent` | `plugins/agy_agent` | `:agent_provider` | disabled by default |
+| `browser` | `plugins/browser` | `:mcp_tool_set`, `:artifact_renderer`, `:runtime_session_provider`, `"plugin_runtime:service"` | enabled |
+| `build_cache` | `plugins/build_cache` | `:admin_page`, `:domain_subscriber`, `:step_environment` | enabled |
+| `claude_agent` | `plugins/claude_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
+| `codex_agent` | `plugins/codex_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
+| `design_docs` | `plugins/design_docs` | `:sidebar_page`, `:repo_page_tab`, `:workspace_tab`, `:chat_mcp_tool_set`, `:mcp_tool_set`, `:domain_subscriber`, `"global_search:source"` | enabled |
+| `discord` | `plugins/discord` | `:platform_delivery` | disabled by default |
+| `django` | `plugins/django` | `:preview_provider` | enabled |
+| `git_history` | `plugins/git_history` | `:repo_page_tab` | enabled |
+| `git_mirror` | `plugins/git_mirror` | `:repository_content_provider`, `:workspace_git_transport`, `"plugin_runtime:service"` | disabled by default |
+| `github_host` | `plugins/github_host` | `:repository_content_provider` | enabled |
 | `muse_agent` | `plugins/muse_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
 | `github_source` | `plugins/github_source` | `:input_source`, `:source_control_provider` | enabled, non-disableable |
+| `global_search` | `plugins/global_search` | `:sidebar_page`, `:domain_subscriber`, `"global_search:source"` host and built-ins | enabled |
+| `k8s_cluster` | `plugins/k8s_cluster` | `:sidebar_page`, `:mcp_tool_set`, `:chat_mcp_tool_set` | disabled by default |
 | `linear_source` | `plugins/linear_source` | `:input_source` | disabled by default |
-| `ruby` | `plugins/ruby` | `:prepare_detector`, `:autofix_command`, `:dependency_audit_command`, `:affected_test_analyzer` | enabled |
-| `javascript` | `plugins/javascript` | `:prepare_detector`, `:autofix_command`, `:dependency_audit_command` | enabled |
-| `python` | `plugins/python` | `:prepare_detector`, `:autofix_command` | enabled |
-| `go` | `plugins/go` | `:prepare_detector`, `:autofix_command`, `:dependency_audit_command` | enabled |
-| `django` | `plugins/django` | `:preview_provider` | enabled |
-| `rails` | `plugins/rails` | `:mcp_tool_set`, `:artifact_renderer` ×2, `:test_result_parser`, `:coverage_analyzer`, `:prompt_injector`, `:preview_provider` | enabled |
-| `syrus_dev` | `plugins/syrus_dev` | `:admin_page`, `:mcp_tool_set` | disabled by default |
-| `browser` | `plugins/browser` | `:mcp_tool_set` (headless-Chromium browser control via a bundled `@playwright/mcp` subprocess), `:artifact_renderer` (image diffs) | enabled |
+| `ruby` | `plugins/ruby` | `:prepare_detector`, `:grade_detector`, `:grader_type`, `:grader_augmentor`, `:coverage_analyzer`, `:review_criteria_provider`, `:autofix_command`, `:dependency_audit_command`, `:affected_test_analyzer`, `:focused_test_command`, `"test_insights:parser"` | enabled |
+| `javascript` | `plugins/javascript` | `:prepare_detector`, `:preview_provider`, `:grade_detector`, `:grader_type`, `:grader_augmentor`, `:review_criteria_provider`, `:autofix_command`, `:dependency_audit_command`, `:focused_test_command` | enabled |
+| `python` | `plugins/python` | `:prepare_detector`, `:grader_augmentor`, `:prompt_injector`, `:review_criteria_provider`, `:autofix_command`, `:dependency_audit_command` | enabled |
+| `go` | `plugins/go` | `:prepare_detector`, `:autofix_command`, `:dependency_audit_command`, `:review_criteria_provider` | enabled |
+| `metrics_dashboard` | `plugins/metrics_dashboard` | `:sidebar_page` | disabled by default |
 | `mockups` | `plugins/mockups` | `:chat_mcp_tool_set` for preview-panel scratch files | enabled |
-| `design_docs` | `plugins/design_docs` | `:sidebar_page`, `:repo_page_tab`, `:workspace_tab`, `:chat_mcp_tool_set`, `:mcp_tool_set` | enabled |
-| `spending_insights` | `plugins/spending_insights` | `:sidebar_page` | enabled |
-| `worker_timeline` | `plugins/worker_timeline` | `:sidebar_page` | disabled by default |
-| `admin_mysql` | `plugins/admin_mysql` | `:chat_mcp_tool_set`, `:mcp_tool_set` | disabled by default |
 | `mysql_db_browser` | `plugins/mysql_db_browser` | `:chat_mcp_tool_set`, `:mcp_tool_set` | disabled by default |
-| `git_history` | `plugins/git_history` | `:repo_page_tab` | enabled |
-| `whiteboard` | `plugins/whiteboard` | `:chat_mcp_tool_set` | enabled |
-| `theming_tools` | `plugins/theming_tools` | `:chat_mcp_tool_set` | enabled |
-| `discord` | `plugins/discord` | `:platform_delivery` (Gateway websocket DM listener + outbound delivery) | disabled by default |
-| `tailscale` | `plugins/tailscale` | `:callbacks`, `:admin_page` (exposes Syrus on the operator's Tailscale network) | disabled by default |
+| `operator_briefing` | `plugins/operator_briefing` | `:sidebar_page`, `:workflow_kinds`, `:mcp_tool_set`, `:callbacks` | disabled by default |
+| `plugin_runtime` | `plugins/plugin_runtime` | `:admin_page`, `:callbacks`, `:purge_contributor`; hosts `"plugin_runtime:service"` and `"plugin_runtime:privileged_service"` | disabled by default |
+| `rails` / `syrus-rails` | `plugins/rails` | `:mcp_tool_set`, `:artifact_renderer`, `:prompt_injector`, `:preview_provider` | enabled |
+| `runtime_terminal` | `plugins/runtime_terminal` | `:runtime_session_provider` | disabled by default |
+| `scheduled_tasks` | `plugins/scheduled_tasks` | `:sidebar_page`, `:repo_page_tab`, `:chat_mcp_tool_set`, `:job_origin`, `:domain_subscriber`, `:callbacks`, `:repository_recommendation`, CLI schedule commands | enabled |
+| `spending_insights` | `plugins/spending_insights` | `:sidebar_page` | enabled |
+| `syrus_dev` | `plugins/syrus_dev` | `:admin_page`, `:mcp_tool_set` | disabled by default |
+| `tailscale` | `plugins/tailscale` | `:admin_page`, `:callbacks`, `"plugin_runtime:privileged_service"` | disabled by default |
+| `team_directory` | `plugins/team_directory` | `:sidebar_page` | enabled |
+| `terminal` | `plugins/terminal` | `:sidebar_page` | disabled by default |
+| `test_insights` | `plugins/test_insights` | `:repo_page_tab`, `:ui_slot`, `:mcp_tool_set`, `:chat_mcp_tool_set`, `:test_evidence`, `:domain_subscriber`, `"global_search:source"` | enabled |
+| `theming_tools` | `plugins/theming_tools` | `:chat_mcp_tool_set` | disabled by default |
+| `throughput` | `plugins/throughput` | `:repo_page_tab` | enabled |
+| `video_walkthroughs` | `plugins/video_walkthroughs` | `:chat_mcp_tool_set`, `:chat_media_source`, `:chat_turn_orientation` | disabled by default |
+| `whiteboard` | `plugins/whiteboard` | `:chat_mcp_tool_set`, `:workspace_tab`, `:chat_payload_contributor`, `:chat_media_source`, `:chat_prompt_injector` | enabled |
+| `worker_timeline` | `plugins/worker_timeline` | `:sidebar_page` | disabled by default |
 
 ### Persistence and enable/disable
 
@@ -1458,6 +1523,17 @@ before allowing disable.
 Admin operators manage plugins at **`/admin/plugins`**. APIs:
 `GET /api/v1/app/admin/plugins`, `POST .../plugins/:name/enable`,
 `POST .../plugins/:name/disable`.
+
+Some plugins host extension points for other plugins. `global_search`
+hosts `"global_search:source"` so Design Docs, Test Insights, and other
+record-owning plugins can contribute searchable result types without core
+knowing their tables. `plugin_runtime` hosts `"plugin_runtime:service"`
+for ordinary container-backed services and
+`"plugin_runtime:privileged_service"` for the small first-party set that
+needs Linux capabilities/devices; Git Mirror uses the ordinary lane, and
+Tailscale uses the privileged lane. The runtime manager owns Docker in
+Compose installs; on Kubernetes the services are deployed separately and
+Syrus is pointed at their URLs.
 
 ### Input sources
 
@@ -1479,6 +1555,27 @@ from `plugins/*/app/frontend/i18n/locales/*/`. `App::SidebarPagesPayload`
 and plugin `:sidebar_page` providers merge enabled plugin pages into the
 primary React sidebar, where user sidebar ordering can persist custom
 navigation order.
+
+### Repository content providers
+
+`RepositoryContent` (`app/services/repository_content.rb`) reads files,
+trees, diffs, commit history, and commit tree SHAs through
+`:repository_content_provider` plugins instead of calling `GithubClient`
+directly. A resolved revision is immutable; callers get a provider result
+(`tree`, `read`, `changes`, etc.) and the chain only stops on a final
+answer. `NotFound` is final, while `Unavailable`, `Unsupported`, and
+`UnknownRevision` fall through to the next provider; `Truncated` carries
+a partial answer only display code may use.
+
+The default `github_host` plugin answers via the GitHub API. The optional
+`git_mirror` plugin is a replica provider in front of it: a local mirror
+service keeps bare repositories in sync, answers content reads first when
+it has the requested revision, and also contributes
+`:workspace_git_transport` so `WorkflowWorkspace` and `ChatWorkspace`
+clone/fetch through the mirror before falling back to the host. This is
+how `.syrus.yml` reads, preview project discovery, skills, source
+browsing, diff views, and `read_pr` avoid consuming host API quota when a
+mirror is available.
 
 ## MCP sidecar
 
@@ -1585,10 +1682,11 @@ The bundled `browser` plugin adds a `browser_navigate` / `browser_snapshot`
 loopback URLs (`LoopbackGuard`) so an LLM driving a real browser cannot be
 steered at an arbitrary network destination.
 
-The `design_docs` plugin adds workflow-scoped `list_design_docs` and
-`read_design_doc` tools for repository-aware workflow agents when the
-plugin is enabled. Its chat-scoped tool set adds authoring/comment/
-suggestion tools; workflow agents only get read access.
+The `design_docs` plugin adds workflow-scoped `list_design_docs`,
+`read_design_doc`, and `list_design_doc_sections` tools for
+repository-aware workflow agents when the plugin is enabled. Its
+chat-scoped tool set adds authoring/comment/suggestion tools; workflow
+agents only get read/outline access.
 
 The sidecar lives in-process with Rails, so tool handlers are plain
 ActiveRecord calls scoped to the active Run. No network, no auth
@@ -1930,6 +2028,11 @@ Several layers, each catching different failure modes:
 - **`/chats`** — top-level chat sessions, proposal review,
   attached repository/document context, bookmarks, whiteboard state, MCP
   health, queued follow-up messages, and plugin-provided workspace tabs.
+- **`/agent_activity`** and **`/admin/agent_activity`** — optional
+  session-level agent activity feeds from the `agent_activity` plugin.
+  Operator scope shows sessions visible through repository permissions;
+  admin scope shows every workflow/design-doc session while chat sessions
+  stay self-scoped.
 - **`/terminal`** — labs terminal surface, gated by the `terminal`
   feature flag. Sessions can attach to a recent Workflow workspace or a
   scratch directory and are backed by worker-side PTYs, not browser-side
@@ -1948,9 +2051,18 @@ Several layers, each catching different failure modes:
   collaborative Markdown design documents from the `design_docs` plugin,
   with canonical `DOC-<id>` identifiers, repository links, versions,
   comments, owner-reviewed suggestions, and smart-folder navigation.
+- **`/briefing`**, **`/briefing/history`**, and
+  **`/briefing/topics/:id`** — disabled-by-default Operator Briefing
+  plugin surface. Each signed-in operator gets per-visible-repository
+  briefing subscriptions, streamed typed briefing blocks, archived
+  history, source preferences, explicit feedback, and wiki-style dive
+  topics produced by follow-up briefing workflows.
 - **`/insights/spending`** — Run and chat spend by window, Epic, user,
   repository, trigger kind, provider, trend, and top Runs. This page is
   supplied by the default-enabled `spending_insights` sidebar plugin.
+- **`/search`** — unified search from the `global_search` plugin,
+  spanning Jobs, Epics, chats, and enabled plugin-contributed sources
+  such as Design Docs and Test Insights.
 - **`/worker_timeline`** and **`/worker_timeline/workflow`** — optional
   worker activity timeline plugin surface, disabled by default, with
   filter chips and suggested-filter typeahead for queue/worker/time/job
