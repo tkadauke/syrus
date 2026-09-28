@@ -49,6 +49,49 @@ Syrus is not trying to beat GitHub on native platform integration. It is
 for teams that want the issue-to-PR loop while still owning deployment,
 credentials, data retention, and model choice.
 
+## How is Syrus different from OpenAI Codex cloud?
+
+[OpenAI describes Codex](https://help.openai.com/en/articles/11390924)
+as a cloud-based software engineering agent that connects to GitHub and
+runs tasks in the cloud. Syrus can use Codex as one provider, but Syrus
+itself is the orchestration layer: it polls issues and PRs, creates Jobs
+and Workflows, owns branches and retries, records transcripts and diffs,
+and can route work to Claude, Codex, Antigravity, Muse, or another
+adapter.
+
+Choose Codex cloud when you want OpenAI to run the agent environment for
+you. Choose Syrus when you want self-hosted control over the workflow
+engine, credentials, audit trail, provider selection, and merge-train
+policy.
+
+## How is Syrus different from Google Jules?
+
+[Google describes Jules](https://jules.google/docs/faq/) as an
+autonomous coding agent that integrates with GitHub and works on tasks
+asynchronously. Jules is the agent product. Syrus is the harness around
+agent products: it keeps the durable Job, Workflow, Step, and Run records,
+handles issue polling, PR feedback, CI-failure follow-up, scheduled work,
+rebases, and merge trains.
+
+Syrus is a better fit when the important decision is not only which agent
+writes the patch, but who owns the queue, branch lifecycle, transcript
+retention, retry behavior, and landing policy. Jules may be the simpler
+choice when you specifically want Google's hosted coding-agent workflow.
+
+## How is Syrus different from Factory Droids?
+
+[Factory describes Droids](https://docs.factory.ai/) as AI assistants and
+cloud sessions for development workflows such as triage, code review, QA,
+documentation, and incident response. Syrus is narrower and more
+infrastructure-shaped: it is an open-source, self-hosted issue-to-PR
+harness for repositories, with deterministic workflow records, provider
+adapters, PR follow-up, and merge trains.
+
+Factory is aimed at a broad hosted agent-native development platform.
+Syrus is aimed at teams that want to operate the automation themselves,
+keep GitHub as the review system of record, and make agent choice a
+replaceable adapter rather than the platform boundary.
+
 ## What does Syrus cost?
 
 Syrus itself is free and MIT-licensed. Your real cost is the model bill:
