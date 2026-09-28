@@ -42,7 +42,7 @@ export function Demo() {
         `Name: ${name}\nCompany: ${company}\nEmail: ${email}\n\n${message}`,
       );
       window.location.href = `mailto:${site.contactEmail}?subject=${encodeURIComponent(
-        "Syrus demo request",
+        "Syrus guided setup request",
       )}&body=${b}`;
       setStatus("mailto");
     };
@@ -88,22 +88,21 @@ export function Demo() {
       <div className="wrap relative z-10">
         <Reveal className="mx-auto max-w-6xl">
           <div className="grid overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-ink-soft to-ink lg:grid-cols-2">
-            {/* pitch + download */}
+            {/* download + guided help */}
             <div className="border-b border-white/8 p-8 sm:p-11 lg:border-b-0 lg:border-r">
               <h2 className="text-balance text-3xl font-semibold leading-[1.08] tracking-[-0.02em] text-cream sm:text-4xl">
-                See Syrus running on{" "}
-                <span className="clay-text">your roadmap.</span>
+                Run Syrus yourself, or get{" "}
+                <span className="clay-text">a guided setup.</span>
               </h2>
               <p className="mt-4 text-[1rem] leading-relaxed text-cream-dim">
                 Download the desktop app — it sets up a complete local Syrus
-                (Docker included) or connects to your team&apos;s instance. Or
-                request a guided demo and we&apos;ll show you how goals become
-                tracked tickets, AI-written code, and reviewed pull requests,
-                end to end.
+                (Docker included) or connects to your team&apos;s instance. If
+                you want help mapping Syrus onto your repos, checks, and review
+                policy, send a note and we&apos;ll walk through it with you.
               </p>
               <p className="mt-3 text-[0.9rem] text-cream-faint">
-                Syrus is built with Syrus — every feature ships through its own
-                pipeline.
+                The product video above shows the core loop first: walkthrough
+                to Job, implementation, review, and tracked cost.
               </p>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-start">
@@ -127,7 +126,7 @@ export function Demo() {
               </ul>
             </div>
 
-            {/* demo form */}
+            {/* secondary contact form */}
             <div className="p-8 sm:p-11">
               {status === "success" ? (
                 <div
@@ -146,17 +145,17 @@ export function Demo() {
                   </h3>
                   <p className="mt-2 max-w-xs text-[0.92rem] text-cream-dim">
                     Thanks — we&apos;ll be in touch shortly to set up your Syrus
-                    demo.
+                    walkthrough.
                   </p>
                 </div>
               ) : (
                 <form onSubmit={onSubmit} className="grid gap-4">
                   <div>
                     <p className="font-mono text-[0.72rem] uppercase tracking-[0.18em] text-clay">
-                      Request a demo
+                      Guided help
                     </p>
                     <h3 className="mt-2 text-xl font-semibold text-cream">
-                      Tell us about your team
+                      Tell us what you want to run
                     </h3>
                   </div>
 
@@ -206,7 +205,7 @@ export function Demo() {
 
                   <label className="grid gap-1.5">
                     <span className="text-[0.8rem] text-cream-dim">
-                      What would you like to automate?
+                      What would you like help with?
                     </span>
                     <textarea
                       name="message"
@@ -239,13 +238,13 @@ export function Demo() {
                     disabled={status === "loading"}
                     className="group mt-1 inline-flex h-12 items-center justify-center gap-2.5 rounded-full clay-gradient px-5 text-[0.95rem] font-semibold text-on-accent transition-all duration-200 hover:-translate-y-0.5 hover:brightness-[1.06] disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    {status === "loading" ? "Sending…" : "Request a demo"}
+                    {status === "loading" ? "Sending…" : "Request guided help"}
                     {status !== "loading" && (
                       <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                     )}
                   </button>
                   <p className="text-center text-[0.75rem] text-cream-faint">
-                    No spam. We only use this to arrange your demo.
+                    No spam. We only use this to arrange a guided walkthrough.
                   </p>
                 </form>
               )}

@@ -26,11 +26,11 @@ export const site = {
 } as const;
 
 export const hero = {
-  eyebrow: "Built for product & project owners",
-  titleLead: "Ship more of your roadmap.",
-  titleAccent: "Without losing sight of a thing.",
+  eyebrow: "Self-hosted AI coding agents for developers",
+  titleLead: "Run coding agents on your repos.",
+  titleAccent: "Keep every PR under control.",
   subtitle:
-    "Syrus lets product, project, and application owners put AI to work from goal to merged pull request — turning conversations into tracked epics and tickets, running many changes on your codebase at once, and keeping a human review on every merge. You ship more each sprint, you see exactly what's being built and what it cost, and the guardrails keep AI's speed from becoming AI's mess.",
+    "Syrus is the open-source, self-hosted automation harness for turning issues, chats, and video walkthroughs into tracked pull requests. Developers keep the repo, credentials, checks, transcripts, review policy, and merge queue in their own infrastructure, while product and project owners get the visibility they need without turning AI work into a black box.",
 } as const;
 
 // The human + AI team workflow — who does what, start to finish.
@@ -73,7 +73,7 @@ export const workflowSteps = [
   },
 ] as const;
 
-// The product pillars — framed for the owner who wants leverage with control.
+// The product pillars — framed for teams that want leverage with control.
 export const features = [
   {
     id: "walkthrough",
@@ -153,8 +153,8 @@ export const entryPoints = [
 ] as const;
 
 export const infraPoints = [
-  "More shipped each sprint, no new hires",
+  "MIT open source and self-hosted on your infrastructure",
   "Human review and approval on every change — your policy",
   "Full transcript, diff, and cost record for every run",
-  "Self-hosted — one-command Docker install, Kubernetes when you scale",
+  "One-command Docker install, Kubernetes when you scale",
 ] as const;

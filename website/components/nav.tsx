@@ -60,8 +60,8 @@ export function Nav() {
               GitHub
             </a>
             <span className="hidden sm:inline-flex">
-              <ButtonLink href="/#demo" variant="ghost" size="md">
-                Request a demo
+              <ButtonLink href="/#walkthrough-demo" variant="ghost" size="md">
+                Watch demo
               </ButtonLink>
             </span>
             <DownloadButton />
