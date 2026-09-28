@@ -44,7 +44,6 @@ function ControlledSelector({ latestVersionId, versions }: { latestVersionId: nu
 
   return (
     <DiffReviewVersionSelector
-      latestVersionId={latestVersionId}
       onChange={(id) => {
         setSelectedVersionId(id)
         setSelectedRange(null)
@@ -76,7 +75,6 @@ function StaleBackendSelector({ latestVersionId, staleVersionId, versions }: { l
 
   return (
     <DiffReviewVersionSelector
-      latestVersionId={latestVersionId}
       onChange={(id) => {
         setSelectedVersionId(id)
         setSelectedRange(null)
@@ -199,7 +197,6 @@ describe("DiffReviewVersionSelector", () => {
 
     render(
       <DiffReviewVersionSelector
-        latestVersionId={2}
         onChange={() => {}}
         selectedVersionId={2}
         versions={versions}
@@ -215,7 +212,6 @@ describe("DiffReviewVersionSelector", () => {
 
     render(
       <DiffReviewVersionSelector
-        latestVersionId={7}
         onChange={() => {}}
         selectedVersionId={7}
         versions={[ first, second ]}
@@ -238,7 +234,6 @@ describe("DiffReviewVersionSelector", () => {
 
     render(
       <DiffReviewVersionSelector
-        latestVersionId={1}
         onChange={() => {}}
         selectedVersionId={1}
         versions={[ only ]}
@@ -254,7 +249,6 @@ describe("DiffReviewVersionSelector", () => {
 
     render(
       <DiffReviewVersionSelector
-        latestVersionId={2}
         onChange={() => {}}
         selectedRange={null}
         selectedVersionId={2}

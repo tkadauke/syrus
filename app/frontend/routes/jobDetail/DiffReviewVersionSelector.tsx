@@ -12,7 +12,6 @@ export type DiffReviewRangeSelection = {
 
 export function DiffReviewVersionSelector({
   disabled = false,
-  latestVersionId,
   onChange,
   onRangeChange,
   selectedRange,
@@ -20,7 +19,6 @@ export function DiffReviewVersionSelector({
   versions
 }: {
   disabled?: boolean
-  latestVersionId: number | null
   onChange: (versionId: number) => void
   onRangeChange?: (range: DiffReviewRangeSelection) => void
   selectedRange?: { baseSha: string; headSha: string } | null
@@ -223,11 +221,6 @@ export function DiffReviewVersionSelector({
             )
           })}
         </div>
-      ) : null}
-      {selected ? (
-        <p className="max-w-3xl break-words text-xs text-gray-500 dark:text-gray-400">
-          {versionMetadata(t, selected, selected.id === latestVersionId)}
-        </p>
       ) : null}
     </div>
   )
@@ -459,33 +452,6 @@ function metadataTitle(t: TFunction<"jobs">, version: DiffReviewVersion) {
   ].join(t("review_version_separator"))
 }
 
-function versionMetadata(t: TFunction<"jobs">, version: DiffReviewVersion, latest: boolean) {
-  const created = version.created_at ? `${relativeDate(version.created_at)} (${absoluteDate(version.created_at)})` : t("review_version_time_unknown")
-  const trigger = version.trigger_kind || version.reason || t("review_version_unknown_trigger")
-  const workflow = version.workflow_id ? t("review_version_workflow", { id: version.workflow_id }) : t("review_version_no_workflow")
-  const run = version.run_id ? t("review_version_run", { id: version.run_id }) : t("review_version_no_run")
-  const comments = commentsLabel(t, version.comments_count)
-  const range = t("review_version_range", { base: endpointLabel(version.base_ref, version.base_sha), head: endpointLabel(version.head_ref, version.head_sha) })
-  if (isAllChangesVersion(version)) {
-    return [
-      t("review_version_all_changes"),
-      range,
-      filesLabel(t, version.files_count),
-      comments
-    ].join(t("review_version_separator"))
-  }
-
-  return [
-    latest ? t("review_version_latest") : t("review_version_historical"),
-    trigger,
-    `${workflow}, ${run}`,
-    created,
-    range,
-    filesLabel(t, version.files_count),
-    comments
-  ].join(t("review_version_separator"))
-}
-
 function optionAccessibleName(t: TFunction<"jobs">, version: DiffReviewVersion, ambiguousRunIds?: Set<number>) {
   return [
     collapsedLabel(t, version, ambiguousRunIds),
@@ -525,10 +491,6 @@ function shortSha(sha: string | null | undefined) {
 
 function endpointTitle(ref: string | null | undefined, sha: string | null | undefined) {
   return [ref, sha].filter(Boolean).join(" @ ") || "unknown"
-}
-
-function absoluteDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value))
 }
 
 function relativeDate(value: string) {
