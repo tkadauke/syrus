@@ -84,7 +84,7 @@ class GitRunner
     result = ProcessRunner.new(
       env: @env.merge(env),
       command: cmd,
-      chdir: chdir || Dir.pwd,
+      mounts: ProcessRunner.mounts(chdir || Dir.pwd),
       timeout: timeout.to_i,
       kind: "git",
       run: current_run,

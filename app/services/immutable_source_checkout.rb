@@ -314,7 +314,7 @@ class ImmutableSourceCheckout
     result = ProcessRunner.new(
       env: prepare_env,
       command: [ "bash", "-c", runner_command ],
-      chdir: path,
+      mounts: ProcessRunner.mounts(path),
       timeout: Steps::Prepare::PER_COMMAND_TIMEOUT,
       kind: "prepare",
       run: current_run,
