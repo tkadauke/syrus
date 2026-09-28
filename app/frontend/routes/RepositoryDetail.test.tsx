@@ -43,6 +43,7 @@ function repositoryDetailPayload() {
       last_health_checked_sha: null
     },
     tabs: [],
+    cognitive_debt: cognitiveDebtPayload(),
     counts: { running: 0, queued: 0, failed_7d: 0 },
     retry_failed_jobs: {
       count: 0,
@@ -77,6 +78,40 @@ function repositoryDetailPayload() {
       app_preview_path: "/api/v1/app/repositories/1/preview",
       app_preview_logs_path: "/api/v1/app/repositories/1/preview/logs"
     }
+  }
+}
+
+function cognitiveDebtPayload(overrides = {}) {
+  return {
+    generated_at: "2026-09-28T12:00:00Z",
+    target_sha: "abc123",
+    proxy_notice: "Cognitive coverage is a proxy for human engagement, not guaranteed understanding.",
+    empty: false,
+    summary: { key: "acme/widgets", line_count: 3, covered_count: 1, stale_count: 0, blind_count: 2, cognitive_coverage_pct: 33.3 },
+    subsystems: [
+      { key: "app", line_count: 3, covered_count: 1, stale_count: 0, blind_count: 2, cognitive_coverage_pct: 33.3 }
+    ],
+    files: [
+      { key: "app/risky.rb", line_count: 2, covered_count: 0, stale_count: 0, blind_count: 2, cognitive_coverage_pct: 0.0 },
+      { key: "app/calm.rb", line_count: 1, covered_count: 1, stale_count: 0, blind_count: 0, cognitive_coverage_pct: 100.0 }
+    ],
+    review_queue: [
+      {
+        kind: "file" as const,
+        path: "app/risky.rb",
+        risk_score: 100,
+        coverage_state: "blind",
+        explanations: ["blind", "high churn", "untested"],
+        rollup: { key: "app/risky.rb", line_count: 2, covered_count: 0, stale_count: 0, blind_count: 2, cognitive_coverage_pct: 0.0 },
+        signals: { churn: 5, test_coverage_pct: 0, unhealthy_target: false, reliability: null },
+        source: {
+          github_url: "https://github.com/acme/widgets/blob/abc123/app/risky.rb#L1",
+          review_path: "/jobs/4?tab=review",
+          latest_engagement: null
+        }
+      }
+    ],
+    ...overrides
   }
 }
 
@@ -270,6 +305,36 @@ describe("RepositoryDetailRoute jobs", () => {
 
     expect(await screen.findByText("Inspect preview dashboard states")).toBeInTheDocument()
     expect(screen.getByText("Claude Code unavailable; running this workflow with Codex.")).toBeInTheDocument()
+  })
+})
+
+describe("RepositoryDetailRoute cognitive debt", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("renders summary rollups, explanation chips, and source links", async () => {
+    renderRoute()
+
+    expect(await screen.findByRole("region", { name: "Cognitive debt review queue" })).toBeInTheDocument()
+    expect(screen.getAllByText("33.3%").length).toBeGreaterThan(0)
+    expect(screen.getByRole("link", { name: "app/risky.rb" })).toHaveAttribute("href", "https://github.com/acme/widgets/blob/abc123/app/risky.rb#L1")
+    expect(screen.getAllByText("blind").length).toBeGreaterThan(0)
+    expect(screen.getByText("high churn")).toBeInTheDocument()
+    expect(screen.getByText("untested")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open review" })).toHaveAttribute("href", "/app-shell/jobs/4?tab=review")
+  })
+
+  it("renders the empty state when there is no cognitive evidence", async () => {
+    renderRoute({
+      cognitive_debt: cognitiveDebtPayload({
+        empty: true,
+        summary: { key: "acme/widgets", line_count: 0, covered_count: 0, stale_count: 0, blind_count: 0, cognitive_coverage_pct: null },
+        subsystems: [],
+        files: [],
+        review_queue: []
+      })
+    })
+
+    expect(await screen.findByText("No cognitive coverage evidence is available yet. Coverage snapshots, review comments, approvals, or human-authored commits will populate this queue.")).toBeInTheDocument()
   })
 })
 
