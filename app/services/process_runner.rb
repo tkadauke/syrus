@@ -1,5 +1,6 @@
 require "open3"
 require "socket"
+require "ipaddr"
 require "fileutils"
 require "pathname"
 require "tempfile"
@@ -12,6 +13,7 @@ require "tempfile"
 class ProcessRunner
   class WorkspaceAttributionError < StandardError; end
   class MountAssertionError < StandardError; end
+  class NetworkAssertionError < StandardError; end
 
   Result = Data.define(
     :exit_status, :timed_out, :stopped, :silent_timed_out, :operator_killed,
@@ -99,6 +101,69 @@ class ProcessRunner
   MountAccess = Data.define(:path, :mode) do
     def write?
       mode == :write
+    end
+  end
+
+  NetworkAccess = Data.define(:address, :port, :family) do
+    LOOPBACK_V4 = IPAddr.new("127.0.0.0/8")
+    LOOPBACK_V6 = IPAddr.new("::1")
+
+    def loopback?
+      return true if address.to_s == "localhost"
+
+      ip = IPAddr.new(address)
+      LOOPBACK_V4.include?(ip) || LOOPBACK_V6.include?(ip)
+    rescue IPAddr::InvalidAddressError
+      false
+    end
+  end
+
+  module NetworkProfile
+    class Base
+      attr_reader :name
+
+      def initialize(name)
+        @name = name
+      end
+
+      def network_access_violation(_access)
+        nil
+      end
+    end
+
+    class Grader < Base
+      def initialize = super("grader")
+
+      def network_access_violation(access)
+        return nil if access.loopback?
+
+        "non-local egress to #{access.address}#{":#{access.port}" if access.port}"
+      end
+    end
+
+    class Prepare < Base
+      def initialize = super("prepare")
+    end
+
+    class Agent < Base
+      def initialize = super("agent")
+    end
+
+    class GitFetch < Base
+      def initialize = super("git_fetch")
+    end
+
+    PROFILES = {
+      "grader" => Grader.new,
+      "prepare" => Prepare.new,
+      "agent" => Agent.new,
+      "git_fetch" => GitFetch.new
+    }.freeze
+
+    def self.for(value)
+      PROFILES.fetch(value.to_s) do
+        raise ArgumentError, "unknown ProcessRunner network profile #{value.inspect}; expected #{PROFILES.keys.join(', ')}"
+      end
     end
   end
 
@@ -195,6 +260,50 @@ class ProcessRunner
     end
   end
 
+  class NetworkTraceParser
+    def initialize(trace_path)
+      @trace_path = trace_path
+    end
+
+    def accesses
+      return [] unless File.exist?(@trace_path)
+
+      File.readlines(@trace_path, chomp: true).filter_map { |line| access_for(line) }
+    end
+
+    private
+
+    def access_for(line)
+      return nil unless line.match?(/\bconnect\(/)
+
+      address = ipv4_address(line) || ipv6_address(line) || localhost_address(line)
+      return nil unless address
+
+      NetworkAccess.new(address: address, port: port(line), family: family(line))
+    end
+
+    def ipv4_address(line)
+      line[/inet_addr\("([^"]+)"\)/, 1]
+    end
+
+    def ipv6_address(line)
+      line[/inet_pton\(AF_INET6,\s*"([^"]+)"/, 1]
+    end
+
+    def localhost_address(line)
+      "localhost" if line.include?("AF_UNIX")
+    end
+
+    def port(line)
+      raw = line[/sin6?_port=htons\((\d+)\)/, 1]
+      raw&.to_i
+    end
+
+    def family(line)
+      line[/sa_family=(AF_[A-Z0-9_]+)/, 1]
+    end
+  end
+
   def self.forwarded_env(keys, extra: {})
     ENV.slice(*keys).merge(extra.compact)
   end
@@ -245,7 +354,7 @@ class ProcessRunner
   # `bundle install` or `git clone` — those have natural silent
   # phases longer than any sensible threshold. Reserve for streaming
   # agent invocations where continuous output is the norm.
-  def initialize(env:, command:, mounts:, timeout:, stdin_data: nil,
+  def initialize(env:, command:, mounts:, network:, timeout:, stdin_data: nil,
                  unsetenv_others: true, pgroup: true,
                  stop_requested: -> { false },
                  on_output_chunk: nil,
@@ -262,6 +371,7 @@ class ProcessRunner
     @env = env
     @command = command
     @mounts = self.class.normalize_mounts(mounts)
+    @network = NetworkProfile.for(network)
     @chdir = @mounts.workdir
     @timeout = timeout
     @stdin_data = stdin_data
@@ -350,7 +460,7 @@ class ProcessRunner
     aliveness_failed = false
     result = nil
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    effective_command = command_with_local_mount_assertions
+    effective_command = command_with_local_execution_request_assertions
 
     @spawned_process = register_spawned_process
     @on_spawned_process&.call(@spawned_process) if @spawned_process
@@ -478,7 +588,7 @@ class ProcessRunner
         )
       end
 
-      assert_local_mount_accesses! if result
+      assert_local_execution_request! if result
     rescue StandardError
       finalize_spawned_process!(outcome: "failed", exit_status: nil)
       raise
@@ -490,20 +600,20 @@ class ProcessRunner
 
   private
 
-  def command_with_local_mount_assertions
-    return @command unless local_mount_assertions_enabled?
+  def command_with_local_execution_request_assertions
+    return @command unless local_execution_request_assertions_enabled?
 
     strace = find_executable("strace")
     unless strace
       raise MountAssertionError, "execution_request_assertions requires strace on the local backend"
     end
 
-    @mount_assertion_trace_path = Tempfile.new([ "syrus-process-runner-mounts-", ".strace" ])
-    @mount_assertion_trace_path.close
-    [ strace, "-f", "-e", "trace=file", "-qq", "-o", @mount_assertion_trace_path.path, "--", *@command ]
+    @execution_request_assertion_trace_path = Tempfile.new([ "syrus-process-runner-execution-request-", ".strace" ])
+    @execution_request_assertion_trace_path.close
+    [ strace, "-f", "-e", "trace=file,network", "-qq", "-o", @execution_request_assertion_trace_path.path, "--", *@command ]
   end
 
-  def local_mount_assertions_enabled?
+  def local_execution_request_assertions_enabled?
     Feature.execution_request_assertions_enabled?
   rescue StandardError
     false
@@ -517,16 +627,29 @@ class ProcessRunner
     nil
   end
 
-  def assert_local_mount_accesses!
-    return unless @mount_assertion_trace_path
+  def assert_local_execution_request!
+    return unless @execution_request_assertion_trace_path
 
-    accesses = MountTraceParser.new(@mount_assertion_trace_path.path, initial_cwd: @chdir).accesses
+    assert_local_mount_accesses!
+    assert_local_network_accesses!
+  ensure
+    @execution_request_assertion_trace_path&.unlink
+  end
+
+  def assert_local_mount_accesses!
+    accesses = MountTraceParser.new(@execution_request_assertion_trace_path.path, initial_cwd: @chdir).accesses
     violations = accesses.filter_map { |access| mount_access_violation(access) }
     return if violations.empty?
 
     raise MountAssertionError, "execution request mount declaration mismatch: #{violations.uniq.first(5).join('; ')}"
-  ensure
-    @mount_assertion_trace_path&.unlink
+  end
+
+  def assert_local_network_accesses!
+    accesses = NetworkTraceParser.new(@execution_request_assertion_trace_path.path).accesses
+    violations = accesses.filter_map { |access| @network.network_access_violation(access) }
+    return if violations.empty?
+
+    raise NetworkAssertionError, "execution request network declaration mismatch for #{@network.name}: #{violations.uniq.first(5).join('; ')}"
   end
 
   def mount_access_violation(access)

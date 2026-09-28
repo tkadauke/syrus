@@ -25,6 +25,7 @@ class MuseCredentialProbe
         ],
         stdin_data: user.muse_api_key,
         mounts: ProcessRunner.mounts(workspace),
+        network: "agent",
         timeout: CredentialProbe::TIMEOUT_SECONDS,
         silent_timeout: 15,
         kind: "agent",

@@ -348,6 +348,7 @@ RSpec.describe WorkflowWorkspacePruneJob do
         env: {},
         command: [ RbConfig.ruby, "-e", "STDOUT.sync = true; puts 'ready'; sleep 0.5" ],
         mounts: ProcessRunner.mounts(older_path),
+        network: "grader",
         timeout: 5,
         on_output_line: ->(line) { ready << line if line.include?("ready") }
       ).run

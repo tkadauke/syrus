@@ -70,6 +70,7 @@ module Steps
           env: env,
           command: [ "bash", "-c", grader.command ],
           mounts: ProcessRunner.mounts(workspace.path),
+          network: "grader",
           timeout: grader.timeout_minutes.minutes,
           kind: "grader",
           run: run,

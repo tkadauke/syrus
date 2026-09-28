@@ -215,9 +215,9 @@ Implementation workflow agents working on `tkadauke/syrus` or a registered fork 
 
 **Category:** Operations
 
-Checks local `ProcessRunner` executions against their declared mount request before container execution backends depend on that contract. `ProcessRunner` callers declare a `mounts:` structure containing a `workdir`, read-write mounts, optional read-only mounts, and an optional artifacts mount. The local backend still runs the command directly on the host filesystem; this flag only enables assertion checks.
+Checks local `ProcessRunner` executions against their declared execution request before container execution backends depend on that contract. `ProcessRunner` callers declare a `mounts:` structure containing a `workdir`, read-write mounts, optional read-only mounts, and an optional artifacts mount. They also declare a `network:` profile: `grader` for localhost-only validation commands, `prepare` for dependency installation/package-registry access, `agent` for agent CLIs and model/GitHub access, and `git_fetch` for git remote egress. The local backend still runs the command directly on the host filesystem; this flag only enables assertion checks.
 
-When enabled, local execution requires `strace`. Syrus wraps the subprocess, records filesystem syscalls, and fails the command if it writes through a read-only declaration, writes outside declared writable mounts, or touches another Syrus data-root path that was not declared. The flag defaults off so assertion gaps cannot break existing local-mode installs while the execution request contract is being hardened.
+When enabled, local execution requires `strace`. Syrus wraps the subprocess, records filesystem and network syscalls, and fails the command if it writes through a read-only declaration, writes outside declared writable mounts, touches another Syrus data-root path that was not declared, or if a `grader` command connects to a non-loopback address. Broader network profiles are declaration-only in the local backend until a container backend can enforce allowlists. The flag defaults off so assertion gaps cannot break existing local-mode installs while the execution request contract is being hardened.
 
 ## operational_log_indexing
 

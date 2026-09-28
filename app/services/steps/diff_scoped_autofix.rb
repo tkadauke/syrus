@@ -98,6 +98,7 @@ module Steps
         env: env,
         command: [ "bash", "-c", cmd ],
         mounts: ProcessRunner.mounts(workspace.path),
+        network: "grader",
         timeout: PER_COMMAND_TIMEOUT,
         kind: step.kind,
         run: run,

@@ -57,6 +57,7 @@ class AgyCredentialProbe
         command: agy_command,
         stdin_data: stdin_event,
         mounts: ProcessRunner.mounts(workspace),
+        network: "agent",
         timeout: CredentialProbe::TIMEOUT_SECONDS,
         silent_timeout: 15,
         kind: "agent",
