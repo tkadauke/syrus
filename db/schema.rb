@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_28_093000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -823,6 +823,40 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
     t.index ["chat_session_id"], name: "index_chat_wakeups_on_chat_session_id"
     t.index ["state", "fire_at"], name: "index_chat_wakeups_on_state_and_fire_at"
     t.index ["user_id"], name: "index_chat_wakeups_on_user_id"
+  end
+
+  create_table "cognitive_engagement_events", force: :cascade do |t|
+    t.string "anchor_key", null: false
+    t.string "anchor_kind", limit: 32, null: false
+    t.string "base_sha"
+    t.string "commit_sha"
+    t.decimal "confidence", precision: 4, scale: 3
+    t.datetime "created_at", null: false
+    t.integer "diff_review_version_id"
+    t.integer "end_line"
+    t.string "engagement_kind", limit: 32, null: false
+    t.bigint "evidence_id"
+    t.string "evidence_key", null: false
+    t.string "evidence_type", limit: 64, null: false
+    t.string "head_sha"
+    t.json "metadata", null: false
+    t.datetime "occurred_at", null: false
+    t.string "path"
+    t.string "quality", limit: 64
+    t.integer "repository_id", null: false
+    t.string "side", limit: 16
+    t.string "source_type", limit: 64, null: false
+    t.integer "start_line"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.decimal "weight", precision: 4, scale: 3, null: false
+    t.index ["diff_review_version_id"], name: "index_cognitive_engagement_events_on_diff_review_version_id"
+    t.index ["repository_id", "base_sha", "head_sha", "path"], name: "idx_cognitive_engagement_events_diff_identity"
+    t.index ["repository_id", "path", "occurred_at", "id"], name: "idx_cognitive_engagement_events_repo_path_time"
+    t.index ["repository_id", "source_type", "occurred_at", "id"], name: "idx_cognitive_engagement_events_repo_source_time"
+    t.index ["repository_id", "user_id", "source_type", "evidence_key", "anchor_key"], name: "idx_cognitive_engagement_events_idempotency", unique: true
+    t.index ["repository_id"], name: "index_cognitive_engagement_events_on_repository_id"
+    t.index ["user_id"], name: "index_cognitive_engagement_events_on_user_id"
   end
 
   create_table "command_spans", force: :cascade do |t|

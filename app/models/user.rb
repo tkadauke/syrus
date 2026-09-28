@@ -23,6 +23,7 @@ class User < ApplicationRecord
   has_many :notifications, dependent: :destroy
   has_many :smart_folders, dependent: :destroy
   has_many :tags, dependent: :destroy
+  has_many :cognitive_engagement_events, dependent: :destroy
   has_many :chat_sessions
   has_many :chat_participants, dependent: :destroy
   has_many :accessible_chat_sessions, through: :chat_participants, source: :chat_session
