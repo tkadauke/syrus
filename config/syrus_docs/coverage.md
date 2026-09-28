@@ -81,6 +81,32 @@ How long the hit-map blob (per-file line hit data) is retained. Default: 7 days.
 3. `coverage_pr_comment` (non-agentic) posts the PR comment if configured.
 4. The `CoverageSnapshot` model stores a per-SHA, per-project summary for trend tracking.
 
+## Cognitive debt queue
+
+Repository detail pages include a cognitive debt panel. It combines the latest
+default-branch coverage snapshot, normalized cognitive engagement events
+(review comments, PR comments, approvals, and known human-authored commits),
+recent diff-review churn, and current target health records to rank files that
+deserve human attention.
+
+The rollups show repository, subsystem, and file counts for `covered`,
+`stale`, and `blind` lines, plus a cognitive coverage percentage. Cognitive
+coverage is a proxy for human engagement, not guaranteed understanding:
+approvals are intentionally treated as weak range evidence, and blind or stale
+labels mean Syrus has not found fresh engagement evidence for that code.
+
+Queue chips explain why a file ranked highly, such as `blind`, `high churn`,
+`untested`, `low test coverage`, `high complexity`, or `unhealthy target` when
+those signals are available. Each queue item links to the file on GitHub, and
+links back to the relevant Syrus review context when the engagement evidence
+comes from an existing diff-review version.
+
+Repository-level queues are computed without a checked-out workspace. If
+line-specific evidence comes from a different revision than the queue target,
+Syrus links that review evidence as context but does not count it as covered
+unless it can project the range. Those items carry an `unprojected review
+evidence` chip so operators know why the file can still appear blind.
+
 ## Formats
 
 ### lcov
