@@ -67,7 +67,7 @@ class CodexCredentialProbe
             "--json",
             "Reply with OK."
           ],
-          chdir: workspace,
+          mounts: ProcessRunner.mounts(workspace),
           timeout: CredentialProbe::TIMEOUT_SECONDS,
           silent_timeout: 15,
           kind: "agent",
