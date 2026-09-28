@@ -38,7 +38,7 @@ module CognitiveCoverage
       mapping_from_diff(diff)
     rescue GitRunner::GitError => e
       Rails.logger.warn("[CognitiveCoverage::LineProjector] git diff failed for #{path}: #{e.message}")
-      {}
+      ->(_line) { nil }
     end
 
     def mapping_from_diff(diff)
