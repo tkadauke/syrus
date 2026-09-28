@@ -21,11 +21,11 @@ GitHub issue
   -> pull request
 ```
 
-Syrus does not try to be the coding model. It runs providers such as
-Claude Code or Codex, gives them a repository workspace and a bounded
-prompt, records what happened, and handles the surrounding lifecycle:
-clones, branches, setup commands, transcripts, diffs, retries, rebases,
-PR creation, follow-up feedback, and cleanup.
+Syrus does not try to be the coding model. It runs configured provider
+plugins such as Claude, Codex, Antigravity, or Muse, gives them a repository
+workspace and a bounded prompt, records what happened, and handles the
+surrounding lifecycle: clones, branches, setup commands, transcripts, diffs,
+retries, rebases, PR creation, follow-up feedback, and cleanup.
 
 ## The 30-Second Version
 
