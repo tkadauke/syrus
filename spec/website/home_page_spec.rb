@@ -21,24 +21,24 @@ RSpec.describe "website home page" do
   end
 
   it "explains Syrus as owner-controlled AI work from goal to merged pull request" do
-    expect(site_copy).to include("Ship more of your roadmap.")
-    expect(normalized_copy).to include("put AI to work from goal to merged pull request")
-    expect(normalized_copy).to include("turning conversations into tracked epics and tickets")
-    expect(normalized_copy).to include("keeping a human review on every merge")
-    expect(normalized_copy).to include("what it cost")
+    expect(site_copy).to include("Run coding agents on your repos.")
+    expect(normalized_copy).to include("turning issues, chats, and video walkthroughs into tracked pull requests")
+    expect(normalized_copy).to include("review policy")
+    expect(normalized_copy).to include("merge queue")
+    expect(normalized_copy).to include("Know what every feature cost")
   end
 
   it "uses real current anchors and pages for primary calls to action" do
     expect(nav).to include('href: "/#how"')
     expect(nav).to include('href: "/#features"')
     expect(nav).to include('href: "/#entry-points"')
-    expect(nav).to include('href="/#demo"')
+    expect(nav).to include('href="/#walkthrough-demo"')
     expect(nav).to include("<DownloadButton")
 
     hero = read_website("components/hero.tsx")
     expect(hero).to include("<DownloadCTA")
-    expect(hero).to include('href="/#demo"')
-    expect(hero).to include("Request a demo")
+    expect(hero).to include('href="/#walkthrough-demo"')
+    expect(hero).to include("Watch the product demo")
 
     expect(read_website("components/footer.tsx")).to include('href: "/download"')
   end
