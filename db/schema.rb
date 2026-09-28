@@ -2455,7 +2455,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_012814) do
     t.integer "handling_workflow_id"
     t.datetime "ignored_at"
     t.integer "job_id", null: false
+    t.integer "line"
+    t.integer "original_line"
+    t.integer "original_start_line"
+    t.string "path"
     t.string "pr_type", null: false
+    t.string "side"
+    t.integer "start_line"
     t.datetime "updated_at", null: false
     t.index ["actioned_at"], name: "index_pr_review_comments_on_actioned_at"
     t.index ["handling_state"], name: "index_pr_review_comments_on_handling_state"

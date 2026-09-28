@@ -12,10 +12,15 @@ class PrReviewComment < ApplicationRecord
   validates :github_comment_id, presence: true
   validates :attributed_to, inclusion: { in: ATTRIBUTED_TOS }, allow_nil: true
   validates :handling_state, inclusion: { in: HANDLING_STATES }, allow_nil: true
+  validates :line, :start_line, :original_line, :original_start_line,
+            numericality: { only_integer: true, greater_than: 0 },
+            allow_nil: true
   validates :github_comment_id, uniqueness: {
     scope: [ :job_id, :pr_type, :comment_kind ],
     message: "has already been recorded for this job/PR/kind combination"
   }
+
+  before_validation :normalize_anchor
 
   scope :actionable_comments, -> { where(actionable: true) }
   scope :unactioned, -> { where(actioned_at: nil) }
@@ -83,6 +88,10 @@ class PrReviewComment < ApplicationRecord
     handling_state == "failed" && handling_workflow_id.present?
   end
 
+  def anchor_line
+    line || start_line || original_line || original_start_line
+  end
+
   def mark_actioned!(by:)
     mark_ignored!(by: by) if by == "operator:ignore"
     mark_handled!(by: by) unless by == "operator:ignore"
@@ -132,5 +141,12 @@ class PrReviewComment < ApplicationRecord
       handling_failed_at: nil,
       handling_failure_reason: nil
     )
+  end
+
+  private
+
+  def normalize_anchor
+    self.path = path.to_s.strip.presence
+    self.side = side.to_s.strip.downcase.presence
   end
 end

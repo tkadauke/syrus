@@ -5,11 +5,37 @@ RSpec.describe PrCommentIngester do
   let(:repo) { Factories.repository(user: owner, feedback_policy: "auto") }
   let(:job) { Factories.job(user: owner, repository: repo, issue_number: 10) }
 
-  CommentStub = Struct.new(:id, :body, :created_at, :user)
+  CommentStub = Struct.new(
+    :id,
+    :body,
+    :created_at,
+    :user,
+    :path,
+    :side,
+    :line,
+    :start_line,
+    :original_line,
+    :original_start_line,
+    keyword_init: true
+  )
 
-  def make_comment(id:, login:, body:, has_path: false)
+  def make_comment(
+    id:, login:, body:, path: nil, side: nil, line: nil, start_line: nil,
+    original_line: nil, original_start_line: nil
+  )
     user = Struct.new(:login).new(login)
-    CommentStub.new(id, body, Time.current, user)
+    CommentStub.new(
+      id: id,
+      body: body,
+      created_at: Time.current,
+      user: user,
+      path: path,
+      side: side,
+      line: line,
+      start_line: start_line,
+      original_line: original_line,
+      original_start_line: original_start_line
+    )
   end
 
   before do
@@ -44,6 +70,28 @@ RSpec.describe PrCommentIngester do
     expect(record.actionable).to be true
     expect(record.pr_type).to eq("direct")
     expect(record.comment_kind).to eq("issue")
+  end
+
+  it "stores GitHub inline review anchors from the API payload" do
+    comment = make_comment(
+      id: 110,
+      login: "alice",
+      body: "Breaks on nil",
+      path: "app/models/widget.rb",
+      side: "RIGHT",
+      line: 42,
+      start_line: 40
+    )
+
+    call([ comment ], comment_kind: "review")
+
+    record = PrReviewComment.find_by!(github_comment_id: 110)
+    expect(record).to have_attributes(
+      path: "app/models/widget.rb",
+      side: "right",
+      line: 42,
+      start_line: 40
+    )
   end
 
   it "skips comments that are already recorded" do
