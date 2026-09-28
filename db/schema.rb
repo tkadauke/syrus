@@ -796,6 +796,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_012814) do
     t.index ["user_id"], name: "index_chat_wakeups_on_user_id"
   end
 
+  create_table "cognitive_engagement_events", force: :cascade do |t|
+    t.string "anchor_key", null: false
+    t.string "anchor_kind", limit: 32, null: false
+    t.string "base_sha"
+    t.string "commit_sha"
+    t.decimal "confidence", precision: 4, scale: 3
+    t.datetime "created_at", null: false
+    t.integer "diff_review_version_id"
+    t.integer "end_line"
+    t.string "engagement_kind", limit: 32, null: false
+    t.bigint "evidence_id"
+    t.string "evidence_key", null: false
+    t.string "evidence_type", limit: 64, null: false
+    t.string "head_sha"
+    t.string "idempotency_key", limit: 64, null: false
+    t.json "metadata", null: false
+    t.datetime "occurred_at", null: false
+    t.string "path"
+    t.string "quality", limit: 64
+    t.integer "repository_id", null: false
+    t.string "side", limit: 16
+    t.string "source_type", limit: 64, null: false
+    t.integer "start_line"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.decimal "weight", precision: 4, scale: 3, null: false
+    t.index ["diff_review_version_id"], name: "index_cognitive_engagement_events_on_diff_review_version_id"
+    t.index ["repository_id", "base_sha", "head_sha", "path"], name: "idx_cognitive_engagement_events_diff_identity"
+    t.index ["repository_id", "path", "occurred_at", "id"], name: "idx_cognitive_engagement_events_repo_path_time"
+    t.index ["repository_id", "source_type", "occurred_at", "id"], name: "idx_cognitive_engagement_events_repo_source_time"
+    t.index ["repository_id", "user_id", "source_type", "idempotency_key"], name: "idx_cognitive_engagement_events_idempotency", unique: true
+    t.index ["repository_id"], name: "index_cognitive_engagement_events_on_repository_id"
+    t.index ["user_id"], name: "index_cognitive_engagement_events_on_user_id"
+  end
+
   create_table "cognitive_review_discussion_entries", force: :cascade do |t|
     t.integer "note_id", null: false
     t.integer "user_id"
