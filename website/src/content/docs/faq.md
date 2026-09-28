@@ -5,6 +5,23 @@ description: Frequently-asked questions about Syrus.
 
 # FAQ
 
+## Does Syrus compete with coding agents?
+
+No. We don't compete with coding agents, we orchestrate them.
+
+Coding agents such as Claude Code Action, GitHub Copilot Coding Agent,
+OpenAI Codex cloud, and Google Jules are engines that execute a task.
+They read a prompt, work in a repository, and try to produce a change.
+
+Syrus is the orchestration layer around that work. It decides what runs,
+in what order, against which repository, through which checks and review
+gates, and under which landing policy. Claude, Codex, Antigravity, Muse,
+or another provider adapter can be interchangeable plugins under that
+workflow instead of the workflow boundary itself.
+
+The question is not "which agent wins?" It is who owns the queue,
+credentials, transcripts, retries, review policy, and final merge path.
+
 ## How is Syrus different from Devin?
 
 Devin is a hosted coding-agent product. Syrus is self-hosted,
