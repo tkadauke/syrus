@@ -203,7 +203,7 @@ RSpec.describe "Design Docs @syrus agent mentions" do
       ProcessRunner.new(
         env: {},
         command: [ RbConfig.ruby, "-e", "exit 0" ],
-        chdir: workspace_path,
+        mounts: ProcessRunner.mounts(workspace_path),
         timeout: 5,
         kind: "agent",
         agent: Thread.current[:syrus_current_agent]

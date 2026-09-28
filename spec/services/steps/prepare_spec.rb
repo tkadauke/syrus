@@ -573,9 +573,9 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
 
         expect(captured_kwargs).to include(
           command: [ "mise", "install" ],
-          chdir: @ws_path,
           timeout: Steps::Prepare::MISE_INSTALL_TIMEOUT
         )
+        expect(Pathname.new(captured_kwargs.fetch(:mounts).workdir)).to eq(@ws_path)
         expect(captured_kwargs[:env]).not_to have_key("BUNDLE_WITHOUT")
         expect(captured_kwargs[:env]).not_to have_key("RAILS_ENV")
       end
