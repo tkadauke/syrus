@@ -2150,6 +2150,176 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
   end
 
+  it "returns a cognitive debt summary and sorted review queue on repository detail" do
+    travel_to Time.zone.parse("2026-09-28 12:00:00 UTC") do
+      sign_in_as(user)
+      repository = Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main", last_health_checked_sha: "abc123")
+      job = Factories.job(repository: repository, user: user)
+      workflow = job.workflows.first
+      CoverageSnapshot.create!(
+        repository: repository,
+        job: job,
+        workflow: workflow,
+        sha: "abc123",
+        branch: "main",
+        project_id: TargetGraph::ROOT_PROJECT_ID,
+        lines_pct: 55.0,
+        data: {
+          "app/risky.rb" => { "lines_pct" => 0.0, "line_count" => 2, "covered_line_count" => 0 },
+          "app/calm.rb" => { "lines_pct" => 95.0, "line_count" => 1, "covered_line_count" => 1 }
+        }
+      )
+      version = DiffReviewVersion.create!(
+        job: job,
+        version_index: DiffReviewVersion.next_index_for(job),
+        base_sha: "base",
+        head_sha: "abc123",
+        source_key: "spec",
+        label: "Spec",
+        reason: "source_diff",
+        files_snapshot: [
+          { "path" => "app/risky.rb", "patch" => "@@ -1 +1 @@\n-old\n+new" },
+          { "path" => "app/risky.rb", "patch" => "@@ -2 +2 @@\n-old\n+new" },
+          { "path" => "app/risky.rb", "patch" => "@@ -3 +3 @@\n-old\n+new" },
+          { "path" => "app/risky.rb", "patch" => "@@ -4 +4 @@\n-old\n+new" },
+          { "path" => "app/risky.rb", "patch" => "@@ -5 +5 @@\n-old\n+new" }
+        ],
+        metadata: {}
+      )
+      CognitiveEngagementEvent.create!(
+        repository: repository,
+        user: user,
+        diff_review_version: version,
+        source_type: "diff_review_comment",
+        engagement_kind: "reviewed",
+        evidence_type: "DiffReviewComment",
+        evidence_key: "diff_review_comment:1",
+        occurred_at: 1.day.ago,
+        base_sha: "base",
+        head_sha: "abc123",
+        anchor_kind: "range",
+        path: "app/calm.rb",
+        side: "right",
+        start_line: 1,
+        end_line: 1,
+        confidence: BigDecimal("0.95"),
+        quality: "high"
+      )
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      debt = parse_body.fetch("cognitive_debt")
+      expect(debt.fetch("proxy_notice")).to include("proxy for human engagement")
+      expect(debt.fetch("summary")).to include(
+        "line_count" => 3,
+        "covered_count" => 0,
+        "stale_count" => 1,
+        "blind_count" => 2,
+        "cognitive_coverage_pct" => 33.3
+      )
+      expect(debt.fetch("review_queue").map { |item| item.fetch("path") }).to eq(%w[app/risky.rb app/calm.rb])
+      risky = debt.fetch("review_queue").first
+      expect(risky.fetch("explanations")).to include("blind", "high churn", "untested")
+      expect(risky.dig("source", "github_url")).to eq("https://github.com/acme/widgets/blob/abc123/app/risky.rb#L1")
+      expect(debt.fetch("subsystems")).to contain_exactly(include("key" => "app"))
+    end
+  end
+
+  it "labels cross-revision range engagement that cannot be projected without a checkout" do
+    travel_to Time.zone.parse("2026-09-28 12:00:00 UTC") do
+      sign_in_as(user)
+      repository = Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main", last_health_checked_sha: "main-sha")
+      job = Factories.job(repository: repository, user: user)
+      workflow = job.workflows.first
+      CoverageSnapshot.create!(
+        repository: repository,
+        job: job,
+        workflow: workflow,
+        sha: "main-sha",
+        branch: "main",
+        project_id: TargetGraph::ROOT_PROJECT_ID,
+        lines_pct: 0.0,
+        data: {
+          "app/branch_only_review.rb" => { "lines_pct" => 0.0, "line_count" => 1, "covered_line_count" => 0 }
+        }
+      )
+      version = DiffReviewVersion.create!(
+        job: job,
+        version_index: DiffReviewVersion.next_index_for(job),
+        base_sha: "base-sha",
+        head_sha: "branch-head-sha",
+        source_key: "spec-cross-sha",
+        label: "Spec",
+        reason: "source_diff",
+        files_snapshot: [],
+        metadata: {}
+      )
+      CognitiveEngagementEvent.create!(
+        repository: repository,
+        user: user,
+        diff_review_version: version,
+        source_type: "diff_review_comment",
+        engagement_kind: "reviewed",
+        evidence_type: "DiffReviewComment",
+        evidence_key: "diff_review_comment:cross-sha",
+        occurred_at: Time.current,
+        base_sha: "base-sha",
+        head_sha: "branch-head-sha",
+        anchor_kind: "range",
+        path: "app/branch_only_review.rb",
+        side: "right",
+        start_line: 1,
+        end_line: 1,
+        confidence: BigDecimal("0.95"),
+        quality: "high"
+      )
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      debt = parse_body.fetch("cognitive_debt")
+      expect(debt.fetch("unsupported_projection_count")).to eq(1)
+      expect(debt.fetch("projection_notice")).to include("different revision")
+      expect(debt.fetch("summary")).to include(
+        "covered_count" => 0,
+        "stale_count" => 0,
+        "blind_count" => 1,
+        "cognitive_coverage_pct" => 0.0
+      )
+      item = debt.fetch("review_queue").sole
+      expect(item.fetch("explanations")).to include("blind", "unprojected review evidence")
+      expect(item.dig("signals", "unsupported_engagements")).to eq(1)
+      expect(item.dig("source", "latest_engagement", "projection_supported")).to be(false)
+      expect(item.dig("source", "review_path")).to eq("/jobs/#{job.id}?tab=review")
+    end
+  end
+
+  it "returns an empty cognitive debt payload when no coverage or engagement facts exist" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("cognitive_debt")).to include(
+      "empty" => true,
+      "review_queue" => [],
+      "files" => [],
+      "subsystems" => []
+    )
+  end
+
+  it "does not expose cognitive debt for repositories outside the signed-in user's workspace" do
+    repository = Factories.repository(user: Factories.user)
+
+    sign_in_as(user)
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:not_found)
+    expect(response.body).not_to include("cognitive_debt")
+  end
+
   describe "GET /api/v1/app/repositories/:id/coverage_trend" do
     let(:repository) { Factories.repository(user: user, default_branch: "main") }
 
