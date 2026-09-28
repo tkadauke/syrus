@@ -549,14 +549,23 @@ RSpec.describe WorkflowWorkspacePruneJob do
     allow(ChatWorkspace).to receive(:reclaim_coding_over_budget!).and_return(4096)
 
     captured_metadata = nil
+    phase_names = []
     allow(PerformanceLogging).to receive(:phase) do |name, metadata, &block|
-      expect(name).to eq("chat_workspace.sweep")
-      block.call
-      captured_metadata = metadata
+      phase_names << name
+      result = block.call
+      captured_metadata = metadata if name == "chat_workspace.sweep"
+      result
     end
 
     described_class.perform_now
 
+    expect(phase_names).to include(
+      "chat_workspace.sweep",
+      "chat_workspace.prune_idle",
+      "chat_workspace.reclaim_idle_coding_checkouts",
+      "chat_workspace.reclaim_coding_over_budget",
+      "chat_workspace.sweep_orphans"
+    )
     expect(captured_metadata).to include(
       idle_coding_bytes_freed: 2048,
       over_budget_bytes_freed: 4096
