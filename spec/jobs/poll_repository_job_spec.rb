@@ -253,6 +253,24 @@ RSpec.describe PollRepositoryJob, :ci_only do
       expect(job.runs).to be_empty
     end
 
+    it "attaches a child issue with a bare same-repository Epic marker" do
+      epic = Factories.epic(
+        user: user,
+        repository: repository,
+        github_issue_url: "https://github.com/acme/widgets/issues/41",
+        state: "backlog"
+      )
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 42, body: "Epic: 41") ])
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job.epic).to eq(epic)
+      expect(job.state).to eq("blocked_by_epic")
+      expect(job.pending_epic_reference).to eq({})
+    end
+
     it "keeps a child issue in triaging with pending_epic_ref until the Epic is ingested" do
       child = issue(number: 42, body: "Epic: #41")
       declaration = issue(number: 41, body: "Epic: Attachments rollout")

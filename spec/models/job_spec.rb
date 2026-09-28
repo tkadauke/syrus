@@ -2862,6 +2862,41 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(third).not_to be_dependencies_satisfied
     end
 
+    it "seeds a same-Epic chain from bare-number dependency lines even when children ingest out of order" do
+      epic = Factories.epic(
+        user: user,
+        repository: repository,
+        state: "in_progress",
+        github_issue_url: "https://github.com/acme/widgets/issues/4391"
+      )
+      second = Job.create!(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 4399,
+        issue_body: "epic: 4391\n\ndepends on: 4398"
+      )
+      third = Job.create!(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 4400,
+        issue_body: "epic: 4391\n\ndepends on: 4399"
+      )
+      first = Job.create!(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 4398,
+        issue_body: "epic: 4391"
+      )
+
+      expect(second.reload.depends_on_jobs).to contain_exactly(first)
+      expect(third.reload.depends_on_jobs).to contain_exactly(second)
+      expect(second).not_to be_stack_ready_for_execution
+      expect(third).not_to be_stack_ready_for_execution
+    end
+
     it "keeps same-Epic children with a fan-in JobDependency graph blocked until stack readiness is unambiguous" do
       epic = Factories.epic(
         user: user,

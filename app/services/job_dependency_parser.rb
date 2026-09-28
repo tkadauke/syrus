@@ -8,10 +8,14 @@ class JobDependencyParser
 
   REFERENCE_PATTERN = /
     (?:
-      (?<owner>[A-Za-z0-9][A-Za-z0-9._-]*)\/
-      (?<repo>[A-Za-z0-9][A-Za-z0-9._-]*)
-    )?
-    \#(?<number>\d+)
+      (?:
+        (?<owner>[A-Za-z0-9][A-Za-z0-9._-]*)\/
+        (?<repo>[A-Za-z0-9][A-Za-z0-9._-]*)
+      )?
+      \#(?<number>\d+)
+      |
+      (?<![#A-Za-z0-9._\/-])(?<bare_number>\d+)(?![A-Za-z0-9._\/-])
+    )
   /x
 
   def self.parse(text:, default_repository:)
@@ -28,13 +32,17 @@ class JobDependencyParser
       match = line.chomp.safe_byteslice(0, MAX_LINE_BYTES).match(KEYWORD_PATTERN)
       next [] unless match
 
-      match[:refs].scan(REFERENCE_PATTERN).filter_map do |owner, repo, number|
+      references = []
+      match[:refs].scan(REFERENCE_PATTERN) do
+        reference = Regexp.last_match
+        number = reference[:number] || reference[:bare_number]
         Reference.new(
-          owner: (owner.presence || @default_repository.owner),
-          repo: (repo.presence || @default_repository.name),
+          owner: (reference[:owner].presence || @default_repository.owner),
+          repo: (reference[:repo].presence || @default_repository.name),
           number: number.to_i
-        )
+        ).then { |parsed| references << parsed }
       end
+      references
     end.uniq.first(MAX_REFERENCES)
   end
 end
