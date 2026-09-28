@@ -23,7 +23,7 @@ RSpec.describe MuseInvocation do
       if kwargs[:command][0, 2] == %w[muse exec]
         prompt_path = kwargs[:command][kwargs[:command].index("--prompt-file") + 1]
         kwargs[:prompt_file_content] = File.read(prompt_path)
-        rules_path = File.join(kwargs[:chdir], "AGENTS.md")
+        rules_path = File.join(kwargs.fetch(:mounts).workdir, "AGENTS.md")
         if File.exist?(rules_path) || File.symlink?(rules_path)
           kwargs[:rules_file_size] = File.size(rules_path)
         end

@@ -188,7 +188,7 @@ RSpec.describe Steps::BuilderFanout do
 
       handler.call
 
-      expect(calls).to include(include(chdir: @ws_path.join("packages/web")))
+      expect(calls.map { |call| Pathname.new(call.fetch(:mounts).workdir) }).to include(@ws_path.join("packages/web"))
       record = TargetHealthRecord.where(repository: job.repository, target_label: "//packages/web:assets").sole
       expect(record.artifacts).to include(
         "declared_paths" => [ "dist/**/*" ],
@@ -220,7 +220,7 @@ RSpec.describe Steps::BuilderFanout do
       handler.call
 
       expect(calls.map { |call| call[:display_command] }).to eq([ "npm ci", "npm run build" ])
-      expect(calls.map { |call| call[:chdir] }).to eq([
+      expect(calls.map { |call| Pathname.new(call.fetch(:mounts).workdir) }).to eq([
         @ws_path.join("packages/web"),
         @ws_path.join("packages/web")
       ])

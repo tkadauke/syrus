@@ -99,7 +99,7 @@ RSpec.describe ChatShellCommandJob do
 
     expect(captured_kwargs).to include(
       command: [ "bash", "-c", "echo hi" ],
-      chdir: path,
+      mounts: ProcessRunner.mounts(path),
       timeout: described_class::MAX_RUNTIME_SECONDS,
       kind: "chat_shell_command",
       chat_session: chat_session

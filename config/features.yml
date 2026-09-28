@@ -81,3 +81,8 @@ features:
     description: "Enables an emergency-land escape hatch for Coding Mode, letting a repository-tier admin or global admin land a Coding Mode chat's committed branch immediately, bypassing Syrus's grader, adversarial-review, and visual-review pipeline. A separate, explicit opt-in layered on top of Coding Mode itself, since it skips Syrus's own quality gates for incident response."
     description_i18n_key: "features.slugs.emergency_land.description"
     default: false
+  - slug: execution_request_assertions
+    category: "Operations"
+    name: "Execution request assertions"
+    description: "Checks local ProcessRunner executions against their declared mount request before container execution backends depend on that contract."
+    default: false

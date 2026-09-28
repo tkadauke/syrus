@@ -123,6 +123,10 @@ class Feature < ApplicationRecord
     enabled?(:emergency_land)
   end
 
+  def self.execution_request_assertions_enabled?
+    enabled?(:execution_request_assertions)
+  end
+
   private
 
   def clear_request_enabled_cache
