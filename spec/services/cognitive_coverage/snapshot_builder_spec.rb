@@ -37,6 +37,23 @@ RSpec.describe CognitiveCoverage::SnapshotBuilder do
     }.merge(overrides))
   end
 
+  def cognitive_event(**attrs)
+    CognitiveEngagementEvent.create!({
+      repository: repository,
+      user: repository.user,
+      source_type: "diff_review_comment",
+      engagement_kind: "reviewed",
+      evidence_type: "Spec",
+      evidence_key: "spec:#{SecureRandom.hex(4)}",
+      occurred_at: Time.zone.parse("2026-09-20"),
+      anchor_kind: "range",
+      path: "app/models/widget.rb",
+      start_line: 1,
+      end_line: 1,
+      weight: 0.8
+    }.merge(attrs))
+  end
+
   it "classifies a line as covered when engagement is newer than the line and inside the freshness window" do
     snapshot = build_snapshot(
       line_facts: [ line("app/models/widget.rb", 1, modified_at: "2026-09-01") ],
@@ -136,5 +153,65 @@ RSpec.describe CognitiveCoverage::SnapshotBuilder do
       "old blind code",
       "recent reliability signal"
     )
+  end
+
+  it "loads authored file engagement from normalized cognitive engagement events" do
+    cognitive_event(
+      source_type: "authored_line",
+      engagement_kind: "authored",
+      evidence_type: "GitCommit",
+      evidence_key: "git_commit:human-sha:app/models/widget.rb",
+      commit_sha: "human-sha",
+      anchor_kind: "file",
+      path: "app/models/widget.rb",
+      start_line: nil,
+      end_line: nil,
+      occurred_at: Time.zone.parse("2026-09-20")
+    )
+
+    snapshot = described_class.call(
+      repository: repository,
+      target_sha: "human-sha",
+      line_facts: [
+        line("app/models/widget.rb", 1, modified_at: "2026-09-01"),
+        line("app/models/widget.rb", 2, modified_at: "2026-09-01")
+      ],
+      coverage_snapshot: instance_double(CoverageSnapshot, data: {}),
+      target_health_records: [],
+      generated_at: generated_at
+    )
+
+    expect(snapshot.line_results.map(&:state)).to eq(%w[covered covered])
+  end
+
+  it "honors normalized approval ranges instead of treating the whole file as approved" do
+    cognitive_event(
+      source_type: "job_approval",
+      engagement_kind: "approved",
+      evidence_type: "JobApproval",
+      evidence_key: "job_approval:1",
+      head_sha: "target",
+      anchor_kind: "range",
+      path: "app/models/widget.rb",
+      start_line: 1,
+      end_line: 1,
+      occurred_at: Time.zone.parse("2026-09-20"),
+      weight: 0.2,
+      quality: "rubber_stamp"
+    )
+
+    snapshot = described_class.call(
+      repository: repository,
+      target_sha: "target",
+      line_facts: [
+        line("app/models/widget.rb", 1, modified_at: "2026-09-01"),
+        line("app/models/widget.rb", 2, modified_at: "2026-09-01")
+      ],
+      coverage_snapshot: instance_double(CoverageSnapshot, data: {}),
+      target_health_records: [],
+      generated_at: generated_at
+    )
+
+    expect(snapshot.line_results.map(&:state)).to eq(%w[covered blind])
   end
 end
