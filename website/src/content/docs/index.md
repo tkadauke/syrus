@@ -31,6 +31,9 @@ recipes needed to run Syrus without reading the Rails source.
   trigger kinds, and state machines.
 - [Workflows](/docs/workflows): the built-in pipelines for issues, PR
   feedback, CI failures, retries, rebases, direct Jobs, and landing.
+- [Video Walkthroughs](/docs/video-walkthroughs): record your screen with
+  narration, let Syrus extract the issues and desired behavior, and turn the
+  analysis into Jobs.
 - [Landing Code](/docs/landing): approved Jobs, Epic merge trains, bundles,
   final graders, branch repair, and queue blockers.
 - [Tests and Graders](/docs/tests-and-graders): review/landing/CI phases,

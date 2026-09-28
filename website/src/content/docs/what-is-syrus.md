@@ -51,6 +51,7 @@ Syrus has one execution model with several entry points:
 | GitHub issue | A repository issue with the trigger label, or an issue delegated from Syrus. If the issue already has a linked external PR, Syrus creates the Job as implemented and ready for review. | Normal issue-to-PR work that should stay visible in GitHub planning. |
 | PR feedback | A human comment or review on a Syrus-owned PR. | Follow-up commits on the same branch after review. |
 | CI failure | A failing check on a Syrus-owned PR. | Bounded repair attempts without asking a human to re-prompt the agent. |
+| [Video walkthrough](/docs/video-walkthroughs) | A narrated screen recording attached from the chat composer. | Bug reports, UI polish, QA passes, and "watch what I mean" work where showing the problem beats writing a full ticket. |
 | Direct Job | An operator prompt in Syrus, not backed by a GitHub issue. | Private context, internal chores, experiments, or urgent work where a GitHub issue would be ceremony. |
 | Scheduled task | A recurring cron task or one-shot fire time. | Repeated repository hygiene, dependency chores, docs sweeps, or other periodic maintenance. |
 | Rebase | Merge-state polling sees a controlled PR branch become unmergeable. | Keep an open PR current with the base branch. |

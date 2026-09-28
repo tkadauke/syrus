@@ -19,6 +19,7 @@ const preferredOrder = [
   "why-use-syrus",
   "dogfooding",
   "getting-started",
+  "video-walkthroughs",
   "concepts",
   "workflows",
   "landing",
