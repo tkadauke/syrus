@@ -13,7 +13,7 @@ The common GitHub issue loop is:
 
 ```text
 GitHub issue
-  -> Syrus poller
+  -> Syrus poller, scheduled every 5 minutes
   -> Job
   -> Workflow
   -> agent Run
@@ -30,7 +30,8 @@ retries, rebases, PR creation, follow-up feedback, and cleanup.
 ## The 30-Second Version
 
 You register a GitHub repository in Syrus and choose a trigger label,
-usually `syrus`. When an issue gets that label, Syrus creates a Job,
+usually `syrus`. Repository polling runs every 5 minutes by default; when
+an issue gets that label, Syrus creates a Job,
 checks out the repo in a worker-managed workspace, runs preparation
 commands, invokes the configured agent, captures the resulting diff, asks
 for PR copy, pushes a branch, and opens a pull request.
@@ -48,17 +49,18 @@ Syrus has one execution model with several entry points:
 
 | Entry point | What creates the Job | Typical use |
 | --- | --- | --- |
-| GitHub issue | A repository issue with the trigger label, or an issue delegated from Syrus. If the issue already has a linked external PR, Syrus creates the Job as implemented and ready for review. | Normal issue-to-PR work that should stay visible in GitHub planning. |
+| [GitHub issue](/docs/features#repository-automation) | A repository issue gets the trigger label, either directly in GitHub or by delegation from the Syrus repository issues panel. If the issue already has a linked external PR, Syrus creates the Job as implemented and ready for review. | Normal issue-to-PR work that should stay visible in GitHub planning. |
+| [Video walkthrough](/docs/video-walkthroughs) | A narrated screen recording is attached from the chat composer, analyzed, and turned into proposal cards through the same chat proposal flow. | Bug reports, UI polish, QA passes, and "watch what I mean" work where showing the problem beats writing a full ticket. |
+| [Chat proposal](/docs/features#chats) | An operator discusses work in chat; the agent drafts Job, Epic, GitHub issue, or scheduled-task proposal cards, and confirmation creates the executable work. | Planning with context, grouping related work, routing to backlog, attaching media, or starting work without first writing a GitHub issue. |
 | PR feedback | A human comment or review on a Syrus-owned PR. | Follow-up commits on the same branch after review. |
 | CI failure | A failing check on a Syrus-owned PR. | Bounded repair attempts without asking a human to re-prompt the agent. |
-| [Video walkthrough](/docs/video-walkthroughs) | A narrated screen recording attached from the chat composer. | Bug reports, UI polish, QA passes, and "watch what I mean" work where showing the problem beats writing a full ticket. |
-| Direct Job | An operator prompt in Syrus, not backed by a GitHub issue. | Private context, internal chores, experiments, or urgent work where a GitHub issue would be ceremony. |
 | Scheduled task | A recurring cron task or one-shot fire time. | Repeated repository hygiene, dependency chores, docs sweeps, or other periodic maintenance. |
 | Rebase | Merge-state polling sees a controlled PR branch become unmergeable. | Keep an open PR current with the base branch. |
 
-Direct Jobs and scheduled Jobs still use the same Job, Workflow, Step,
-and Run records as issue-driven work. The source is different; the
-operational contract is the same.
+Chat proposals can materialize direct Jobs, Epics with child Jobs, GitHub
+issues, or scheduled tasks. All of those sources still use the same Job,
+Workflow, Step, and Run records as issue-driven work. The source is different;
+the operational contract is the same.
 
 ## What Syrus Owns
 
