@@ -11,80 +11,68 @@ module CognitiveCoverage
     end
 
     def call
-      diff_review_comment_events + pr_review_comment_events + approval_events
+      CognitiveEngagementEvent
+        .where(repository: @repository)
+        .order(:occurred_at, :id)
+        .flat_map { |event| engagements_for(event) }
     end
 
     private
 
-    def diff_review_comment_events
-      DiffReviewComment
-        .joins(:job, :diff_review_version)
-        .where(jobs: { repository_id: @repository.id })
-        .where.not(state: "draft")
-        .where(anchor_kind: "line")
-        .filter_map do |comment|
-          line = comment.new_line || comment.old_line
-          next unless comment.path.present? && line.present?
+    def engagements_for(event)
+      anchor = Anchor.for(event)
+      return [] unless anchor
 
-          Engagement.new(
-            path: comment.path,
-            line_number: line,
-            engaged_at: engagement_time(comment),
-            source: "diff_review_comment",
-            source_sha: comment.diff_review_version.head_sha
-          )
-        end
+      anchor.engagements
     end
 
-    def pr_review_comment_events
-      PrReviewComment
-        .joins(:job)
-        .where(jobs: { repository_id: @repository.id })
-        .where.not(path: nil)
-        .filter_map do |comment|
-          line = comment.anchor_line
-          next unless line.present?
+    class Anchor
+      def self.for(event)
+        ANCHOR_TYPES[event.anchor_kind]&.new(event)
+      end
 
-          Engagement.new(
-            path: comment.path,
-            line_number: line,
-            engaged_at: comment.created_at,
-            source: "pr_review_comment",
-            source_sha: nil
-          )
-        end
-    end
+      def initialize(event)
+        @event = event
+      end
 
-    def approval_events
-      approval_rows.flat_map do |job, approved_at|
-        next [] unless approved_at
+      private
 
-        job.diff_review_versions.flat_map do |version|
-          Array(version.files_snapshot).filter_map do |file|
-            path = file["path"].presence
-            next unless path
+      attr_reader :event
 
-            Engagement.new(
-              path: path,
-              line_number: nil,
-              engaged_at: approved_at,
-              source: "job_approval",
-              source_sha: version.head_sha
-            )
-          end
-        end
+      def source_sha
+        event.side == "left" ? event.base_sha : (event.head_sha || event.commit_sha)
+      end
+
+      def engagement_for(line_number)
+        Engagement.new(
+          path: event.path,
+          line_number: line_number,
+          engaged_at: event.occurred_at,
+          source: event.source_type,
+          source_sha: source_sha
+        )
       end
     end
 
-    def approval_rows
-      jobs = Job.where(repository: @repository).includes(:diff_review_versions)
-      explicit = JobApproval.joins(:job).where(jobs: { repository_id: @repository.id }).includes(job: :diff_review_versions)
-      rows = explicit.map { |approval| [ approval.job, approval.approved_at ] }
-      rows + jobs.where.not(approved_at: nil).map { |job| [ job, job.approved_at ] }
+    class RangeAnchor < Anchor
+      def engagements
+        return [] if event.path.blank? || event.start_line.blank? || event.end_line.blank?
+
+        (event.start_line..event.end_line).map { |line_number| engagement_for(line_number) }
+      end
     end
 
-    def engagement_time(comment)
-      [ comment.resolved_at, comment.submitted_at, comment.created_at ].compact.max
+    class FileAnchor < Anchor
+      def engagements
+        return [] if event.path.blank?
+
+        [ engagement_for(nil) ]
+      end
     end
+
+    ANCHOR_TYPES = {
+      "range" => RangeAnchor,
+      "file" => FileAnchor
+    }.freeze
   end
 end
