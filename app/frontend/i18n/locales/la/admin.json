@@ -451,7 +451,7 @@
       },
       "persistent_mcp_sidecar": {
         "name": "Adiutor MCP Persistens",
-        "description": "Activat daemonem adiutoris MCP persistentis et loco laboris proprii, qui semel oriri potest et transportum MCP solum localem cum indicio salutis praebere potest. Vices colloquii vocationes instrumentorum MCP ad eum dirigere possunt, cum reditu automatico ad stdio; cursus agentis laboris eo nondum utuntur et adiutore stdio per cursum semper utuntur. Quo desactivato, omnes agentes solitis adiutoribus stdio per cursum vel sessionem utuntur."
+        "description": "Activat daemonem adiutoris MCP persistentis et loco laboris proprii, qui semel oriri potest et transportus MCP solos locales cum indicio salutis praebere potest. Vices colloquii et cursus agentis laboris vocationes instrumentorum MCP ad eum dirigere possunt, si daemon sanus est, facultatem requisitam nuntiat, et provisor HTTP MCP sustinet; aliter ad solitos adiutores stdio redeunt. Quo desactivato, omnes agentes solitis adiutoribus stdio per cursum vel sessionem utuntur."
       },
       "browser_error_auto_reports": {
         "name": "Relationes automaticae errorum navigatoris",
