@@ -81,6 +81,15 @@ Coverage belongs in the repository's grader command. Syrus can read configured
 coverage artifacts, summarize deltas, and post a PR comment when requested,
 but the command itself should decide when coverage is collected.
 
+Repository pages also use stored coverage snapshots as one input to the
+cognitive debt panel. That panel ranks files for human review by combining
+coverage, review/approval engagement evidence, recent churn, and health
+signals. Its "cognitive coverage" percentage is deliberately labeled as a
+proxy for human engagement, not proof that a person fully understands the code.
+When line-specific review evidence comes from a different revision and cannot
+be projected on the repository page, Syrus links it as review context but does
+not count it as covered.
+
 For large suites, a common setup is:
 
 - no coverage for most review and repair iterations,

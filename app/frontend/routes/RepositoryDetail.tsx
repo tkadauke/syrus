@@ -2,7 +2,7 @@ import { type RepositoryDetailQueryKey, appendSearch, buttonClass, repositoryDet
 import { PanelMessage } from "../components/PanelMessage"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading, SectionHeading } from "../components/Heading"
-import { DataTable, DescriptionList } from "../components/ui"
+import { DataTable, DescriptionList, Metric, Surface } from "../components/ui"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -25,11 +25,11 @@ import { NoticeToast } from "../components/NoticeToast"
 import { ProviderAvailabilityWarning, ProviderFailoverNotice } from "../components/ProviderAvailabilityWarning"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { RepositoryPageShell } from "../components/RepositoryPageShell"
-import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
+import { StatusPill as StateStatusPill, TonePill, type PillTone } from "../components/StatusPill"
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { PreviewPanel } from "../components/PreviewPanel"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, runRepositoryRecommendation, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload, type RepositoryFeatureRecommendation } from "../api/repositories"
+import { fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, runRepositoryRecommendation, type InsightScheduleConfigRecord, type RepositoryCognitiveDebtQueueItem, type RepositoryDetailJob, type RepositoryDetailPayload, type RepositoryFeatureRecommendation } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 
 export function RepositoryDetailRoute() {
@@ -81,6 +81,7 @@ function RepositoryDetail({ activeTab, detail, prefix, queryKey }: { activeTab: 
           <div className="grid gap-6 lg:grid-cols-[62%_38%]">
             <div className="space-y-6">
               <RepositorySummary payload={payload} />
+              <CognitiveDebtSection payload={payload} prefix={prefix} />
               <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
               <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
               {payload.delivery ? <DeliveryTracksSection delivery={payload.delivery} prefix={prefix} /> : null}
@@ -132,6 +133,164 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
       ))}
     </div>
   )
+}
+
+function CognitiveDebtSection({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {
+  const { t } = useT("settings")
+  const debt = payload.cognitive_debt
+  if (!debt) return null
+
+  const summary = debt.summary
+
+  return (
+    <Surface aria-label={t("repository.cognitive_debt_aria")} className="text-sm" role="region">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <SectionHeading>
+            {t("repository.cognitive_debt")}
+          </SectionHeading>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-text-secondary">
+            {debt.proxy_notice || t("repository.cognitive_debt_proxy_notice")}
+          </p>
+          {debt.projection_notice ? (
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-warning-text">
+              {debt.projection_notice}
+            </p>
+          ) : null}
+        </div>
+        <Metric.Group className="w-full lg:w-[24rem] lg:shrink-0" columns={2} data-testid="cognitive-debt-metrics">
+          <Metric.Card label={t("repository.cognitive_coverage")} value={formatPercent(summary.cognitive_coverage_pct)} />
+          <Metric.Card label={t("repository.cognitive_covered")} value={summary.covered_count.toLocaleString()} />
+          <Metric.Card label={t("repository.cognitive_stale")} tone={summary.stale_count > 0 ? "warning" : "neutral"} value={summary.stale_count.toLocaleString()} />
+          <Metric.Card label={t("repository.cognitive_blind")} tone={summary.blind_count > 0 ? "danger" : "neutral"} value={summary.blind_count.toLocaleString()} />
+        </Metric.Group>
+      </div>
+
+      {debt.empty ? (
+        <Surface className="mt-4 text-text-secondary" padding="sm" variant="subtle">
+          {t("repository.cognitive_debt_empty")}
+        </Surface>
+      ) : (
+        <>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <CognitiveDebtRollupList title={t("repository.cognitive_subsystems")} rows={debt.subsystems.slice(0, 4)} />
+            <CognitiveDebtRollupList title={t("repository.cognitive_files")} rows={debt.files.slice(0, 4)} />
+          </div>
+          <div className="mt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+              {t("repository.cognitive_review_queue")}
+            </h3>
+            {debt.review_queue.length > 0 ? (
+              <div className="mt-2 divide-y divide-border rounded-[var(--radius-panel)] border border-border">
+                {debt.review_queue.map((item) => (
+                  <CognitiveDebtQueueRow item={item} key={item.path} prefix={prefix} />
+                ))}
+              </div>
+            ) : (
+              <Surface className="mt-2 text-text-secondary" padding="sm" variant="subtle">
+                {t("repository.cognitive_queue_empty")}
+              </Surface>
+            )}
+          </div>
+        </>
+      )}
+    </Surface>
+  )
+}
+
+function CognitiveDebtRollupList({ title, rows }: { title: string; rows: NonNullable<RepositoryDetailPayload["cognitive_debt"]>["files"] }) {
+  return (
+    <div>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{title}</h3>
+      <div className="mt-2 space-y-1">
+        {rows.map((row) => (
+          <div className="flex items-center justify-between gap-3 rounded-[var(--radius-control)] border border-border px-2 py-1.5 text-xs" key={row.key}>
+            <span className="min-w-0 truncate font-mono text-text-primary">{row.key}</span>
+            <span className="shrink-0 text-text-secondary">{formatPercent(row.cognitive_coverage_pct)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CognitiveDebtQueueRow({ item, prefix }: { item: RepositoryCognitiveDebtQueueItem; prefix: string }) {
+  const { t } = useT("settings")
+  const coverage = item.rollup.cognitive_coverage_pct
+  return (
+    <div className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <a className="font-mono text-sm text-brand hover:underline dark:text-brand-emphasis" href={item.source.github_url} rel="noopener" target="_blank">
+            {item.path}
+          </a>
+          <TonePill tone={cognitiveStateTone(item.coverage_state)}>{cognitiveStateLabel(item.coverage_state, t)}</TonePill>
+          {item.explanations.map((explanation) => (
+            <TonePill key={explanation} tone={explanationTone(explanation)}>
+              {explanationLabel(explanation, t)}
+            </TonePill>
+          ))}
+        </div>
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-secondary">
+          <span>{t("repository.cognitive_risk_score", { score: item.risk_score.toFixed(1) })}</span>
+          <span>{t("repository.cognitive_file_coverage", { pct: formatPercent(coverage) })}</span>
+          <span>{t("repository.cognitive_file_blind", { count: item.rollup.blind_count })}</span>
+          {item.signals.test_coverage_pct == null ? null : (
+            <span>{t("repository.cognitive_test_coverage", { pct: formatPercent(item.signals.test_coverage_pct) })}</span>
+          )}
+        </div>
+      </div>
+      {item.source.review_path ? (
+        <Link className={`${buttonClass("gray")} shrink-0`} to={withRoutePrefix(item.source.review_path, prefix)}>
+          {t("repository.cognitive_open_review")}
+        </Link>
+      ) : null}
+    </div>
+  )
+}
+
+function formatPercent(value: number | null | undefined) {
+  return value == null ? "n/a" : `${value.toFixed(1)}%`
+}
+
+function cognitiveStateTone(state: string): PillTone {
+  if (state === "covered") return "green"
+  if (state === "stale") return "amber"
+  return "red"
+}
+
+function explanationTone(explanation: string): PillTone {
+  if (explanation.includes("blind") || explanation.includes("untested") || explanation.includes("unhealthy")) return "red"
+  if (explanation.includes("stale") || explanation.includes("churn") || explanation.includes("coverage")) return "amber"
+  return "gray"
+}
+
+function cognitiveStateLabel(state: string, t: ReturnType<typeof useT>["t"]) {
+  const labels: Record<string, string> = {
+    covered: t("repository.cognitive_state_covered"),
+    stale: t("repository.cognitive_state_stale"),
+    blind: t("repository.cognitive_state_blind")
+  }
+  return labels[state] || state
+}
+
+function explanationLabel(explanation: string, t: ReturnType<typeof useT>["t"]) {
+  const labels: Record<string, string> = {
+    blind: t("repository.cognitive_chip_blind"),
+    stale: t("repository.cognitive_chip_stale"),
+    "partially blind": t("repository.cognitive_chip_partially_blind"),
+    "partially stale": t("repository.cognitive_chip_partially_stale"),
+    covered: t("repository.cognitive_chip_covered"),
+    "high churn": t("repository.cognitive_chip_high_churn"),
+    untested: t("repository.cognitive_chip_untested"),
+    "low test coverage": t("repository.cognitive_chip_low_test_coverage"),
+    "high complexity": t("repository.cognitive_chip_high_complexity"),
+    "unhealthy target": t("repository.cognitive_chip_unhealthy_target"),
+    "old blind code": t("repository.cognitive_chip_old_blind_code"),
+    "recent reliability signal": t("repository.cognitive_chip_recent_reliability_signal"),
+    "unprojected review evidence": t("repository.cognitive_chip_unprojected_review_evidence")
+  }
+  return labels[explanation] || explanation
 }
 
 export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
@@ -645,7 +804,7 @@ function buildRecentJobsColumns({ prefix, t }: { prefix: string; t: (key: string
           <ProviderFailoverNotice failover={job.provider_failover} className="mt-1 flex w-fit" />
           {job.current_step_caption ? <div className="mt-0.5 text-xs italic text-gray-500 dark:text-gray-400">{job.current_step_caption}</div> : null}
           <RepositoryRetryState job={job} />
-          <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 sm:hidden">
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-text-muted sm:hidden">
             <span>{t("repository.runs_count", { count: job.runs_count })}</span>
             <span>·</span>
             <span><RelativeTimestamp value={job.updated_at} /></span>
@@ -657,14 +816,14 @@ function buildRecentJobsColumns({ prefix, t }: { prefix: string; t: (key: string
       key: "runs",
       label: t('repository.col_runs'),
       responsiveClassName: "hidden sm:table-cell",
-      cellClassName: "text-gray-600 dark:text-gray-400",
+      cellClassName: "text-text-secondary",
       renderCell: (job) => job.runs_count
     },
     {
       key: "last_activity",
       label: t('repository.col_last'),
       responsiveClassName: "hidden sm:table-cell",
-      cellClassName: "text-gray-500 dark:text-gray-400",
+      cellClassName: "text-text-muted",
       renderCell: (job) => <RelativeTimestamp value={job.updated_at} />
     }
   ]
@@ -734,7 +893,7 @@ function RepositoryRetryState({ job }: { job: RepositoryDetailJob }) {
   const retry = job.retry_state
   if (!retry || retry.state_label === "No failure") return null
 
-  const tone = retry.auto_retry_exhausted ? "text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800" : retry.provider_circuit_open ? "text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800" : "text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+  const tone = retry.auto_retry_exhausted ? "border-danger-border bg-danger-surface text-danger-text" : retry.provider_circuit_open ? "border-warning-border bg-warning-surface text-warning-text" : "border-border bg-surface-subtle text-text-secondary"
   return (
     <div className={`mt-1 inline-flex flex-wrap items-center gap-1.5 rounded border px-2 py-1 text-xs ${tone}`}>
       <span className="font-medium">{retry.state_label}</span>
@@ -753,7 +912,7 @@ function RepositoryRetryState({ job }: { job: RepositoryDetailJob }) {
 
 function SourceLink({ job, prefix }: { job: { source: RepositoryDetailJob["source"] }; prefix: string }) {
   const { t } = useT("settings")
-  if (!job.source.path) return <span className="text-gray-600 dark:text-gray-400">{job.source.label}</span>
+  if (!job.source.path) return <span className="text-text-secondary">{job.source.label}</span>
   if (!job.source.external) {
     return (
       <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(job.source.path, prefix)}>
@@ -772,15 +931,15 @@ function SourceLink({ job, prefix }: { job: { source: RepositoryDetailJob["sourc
 function InsightScheduleBadge({ config }: { config: InsightScheduleConfigRecord }) {
   if (config.enabled) {
     return (
-      <span className="inline-flex items-center rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+      <TonePill tone="green">
         Auto: on (min {config.min_jobs_since_last_run} / max {config.max_jobs_since_last_run})
-      </span>
+      </TonePill>
     )
   }
   return (
-    <span className="inline-flex items-center rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-2 py-1 text-xs text-gray-500 dark:text-gray-400">
+    <TonePill tone="gray">
       Auto: off
-    </span>
+    </TonePill>
   )
 }
 
@@ -790,7 +949,7 @@ function Pagination({ payload, prefix }: { payload: RepositoryDetailPayload; pre
   if (pagination.total_pages <= 1) return null
 
   return (
-    <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+    <div className="mt-4 flex items-center justify-between text-sm text-text-secondary">
       <span>
         {t('repository.showing', { first: pagination.first_item, last: pagination.last_item, total: pagination.total_jobs })}
       </span>
