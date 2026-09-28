@@ -14,6 +14,19 @@ question is answered.
 | `pending_epic_ref` | the Epic named in the issue body to exist | automatic |
 | `classifier_uncertain` | **a person** | Accept or Reject |
 
+## Issue body markers
+
+Externally filed issues can attach themselves to an Epic with `Epic: #123`,
+`Epic: 123`, or `Epic: owner/repo#123`. Bare numbers always mean an issue in
+the same repository as the filed issue; use the owner/repo form for a different
+repository.
+
+Job and Epic dependency lines use the same reference syntax:
+`Depends-on: #123`, `Depends-on: 123`, `Blocked-by: #123`, or
+`Depends-on: owner/repo#123`. Multiple references can be comma-separated. Syrus
+records unresolved references as pending dependencies so out-of-order GitHub
+issue ingestion cannot accidentally start dependent Epic children independently.
+
 ## When the classifier cannot decide
 
 Any classifier failure — a malformed response, a provider timeout, an unknown

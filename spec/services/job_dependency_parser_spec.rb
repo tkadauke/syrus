@@ -13,8 +13,12 @@ RSpec.describe JobDependencyParser do
     expect(refs("Depends-on: #42")).to eq([ [ "acme", "widgets", 42 ] ])
   end
 
+  it "parses a bare same-repository issue number" do
+    expect(refs("Depends-on: 42")).to eq([ [ "acme", "widgets", 42 ] ])
+  end
+
   it "parses comma-separated references" do
-    expect(refs("Depends-on: #43, #44")).to eq([
+    expect(refs("Depends-on: #43, 44")).to eq([
       [ "acme", "widgets", 43 ],
       [ "acme", "widgets", 44 ]
     ])
@@ -34,6 +38,10 @@ RSpec.describe JobDependencyParser do
     ])
   end
 
+  it "does not parse digits embedded in words, versions, or repository paths as bare references" do
+    expect(refs("Depends-on: release-42 acme/widgets v1.2")).to eq([])
+  end
+
   it "ignores malformed lines gracefully" do
     expect(refs("Depends-on: tomorrow\nBlocks: #9\nDepends-on: acme/widgets")).to eq([])
   end
@@ -45,7 +53,7 @@ RSpec.describe JobDependencyParser do
   end
 
   it "caps the number of parsed references so a huge list can't trigger unbounded dependency lookups" do
-    text = "Depends-on: #{(1..500).map { |n| "##{n}" }.join(' ')}"
+    text = "Depends-on: #{(1..500).map(&:to_s).join(' ')}"
 
     result = refs(text)
 

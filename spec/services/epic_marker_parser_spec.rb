@@ -23,6 +23,15 @@ RSpec.describe EpicMarkerParser do
     })
   end
 
+  it "parses a bare same-repo child reference" do
+    expect(marker("Epic: 447")).to eq({
+      kind: :child_of_epic,
+      owner: "acme",
+      repo: "widgets",
+      number: 447
+    })
+  end
+
   it "parses a cross-repo child reference" do
     expect(marker("Epic: tkadauke/syrus#447")).to eq({
       kind: :child_of_epic,
@@ -60,10 +69,6 @@ RSpec.describe EpicMarkerParser do
 
   it "returns nil for a malformed slug reference" do
     expect(marker("Epic: foo#bar")).to be_nil
-  end
-
-  it "returns nil for numeric-only values" do
-    expect(marker("Epic: 447")).to be_nil
   end
 
   it "does not run a whole-body regex over long non-marker issue text" do
