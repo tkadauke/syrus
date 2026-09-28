@@ -55,7 +55,9 @@ module CodeFacts
     end
 
     def call
-      files = reader.files_at(sha).map { |path| fact_for(path) }
+      file_entries = reader.file_entries_at(sha)
+      facts = batch_facts
+      files = file_entries.map { |entry| fact_for(entry, facts) }
 
       Result.new(
         repository_id: repository&.id,
@@ -71,31 +73,34 @@ module CodeFacts
 
     attr_reader :repository, :git_path, :sha, :churn_windows, :now, :git
 
-    def fact_for(path)
-      content = reader.file_content(sha, path)
+    def fact_for(entry, facts)
+      path = entry.path
       type = Classifier.type_for(path)
-      last_modified_at = reader.last_modified_at(sha, path)
+      last_modified_at = facts.fetch(:last_modified_times)[path]
       exclusion_reasons = exclusion.reasons_for(path)
 
       FileFact.new(
         path: path,
         language: Classifier.language_for(path),
         type: type,
-        line_count: line_count(content),
+        line_count: line_count(entry, facts.fetch(:line_counts)),
         excluded: exclusion_reasons.any?,
         exclusion_reasons: exclusion_reasons,
         last_modified_at: last_modified_at,
         last_modified_days_ago: days_ago(last_modified_at),
         churn: churn_windows.index_with { |days| churn_by_window.dig(days, path).to_i },
-        complexity: Complexity.for(path: path, type: type, content: content)
+        complexity: Complexity.for(
+          type: type,
+          decision_count: facts.fetch(:decision_counts)[path],
+          definition_count: facts.fetch(:definition_counts)[path]
+        )
       )
     end
 
-    def line_count(content)
-      return nil if content.nil? || content.include?("\x00")
-      return 0 if content.empty?
+    def line_count(entry, line_counts)
+      return 0 if entry.size == 0
 
-      content.end_with?("\n") ? content.count("\n") : content.count("\n") + 1
+      line_counts[entry.path]
     end
 
     def days_ago(time)
@@ -121,17 +126,8 @@ module CodeFacts
       }
     end
 
-    def config
-      @config ||= begin
-        contents = reader.file_content(sha, SyrusYml::CONFIG_FILE)
-        contents.present? ? SyrusYml.new(contents).parse : nil
-      rescue SyrusYml::ParseError
-        nil
-      end
-    end
-
     def exclusion
-      @exclusion ||= Exclusion.new(config: config)
+      @exclusion ||= Exclusion.new(generated_patterns: generated_patterns)
     end
 
     def reader
@@ -140,6 +136,43 @@ module CodeFacts
 
     def churn_by_window
       @churn_by_window ||= reader.churn_counts(sha, windows: churn_windows, now: now)
+    end
+
+    def batch_facts
+      @batch_facts ||= {
+        line_counts: reader.line_counts(sha),
+        decision_counts: reader.complexity_counts(sha, Complexity::DECISION_GREP_PATTERN),
+        definition_counts: reader.complexity_counts(sha, Complexity::DEFINITION_GREP_PATTERN),
+        last_modified_times: reader.last_modified_times(sha)
+      }
+    end
+
+    def generated_patterns
+      @generated_patterns ||= begin
+        config_contents = reader.file_contents(sha, config_paths)
+        config_contents.flat_map do |config_path, contents|
+          generated_patterns_for(config_path, contents)
+        end
+      end
+    end
+
+    def config_paths
+      reader.files_at(sha).select do |path|
+        path == SyrusYml::CONFIG_FILE || path.end_with?("/#{SyrusYml::CONFIG_FILE}")
+      end
+    end
+
+    def generated_patterns_for(config_path, contents)
+      package = File.dirname(config_path)
+      package = "" if package == "."
+      config = SyrusYml.new(contents, project_path: package.presence).parse
+      return [] unless config.generated.is_a?(Array)
+
+      config.generated.flat_map(&:generates).map do |pattern|
+        package.present? ? "#{package}/#{pattern}" : pattern
+      end
+    rescue SyrusYml::ParseError
+      []
     end
   end
 end
