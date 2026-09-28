@@ -76,6 +76,12 @@ export const workflowSteps = [
 // The product pillars — framed for the owner who wants leverage with control.
 export const features = [
   {
+    id: "walkthrough",
+    title: "Show, don't type",
+    body: "Record a narrated screen walkthrough from chat, or drop in a webm, mp4, or mov. Syrus analyzes the video, extracts the issues and desired behavior, and turns the result into the same proposal-to-Job flow as issues and chat.",
+    href: "/docs/video-walkthroughs",
+  },
+  {
     id: "leverage",
     title: "Multiply your output",
     body: "Run many changes on one codebase at once — even changes that touch the same files. Every job works in its own isolated workspace, in-flight branches are rebased against each other automatically, and ordered work ships as stacked pull requests that land in sequence.",
@@ -123,6 +129,11 @@ export const entryPoints = [
     id: "ci",
     title: "CI failure",
     body: "A failing check kicks off a bounded, automatic repair attempt.",
+  },
+  {
+    id: "walkthrough",
+    title: "Video walkthrough",
+    body: "Record your screen with narration from chat. Syrus extracts issues, desired behavior, and screenshots before the agent proposes the work.",
   },
   {
     id: "direct",
