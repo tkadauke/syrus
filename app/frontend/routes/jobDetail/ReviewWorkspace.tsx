@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "../../components/Button"
+import { GearIcon } from "../../components/GearIcon"
 import { SectionHeading } from "../../components/Heading"
 import { ArtifactBody } from "../../components/artifacts/TypedArtifactPanel"
 import type { TypedArtifact } from "../../api/artifacts"
@@ -250,22 +251,25 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     <div className="relative grid min-w-0 max-w-full gap-4 lg:flex lg:items-start lg:gap-0">
       <div className="min-w-0 space-y-4 lg:flex-1">
         <Section.Root>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <SectionHeading>{t("review_summary_title")}</SectionHeading>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("review_changed_files", { count: activeDiff.files.length })}</p>
+          <div className="space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <SectionHeading>{t("review_summary_title")}</SectionHeading>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("review_version_files", { count: activeDiff.files.length })}</p>
+              </div>
+              <Button aria-label={t("review_settings_button")} className="h-9 w-9 shrink-0" onClick={() => setSettingsOpen(true)} size="icon" title={t("review_settings_button")} variant="secondary">
+                <GearIcon />
+              </Button>
             </div>
-            <div className="flex flex-wrap items-start gap-3 text-xs">
+            <div className="text-xs">
               <DiffReviewVersionSelector
                 disabled={sourceDiff.isFetching || historicalVersion.isFetching || rangeDiff.isFetching}
-                latestVersionId={defaultVersionId}
                 onChange={selectVersion}
                 onRangeChange={selectRange}
                 selectedRange={selectedRange}
                 selectedVersionId={activeVersionId}
                 versions={versions.length > 0 ? versions : selectedVersion ? [selectedVersion] : []}
               />
-              <Button onClick={() => setSettingsOpen(true)} size="sm" variant="secondary">{t("review_settings_button")}</Button>
             </div>
           </div>
           {payload.summary ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} /> : <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}

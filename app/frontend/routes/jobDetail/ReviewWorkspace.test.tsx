@@ -164,7 +164,13 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Review settings" }))
+    await screen.findByText("Implementation review")
+    expect(screen.getByText("2 files")).toBeInTheDocument()
+    expect(screen.queryByText("2 changed files")).not.toBeInTheDocument()
+    const settingsButton = screen.getByRole("button", { name: "Review settings" })
+    expect(settingsButton).toHaveClass("h-9", "w-9", "shrink-0")
+
+    fireEvent.click(settingsButton)
 
     const dialog = screen.getByRole("dialog", { name: "Review settings" })
     expect(dialog).toBeInTheDocument()
@@ -955,6 +961,7 @@ describe("ReviewWorkspace", () => {
     expect(selector).toHaveAttribute("aria-haspopup", "listbox")
     expect(selector).toHaveAttribute("aria-expanded", "false")
     expect(selector.closest("div")).toHaveClass("w-full", "min-w-0", "max-w-full")
+    expect(screen.queryByText(/Latest - chat_feedback - Workflow 12, Run 34/)).not.toBeInTheDocument()
 
     fireEvent.click(selector)
 
@@ -975,7 +982,7 @@ describe("ReviewWorkspace", () => {
     expect(within(selectedRange).queryByText("refs/hea...ong-name")).not.toBeInTheDocument()
     expect(screen.getByTitle("refs/heads/main-with-a-very-long-name @ base-sha-1234567890")).toHaveTextContent("From")
     expect(screen.getByTitle("syrus/direct-42-with-a-very-long-branch-name @ head-sha-1234567890")).toHaveTextContent("To")
-    expect(screen.getByText(/Latest - chat_feedback - Workflow 12, Run 34 - .* - From refs\/heads\/main-with-a-very-long-name \(base-sh\) to syrus\/direct-42-with-a-very-long-branch-name \(head-sh\) - 2 files - 2 comments/)).toBeInTheDocument()
+    expect(screen.queryByText(/Latest - chat_feedback - Workflow 12, Run 34 - .* - From refs\/heads\/main-with-a-very-long-name \(base-sh\) to syrus\/direct-42-with-a-very-long-branch-name \(head-sh\) - 2 files - 2 comments/)).not.toBeInTheDocument()
   })
 
   it("defaults to All changes while keeping a smaller repair-step range selectable", async () => {
