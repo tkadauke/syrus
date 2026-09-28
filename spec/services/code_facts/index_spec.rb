@@ -33,6 +33,13 @@ RSpec.describe CodeFacts::Index do
       end
     RUBY
     write("app/generated/client.rb", "class GeneratedClient\nend\n")
+    write("cli/.syrus.yml", <<~YAML)
+      generated:
+        - command: go generate ./...
+          generates:
+            - gen/**
+    YAML
+    write("cli/gen/client.go", "package gen\n")
     write("vendor/bundle/ruby/gem.rb", "module Vendored\nend\n")
     write("README.md", "# Widgets\n")
     git("add", ".")
@@ -78,10 +85,14 @@ RSpec.describe CodeFacts::Index do
     expect(vendored.excluded).to be(true)
     expect(vendored.exclusion_reasons).to include("vendor")
 
-    expect(result.rollup["file_count"]).to eq(3)
-    expect(result.rollup["excluded_file_count"]).to eq(2)
-    expect(result.rollup["line_count"]).to eq(17)
-    expect(result.rollup["languages"]).to include("Ruby" => 1, "Markdown" => 1, "YAML" => 1)
+    nested_generated = file(result, "cli/gen/client.go")
+    expect(nested_generated.excluded).to be(true)
+    expect(nested_generated.exclusion_reasons).to include("generated")
+
+    expect(result.rollup["file_count"]).to eq(4)
+    expect(result.rollup["excluded_file_count"]).to eq(3)
+    expect(result.rollup["line_count"]).to eq(21)
+    expect(result.rollup["languages"]).to include("Ruby" => 1, "Markdown" => 1, "YAML" => 2)
     expect(result.rollup["churn"]).to eq(7 => 2, 30 => 2)
 
     initial_result = described_class.for_workspace(workspace_path: repo_path, sha: initial_sha, churn_windows: [ 7 ], now: now)
@@ -99,6 +110,23 @@ RSpec.describe CodeFacts::Index do
     expect(readme.type).to eq("documentation")
     expect(readme.complexity).to eq("score" => nil, "source" => "unsupported")
     expect(result.rollup.dig("complexity", "average")).to be_nil
+  end
+
+  it "batches git facts instead of shelling out once per file" do
+    write(".syrus.yml", "prepare: []\n")
+    write("app/models/order.rb", "class Order\nend\n")
+    write("app/models/customer.rb", "class Customer\nend\n")
+    write("app/models/invoice.rb", "class Invoice\nend\n")
+    git("add", ".")
+    commit("code", at: now)
+    runner = CountingGitRunner.new(repo_path)
+
+    described_class.for_workspace(workspace_path: repo_path, now: now, churn_windows: [ 30 ], git: runner)
+
+    expect(runner.commands.any? { |command| command.first == "show" }).to be(false)
+    expect(runner.commands.any? { |command| command.first(2) == %w[log -1] }).to be(false)
+    expect(runner.commands.count { |command| command.first == "log" }).to eq(2)
+    expect(runner.commands.count { |command| command.first == "grep" }).to eq(3)
   end
 
   def file(result, path)
@@ -135,5 +163,20 @@ RSpec.describe CodeFacts::Index do
     raise "git #{args.join(' ')} failed:\n#{output}" unless $?.success?
 
     output
+  end
+
+  class CountingGitRunner
+    attr_reader :commands
+
+    def initialize(repo_path)
+      @repo_path = repo_path
+      @delegate = GitRunner.new
+      @commands = []
+    end
+
+    def run(*args, chdir: nil, **options)
+      commands << args.map(&:to_s)
+      @delegate.run(*args, chdir: chdir || @repo_path.to_s, **options)
+    end
   end
 end

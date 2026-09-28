@@ -13,8 +13,8 @@ module CodeFacts
       "db/schema.rb"
     ].freeze
 
-    def initialize(config:)
-      @config = config
+    def initialize(generated_patterns:)
+      @generated_patterns = generated_patterns
     end
 
     def reasons_for(path)
@@ -26,17 +26,11 @@ module CodeFacts
 
     private
 
-    attr_reader :config
+    attr_reader :generated_patterns
 
     def generated?(path)
       RepositoryContent::Glob.match?(GENERATED_PATTERNS, path) ||
-        RepositoryContent::Glob.match?(configured_generated_patterns, path)
-    end
-
-    def configured_generated_patterns
-      return [] unless config&.generated.is_a?(Array)
-
-      config.generated.flat_map(&:generates)
+        RepositoryContent::Glob.match?(generated_patterns, path)
     end
   end
 end
