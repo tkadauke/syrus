@@ -159,6 +159,15 @@ High-frequency reminders:
   `Step::Kind` rather than scattering constants.
 - Do not add core references that make bundled plugins undeletable; plugin-owned
   tools, docs, routes, and specs belong with the plugin.
+- New chat-facing MCP tools need an explicit rendering decision: add a tool card
+  under `app/frontend/routes/chat/tool_cards/` or
+  `plugins/<name>/app/frontend/tool_cards/`, or register an explicit
+  `generic`/`hidden`/`deferred` status in
+  `Admin::McpToolCardCoverage::EXPLICIT_CARD_STATUSES`.
+- When drafting work for chat, keep proposals finishable inside one bounded
+  implementation attempt. Do not ask a Job to dogfood, burn in, monitor
+  production, or wait for future operator action; avoid brand-new Epics with
+  only one child Job.
 - Generate migrations with `bin/rails generate migration`, make them idempotent,
   and avoid JSON column database defaults on MySQL.
 - Use `git diff <base>...HEAD` for three-dot diffs.
