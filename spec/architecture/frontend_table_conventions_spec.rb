@@ -59,7 +59,8 @@ RSpec.describe "frontend table conventions" do
   # preferences instead of local column preferences.
   DIRECT_DATA_TABLE_CONTROL_EXCEPTIONS = {
     "app/frontend/routes/AdminInstallations.tsx#root1" => "credential-mode comparison matrix, not a record list",
-    "app/frontend/routes/AdminMaintenanceTasks.tsx#root1" => "maintenance-task detail event log, not the index table",
+    "app/frontend/routes/AdminMaintenanceTasks.tsx#root1" => "maintenance-task unresolved landing failure detail table, not the index table",
+    "app/frontend/routes/AdminMaintenanceTasks.tsx#root2" => "maintenance-task detail event log, not the index table",
     "app/frontend/routes/AdminMcpToolUsage.tsx#root1" => "fixed MCP startup-phase latency diagnostic table",
     "app/frontend/routes/AdminMcpToolUsage.tsx#root2" => "compact MCP tool leaderboard with fixed numeric columns",
     "app/frontend/routes/AdminMcpToolUsage.tsx#root3" => "compact MCP usage breakdown with fixed numeric columns",
