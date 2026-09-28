@@ -623,6 +623,26 @@ RSpec.describe Epic, :ci_only do
       expect(epic.pending_epic_dependency_refs).to eq([])
     end
 
+    it "creates an EpicDependency for a bare same-repository GitHub issue number" do
+      prerequisite = described_class.create!(
+        user: user,
+        repository: repository,
+        title: "Universal dashboard",
+        github_issue_url: "https://github.com/acme/widgets/issues/534"
+      )
+
+      epic = described_class.create!(
+        user: user,
+        repository: repository,
+        title: "Workflows as a third subject",
+        github_issue_url: "https://github.com/acme/widgets/issues/535",
+        description: "Depends-on: 534"
+      )
+
+      expect(epic.depends_on_epics).to contain_exactly(prerequisite)
+      expect(epic.pending_epic_dependency_refs).to eq([])
+    end
+
     it "creates dependencies for cross-repository references, comma-separated refs, and synonyms" do
       other_repository = Factories.repository(user: user, owner: "acme", name: "api")
       same_repo_blocker = described_class.create!(

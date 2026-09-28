@@ -1,5 +1,5 @@
 class EpicMarkerParser
-  REFERENCE_PATTERN = /\A(?:(?<owner>[A-Za-z0-9][A-Za-z0-9._-]*)\/(?<repo>[A-Za-z0-9][A-Za-z0-9._-]*))?\#(?<number>\d+)\z/
+  REFERENCE_PATTERN = /\A(?:(?<owner>[A-Za-z0-9][A-Za-z0-9._-]*)\/(?<repo>[A-Za-z0-9][A-Za-z0-9._-]*))?\#?(?<number>\d+)\z/
   MAX_MARKER_VALUE_BYTES = 2.kilobytes
 
   def self.parse(text:, default_repository:)
@@ -53,6 +53,6 @@ class EpicMarkerParser
   end
 
   def malformed_reference?(value)
-    value.match?(/\A\d+\z/) || value.include?("#")
+    value.include?("#")
   end
 end
