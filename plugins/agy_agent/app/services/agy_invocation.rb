@@ -114,6 +114,7 @@ class AgyInvocation
       command: agy_command(resume_session_id: effective_resume_session_id),
       stdin_data: stdin_event(prompt),
       mounts: ProcessRunner.mounts(workspace_path),
+      network: "agent",
       timeout: timeout,
       silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,
       kind: "agent",

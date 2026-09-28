@@ -315,6 +315,7 @@ class ImmutableSourceCheckout
       env: prepare_env,
       command: [ "bash", "-c", runner_command ],
       mounts: ProcessRunner.mounts(path),
+      network: "prepare",
       timeout: Steps::Prepare::PER_COMMAND_TIMEOUT,
       kind: "prepare",
       run: current_run,

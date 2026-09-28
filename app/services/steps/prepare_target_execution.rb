@@ -72,6 +72,7 @@ module Steps
           env: env,
           command: [ "bash", "-c", command ],
           mounts: ProcessRunner.mounts(workdir, read_write: workspace.path),
+          network: "prepare",
           timeout: Steps::Prepare::PER_COMMAND_TIMEOUT,
           kind: "prepare",
           run: run,
