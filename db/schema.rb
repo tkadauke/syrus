@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_28_093000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_28_225503) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2338,7 +2338,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_093000) do
     t.integer "handling_workflow_id"
     t.datetime "ignored_at"
     t.integer "job_id", null: false
+    t.integer "line"
+    t.integer "original_line"
+    t.integer "original_start_line"
+    t.string "path"
     t.string "pr_type", null: false
+    t.string "side"
+    t.integer "start_line"
     t.datetime "updated_at", null: false
     t.index ["actioned_at"], name: "index_pr_review_comments_on_actioned_at"
     t.index ["handling_state"], name: "index_pr_review_comments_on_handling_state"
