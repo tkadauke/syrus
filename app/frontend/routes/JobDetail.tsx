@@ -511,12 +511,16 @@ function HeaderChatAffordance({
 
   if (payload.job.source_chat) {
     return (
-      <span className="inline-flex min-w-0 items-center gap-1">
+      <span className="inline-flex shrink-0 items-center gap-1">
         <SlugHoverCard id={payload.job.source_chat.chat_id} kind="chat">
-          <CopyableSlug className="text-xs" slug={`CHAT-${payload.job.source_chat.chat_id}`} />
+          <CopyableSlug className="shrink-0 whitespace-nowrap text-xs" slug={`CHAT-${payload.job.source_chat.chat_id}`} />
         </SlugHoverCard>
-        <Link className="min-w-0 break-words font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>
-          {payload.job.source_chat.chat_title || t("chat:new_title")}
+        <Link
+          className="shrink-0 font-medium text-brand hover:underline"
+          title={payload.job.source_chat.chat_title || t("chat:new_title")}
+          to={withRoutePrefix(payload.job.source_chat.path, prefix)}
+        >
+          {t("chat")}
         </Link>
       </span>
     )

@@ -29,6 +29,7 @@ export type MaintenanceTask = {
   dismissed_at: string | null
   last_error: string | null
   pending_reason: string | null
+  checkpoint?: Record<string, unknown> | null
   documentation: string | null
   steps: Array<{ key: string; title: string; description: string | null }>
   paths: { admin: string; api: string }
@@ -42,7 +43,25 @@ export type MaintenanceTaskEvent = {
   message: string
   units_done: number | null
   units_total: number | null
+  metadata?: Record<string, unknown>
   created_at: string
+}
+
+export type LandedCommitBackfillFailure = {
+  repository_slug?: string
+  landable_type?: string
+  landable_id?: number
+  landable_slug?: string
+  exception_class?: string
+  message?: string
+}
+
+export type LandedCommitBackfillUnresolvedRepository = {
+  id: number
+  slug: string
+  errors: number
+  failure_details: LandedCommitBackfillFailure[]
+  failure_details_omitted: number
 }
 
 export type MaintenanceTaskEventPagination = {

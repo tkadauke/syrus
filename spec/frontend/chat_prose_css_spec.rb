@@ -24,6 +24,17 @@ RSpec.describe "chat prose CSS" do
     expect(table_rule).to include("width: 100%")
     expect(table_rule).to include("max-width: 100%")
     expect(table_rule).not_to include("width: max-content")
+    expect(wrapper_rule).to include("min-width: 0")
     expect(wrapper_rule).to include("overflow-x: auto")
+  end
+
+  it "keeps wide markdown blocks from expanding the viewport" do
+    prose_rule = css[/\.chat-prose \{[^}]+\}/]
+    pre_rule = css[/\.chat-prose pre \{[^}]+\}/]
+
+    expect(prose_rule).to include("min-width: 0")
+    expect(prose_rule).to include("max-width: 100%")
+    expect(pre_rule).to include("max-width: 100%")
+    expect(pre_rule).to include("overflow-x: auto")
   end
 end

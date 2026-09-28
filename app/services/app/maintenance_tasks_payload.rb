@@ -114,6 +114,7 @@ module App
         dismissed_at: task.dismissed_at,
         last_error: task.last_error,
         pending_reason: task.metadata["pending_reason"],
+        checkpoint: include_documentation ? task.checkpoint : nil,
         documentation: include_documentation ? definition.documentation : nil,
         steps: definition.steps.map { |step| { key: step.key, title: step.title, description: step.description } },
         requested_by: task.requested_by_user && {

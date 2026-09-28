@@ -2,8 +2,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { discoverMaintenanceTasks, fetchAdminMaintenanceTask, fetchAdminMaintenanceTasks, runMaintenanceTaskAction } from "../api/maintenanceTasks"
-import type { AdminMaintenanceTaskDetailPayload, AdminMaintenanceTasksPayload, MaintenanceTask } from "../api/maintenanceTasks"
-import { AdminEventLogTable, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, disabledPaginationClass, paginationLinkClass } from "../components/AdminEventLogPanel"
+import type {
+  AdminMaintenanceTaskDetailPayload,
+  AdminMaintenanceTasksPayload,
+  LandedCommitBackfillFailure,
+  LandedCommitBackfillUnresolvedRepository,
+  MaintenanceTask
+} from "../api/maintenanceTasks"
+import {
+  AdminEventLogTable,
+  AdminEventPageShell,
+  AdminEventPanelMessage,
+  adminEventLinkClass,
+  disabledPaginationClass,
+  paginationLinkClass
+} from "../components/AdminEventLogPanel"
 import type { AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { Button } from "../components/Button"
@@ -100,10 +113,18 @@ export function AdminMaintenanceTaskDetail() {
   })
 
   if (detail.isPending) {
-    return <AdminEventPageShell ariaLabel={t("maintenance_tasks.detail_aria")} eyebrow={t("section_label")} title={t("maintenance_tasks.detail_title")}><AdminEventPanelMessage>{t("maintenance_tasks.detail_loading")}</AdminEventPanelMessage></AdminEventPageShell>
+    return (
+      <AdminEventPageShell ariaLabel={t("maintenance_tasks.detail_aria")} eyebrow={t("section_label")} title={t("maintenance_tasks.detail_title")}>
+        <AdminEventPanelMessage>{t("maintenance_tasks.detail_loading")}</AdminEventPanelMessage>
+      </AdminEventPageShell>
+    )
   }
   if (detail.isError) {
-    return <AdminEventPageShell ariaLabel={t("maintenance_tasks.detail_aria")} eyebrow={t("section_label")} title={t("maintenance_tasks.detail_title")}><AdminEventPanelMessage tone="error">{t("maintenance_tasks.detail_error_load")}</AdminEventPanelMessage></AdminEventPageShell>
+    return (
+      <AdminEventPageShell ariaLabel={t("maintenance_tasks.detail_aria")} eyebrow={t("section_label")} title={t("maintenance_tasks.detail_title")}>
+        <AdminEventPanelMessage tone="error">{t("maintenance_tasks.detail_error_load")}</AdminEventPanelMessage>
+      </AdminEventPageShell>
+    )
   }
 
   const task = detail.data
@@ -114,9 +135,12 @@ export function AdminMaintenanceTaskDetail() {
       eyebrow={t("section_label")}
       title={task.title}
     >
-      <Link className={adminEventLinkClass()} to={withRoutePrefix("/admin/maintenance_tasks", prefix)}>{t("maintenance_tasks.back_link")}</Link>
+      <Link className={adminEventLinkClass()} to={withRoutePrefix("/admin/maintenance_tasks", prefix)}>
+        {t("maintenance_tasks.back_link")}
+      </Link>
       <p className="max-w-3xl text-sm text-text-muted">{task.summary}</p>
       <TaskProgress task={task} large />
+      <LandedCommitBackfillFailures task={task} />
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-text-primary">{t("maintenance_tasks.task_log")}</h2>
@@ -126,6 +150,159 @@ export function AdminMaintenanceTaskDetail() {
       {documentationOpen ? <TaskDocumentationModal task={task} onClose={() => setDocumentationOpen(false)} /> : null}
     </AdminEventPageShell>
   )
+}
+
+function LandedCommitBackfillFailures({ task }: { task: AdminMaintenanceTaskDetailPayload }) {
+  const { t } = useT("admin")
+  const repositories = landedCommitBackfillFailures(task)
+  if (repositories.length === 0) return null
+
+  return (
+    <section className="space-y-3 rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/70 dark:bg-amber-950/30">
+      <div>
+        <h2 className="text-sm font-semibold text-text-primary">{t("maintenance_tasks.unresolved_landings")}</h2>
+        <p className="mt-1 text-xs text-text-muted">{t("maintenance_tasks.unresolved_landings_description")}</p>
+      </div>
+      <div className="space-y-3">
+        {repositories.map((repository) => (
+          <div className="rounded border border-border bg-surface" key={repository.id}>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+              <div className="min-w-0">
+                <p className="break-all font-mono text-xs font-semibold text-text-primary">{repository.slug}</p>
+                <p className="text-xs text-text-muted">{t("maintenance_tasks.unresolved_failure_count", { count: repository.errors })}</p>
+              </div>
+              {repository.failure_details_omitted > 0 ? (
+                <TonePill tone="amber">{t("maintenance_tasks.unresolved_omitted", { count: repository.failure_details_omitted })}</TonePill>
+              ) : null}
+            </div>
+            <FailureDetailsMobileList failures={repository.failure_details} repositoryId={repository.id} />
+            <FailureDetailsTable failures={repository.failure_details} repositoryId={repository.id} />
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function FailureDetailsMobileList({ failures, repositoryId }: { failures: LandedCommitBackfillFailure[]; repositoryId: number }) {
+  const { t } = useT("admin")
+
+  return (
+    <div className="max-h-80 divide-y divide-border overflow-auto sm:hidden" data-testid={`unresolved-failures-mobile-${repositoryId}`}>
+      {failures.map((failure, index) => (
+        <dl className="grid gap-2 px-3 py-3 text-xs" key={`${repositoryId}-${index}`}>
+          <div className="space-y-1">
+            <dt className="font-medium text-text-muted">{t("maintenance_tasks.col_landing")}</dt>
+            <dd>
+              <code className="break-all text-[0.75rem] font-semibold text-text-primary">{landingLabel(failure)}</code>
+            </dd>
+          </div>
+          <div className="space-y-1">
+            <dt className="font-medium text-text-muted">{t("maintenance_tasks.col_error")}</dt>
+            <dd className="break-all font-mono text-[0.75rem] text-text-primary">{failure.exception_class || "-"}</dd>
+          </div>
+          <div className="space-y-1">
+            <dt className="font-medium text-text-muted">{t("maintenance_tasks.col_message")}</dt>
+            <dd className="whitespace-pre-wrap break-words leading-5 text-text-primary">{failure.message || "-"}</dd>
+          </div>
+        </dl>
+      ))}
+    </div>
+  )
+}
+
+function FailureDetailsTable({ failures, repositoryId }: { failures: LandedCommitBackfillFailure[]; repositoryId: number }) {
+  const { t } = useT("admin")
+
+  return (
+    <div className="hidden max-h-80 overflow-auto sm:block">
+      <DataTable.Root density="compact" wrapperClassName="rounded-none border-0 border-t">
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("maintenance_tasks.col_landing")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("maintenance_tasks.col_error")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("maintenance_tasks.col_message")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
+          {failures.map((failure, index) => (
+            <DataTable.Row key={`${repositoryId}-${index}`}>
+              <DataTable.Cell className="max-w-[14rem] align-top">
+                <code className="break-all text-[0.7rem] text-text-primary">{landingLabel(failure)}</code>
+              </DataTable.Cell>
+              <DataTable.Cell className="max-w-[12rem] break-all align-top font-mono text-[0.7rem] text-text-muted">
+                {failure.exception_class || "-"}
+              </DataTable.Cell>
+              <DataTable.Cell className="min-w-[16rem] max-w-[34rem] whitespace-pre-wrap break-words align-top text-text-primary">
+                {failure.message || "-"}
+              </DataTable.Cell>
+            </DataTable.Row>
+          ))}
+        </DataTable.Body>
+      </DataTable.Root>
+    </div>
+  )
+}
+
+function landedCommitBackfillFailures(task: AdminMaintenanceTaskDetailPayload): LandedCommitBackfillUnresolvedRepository[] {
+  const checkpoint = task.checkpoint
+  if (!checkpoint || typeof checkpoint !== "object") return []
+
+  const entries = checkpoint.unresolved_repositories
+  if (!Array.isArray(entries)) return []
+
+  return entries.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return []
+    const attrs = entry as Record<string, unknown>
+    const id = Number(attrs.id)
+    const slug = typeof attrs.slug === "string" ? attrs.slug : ""
+    const errors = Number(attrs.errors)
+    if (!Number.isFinite(id) || !slug || !Number.isFinite(errors) || errors <= 0) return []
+
+    return [
+      {
+        id,
+        slug,
+        errors,
+        failure_details: parseFailureDetails(attrs.failure_details),
+        failure_details_omitted: Number(attrs.failure_details_omitted) || 0
+      }
+    ]
+  })
+}
+
+function parseFailureDetails(value: unknown): LandedCommitBackfillFailure[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return []
+    const attrs = item as Record<string, unknown>
+    return [
+      {
+        repository_slug: stringValue(attrs.repository_slug),
+        landable_type: stringValue(attrs.landable_type),
+        landable_id: numberValue(attrs.landable_id),
+        landable_slug: stringValue(attrs.landable_slug),
+        exception_class: stringValue(attrs.exception_class),
+        message: stringValue(attrs.message)
+      }
+    ]
+  })
+}
+
+function landingLabel(failure: LandedCommitBackfillFailure) {
+  if (failure.landable_slug) return failure.landable_slug
+  if (failure.landable_type && failure.landable_id) return `${failure.landable_type} #${failure.landable_id}`
+  return "-"
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : undefined
+}
+
+function numberValue(value: unknown) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : undefined
 }
 
 function MaintenanceTasksTable({
@@ -152,7 +329,9 @@ function MaintenanceTasksTable({
       sort: "title",
       render: (task) => (
         <div className="space-y-2">
-          <Link className={adminEventLinkClass()} to={withRoutePrefix(`/admin/maintenance_tasks/${task.id}`, prefix)}>{task.title}</Link>
+          <Link className={adminEventLinkClass()} to={withRoutePrefix(`/admin/maintenance_tasks/${task.id}`, prefix)}>
+            {task.title}
+          </Link>
           <p className="max-w-lg text-xs text-text-muted">{task.summary}</p>
           <TaskType task={task} />
         </div>
@@ -168,7 +347,9 @@ function MaintenanceTasksTable({
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
             <TaskStatusPill task={task} />
-            <span className="text-xs text-text-muted">{task.progress_percent}%{task.eta_seconds == null ? "" : ` · ${formatEta(task.eta_seconds, t)}`}</span>
+            <span className="text-xs text-text-muted">
+              {task.progress_percent}%{task.eta_seconds == null ? "" : ` · ${formatEta(task.eta_seconds, t)}`}
+            </span>
           </div>
           <TaskProgress task={task} showMeta={false} />
           <p className="line-clamp-2 text-xs text-text-muted">{task.current_step_title || t("maintenance_tasks.no_active_step")}</p>
@@ -189,7 +370,7 @@ function MaintenanceTasksTable({
       header: t("maintenance_tasks.col_started"),
       key: "started",
       sort: "started_at",
-      render: (task) => task.started_at ? <RelativeTimestamp value={task.started_at} /> : "-"
+      render: (task) => (task.started_at ? <RelativeTimestamp value={task.started_at} /> : "-")
     }
   ]
 
@@ -237,7 +418,19 @@ function TaskType({ task }: { task: MaintenanceTask }) {
   )
 }
 
-export function TaskActions({ task, busy, compact = false, onAction, onDocs }: { task: MaintenanceTask; busy?: boolean; compact?: boolean; onAction: (action: "start" | "pause" | "resume" | "cancel" | "dismiss") => void; onDocs: () => void }) {
+export function TaskActions({
+  task,
+  busy,
+  compact = false,
+  onAction,
+  onDocs
+}: {
+  task: MaintenanceTask
+  busy?: boolean
+  compact?: boolean
+  onAction: (action: "start" | "pause" | "resume" | "cancel" | "dismiss") => void
+  onDocs: () => void
+}) {
   const { t } = useT("admin")
   const { confirm, dialog } = useConfirm()
 
@@ -255,9 +448,13 @@ export function TaskActions({ task, busy, compact = false, onAction, onDocs }: {
     <>
       <div className={`flex flex-wrap items-center gap-1.5 ${compact ? "justify-end" : ""}`}>
         {task.state === "running" ? <TaskActionButton action="pause" busy={busy} compact={compact} onClick={() => onAction("pause")} /> : null}
-        {["pending", "failed", "dismissed"].includes(task.state) ? <TaskActionButton action="start" busy={busy} compact={compact} onClick={() => onAction("start")} /> : null}
+        {["pending", "failed", "dismissed"].includes(task.state) ? (
+          <TaskActionButton action="start" busy={busy} compact={compact} onClick={() => onAction("start")} />
+        ) : null}
         {task.state === "paused" ? <TaskActionButton action="resume" busy={busy} compact={compact} onClick={() => onAction("resume")} /> : null}
-        {["pending", "failed", "dismissed"].includes(task.state) ? <TaskActionButton action="dismiss" busy={busy} compact={compact} onClick={() => onAction("dismiss")} /> : null}
+        {["pending", "failed", "dismissed"].includes(task.state) ? (
+          <TaskActionButton action="dismiss" busy={busy} compact={compact} onClick={() => onAction("dismiss")} />
+        ) : null}
         {["running", "paused"].includes(task.state) ? <TaskActionButton action="cancel" busy={busy} compact={compact} onClick={() => void cancel()} /> : null}
         <TaskActionButton action="docs" busy={busy} compact={compact} onClick={onDocs} />
       </div>
@@ -270,7 +467,17 @@ function TaskStatusPill({ task }: { task: MaintenanceTask }) {
   return <StatusPill state={task.state} />
 }
 
-function TaskActionButton({ action, busy = false, compact = false, onClick }: { action: MaintenanceTaskActionName | "docs"; busy?: boolean; compact?: boolean; onClick: () => void }) {
+function TaskActionButton({
+  action,
+  busy = false,
+  compact = false,
+  onClick
+}: {
+  action: MaintenanceTaskActionName | "docs"
+  busy?: boolean
+  compact?: boolean
+  onClick: () => void
+}) {
   const { t } = useT("admin")
   const labels: Record<MaintenanceTaskActionName | "docs", string> = {
     cancel: t("maintenance_tasks.cancel_task"),
@@ -332,7 +539,16 @@ function MinusIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
 
 function QuestionIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
-    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 20 20">
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 20 20"
+    >
       <path d="M7.75 7.35a2.4 2.4 0 1 1 3.52 2.12c-.76.43-1.27.84-1.27 1.78" />
       <path d="M10 14.75h.01" />
     </svg>
@@ -346,8 +562,12 @@ export function TaskProgress({ task, large = false, showMeta = true }: { task: M
     <div className={large ? "rounded border border-border bg-surface p-4" : ""}>
       {showMeta ? (
         <div className="flex items-center justify-between gap-3 text-xs text-text-muted">
-          <span>{task.completed_units}/{task.total_units}</span>
-          <span>{task.progress_percent}%{eta ? ` · ${eta}` : ""}</span>
+          <span>
+            {task.completed_units}/{task.total_units}
+          </span>
+          <span>
+            {task.progress_percent}%{eta ? ` · ${eta}` : ""}
+          </span>
         </div>
       ) : null}
       <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface-raised">
@@ -379,8 +599,12 @@ function TaskEventLog({ task }: { task: AdminMaintenanceTaskDetailPayload }) {
           <DataTable.Body>
             {events.map((event) => (
               <DataTable.Row key={event.id}>
-                <DataTable.Cell className="whitespace-nowrap text-text-muted">{event.created_at ? <RelativeTimestamp value={event.created_at} /> : "-"}</DataTable.Cell>
-                <DataTable.Cell className="whitespace-nowrap"><TonePill tone={event.level === "error" ? "red" : event.level === "warning" ? "amber" : "blue"}>{event.level}</TonePill></DataTable.Cell>
+                <DataTable.Cell className="whitespace-nowrap text-text-muted">
+                  {event.created_at ? <RelativeTimestamp value={event.created_at} /> : "-"}
+                </DataTable.Cell>
+                <DataTable.Cell className="whitespace-nowrap">
+                  <TonePill tone={event.level === "error" ? "red" : event.level === "warning" ? "amber" : "blue"}>{event.level}</TonePill>
+                </DataTable.Cell>
                 <DataTable.Cell className="text-text-muted">{event.step_title || "-"}</DataTable.Cell>
                 <DataTable.Cell>{event.message}</DataTable.Cell>
               </DataTable.Row>
@@ -415,12 +639,31 @@ function TaskEventPagination({ task }: { task: AdminMaintenanceTaskDetailPayload
   if (pagination.total_pages <= 1) return null
 
   return (
-    <nav aria-label={t("maintenance_tasks.aria_log_pagination")} className="flex flex-col gap-3 border-t border-gray-200 px-3 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-      <span className="whitespace-nowrap">{t("maintenance_tasks.log_showing", { first: pagination.first_item, last: pagination.last_item, total: pagination.total_events })}</span>
+    <nav
+      aria-label={t("maintenance_tasks.aria_log_pagination")}
+      className="flex flex-col gap-3 border-t border-border px-3 py-3 text-sm text-text-muted sm:flex-row sm:items-center sm:justify-between sm:px-4"
+    >
+      <span className="whitespace-nowrap">
+        {t("maintenance_tasks.log_showing", { first: pagination.first_item, last: pagination.last_item, total: pagination.total_events })}
+      </span>
       <div className="flex items-center justify-between gap-2 sm:justify-end">
-        {pagination.previous_page ? <Link className={paginationLinkClass()} to={withRoutePrefix(logPagePath(location.pathname, location.search, pagination.previous_page), prefix)}>{t("maintenance_tasks.previous")}</Link> : <span className={disabledPaginationClass()}>{t("maintenance_tasks.previous")}</span>}
-        <span className="whitespace-nowrap px-1 text-xs text-text-muted">{t("maintenance_tasks.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
-        {pagination.next_page ? <Link className={paginationLinkClass()} to={withRoutePrefix(logPagePath(location.pathname, location.search, pagination.next_page), prefix)}>{t("maintenance_tasks.next")}</Link> : <span className={disabledPaginationClass()}>{t("maintenance_tasks.next")}</span>}
+        {pagination.previous_page ? (
+          <Link className={paginationLinkClass()} to={withRoutePrefix(logPagePath(location.pathname, location.search, pagination.previous_page), prefix)}>
+            {t("maintenance_tasks.previous")}
+          </Link>
+        ) : (
+          <span className={disabledPaginationClass()}>{t("maintenance_tasks.previous")}</span>
+        )}
+        <span className="whitespace-nowrap px-1 text-xs text-text-muted">
+          {t("maintenance_tasks.page_of", { page: pagination.page, total: pagination.total_pages })}
+        </span>
+        {pagination.next_page ? (
+          <Link className={paginationLinkClass()} to={withRoutePrefix(logPagePath(location.pathname, location.search, pagination.next_page), prefix)}>
+            {t("maintenance_tasks.next")}
+          </Link>
+        ) : (
+          <span className={disabledPaginationClass()}>{t("maintenance_tasks.next")}</span>
+        )}
       </div>
     </nav>
   )
@@ -442,14 +685,21 @@ export function TaskDocumentationModal({ task, onClose }: { task: MaintenanceTas
   return (
     <Modal
       backdropClassName="fixed inset-0 z-50 flex h-[100dvh] w-[100dvw] items-stretch justify-center bg-black/40 p-0 sm:items-center sm:p-4"
-      className="flex h-[100dvh] w-[100dvw] flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[min(82dvh,46rem)] sm:w-[min(92dvw,52rem)] sm:rounded-lg dark:bg-gray-950"
+      className="flex h-[100dvh] w-[100dvw] flex-col overflow-hidden bg-surface shadow-2xl sm:h-auto sm:max-h-[min(82dvh,46rem)] sm:w-[min(92dvw,52rem)] sm:rounded-lg"
       label={t("maintenance_tasks.documentation_label", { title: task.title })}
       onClose={onClose}
       open
     >
       <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <h2 className="truncate text-sm font-semibold text-text-primary">{task.title}</h2>
-        <Button aria-label={t("maintenance_tasks.close_documentation")} className="h-7 w-7" onClick={onClose} size="icon" title={t("maintenance_tasks.close_documentation")} variant="secondary">
+        <Button
+          aria-label={t("maintenance_tasks.close_documentation")}
+          className="h-7 w-7"
+          onClick={onClose}
+          size="icon"
+          title={t("maintenance_tasks.close_documentation")}
+          variant="secondary"
+        >
           <CloseIcon className="h-3.5 w-3.5" />
         </Button>
       </header>

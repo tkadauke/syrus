@@ -2,7 +2,12 @@ module MaintenanceTasks
   module Definitions
     class Base
       Step = Data.define(:key, :title, :description)
-      Result = Struct.new(:done, :processed, :failed, :message, :level, keyword_init: true)
+      Result = Struct.new(:done, :processed, :failed, :message, :level, :metadata, keyword_init: true) do
+        def initialize(**)
+          super
+          self.metadata ||= {}
+        end
+      end
 
       class_attribute :definition_key, :definition_title, :definition_summary,
                       :definition_category, :definition_recurrence,

@@ -77,7 +77,7 @@ RSpec.describe Jobs::LandedCommitsBackfill do
     end
 
     it "logs and skips a Job when the GitHub API call fails, without aborting the run" do
-      landed_job(pr_number: 501, landed_sha: "mergedsha1")
+      job = landed_job(pr_number: 501, landed_sha: "mergedsha1")
       client = double("GithubClient")
       allow(client).to receive(:pr_commits).and_raise(Octokit::NotFound.new)
 
@@ -85,6 +85,15 @@ RSpec.describe Jobs::LandedCommitsBackfill do
 
       expect(result.checked).to eq(1)
       expect(result.errors).to eq(1)
+      expect(result.failures.map(&:to_h)).to contain_exactly(
+        hash_including(
+          "repository_slug" => repository.slug,
+          "landable_type" => "Job",
+          "landable_id" => job.id,
+          "landable_slug" => job.slug,
+          "exception_class" => "Octokit::NotFound"
+        )
+      )
       expect(LandedCommit.count).to eq(0)
     end
   end
@@ -328,6 +337,14 @@ RSpec.describe Jobs::LandedCommitsBackfill do
 
       expect(first_result.errors).to eq(1)
       expect(first_result.recorded).to eq(0)
+      expect(first_result.failures.map(&:to_h)).to contain_exactly(
+        hash_including(
+          "repository_slug" => repository.slug,
+          "landable_type" => "MergeTrain",
+          "landable_id" => train.id,
+          "exception_class" => "Octokit::NotFound"
+        )
+      )
       # Member A's subjects matched and would have been the first write in
       # the (rolled-back) transaction — assert nothing for the train
       # persisted, not just that B is missing.

@@ -5,6 +5,8 @@ module MaintenanceTasks
       PROCESSED_REPOSITORY_IDS = "processed_repository_ids".freeze
       RETRY_UNRESOLVED_REPOSITORY_IDS = "retry_unresolved_repository_ids".freeze
       UNRESOLVED_REPOSITORIES = "unresolved_repositories".freeze
+      MAX_FAILURE_DETAILS_PER_REPOSITORY = 25
+      MAX_FAILURE_MESSAGE_LENGTH = 240
 
       key "landed_commits_backfill"
       title "Backfill landed commit records"
@@ -37,7 +39,7 @@ module MaintenanceTasks
         result = Jobs::LandedCommitsBackfill.new(repository: repository).call
         mark_repository_processed(task, repository)
         if result.errors.to_i.positive?
-          mark_repository_unresolved(task, repository, result.errors.to_i)
+          unresolved_entry = mark_repository_unresolved(task, repository, result)
         else
           clear_repository_unresolved(task, repository)
         end
@@ -50,7 +52,8 @@ module MaintenanceTasks
           processed: 1,
           failed: result.errors.to_i,
           message: message,
-          level: result.errors.to_i.positive? ? "warning" : "progress"
+          level: result.errors.to_i.positive? ? "warning" : "progress",
+          metadata: unresolved_entry ? { UNRESOLVED_REPOSITORIES => [ unresolved_entry ] } : {}
         )
       end
 
@@ -67,11 +70,13 @@ module MaintenanceTasks
         task.checkpoint[RETRY_UNRESOLVED_REPOSITORY_IDS] = retry_unresolved_repository_ids(task) - [ repository.id ]
       end
 
-      def mark_repository_unresolved(task, repository, errors)
+      def mark_repository_unresolved(task, repository, result)
         task.checkpoint_will_change!
         unresolved = unresolved_repositories(task).reject { |entry| entry["id"].to_i == repository.id }
-        unresolved << { "id" => repository.id, "slug" => repository.slug, "errors" => errors }
+        entry = unresolved_repository_entry(repository, result)
+        unresolved << entry
         task.checkpoint[UNRESOLVED_REPOSITORIES] = unresolved
+        entry
       end
 
       def clear_repository_unresolved(task, repository)
@@ -97,14 +102,17 @@ module MaintenanceTasks
         slugs = unresolved.map { |entry| entry["slug"].presence || "repository ##{entry["id"]}" }
         raise UnresolvedLandingsError,
               "Landed commit backfill left unresolved historical landings in #{slugs.to_sentence}; " \
-              "see checkpoint.unresolved_repositories for per-repository error counts."
+              "see checkpoint.unresolved_repositories for per-landing failure details."
       end
 
       def unresolved_repositories(task)
         Array(task.checkpoint[UNRESOLVED_REPOSITORIES]).filter_map do |entry|
           next unless entry.respond_to?(:to_h)
 
-          entry.to_h.stringify_keys.slice("id", "slug", "errors")
+          normalized = entry.to_h.stringify_keys.slice("id", "slug", "errors", "failure_details", "failure_details_omitted")
+          normalized["failure_details"] = normalize_failure_details(normalized["failure_details"])
+          normalized["failure_details_omitted"] = normalized["failure_details_omitted"].to_i
+          normalized
         end
       end
 
@@ -123,6 +131,30 @@ module MaintenanceTasks
 
       def retry_unresolved_repository_ids(task)
         Array(task.checkpoint[RETRY_UNRESOLVED_REPOSITORY_IDS]).map(&:to_i)
+      end
+
+      def unresolved_repository_entry(repository, result)
+        details = normalize_failure_details(result.failures)
+        {
+          "id" => repository.id,
+          "slug" => repository.slug,
+          "errors" => result.errors.to_i,
+          "failure_details" => details,
+          "failure_details_omitted" => [ result.errors.to_i - details.size, 0 ].max
+        }
+      end
+
+      def normalize_failure_details(failures)
+        Array(failures).first(MAX_FAILURE_DETAILS_PER_REPOSITORY).filter_map do |failure|
+          attrs = failure.respond_to?(:to_h) ? failure.to_h : failure
+          next unless attrs.respond_to?(:to_h)
+
+          attrs.to_h.stringify_keys.slice(
+            "repository_slug", "landable_type", "landable_id", "landable_slug", "exception_class", "message"
+          ).tap do |entry|
+            entry["message"] = entry["message"].to_s.truncate(MAX_FAILURE_MESSAGE_LENGTH, omission: "...") if entry["message"].present?
+          end.compact
+        end
       end
 
       def candidate_repository_scope
