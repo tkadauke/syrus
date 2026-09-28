@@ -126,7 +126,16 @@ Two mitigations, both in `ChatWorkspace`:
   `chat_workspace_sweep` wraps the whole sweep in a
   `PerformanceLogging.phase("chat_workspace.sweep", ...)` call so a slow
   sweep surfaces in the same phase-drilldown diagnostics as any other
-  performance regression.
+  performance regression. It also records drill-down phases for each
+  maintenance tier: `chat_workspace.prune_idle`,
+  `chat_workspace.reclaim_idle_coding_checkouts`,
+  `chat_workspace.reclaim_coding_over_budget`, and
+  `chat_workspace.sweep_orphans`. The aggregate and drill-down phases request
+  host-pressure capture, so slow events include bounded data-root and IO
+  pressure metadata alongside the sweep counts/bytes reclaimed. That makes it
+  clear whether a slow tick came from idle workspace deletion, coding checkout
+  backup/removal, the over-budget sizing pass, orphan cleanup, or local disk
+  pressure.
 
 ## Git History relay pinning
 

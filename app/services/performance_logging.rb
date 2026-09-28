@@ -221,6 +221,7 @@ module PerformanceLogging
   def phase(name, metadata = {})
     return yield unless enabled?
 
+    caller_metadata = metadata
     metadata = metadata.dup
     capture_host_pressure = metadata.delete(:capture_host_pressure) || metadata.delete("capture_host_pressure")
 
@@ -243,6 +244,7 @@ module PerformanceLogging
     duration_ms = monotonic_ms - started_at if started_at
     phase_stack&.delete(phase_entry) if phase_entry
     if duration_ms && duration_ms >= slow_phase_threshold_ms
+      metadata.merge!(caller_metadata.reject { |key, _| key.to_s == "capture_host_pressure" })
       metadata = metadata.merge(host_pressure_metadata) if capture_host_pressure
       emit(
         base_event(SLOW_PHASE_EVENT).merge(
