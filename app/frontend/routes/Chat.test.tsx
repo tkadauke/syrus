@@ -6887,6 +6887,8 @@ describe("new chat repository selector in composer", () => {
 
     const selector = await screen.findByRole("button", { name: "Repository for new chat" })
     expect(selector).toHaveTextContent("acme/widgets")
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    expect(Boolean(selector.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
 
     fireEvent.click(screen.getByRole("button", { name: "Remove repository from new chat" }))
 
