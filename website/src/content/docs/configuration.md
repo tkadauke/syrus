@@ -93,11 +93,21 @@ Linux/default execution class. Direct Job API calls and chat proposal cards can
 set an explicit planned execution override; otherwise Syrus infers
 conservatively from the request and repository capability metadata. Backend-only
 work stays on default/Linux compute, iOS/mobile/Xcode work uses macOS with
-Xcode, mixed iOS plus backend work uses macOS with Xcode as the primary
-implementation placement, and Windows work uses Windows. If a single Job looks
-like it needs mutually incompatible primary hosts, Syrus asks for a split or an
-explicit primary host instead of guessing. Missing capability metadata is a
-warning rather than a blocker.
+Xcode, and mixed iOS plus backend work should use macOS/Xcode for the primary
+implementation placement while backend graders fan out separately later.
+Windows work uses Windows. If a single Job looks like it needs mutually
+incompatible primary hosts, Syrus asks for a split or an explicit primary host
+instead of guessing. Missing capability metadata is a warning rather than a
+blocker.
+
+After implementation, Syrus compares the actual changed files against the
+target graph as a safety net. If the diff affects a more constrained target
+than the implementation workflow was planned for, Syrus records an
+`implementation_capability_escalation` workflow warning instead of silently
+moving the mutable workspace across platforms. Treat that warning as a prompt
+to retry or continue through an explicit checkpoint or handoff on a capable
+worker, split the work by platform, or confirm that target-specific graders
+fully validate the change.
 
 ### `prepare`
 

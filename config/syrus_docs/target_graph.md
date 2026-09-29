@@ -98,6 +98,20 @@ explicitly requested, or defaulted. Each Workflow snapshots those Job-level
 requirements at creation time, so later `.syrus.yml` changes do not silently
 move an in-flight workflow to a different worker class. Jobs and Workflows
 without a stored plan are treated as ordinary Linux/default execution.
+Planning should be conservative: if a change is expected to touch iOS and
+backend code, the implementation workflow should start on the Mac/Xcode-capable
+primary worker, while backend graders can still fan out to their own target
+requirements later.
+
+After implementation, grader fanout recomputes the affected target set from the
+actual diff and compares the most constrained affected target's capabilities
+with the Workflow's planned primary implementation capabilities. A mismatch
+records a `kind: "implementation_capability_escalation"` workflow warning. This
+is a backstop for under-planned work, not the primary placement mechanism:
+Syrus does not silently migrate a mutable implementation workspace across
+platforms. Operators should retry or continue through an explicit checkpoint or
+handoff on a capable worker, split the work by platform, or let
+platform-specific graders continue only when they fully validate the change.
 
 Target-level capabilities are executable requirements. They apply to the
 target that carries them, whether it is an explicit `builder`/`grader`/`prepare`
