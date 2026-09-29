@@ -140,6 +140,10 @@ class ChatProposalFiler
       chat_goal: proposal.chat_goal,
       goal_prompt_snapshot: proposal.goal_prompt_snapshot,
       job_provider_setting: provider_setting,
+      planned_execution_project_label: proposal.planned_execution_project_label,
+      planned_execution_target_label: proposal.planned_execution_target_label,
+      planned_execution_capabilities: proposal.planned_execution_capabilities,
+      planned_execution_source: proposal.planned_execution_source,
       state: proposal.initial_job_state_for(user)
     )
     job.agent_provider = Job::ProviderSetting::Base.for(provider_setting).resolve(job)

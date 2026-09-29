@@ -1,4 +1,6 @@
 class PlannedExecutionPlanner
+  AmbiguousRequest = Class.new(StandardError)
+
   def self.for_job(job)
     new(job).call
   end
@@ -12,6 +14,12 @@ class PlannedExecutionPlanner
     return existing unless existing.source == "defaulted"
 
     loaded = RepoDefaultBranchSyrusYml.for_job(job)
+    analyzed = PlannedExecutionRequestAnalyzer.call(job: job, loaded_config: loaded, source: "prompt")
+    raise AmbiguousRequest, analyzed.ambiguous_reason if analyzed.ambiguous?
+
+    log_warning(analyzed.warning) if analyzed.warning
+    return analyzed.requirement if analyzed.requirement
+
     project = loaded.config&.project
     capabilities = project&.capabilities
     return existing unless loaded.loaded? && capabilities&.to_h.present?
@@ -22,6 +30,8 @@ class PlannedExecutionPlanner
       capabilities: capabilities,
       source: "inferred"
     )
+  rescue AmbiguousRequest
+    raise
   rescue StandardError => e
     Rails.logger.warn("[PlannedExecutionPlanner] defaulting #{job.slug || "Job##{job.id}"}: #{e.class}: #{e.message}")
     PlannedExecutionRequirement.from_record(job)
@@ -30,4 +40,8 @@ class PlannedExecutionPlanner
   private
 
   attr_reader :job
+
+  def log_warning(message)
+    Rails.logger.warn("[PlannedExecutionPlanner] #{job.slug || "Job##{job.id}"}: #{message}")
+  end
 end

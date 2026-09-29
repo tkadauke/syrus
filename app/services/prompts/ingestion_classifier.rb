@@ -2,23 +2,29 @@ require "json"
 
 module Prompts
   class IngestionClassifier
-    def initialize(job:, epics:, merged_pull_requests:, duplicate_candidates:)
+    def initialize(job:, epics:, merged_pull_requests:, duplicate_candidates:, repository_capabilities: {})
       @job = job
       @epics = epics
       @merged_pull_requests = merged_pull_requests
       @duplicate_candidates = duplicate_candidates
+      @repository_capabilities = repository_capabilities
     end
 
     def to_s
       <<~PROMPT
         You are classifying a newly-ingested GitHub issue before Syrus queues implementation work.
 
-        Decide whether the issue strongly belongs to an existing Epic, is an obvious duplicate of an existing open Job, is already implemented by a recently merged PR, or is novel.
+        Decide whether the issue strongly belongs to an existing Epic, is an obvious duplicate of an existing open Job, is already implemented by a recently merged PR, or is novel. Also choose a conservative primary implementation placement when the request clearly needs one.
 
         Use conservative judgment:
         - Set epic_id only when the issue clearly belongs to that Epic.
         - Mark duplicate only when the requested work substantially matches an open Job candidate.
         - Mark already_implemented only when a merged PR appears to have already shipped the requested behavior.
+        - For backend-only work, leave planned_execution null so Syrus uses default Linux compute.
+        - For iOS, mobile Apple, or Xcode-targeted work, set planned_execution capabilities to macos + xcode.
+        - For mixed iOS and backend work, choose macos + xcode as the primary implementation placement; backend graders can run elsewhere later.
+        - For Windows-targeted work, set planned_execution os to windows and include arch only when the issue explicitly names one.
+        - If the issue appears to require mutually incompatible primary hosts, leave planned_execution null and return no invalid classification; the Job will remain in triage for an operator to split or select a primary host.
         - Otherwise return nulls so normal triage can continue.
 
         Evidence requirements:
@@ -26,7 +32,7 @@ module Prompts
         - already_implemented: evidence_urls must include the merged PR URL, and reason must be one sentence summarizing why that PR covers the issue.
 
         Return ONLY compact JSON with this exact shape:
-        {"epic_id":null,"invalid":{"kind":null,"reason":"","evidence_urls":[]}}
+        {"epic_id":null,"invalid":{"kind":null,"reason":"","evidence_urls":[]},"planned_execution":null}
 
         New issue:
         #{JSON.pretty_generate(issue_payload)}
@@ -39,6 +45,9 @@ module Prompts
 
         Similar open Jobs:
         #{JSON.pretty_generate(@duplicate_candidates)}
+
+        Repository capability metadata:
+        #{JSON.pretty_generate(@repository_capabilities)}
       PROMPT
     end
 

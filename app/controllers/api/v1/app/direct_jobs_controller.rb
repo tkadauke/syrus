@@ -42,7 +42,8 @@ module Api
             end
           end
 
-          job = create_direct_job(repository: repository, agent_provider: agent_provider, model: model, effort_level: effort_level, prompt_text: prompt_text, epic: epic, owner: owner)
+          planned_execution_attrs = planned_execution_attributes
+          job = create_direct_job(repository: repository, agent_provider: agent_provider, model: model, effort_level: effort_level, prompt_text: prompt_text, epic: epic, owner: owner, planned_execution_attrs: planned_execution_attrs)
           attachment_errors = attach_initial_job_attachments(job)
           if attachment_errors.any?
             job.destroy!
@@ -59,8 +60,12 @@ module Api
             redirect_to: direct_job_redirect_path(job),
             job: job_json(job)
           }, status: :created
+        rescue PlannedExecutionPlanner::AmbiguousRequest => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue ArgumentError => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
         private
@@ -112,7 +117,7 @@ module Api
           }
         end
 
-        def create_direct_job(repository:, agent_provider:, model:, effort_level:, prompt_text:, epic: nil, owner: nil)
+        def create_direct_job(repository:, agent_provider:, model:, effort_level:, prompt_text:, epic: nil, owner: nil, planned_execution_attrs: {})
           selected_agent_provider = agent_provider || repository.effective_agent_provider
           title = params[:title].to_s.strip.presence
           priority = params[:priority].to_s.presence
@@ -136,8 +141,27 @@ module Api
             owner_user: owner,
             target_branch: target_branch,
             delivery_track: delivery_track,
+            **planned_execution_attrs,
             state: Job.initial_state_for_creator(Current.user)
           ).tap { Metrics::ProductUsage.record(:direct_job_created) }
+        end
+
+        def planned_execution_attributes
+          explicit = PlannedExecutionParams.from_params(params.to_unsafe_h)
+          return explicit if explicit.present?
+
+          probe = Current.user.jobs.new(
+            repository: selected_repository || Current.user.repositories.active.find_by(id: params[:repository_id]),
+            issue_title: params[:title].to_s.strip.presence || GenerateJobTitleJob::PENDING_TITLE,
+            issue_body: params[:prompt].to_s.strip
+          )
+          requirement = PlannedExecutionPlanner.for_job(probe)
+          {
+            planned_execution_project_label: requirement.project_label,
+            planned_execution_target_label: requirement.target_label,
+            planned_execution_capabilities: requirement.capabilities,
+            planned_execution_source: requirement.source
+          }
         end
 
         def attach_initial_job_attachments(job)

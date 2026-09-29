@@ -77,6 +77,7 @@ class ChatProposal < ApplicationRecord
   validates :slug, :title, :body, presence: true
   validates :slug, uniqueness: { scope: :chat_session_id }
   validates :provider_setting, presence: true, inclusion: { in: ->(_) { Job.provider_settings } }
+  validates :planned_execution_source, inclusion: { in: PlannedExecutionRequirement::SOURCES }, allow_nil: true
   validate :repository_belongs_to_chat_user
   validate :target_epic_matches_repository
   validate :media_ids_valid_format
@@ -111,6 +112,14 @@ class ChatProposal < ApplicationRecord
 
   def materialized_record
     job || epic
+  end
+
+  def planned_execution_requirement
+    PlannedExecutionRequirement.from_record(self)
+  end
+
+  def planned_execution_json
+    planned_execution_requirement.as_json
   end
 
   def effective_repository

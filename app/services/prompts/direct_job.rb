@@ -14,13 +14,26 @@ module Prompts
     end
 
     def to_s
-      [ @prompt.strip, epic_context, memory_context, GitSafety::TEXT, SubmitSummaryInstructions::TEXT ].compact_blank.join("\n\n")
+      [ @prompt.strip, planned_execution_context, epic_context, memory_context, GitSafety::TEXT, SubmitSummaryInstructions::TEXT ].compact_blank.join("\n\n")
     end
 
     private
 
     def epic_context
       Prompts::EpicContext.new(epic: @epic, job: @job).to_s
+    end
+
+    def planned_execution_context
+      return unless @job
+
+      planned = @job.planned_execution_json
+      return if planned.dig("capabilities", "os") == [ "linux" ] && planned["source"] == "defaulted"
+
+      <<~TEXT.strip
+        Planned primary implementation placement:
+
+        #{JSON.pretty_generate(planned)}
+      TEXT
     end
 
     def memory_context
