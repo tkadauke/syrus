@@ -10,6 +10,7 @@ module McpToolPayloads
         id: workflow.id,
         trigger_kind: workflow.trigger_kind,
         state: workflow.state,
+        planned_execution: workflow.planned_execution_json,
         summary: text_snippet(workflow.artifact("summary").presence || latest_run&.agent_summary, 300),
         step_count: workflow.steps.size,
         run_count: runs.size,
@@ -28,6 +29,7 @@ module McpToolPayloads
         trigger_kind: workflow.trigger_kind,
         state: workflow.state,
         agent_provider: workflow.agent_provider,
+        planned_execution: workflow.planned_execution_json,
         summary: workflow.artifact("summary").presence || latest_run&.agent_summary,
         created_at: workflow.created_at&.iso8601,
         finished_at: workflow.finished_at&.iso8601

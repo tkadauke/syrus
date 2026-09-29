@@ -214,6 +214,7 @@ module App
         job_provider_setting_options: job_provider_setting_options,
         model: @job.model,
         effort_level: @job.effort_level,
+        planned_execution: @job.planned_execution_json,
         provider_routing_options: agent_provider_catalog_options(@user),
         provider_availability: provider_availability,
         provider_failover: App::ProviderFailoverPayload.for_workflow(@job.latest_workflow, configured_provider: workflow_agent_provider),

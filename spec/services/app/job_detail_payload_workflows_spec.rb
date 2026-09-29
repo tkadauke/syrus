@@ -87,6 +87,28 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(run_payload.fetch(:entity_revision)).to eq(run.entity_revision)
     end
 
+    it "serializes planned execution placement for jobs and workflows" do
+      job = Factories.job_record(user: user, repository: repo)
+      job.update!(
+        planned_execution_project_label: "iOS",
+        planned_execution_target_label: "//ios:app",
+        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_source: "explicit"
+      )
+      workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+
+      expected = {
+        "project_label" => "iOS",
+        "target_label" => "//ios:app",
+        "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        "source" => "explicit"
+      }
+
+      expect(payload_for(job).fetch(:job).fetch(:planned_execution)).to eq(expected)
+      expect(workflows_payload_for(job).fetch(:workflows).first.fetch(:planned_execution)).to eq(expected)
+      expect(workflow.reload.planned_execution_json).to eq(expected)
+    end
+
     it "includes the active work intent in the default job detail payload" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

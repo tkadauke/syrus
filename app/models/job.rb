@@ -130,6 +130,7 @@ class Job < ApplicationRecord
   validates :triaging_reason, presence: true, inclusion: { in: TRIAGING_REASONS }
   validates :approved_via, inclusion: { in: APPROVAL_VIAS }, allow_nil: true
   validates :system_kind, inclusion: { in: SYSTEM_KINDS }, allow_nil: true
+  validates :planned_execution_source, inclusion: { in: PlannedExecutionRequirement::SOURCES }, allow_nil: true
   validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_nil: true
   validate  :skill_name_requires_direct_or_cron_kind, if: -> { skill_name.present? }
   validate  :investigation_requires_investigable_kind, if: :investigation?
@@ -148,6 +149,7 @@ class Job < ApplicationRecord
   before_validation :default_origin, on: :create
   before_validation :default_agent_provider, on: :create
   before_validation :default_credential_mode, on: :create
+  before_validation :default_planned_execution_requirements, on: :create
   before_validation :default_lifecycle_metadata, on: :create
   before_validation :set_target_repository_from_epic, on: :create
   before_validation :defer_stale_closed_epic_assignment
@@ -1643,6 +1645,40 @@ class Job < ApplicationRecord
     )
   end
 
+  public
+
+  def planned_execution_requirement
+    PlannedExecutionRequirement.from_record(self)
+  end
+
+  def planned_execution_json
+    planned_execution_requirement.as_json
+  end
+
+  def default_planned_execution_requirements
+    PlannedExecutionRequirement.from_record(self).assign_to(self)
+  end
+
+  def ensure_planned_execution_requirements!
+    requirement = PlannedExecutionPlanner.for_job(self)
+    requirement.assign_to(self)
+    return requirement unless persisted? && planned_execution_changed?
+
+    save!
+    requirement
+  end
+
+  def planned_execution_changed?
+    (changed & %w[
+      planned_execution_project_label
+      planned_execution_target_label
+      planned_execution_capabilities
+      planned_execution_source
+    ]).any?
+  end
+
+  private
+
   # Issue Jobs auto-instantiate Workflows::Initial on create. The
   # workflow lays out the implement → summarize → test_plan → pr_open chain;
   # WorkUnits::Launcher.start! creates the first Run. RunJob still
@@ -1651,6 +1687,8 @@ class Job < ApplicationRecord
   # observable behavior as the v0 single-Run flow, but each
   # phase is now its own attemptable step.
   def create_initial_run
+    ensure_planned_execution_requirements!
+
     workflow = WorkUnits::Launcher.instantiate(
       kind: initial_work_kind,
       job: self,

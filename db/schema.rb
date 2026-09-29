@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_29_172813) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1587,6 +1587,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.string "validity", default: "valid", null: false
+    t.string "planned_execution_project_label"
+    t.string "planned_execution_target_label"
+    t.json "planned_execution_capabilities"
+    t.string "planned_execution_source"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_jobs_on_chat_goal_id"
@@ -3675,6 +3679,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
     t.string "worker_storage_key"
     t.datetime "workflow_admission_override_at"
     t.boolean "workflow_admission_override_present", default: false, null: false
+    t.string "planned_execution_project_label"
+    t.string "planned_execution_target_label"
+    t.json "planned_execution_capabilities"
+    t.string "planned_execution_source"
     t.index ["cleaned_up_at"], name: "index_workflows_on_cleaned_up_at"
     t.index ["job_id", "created_at"], name: "index_workflows_on_job_id_and_created_at"
     t.index ["job_id", "finished_at", "id"], name: "idx_workflows_job_finished_latest"

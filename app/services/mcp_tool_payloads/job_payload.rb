@@ -16,6 +16,7 @@ module McpToolPayloads
         closure_reason: job.closure_reason,
         agent_provider: job.workflow_agent_provider,
         job_provider_setting: job.job_provider_setting,
+        planned_execution: job.planned_execution_json,
         priority: job.priority,
         issue_title: job.issue_title,
         goal_provenance: App::GoalProvenancePayload.for(job),
