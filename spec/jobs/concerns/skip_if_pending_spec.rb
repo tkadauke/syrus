@@ -91,6 +91,27 @@ RSpec.describe SkipIfPending do
         .to have_enqueued_job(SkipIfPendingTestJob).with(42)
     end
 
+    it "batch-enqueues only argument lists that are not already pending" do
+      ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+      expect(relation).to receive(:limit).with(1_000).once.and_return([
+        double("solid queue job", arguments: { "arguments" => [ 41 ] }),
+        double("solid queue job", arguments: { "arguments" => [ 43 ] })
+      ])
+      expect(Syrus::Metrics.counter(:syrus_skip_if_pending_skips_total)).to receive(:increment).twice.with(
+        tags: {
+          job_class: "SkipIfPendingTestJob",
+          queue: "control_plane",
+          mode: "arguments"
+        }
+      )
+
+      SkipIfPendingTestJob.perform_later_missing_simple_args([ [ 41 ], [ 42 ], [ 43 ] ])
+
+      expect(SkipIfPendingTestJob).to have_been_enqueued.with(42).once
+      expect(SkipIfPendingTestJob).not_to have_been_enqueued.with(41)
+      expect(SkipIfPendingTestJob).not_to have_been_enqueued.with(43)
+    end
+
     it "bypasses the guard for keyword args" do
       expect(relation).not_to receive(:limit)
       expect { SkipIfPendingTestJob.perform_later(foo: "bar") }

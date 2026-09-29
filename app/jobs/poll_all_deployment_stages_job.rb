@@ -6,11 +6,10 @@ class PollAllDeploymentStagesJob < ApplicationJob
   def perform
     return if AppSetting.polling_paused?
 
-    Repository.active.find_each do |repository|
+    repository_ids = Repository.active.find_each.filter_map do |repository|
       plan = RepoDeploymentStagesReader.for_repository(repository)
-      next unless plan.enabled?
-
-      PollRepositoryDeploymentStagesJob.perform_later(repository.id)
+      repository.id if plan.enabled?
     end
+    PollRepositoryDeploymentStagesJob.perform_later_missing_simple_args(repository_ids.map { |id| [ id ] })
   end
 end
