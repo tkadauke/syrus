@@ -37,15 +37,6 @@ RSpec.describe "agent-visible sidecar configuration" do
 
   it "does not place instance secret keys, values, or secret file paths in MCP env templates" do
     env = AgentSidecarEnvironment.build(env: SAFE_ENV.merge(SECRET_ENV))
-    direct_stdio_config = {
-      "syrus-mcp-sidecar" => {
-        type: "stdio",
-        command: Rails.root.join("bin/syrus-mcp-sidecar").to_s,
-        args: [ "--run-id", "123" ],
-        env: env,
-        alwaysLoad: true
-      }
-    }
     proxy_config = {
       "syrus-mcp-sidecar" => {
         type: "stdio",
@@ -59,7 +50,7 @@ RSpec.describe "agent-visible sidecar configuration" do
         alwaysLoad: true
       }
     }
-    serialized = JSON.generate(templates: [ direct_stdio_config, proxy_config ])
+    serialized = JSON.generate(templates: [ proxy_config ])
 
     expect(env).to include(
       "RAILS_ENV" => "production",
@@ -74,6 +65,30 @@ RSpec.describe "agent-visible sidecar configuration" do
     expect(serialized).not_to include(*SECRET_ENV.keys)
     expect(serialized).not_to include(*SECRET_ENV.values)
     expect(serialized).not_to include(*SECRET_PATHS)
+  end
+
+  it "keeps a separate direct-sidecar boot env for legacy Rails stdio fallback" do
+    env = AgentSidecarEnvironment.build_boot(env: SAFE_ENV.merge(SECRET_ENV))
+    direct_stdio_config = {
+      "syrus-mcp-sidecar" => {
+        type: "stdio",
+        command: Rails.root.join("bin/syrus-mcp-sidecar").to_s,
+        args: [ "--run-id", "123" ],
+        env: env,
+        alwaysLoad: true
+      }
+    }
+    serialized = JSON.generate(direct_stdio_config)
+
+    expect(env).to include(
+      "RAILS_ENV" => "production",
+      "RAILS_MASTER_KEY" => "poison-rails-master-key",
+      "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY" => "poison-ar-primary",
+      "SYRUS_DATABASE_PASSWORD" => "poison-db-password",
+      "S3_SECRET_ACCESS_KEY" => "poison-s3-secret-key"
+    )
+    expect(serialized).to include("poison-rails-master-key")
+    expect(serialized).not_to include("SYRUS_GIT_MIRROR_TOKEN", "poison-git-mirror-token")
   end
 
   it "keeps the public allowlist disjoint from instance secret keys" do

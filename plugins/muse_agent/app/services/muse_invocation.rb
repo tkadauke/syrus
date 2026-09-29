@@ -230,7 +230,7 @@ class MuseInvocation
         "transport" => "stdio",
         "command" => server["command"],
         "args" => Array(server["args"]),
-        "env" => AgentSidecarEnvironment.filter(server["env"] || {}),
+        "env" => AgentSidecarEnvironment.filter_for_agent_config(server),
         "mode" => REQUIRED_SERVER_MODE
       }
     end

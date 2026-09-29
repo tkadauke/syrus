@@ -532,7 +532,7 @@ RSpec.describe MuseInvocation do
           "syrus-mcp-sidecar" => {
             command: "/app/bin/syrus-mcp-sidecar",
             args: [ "--run-id", "123" ],
-            env: { "RAILS_ENV" => "test" }
+            env: { "RAILS_ENV" => "test", "RAILS_MASTER_KEY" => "secret" }
           }
         }
       ).run
@@ -545,7 +545,7 @@ RSpec.describe MuseInvocation do
         "transport" => "stdio",
         "command" => "/app/bin/syrus-mcp-sidecar",
         "args" => [ "--run-id", "123" ],
-        "env" => { "RAILS_ENV" => "test" },
+        "env" => { "RAILS_ENV" => "test", "RAILS_MASTER_KEY" => "secret" },
         "mode" => "required"
       )
       expect(captured.first[:env]).to include("HOME" => muse_home, "XDG_CONFIG_HOME" => File.join(muse_home, ".config"))

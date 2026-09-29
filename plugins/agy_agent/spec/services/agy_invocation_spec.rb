@@ -229,7 +229,7 @@ RSpec.describe AgyInvocation do
           mcp_server: {
             command: "/app/bin/syrus-mcp-sidecar",
             args: [ "--run-id", "123" ],
-            env: { "RAILS_ENV" => "test", "SECRET" => nil }
+            env: { "RAILS_ENV" => "test", "RAILS_MASTER_KEY" => "secret", "SECRET" => nil }
           }
         )
 
@@ -241,7 +241,7 @@ RSpec.describe AgyInvocation do
             "syrus-mcp-sidecar" => {
               "command" => "/app/bin/syrus-mcp-sidecar",
               "args" => [ "--run-id", "123" ],
-              "env" => { "RAILS_ENV" => "test" }
+              "env" => { "RAILS_ENV" => "test", "RAILS_MASTER_KEY" => "secret" }
             }
           }
         )
