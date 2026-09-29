@@ -342,6 +342,20 @@ default routing" clears that explicit pin back to the routing resolver. Retry
 with provider remains a one-shot workflow override and does not rewrite the
 Job-level setting.
 
+Planned execution capabilities are selected before the initial Workflow starts.
+Direct Job APIs and chat proposal tools accept an explicit planned execution
+override with `project_label`, `target_label`, `capabilities`, and `source`;
+operator-provided overrides are recorded with source `operator`. When no
+override is present, Syrus infers conservatively from the request and
+repository target graph capability metadata: backend-only work remains on
+default/Linux compute, iOS/mobile/Xcode work uses macOS with Xcode, mixed
+iOS/backend work uses macOS with Xcode as the primary implementation
+placement, Windows work uses Windows, and explicitly named architecture values
+are preserved. If one Job appears to require mutually incompatible primary
+hosts, intake stays in triage or the API/proposal call asks the operator to
+split the work or select a primary host. Missing repository capability metadata
+is logged and treated as a warning, not a blocker.
+
 **Claude usage probe:** `ClaudeUsageProbe` (`plugins/claude_agent/app/services/claude_usage_probe.rb`)
 mirrors `CodexUsageProbe` as a proactive, ground-truth signal for Claude/Anthropic
 usage instead of relying solely on reactive error-text classification. It makes a

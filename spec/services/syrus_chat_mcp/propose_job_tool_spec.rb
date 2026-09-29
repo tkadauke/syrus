@@ -79,6 +79,35 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
+  it "stores an explicit planned execution override on the proposal and filed Job" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "Fix Xcode project",
+      description: "Repair the iOS app build.",
+      planned_execution: {
+        project_label: "iOS App",
+        target_label: "//ios:app",
+        capabilities: { os: [ "macos" ], toolchains: [ "xcode" ] }
+      }
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Fix Xcode project")
+    payload = response_payload(response)
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload[:planned_execution]).to include(
+      source: "operator",
+      capabilities: { os: [ "macos" ], toolchains: [ "xcode" ] }
+    )
+
+    result = ChatProposalFiler.new(user: user, repository: repository).file!([ proposal ])
+    expect(result.jobs.sole.planned_execution_json).to include(
+      "project_label" => "iOS App",
+      "target_label" => "//ios:app",
+      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "source" => "operator"
+    )
+  end
+
   it "does not attach active goal provenance by default" do
     ChatGoal.create!(
       chat_session: chat_session,

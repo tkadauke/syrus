@@ -89,7 +89,15 @@ project or target label when known, the capability requirements, and whether
 the placement was inferred, explicitly requested, or defaulted. Each Workflow
 snapshots that plan when it is created, so later `.syrus.yml` edits do not move
 work that is already in flight. Jobs without a stored plan use the ordinary
-Linux/default execution class.
+Linux/default execution class. Direct Job API calls and chat proposal cards can
+set an explicit planned execution override; otherwise Syrus infers
+conservatively from the request and repository capability metadata. Backend-only
+work stays on default/Linux compute, iOS/mobile/Xcode work uses macOS with
+Xcode, mixed iOS plus backend work uses macOS with Xcode as the primary
+implementation placement, and Windows work uses Windows. If a single Job looks
+like it needs mutually incompatible primary hosts, Syrus asks for a split or an
+explicit primary host instead of guessing. Missing capability metadata is a
+warning rather than a blocker.
 
 ### `prepare`
 

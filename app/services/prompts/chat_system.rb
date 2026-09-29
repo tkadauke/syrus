@@ -268,6 +268,8 @@ module Prompts
 
         #{implementation_job_capability_guidance}
 
+        #{planned_execution_guidance}
+
         Avoid proposing a single-child-Job Epic. When a piece of work
         only decomposes into one Job, use `propose_job` directly -- with
         `epic_id` if it genuinely belongs under an existing multi-Job
@@ -359,6 +361,33 @@ module Prompts
         operator drives an interactive session turn-by-turn, and
         `investigation: true` Jobs, which may read and report on
         already-existing state but still cannot wait for future events.
+      TEXT
+    end
+
+    def planned_execution_guidance
+      <<~TEXT.strip
+        Choosing implementation capabilities:
+
+        Each implementation Job has a primary planned execution placement
+        selected before its Workflow starts. Use repository target graph
+        capability facts from `.syrus.yml` when they are available, then the
+        operator's request. Be conservative:
+
+          - Backend-only work stays on default/Linux compute; omit
+            `planned_execution` unless the operator explicitly selects one.
+          - iOS, Apple mobile, or Xcode-targeted work uses
+            `planned_execution.capabilities: { "os": ["macos"], "toolchains": ["xcode"] }`.
+          - Mixed iOS plus backend work still uses macOS/Xcode as the primary
+            placement; backend graders can fan out later.
+          - Windows-targeted work uses `{ "os": ["windows"] }`, with `arch`
+            only when the request names it.
+          - If one Job appears to require mutually incompatible primary hosts
+            (for example iOS/Xcode and Windows), recommend splitting it or set
+            an explicit primary host only if the operator tells you which one
+            should own the implementation.
+
+        Missing repository capability metadata is a warning, not a blocker:
+        infer from the request when clear, otherwise leave placement defaulted.
       TEXT
     end
 
