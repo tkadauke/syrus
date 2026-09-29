@@ -328,7 +328,7 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | --- | --- |
 | Profile | Display name, name fields, company, location, website, GitHub handle, avatar URL, and bio on `/profile` |
 | Role | User-facing role, either `developer` or `product_owner`; users can set their own role on `/profile`, and admins can override it from `/admin/users` |
-| GitHub token | Used to list issues, read PRs, push branches, open PRs, and post updates for that user's repositories; configured on `/credentials` |
+| GitHub token | Used to list issues, read PRs, push branches, open PRs, edit `.github/workflows/*`, and post updates for that user's repositories. Fine-grained PATs need repository access for the managed repositories with Contents, Pull requests, and Workflows read/write plus Checks read; classic PATs need `repo` + `workflow`. Configured on `/credentials` |
 | Agent provider | Default provider for new Jobs: `claude`, `codex`, or `muse`; configured on `/settings/agent` |
 | Agent provider failover | Disabled-by-default ordered list of alternate agent providers plus eligible causes (`usage_exhausted`, `usage_low`, `rate_limited`, `provider_transient`, `auth_error`); configured on `/settings/agent` |
 | Chat provider | Optional provider override for chat turns: `claude`, `codex`, or `muse`; when blank, chat follows the user's default agent provider |

@@ -66,13 +66,25 @@ RSpec.describe CredentialProbe do
       expect(result.details).to include(login: "ada", missing_scopes: [])
     end
 
-    it "accepts an authenticated fine-grained token without classic OAuth scopes" do
+    it "accepts an authenticated fine-grained token with explicit repository permission guidance" do
       stub_user("github_pat_unsaved", scopes: "")
 
-      result = described_class.github_token(token: "github_pat_unsaved", required_scopes: [])
+      result = described_class.github_token(token: "github_pat_unsaved", required_scopes: %w[ repo workflow ])
 
       expect(result.ok).to be true
-      expect(result.details).to include(login: "ada", scopes: [], missing_scopes: [])
+      expect(result.message).to eq("Fine-grained token authenticated as ada. Select the repositories Syrus will manage and grant Contents, Pull requests, and Workflows read/write plus Checks read.")
+      expect(result.details).to include(
+        login: "ada",
+        scopes: [],
+        missing_scopes: [],
+        fine_grained: true,
+        required_repository_permissions: {
+          contents: "write",
+          pull_requests: "write",
+          workflows: "write",
+          checks: "read"
+        }
+      )
     end
 
     it "is not ok and names the missing scope when under-scoped" do
@@ -82,6 +94,7 @@ RSpec.describe CredentialProbe do
 
       expect(result.ok).to be false
       expect(result.message).to include("missing the workflow scope")
+      expect(result.message).to include("classic token with repo and workflow scopes")
       expect(result.details).to include(login: "ada", missing_scopes: %w[ workflow ])
     end
 

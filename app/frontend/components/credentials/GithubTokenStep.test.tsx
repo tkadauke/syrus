@@ -24,7 +24,7 @@ function mockRoutes(routes: { test?: () => Response; save?: () => Response }) {
   })
 }
 
-const okResult = { credential: "github_token", ok: true, message: "Token is valid for octocat.", details: { login: "octocat", scopes: [], missing_scopes: [] } }
+const okResult = { credential: "github_token", ok: true, message: "Fine-grained token authenticated as octocat. Select the repositories Syrus will manage and grant Contents, Pull requests, and Workflows read/write plus Checks read.", details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true } }
 
 describe("GithubTokenStep", () => {
   afterEach(() => {
@@ -40,6 +40,7 @@ describe("GithubTokenStep", () => {
     expect(screen.getByText(/Set an expiration/)).toBeInTheDocument()
     expect(screen.getByText("Contents")).toBeInTheDocument()
     expect(screen.getByText("Pull requests")).toBeInTheDocument()
+    expect(screen.getByText("Workflows")).toBeInTheDocument()
     expect(screen.getByText("Checks")).toBeInTheDocument()
     expect(screen.getByPlaceholderText("ghp_…")).toBeInTheDocument()
   })
@@ -51,7 +52,7 @@ describe("GithubTokenStep", () => {
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_good" } })
 
-    await waitFor(() => expect(screen.getByText("Token is valid for octocat.")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Fine-grained token authenticated as octocat/)).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled()
   })
 
