@@ -524,8 +524,10 @@ flow.
 
 Chats are operator conversations that can start with or without repository
 context. New chats default to the operator's most recently used repository
-when one is available, and operators can still choose no repository or attach
-one later. A chat can attach repositories, Jobs, documents,
+when one is available; the new-chat form shows that attachment in a repository
+dropdown, lets the operator choose any accessible repository, and includes a
+clear control plus a "No repository" option for starting without code context.
+A chat can attach repositories, Jobs, documents,
 memories, whiteboard state, and message-level image or PDF files. The chat
 can include one owner participant and additional member participants; every
 participant can open the session, post messages, receive live updates, and keep

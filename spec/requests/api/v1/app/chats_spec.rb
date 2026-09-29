@@ -53,10 +53,25 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body).to include(
         "default_repository_id" => newer_repo.id,
+        "repositories" => [
+          include("id" => older_repo.id, "slug" => "acme/aardvark"),
+          include("id" => newer_repo.id, "slug" => "acme/zebra")
+        ],
         "effective_chat_provider" => "claude",
         "effective_chat_provider_label" => "Claude",
         "chat_provider_options" => include(include("value" => "claude", "label" => "Claude", "configured" => true))
       )
+    end
+
+    it "includes repositories available through membership" do
+      sign_in_as(user)
+      member_repo = Factories.repository(user: Factories.user, owner: "member", name: "widgets")
+      RepositoryMembership.create!(repository: member_repo, user: user, role: "write")
+
+      get "/api/v1/app/chats/new"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["repositories"]).to include(include("id" => member_repo.id, "slug" => "member/widgets"))
     end
 
     it "falls back to alphabetical-first active repository when no chat session has a repository" do

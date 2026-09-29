@@ -36,7 +36,7 @@ module Api
               groups_has_more: groups_payload.fetch(:has_more),
               groups_next_offset: groups_payload.fetch(:next_offset),
               available_chat_types: chat_index_available_chat_types,
-              repositories: PerformanceLogging.phase("chats_index.repositories") { Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) } }
+              repositories: PerformanceLogging.phase("chats_index.repositories") { chat_repository_scope.map { |repository| repository_json(repository) } }
             }
           }
         end
@@ -237,10 +237,11 @@ module Api
 
         def new
           repository = most_recent_chat_repository
-          repository ||= Current.user.repositories.active.order(:owner, :name).first
+          repository ||= chat_repository_scope.first
 
           render json: {
             default_repository_id: repository&.id,
+            repositories: chat_repository_scope.map { |repo| repository_json(repo) },
             effective_chat_provider: Current.user.effective_chat_provider,
             effective_chat_provider_label: chat_provider_label(Current.user.effective_chat_provider),
             chat_provider_options: chat_provider_options(nil)
@@ -1863,6 +1864,10 @@ module Api
             id: repository.id,
             slug: repository.slug
           }
+        end
+
+        def chat_repository_scope
+          Repository.accessible_to(Current.user).active.order(:owner, :name)
         end
 
         def available_chat_models_for(chat_session)
