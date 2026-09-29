@@ -104,7 +104,9 @@ workflow.
 affect a target whose capabilities are stricter than the Workflow's planned
 primary implementation capabilities. The evidence includes the planned
 capabilities, the most constrained affected target, the required capabilities,
-dimension-level mismatches, and the affected target capability set.
+all affected targets tied at the highest constraint level, dimension-level
+mismatches for any tied target the planned worker does not satisfy, and the
+affected target capability set.
 
 This warning is a post-hoc safety net. Planning should still choose a
 conservative primary worker before implementation starts: mixed iOS plus
