@@ -1,12 +1,12 @@
 <h1><%= @alert.fetch(:title) %></h1>
 
-<p><strong>Severity:</strong> <%= @alert.fetch(:severity) %></p>
-<p><strong>Dismissal key:</strong> <code><%= @alert.fetch(:dismissal_key) %></code></p>
+<p><strong><%= t(".severity") %></strong> <%= @alert.fetch(:severity) %></p>
+<p><strong><%= t(".dismissal_key") %></strong> <code><%= @alert.fetch(:dismissal_key) %></code></p>
 
 <p><%= @alert.fetch(:message) %></p>
 
 <% if @alert[:action_steps].present? %>
-  <h2>Action steps</h2>
+  <h2><%= t(".action_steps") %></h2>
   <ul>
     <% @alert[:action_steps].each do |step| %>
       <li><%= step %></li>
@@ -19,5 +19,5 @@
 <% end %>
 
 <% if @alert[:app_url].present? %>
-  <p><%= link_to "Open Syrus", @alert[:app_url] %></p>
+  <p><%= link_to t(".open_syrus"), @alert[:app_url] %></p>
 <% end %>

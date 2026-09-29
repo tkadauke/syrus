@@ -20,6 +20,13 @@ de:
       accept_link: "dieser Anmeldeseite"
       expires: "Diese Einladung läuft am %{date} ab."
 
+  system_alert_mailer:
+    alarm:
+      severity: "Schweregrad:"
+      dismissal_key: "Ausblendeschlüssel:"
+      action_steps: "Handlungsschritte"
+      open_syrus: "Syrus öffnen"
+
   sessions:
     rate_limited: "Bitte versuche es später erneut."
     invalid_credentials: "Bitte versuche eine andere E-Mail-Adresse oder ein anderes Passwort."

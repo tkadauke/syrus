@@ -51,6 +51,13 @@ en:
       accept_link: "this signup page"
       expires: "This invitation expires on %{date}."
 
+  system_alert_mailer:
+    alarm:
+      severity: "Severity:"
+      dismissal_key: "Dismissal key:"
+      action_steps: "Action steps"
+      open_syrus: "Open Syrus"
+
   # Web controller flash messages
   sessions:
     rate_limited: "Try again later."

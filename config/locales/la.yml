@@ -20,6 +20,13 @@ la:
       accept_link: "hac pagina inscriptionis"
       expires: "Haec invitatio die %{date} exspirat."
 
+  system_alert_mailer:
+    alarm:
+      severity: "Gravitas:"
+      dismissal_key: "Clavis dimissionis:"
+      action_steps: "Gradus agendi"
+      open_syrus: "Syrum aperire"
+
   sessions:
     rate_limited: "Post paululum iterum tempta."
     invalid_credentials: "Aliam inscriptionem electronicam vel tesseram tempta."

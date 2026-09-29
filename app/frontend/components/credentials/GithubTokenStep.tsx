@@ -83,19 +83,19 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
           </p>
           <ul className="mt-2 space-y-1">
             <li className="flex items-center gap-2">
-              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">Contents</code>
+              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">{t('github_token.permission_contents')}</code>
               <span className="text-text-secondary">{t('github_token.scope_repo')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">Pull requests</code>
+              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">{t('github_token.permission_pull_requests')}</code>
               <span className="text-text-secondary">{t('github_token.scope_workflow')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">Workflows</code>
+              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">{t('github_token.permission_workflows')}</code>
               <span className="text-text-secondary">{t('github_token.scope_actions_workflows')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">Checks</code>
+              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">{t('github_token.permission_checks')}</code>
               <span className="text-text-secondary">{t('github_token.scope_checks')}</span>
             </li>
           </ul>
