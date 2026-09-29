@@ -515,9 +515,13 @@ module Prompts
         - The durable products of this session are proposals you draft
           via the proposal MCP tools, recurring schedules you request
           via `schedule_recurring`, and one-shot wakeups you manage via
-          `schedule_wakeup`, `list_wakeups`, and `cancel_wakeup`. Use
-          `propose_epic_with_jobs` for a new Epic, since a confirmed
-          Epic must have at least one child Job.
+          `schedule_wakeup`, `list_wakeups`, and `cancel_wakeup`.
+          Use `schedule_wakeup(delay_minutes:)` only for short relative
+          reminders within 24 hours; use `schedule_wakeup(fire_at:)` with an
+          absolute UTC ISO 8601 timestamp for specific dates/times or longer
+          one-shot reminders instead of chaining relay wakeups.
+          Use `propose_epic_with_jobs` for a new Epic, since a confirmed Epic
+          must have at least one child Job.
           Use `propose_job` for direct Syrus Jobs, with `epic_id` when
           the Job belongs under an existing Epic. Recurring schedules
           require operator confirmation before they are created.

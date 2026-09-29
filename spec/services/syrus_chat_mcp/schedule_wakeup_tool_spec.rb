@@ -27,11 +27,15 @@ RSpec.describe Mcp::Tools::ScheduleWakeupTool do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
+  def response_text(response)
+    response.fetch(:result).fetch(:content).first.fetch(:text)
+  end
+
   before do
     clear_enqueued_jobs
   end
 
-  it "creates a wakeup for the current chat session and user" do
+  it "creates a relative wakeup for the current chat session and user" do
     travel_to Time.zone.parse("2026-06-24 12:00:00 UTC") do
       response = call_tool(prompt: "Check JOB-123 and reschedule if needed.", delay_minutes: 30)
 
@@ -53,11 +57,53 @@ RSpec.describe Mcp::Tools::ScheduleWakeupTool do
     end
   end
 
+  it "creates a wakeup for an absolute fire_at timestamp" do
+    travel_to Time.zone.parse("2026-06-24 12:00:00 UTC") do
+      response = call_tool(prompt: "Check JOB-456 and report back.", fire_at: "2026-07-15T09:30:00Z")
+
+      wakeup = ChatWakeup.sole
+      expect(response[:result][:isError]).to be_falsey
+      expect(response_payload(response)).to include(
+        wakeup_id: wakeup.id,
+        fire_at: "2026-07-15T09:30:00Z",
+        message: "Wakeup scheduled for 2026-07-15T09:30:00Z"
+      )
+      expect(wakeup).to have_attributes(
+        chat_session: chat_session,
+        user: user,
+        prompt: "Check JOB-456 and report back.",
+        state: "pending"
+      )
+      expect(wakeup.fire_at).to eq(Time.zone.parse("2026-07-15 09:30:00 UTC"))
+      expect(ChatWakeupFireJob).to have_been_enqueued.with(wakeup.id).at(Time.zone.parse("2026-07-15 09:30:00 UTC"))
+    end
+  end
+
   it "rejects blank prompts" do
     response = call_tool(prompt: "   ", delay_minutes: 30)
 
     expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to match(/prompt is required/)
+    expect(response_text(response)).to match(/prompt is required/)
+    expect(ChatWakeup.count).to eq(0)
+  end
+
+  it "rejects calls without a scheduling input" do
+    response = call_tool(prompt: "Check later.")
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response_text(response)).to match(/provide exactly one of delay_minutes or fire_at/)
+    expect(ChatWakeup.count).to eq(0)
+  end
+
+  it "rejects calls with both delay_minutes and fire_at" do
+    response = call_tool(
+      prompt: "Check later.",
+      delay_minutes: 30,
+      fire_at: 2.days.from_now.utc.iso8601
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response_text(response)).to match(/provide exactly one of delay_minutes or fire_at/)
     expect(ChatWakeup.count).to eq(0)
   end
 
@@ -65,7 +111,7 @@ RSpec.describe Mcp::Tools::ScheduleWakeupTool do
     response = call_tool(prompt: "Check later.", delay_minutes: 0)
 
     expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to match(/between 1 and 1440/)
+    expect(response_text(response)).to match(/between 1 and 1440/)
     expect(ChatWakeup.count).to eq(0)
   end
 
@@ -73,7 +119,25 @@ RSpec.describe Mcp::Tools::ScheduleWakeupTool do
     response = call_tool(prompt: "Check later.", delay_minutes: 1441)
 
     expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to match(/between 1 and 1440/)
+    expect(response_text(response)).to match(/between 1 and 1440/)
+    expect(ChatWakeup.count).to eq(0)
+  end
+
+  it "rejects past fire_at timestamps" do
+    travel_to Time.zone.parse("2026-06-24 12:00:00 UTC") do
+      response = call_tool(prompt: "Check later.", fire_at: "2026-06-24T11:59:00Z")
+
+      expect(response[:result][:isError]).to be(true)
+      expect(response_text(response)).to match(/fire_at must be in the future/)
+      expect(ChatWakeup.count).to eq(0)
+    end
+  end
+
+  it "rejects malformed fire_at timestamps" do
+    response = call_tool(prompt: "Check later.", fire_at: "October 13 at 9")
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response_text(response)).to match(/fire_at must be an ISO 8601 timestamp/)
     expect(ChatWakeup.count).to eq(0)
   end
 end
