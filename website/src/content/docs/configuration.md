@@ -75,6 +75,7 @@ Schema:
 | `prepare` | `[]` | Explicitly run no preparation commands |
 | `prepare` | `false` | Opt out of preparation entirely |
 | `grade` | Array or mapping | Required grader commands; each step has `name`, `run`, and optional `phases`, `junit_output`, `failures`, `required`, `timeout_minutes`, and `when_files_changed` |
+| `project.capabilities` / target `capabilities` | Mapping | Execution host/toolchain constraints such as `os: macos`, `toolchains: [xcode]`, or `runtimes: [ios_simulator]` |
 | `adversarial_review.rounds` | Integer | Number of adversarial review rounds to run before grading; omit or set `0` to disable |
 | `visual_review.enabled` | Boolean | Enable or disable browser-based visual review for this repository |
 | `visual_review.rounds` | Integer | Number of visual review rounds to allow before grading |

@@ -227,6 +227,67 @@ RSpec.describe SyrusYml do
     )
   end
 
+  it "parses normalized project, target, and grader execution capabilities" do
+    config = parse(<<~YAML)
+      project:
+        id: ios
+        capabilities:
+          os: macOS
+          arch: [arm64, ARM64]
+          toolchains: [xcode]
+          runtimes: [ios_simulator]
+          features: [metal-gpu]
+      targets:
+        - name: simulator-tests
+          kind: grader
+          run: xcodebuild test
+          capabilities:
+            os: [macos]
+            toolchains: xcode
+      grade:
+        - name: backend
+          run: bin/rspec
+          capabilities:
+            os: linux
+    YAML
+
+    expect(config.project.capabilities.to_h).to eq(
+      "os" => [ "macos" ],
+      "arch" => [ "arm64" ],
+      "toolchains" => [ "xcode" ],
+      "runtimes" => [ "ios_simulator" ],
+      "features" => [ "metal-gpu" ]
+    )
+    expect(config.targets.first.capabilities.to_h).to eq(
+      "os" => [ "macos" ],
+      "toolchains" => [ "xcode" ]
+    )
+    expect(config.grade.steps.first.capabilities.to_h).to eq("os" => [ "linux" ])
+  end
+
+  it "rejects invalid capability declarations with the owning field path" do
+    expect {
+      parse(<<~YAML)
+        targets:
+          - name: ios-tests
+            kind: grader
+            run: xcodebuild test
+            capabilities:
+              os: [any, macos]
+      YAML
+    }.to raise_error(described_class::ParseError, /targets\[0\]\.capabilities\.os: "any" cannot be combined/)
+  end
+
+  it "rejects unknown capability dimensions" do
+    expect {
+      parse(<<~YAML)
+        project:
+          capabilities:
+            gpu: metal
+      YAML
+    }.to raise_error(described_class::ParseError, /project\.capabilities: unknown keys gpu/)
+  end
+
   it "rejects non-positive explicit target timeouts" do
     expect {
       parse(<<~YAML)

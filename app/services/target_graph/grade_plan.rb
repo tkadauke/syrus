@@ -47,7 +47,8 @@ class TargetGraph
         failures: metadata["failures"],
         base_retry: metadata["base_retry"],
         deps: [],
-        metadata: metadata
+        metadata: metadata,
+        capabilities: target.capabilities
       )
     end
 

@@ -2,10 +2,10 @@ class TargetGraph
   # An operator-facing workflow boundary (preview, hooks, visual review,
   # adversarial review criteria, coverage policy) as distinct from the
   # lower-level Target execution nodes it groups. See DOC-20 "Projects".
-  Project = Data.define(:id, :label, :kind, :path, :owner_config_path, :preview, :visual_review, :adversarial_review, :coverage) do
+  Project = Data.define(:id, :label, :kind, :path, :owner_config_path, :preview, :visual_review, :adversarial_review, :coverage, :capabilities) do
     ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
 
-    def initialize(id:, label: nil, kind: nil, path: "", owner_config_path: nil, preview: nil, visual_review: nil, adversarial_review: nil, coverage: nil)
+    def initialize(id:, label: nil, kind: nil, path: "", owner_config_path: nil, preview: nil, visual_review: nil, adversarial_review: nil, coverage: nil, capabilities: nil)
       id = id.to_s.strip
       raise ArgumentError, "project id must not be blank" if id.empty?
       raise ArgumentError, "project id #{id.inspect} must match #{ID_PATTERN.inspect}" unless id.match?(ID_PATTERN)
@@ -13,6 +13,9 @@ class TargetGraph
       path = path.to_s.strip
       if path.start_with?("/") || path.end_with?("/")
         raise ArgumentError, "project path #{path.inspect} must not start or end with /"
+      end
+      unless capabilities.nil? || capabilities.is_a?(TargetGraph::ExecutionCapabilities)
+        raise ArgumentError, "capabilities must be a TargetGraph::ExecutionCapabilities"
       end
 
       super(
@@ -24,7 +27,8 @@ class TargetGraph
         preview: preview,
         visual_review: visual_review,
         adversarial_review: adversarial_review,
-        coverage: coverage
+        coverage: coverage,
+        capabilities: capabilities
       )
     end
 
