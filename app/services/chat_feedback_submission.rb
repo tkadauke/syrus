@@ -27,18 +27,21 @@ class ChatFeedbackSubmission
       "pr_feedback_auto" => false
     }
     artifacts = base_artifacts.merge(extra_artifacts)
-    result = WorkUnits::Launcher.create_and_start!(
+    workflow = WorkUnits::Launcher.instantiate(
       kind: "chat_feedback",
       job: job,
-      artifacts: artifacts,
-      before_start: ->(_) do
-        Job::ApprovalUnapprover.call(job: job.reload, user: job.user) if job.may_unapprove?
-      end
+      artifacts: artifacts
     )
-    workflow = result.workflow
+    Job::ApprovalUnapprover.call(job: job.reload, user: job.user) if job.may_unapprove?
+    WorkUnits::Launcher.start!(workflow)
 
     Result.new(workflow: workflow, error: nil)
-  rescue WorkUnits::Launcher::LockConflict
+  rescue WorkUnits::Launcher::LockConflict => e
+    if e.work_unit&.kind != "chat_feedback" && defined?(workflow) && workflow.present?
+      block_behind_active_work!(workflow, e)
+      return Result.new(workflow: workflow, error: nil)
+    end
+
     Result.new(workflow: nil, error: "a chat_feedback workflow is already queued or running for this job")
   end
 
@@ -48,4 +51,26 @@ class ChatFeedbackSubmission
     ChatMediaAttacher.new(chat_session: chat_session, job: job).attach!(media)
   end
   private_class_method :attach_media!
+
+  def self.block_behind_active_work!(workflow, error)
+    unit = workflow.work_unit
+    return unless unit
+
+    gate_result = WorkUnits::GateResult.block(
+      reason: WorkUnits::Gates::ActiveWorkLock::REASON,
+      retry_at: WorkUnits::Gates::ActiveWorkLock::RETRY_DELAY.from_now,
+      details: {
+        "lock_key" => error.lock_key,
+        "work_unit_id" => error.work_unit&.id,
+        "workflow_id" => error.work_unit&.workflow_id
+      }.compact
+    )
+    unit.block!(
+      reason: gate_result.reason,
+      blocked_until: gate_result.retry_at,
+      details: gate_result.details
+    )
+    WorkUnits::Launcher.schedule_blocked_recheck!(workflow, gate_result)
+  end
+  private_class_method :block_behind_active_work!
 end

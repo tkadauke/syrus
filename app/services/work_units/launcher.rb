@@ -321,6 +321,7 @@ module WorkUnits
     def create_lock!(unit, lock_key)
       if (owner = Ownership.active_unit_for_lock_key(lock_key))
         return if Ownership.nonblocking_main_branch_repair_repository_lock?(owner, lock_key)
+        return if materialize_behind_active_lock?
         raise LockConflict.new(lock_key: lock_key, work_unit: owner) if enforce_lock_conflict?(lock_key)
 
         return
@@ -329,6 +330,8 @@ module WorkUnits
       unit.work_unit_locks.create!(lock_key: lock_key)
     rescue ActiveRecord::RecordNotUnique
       owner = Ownership.active_unit_for_lock_key(lock_key)
+      return if owner && materialize_behind_active_lock?
+
       if owner &&
           enforce_lock_conflict?(lock_key) &&
           !Ownership.nonblocking_main_branch_repair_repository_lock?(owner, lock_key)
@@ -340,6 +343,10 @@ module WorkUnits
       return false unless definition.lock_conflicts_enforced?
 
       !lock_key.to_s.start_with?(ADVISORY_LOCK_KEY_PREFIX)
+    end
+
+    def materialize_behind_active_lock?
+      definition.materialize_behind_active_lock?
     end
 
     def preempt_superseded_ci_repairs!(unit)
