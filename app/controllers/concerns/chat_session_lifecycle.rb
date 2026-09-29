@@ -16,14 +16,14 @@ module ChatSessionLifecycle
       .limit(1)
       .pick("chat_attachments.attachable_id")
 
-    Current.user.repositories.active.find_by(id: recent_repo_id) if recent_repo_id
+    Repository.accessible_to(Current.user).active.find_by(id: recent_repo_id) if recent_repo_id
   end
 
   def repository_from_params
     id = params[:repository_id].presence
     return unless id
 
-    Current.user.repositories.active.find(id)
+    Repository.accessible_to(Current.user).active.find(id)
   end
 
   def create_chat_session

@@ -27,6 +27,7 @@ import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/b
 import { BuildBadge } from "../components/BuildBadge"
 import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
+import { Select } from "../components/Select"
 import { AgentProviderConnectPanel, agentProviderHasConnectPanel, type ConnectableAgentProvider } from "../components/AgentProviderConnectPanel"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
@@ -268,7 +269,11 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         return
       }
 
-      const newChat = await fetchNewChat()
+      const newChat = await queryClient.fetchQuery({
+        queryKey: ["chats", "new"],
+        queryFn: fetchNewChat,
+        staleTime: 30_000
+      })
       const configuredProviders = configuredChatProviderOptions(newChat.chat_provider_options)
       const defaultProvider = defaultNewChatProvider(newChat, configuredProviders)
       const selectedRepositoryId = useDefaultRepository ? newChat.default_repository_id : repositoryId
@@ -1170,17 +1175,7 @@ function SidebarContent({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className={`sticky top-0 z-20 space-y-3 bg-white py-4 dark:bg-gray-950 ${collapsed ? "flex flex-col items-center px-0" : "px-3"}`}>
-          <Button
-            aria-label={collapsed ? t("nav:new_chat") : undefined}
-            className={collapsed ? "h-9 w-9 px-0" : "w-full"}
-            disabled={!user || startingChat}
-            onClick={() => onStartChat()}
-            size={collapsed ? "icon" : undefined}
-            title={collapsed ? t("nav:new_chat") : undefined}
-          >
-            <PlusIcon />
-            {collapsed ? null : <span>{t("nav:new_chat")}</span>}
-          </Button>
+          <NewChatLauncher collapsed={collapsed} disabled={!user || startingChat} onStartChat={onStartChat} />
           {showTeamProfile ? (
             <Button
               aria-label={collapsed ? t("nav:new_group_chat") : undefined}
@@ -1268,6 +1263,82 @@ type SidebarNavItem = {
   smartFolderApiPath?: string | null
   smartFolderSubject?: string | null
   smartFolderAllLink?: boolean
+}
+
+type NewChatRepositorySelection = "default" | number | null
+
+export function NewChatLauncher({ collapsed, disabled, onStartChat }: { collapsed: boolean; disabled: boolean; onStartChat: (repositoryId?: number | null) => void }) {
+  const { t } = useTranslation("nav")
+  const newChat = useQuery({
+    queryKey: ["chats", "new"],
+    queryFn: fetchNewChat,
+    enabled: !collapsed && !disabled,
+    staleTime: 30_000
+  })
+  const [selection, setSelection] = useState<NewChatRepositorySelection>("default")
+  const repositories = newChat.data?.repositories ?? []
+  const selectedRepositoryId = selection === "default" ? newChat.data?.default_repository_id ?? null : selection
+  const selectedRepository = repositories.find((repository) => repository.id === selectedRepositoryId) ?? null
+  const selectValue = selectedRepositoryId == null ? "none" : String(selectedRepositoryId)
+  const startRepositoryId = selection === "default" ? undefined : selection
+
+  if (collapsed) {
+    return (
+      <Button
+        aria-label={t("nav:new_chat")}
+        className="h-9 w-9 px-0"
+        disabled={disabled}
+        onClick={() => onStartChat()}
+        size="icon"
+        title={t("nav:new_chat")}
+      >
+        <PlusIcon />
+      </Button>
+    )
+  }
+
+  return (
+    <div className="space-y-1">
+      <Button
+        className="w-full"
+        disabled={disabled}
+        onClick={() => onStartChat(startRepositoryId)}
+      >
+        <PlusIcon />
+        <span>{t("nav:new_chat")}</span>
+      </Button>
+      <div className="flex min-w-0 items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 shadow-sm dark:border-gray-700 dark:bg-gray-950">
+        <label className="sr-only" htmlFor="new-chat-repository-select">{t("nav:new_chat_repository_label")}</label>
+        <Select
+          className="min-h-8 min-w-0 flex-1 px-1 text-xs"
+          disabled={disabled || newChat.isPending}
+          fullWidth={false}
+          id="new-chat-repository-select"
+          onChange={(event) => setSelection(event.target.value === "none" ? null : Number(event.target.value))}
+          value={selectValue}
+        >
+          <option value="none">{t("nav:new_chat_no_repository")}</option>
+          {repositories.map((repository) => (
+            <option key={repository.id} value={repository.id}>{repository.slug}</option>
+          ))}
+        </Select>
+        {selectedRepository ? (
+          <span className="sr-only">{t("nav:new_chat_attached_repository", { repository: selectedRepository.slug })}</span>
+        ) : null}
+        {selectedRepositoryId == null ? null : (
+          <button
+            aria-label={t("nav:new_chat_remove_repository")}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+            onClick={() => setSelection(null)}
+            title={t("nav:new_chat_remove_repository")}
+            type="button"
+          >
+            <CloseIcon className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function itemHasSubnav(item: SidebarNavItem, dashboardSubnavEnabled = true) {

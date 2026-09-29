@@ -831,7 +831,7 @@ describe("AppChromeV2", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/12")
     })
     expect(createEmptyChat).not.toHaveBeenCalled()
-    expect(fetchNewChat).not.toHaveBeenCalled()
+    expect(fetchNewChat).toHaveBeenCalledTimes(1)
   })
 
   it("does not reuse an unstarted chat from a filtered recent-chat cache", async () => {
@@ -855,7 +855,7 @@ describe("AppChromeV2", () => {
       ],
       repositories: []
     })
-    vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({ default_repository_id: 7 })
+    vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({ default_repository_id: 7, repositories: [] })
     vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
       message: "Chat created.",
       redirect_to: "/chats/14",
@@ -878,7 +878,7 @@ describe("AppChromeV2", () => {
   })
 
   it("creates an empty chat with the default repository and navigates to the returned chat path", async () => {
-    vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({ default_repository_id: 7 })
+    vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({ default_repository_id: 7, repositories: [] })
     vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
       message: "Chat created.",
       redirect_to: "/chats/14",
@@ -911,7 +911,7 @@ describe("AppChromeV2", () => {
   })
 
   it("creates a repositoryless empty chat from the General recent-chat quick-start", async () => {
-    vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({ default_repository_id: 7 })
+    vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({ default_repository_id: 7, repositories: [] })
     vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
       message: "Chat created.",
       redirect_to: "/chats/14",
@@ -967,6 +967,7 @@ describe("AppChromeV2", () => {
   it("creates an empty chat directly when only one chat provider is configured", async () => {
     vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({
       default_repository_id: 7,
+      repositories: [],
       effective_chat_provider: "claude",
       effective_chat_provider_label: "Claude",
       chat_provider_options: [
@@ -998,6 +999,7 @@ describe("AppChromeV2", () => {
   it("creates an empty chat with the effective provider directly when multiple configured providers are available, without showing a provider modal", async () => {
     vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({
       default_repository_id: 7,
+      repositories: [],
       effective_chat_provider: "codex",
       effective_chat_provider_label: "Codex",
       chat_provider_options: [
@@ -1028,7 +1030,7 @@ describe("AppChromeV2", () => {
   })
 
   it("shows a notice when creating an empty chat fails", async () => {
-    vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({ default_repository_id: 7 })
+    vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({ default_repository_id: 7, repositories: [] })
     vi.spyOn(chatsApi, "createEmptyChat").mockRejectedValue(new Error("boom"))
 
     renderAppChrome(<LocationProbe />, {
@@ -1044,7 +1046,7 @@ describe("AppChromeV2", () => {
   })
 
   it("disables New Chat while a creation request is in flight and ignores a rapid second click", async () => {
-    let resolveFetchNewChat: (value: { default_repository_id: number }) => void = () => {}
+    let resolveFetchNewChat: (value: chatsApi.NewChatPayload) => void = () => {}
     vi.spyOn(chatsApi, "fetchNewChat").mockReturnValue(
       new Promise((resolve) => { resolveFetchNewChat = resolve })
     )
@@ -1077,7 +1079,7 @@ describe("AppChromeV2", () => {
     fireEvent.click(newChatButton)
 
     await act(async () => {
-      resolveFetchNewChat({ default_repository_id: 7 })
+      resolveFetchNewChat({ default_repository_id: 7, repositories: [] })
     })
 
     await waitFor(() => {

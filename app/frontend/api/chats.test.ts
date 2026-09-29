@@ -42,6 +42,22 @@ describe("chat API", () => {
     )
   })
 
+  it("omits the repository when creating an explicitly repositoryless empty chat", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(createdChatPayload()))
+
+    await createEmptyChat(null, "claude")
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/app/chats",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          chat_provider: "claude"
+        })
+      })
+    )
+  })
+
   it("adds selected chat type filters to the recent chats query string", async () => {
     const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ groups: [], repositories: [] }))
 

@@ -6,6 +6,7 @@ import { MemoryRouter, useLocation } from "react-router-dom"
 import { slashCommandPrompt } from "../lib/slashCommands"
 import { stubVirtualizerMeasurementsForTest } from "../test/virtualizerMeasurements"
 import { App } from "./App"
+import { NewChatLauncher } from "./AppChromeV2"
 import { __resetDraftAttachmentsForTests } from "./chat/attachmentDraftStore"
 import type { BootstrapPayload } from "../api/bootstrap"
 import type { JobStep } from "../api/jobs"
@@ -12807,6 +12808,48 @@ describe("App", () => {
     } finally {
       fetchSpy.mockRestore()
       script.remove()
+    }
+  })
+
+  it("lets the new-chat form clear the default repository before creating a chat", async () => {
+    const startChat = vi.fn()
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/new") {
+        return Promise.resolve(new Response(JSON.stringify({
+          default_repository_id: 3,
+          repositories: [
+            { id: 3, slug: "acme/widgets" },
+            { id: 4, slug: "acme/roads" }
+          ],
+          effective_chat_provider: "claude",
+          effective_chat_provider_label: "Claude",
+          chat_provider_options: [{ value: "claude", label: "Claude", configured: true, effective_provider: "claude", effective_label: "Claude" }]
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <NewChatLauncher collapsed={false} disabled={false} onStartChat={startChat} />
+        </QueryClientProvider>
+      )
+
+      const repositorySelect = await screen.findByRole("combobox", { name: "Repository for new chat" }) as HTMLSelectElement
+      await waitFor(() => expect(repositorySelect.value).toBe("3"))
+      expect(within(repositorySelect).getByRole("option", { name: "acme/widgets" })).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Remove repository from new chat" }))
+      expect(repositorySelect.value).toBe("none")
+
+      fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
+
+      expect(startChat).toHaveBeenCalledWith(null)
+    } finally {
+      fetchSpy.mockRestore()
     }
   })
 
