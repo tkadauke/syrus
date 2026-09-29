@@ -1876,6 +1876,23 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             </span>
           </div>
         ) : null}
+        {newChatForm ? (
+          <div className="mb-2 flex min-w-0 items-center">
+            <NewChatRepositorySelector
+              currentRepository={payload.chat.repository}
+              enabled
+              isLoading={newChatRepositories.isLoading}
+              isPending={updateRepository.isPending}
+              isError={newChatRepositories.isError || updateRepository.isError}
+              repositories={newChatRepositories.data?.repositories ?? []}
+              selectedRepositoryId={newChatRepositoryId}
+              onChange={(nextRepositoryId) => {
+                setNewChatRepositoryId(nextRepositoryId)
+                updateRepository.mutate(nextRepositoryId)
+              }}
+            />
+          </div>
+        ) : null}
         <div className="relative">
           <textarea
             aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
@@ -1937,19 +1954,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
               onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
             />
           ) : null}
-          <NewChatRepositorySelector
-            currentRepository={payload.chat.repository}
-            enabled={newChatForm}
-            isLoading={newChatRepositories.isLoading}
-            isPending={updateRepository.isPending}
-            isError={newChatRepositories.isError || updateRepository.isError}
-            repositories={newChatRepositories.data?.repositories ?? []}
-            selectedRepositoryId={newChatRepositoryId}
-            onChange={(nextRepositoryId) => {
-              setNewChatRepositoryId(nextRepositoryId)
-              updateRepository.mutate(nextRepositoryId)
-            }}
-          />
           <ChatProviderSelector payload={payload} queryKey={queryKey} />
           <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
           <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
