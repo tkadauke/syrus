@@ -66,13 +66,13 @@ RSpec.describe CredentialProbe do
       expect(result.details).to include(login: "ada", missing_scopes: [])
     end
 
-    it "does not accept a fine-grained token until repository workflow-file access is probed" do
+    it "does not accept a fine-grained token until repository workflow-file and Checks access are probed" do
       stub_user("github_pat_unsaved", scopes: "")
 
       result = described_class.github_token(token: "github_pat_unsaved", required_scopes: %w[ repo workflow ])
 
       expect(result.ok).to be false
-      expect(result.message).to eq("Fine-grained token authenticated as ada. Enter a repository slug so Syrus can verify repository write and GitHub Actions workflow-file access before saving.")
+      expect(result.message).to eq("Fine-grained token authenticated as ada. Enter a repository slug so Syrus can verify repository write, GitHub Actions workflow-file access, and Checks read access before saving.")
       expect(result.details).to include(
         login: "ada",
         scopes: [],
@@ -88,7 +88,7 @@ RSpec.describe CredentialProbe do
       )
     end
 
-    it "accepts a fine-grained token after probing workflow-file write access on the repository" do
+    it "accepts a fine-grained token after probing workflow-file write and Checks read access on the repository" do
       allow(SecureRandom).to receive(:hex).with(8).and_return("abc123ef")
       stub_user("github_pat_unsaved", scopes: "")
       stub_request(:get, "https://api.github.com/repos/acme/widgets")
@@ -97,6 +97,9 @@ RSpec.describe CredentialProbe do
       stub_request(:get, "https://api.github.com/repos/acme/widgets/git/refs/heads/main")
         .with(headers: { "Authorization" => "token github_pat_unsaved" })
         .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { object: { sha: "base123" } }.to_json)
+      checks_read = stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/base123/check-runs")
+        .with(headers: { "Authorization" => "token github_pat_unsaved" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { total_count: 0, check_runs: [] }.to_json)
       create_ref = stub_request(:post, "https://api.github.com/repos/acme/widgets/git/refs")
         .with(
           headers: { "Authorization" => "token github_pat_unsaved" },
@@ -117,16 +120,46 @@ RSpec.describe CredentialProbe do
       )
 
       expect(result.ok).to be true
-      expect(result.message).to eq("Fine-grained token can write workflow files on acme/widgets as ada.")
+      expect(result.message).to eq("Fine-grained token can write workflow files and read Checks on acme/widgets as ada. Also grant Pull requests write; Syrus cannot verify it without creating a probe PR.")
       expect(result.details).to include(
         login: "ada",
         fine_grained: true,
         probed_repository: "acme/widgets",
-        workflow_file_write: true
+        workflow_file_write: true,
+        checks_read: true,
+        unverified_repository_permissions: %w[pull_requests:write]
       )
+      expect(checks_read).to have_been_requested
       expect(create_ref).to have_been_requested
       expect(create_workflow).to have_been_requested
       expect(delete_ref).to have_been_requested
+    end
+
+    it "rejects a fine-grained token when Checks read access is forbidden" do
+      allow(SecureRandom).to receive(:hex).with(8).and_return("abc123ef")
+      stub_user("github_pat_unsaved", scopes: "")
+      stub_request(:get, "https://api.github.com/repos/acme/widgets")
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { default_branch: "main" }.to_json)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/git/refs/heads/main")
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { object: { sha: "base123" } }.to_json)
+      checks_read = stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/base123/check-runs")
+        .to_return(status: 403, headers: { "Content-Type" => "application/json" }, body: { message: "Resource not accessible by personal access token" }.to_json)
+      create_ref = stub_request(:post, "https://api.github.com/repos/acme/widgets/git/refs")
+
+      result = described_class.github_token(
+        token: "github_pat_unsaved",
+        required_scopes: %w[ repo workflow ],
+        probe_repository: "acme/widgets"
+      )
+
+      expect(result.ok).to be false
+      expect(result.message).to eq("Fine-grained token authenticated as ada, but GitHub refused the Checks read probe on acme/widgets. Grant Checks read for that repository.")
+      expect(result.details).to include(
+        probed_repository: "acme/widgets",
+        missing_repository_permissions: %w[checks:read]
+      )
+      expect(checks_read).to have_been_requested
+      expect(create_ref).not_to have_been_requested
     end
 
     it "cleans up the probe branch when the workflow-file write is forbidden" do
@@ -136,6 +169,8 @@ RSpec.describe CredentialProbe do
         .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { default_branch: "main" }.to_json)
       stub_request(:get, "https://api.github.com/repos/acme/widgets/git/refs/heads/main")
         .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { object: { sha: "base123" } }.to_json)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/base123/check-runs")
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { total_count: 0, check_runs: [] }.to_json)
       stub_request(:post, "https://api.github.com/repos/acme/widgets/git/refs")
         .to_return(status: 201, headers: { "Content-Type" => "application/json" }, body: {}.to_json)
       stub_request(:put, "https://api.github.com/repos/acme/widgets/contents/.github/workflows/syrus-token-probe.yml")

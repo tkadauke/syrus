@@ -115,8 +115,10 @@ export type CredentialTestResult = {
     needs_repository_probe?: boolean
     probed_repository?: string
     workflow_file_write?: boolean
+    checks_read?: boolean
     required_repository_permissions?: Record<string, string>
     missing_repository_permissions?: string[]
+    unverified_repository_permissions?: string[]
     model?: string
     shared_credential?: string
   }
