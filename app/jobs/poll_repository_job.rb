@@ -5,6 +5,10 @@ class PollRepositoryJob < ApplicationJob
   queue_as :polling
   UNTAGGED_OPEN_ISSUE_REFRESH_INTERVAL = 1.hour
   LINKED_OPEN_PR_LOOKUP_LIMIT = 50
+  MAX_TRANSIENT_GITHUB_RETRIES = 5
+  TRANSIENT_GITHUB_RETRY_BASE_DELAY = 1.minute
+  TRANSIENT_GITHUB_RETRY_MAX_DELAY = 30.minutes
+  TRANSIENT_GITHUB_RETRY_RESET_BUFFER = 5.seconds
   TRANSIENT_GITHUB_ERROR_CLASSES = [
     Octokit::ServerError,
     Faraday::TimeoutError,
@@ -15,67 +19,72 @@ class PollRepositoryJob < ApplicationJob
   # the recurring schedule past the dedup check.
   limits_concurrency to: 1, key: ->(repo_id, *) { "poll:#{repo_id}" }
 
-  def perform(repository_id, force: false)
+  def perform(repository_id, force: false, transient_retry_attempt: 0)
     repository = Repository.find_by(id: repository_id)
     return unless repository
     # Archive is stricter than polling-off — it blocks even force: true
     # so a stale "Poll now" tab can't reanimate an archived repo.
     return if repository.archived?
     return unless force || repository.polling_enabled?
-    return if github_polling_rate_limited?(repository, user: repository.user, manual: force, retry_args: [ repository_id ], retry_kwargs: { force: force })
+    if !force && repository.github_api_rate_limited_for?(user: repository.user)
+      return handle_transient_github_failure(
+        repository,
+        "GitHub API rate limit exhausted",
+        force: force,
+        retry_attempt: transient_retry_attempt,
+        wait_until: reset_with_buffer(github_polling_rate_limit_reset_at(repository, user: repository.user))
+      )
+    end
 
     previous_poll_started_at = repository.last_poll_started_at
     incremental_since = force ? nil : previous_poll_started_at
     poll_started_at = Time.current
 
-    with_github_polling_rate_limit_backoff(repository, user: repository.user, manual: force, retry_args: [ repository_id ], retry_kwargs: { force: force }) do
-      client = GithubClient.for(repository: repository, user: repository.user)
-      listed_issues = list_labeled_issues(client, repository, since: incremental_since)
-      retried_issues = retry_quarantined_issues(client, repository, listed_issues: listed_issues, at: poll_started_at)
-      issues = open_issues_for_ingestion(listed_issues + retried_issues)
-      closed_issues = unique_issues_by_number(
-        list_labeled_issues(client, repository, state: "closed", since: incremental_since) + closed_issues_for_resolution(retried_issues)
+    client = GithubClient.for(repository: repository, user: repository.user)
+    listed_issues = list_labeled_issues(client, repository, since: incremental_since)
+    retried_issues = retry_quarantined_issues(client, repository, listed_issues: listed_issues, at: poll_started_at)
+    issues = open_issues_for_ingestion(listed_issues + retried_issues)
+    closed_issues = unique_issues_by_number(
+      list_labeled_issues(client, repository, state: "closed", since: incremental_since) + closed_issues_for_resolution(retried_issues)
+    )
+    prior_jobs_by_issue_number = latest_jobs_by_issue_number(repository, issues)
+    linked_lookup_candidates = linked_open_pr_lookup_issue_numbers(issues, prior_jobs_by_issue_number)
+    linked_lookup_issue_numbers = linked_lookup_candidates.first(LINKED_OPEN_PR_LOOKUP_LIMIT)
+    linked_lookup_overflow_numbers = linked_lookup_candidates.drop(LINKED_OPEN_PR_LOOKUP_LIMIT).index_with(true)
+    linked_open_prs = linked_lookup_issue_numbers.any? ? client.linked_open_prs_for_issues(repository.slug, linked_lookup_issue_numbers) : {}
+    linked_lookup_numbers = linked_lookup_issue_numbers.index_with(true)
+
+    stats = Hash.new(0)
+    issues.each do |issue|
+      result = ingest_with_quarantine(
+        issue,
+        repository,
+        prior_jobs_by_issue_number: prior_jobs_by_issue_number,
+        linked_open_prs: linked_open_prs,
+        linked_lookup_numbers: linked_lookup_numbers,
+        linked_lookup_overflow_numbers: linked_lookup_overflow_numbers
       )
-      prior_jobs_by_issue_number = latest_jobs_by_issue_number(repository, issues)
-      linked_lookup_candidates = linked_open_pr_lookup_issue_numbers(issues, prior_jobs_by_issue_number)
-      linked_lookup_issue_numbers = linked_lookup_candidates.first(LINKED_OPEN_PR_LOOKUP_LIMIT)
-      linked_lookup_overflow_numbers = linked_lookup_candidates.drop(LINKED_OPEN_PR_LOOKUP_LIMIT).index_with(true)
-      linked_open_prs = linked_lookup_issue_numbers.any? ? client.linked_open_prs_for_issues(repository.slug, linked_lookup_issue_numbers) : {}
-      linked_lookup_numbers = linked_lookup_issue_numbers.index_with(true)
-
-      stats = Hash.new(0)
-      issues.each do |issue|
-        result = ingest_with_quarantine(
-          issue,
-          repository,
-          prior_jobs_by_issue_number: prior_jobs_by_issue_number,
-          linked_open_prs: linked_open_prs,
-          linked_lookup_numbers: linked_lookup_numbers,
-          linked_lookup_overflow_numbers: linked_lookup_overflow_numbers
-        )
-        stats[result] += 1
-        repository.clear_poll_issue_error!(issue_number: issue.number) unless %i[ quarantined deferred ].include?(result)
-      end
-      closed_jobs = close_jobs_for_closed_issues!(repository, closed_issues)
-      clear_closed_poll_issue_errors!(repository, closed_issues)
-      InputSources::PendingWorkWakeup.call(repository)
-      update_untagged_open_issue_count!(repository, client)
-
-      log_poll_summary(repository, issues: issues, closed_issues: closed_issues, closed_jobs: closed_jobs, stats: stats, incremental_since: incremental_since)
-      if linked_lookup_overflow_numbers.any?
-        Rails.logger.info(
-          "[PollRepositoryJob] #{repository.slug} deferred #{linked_lookup_overflow_numbers.size} " \
-          "issue(s) until a later poll to stay within the linked-PR lookup budget"
-        )
-      end
-      success_at = linked_lookup_overflow_numbers.any? ? nil : poll_started_at
-      repository.mark_poll_success!(at: success_at, clear_issue_errors: false)
+      stats[result] += 1
+      repository.clear_poll_issue_error!(issue_number: issue.number) unless %i[ quarantined deferred ].include?(result)
     end
-  rescue Octokit::TooManyRequests
-    raise
+    closed_jobs = close_jobs_for_closed_issues!(repository, closed_issues)
+    clear_closed_poll_issue_errors!(repository, closed_issues)
+    InputSources::PendingWorkWakeup.call(repository)
+    update_untagged_open_issue_count!(repository, client)
+
+    log_poll_summary(repository, issues: issues, closed_issues: closed_issues, closed_jobs: closed_jobs, stats: stats, incremental_since: incremental_since)
+    if linked_lookup_overflow_numbers.any?
+      Rails.logger.info(
+        "[PollRepositoryJob] #{repository.slug} deferred #{linked_lookup_overflow_numbers.size} " \
+        "issue(s) until a later poll to stay within the linked-PR lookup budget"
+      )
+    end
+    success_at = linked_lookup_overflow_numbers.any? ? nil : poll_started_at
+    repository.mark_poll_success!(at: success_at, clear_issue_errors: false)
+  rescue Octokit::TooManyRequests => e
+    handle_transient_github_failure(repository, e, force: force, retry_attempt: transient_retry_attempt)
   rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
-    Rails.logger.warn("[PollRepositoryJob] #{repository&.slug || repository_id}: transient GitHub polling failure; retrying - #{e.class}: #{e.message}")
-    self.class.set(wait: 1.minute).perform_later(repository_id, force: force)
+    handle_transient_github_failure(repository, e, force: force, retry_attempt: transient_retry_attempt)
   rescue => e
     if repository
       repository.mark_poll_failure!(e.message)
@@ -84,6 +93,86 @@ class PollRepositoryJob < ApplicationJob
   end
 
   private
+
+  def handle_transient_github_failure(repository, error, force:, retry_attempt:, wait_until: nil)
+    message = transient_github_error_message(error)
+    repository.mark_poll_failure!(message) if repository
+
+    if retry_attempt >= MAX_TRANSIENT_GITHUB_RETRIES
+      Rails.logger.warn(
+        "[PollRepositoryJob] #{repository&.slug || "unknown"}: transient GitHub polling failure " \
+        "after #{retry_attempt} retry attempt(s); leaving repository marked failed - #{message}"
+      )
+      return
+    end
+
+    next_attempt = retry_attempt + 1
+    retry_at = transient_github_retry_at(error, repository: repository, attempt: next_attempt, wait_until: wait_until)
+    Rails.logger.warn(
+      "[PollRepositoryJob] #{repository&.slug || "unknown"}: transient GitHub polling failure; " \
+      "retry #{next_attempt}/#{MAX_TRANSIENT_GITHUB_RETRIES} at #{retry_at.utc.iso8601} - #{message}"
+    )
+    self.class.set(wait_until: retry_at).perform_later(repository.id, force: force, transient_retry_attempt: next_attempt)
+  end
+
+  def transient_github_error_message(error)
+    return error if error.is_a?(String)
+
+    "#{error.class}: #{error.message}"
+  end
+
+  def transient_github_retry_at(error, repository:, attempt:, wait_until:)
+    retry_after = retry_after_at(error)
+    candidates = [
+      wait_until,
+      rate_limit_reset_at(error),
+      reset_with_buffer(github_polling_rate_limit_reset_at(repository, user: repository&.user))
+    ].compact.select { |candidate| candidate > Time.current }
+    retry_at = candidates.min || exponential_retry_at(attempt)
+    return retry_at unless retry_after&.future?
+
+    [ retry_at, retry_after ].max
+  end
+
+  def retry_after_at(error)
+    value = github_error_header(error, "retry-after")
+    return if value.blank?
+
+    seconds = Integer(value, exception: false)
+    return seconds.seconds.from_now if seconds
+
+    Time.httpdate(value)
+  rescue ArgumentError
+    nil
+  end
+
+  def rate_limit_reset_at(error)
+    reset_epoch = github_error_header(error, "x-ratelimit-reset")
+    return if reset_epoch.blank?
+
+    epoch = Integer(reset_epoch, exception: false)
+    reset_with_buffer(epoch ? Time.at(epoch) : nil)
+  end
+
+  def github_error_header(error, name)
+    headers = error.respond_to?(:response_headers) ? error.response_headers : nil
+    return unless headers
+
+    canonical = name.split("-").map(&:capitalize).join("-")
+    headers[name] || headers[name.downcase] || headers[name.upcase] || headers[canonical] ||
+      headers[name.to_sym] || headers[name.downcase.to_sym] || headers[canonical.to_sym]
+  rescue NoMethodError
+    nil
+  end
+
+  def reset_with_buffer(reset_at)
+    reset_at ? reset_at + TRANSIENT_GITHUB_RETRY_RESET_BUFFER : nil
+  end
+
+  def exponential_retry_at(attempt)
+    delay = TRANSIENT_GITHUB_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+    [ delay, TRANSIENT_GITHUB_RETRY_MAX_DELAY ].min.from_now
+  end
 
   # Best-effort, cheap dashboard signal — never part of the ingestion
   # contract. A failure here (rate limit, transient GitHub error) must
