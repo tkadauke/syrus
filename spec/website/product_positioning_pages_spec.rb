@@ -47,5 +47,7 @@ RSpec.describe "website product positioning pages" do
     expect(normalized_faq).to include("Claude, Codex, Muse, and Antigravity are interchangeable provider plugins")
     expect(normalized_faq).not_to include("| Claude Code Action |")
     expect(normalized_faq).not_to include("GitHub Copilot Coding Agent, OpenAI Codex cloud, and Google Jules are engines")
+    expect(normalized_faq).not_to include("or another adapter")
+    expect(normalized_faq).not_to include("whatever provider another adapter uses")
   end
 end
