@@ -1,5 +1,5 @@
 class PlannedExecutionRequirement
-  SOURCES = %w[defaulted inferred explicit].freeze
+  SOURCES = %w[defaulted inferred explicit prompt classifier operator].freeze
   DEFAULT_CAPABILITIES = { "os" => [ "linux" ] }.freeze
 
   attr_reader :project_label, :target_label, :capabilities, :source
@@ -20,7 +20,8 @@ class PlannedExecutionRequirement
   def self.from_attributes(attributes)
     return default if attributes.blank?
 
-    new(**attributes.symbolize_keys.slice(:project_label, :target_label, :capabilities, :source))
+    attrs = attributes.to_h.deep_symbolize_keys
+    new(**attrs.slice(:project_label, :target_label, :capabilities, :source))
   end
 
   def self.for_workflow(job:, override: nil)

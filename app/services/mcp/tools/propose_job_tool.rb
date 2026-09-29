@@ -61,6 +61,11 @@ module Mcp::Tools
       the Job inherits the repository/user default provider at confirmation
       time. Unknown provider values are rejected before the proposal card is
       created.
+      Set planned_execution to explicitly choose the primary implementation
+      placement when the request is ambiguous, such as macos/xcode for iOS
+      work or windows/x64 for Windows work. Omit it for conservative
+      automatic inference from the proposal text and repository capability
+      metadata.
     DESC
 
     input_schema(
@@ -80,13 +85,23 @@ module Mcp::Tools
         route_to_backlog: { type: "boolean", description: "When true, confirming this direct Job proposal creates the Job in backlog and does not start its initial workflow. Defaults to false for the current start-normal behavior." },
         investigation: { type: "boolean", description: "When true, confirming this proposal creates a read-only investigation Job (no PR expected) instead of a normal implementation Job. Defaults to false." },
         provider: { type: "string", description: "Optional implementing-provider override (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
+        planned_execution: {
+          type: "object",
+          properties: {
+            project_label: { type: "string", description: "Optional operator-facing project or placement label, such as iOS App." },
+            target_label: { type: "string", description: "Optional target graph label, such as //ios:app." },
+            capabilities: { type: "object", description: "Execution capabilities: os, arch, toolchains, runtimes, and/or features." },
+            source: { type: "string", description: "Decision provenance. Defaults to operator for this explicit override." }
+          },
+          description: "Optional explicit primary implementation placement override. Use capabilities like {\"os\":[\"macos\"],\"toolchains\":[\"xcode\"]} for iOS/Xcode or {\"os\":[\"windows\"],\"arch\":[\"x64\"]} for Windows."
+        },
         for_active_goal: { type: "boolean", description: "Set true only when this proposal directly advances the currently active Chat Goal. Defaults to false so unrelated proposals are not silently attributed to the active goal." }
       },
       required: %w[repo title description]
     )
 
     class << self
-      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], media: [], route_to_backlog: false, investigation: false, provider: nil, for_active_goal: false)
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], media: [], route_to_backlog: false, investigation: false, provider: nil, planned_execution: nil, for_active_goal: false)
         chat_session = server_context.fetch(:chat_session)
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
@@ -100,6 +115,7 @@ module Mcp::Tools
         return Mcp::Tools.invalid("description is required") if description.empty?
         provider_setting, provider_error = normalize_provider_setting(provider)
         return Mcp::Tools.invalid(provider_error) if provider_error
+        planned_execution_attrs = planned_execution_attributes(repository, title, description, planned_execution)
         goal_attrs = goal_provenance_attributes(chat_session, for_active_goal)
         return Mcp::Tools.invalid("for_active_goal requires an active Chat Goal") if goal_attrs == false
 
@@ -152,6 +168,7 @@ module Mcp::Tools
             route_to_backlog: ActiveModel::Type::Boolean.new.cast(route_to_backlog),
             investigation: ActiveModel::Type::Boolean.new.cast(investigation),
             provider_setting: provider_setting,
+            **planned_execution_attrs,
             **goal_attrs
           )
           dependencies.each do |dependency|
@@ -164,9 +181,25 @@ module Mcp::Tools
         Mcp::Tools.success(Mcp::Tools.proposal_payload(proposal))
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+      rescue PlannedExecutionPlanner::AmbiguousRequest, ArgumentError => e
+        Mcp::Tools.invalid(e.message)
       end
 
       private
+
+      def planned_execution_attributes(repository, title, description, planned_execution)
+        explicit = PlannedExecutionParams.from_params({ "planned_execution" => planned_execution }.compact)
+        return explicit if explicit.present?
+
+        probe = repository.user.jobs.new(repository: repository, issue_title: title, issue_body: description)
+        requirement = PlannedExecutionPlanner.for_job(probe)
+        {
+          planned_execution_project_label: requirement.project_label,
+          planned_execution_target_label: requirement.target_label,
+          planned_execution_capabilities: requirement.capabilities,
+          planned_execution_source: requirement.source
+        }
+      end
 
       def goal_provenance_attributes(chat_session, for_active_goal)
         unless ActiveModel::Type::Boolean.new.cast(for_active_goal)
