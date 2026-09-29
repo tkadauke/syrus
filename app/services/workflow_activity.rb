@@ -63,11 +63,13 @@ class WorkflowActivity
   end
 
   def workflow_state_changed!(workflow)
-    return unless workflow.saved_change_to_state?
+    change = workflow_state_change(workflow)
+    return unless change
 
-    from_state, to_state = workflow.saved_change_to_state
+    from_state = change.fetch(:from_state)
+    to_state = change.fetch(:to_state)
     event_type = workflow.terminal? ? "workflow_finished" : "workflow_started"
-    reason_key = StateTransition.reason_key_for(workflow)
+    reason_key = change[:reason_key]
     record!(
       event_type: event_type,
       source: "workflow",
@@ -78,7 +80,7 @@ class WorkflowActivity
       message: "#{workflow.slug} #{from_state} -> #{to_state}.",
       metadata: workflow_metadata(workflow)
         .merge(from_state: from_state, to_state: to_state)
-        .merge(StateTransition.transition_metadata_for(workflow))
+        .merge(change.fetch(:metadata))
     )
   end
 
@@ -139,13 +141,53 @@ class WorkflowActivity
 
   def workflow_metadata(workflow)
     {
-      trigger_kind: workflow.trigger_kind,
-      agent_provider: workflow.agent_provider,
-      state: workflow.state,
-      created_at: workflow.created_at&.iso8601,
-      started_at: workflow.started_at&.iso8601,
-      finished_at: workflow.finished_at&.iso8601
+      "trigger_kind" => workflow.trigger_kind,
+      "agent_provider" => workflow.agent_provider,
+      "state" => workflow.state,
+      "created_at" => workflow.created_at&.iso8601,
+      "started_at" => workflow.started_at&.iso8601,
+      "finished_at" => workflow.finished_at&.iso8601
     }.compact
+  end
+
+  def workflow_state_change(workflow)
+    if workflow.saved_change_to_state?
+      return {
+        from_state: workflow.saved_change_to_state.first,
+        to_state: workflow.saved_change_to_state.last,
+        reason_key: StateTransition.reason_key_for(workflow),
+        metadata: StateTransition.transition_metadata_for(workflow)
+      }
+    end
+
+    transition = StateTransition.for_subject(workflow).recent.find_by(to_state: workflow.state)
+    return state_change_from_transition(transition) if transition
+
+    aasm_workflow_state_change(workflow)
+  end
+
+  def state_change_from_transition(transition)
+    metadata = transition.metadata.to_h
+    {
+      from_state: transition.from_state,
+      to_state: transition.to_state,
+      reason_key: metadata["reason_key"],
+      metadata: metadata
+    }
+  end
+
+  def aasm_workflow_state_change(workflow)
+    from_state = workflow.aasm.from_state&.to_s
+    to_state = workflow.aasm.to_state&.to_s
+    return if from_state.blank? || to_state.blank? || from_state == to_state
+    return unless to_state == workflow.state
+
+    {
+      from_state: from_state,
+      to_state: to_state,
+      reason_key: StateTransition.reason_key_for(workflow),
+      metadata: StateTransition.transition_metadata_for(workflow)
+    }
   end
 
   def safe_metadata(metadata)
