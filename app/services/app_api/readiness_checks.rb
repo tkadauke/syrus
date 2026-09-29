@@ -24,6 +24,7 @@ module AppApi
         worker_queue_check,
         pause_check,
         storage_check,
+        alert_delivery_check,
         user && github_check,
         user && agent_provider_check,
         github_app_check
@@ -138,6 +139,45 @@ module AppApi
       )
     ensure
       FileUtils.rm_f(probe) if defined?(probe) && probe
+    end
+
+    def alert_delivery_check
+      dead_lettered_count = SystemAlertNotification.dead_lettered.count
+      if dead_lettered_count.positive?
+        return check(
+          "alert_delivery",
+          "Alert delivery",
+          "error",
+          "#{dead_lettered_count} failed system alert #{'delivery'.pluralize(dead_lettered_count)} #{dead_lettered_count == 1 ? 'needs' : 'need'} operator attention.",
+          "Inspect system_alert_notifications rows with dead_lettered_at set, fix the configured alert sink, and clear or redeliver the affected alert."
+        )
+      end
+
+      retrying_count = SystemAlertNotification.retrying.count
+      if retrying_count.positive?
+        return check(
+          "alert_delivery",
+          "Alert delivery",
+          "warning",
+          "#{retrying_count} system alert #{'delivery'.pluralize(retrying_count)} failed and will be retried.",
+          "Check SYRUS_ALERT_WEBHOOK_URL, SYRUS_ALERT_EMAIL_TO, outbound network access, and mail delivery if retries continue failing.",
+          optional: true
+        )
+      end
+
+      if SystemAlertDelivery.configured?
+        check("alert_delivery", "Alert delivery", "ok", "Outbound alert delivery is configured and has no failed deliveries.", nil, optional: true)
+      else
+        check("alert_delivery", "Alert delivery", "ok", "No outbound alert sink is configured; in-app system alerts remain available.", nil, optional: true)
+      end
+    rescue => e
+      check(
+        "alert_delivery",
+        "Alert delivery",
+        "error",
+        "System alert delivery state cannot be checked: #{safe_error(e)}.",
+        "Run database migrations and verify the web process can read system_alert_notifications."
+      )
     end
 
     def github_check

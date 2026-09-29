@@ -1,6 +1,9 @@
 require "net/http"
 
 class SystemAlertDelivery
+  MissingPayload = Class.new(StandardError)
+  MAX_DELIVERY_ATTEMPTS = 3
+  RETRY_DELAYS = [ 1.minute, 5.minutes ].freeze
   WEBHOOK_TIMEOUT = 5
 
   def self.deliver(alerts)
@@ -19,26 +22,47 @@ class SystemAlertDelivery
   def deliver
     return unless configured?
 
-    alarm_alerts.each do |alert|
-      notification = claim(alert)
-      next unless notification
-
-      payload = payload_for(alert)
-      deliver_to_sinks(payload)
-      notification.update!(delivered_at: Time.current, payload: payload)
-    rescue StandardError => e
-      notification&.update_columns(
-        delivery_error_class: e.class.name,
-        delivery_error_message: e.message.to_s.truncate(1_000),
-        updated_at: Time.current
-      )
-      Rails.logger.warn("[SystemAlertDelivery] failed to deliver #{alert.dismissal_key}: #{e.class}: #{e.message}")
-    end
+    deliver_current_alerts
+    deliver_due_notifications
   end
 
   private
 
   attr_reader :alerts
+
+  def deliver_current_alerts
+    alarm_alerts.each do |alert|
+      notification = claim(alert)
+      next unless notification
+
+      payload = payload_for(alert)
+      notification.update!(payload: payload, alert_id: alert.id, severity: alert.severity.to_s, title: text(alert.title))
+      deliver_notification(notification, payload, log_key: alert.dismissal_key)
+    end
+  end
+
+  def deliver_due_notifications
+    SystemAlertNotification.retry_due.find_each do |notification|
+      deliver_notification(notification, notification.payload, log_key: notification.dismissal_key)
+    end
+  end
+
+  def deliver_notification(notification, payload, log_key:)
+    raise MissingPayload, "alert notification has no retry payload" if payload.blank?
+
+    payload = payload.deep_symbolize_keys
+    deliver_to_sinks(payload)
+    notification.update!(
+      delivered_at: Time.current,
+      delivery_error_class: nil,
+      delivery_error_message: nil,
+      next_attempt_at: nil,
+      dead_lettered_at: nil
+    )
+  rescue StandardError => e
+    record_failure(notification, e)
+    Rails.logger.warn("[SystemAlertDelivery] failed to deliver #{log_key}: #{e.class}: #{e.message}")
+  end
 
   def configured?
     self.class.configured?
@@ -58,12 +82,37 @@ class SystemAlertDelivery
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
     raise unless duplicate_claim?(e)
 
-    nil
+    existing_claim(alert)
   end
 
   def duplicate_claim?(error)
     error.is_a?(ActiveRecord::RecordNotUnique) ||
       error.record&.errors&.of_kind?(:dismissal_key, :taken)
+  end
+
+  def existing_claim(alert)
+    notification = SystemAlertNotification.find_by(dismissal_key: alert.dismissal_key)
+    return unless notification&.retry_due?
+
+    notification
+  end
+
+  def record_failure(notification, error)
+    attempts = notification.delivery_attempts + 1
+    dead_lettered_at = attempts >= MAX_DELIVERY_ATTEMPTS ? Time.current : nil
+
+    notification.update_columns(
+      delivery_attempts: attempts,
+      delivery_error_class: error.class.name,
+      delivery_error_message: error.message.to_s.truncate(1_000),
+      next_attempt_at: dead_lettered_at ? nil : next_attempt_at(attempts),
+      dead_lettered_at: dead_lettered_at,
+      updated_at: Time.current
+    )
+  end
+
+  def next_attempt_at(attempts)
+    Time.current + RETRY_DELAYS.fetch(attempts - 1, RETRY_DELAYS.last)
   end
 
   def payload_for(alert)
