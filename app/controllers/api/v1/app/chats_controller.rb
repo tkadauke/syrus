@@ -103,6 +103,11 @@ module Api
             return
           end
 
+          if chat_params.respond_to?(:key?) && chat_params.key?(:repository_id)
+            update_chat_repository(chat_session, chat_params[:repository_id])
+            return
+          end
+
           if chat_params.respond_to?(:key?) && chat_params.key?(:chat_model)
             model = chat_params[:chat_model].to_s.strip.presence
             if model
@@ -1868,6 +1873,22 @@ module Api
 
         def chat_repository_scope
           Repository.accessible_to(Current.user).active.order(:owner, :name)
+        end
+
+        def update_chat_repository(chat_session, repository_id)
+          if chat_session.messages.exists?
+            render_error("validation_failed", "Repository can only be changed before the first message.", status: :unprocessable_content)
+            return
+          end
+
+          repository = repository_id.to_s.strip.presence ? chat_repository_scope.find(repository_id) : nil
+
+          ChatSession.transaction do
+            chat_session.repository_attachments.destroy_all
+            chat_session.chat_attachments.create!(attachable: repository) if repository
+          end
+
+          render json: chat_payload(chat_session.reload, message: "Chat repository updated.")
         end
 
         def available_chat_models_for(chat_session)

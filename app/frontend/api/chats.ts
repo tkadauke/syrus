@@ -1153,6 +1153,10 @@ export function updateChatPinned(id: number | string, pinned: boolean) {
   return patchJson<ChatPayloadUpdate>(`/api/v1/app/chats/${id}`, { chat: { pinned } })
 }
 
+export function updateChatRepository(id: number | string, repositoryId: string | number | null) {
+  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { repository_id: repositoryId ?? "" } })
+}
+
 export function switchChatProvider(path: string, chatProvider: string) {
   return postJson<{ message: string }>(path, { provider: chatProvider })
 }
