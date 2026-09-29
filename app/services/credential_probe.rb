@@ -39,15 +39,35 @@ class CredentialProbe
     github_user = client.user
     headers = client.last_response&.headers || {}
     scopes = headers.fetch("x-oauth-scopes", "").to_s.split(",").map(&:strip).compact_blank
-    missing = required_scopes.map(&:to_s) - scopes
+    required_scopes = required_scopes.map(&:to_s)
+    fine_grained_pat = scopes.empty? && token.start_with?("github_pat_")
+    missing = required_scopes - scopes
 
-    if missing.any?
+    if fine_grained_pat
+      Result.new(
+        credential: "github_token",
+        ok: true,
+        message: "Fine-grained token authenticated as #{github_user.login}. Select the repositories Syrus will manage and grant Contents, Pull requests, and Workflows read/write plus Checks read.",
+        details: {
+          login: github_user.login,
+          scopes: scopes,
+          missing_scopes: [],
+          fine_grained: true,
+          required_repository_permissions: {
+            contents: "write",
+            pull_requests: "write",
+            workflows: "write",
+            checks: "read"
+          }
+        }
+      )
+    elsif missing.any?
       label = missing.size == 1 ? "scope" : "scopes"
       Result.new(
         credential: "github_token",
         ok: false,
         message: "Token authenticated as #{github_user.login}, but it is missing the #{missing.join(" and ")} #{label}. " \
-                 "Use a classic token with the missing scope, or a fine-grained token with repository Contents and Pull requests access.",
+                 "Use a classic token with repo and workflow scopes, or a fine-grained token with repository Contents, Pull requests, and Workflows read/write plus Checks read.",
         details: { login: github_user.login, scopes: scopes, missing_scopes: missing }
       )
     else

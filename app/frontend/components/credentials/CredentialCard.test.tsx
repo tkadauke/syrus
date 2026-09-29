@@ -117,6 +117,7 @@ describe("GithubCredentialCard", () => {
     expect(screen.getByPlaceholderText("ghp_…")).toBeInTheDocument()
     expect(screen.getByText("Contents")).toBeInTheDocument()
     expect(screen.getByText("Pull requests")).toBeInTheDocument()
+    expect(screen.getByText("Workflows")).toBeInTheDocument()
     expect(screen.getByText("Checks")).toBeInTheDocument()
   })
 

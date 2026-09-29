@@ -24,7 +24,7 @@ function mockRoutes(routes: { test?: () => Response; save?: () => Response }) {
   })
 }
 
-const okResult = { credential: "github_token", ok: true, message: "Token is valid for octocat.", details: { login: "octocat", scopes: [], missing_scopes: [] } }
+const okResult = { credential: "github_token", ok: true, message: "Fine-grained token authenticated as octocat. Select the repositories Syrus will manage and grant Contents, Pull requests, and Workflows read/write plus Checks read.", details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true } }
 
 describe("GithubTokenModal", () => {
   afterEach(() => {
@@ -40,6 +40,7 @@ describe("GithubTokenModal", () => {
     expect(screen.getByText(/Set an expiration/)).toBeInTheDocument()
     expect(screen.getByText("Contents")).toBeInTheDocument()
     expect(screen.getByText("Pull requests")).toBeInTheDocument()
+    expect(screen.getByText("Workflows")).toBeInTheDocument()
     expect(screen.getByText("Checks")).toBeInTheDocument()
   })
 
@@ -50,7 +51,7 @@ describe("GithubTokenModal", () => {
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_good" } })
 
-    await waitFor(() => expect(screen.getByText("Token is valid for octocat.")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Fine-grained token authenticated as octocat/)).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled()
   })
 
@@ -58,7 +59,7 @@ describe("GithubTokenModal", () => {
     const underScoped = {
       credential: "github_token",
       ok: false,
-      message: "Token authenticated as octocat, but it is missing the workflow scope. Use a classic token with the missing scope, or a fine-grained token with repository Contents and Pull requests access.",
+      message: "Token authenticated as octocat, but it is missing the workflow scope. Use a classic token with repo and workflow scopes, or a fine-grained token with repository Contents, Pull requests, and Workflows read/write plus Checks read.",
       details: { login: "octocat", scopes: ["repo"], missing_scopes: ["workflow"] }
     }
     mockRoutes({ test: () => jsonResponse({ credential_test: underScoped }) })

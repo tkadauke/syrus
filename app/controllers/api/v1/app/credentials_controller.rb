@@ -5,10 +5,11 @@ module Api
         include ProviderRoutingRuleSerialization
 
         # Classic PATs expose OAuth scopes in response headers. Fine-grained
-        # PATs are repository-permission based instead, so the paste probe only
-        # verifies that GitHub accepts the token. Repository-specific access is
-        # exercised when the operator adds or uses a repository.
-        GITHUB_REQUIRED_SCOPES = [].freeze
+        # PATs are repository-permission based instead, so they return no
+        # classic OAuth scopes here; CredentialProbe accepts that shape with an
+        # explicit fine-grained-permissions message instead of calling it a
+        # broadly valid token.
+        GITHUB_REQUIRED_SCOPES = %w[ repo workflow ].freeze
 
         def show
           render json: credentials_payload(Current.user)
