@@ -76,7 +76,59 @@ RSpec.describe SystemAlertDelivery do
     expect(notification.delivery_error_class).to be_nil
   end
 
-  it "dead-letters a persistently failing webhook after the retry bound" do
+  it "retries the stored payload when the computed alert clears before the next tick" do
+    stub = stub_request(:post, "https://alerts.example.test/syrus")
+      .to_return(status: 503, body: "try again")
+      .then
+      .to_return(status: 204, body: "")
+
+    with_env("SYRUS_ALERT_WEBHOOK_URL" => "https://alerts.example.test/syrus", "SYRUS_ALERT_EMAIL_TO" => nil) do
+      described_class.deliver([ alert ])
+      notification = SystemAlertNotification.sole
+
+      travel_to(notification.next_attempt_at + 1.second) do
+        described_class.deliver([])
+      end
+    end
+
+    expect(stub).to have_been_requested.twice
+    notification = SystemAlertNotification.sole
+    expect(notification.delivered_at).to be_present
+    expect(notification.dead_lettered_at).to be_nil
+  end
+
+  it "normalizes stored JSON payloads before retrying email delivery" do
+    payload = JSON.parse(JSON.generate(
+      id: "codex_usage:1",
+      dismissal_key: "codex_usage:1:exhausted",
+      severity: "alarm",
+      title: "Codex usage limit has been reached.",
+      message: "Codex reports 0% remaining.",
+      action_steps: [ "Pause Codex-backed automation." ],
+      cta: { text: "Open agent settings", url: "https://syrus.example.test/settings/agent" },
+      app_url: "https://syrus.example.test"
+    ))
+    SystemAlertNotification.create!(
+      dismissal_key: "codex_usage:1:exhausted",
+      alert_id: "codex_usage:1",
+      severity: "alarm",
+      title: "Codex usage limit has been reached.",
+      payload: payload,
+      delivery_attempts: 1
+    )
+
+    with_env("SYRUS_ALERT_WEBHOOK_URL" => nil, "SYRUS_ALERT_EMAIL_TO" => "ops@example.test") do
+      expect {
+        described_class.deliver([])
+      }.to change(ActionMailer::Base.deliveries, :count).by(1)
+    end
+
+    notification = SystemAlertNotification.sole
+    expect(notification.delivered_at).to be_present
+    expect(ActionMailer::Base.deliveries.last.subject).to eq("[Syrus alarm] Codex usage limit has been reached.")
+  end
+
+  it "dead-letters a persistently failing webhook after the retry bound even after the alert clears" do
     stub = stub_request(:post, "https://alerts.example.test/syrus")
       .to_return(status: 503, body: "still broken")
 
@@ -86,7 +138,7 @@ RSpec.describe SystemAlertDelivery do
       2.times do
         notification = SystemAlertNotification.sole
         travel_to(notification.next_attempt_at + 1.second) do
-          described_class.deliver([ alert ])
+          described_class.deliver([])
         end
       end
     end

@@ -1,6 +1,7 @@
 require "net/http"
 
 class SystemAlertDelivery
+  MissingPayload = Class.new(StandardError)
   MAX_DELIVERY_ATTEMPTS = 3
   RETRY_DELAYS = [ 1.minute, 5.minutes ].freeze
   WEBHOOK_TIMEOUT = 5
@@ -21,29 +22,47 @@ class SystemAlertDelivery
   def deliver
     return unless configured?
 
+    deliver_current_alerts
+    deliver_due_notifications
+  end
+
+  private
+
+  attr_reader :alerts
+
+  def deliver_current_alerts
     alarm_alerts.each do |alert|
       notification = claim(alert)
       next unless notification
 
       payload = payload_for(alert)
       notification.update!(payload: payload, alert_id: alert.id, severity: alert.severity.to_s, title: text(alert.title))
-      deliver_to_sinks(payload)
-      notification.update!(
-        delivered_at: Time.current,
-        delivery_error_class: nil,
-        delivery_error_message: nil,
-        next_attempt_at: nil,
-        dead_lettered_at: nil
-      )
-    rescue StandardError => e
-      record_failure(notification, e) if notification
-      Rails.logger.warn("[SystemAlertDelivery] failed to deliver #{alert.dismissal_key}: #{e.class}: #{e.message}")
+      deliver_notification(notification, payload, log_key: alert.dismissal_key)
     end
   end
 
-  private
+  def deliver_due_notifications
+    SystemAlertNotification.retry_due.find_each do |notification|
+      deliver_notification(notification, notification.payload, log_key: notification.dismissal_key)
+    end
+  end
 
-  attr_reader :alerts
+  def deliver_notification(notification, payload, log_key:)
+    raise MissingPayload, "alert notification has no retry payload" if payload.blank?
+
+    payload = payload.deep_symbolize_keys
+    deliver_to_sinks(payload)
+    notification.update!(
+      delivered_at: Time.current,
+      delivery_error_class: nil,
+      delivery_error_message: nil,
+      next_attempt_at: nil,
+      dead_lettered_at: nil
+    )
+  rescue StandardError => e
+    record_failure(notification, e)
+    Rails.logger.warn("[SystemAlertDelivery] failed to deliver #{log_key}: #{e.class}: #{e.message}")
+  end
 
   def configured?
     self.class.configured?
