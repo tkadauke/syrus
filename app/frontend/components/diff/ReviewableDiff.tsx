@@ -131,7 +131,7 @@ type FilesPopupPlacement = {
 
 const FILES_POPUP_MARGIN = 8
 const FILES_POPUP_MIN_HEIGHT = 200
-const DIFF_INLINE_REVIEW_PANEL_CLASS = "sticky left-0 z-[1] w-[min(44rem,100cqw,calc(100vw-3rem))] max-w-[min(44rem,100cqw,calc(100vw-3rem))] max-md:w-auto max-md:max-w-none"
+const DIFF_INLINE_REVIEW_PANEL_CLASS = "sticky left-0 z-[1] w-[min(44rem,100cqw,calc(100vw-3rem))] max-w-[min(44rem,100cqw,calc(100vw-3rem))]"
 const DIFF_FILE_HEADER_CONTROL_BASE_CLASS = "shrink-0 rounded border border-border font-sans font-medium text-text-secondary hover:bg-surface-raised disabled:opacity-50"
 
 const DIFF_DENSITY_CLASSES: Record<ReviewDiffSettings["density"], {
@@ -1367,7 +1367,7 @@ export function UnifiedDiffTable({
     if (threads.length === 0) return null
 
     const panel = (
-      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} space-y-2 bg-amber-50/70 max-md:static dark:bg-amber-950/30`}>
+      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} space-y-2 bg-amber-50/70 dark:bg-amber-950/30`}>
         {threads.map((thread) => (
           <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
             <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
@@ -1446,7 +1446,7 @@ export function UnifiedDiffTable({
           <textarea
             aria-label={t("diff_review_composer.comment")}
             autoFocus
-            className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 max-md:flex-1"
+            className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             onChange={(event) => onChangeComposingBody?.(event.target.value)}
             value={composingBody ?? ""}
           />
@@ -1477,8 +1477,8 @@ export function UnifiedDiffTable({
 
     return (
       <tr className="font-sans" data-testid="diff-review-composer">
-        <td className="border-r border-brand/20 max-md:hidden" colSpan={gutterColSpan} />
-        <td className={`text-brand max-md:hidden ${diffDensityClasses(reviewSettings).marker}`}>*</td>
+        <td className="border-r border-brand/20" colSpan={gutterColSpan} />
+        <td className={`text-brand ${diffDensityClasses(reviewSettings).marker}`}>*</td>
         <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={2}>
           {panel}
         </td>
