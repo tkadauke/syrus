@@ -17,7 +17,11 @@ Configure either or both of:
 Delivery is deduplicated by the alert's `dismissal_key` in
 `system_alert_notifications`, so repeated scheduler ticks or multiple operators
 seeing the same banner do not flood the sink. Only `:alarm` alerts are delivered
-outbound; warning and info banners remain UI-only.
+outbound; warning and info banners remain UI-only. Failed deliveries stay
+eligible for the recurring job and are retried with bounded backoff. When the
+retry bound is exhausted, the notification is marked with `dead_lettered_at`;
+the readiness probe reports that as an alert-delivery failure until an operator
+fixes the sink and clears or redelivers the affected row.
 
 The shared sink provides:
 
