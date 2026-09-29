@@ -568,7 +568,7 @@ RSpec.describe PollExternalPrJob, :ci_only do
       expect(user.notifications.where(kind: "external_pr_feedback").last.body).to include("stranger")
     end
 
-    it "treats an external-attributed comment as qualifying (no notification) when feedback_policy is auto" do
+    it "does not treat an external-attributed comment as qualifying when feedback_policy is auto" do
       repository.update!(feedback_policy: "auto")
       allow(PrCommentClassifier).to receive(:call).and_return(
         PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
@@ -579,9 +579,9 @@ RSpec.describe PollExternalPrJob, :ci_only do
       stub_review_comments([])
 
       expect { described_class.perform_now(external_pr_job.id) }
-        .not_to change { user.notifications.where(kind: "external_pr_feedback").count }
+        .to change { user.notifications.where(kind: "external_pr_feedback").count }.by(1)
 
-      expect(external_pr_job.reload.needs_attention_reason).to eq("upstream_pr_changes_requested")
+      expect(external_pr_job.reload.needs_attention?).to be false
     end
 
     it "unapproves an already-approved fork Job when qualifying feedback arrives" do

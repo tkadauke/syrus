@@ -108,6 +108,84 @@ RSpec.describe GithubClient do
       expect(stub).to have_been_requested
     end
 
+    it "records App-to-PAT API fallback and updates the current Job credential mode" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
+      installation = Factories.installation(
+        user: user,
+        cached_token: "install-token",
+        cached_token_expires_at: 1.hour.from_now
+      )
+      allow(installation).to receive(:invalidate_cached_token!)
+      allow(installation).to receive(:fresh_token).and_return("install-token")
+      repository.update!(installation: installation)
+      job = Factories.job(repository: repository, user: user, kind: "main_grader", issue_number: nil)
+      workflow = job.workflows.create!(user: user, trigger_kind: "main_grader", agent_provider: job.agent_provider)
+      step = workflow.steps.create!(kind: "implement", position: 1)
+      run = step.runs.create!(job: job, user: user, trigger_kind: workflow.trigger_kind)
+      expect(job.credential_mode).to eq("app")
+
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(
+          { status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json },
+          { status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json }
+        )
+      pat_stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token ghp_test_token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { number: 42, title: "PAT path" }.to_json)
+
+      Thread.current[:syrus_current_run] = run
+      GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, 42)
+
+      expect(pat_stub).to have_been_requested
+      expect(job.reload.credential_mode).to eq("pat")
+      expect(GithubAuthFallbackDiagnostic.last).to have_attributes(
+        repository: repository,
+        installation: installation,
+        run: run,
+        operation_type: "api",
+        error_status: 404
+      )
+    ensure
+      Thread.current[:syrus_current_run] = nil
+    end
+
+    it "keeps App credential telemetry when the PAT fallback operation also fails" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
+      installation = Factories.installation(
+        user: user,
+        cached_token: "install-token",
+        cached_token_expires_at: 1.hour.from_now
+      )
+      allow(installation).to receive(:invalidate_cached_token!)
+      allow(installation).to receive(:fresh_token).and_return("install-token")
+      repository.update!(installation: installation)
+      job = Factories.job(repository: repository, user: user, kind: "main_grader", issue_number: nil)
+      workflow = job.workflows.create!(user: user, trigger_kind: "main_grader", agent_provider: job.agent_provider)
+      step = workflow.steps.create!(kind: "implement", position: 1)
+      run = step.runs.create!(job: job, user: user, trigger_kind: workflow.trigger_kind)
+      expect(job.credential_mode).to eq("app")
+
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(
+          { status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json },
+          { status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json }
+        )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token ghp_test_token" })
+        .to_return(status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json)
+
+      Thread.current[:syrus_current_run] = run
+      expect {
+        GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, 42)
+      }.to raise_error(Octokit::NotFound)
+
+      expect(job.reload.credential_mode).to eq("app")
+    ensure
+      Thread.current[:syrus_current_run] = nil
+    end
+
     it "raises a clear error when neither installation nor PAT is available" do
       bare = Factories.user
       repo = Factories.repository(user: bare)
@@ -562,6 +640,12 @@ RSpec.describe GithubClient do
     it "falls back to PAT when initial token minting fails" do
       installation = Factories.installation(user: user, github_installation_id: 987)
       repository.update!(installation: installation)
+      job = Factories.job(repository: repository, user: user, kind: "main_grader", issue_number: nil)
+      workflow = job.workflows.create!(user: user, trigger_kind: "main_grader", agent_provider: job.agent_provider)
+      step = workflow.steps.create!(kind: "implement", position: 1)
+      run = step.runs.create!(job: job, user: user, trigger_kind: workflow.trigger_kind)
+      expect(job.credential_mode).to eq("app")
+      Thread.current[:syrus_current_run] = run
       stub_request(:post, "https://api.github.com/app/installations/987/access_tokens")
         .to_return(status: 404, headers: { "Content-Type" => "application/json" },
                    body: { message: "Not Found" }.to_json)
@@ -574,6 +658,7 @@ RSpec.describe GithubClient do
 
       expect(issue.number).to eq(42)
       expect(pat_stub).to have_been_requested
+      expect(job.reload.credential_mode).to eq("pat")
       expect(installation.reload.removed_at).to be_nil
       expect(GithubAuthFallbackDiagnostic.last).to have_attributes(
         repository_id: repository.id,
@@ -584,6 +669,8 @@ RSpec.describe GithubClient do
         refresh_attempted: true,
         refresh_succeeded: false
       )
+    ensure
+      Thread.current[:syrus_current_run] = nil
     end
 
     it "refreshes a stale installation token when fetching an Actions job log, then succeeds" do

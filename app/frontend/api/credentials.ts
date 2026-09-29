@@ -111,6 +111,14 @@ export type CredentialTestResult = {
     scopes?: string[]
     accepted_scopes?: string[]
     missing_scopes?: string[]
+    fine_grained?: boolean
+    needs_repository_probe?: boolean
+    probed_repository?: string
+    workflow_file_write?: boolean
+    checks_read?: boolean
+    required_repository_permissions?: Record<string, string>
+    missing_repository_permissions?: string[]
+    unverified_repository_permissions?: string[]
     model?: string
     shared_credential?: string
   }
@@ -219,11 +227,13 @@ export function testCredential(credential: string) {
   })
 }
 
-// Probe a pasted-but-unsaved GitHub token: reports whether it authenticates
-// and whether it carries the repo + workflow scopes Syrus requires.
-export function testGithubToken(githubToken: string) {
+// Probe a pasted-but-unsaved GitHub token. Classic token scopes are reported
+// from OAuth headers; fine-grained tokens require a repository slug so Syrus
+// can exercise workflow-file write capability before enabling save.
+export function testGithubToken(githubToken: string, probeRepository = "") {
   return postJson<CredentialTestPayload>("/api/v1/app/credentials/test_github_token", {
-    github_token: githubToken
+    github_token: githubToken,
+    probe_repository: probeRepository
   })
 }
 

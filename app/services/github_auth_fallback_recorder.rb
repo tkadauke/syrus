@@ -26,7 +26,7 @@ class GithubAuthFallbackRecorder
       refresh_succeeded: refresh_succeeded
     )
 
-    message = "github_auth_fallback: using PAT for #{repository.slug} #{operation_type} after App installation #{installation.github_installation_id} failed; " \
+    message = "github_auth_fallback: attempting PAT fallback for #{repository.slug} #{operation_type} after App installation #{installation.github_installation_id} failed; " \
               "error=#{diagnostic.error_class} status=#{diagnostic.error_status || 'unknown'}; " \
               "refresh_attempted=#{refresh_attempted} refresh_succeeded=#{refresh_succeeded}"
     Rails.logger.warn("[GithubAuthFallback] #{message}")
@@ -35,6 +35,15 @@ class GithubAuthFallbackRecorder
   rescue => e
     Rails.logger.warn("[GithubAuthFallback] diagnostic write failed: #{e.class}: #{e.message}")
     nil
+  end
+
+  def self.mark_effective_pat!(run: Thread.current[:syrus_current_run])
+    job = run&.job
+    return unless job&.credential_mode == "app"
+
+    job.update!(credential_mode: "pat")
+  rescue => e
+    Rails.logger.warn("[GithubAuthFallback] credential_mode update failed: #{e.class}: #{e.message}")
   end
 
   def self.recently_recorded?(repository:, installation:, operation_type:, error:, refresh_attempted:, refresh_succeeded:, run:)

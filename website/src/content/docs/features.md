@@ -1371,6 +1371,13 @@ etc.), repositories prefer an active GitHub App installation when one is
 linked for the repository owner. If no active installation is available,
 Syrus falls back to the user's PAT.
 
+When an App-authenticated API call later hits an authorization boundary
+such as a GitHub 404, Syrus retries with a refreshed App installation token
+once, then falls back to the user's PAT if one is available. That fallback is
+recorded as a per-repository diagnostic and, when it happens during a
+Workflow run, the Job's `credential_mode` is updated to `pat` so the visible
+telemetry reflects the credential that actually worked.
+
 Commit and pull request **authorship** is different: for an ordinary Job
 that belongs to a real person, the Job owner's own connected GitHub PAT
 wins over the shared App installation whenever one is connected, so
@@ -1391,6 +1398,14 @@ commit authored by the shared bot on behalf of a human gets a
 the human owner does not need one. Jobs persist the selected
 `credential_mode` as `app` or `pat` so operators can tell which identity
 actually authored that run's PR.
+
+For PAT setup, fine-grained tokens are recommended. Scope the token only to
+repositories this Syrus instance manages, grant repository Contents
+read/write, Pull requests read/write, and Checks read, then choose an
+expiration you can rotate. Classic PATs still work with `repo` for private
+repositories or `public_repo` for public repositories. The `workflow` scope
+is not required for normal Syrus operation; add it only if you expect agents
+to modify GitHub Actions workflow files through the PAT.
 
 The admin **Installations** page includes a lightweight GitHub App
 diagnostic. It shows recent installation sync status, repository-to-
@@ -1477,12 +1492,14 @@ required central host for a repository.
 
 ## Spending Insights
 
-The spending dashboard at `/insights/spending` rolls up captured
-`runs.cost_usd` into operator-facing cost views. It shows week, month,
-lifetime, average Job, and average merged-PR totals, plus breakdowns by
-Epic, user, repository, trigger kind, a daily trend chart, and the most
-expensive individual Runs. When spending exists across multiple agent
-providers, the dashboard can filter those views by model provider.
+The spending dashboard at `/insights/spending` rolls up `runs.cost_usd`
+into operator-facing cost views. Syrus records provider-reported cost when
+available; runs whose providers omit dollar costs keep `cost_usd` unset. The
+dashboard shows week, month, lifetime, average Job, and average merged-PR
+totals, plus breakdowns by Epic, user, repository, trigger kind, a daily trend
+chart, and the most expensive individual Runs. When spending exists across
+multiple agent providers, the dashboard can filter those views by model
+provider such as Claude Code or Codex.
 
 Chat can query the same spending data for 7-, 30-, or 90-day windows,
 optionally narrowed to a repository or Epic, and returns the daily trend,
@@ -1599,6 +1616,11 @@ and approval behavior. The repository issues panel can list GitHub issues
 and delegate work by adding the trigger label through the same credential
 path Syrus uses for polling.
 
+GitHub issue ingestion is polling-based and runs about every five minutes by
+default. The issue body can declare Epics, attach child Jobs, and express
+dependencies with `epic:`, `depends on:`, and `blocked by:` markers; see
+[Issue Authoring](/docs/issue-authoring) for the full contract and examples.
+
 Polling also tracks how many open GitHub issues on each repository are
 **not** carrying the trigger label — issues Syrus never ingests because no
 one labeled them. The Dashboard's Jobs view surfaces this as a dismissible
@@ -1608,6 +1630,12 @@ notice unlabeled bug reports without visiting every repository one at a
 time. The notice only appears on the Inbox smart folder, directly above the
 data table, since that is where new unlabeled work would otherwise go
 unnoticed.
+
+Repository polling is quota-aware. If GitHub reports an exhausted API bucket,
+autonomous polls wait until the reset time instead of advancing the repository
+poll watermark and failing. The unlabeled-issue count is cached rather than
+fully paginated on every tick, and linked-PR discovery is batched with
+per-issue watermarks so unchanged issues do not keep spending GraphQL calls.
 
 When approval propagation is enabled, Syrus mirrors eligible Job approvals as
 GitHub PR reviews. It posts as the approving user's own connected GitHub

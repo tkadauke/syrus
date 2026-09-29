@@ -4,6 +4,21 @@ Syrus uses structured event streams for operational/debug data that needs to be
 queried after the fact. New streams should use `Observability::EventStream` and
 `Observability::EventSink` instead of writing bespoke inline event-table code.
 
+## System Alert Delivery
+
+`SystemAlerts` still renders authenticated in-app banners, and
+`SystemAlertDeliveryJob` evaluates the same alert sources every minute so
+alarm-severity alerts can be sent even when no operator has a browser open.
+Configure either or both of:
+
+- `SYRUS_ALERT_WEBHOOK_URL` — POSTs a JSON payload for each alarm;
+- `SYRUS_ALERT_EMAIL_TO` — comma-separated mail recipients.
+
+Delivery is deduplicated by the alert's `dismissal_key` in
+`system_alert_notifications`, so repeated scheduler ticks or multiple operators
+seeing the same banner do not flood the sink. Only `:alarm` alerts are delivered
+outbound; warning and info banners remain UI-only.
+
 The shared sink provides:
 
 - a per-process in-memory ring for very recent events;

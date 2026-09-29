@@ -24,22 +24,25 @@ function mockRoutes(routes: { test?: () => Response; save?: () => Response }) {
   })
 }
 
-const okResult = { credential: "github_token", ok: true, message: "Token is valid for octocat.", details: { login: "octocat", scopes: ["repo", "workflow"], missing_scopes: [] } }
+const okResult = { credential: "github_token", ok: true, message: "Fine-grained token can write workflow files and read Checks on acme/widgets as octocat. Also grant Pull requests write; Syrus cannot verify it without creating a probe PR.", details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true, probed_repository: "acme/widgets", workflow_file_write: true, checks_read: true, unverified_repository_permissions: ["pull_requests:write"] } }
 
 describe("GithubTokenModal", () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it("links to GitHub settings and advises classic token, no expiration, repo + workflow scopes", () => {
+  it("links to GitHub settings and advises fine-grained repository permissions", () => {
     renderModal()
 
-    const link = screen.getByRole("link", { name: /Open github.com\/settings\/tokens/ })
-    expect(link).toHaveAttribute("href", "https://github.com/settings/tokens")
+    const link = screen.getByRole("link", { name: /Open fine-grained token settings/ })
+    expect(link).toHaveAttribute("href", "https://github.com/settings/personal-access-tokens/new")
     expect(link).toHaveAttribute("target", "_blank")
-    expect(screen.getByText(/No expiration/)).toBeInTheDocument()
-    expect(screen.getByText("repo")).toBeInTheDocument()
-    expect(screen.getByText("workflow")).toBeInTheDocument()
+    expect(screen.getByText(/Set an expiration/)).toBeInTheDocument()
+    expect(screen.getByText("Contents")).toBeInTheDocument()
+    expect(screen.getByText("Pull requests")).toBeInTheDocument()
+    expect(screen.getByText("Workflows")).toBeInTheDocument()
+    expect(screen.getByText("Checks")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("owner/repo")).toBeInTheDocument()
   })
 
   it("tests the token on paste and shows a green check, enabling save", async () => {
@@ -48,8 +51,9 @@ describe("GithubTokenModal", () => {
 
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_good" } })
+    fireEvent.change(screen.getByPlaceholderText("owner/repo"), { target: { value: "acme/widgets" } })
 
-    await waitFor(() => expect(screen.getByText("Token is valid for octocat.")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Fine-grained token can write workflow files and read Checks/)).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled()
   })
 
@@ -57,15 +61,15 @@ describe("GithubTokenModal", () => {
     const underScoped = {
       credential: "github_token",
       ok: false,
-      message: "Token authenticated as octocat, but it is missing the workflow scope. Regenerate a classic token with repo and workflow enabled.",
-      details: { login: "octocat", scopes: ["repo"], missing_scopes: ["workflow"] }
+      message: "Token authenticated as octocat, but it is missing the repo scope. Use a classic token with repo for private repositories or public_repo for public repositories; add workflow only if agents must edit GitHub Actions workflow files through the PAT. Or use a fine-grained token with repository Contents, Pull requests, and Workflows read/write plus Checks read.",
+      details: { login: "octocat", scopes: [], missing_scopes: ["repo"] }
     }
     mockRoutes({ test: () => jsonResponse({ credential_test: underScoped }) })
     renderModal()
 
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_partial" } })
 
-    await waitFor(() => expect(screen.getByText(/missing the workflow scope/)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/missing the repo scope/)).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
   })
 
@@ -89,6 +93,7 @@ describe("GithubTokenModal", () => {
     renderModal({ onClose })
 
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_good" } })
+    fireEvent.change(screen.getByPlaceholderText("owner/repo"), { target: { value: "acme/widgets" } })
     await waitFor(() => expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled())
     fireEvent.click(screen.getByRole("button", { name: "Save and continue" }))
 

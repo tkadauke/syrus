@@ -170,9 +170,9 @@ RSpec.describe Feature, type: :model do
       expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
     end
 
-    it "declares the persistent_mcp_sidecar labs flag default-off in config/features.yml" do
+    it "declares the persistent_mcp_sidecar labs flag default-on in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "persistent_mcp_sidecar" }
-      expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
+      expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
     end
 
 

@@ -5,7 +5,10 @@ module Prompts
   # Prompts::Skill use, plus a phased-execution note explaining that a
   # separate submit_report step -- not this one -- is where findings get
   # written up.
+  # GitHub-sourced content trust boundary
   class Investigation
+    include GithubContentTrust
+
     def initialize(issue:, epic: nil, job: nil, user: nil, repository_ids: [])
       @issue = issue
       @epic = epic
@@ -15,7 +18,7 @@ module Prompts
     end
 
     def to_s
-      [ instructions, epic_context, memory_context, GitSafety::TEXT, ShellCommandExecutionContract::TEXT, phased_execution_note ].compact_blank.join("\n\n")
+      [ github_content_trust_boundary, instructions, epic_context, memory_context, GitSafety::TEXT, ShellCommandExecutionContract::TEXT, phased_execution_note ].compact_blank.join("\n\n")
     end
 
     private

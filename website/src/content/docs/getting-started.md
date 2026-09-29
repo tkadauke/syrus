@@ -112,12 +112,15 @@ Access Token (PAT) and a custom GitHub App. The **GitHub integration**
 step guides you through them one at a time:
 
 1. **Personal access token.** Syrus links straight to
-   [github.com/settings/tokens](https://github.com/settings/tokens), tells you
-   to create a *classic* token with **No expiration** and the `repo` and
-   `workflow` scopes, then verifies the token the moment you paste it — a green
-   check confirms it works, while a clear message flags an invalid token or a
-   missing scope before you save. The PAT covers private clones and is the
-   fallback for repositories without an active App installation.
+   [GitHub's fine-grained token form](https://github.com/settings/personal-access-tokens/new),
+   tells you to scope the token only to the repositories this instance will
+   manage, grant Contents read/write, Pull requests read/write, and Checks
+   read, then choose an expiration you can rotate. Syrus verifies the token the
+   moment you paste it. Classic tokens still work with `repo` for private
+   repositories or `public_repo` for public repositories; `workflow` is only
+   needed if agents must modify GitHub Actions workflow files through that
+   token. The PAT covers private clones, PR operations, CI-failure detection,
+   and fallback for repositories without an active App installation.
 2. **GitHub App** (admin only). Click the button: your browser opens
    GitHub, GitHub creates the singleton Syrus App from a manifest and sends
    you straight back — Syrus picks up the registration automatically.
@@ -249,9 +252,12 @@ Once the Jobs run, the GitHub loop is the same as for any Job. You can also
 file work directly: create or edit a GitHub issue in the registered
 repository and add the trigger label, or create a **direct Job** from the
 web UI. Syrus polls GitHub instead of receiving inbound webhooks, so a
-labelled issue's Job may take up to the next 5-minute repository poll to
-appear. You can also start work from [chat proposals](/docs/features#chats)
-or [video walkthroughs](/docs/video-walkthroughs).
+labelled issue's Job may take up to about five minutes to appear. See
+[Issue Authoring](/docs/issue-authoring) for the full GitHub issue syntax,
+including Epics, dependencies, skip labels, delivery-track labels, and
+reference gotchas. You can also start work from
+[chat proposals](/docs/features#chats) or
+[video walkthroughs](/docs/video-walkthroughs).
 
 ### 5. Watch the Job, Workflow, and Run
 
@@ -292,8 +298,9 @@ for diagnosis.
 Open the PR from the Job page. Review it like any other pull request:
 read the diff, check CI, comment, request changes, approve, or merge.
 
-If you comment on the PR, Syrus can pick up feedback on a later PR poll
-and create a follow-up Workflow on the same Job. If CI failures are
+If you comment on the PR, Syrus can pick up feedback on a later PR poll,
+which runs about every five minutes, and create a follow-up Workflow on the
+same Job. If CI failures are
 enabled for your installation, failing checks can also create repair
 Workflows on Syrus-owned PRs; those repairs run configured graders, using
 `.syrus.yml` graders in the `ci` phase, before pushing a fix. A Job remains in the landing queue — and

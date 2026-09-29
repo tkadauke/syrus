@@ -13,7 +13,8 @@ module GithubPrPollHelpers
       "path"       => (c.respond_to?(:path) ? c.path : nil),
       "line"       => (c.respond_to?(:line) ? c.line : nil),
       "diff_hunk"  => (c.respond_to?(:diff_hunk) ? c.diff_hunk : nil),
-      "created_at" => c.created_at&.iso8601
+      "created_at" => c.created_at&.iso8601,
+      "attributed_to" => PrCommentAttributor.call(github_handle: c.user&.login.to_s, job: @job)
     }
   end
 

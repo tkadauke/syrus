@@ -159,18 +159,17 @@ RSpec.describe AgentProviders::Claude do
       expect(server["env"]).to include(
         "RAILS_ENV" => "production",
         "RAILS_MASTER_KEY" => "deadbeef",
-        # Production containers may use ACTIVE_RECORD_ENCRYPTION_* instead of
-        # RAILS_MASTER_KEY; MCP children must inherit whichever mode the worker
-        # is using so encrypted credentials can be read during boot.
         "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY" => "primary",
         "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY" => "deterministic",
         "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT" => "salt",
+        "SECRET_KEY_BASE" => "secretsecret",
+        "DATABASE_URL" => "sqlite3:///home/rails/.syrus/db/production.sqlite3",
+        "SYRUS_DATABASE_PASSWORD" => "swordfish",
         # Docker Compose local mode runs production against SQLite files under
         # SYRUS_DATA_ROOT. Without these, the sidecar falls back to MySQL and
         # dies before replying to the MCP initialize request.
         "SYRUS_SQLITE" => "1",
         "SYRUS_DATA_ROOT" => "/home/rails/.syrus",
-        "DATABASE_URL" => "sqlite3:///home/rails/.syrus/db/production.sqlite3",
         "PATH" => "/opt/ruby/bin:/usr/local/bin:/usr/bin:/bin",
         "BUNDLE_WITHOUT" => "development:test",
         # Sidecar boots Rails production config; SYRUS_APP_HOST is
@@ -190,8 +189,10 @@ RSpec.describe AgentProviders::Claude do
         "S3_ENDPOINT" => "http://minio.minio.svc.cluster.local:9000",
         "S3_REGION" => "us-east-1",
         "S3_ACCESS_KEY_ID" => "ak",
-        "S3_SECRET_ACCESS_KEY" => "sk",
-        "SYRUS_GIT_MIRROR_TOKEN" => "mirror-token"
+        "S3_SECRET_ACCESS_KEY" => "sk"
+      )
+      expect(server["env"]).not_to include(
+        "SYRUS_GIT_MIRROR_TOKEN"
       )
     end
 

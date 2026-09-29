@@ -50,6 +50,27 @@ RSpec.describe SystemAlerts do
       expect(alert.cta).to eq(text: "Update token", path: "/credentials")
     end
 
+    it "does not deliver outbound notifications while rendering UI alerts" do
+      user = Factories.user
+      user.mark_gh_api_blocked!("Resource not accessible by personal access token")
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+      allow(SystemAlertDelivery).to receive(:deliver)
+
+      described_class.active_for(user: user)
+
+      expect(SystemAlertDelivery).not_to have_received(:deliver)
+    end
+
+    it "computes outbound candidates without requiring a browser request" do
+      user = Factories.user
+      user.mark_gh_api_blocked!("Resource not accessible by personal access token")
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alerts = described_class.outbound_alerts
+
+      expect(alerts.map(&:id)).to include("github_token_scope:#{user.id}")
+    end
+
     it "surfaces GitHub App installation rate limits separately from PAT credential guidance" do
       user = Factories.user
       installation = Factories.installation(

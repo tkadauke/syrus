@@ -328,7 +328,7 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | --- | --- |
 | Profile | Display name, name fields, company, location, website, GitHub handle, avatar URL, and bio on `/profile` |
 | Role | User-facing role, either `developer` or `product_owner`; users can set their own role on `/profile`, and admins can override it from `/admin/users` |
-| GitHub token | Used to list issues, read PRs, push branches, open PRs, and post updates for that user's repositories; configured on `/credentials` |
+| GitHub token | Used to list issues, read PRs, push branches, open PRs, edit `.github/workflows/*`, and post updates for that user's repositories. Fine-grained PATs need repository access for the managed repositories with Contents, Pull requests, and Workflows read/write plus Checks read; classic PATs need `repo` for private repositories or `public_repo` for public repositories, plus `workflow` when agents must edit GitHub Actions workflow files through the PAT. Configured on `/credentials` |
 | Agent provider | Default provider for new Jobs, selected from enabled agent-provider plugins such as `claude`, `codex`, `agy`, or `muse`; configured on `/settings/agent` |
 | Agent provider failover | Disabled-by-default ordered list of alternate agent providers plus eligible causes (`usage_exhausted`, `usage_low`, `rate_limited`, `provider_transient`, `auth_error`); configured on `/settings/agent` |
 | Chat provider | Optional provider override for chat turns, selected from enabled chat-provider plugins such as `claude`, `codex`, `agy`, or `muse`; when blank, chat follows the user's default agent provider |
@@ -400,13 +400,18 @@ use `mode: operator` copy instead of automatic-unavailability copy. Chat
 provider failover is out of scope: this policy does not rewrite
 `ChatSession#chat_provider` or enqueue chat-provider switch jobs.
 
-Budget *gating* is on the
-[roadmap](https://github.com/tkadauke/syrus/blob/main/ROADMAP.md#spend-budgets-and-thresholds):
-Syrus already records per-run cost and token metadata where the provider
-reports it and surfaces it in Spending Insights, but a new Run isn't yet
-held back when a per-repo/per-account dollar budget is exceeded. Until that
-ships, use provider-side limits and the per-user max-turns setting as the
-active safety rails.
+Syrus ships with a global concurrency cap for fresh instances:
+`AppSetting.max_concurrent_agent_runs` defaults to `3`, so autonomous agent
+work cannot scale linearly with worker pods. The optional per-user USD budget,
+`AppSetting.user_daily_spend_budget_usd`, defaults to `0` (unlimited). When
+set to a positive value, the gate defers queued work until the next day
+instead of failing Jobs once provider-reported workflow Run costs and chat turn
+costs reach the ceiling. Run accounting uses provider-reported `Run#cost_usd`
+when available and leaves cost unset when a provider reports token usage
+without a dollar cost, so subscription-based or token-only providers may need
+provider-side limits for reliable spend protection. Repo-level and Epic-level
+dollar budgets are still roadmap work; use provider-side limits and the
+per-user max-turns setting as additional safety rails.
 
 ## Per-Repository Settings
 
@@ -483,13 +488,14 @@ manual actions choose their own trigger-specific templates.
 ## Feedback Policies
 
 The `feedback_policy` setting on each repository controls whether PR comments
-from team members and external reviewers are acted on automatically or require
-confirmation.
+from repository members are acted on automatically or require confirmation.
+External reviewers always require confirmation before Syrus spends an owner-billed
+workflow on their comment.
 
 | Policy | Behavior |
 | --- | --- |
 | `confirm` (default) | Only the job owner's actionable comments trigger automatic implementation; team member and external actionable comments are recorded but do not queue a workflow until confirmed by the operator |
-| `auto` | Actionable comments from all commenter categories queue an implementation workflow automatically |
+| `auto` | Actionable comments from the job owner and repository members queue an implementation workflow automatically; external comments are recorded for operator review |
 
 ### Comment attribution
 
@@ -497,7 +503,7 @@ Syrus classifies each new PR comment by commenter:
 
 - **Job owner** — the GitHub handle matches the job's owner user. Owner comments always queue automatically regardless of `feedback_policy`.
 - **Team member** — the handle matches a repository membership. Member comments respect `feedback_policy`.
-- **External** — the handle is not found in memberships and is not the owner. External comments respect `feedback_policy`.
+- **External** — the handle is not found in memberships and is not the owner. External comments require operator confirmation.
 
 Syrus also passes each comment through an LLM classifier to determine whether it contains actionable feedback (requests a code change, correction, or improvement) or is a discussion remark, question, or acknowledgement. Non-actionable comments are stored in the `pr_review_comments` audit log but never trigger a workflow.
 
@@ -539,6 +545,8 @@ needs durable workspace storage because it manages clones and worktrees.
 | `SYRUS_GITHUB_REPO` | Yes | GitHub `owner/repo` slug for this Syrus installation's own repository; used for build revision links |
 | `SYRUS_BUG_REPORT_OWNER` | Yes | GitHub owner or organization for in-app bug reports; Syrus uses the configured `syrus` repository under that owner |
 | `SYRUS_MAILER_FROM` | No | From address for password reset and invitation email; defaults to `Syrus <noreply@$SYRUS_APP_HOST>` |
+| `SYRUS_ALERT_WEBHOOK_URL` | No | JSON webhook URL for alarm-severity SystemAlerts; repeated alerts are deduplicated by dismissal key |
+| `SYRUS_ALERT_EMAIL_TO` | No | Comma-separated email recipients for alarm-severity SystemAlerts |
 | `SMTP_ADDRESS` | No | Enables SMTP delivery for password reset and invitation email when set |
 | `SMTP_PORT` | No | SMTP port; defaults to `587` |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | No | SMTP credentials, when required by the server |

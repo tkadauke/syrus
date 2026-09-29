@@ -1,5 +1,8 @@
 module Prompts
+  # GitHub-sourced content trust boundary
   class AdversarialReview
+    include GithubContentTrust
+
     MAX_CHANGED_FILES = 200
 
     FEEDBACK_KIND_LABELS = {
@@ -21,6 +24,7 @@ module Prompts
     def to_s
       [
         "You are running the adversarial_review step for Syrus.",
+        github_content_trust_boundary,
         independence,
         affected_project_context,
         custom_criteria,

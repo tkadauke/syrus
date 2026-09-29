@@ -87,6 +87,13 @@ RSpec.describe AppSetting do
     expect(AppSetting.signups_open?).to be true
   end
 
+  it "defaults concurrency protection on for fresh instances" do
+    setting = AppSetting.current
+
+    expect(setting.max_concurrent_agent_runs).to eq(3)
+    expect(setting.user_daily_spend_budget_usd).to eq(0)
+  end
+
   it ".grade_max_iterations defaults to 5 and reflects the setting" do
     expect(AppSetting.grade_max_iterations).to eq(5)
 

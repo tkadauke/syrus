@@ -39,6 +39,25 @@ worker actions, sidecar events, plugin calls, preview lifecycle events, and
 other runtime notices. They are useful when nothing crashed but behavior still
 looks wrong.
 
+## Readiness, Metrics, and Alerts
+
+`/up` is the lightweight Rails liveness check. `/readyz` is the unauthenticated
+readiness probe for deployments: it checks database boot, registered Solid Queue
+workers with fresh heartbeats, pause state, writable storage, and instance-level
+GitHub App setup without requiring an operator session. The Docker image and
+Docker Compose web service use `/readyz` for their health check.
+
+`/metrics` exposes aggregate Prometheus metrics. Syrus ships canonical
+Prometheus alert rules in `config/prometheus/syrus-alert-rules.yml` for queue
+age, open provider circuits, stale recurring jobs, and a growing attention
+backlog.
+
+Alarm-severity `SystemAlerts` can also leave the browser through
+`SYRUS_ALERT_WEBHOOK_URL` and/or `SYRUS_ALERT_EMAIL_TO`. A recurring background
+job evaluates the same alert pipeline every minute, so delivery does not depend
+on an operator having the app open. Delivery is deduplicated by dismissal key so
+one incident does not flood the outbound sink.
+
 ## Browser Errors
 
 Browser errors capture client-side exceptions with path, user agent, revision,

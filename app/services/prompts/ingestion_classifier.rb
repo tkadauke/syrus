@@ -1,7 +1,10 @@
 require "json"
 
 module Prompts
+  # GitHub-sourced content trust boundary
   class IngestionClassifier
+    include GithubContentTrust
+
     def initialize(job:, epics:, merged_pull_requests:, duplicate_candidates:)
       @job = job
       @epics = epics
@@ -11,6 +14,8 @@ module Prompts
 
     def to_s
       <<~PROMPT
+        #{github_content_trust_boundary}
+
         You are classifying a newly-ingested GitHub issue before Syrus queues implementation work.
 
         Decide whether the issue strongly belongs to an existing Epic, is an obvious duplicate of an existing open Job, is already implemented by a recently merged PR, or is novel.

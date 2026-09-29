@@ -25,17 +25,40 @@ module SystemAlerts
   end
 
   def self.active_for(user:)
+    alerts_for(user: user, include_admin_alerts: user&.admin?)
+  end
+
+  def self.outbound_alerts
+    alerts = []
+    User.find_each do |user|
+      alerts.concat(alerts_for(user: user, include_admin_alerts: false))
+    end
+    alerts.concat(admin_alerts)
+    sort_alerts(alerts)
+  end
+
+  def self.alerts_for(user:, include_admin_alerts:)
     out = []
     provider_availability = provider_availability_for_alerts(user)
     out.concat(github_api_alerts(user)) if user
     out.concat(provider_auth_alerts(user, provider_availability)) if user
     out << codex_usage(user, availability: provider_availability["codex"]) if user
-    out << data_root_disk_usage if user&.admin?
-    out.concat(stuck_main_branch_repairs) if user&.admin?
-    out
+    out.concat(admin_alerts) if include_admin_alerts
+    sort_alerts(out)
+  end
+  private_class_method :alerts_for
+
+  def self.admin_alerts
+    [ data_root_disk_usage, *stuck_main_branch_repairs ].compact
+  end
+  private_class_method :admin_alerts
+
+  def self.sort_alerts(alerts)
+    alerts
       .compact
       .sort_by { |alert| SEVERITIES.index(alert.severity) || SEVERITIES.length }
   end
+  private_class_method :sort_alerts
 
   def self.provider_availability_for_alerts(user)
     return {} unless user
@@ -70,12 +93,12 @@ module SystemAlerts
                "CI-failure detection are degraded until this is fixed; " \
                "the banner clears automatically on the next successful API call.",
       action_steps: [
-        "Generate a <strong>classic</strong> PAT at " \
-          "<a class=\"underline\" href=\"https://github.com/settings/tokens\">github.com/settings/tokens</a> " \
-          "with the <code>repo</code> scope (which covers the entire Syrus surface — clone, push, PRs, comments, check-runs).",
-        "Fine-grained PATs <em>do not work</em> for the full surface today: GitHub doesn't expose a <code>Checks: read</code> permission " \
-          "for fine-grained tokens, so CI-failure detection silently breaks. If you want fine-grained anyway, accept that the " \
-          "<code>check-runs</code> path will keep showing this banner.",
+        "Generate a fine-grained PAT at " \
+          "<a class=\"underline\" href=\"https://github.com/settings/personal-access-tokens/new\">github.com/settings/personal-access-tokens/new</a> " \
+          "scoped only to the repositories this Syrus instance manages, with repository <code>Contents</code> read/write and " \
+          "<code>Pull requests</code> read/write permissions, plus <code>Checks</code> read for CI-failure detection. Use an expiration you can rotate.",
+        "If you use a classic PAT instead, <code>repo</code> is sufficient for private repositories. Syrus does not require the " \
+          "<code>workflow</code> scope unless you expect agents to modify GitHub Actions workflow files through that token.",
         "Paste the new token into <a class=\"underline\" href=\"/credentials\">Settings → Credentials</a> and save. " \
           "The banner clears on the next successful API call."
       ],

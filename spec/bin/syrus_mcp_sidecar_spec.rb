@@ -119,4 +119,15 @@ RSpec.describe "bin/syrus-mcp-sidecar" do
     expect(status).to be_success, stderr
     expect(stderr).not_to include("To use retry middleware with Faraday v2.0+")
   end
+
+  it "keeps the stdio proxy free of Rails boot secrets" do
+    proxy = File.read("bin/syrus-mcp-proxy")
+
+    expect(proxy).to include("X-Syrus-Invocation-Context")
+    expect(proxy).not_to include("config/environment")
+    expect(proxy).not_to include("RAILS_MASTER_KEY")
+    expect(proxy).not_to include("ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY")
+    expect(proxy).not_to include("DATABASE_URL")
+    expect(proxy).not_to include("S3_SECRET_ACCESS_KEY")
+  end
 end

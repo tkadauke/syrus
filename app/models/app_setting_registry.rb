@@ -216,7 +216,7 @@ class AppSettingRegistry
     Definition.new(
       key: :max_concurrent_agent_runs,
       type: :integer,
-      default: 0,
+      default: 3,
       min: 0,
       max: nil,
       category: "Instance operations",
@@ -232,8 +232,8 @@ class AppSettingRegistry
       min: 0,
       max: nil,
       category: "Instance operations",
-      operational_meaning: "Per-user daily spend ceiling across agent Runs and chat turns. Work from a user over budget is deferred to the next day, never failed.",
-      zero_means: "No per-user spend budget; only the global cost controls apply.",
+      operational_meaning: "Optional per-user daily spend ceiling across provider-reported agent Run costs and chat turn costs. Work from a user over budget is deferred to the next day, never failed.",
+      zero_means: "No per-user USD spend budget. Subscription-based or token-only providers may need provider-side limits for reliable spend protection.",
       admin_editable: true,
       secret: false
     ),

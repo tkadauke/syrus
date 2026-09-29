@@ -52,6 +52,18 @@ RSpec.describe AgentProviders::Muse do
     }.merge(overrides))
   end
 
+  def set_persistent_mcp_feature(enabled)
+    Feature.find_or_create_by!(slug: "persistent_mcp_sidecar") do |feature|
+      feature.category = "Labs"
+      feature.name = "Persistent MCP sidecar"
+    end.update!(enabled: enabled)
+    Feature.clear_enabled_cache!("persistent_mcp_sidecar")
+  end
+
+  def persistent_mcp_health_url
+    "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::HEALTH_PATH}"
+  end
+
   around do |ex|
     old_runner = RunJob.agent_runner
     old_data_root = ENV["SYRUS_DATA_ROOT"]
@@ -61,6 +73,7 @@ RSpec.describe AgentProviders::Muse do
   ensure
     RunJob.agent_runner = old_runner
     ENV["SYRUS_DATA_ROOT"] = old_data_root
+    Feature.clear_enabled_cache!("persistent_mcp_sidecar")
     FileUtils.rm_rf(data_root) if data_root
   end
 
@@ -100,6 +113,37 @@ RSpec.describe AgentProviders::Muse do
         env: include("SYRUS_DATA_ROOT" => ENV.fetch("SYRUS_DATA_ROOT"))
       )
     )
+  end
+
+  it "routes stdio-only Muse through the secret-free persistent-daemon proxy when compatible" do
+    set_persistent_mcp_feature(true)
+    stub_request(:get, persistent_mcp_health_url).to_return(
+      status: 200,
+      body: { status: "ok", identity: { worker_id: "w-1" }, capabilities: [ "workflow_tools" ] }.to_json
+    )
+    received = nil
+    invocation = instance_double(MuseInvocation, run: result_fixture)
+    allow(MuseInvocation).to receive(:new) do |workspace_path, **kwargs|
+      received = kwargs.merge(workspace_path: workspace_path)
+      invocation
+    end
+
+    result = described_class.new(run: run, workspace: workspace, parent_session_id: nil)
+      .run(prompt: "summarize", log_sink: ->(*, **) { }, max_turns: 7)
+
+    expect(result).to be_success
+    proxy_server = received.dig(:mcp_server, "syrus-mcp-sidecar")
+    expect(proxy_server).to include(
+      command: a_string_ending_with("/bin/syrus-mcp-proxy"),
+      args: []
+    )
+    expect(proxy_server[:env]).to include(
+      "SYRUS_MCP_PROXY_URL" => "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}"
+    )
+    token = proxy_server.dig(:env, "SYRUS_MCP_PROXY_INVOCATION_CONTEXT")
+    resolved = McpInvocationContext.resolve(token, worker_id: "w-1")
+    expect(resolved.tool_context.run.id).to eq(run.id)
+    expect(run.step.reload.details.dig("mcp_transport", "transport")).to eq("persistent")
   end
 
   it "retries a context-exhausted resumed workflow as a fresh Muse session" do

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { saveGithubToken, testGithubToken, type CredentialTestResult } from "../../api/credentials"
 import { useDebouncedProbe, type ProbeState } from "../../hooks/useDebouncedProbe"
@@ -7,17 +7,10 @@ import { useBackendOutage } from "../../hooks/useBackendUpdate"
 import { Button } from "../Button"
 import { Input } from "../Input"
 
-const TOKEN_SETTINGS_URL = "https://github.com/settings/tokens"
-
-// Module-level so the probe function stays referentially stable for
-// useDebouncedProbe's dependency list.
-async function probeGithubToken(token: string): Promise<CredentialTestResult> {
-  const payload = await testGithubToken(token)
-  return payload.credential_test
-}
+const TOKEN_SETTINGS_URL = "https://github.com/settings/personal-access-tokens/new"
 
 // The guided GitHub PAT experience: numbered steps (open settings, pick the
-// repo + workflow scopes, paste), a debounced live probe of the UNSAVED
+// least-privilege repository permissions, paste), a debounced live probe of the UNSAVED
 // token, and a save that stays disabled until the probe comes back green.
 // Extracted from GithubTokenModal so the onboarding modal and the
 // credentials page render the identical flow.
@@ -25,6 +18,7 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [token, setToken] = useState("")
+  const [probeRepository, setProbeRepository] = useState("")
   const [saveError, setSaveError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   // While the desktop shell's backend update has the containers down, the
@@ -33,7 +27,13 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
   // form; typed state survives (the component stays mounted) and the form
   // returns when the outage clears.
   const backendOutage = useBackendOutage()
-  const test = useDebouncedProbe(token, probeGithubToken, { errorFallback: t('github_token.verify_error') })
+  const probeGithubToken = useCallback(async (value: string): Promise<CredentialTestResult> => {
+    const [githubToken, repository = ""] = value.split("\n", 2)
+    const payload = await testGithubToken(githubToken, repository)
+    return payload.credential_test
+  }, [])
+  const probeInput = token.trim().length > 0 ? `${token}\n${probeRepository}` : ""
+  const test = useDebouncedProbe(probeInput, probeGithubToken, { errorFallback: t('github_token.verify_error') })
 
   useEffect(() => {
     if (autoFocus && !backendOutage) inputRef.current?.focus()
@@ -60,7 +60,7 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
 
   if (backendOutage) {
     return (
-      <p className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
+      <p className="rounded border border-border bg-surface-raised px-3 py-2 text-sm text-text-secondary">
         {t('backend_updating')}
       </p>
     )
@@ -68,32 +68,40 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
 
   return (
     <form className="space-y-5" onSubmit={submit}>
-      <ol className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
+      <ol className="space-y-4 text-sm text-text-secondary">
         <li>
-          <p className="font-medium text-gray-900 dark:text-gray-100">{t('github_token.step1_heading')}</p>
-          <p className="mt-1 text-gray-600 dark:text-gray-400">{t('github_token.step1_description')}</p>
+          <p className="font-medium text-text-primary">{t('github_token.step1_heading')}</p>
+          <p className="mt-1 text-text-secondary">{t('github_token.step1_description')}</p>
           <a className="mt-2 inline-flex items-center gap-1 rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white" href={TOKEN_SETTINGS_URL} rel="noreferrer" target="_blank">
             {t('github_token.step1_link')} <span aria-hidden="true">↗</span>
           </a>
         </li>
         <li>
-          <p className="font-medium text-gray-900 dark:text-gray-100">{t('github_token.step2_heading')}</p>
-          <p className="mt-1 text-gray-600 dark:text-gray-400">
+          <p className="font-medium text-text-primary">{t('github_token.step2_heading')}</p>
+          <p className="mt-1 text-text-secondary">
             {t('github_token.step2_description')}
           </p>
           <ul className="mt-2 space-y-1">
             <li className="flex items-center gap-2">
-              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">repo</code>
-              <span className="text-gray-600 dark:text-gray-400">{t('github_token.scope_repo')}</span>
+              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">{t('github_token.permission_contents')}</code>
+              <span className="text-text-secondary">{t('github_token.scope_repo')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">workflow</code>
-              <span className="text-gray-600 dark:text-gray-400">{t('github_token.scope_workflow')}</span>
+              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">{t('github_token.permission_pull_requests')}</code>
+              <span className="text-text-secondary">{t('github_token.scope_workflow')}</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">{t('github_token.permission_workflows')}</code>
+              <span className="text-text-secondary">{t('github_token.scope_actions_workflows')}</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">{t('github_token.permission_checks')}</code>
+              <span className="text-text-secondary">{t('github_token.scope_checks')}</span>
             </li>
           </ul>
         </li>
         <li>
-          <p className="font-medium text-gray-900 dark:text-gray-100">{t('github_token.step3_heading')}</p>
+          <p className="font-medium text-text-primary">{t('github_token.step3_heading')}</p>
           <label className="mt-2 block">
             <span className="sr-only">{t('github_token.input_label')}</span>
             <Input
@@ -108,12 +116,26 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
               value={token}
             />
           </label>
+          <label className="mt-3 block">
+            <span className="block text-xs font-medium text-text-primary">{t('github_token.repository_probe_label')}</span>
+            <Input
+              autoComplete="off"
+              className="mt-1 font-mono"
+              name="github_probe_repository"
+              onChange={(event) => setProbeRepository(event.target.value)}
+              placeholder="owner/repo"
+              spellCheck={false}
+              type="text"
+              value={probeRepository}
+            />
+            <span className="mt-1 block text-xs text-text-muted">{t('github_token.repository_probe_help')}</span>
+          </label>
           <TokenStatus test={test} />
         </li>
       </ol>
 
       {saveError ? (
-        <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" role="alert">
+        <p className="rounded border border-danger-border bg-danger-surface px-3 py-2 text-sm text-danger-text" role="alert">
           {saveError}
         </p>
       ) : null}
@@ -132,7 +154,7 @@ function TokenStatus({ test }: { test: ProbeState }) {
   if (test.status === "idle") return null
   if (test.status === "testing") {
     return (
-      <p className="mt-2 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
+      <p className="mt-2 flex items-center gap-2 text-sm text-text-secondary" role="status">
         <Spinner /> {t('github_token.checking_token')}
       </p>
     )
@@ -146,13 +168,13 @@ function TokenStatus({ test }: { test: ProbeState }) {
 }
 
 function StatusLine({ tone, children }: { tone: "ok" | "warning" | "error"; children: React.ReactNode }) {
-  const toneClass = tone === "ok" ? "text-green-700 dark:text-green-400" : tone === "warning" ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400"
+  const toneClass = tone === "ok" ? "text-success-text" : tone === "warning" ? "text-warning-text" : "text-danger-text"
   return <p className={`mt-2 flex items-start gap-1.5 text-sm ${toneClass}`} role={tone === "ok" ? "status" : "alert"}>{children}</p>
 }
 
 function Spinner() {
   return (
-    <svg aria-hidden="true" className="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+    <svg aria-hidden="true" className="h-4 w-4 animate-spin text-text-secondary" fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" d="M4 12a8 8 0 018-8" fill="currentColor" />
     </svg>

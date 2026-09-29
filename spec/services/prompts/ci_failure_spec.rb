@@ -85,7 +85,7 @@ RSpec.describe Prompts::CiFailure do
       failed_checks: [ { name: "verbose", conclusion: "failure", html_url: "u", summary: big } ]
     ).to_s
     expect(out).to include("…[truncated]")
-    expect(out.bytesize).to be < big.bytesize + 2_000
+    expect(out.bytesize).to be < big.bytesize + 3_000
   end
 
   it "truncates multibyte summaries by bytes in both rendered and fallback context" do

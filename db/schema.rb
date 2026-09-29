@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_223533) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -183,7 +183,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
     t.boolean "main_branch_health_check_archive_before_delete", default: false, null: false
     t.integer "main_branch_health_check_retention_days", default: 7, null: false
     t.integer "main_concern_report_threshold", default: 2, null: false
-    t.integer "max_concurrent_agent_runs", default: 0, null: false
+    t.integer "max_concurrent_agent_runs", default: 3, null: false
     t.integer "max_job_failures", default: 3, null: false
     t.boolean "merge_train_enabled", default: false, null: false
     t.integer "merge_train_max_size", default: 20, null: false
@@ -1534,6 +1534,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
     t.datetime "last_seen_comment_at"
     t.datetime "last_seen_fork_review_comment_at"
     t.integer "linked_chat_id"
+    t.datetime "linked_open_pr_checked_at"
     t.string "local_mergeability_base_sha"
     t.datetime "local_mergeability_checked_at"
     t.string "local_mergeability_head_sha"
@@ -2490,6 +2491,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
     t.string "owner", null: false, collation: "NOCASE"
     t.json "plugin_signals"
     t.datetime "plugin_signals_observed_at"
+    t.json "poll_issue_errors"
     t.boolean "polling_enabled", default: true, null: false
     t.boolean "pr_cost_footer_enabled", default: true, null: false
     t.boolean "prepare_enabled", default: true, null: false
@@ -3022,6 +3024,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_153000) do
     t.index ["workflow_id", "position"], name: "index_steps_on_workflow_id_and_position"
     t.index ["workflow_id", "state", "position", "id"], name: "idx_steps_workflow_state_position_for_repository_detail"
     t.index ["workflow_id"], name: "index_steps_on_workflow_id"
+  end
+
+  create_table "system_alert_notifications", force: :cascade do |t|
+    t.string "alert_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "delivered_at"
+    t.string "delivery_error_class"
+    t.text "delivery_error_message"
+    t.string "dismissal_key", null: false
+    t.json "payload"
+    t.string "severity", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_system_alert_notifications_on_created_at"
+    t.index ["dismissal_key"], name: "index_system_alert_notifications_on_dismissal_key", unique: true
   end
 
   create_table "tags", force: :cascade do |t|

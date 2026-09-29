@@ -24,50 +24,71 @@ function mockRoutes(routes: { test?: () => Response; save?: () => Response }) {
   })
 }
 
-const okResult = { credential: "github_token", ok: true, message: "Token is valid for octocat.", details: { login: "octocat", scopes: ["repo", "workflow"], missing_scopes: [] } }
+const okResult = { credential: "github_token", ok: true, message: "Fine-grained token can write workflow files and read Checks on acme/widgets as octocat. Also grant Pull requests write; Syrus cannot verify it without creating a probe PR.", details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true, probed_repository: "acme/widgets", workflow_file_write: true, checks_read: true, unverified_repository_permissions: ["pull_requests:write"] } }
 
 describe("GithubTokenStep", () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it("renders the guided steps: settings link, scope checklist, paste field", () => {
+  it("renders the guided steps: settings link, permission checklist, paste field", () => {
     renderStep()
 
-    const link = screen.getByRole("link", { name: /Open github.com\/settings\/tokens/ })
-    expect(link).toHaveAttribute("href", "https://github.com/settings/tokens")
+    const link = screen.getByRole("link", { name: /Open fine-grained token settings/ })
+    expect(link).toHaveAttribute("href", "https://github.com/settings/personal-access-tokens/new")
     expect(link).toHaveAttribute("target", "_blank")
-    expect(screen.getByText(/No expiration/)).toBeInTheDocument()
-    expect(screen.getByText("repo")).toBeInTheDocument()
-    expect(screen.getByText("workflow")).toBeInTheDocument()
+    expect(screen.getByText(/Set an expiration/)).toBeInTheDocument()
+    expect(screen.getByText("Contents")).toBeInTheDocument()
+    expect(screen.getByText("Pull requests")).toBeInTheDocument()
+    expect(screen.getByText("Workflows")).toBeInTheDocument()
+    expect(screen.getByText("Checks")).toBeInTheDocument()
     expect(screen.getByPlaceholderText("ghp_…")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("owner/repo")).toBeInTheDocument()
   })
 
-  it("probes the unsaved token on input and enables save on a green result", async () => {
+  it("probes the unsaved token and repository, then enables save on a green result", async () => {
     mockRoutes({ test: () => jsonResponse({ credential_test: okResult }) })
     renderStep()
 
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_good" } })
+    fireEvent.change(screen.getByPlaceholderText("owner/repo"), { target: { value: "acme/widgets" } })
 
-    await waitFor(() => expect(screen.getByText("Token is valid for octocat.")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Fine-grained token can write workflow files and read Checks/)).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled()
+  })
+
+  it("keeps save disabled when a fine-grained token only authenticates the user", async () => {
+    const needsRepository = {
+      credential: "github_token",
+      ok: false,
+      message: "Fine-grained token authenticated as octocat. Enter a repository slug so Syrus can verify repository write, GitHub Actions workflow-file access, and Checks read access before saving.",
+      details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true, needs_repository_probe: true }
+    }
+    mockRoutes({ test: () => jsonResponse({ credential_test: needsRepository }) })
+    renderStep()
+
+    fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "github_pat_good" } })
+
+    const line = await screen.findByText(/Enter a repository slug/)
+    expect(line.closest("p")).toHaveClass("text-warning-text")
+    expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
   })
 
   it("shows the authenticated-but-underscoped result as an amber warning and blocks save", async () => {
     const underScoped = {
       credential: "github_token",
       ok: false,
-      message: "Token authenticated as octocat, but it is missing the workflow scope.",
-      details: { login: "octocat", scopes: ["repo"], missing_scopes: ["workflow"] }
+      message: "Token authenticated as octocat, but it is missing the repo scope.",
+      details: { login: "octocat", scopes: [], missing_scopes: ["repo"] }
     }
     mockRoutes({ test: () => jsonResponse({ credential_test: underScoped }) })
     renderStep()
 
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_partial" } })
 
-    const line = await screen.findByText(/missing the workflow scope/)
-    expect(line.closest("p")).toHaveClass("text-amber-700")
+    const line = await screen.findByText(/missing the repo scope/)
+    expect(line.closest("p")).toHaveClass("text-warning-text")
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
   })
 
@@ -79,7 +100,7 @@ describe("GithubTokenStep", () => {
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "nope" } })
 
     const line = await screen.findByText(/GitHub rejected this token/)
-    expect(line.closest("p")).toHaveClass("text-red-700")
+    expect(line.closest("p")).toHaveClass("text-danger-text")
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
   })
 

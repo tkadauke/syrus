@@ -62,6 +62,12 @@ Allow new user registrations. Set to `false` on private instances.
 
 Emergency kill switch: pause all polling jobs (`PollAllRepositoriesJob`, `PollAllPullRequestsJob`, etc.). Jobs already running complete normally; no new issues or PR comments are picked up.
 
+Repository issue polling also backs off automatically when the relevant
+GitHub credential is rate-limited: the fan-out skips already-exhausted
+repositories, and an in-flight autonomous repository poll that receives
+`Octokit::TooManyRequests` re-enqueues after GitHub's reset time without
+advancing the repository poll watermark.
+
 ### runs_paused
 
 **Type:** boolean · **Default:** false
@@ -80,9 +86,15 @@ On self-hosted instances, set this to the `owner/name` of your own Syrus fork. I
 
 ### max_concurrent_agent_runs
 
-**Type:** integer · **Default:** 0 (unlimited)
+**Type:** integer · **Default:** 3 · `0` = unlimited
 
 Global, cluster-wide cap on how many `:runs` queue Runs execute at once, across **all** worker pods. `RunJob` enforces it with a best-effort defer-and-re-enqueue gate (DB-counted, so it holds across pods). Set this when running multiple worker pods so total compute concurrency — and Claude/Codex cost and rate-limit exposure — does not scale with pod count; each pod's `JOB_CONCURRENCY` only bounds that single pod. `0` means no global cap. Main-branch grader Runs are on `:runs` and are counted; landing/merge Runs (`:merges` queue) are not counted, so they can't be starved by a saturated agent cap.
+
+### user_daily_spend_budget_usd
+
+**Type:** integer · **Default:** 0 · `0` = unlimited
+
+Optional per-user daily spend ceiling across workflow Runs and chat turns, measured in USD. `RunJob` checks the budget before starting agentic work and defers queued work until the next day once the user has reached the ceiling; it does not fail the Job. Run spend uses provider-reported `Run#cost_usd` when available, and chat spend uses each chat session's daily cost counter. Runs whose provider omits a dollar cost keep `cost_usd` unset rather than deriving USD from token usage, so subscription-based or token-only providers may not produce reliable USD budget enforcement unless they report dollar costs directly.
 
 ## GitHub App
 

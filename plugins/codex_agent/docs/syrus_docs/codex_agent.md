@@ -110,13 +110,12 @@ Claude's `mcp__server__tool`.
 rough categorical metadata (context window / cost tier), matching what
 `model =` in `config.toml` accepts.
 
-**MCP transport is stdio-only.** `effective_mcp_transport_decision` always
-downgrades a `persistent`-transport decision to `stdio` with reason
-`"provider_unsupported: codex has no persistent MCP HTTP transport wiring
-yet"` — Codex's `config.toml` MCP config only models stdio servers, there is
-no verified remote/HTTP transport for the CLI. The shared
-`WorkflowMcpTransportSelector` still runs so its decision lands in the same
-diagnostics stream as Claude's, it just never takes effect for Codex.
+**MCP transport is stdio-shaped.** Codex's `config.toml` MCP config models
+stdio servers, not verified remote/HTTP transports. When the shared
+`WorkflowMcpTransportSelector` picks the persistent daemon, Syrus writes a
+stdio entry for `bin/syrus-mcp-proxy` instead of `bin/syrus-mcp-sidecar`; the
+proxy forwards JSON-RPC to the worker-local daemon with a short-lived signed
+run token and does not receive Rails/database/storage secrets.
 
 **Usage evidence.** `usage_snapshot`/`usage_status`/`usage_observed_at` read
 straight off `User#codex_usage_snapshot`/`codex_usage_status`/

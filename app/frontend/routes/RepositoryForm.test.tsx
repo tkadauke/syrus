@@ -220,7 +220,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     renderRoute()
 
     const feedbackPolicy = await screen.findByLabelText("Feedback policy")
-    const feedbackHint = screen.getByText("Job owner comments always trigger automatically regardless of this setting.")
+    const feedbackHint = screen.getByText("Job owner comments always trigger automatically. External commenters require confirmation.")
     expect(feedbackPolicy.tagName).toBe("SELECT")
     expect(feedbackPolicy).toHaveAttribute("aria-describedby", feedbackHint.id)
 
@@ -247,7 +247,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     renderRoute()
 
     const feedbackPolicy = await screen.findByLabelText("Feedback policy")
-    const feedbackHint = screen.getByText("Job owner comments always trigger automatically regardless of this setting.")
+    const feedbackHint = screen.getByText("Job owner comments always trigger automatically. External commenters require confirmation.")
     expect(feedbackPolicy.tagName).toBe("SELECT")
     expect(feedbackPolicy).toHaveAttribute("aria-describedby", feedbackHint.id)
 
@@ -274,7 +274,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     renderRoute()
 
     const feedbackPolicy = await screen.findByLabelText("Feedback policy")
-    const feedbackHint = screen.getByText("Job owner comments always trigger automatically regardless of this setting.")
+    const feedbackHint = screen.getByText("Job owner comments always trigger automatically. External commenters require confirmation.")
     expect(feedbackPolicy.tagName).toBe("SELECT")
     expect(feedbackPolicy).toHaveAttribute("aria-describedby", feedbackHint.id)
 

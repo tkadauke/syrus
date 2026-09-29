@@ -4,9 +4,12 @@ module Api
       class CredentialsController < BaseController
         include ProviderRoutingRuleSerialization
 
-        # Scopes a classic GitHub PAT must carry for Syrus to clone, branch,
-        # open PRs, and update GitHub Actions workflows.
-        GITHUB_REQUIRED_SCOPES = %w[ repo workflow ].freeze
+        # Classic PATs expose OAuth scopes in response headers. Fine-grained
+        # PATs are repository-permission based instead, so they return no
+        # classic OAuth scopes here; CredentialProbe accepts that shape with an
+        # explicit fine-grained-permissions message instead of calling it a
+        # broadly valid token.
+        GITHUB_REQUIRED_SCOPES = %w[ repo ].freeze
 
         def show
           render json: credentials_payload(Current.user)
@@ -55,7 +58,8 @@ module Api
         def test_github_token
           result = CredentialProbe.github_token(
             token: params[:github_token].to_s,
-            required_scopes: GITHUB_REQUIRED_SCOPES
+            required_scopes: GITHUB_REQUIRED_SCOPES,
+            probe_repository: params[:probe_repository].to_s
           )
           render json: {
             credential_test: result.as_json,

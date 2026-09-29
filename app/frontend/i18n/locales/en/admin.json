@@ -609,7 +609,7 @@
       },
       "persistent_mcp_sidecar": {
         "name": "Persistent MCP sidecar",
-        "description": "Enables a worker-local persistent MCP sidecar daemon that boots once and exposes a local-only MCP transport and health check. Chat turns can route their MCP tool calls to it, with automatic fallback to stdio; workflow agent runs do not yet use it and always fall back to the per-run stdio sidecar. When disabled, all agents keep using the default per-run/per-session stdio sidecars."
+        "description": "Enables a worker-local persistent MCP sidecar daemon that boots once and exposes a local-only MCP transport and health check. Chat turns and workflow agent runs can route MCP tool calls to it, with automatic fallback to stdio when the daemon is unavailable or incompatible. Stdio-only agent CLIs use a secret-free proxy process to reach the daemon."
       },
       "emergency_land": {
         "name": "Emergency land",
@@ -775,7 +775,7 @@
     "video_budget_label": "Walkthrough video storage budget (MB)",
     "video_budget_help": "Instance-wide cap on total stored walkthrough videos. When exceeded, the oldest videos are removed first. Set 0 for no cap.",
     "max_concurrent_agent_runs_label": "Max concurrent agent runs (global)",
-    "max_concurrent_agent_runs_help": "Cluster-wide cap on how many agent Runs execute at once, across all worker pods. Set this when running multiple workers so total agent concurrency (and cost / rate-limit exposure) doesn't scale with pod count. 0 = unlimited (bounded only by each pod's JOB_CONCURRENCY). Landing and main-branch grader runs are not counted.",
+    "max_concurrent_agent_runs_help": "Cluster-wide cap on how many agent Runs execute at once, across all worker pods. Defaults to 3 to protect fresh instances. 0 = unlimited (bounded only by each pod's JOB_CONCURRENCY). Landing and main-branch grader runs are not counted.",
     "proactive_rebase_commit_threshold_label": "Proactive rebase commit threshold",
     "proactive_rebase_commit_threshold_help": "Number of commits a PR must be behind its base before Syrus proactively rebases it, even when GitHub's mergeable_state is clean. Useful when branch-protection does not require branches to be up to date. Must be at least 1.",
     "show_work_unit_debug_label": "Show WorkIntent and WorkUnit debug panels in job workflow tabs",

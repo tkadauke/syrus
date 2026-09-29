@@ -47,6 +47,18 @@ RSpec.describe AgentProviders::Agy do
   let(:run) { Run.create!(job: job, step: step, trigger_kind: "initial") }
   let(:workspace) { instance_double(WorkflowWorkspace, path: "/tmp/worktree") }
 
+  def set_persistent_mcp_feature(enabled)
+    Feature.find_or_create_by!(slug: "persistent_mcp_sidecar") do |feature|
+      feature.category = "Labs"
+      feature.name = "Persistent MCP sidecar"
+    end.update!(enabled: enabled)
+    Feature.clear_enabled_cache!("persistent_mcp_sidecar")
+  end
+
+  def persistent_mcp_health_url
+    "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::HEALTH_PATH}"
+  end
+
   around do |ex|
     old_runner = RunJob.agent_runner
     old_data_root = ENV["SYRUS_DATA_ROOT"]
@@ -56,6 +68,7 @@ RSpec.describe AgentProviders::Agy do
   ensure
     RunJob.agent_runner = old_runner
     ENV["SYRUS_DATA_ROOT"] = old_data_root
+    Feature.clear_enabled_cache!("persistent_mcp_sidecar")
     FileUtils.rm_rf(data_root) if data_root
   end
 
@@ -90,6 +103,43 @@ RSpec.describe AgentProviders::Agy do
       resume_session_id: "parent-1"
     )
     expect(received[:agy_home]).to eq(WorkflowWorkspace.agent_home_for(workflow, "agy").to_s)
+  end
+
+  it "routes stdio-only Antigravity through the secret-free persistent-daemon proxy when compatible" do
+    set_persistent_mcp_feature(true)
+    stub_request(:get, persistent_mcp_health_url).to_return(
+      status: 200,
+      body: { status: "ok", identity: { worker_id: "w-1" }, capabilities: [ "workflow_tools" ] }.to_json
+    )
+    received = nil
+    RunJob.agent_runner = ->(**kwargs) {
+      received = kwargs
+      AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: nil,
+        session_id: "agy-session"
+      )
+    }
+
+    result = described_class.new(run: run, workspace: workspace, parent_session_id: nil)
+                            .run(prompt: "do it", log_sink: ->(*, **) { })
+
+    expect(result).to be_success
+    expect(received[:mcp_server]).to include(
+      command: a_string_ending_with("/bin/syrus-mcp-proxy"),
+      args: []
+    )
+    expect(received.dig(:mcp_server, :env)).to include(
+      "SYRUS_MCP_PROXY_URL" => "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}"
+    )
+    token = received.dig(:mcp_server, :env, "SYRUS_MCP_PROXY_INVOCATION_CONTEXT")
+    resolved = McpInvocationContext.resolve(token, worker_id: "w-1")
+    expect(resolved.tool_context.run.id).to eq(run.id)
+    expect(run.step.reload.details.dig("mcp_transport", "transport")).to eq("persistent")
   end
 
   it "forwards explicit model and effort_level through to AgyInvocation" do

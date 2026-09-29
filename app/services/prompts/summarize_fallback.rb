@@ -3,7 +3,10 @@ module Prompts
   # implementation session: metadata-only steps are safer and cheaper when
   # they get explicit job context plus a changed-file manifest instead of a
   # long coding transcript that can accidentally continue implementation.
+  # GitHub-sourced content trust boundary
   class SummarizeFallback
+    include GithubContentTrust
+
     MAX_BODY_BYTES = 16 * 1024
     MAX_CHANGED_FILES = 200
 
@@ -15,6 +18,8 @@ module Prompts
 
     def to_s
       <<~PROMPT.strip
+        #{github_content_trust_boundary}
+
         You are running the summarize step for a Syrus job. The implementation
         step already committed the work. Use this bounded metadata-only context
         to produce PR copy.

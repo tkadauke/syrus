@@ -1,0 +1,21 @@
+<%= @alert.fetch(:title) %>
+
+<%= t(".severity") %> <%= @alert.fetch(:severity) %>
+<%= t(".dismissal_key") %> <%= @alert.fetch(:dismissal_key) %>
+
+<%= @alert.fetch(:message) %>
+
+<% if @alert[:action_steps].present? %>
+<%= t(".action_steps") %>:
+<% @alert[:action_steps].each do |step| %>
+- <%= step %>
+<% end %>
+<% end %>
+<% if @alert[:cta].present? %>
+
+<%= @alert[:cta].fetch(:text) %>: <%= @alert[:cta].fetch(:url) %>
+<% end %>
+<% if @alert[:app_url].present? %>
+
+<%= t(".open_syrus") %>: <%= @alert[:app_url] %>
+<% end %>

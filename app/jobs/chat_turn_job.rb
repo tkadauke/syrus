@@ -570,18 +570,12 @@ class ChatTurnJob < ApplicationJob
   end
 
   def sidecar_env(tool_tier:, server_name:)
-    env = ENV.slice(*SIDECAR_ENV_FORWARD).compact
-    if env["BUNDLE_PATH"].present?
-      env["GEM_HOME"] ||= env["BUNDLE_PATH"]
-      env["GEM_PATH"] ||= env["BUNDLE_PATH"]
-    end
-
-    env.merge(
+    AgentSidecarEnvironment.build(extra: {
       "SYRUS_CHAT_SESSION_ID" => @chat.id.to_s,
       "SYRUS_CHAT_CURRENT_MESSAGE_ID" => @user_message.id.to_s,
       "SYRUS_CHAT_MCP_TOOL_TIER" => tool_tier,
       "SYRUS_CHAT_MCP_SERVER_NAME" => server_name
-    )
+    })
   end
 
   def with_git_askpass_env

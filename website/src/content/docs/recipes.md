@@ -250,11 +250,14 @@ created but never runs, check that a worker is running the `runs` queue.
 
 ## How do I budget-cap a repo?
 
-Repo-level dollar budgets are not shipped yet. They are planned as part
-of the budget-threshold work, where Syrus will hold new runs once a
-per-user or per-repo window is exhausted.
+Repo-level dollar budgets are not shipped yet. Syrus does ship an optional
+per-user daily spend cap: `AppSetting.user_daily_spend_budget_usd` defaults
+to `0` (unlimited), and Syrus defers new work for that user until the next
+day when provider-reported workflow and chat spend reaches a positive cap.
+Subscription-based or token-only providers may not support reliable USD
+budget enforcement unless they report dollar costs directly.
 
-Today you can use these controls:
+For repository-specific control, use these guardrails:
 
 - Set **Max turns** under **Agent Settings**. The default is `200`; `0`
   disables the turn cap while the per-run timeout still applies.

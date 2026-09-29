@@ -232,7 +232,7 @@ RSpec.describe AgentProviders::Codex do
 
     after { Feature.clear_enabled_cache!("persistent_mcp_sidecar") }
 
-    it "stays on the stdio sidecar and records a provider_unsupported reason even when the daemon would otherwise be eligible" do
+    it "routes stdio-only Codex through the secret-free persistent-daemon proxy when compatible" do
       set_feature(true)
       stub_request(:get, health_url).to_return(
         status: 200,
@@ -249,12 +249,21 @@ RSpec.describe AgentProviders::Codex do
       result = adapter.run(prompt: "do it", log_sink: ->(*, **) { })
 
       expect(result).to be_success
-      expect(received[:mcp_server]).to include(command: a_string_ending_with("/bin/syrus-mcp-sidecar"))
+      expect(received[:mcp_server]).to include(
+        command: a_string_ending_with("/bin/syrus-mcp-proxy"),
+        args: []
+      )
+      expect(received.dig(:mcp_server, :env)).to include(
+        "SYRUS_MCP_PROXY_URL" => "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}"
+      )
+      token = received.dig(:mcp_server, :env, "SYRUS_MCP_PROXY_INVOCATION_CONTEXT")
+      resolved = McpInvocationContext.resolve(token, worker_id: "w-1")
+      expect(resolved.tool_context.run.id).to eq(run.id)
       details = run.step.reload.details["mcp_transport"]
-      expect(details["transport"]).to eq("stdio")
-      expect(details["reason"]).to eq("provider_unsupported: codex has no persistent MCP HTTP transport wiring yet")
+      expect(details["transport"]).to eq("persistent")
+      expect(details["reason"]).to be_nil
       expect(run.job_logs.pluck(:chunk).join("\n")).to include(
-        "[mcp_transport] transport=stdio reason=provider_unsupported: codex has no persistent MCP HTTP transport wiring yet"
+        "[mcp_transport] transport=persistent daemon_worker_id=w-1"
       )
     end
 

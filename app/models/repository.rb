@@ -17,6 +17,7 @@ class Repository < ApplicationRecord
   # (transient network/5xx errors) before a sustained outage degrades an
   # already-broken ci_health to "inconclusive". See main_health_poll_outage?.
   MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD = 3
+  MAX_POLL_ISSUE_ERRORS = 20
 
   attribute :polling_enabled, :boolean, default: true
   attribute :prepare_enabled, :boolean, default: true
@@ -69,6 +70,7 @@ class Repository < ApplicationRecord
   attribute :fork_auto_sync_enabled, :boolean, default: false
   attribute :external_pr_ingestion_enabled, :boolean, default: false
   attribute :distributed_workflow_dag_enabled, :boolean, default: false
+  attribute :poll_issue_errors, :json, default: []
 
   attr_accessor :main_branch_repair_enabled_explicit
 
@@ -142,21 +144,27 @@ class Repository < ApplicationRecord
     archived_at.present?
   end
 
-  def mark_poll_started!(at: Time.current)
-    attrs = { last_poll_started_at: at }
+  def mark_poll_started!(at: Time.current, advance_watermark: true)
+    attrs = {}
+    attrs[:last_poll_started_at] = at if advance_watermark
     if last_poll_status == "failed" || last_poll_error.present?
       attrs[:last_poll_status] = nil
       attrs[:last_poll_error] = nil
     end
+    return if attrs.empty?
+
     update_columns(attrs)
     assign_attributes(attrs)
   end
 
-  def mark_poll_success!
-    return if last_poll_status == "ok" && last_poll_error.blank?
+  def mark_poll_success!(at: nil, clear_issue_errors: true)
+    attrs = { last_poll_status: "ok", last_poll_error: nil }
+    attrs[:last_poll_started_at] = at if at
+    attrs[:poll_issue_errors] = [] if clear_issue_errors
+    return if attrs.all? { |key, value| self[key] == value }
 
-    update_columns(last_poll_status: "ok", last_poll_error: nil)
-    assign_attributes(last_poll_status: "ok", last_poll_error: nil)
+    update_columns(attrs)
+    assign_attributes(attrs)
   end
 
   def mark_poll_failure!(error)
@@ -165,6 +173,19 @@ class Repository < ApplicationRecord
 
     update_columns(last_poll_status: "failed", last_poll_error: message)
     assign_attributes(last_poll_status: "failed", last_poll_error: message)
+  end
+
+  def record_poll_issue_error!(issue_number:, issue_title:, error:)
+    entry = {
+      "issue_number" => issue_number,
+      "issue_title" => issue_title.to_s,
+      "error_class" => error.class.name,
+      "error_message" => error.message.to_s,
+      "recorded_at" => Time.current.iso8601
+    }
+    next_errors = [ entry, *Array(poll_issue_errors) ].first(MAX_POLL_ISSUE_ERRORS)
+    update_columns(poll_issue_errors: next_errors)
+    assign_attributes(poll_issue_errors: next_errors)
   end
 
   # workflow-engine-v3 C0. The profile answers the posture questions that had
