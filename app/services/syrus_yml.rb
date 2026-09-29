@@ -157,10 +157,10 @@ class SyrusYml
   # (see App::JobDetailPayload::WorkflowSerializers#grader_display_name) is:
   # explicit `display_name` > plugin/type-generated `display_name` >
   # humanized `name` > raw `name`.
-  GradeStep = Data.define(:name, :display_name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata) do
+  GradeStep = Data.define(:name, :display_name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata, :capabilities) do
     def initialize(
       name:, run:, ci:, phases:, description:, required:, timeout_minutes:,
-      when_files_changed:, junit_output:, failures:, base_retry:, deps:, display_name: nil, metadata: {}
+      when_files_changed:, junit_output:, failures:, base_retry:, deps:, display_name: nil, metadata: {}, capabilities: nil
     )
       raise ArgumentError, "metadata must be a Hash" unless metadata.is_a?(Hash)
 
@@ -178,7 +178,8 @@ class SyrusYml
         failures: failures,
         base_retry: base_retry,
         deps: deps,
-        metadata: metadata.deep_stringify_keys
+        metadata: metadata.deep_stringify_keys,
+        capabilities: capabilities
       )
     end
   end
@@ -219,8 +220,16 @@ class SyrusYml
   # means and whether a given `id`/`path` is legal there is TargetGraph::Compiler's
   # call, not this parser's -- SyrusYml only sees one file's content, never
   # its position in the repository.
-  ProjectConfig = Data.define(:id, :label, :kind, :path)
-  TargetConfig = Data.define(:name, :kind, :command, :sources, :deps, :phases, :required, :timeout_minutes, :metadata)
+  ProjectConfig = Data.define(:id, :label, :kind, :path, :capabilities) do
+    def initialize(capabilities: nil, **rest)
+      super(capabilities: capabilities, **rest)
+    end
+  end
+  TargetConfig = Data.define(:name, :kind, :command, :sources, :deps, :phases, :required, :timeout_minutes, :metadata, :capabilities) do
+    def initialize(capabilities: nil, **rest)
+      super(capabilities: capabilities, **rest)
+    end
+  end
   TargetGraphConfig = Data.define(:imports)
   TargetGraphImportConfig = Data.define(:provider, :failures, :config)
   PreviewConfig = Data.define(:start, :setup, :seed, :health_check, :logs, :env, :unset_env)
@@ -423,7 +432,8 @@ class SyrusYml
       id: id,
       label: raw["label"].to_s.strip.presence,
       kind: raw["kind"].to_s.strip.presence,
-      path: path.presence
+      path: path.presence,
+      capabilities: parse_capabilities(raw["capabilities"], "project.capabilities")
     )
   end
 
@@ -531,7 +541,8 @@ class SyrusYml
       failures: failures,
       base_retry: parse_base_retry(raw["base_retry"], "#{label}.base_retry") || default_base_retry_for_custom_grader(raw, failures),
       deps: parse_dependency_refs(raw["deps"] || raw["dependencies"], "#{label}.deps"),
-      metadata: parse_grade_metadata(raw, label)
+      metadata: parse_grade_metadata(raw, label),
+      capabilities: parse_capabilities(raw["capabilities"], "#{label}.capabilities")
     )
   end
 
@@ -627,8 +638,40 @@ class SyrusYml
         phases: parse_target_phases(item["phases"], "#{label}.phases"),
         required: item.key?("required") ? ActiveModel::Type::Boolean.new.cast(item["required"]) : false,
         timeout_minutes: parse_target_timeout_minutes(item["timeout_minutes"], label),
-        metadata: parse_target_metadata(item, label)
+        metadata: parse_target_metadata(item, label),
+        capabilities: parse_capabilities(item["capabilities"], "#{label}.capabilities")
       )
+    end
+  end
+
+  def parse_capabilities(raw, label)
+    return nil if raw.nil?
+    raise ParseError, "#{label}: must be a mapping" unless raw.is_a?(Hash)
+
+    raw = raw.deep_stringify_keys
+    unknown_keys = raw.keys - TargetGraph::ExecutionCapabilities::DIMENSIONS
+    if unknown_keys.any?
+      raise ParseError, "#{label}: unknown keys #{unknown_keys.join(', ')}; expected #{TargetGraph::ExecutionCapabilities::DIMENSIONS.join(', ')}"
+    end
+
+    capabilities = TargetGraph::ExecutionCapabilities.new(
+      os: parse_capability_values(raw["os"], "#{label}.os"),
+      arch: parse_capability_values(raw["arch"], "#{label}.arch"),
+      toolchains: parse_capability_values(raw["toolchains"], "#{label}.toolchains"),
+      runtimes: parse_capability_values(raw["runtimes"], "#{label}.runtimes"),
+      features: parse_capability_values(raw["features"], "#{label}.features")
+    )
+    capabilities.empty? ? nil : capabilities
+  rescue ArgumentError => e
+    raise ParseError, "#{label}.#{e.message}"
+  end
+
+  def parse_capability_values(raw, label)
+    case raw
+    when nil then []
+    when String, Symbol then [ raw ]
+    when Array then raw
+    else raise ParseError, "#{label}: must be a string or an array of strings"
     end
   end
 
