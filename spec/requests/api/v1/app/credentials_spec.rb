@@ -490,10 +490,10 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       details: { login: "ada", scopes: [], missing_scopes: [] }
     )
     expect(CredentialProbe).to receive(:github_token)
-      .with(token: "ghp_pasted", required_scopes: %w[ repo workflow ])
+      .with(token: "ghp_pasted", required_scopes: %w[ repo workflow ], probe_repository: "acme/widgets")
       .and_return(result)
 
-    post "/api/v1/app/credentials/test_github_token", params: { github_token: "ghp_pasted" }
+    post "/api/v1/app/credentials/test_github_token", params: { github_token: "ghp_pasted", probe_repository: "acme/widgets" }
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Token is valid for ada.")

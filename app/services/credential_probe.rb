@@ -27,7 +27,7 @@ class CredentialProbe
   # paste-and-test flow). Returns a Result whose details carry the resolved
   # login, the token's OAuth scopes, and any `required_scopes` it is missing
   # so the UI can distinguish "invalid" from "valid but under-scoped".
-  def self.github_token(token:, required_scopes: [])
+  def self.github_token(token:, required_scopes: [], probe_repository: nil)
     token = token.to_s
     return Result.new(credential: "github_token", ok: false, message: "Paste a token to test it.", details: {}) if token.blank?
 
@@ -44,23 +44,9 @@ class CredentialProbe
     missing = required_scopes - scopes
 
     if fine_grained_pat
-      Result.new(
-        credential: "github_token",
-        ok: true,
-        message: "Fine-grained token authenticated as #{github_user.login}. Select the repositories Syrus will manage and grant Contents, Pull requests, and Workflows read/write plus Checks read.",
-        details: {
-          login: github_user.login,
-          scopes: scopes,
-          missing_scopes: [],
-          fine_grained: true,
-          required_repository_permissions: {
-            contents: "write",
-            pull_requests: "write",
-            workflows: "write",
-            checks: "read"
-          }
-        }
-      )
+      return fine_grained_repository_required(github_user, scopes) if probe_repository.blank?
+
+      fine_grained_repository_probe(client, github_user, scopes, probe_repository.to_s.strip)
     elsif missing.any?
       label = missing.size == 1 ? "scope" : "scopes"
       Result.new(
@@ -85,6 +71,101 @@ class CredentialProbe
   rescue Octokit::Error
     Result.new(credential: "github_token", ok: false, message: "Could not reach GitHub to verify the token. Try again in a moment.", details: {})
   end
+
+  def self.fine_grained_repository_required(github_user, scopes)
+    Result.new(
+      credential: "github_token",
+      ok: false,
+      message: "Fine-grained token authenticated as #{github_user.login}. Enter a repository slug so Syrus can verify repository write and GitHub Actions workflow-file access before saving.",
+      details: fine_grained_details(github_user.login, scopes).merge(needs_repository_probe: true)
+    )
+  end
+
+  def self.fine_grained_repository_probe(client, github_user, scopes, repo_slug)
+    unless repo_slug.match?(%r{\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z})
+      return Result.new(
+        credential: "github_token",
+        ok: false,
+        message: "Enter the repository as owner/name so Syrus can verify fine-grained token access.",
+        details: fine_grained_details(github_user.login, scopes).merge(needs_repository_probe: true)
+      )
+    end
+
+    branch = "syrus-token-probe-#{SecureRandom.hex(8)}"
+    branch_created = false
+    repo = client.repository(repo_slug)
+    base_ref = client.ref(repo_slug, "heads/#{repo.default_branch}")
+    client.create_ref(repo_slug, "refs/heads/#{branch}", base_ref.object.sha)
+    branch_created = true
+    client.create_contents(
+      repo_slug,
+      ".github/workflows/syrus-token-probe.yml",
+      "Validate Syrus GitHub token workflow access",
+      <<~YAML,
+        name: Syrus token probe
+        on:
+          workflow_dispatch:
+        jobs:
+          probe:
+            runs-on: ubuntu-latest
+            steps:
+              - run: echo "Syrus token probe"
+      YAML
+      branch: branch
+    )
+
+    Result.new(
+      credential: "github_token",
+      ok: true,
+      message: "Fine-grained token can write workflow files on #{repo_slug} as #{github_user.login}.",
+      details: fine_grained_details(github_user.login, scopes).merge(
+        probed_repository: repo_slug,
+        workflow_file_write: true
+      )
+    )
+  rescue Octokit::NotFound
+    Result.new(
+      credential: "github_token",
+      ok: false,
+      message: "Fine-grained token authenticated as #{github_user.login}, but #{repo_slug} was not accessible to it.",
+      details: fine_grained_details(github_user.login, scopes).merge(probed_repository: repo_slug)
+    )
+  rescue Octokit::Forbidden
+    Result.new(
+      credential: "github_token",
+      ok: false,
+      message: "Fine-grained token authenticated as #{github_user.login}, but GitHub refused the workflow-file write probe on #{repo_slug}. Grant Contents and Workflows read/write for that repository.",
+      details: fine_grained_details(github_user.login, scopes).merge(
+        probed_repository: repo_slug,
+        missing_repository_permissions: %w[contents:write workflows:write]
+      )
+    )
+  ensure
+    if branch_created
+      begin
+        client.delete_ref(repo_slug, "heads/#{branch}")
+      rescue Octokit::Error => e
+        Rails.logger.warn("[CredentialProbe] failed to delete GitHub token probe branch #{repo_slug}@#{branch}: #{e.class}: #{e.message}")
+      end
+    end
+  end
+
+  def self.fine_grained_details(login, scopes)
+    {
+      login: login,
+      scopes: scopes,
+      missing_scopes: [],
+      fine_grained: true,
+      required_repository_permissions: {
+        contents: "write",
+        pull_requests: "write",
+        workflows: "write",
+        checks: "read"
+      }
+    }
+  end
+
+  private_class_method :fine_grained_repository_required, :fine_grained_repository_probe, :fine_grained_details
 
   CREDENTIAL_PROBE_METHODS = {
     "github_token"       => :probe_github

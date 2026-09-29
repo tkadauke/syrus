@@ -58,7 +58,8 @@ module Api
         def test_github_token
           result = CredentialProbe.github_token(
             token: params[:github_token].to_s,
-            required_scopes: GITHUB_REQUIRED_SCOPES
+            required_scopes: GITHUB_REQUIRED_SCOPES,
+            probe_repository: params[:probe_repository].to_s
           )
           render json: {
             credential_test: result.as_json,
