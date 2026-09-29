@@ -81,6 +81,39 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
     expect(workflow.steps.map(&:kind)).to include("respond", "summarize_amend", "push")
   end
 
+  it "queues confirmed feedback behind an unrelated active workflow" do
+    job = Factories.job_record(repository: repository, state: "implemented")
+    visual_diff = WorkUnits::Launcher.instantiate(kind: "visual_diff", job: job)
+    visual_diff.start!
+
+    response = call_tool(job_id: job.id, feedback: "Please tighten the retry explanation.")
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+
+    expect {
+      pending_action.confirm!(user: user)
+    }.not_to have_enqueued_job(RunJob)
+
+    workflow = pending_action.reload.result
+    work_unit = workflow.work_unit
+
+    expect(pending_action).to be_confirmed
+    expect(workflow).to have_attributes(trigger_kind: "chat_feedback", state: "queued")
+    expect(workflow.artifact("chat_feedback")).to eq("Please tighten the retry explanation.")
+    expect(work_unit).to have_attributes(kind: "chat_feedback", state: "blocked", blocked_reason: "active_work_lock")
+    expect(work_unit.blocked_details).to include(
+      "lock_key" => "job:#{job.id}",
+      "workflow_id" => visual_diff.id
+    )
+
+    visual_diff.succeed!
+
+    expect {
+      WorkUnits::Launcher.start!(workflow)
+    }.to have_enqueued_job(RunJob)
+    expect(work_unit.reload).to be_queued
+    expect(work_unit.blocked_reason).to be_nil
+  end
+
   it "lets the operator reject the pending feedback without queueing work" do
     job = Factories.job_record(repository: repository, state: "implemented")
     response = call_tool(job_id: job.id, feedback: "Please tighten the retry explanation.")

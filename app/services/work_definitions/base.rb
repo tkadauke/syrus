@@ -132,6 +132,7 @@ module WorkDefinitions
     def requires_approval? = false
     def requires_epic_readiness? = false
     def generic_intent_start_allowed? = !landing_lock?
+    def materialize_behind_active_lock? = false
     def lock_conflicts_enforced?
       return true if WorkUnits::PathOwnership::PATH_GROUPS.key?(kind)
       return true if first_class? && scope == "job"
