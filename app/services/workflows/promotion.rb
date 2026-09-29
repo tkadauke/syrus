@@ -53,7 +53,12 @@ module Workflows
     # stays a pure function of its inputs, the same way Rebase takes an
     # already-resolved base_branch/branch_name rather than reaching into
     # DeliveryPolicy on its own.
-    def self.instantiate(job:, artifacts: nil, agent_provider: nil)
+    def self.instantiate(
+      job:,
+      artifacts: nil,
+      agent_provider: nil,
+      planned_execution_requirements: nil
+    )
       source = artifacts.to_h["promotion_source_branch"].presence
       target = artifacts.to_h["promotion_target_branch"].presence
       raise ArgumentError, "Workflows::Promotion requires promotion_source_branch and promotion_target_branch artifacts" if source.blank? || target.blank?
@@ -67,7 +72,8 @@ module Workflows
           base_branch: target,
           branch_name: integration_branch
         ),
-        agent_provider: agent_provider
+        agent_provider: agent_provider,
+        planned_execution_requirements: planned_execution_requirements
       )
     end
   end

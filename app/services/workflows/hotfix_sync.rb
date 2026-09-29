@@ -47,7 +47,12 @@ module Workflows
     # (HotfixSyncDispatcher resolves these from DeliveryPolicy before calling
     # in) — this template doesn't re-resolve delivery config itself so it
     # stays a pure function of its inputs, same as Workflows::Promotion.
-    def self.instantiate(job:, artifacts: nil, agent_provider: nil)
+    def self.instantiate(
+      job:,
+      artifacts: nil,
+      agent_provider: nil,
+      planned_execution_requirements: nil
+    )
       source = artifacts.to_h["hotfix_sync_source_branch"].presence
       target = artifacts.to_h["hotfix_sync_target_branch"].presence
       raise ArgumentError, "Workflows::HotfixSync requires hotfix_sync_source_branch and hotfix_sync_target_branch artifacts" if source.blank? || target.blank?
@@ -61,7 +66,8 @@ module Workflows
           base_branch: target,
           branch_name: integration_branch
         ),
-        agent_provider: agent_provider
+        agent_provider: agent_provider,
+        planned_execution_requirements: planned_execution_requirements
       )
     end
   end

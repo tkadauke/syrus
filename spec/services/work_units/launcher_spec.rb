@@ -7,6 +7,15 @@ RSpec.describe WorkUnits::Launcher do
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository) }
 
+  def loaded_config(yaml)
+    RepoDefaultBranchSyrusYml::Result.new(
+      config: SyrusYml.new(yaml).parse,
+      source: ".syrus.yml",
+      note: nil,
+      outcome: :loaded
+    )
+  end
+
   before { clear_enqueued_jobs }
   after { clear_enqueued_jobs }
 
@@ -50,6 +59,114 @@ RSpec.describe WorkUnits::Launcher do
 
     expect(workflow.work_unit).to have_attributes(kind: "initial", scope_type: "job", scope_id: job.id)
     expect(workflow.work_unit.work_intent).to have_attributes(kind: "initial", scope_type: "job", scope_id: job.id)
+  end
+
+  it "snapshots planned execution requirements from the job onto the initial workflow" do
+    job.update!(
+      planned_execution_project_label: "iOS",
+      planned_execution_target_label: "//ios:app",
+      planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      planned_execution_source: "inferred"
+    )
+
+    workflow = described_class.instantiate(kind: "initial", job: job)
+
+    expect(workflow.planned_execution_json).to eq(
+      "project_label" => "iOS",
+      "target_label" => "//ios:app",
+      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "source" => "inferred"
+    )
+  end
+
+  it "infers and persists planned execution requirements before instantiating the workflow" do
+    allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(
+      loaded_config(<<~YAML)
+        project:
+          label: macOS Client
+          capabilities:
+            os: macos
+            toolchains: [xcode]
+      YAML
+    )
+
+    workflow = described_class.instantiate(kind: "initial", job: job)
+
+    expected = {
+      "project_label" => "macOS Client",
+      "target_label" => "//:repo",
+      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "source" => "inferred"
+    }
+    expect(job.reload.planned_execution_json).to eq(expected)
+    expect(workflow.planned_execution_json).to eq(expected)
+  end
+
+  it "copies the job plan when a workflow template is instantiated directly" do
+    job.update!(
+      planned_execution_project_label: "Desktop",
+      planned_execution_target_label: "//desktop:app",
+      planned_execution_capabilities: { "os" => [ "windows" ] },
+      planned_execution_source: "explicit"
+    )
+    allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(
+      RepoDefaultBranchSyrusYml::Result.new(config: nil, source: "none", note: "stubbed", outcome: :absent)
+    )
+
+    workflow = Workflows::Initial.instantiate(job: job)
+
+    expect(workflow.planned_execution_json).to eq(job.planned_execution_json)
+  end
+
+  it "preserves planned execution requirements for follow-up workflows" do
+    job.update!(
+      planned_execution_project_label: "Windows",
+      planned_execution_target_label: "//desktop:grade/windows",
+      planned_execution_capabilities: { "os" => [ "windows" ], "arch" => [ "x64" ] },
+      planned_execution_source: "explicit"
+    )
+
+    chat_feedback = described_class.instantiate(kind: "chat_feedback", job: job, artifacts: { "chat_feedback" => "Please adjust." })
+    chat_feedback.work_unit.mark_terminal!("cancelled")
+    retry_workflow = described_class.instantiate(kind: "retry", job: job)
+    retry_workflow.work_unit.mark_terminal!("cancelled")
+    rebase = described_class.instantiate(kind: "rebase", job: job, base_branch: "main")
+
+    [ chat_feedback, retry_workflow, rebase ].each do |workflow|
+      expect(workflow.planned_execution_json).to eq(job.planned_execution_json)
+    end
+  end
+
+  it "allows an explicit workflow launch override without changing the job plan" do
+    job.update!(
+      planned_execution_capabilities: { "os" => [ "linux" ] },
+      planned_execution_source: "defaulted"
+    )
+
+    workflow = described_class.instantiate(
+      kind: "manual_agentic_run",
+      job: job,
+      artifacts: { "manual_agentic_run_instructions" => "Check Windows packaging." },
+      planned_execution_requirements: {
+        project_label: "Windows",
+        target_label: "//desktop:package",
+        capabilities: { "os" => [ "windows" ], "arch" => [ "x64" ] },
+        source: "explicit"
+      }
+    )
+
+    expect(workflow.planned_execution_json).to eq(
+      "project_label" => "Windows",
+      "target_label" => "//desktop:package",
+      "capabilities" => { "os" => [ "windows" ], "arch" => [ "x64" ] },
+      "source" => "explicit"
+    )
+    expect(job.reload.planned_execution_json).to eq(
+      "project_label" => nil,
+      "target_label" => nil,
+      "capabilities" => { "os" => [ "linux" ] },
+      "source" => "defaulted"
+    )
   end
 
   it "refreshes default-backed workflow providers before WorkUnit gates run" do
