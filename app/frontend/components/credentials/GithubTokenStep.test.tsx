@@ -24,7 +24,7 @@ function mockRoutes(routes: { test?: () => Response; save?: () => Response }) {
   })
 }
 
-const okResult = { credential: "github_token", ok: true, message: "Fine-grained token can write workflow files on acme/widgets as octocat.", details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true, probed_repository: "acme/widgets", workflow_file_write: true } }
+const okResult = { credential: "github_token", ok: true, message: "Fine-grained token can write workflow files and read Checks on acme/widgets as octocat. Also grant Pull requests write; Syrus cannot verify it without creating a probe PR.", details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true, probed_repository: "acme/widgets", workflow_file_write: true, checks_read: true, unverified_repository_permissions: ["pull_requests:write"] } }
 
 describe("GithubTokenStep", () => {
   afterEach(() => {
@@ -54,7 +54,7 @@ describe("GithubTokenStep", () => {
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_good" } })
     fireEvent.change(screen.getByPlaceholderText("owner/repo"), { target: { value: "acme/widgets" } })
 
-    await waitFor(() => expect(screen.getByText(/Fine-grained token can write workflow files/)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Fine-grained token can write workflow files and read Checks/)).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled()
   })
 
@@ -62,7 +62,7 @@ describe("GithubTokenStep", () => {
     const needsRepository = {
       credential: "github_token",
       ok: false,
-      message: "Fine-grained token authenticated as octocat. Enter a repository slug so Syrus can verify repository write and GitHub Actions workflow-file access before saving.",
+      message: "Fine-grained token authenticated as octocat. Enter a repository slug so Syrus can verify repository write, GitHub Actions workflow-file access, and Checks read access before saving.",
       details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true, needs_repository_probe: true }
     }
     mockRoutes({ test: () => jsonResponse({ credential_test: needsRepository }) })

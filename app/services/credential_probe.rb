@@ -76,7 +76,7 @@ class CredentialProbe
     Result.new(
       credential: "github_token",
       ok: false,
-      message: "Fine-grained token authenticated as #{github_user.login}. Enter a repository slug so Syrus can verify repository write and GitHub Actions workflow-file access before saving.",
+      message: "Fine-grained token authenticated as #{github_user.login}. Enter a repository slug so Syrus can verify repository write, GitHub Actions workflow-file access, and Checks read access before saving.",
       details: fine_grained_details(github_user.login, scopes).merge(needs_repository_probe: true)
     )
   end
@@ -95,6 +95,20 @@ class CredentialProbe
     branch_created = false
     repo = client.repository(repo_slug)
     base_ref = client.ref(repo_slug, "heads/#{repo.default_branch}")
+    begin
+      client.check_runs_for_ref(repo_slug, base_ref.object.sha)
+    rescue Octokit::Forbidden
+      return Result.new(
+        credential: "github_token",
+        ok: false,
+        message: "Fine-grained token authenticated as #{github_user.login}, but GitHub refused the Checks read probe on #{repo_slug}. Grant Checks read for that repository.",
+        details: fine_grained_details(github_user.login, scopes).merge(
+          probed_repository: repo_slug,
+          missing_repository_permissions: %w[checks:read]
+        )
+      )
+    end
+
     client.create_ref(repo_slug, "refs/heads/#{branch}", base_ref.object.sha)
     branch_created = true
     client.create_contents(
@@ -117,10 +131,12 @@ class CredentialProbe
     Result.new(
       credential: "github_token",
       ok: true,
-      message: "Fine-grained token can write workflow files on #{repo_slug} as #{github_user.login}.",
+      message: "Fine-grained token can write workflow files and read Checks on #{repo_slug} as #{github_user.login}. Also grant Pull requests write; Syrus cannot verify it without creating a probe PR.",
       details: fine_grained_details(github_user.login, scopes).merge(
         probed_repository: repo_slug,
-        workflow_file_write: true
+        workflow_file_write: true,
+        checks_read: true,
+        unverified_repository_permissions: %w[pull_requests:write]
       )
     )
   rescue Octokit::NotFound
