@@ -13,7 +13,7 @@ RSpec.describe AgentProviders do
       expect(described_class.available_models).to eq([])
     end
 
-    it "persists estimated cost when an invocation reports tokens but no cost" do
+    it "leaves cost unset when an invocation reports tokens but no cost" do
       job = Factories.job_with_run(
         workflow_attrs: { agent_provider: "codex", model: "gpt-5.2-codex" },
         run_attrs: { agent_provider: "codex", model: "gpt-5.2-codex" }
@@ -37,7 +37,29 @@ RSpec.describe AgentProviders do
 
       adapter.record_result!(result, log: ->(*) { })
 
-      expect(run.reload.cost_usd).to eq(BigDecimal("3.15"))
+      expect(run.reload.cost_usd).to be_nil
+      expect(run.input_tokens).to eq(1_000_000)
+      expect(run.output_tokens).to eq(100_000)
+    end
+
+    it "persists provider-reported cost" do
+      run = Factories.run
+      provider_class = Class.new(described_class)
+      adapter = provider_class.new(run: run, workspace: double(path: Rails.root), parent_session_id: nil)
+      result = AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: nil,
+        session_id: nil,
+        cost_usd: BigDecimal("0.123456")
+      )
+
+      adapter.record_result!(result, log: ->(*) { })
+
+      expect(run.reload.cost_usd).to eq(BigDecimal("0.123456"))
     end
   end
 

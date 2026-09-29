@@ -1490,13 +1490,12 @@ required central host for a repository.
 
 The spending dashboard at `/insights/spending` rolls up `runs.cost_usd`
 into operator-facing cost views. Syrus records provider-reported cost when
-available and estimates a fallback from token usage when a supported
-provider/model reports tokens without dollars. The dashboard shows week,
-month, lifetime, average Job, and average merged-PR totals, plus breakdowns
-by Epic, user, repository, trigger kind, a daily trend chart, and the most
-expensive individual Runs. When spending exists across multiple agent
-providers, the dashboard can filter those views by model provider such as
-Claude Code or Codex.
+available; runs whose providers omit dollar costs keep `cost_usd` unset. The
+dashboard shows week, month, lifetime, average Job, and average merged-PR
+totals, plus breakdowns by Epic, user, repository, trigger kind, a daily trend
+chart, and the most expensive individual Runs. When spending exists across
+multiple agent providers, the dashboard can filter those views by model
+provider such as Claude Code or Codex.
 
 Chat can query the same spending data for 7-, 30-, or 90-day windows,
 optionally narrowed to a repository or Epic, and returns the daily trend,

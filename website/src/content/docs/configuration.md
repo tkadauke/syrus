@@ -404,10 +404,10 @@ workflow Runs and chat turns are held once their daily USD total reaches
 that ceiling. The gate defers queued work until the next day instead of
 failing Jobs, and setting the value to `0` explicitly disables the cap.
 Run accounting uses provider-reported `Run#cost_usd` when available and
-falls back to Syrus-side token pricing when a supported provider/model
-reports token usage without a dollar cost. Repo-level and Epic-level dollar
-budgets are still roadmap work; use provider-side limits and the per-user
-max-turns setting as additional safety rails.
+leaves cost unset when a provider reports token usage without a dollar cost.
+Repo-level and Epic-level dollar budgets are still roadmap work; use
+provider-side limits and the per-user max-turns setting as additional safety
+rails.
 
 ## Per-Repository Settings
 
